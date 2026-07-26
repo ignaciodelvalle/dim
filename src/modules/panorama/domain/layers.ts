@@ -399,18 +399,18 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     id: "acceso-veterinario",
     // Not summable: per-unit value is visits per 1.000 active pets, not a row count.
     valueKind: "rate",
-    // POLARITY: more visits = better access. One of only two layers in this
-    // registry where the sequential ramp and the "Peores N" ranking must run
-    // BACKWARDS (see PanoramaLayer.higherIsBetter). No `complianceTarget`: the
-    // annual antirrábica booster implies a floor of ~1.000 visitas/1.000
+    // POLARITY: more veterinary acts = better access. One of only two layers in
+    // this registry where the sequential ramp and the "Peores N" ranking must
+    // run BACKWARDS (see PanoramaLayer.higherIsBetter). No `complianceTarget`:
+    // the annual antirrábica booster implies a floor of ~1.000 actos/1.000
     // mascotas, but classing the map on a target the whole country sits far
     // below collapses it into a single class — the saturation defect this layer
     // exists to avoid. It stays a QUANTILE sequential layer, which is why the
     // ramp inversion (not a target) is what unblocks it.
     higherIsBetter: true,
-    label: "Acceso veterinario (visitas/1.000)",
+    label: "Acceso veterinario (actos/1.000)",
     description:
-      "Visitas veterinarias por cada 1.000 mascotas activas, por unidad — señal de acceso a la atención (los 'desiertos' de atención son las zonas con menos visitas). Ventana móvil de 12 meses.",
+      "Actos veterinarios por cada 1.000 mascotas activas, por unidad — señal de acceso a la atención (los 'desiertos' de atención son las zonas con menos actos). Cuenta consultas, vacunaciones, esterilizaciones, implantes de microchip y registros clínicos; la desparasitación no cuenta, porque es de venta libre. Ventana móvil de 12 meses.",
     geomType: "choropleth",
     source: "metrics:vet-access",
     color: "#b6992d",
@@ -421,9 +421,10 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     temporal: false,
     // per1k is a magnitude with NO legal/compliance target, so it is a "density"-
     // style layer (sequential fill, no divergent anchor) — like mortalidad. Province
-    // paints the per-1.000 rate; locality paints the count of pets with a visit
-    // (v1 count-density — the same rate/count asymmetry the sibling rate layers
-    // document, since a k-anon'd num/den per department is deferred).
+    // paints the per-1.000 rate; locality paints the count of pets with a veterinary
+    // act (v1 count-density — the same rate/count asymmetry the sibling rate layers
+    // document, since a k-anon'd num/den per department is deferred). Both tiers
+    // read the SAME act set (VET_ACTIVITY_EVENT_TYPES, lib/metrics/vet-access).
     dataType: "density",
     renderPolicy: {
       province: "choropleth-fill",
@@ -433,7 +434,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     suppressionStyle: "hatched",
     caption: {
       unit: UNIT_DIVISION,
-      measure: "acceso veterinario (visitas/1.000)",
+      measure: "acceso veterinario (actos/1.000)",
       window: "current",
     },
   },
@@ -512,27 +513,39 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "desierto-veterinario",
-    // Not summable: per-unit value is DAYS without activity.
-    valueKind: "duration",
-    // Right-censored at the window length: a unit with no veterinary act at all
-    // reports the cap, so the cap is "we stopped looking", not a measurement.
+    // Not summable: per-unit value is a PERCENTAGE of the unit's active pets.
+    valueKind: "rate",
     //
-    // KNOWN DEFECT — the statistic, not the predicate, is degenerate at province
-    // grain. Measured 2026-07-25 with the `vet_visit_logged`-only predicate:
-    // 23 of 24 provinces sat exactly at the 90-day cap. Widening the predicate to
-    // the full set of veterinary acts (2026-07-26, VET_ACTIVITY_EVENT_TYPES)
-    // removed that tie but flipped it to the opposite pole: 20 provinces at 0
-    // days and 4 at 1 day, only 2 distinct values nationally. "Days since the
-    // LAST act anywhere in the province" is a MAX over thousands of pets, so it
-    // pins to whichever pole the event volume implies and can never discriminate.
-    // The per-pet framing does — share of active pets with no veterinary act in
-    // the period runs 24,6% (Mendoza) → 80,7% (Salta) over 90 days. Re-shaping
-    // the statistic is a PO call (it swaps the vista's base), so it is NOT done
-    // here; until then this layer discriminates at neither pole.
-    censoredAtMax: 90,
-    label: "Desierto veterinario (días sin actividad)",
+    // WHAT THIS LAYER MEASURES, AND WHY IT CHANGED (PO decision, 2026-07-26).
+    //
+    // It used to be "days since the last veterinary act anywhere in the
+    // province", right-censored at the window length. That statistic is a MAX
+    // over thousands of pets, so it pins to whichever pole the event volume
+    // implies and CANNOT discriminate at province grain — no predicate fixes
+    // that. Measured with `vet_visit_logged` alone, 23 of 24 provinces sat
+    // exactly at the 90-day cap (a false alarm); measured with the full act set
+    // (VET_ACTIVITY_EVENT_TYPES), 20 sat at 0 days and 4 at 1 (a false
+    // reassurance — the more dangerous of the two on a government console).
+    //
+    // The base statistic is now the SHARE OF ACTIVE PETS WITH NO VETERINARY ACT
+    // IN THE PERIOD — a coverage-of-attention measure, not a duration. Measured
+    // over 90 days it runs 24,6% (Mendoza) → 80,7% (Salta) with all 24
+    // provinces distinct and the expected geography; over 12 months, 6,0% →
+    // 47,8%. See loadVetDesertByProvince for the computation.
+    //
+    // NO `censoredAtMax`. The old cap was declared because "90" meant "we
+    // stopped looking", not "90 days elapsed". A share is bounded at 100 BY
+    // CONSTRUCTION and 100% is a genuine measurement ("ninguna mascota activa
+    // recibió atención"), so there is nothing to censor and nothing for the
+    // legend or the ranking to disclaim. The field is deliberately absent, not
+    // translated to 100.
+    //
+    // POLARITY: higher IS worse (more pets unattended), which is the registry
+    // default — so `higherIsBetter` stays absent here, unlike its sibling
+    // `acceso-veterinario`, where a high value is the good news.
+    label: "Desierto veterinario (% de mascotas sin atención)",
     description:
-      "Días desde el último evento veterinario registrado en MiMAR por provincia (el tope es el largo del período: sin actividad en todo el período). La ausencia de datos cargados no implica ausencia de veterinarios.",
+      "Porcentaje de mascotas activas SIN ningún acto veterinario registrado en MiMAR durante el período, por provincia — consulta, vacunación, esterilización, implante de microchip o registro clínico (la desparasitación no cuenta: es de venta libre y se aplica en casa). Mide cobertura de atención, no distancia a un veterinario: la ausencia de registro no implica ausencia de atención.",
     geomType: "choropleth",
     source: "metrics:vet-desert",
     // Dark sienna — distinct from acceso-veterinario's mustard (#b6992d) and
@@ -540,13 +553,19 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     color: "#8a4f2d",
     scopeFilterable: true,
     privacy: "none",
-    // Period-windowed recency signal (vet_visit_logged ≤ asOf, capped at the
-    // window length) — replayable "as of t", unlike the current-state rollups.
+    // Period-windowed coverage share (acts inside [since, asOf]) — replayable
+    // "as of t", unlike the current-state rollups. The window is a REAL floor
+    // here: the recency framing this replaces had none.
     temporal: true,
-    // A no-target magnitude (days without activity) — sequential fill, where
-    // DARK = many days without registered vet activity = the desert signal.
-    // No divergent anchor: there is no legal/programmatic target for "days
-    // since the last vet visit".
+    // Routed as a "density" layer even though the value is a percentage: the
+    // `dataType` axis decides the AGGREGATION/loader path, and F5 requires every
+    // `dataType: "rate"` layer to declare a `complianceTarget`. There is no
+    // defensible "meta de mascotas sin atención" to declare — inventing one
+    // would class the map on policy fiction, and any plausible number would put
+    // the whole country in one class, re-creating the saturation this reshaping
+    // exists to escape. The percentage nature is declared where it is actually
+    // consumed: `valueKind: "rate"` (summability) and the caption measure.
+    // Same split indice-territorial documents for its 0-100 score.
     dataType: "density",
     renderPolicy: {
       province: "choropleth-fill",
@@ -554,13 +573,13 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
       autoLevel: AUTO_PROVINCE,
     },
     suppressionStyle: "hatched",
-    // PROVINCE-GRAIN v1 (PROVINCE_ONLY_CHOROPLETH_IDS): a department-grain
-    // recency signal needs a k-anon'd per-department pet universe — deferred,
-    // same v1 asymmetry the rate layers document. Unit reads "provincia" at
-    // both bands so the caption stays honest (indice-territorial precedent).
+    // PROVINCE-GRAIN v1 (PROVINCE_ONLY_CHOROPLETH_IDS): a department-grain share
+    // needs a k-anon'd per-department pet universe — deferred, same v1 asymmetry
+    // the rate layers document. Unit reads "provincia" at both bands so the
+    // caption stays honest (indice-territorial precedent).
     caption: {
       unit: { province: "provincia", locality: "provincia" },
-      measure: "días sin actividad veterinaria registrada",
+      measure: "% de mascotas activas sin atención veterinaria registrada",
       window: "period",
     },
   },

@@ -39,7 +39,11 @@ import { deltaCells } from "@/lib/metrics/anonymity";
 import { fetchDewormingCoverage } from "@/lib/metrics/deworming";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
-import { fetchVetAccessByLocality, perThousand } from "@/lib/metrics/vet-access";
+import {
+  VET_ACTIVITY_EVENT_TYPES,
+  fetchVetAccessByLocality,
+  perThousand,
+} from "@/lib/metrics/vet-access";
 import type {
   ChoroplethCell,
   ProvinceChoroplethCell,
@@ -242,18 +246,21 @@ export function metricPredicate(metric: ChoroplethMetric, signedOnly = false): S
     )`;
   }
   if (metric === "vet-access") {
-    // LOCALITY count-density numerator: active pets in scope with ≥1
-    // vet_visit_logged event in the trailing-12m window. This is the count-density
-    // interim for the locality tier (the divergent/rate view is province-only via
-    // loadVetAccessByProvince), mirroring the rabies/sterilization v1 asymmetry.
-    // The province per-1.000 RATE reuses fetchVetAccessByLocality directly (parity
-    // with /gob/analytics); this predicate is the count fallback the map paints
-    // when drilled into a division.
+    // LOCALITY count-density numerator: active pets in scope with ≥1 VETERINARY
+    // ACT (VET_ACTIVITY_EVENT_TYPES — the SAME definition the province rate uses
+    // via fetchVetAccessByLocality, so the two tiers cannot drift) in the
+    // trailing-12m window. This is the count-density interim for the locality
+    // tier (the rate view is province-only via loadVetAccessByProvince),
+    // mirroring the rabies/sterilization v1 asymmetry.
     const win = windows.trailing12m();
+    const types = sql.join(
+      VET_ACTIVITY_EVENT_TYPES.map((t) => sql`${t}`),
+      sql`, `,
+    );
     return sql`EXISTS (
       SELECT 1 FROM ${petEvents} pe_vet
       WHERE pe_vet.pet_id = ${pets.id}
-        AND pe_vet.event_type = 'vet_visit_logged'
+        AND pe_vet.event_type IN (${types})
         AND pe_vet.occurred_at >= ${win.since.toISOString()}
         AND pe_vet.occurred_at <= ${win.until.toISOString()}
     )`;
@@ -881,58 +888,50 @@ export async function loadTendenciaByProvince(
   return { cells, truncated: false, suppressedCount };
 }
 
-// The event types that constitute a VETERINARY ACT for the desert signal.
-//
-// The rule is "did this act require a veterinary professional?", NOT "who typed
-// it in". `author_role` is the REPORTER, not the performer: 28.979 of the
-// 29.123 seeded vaccinations are owner-logged, so filtering on author_role='vet'
-// would measure vet-app adoption rather than veterinary activity. Justification
-// per member:
-//
-//   vet_visit_logged         — the clinical consult itself.
-//   vaccination_administered — the antirrábica must be applied by a licensed vet
-//                              (Ley 22.953); the act is veterinary whoever logs it.
-//   sterilization_performed  — surgery under anaesthesia; not owner-performable.
-//   microchip_implanted      — subcutaneous implant; a professional procedure.
-//   clinical_info_logged     — lab work / imaging / surgery / diagnosis records.
-//
-// DELIBERATELY EXCLUDED:
-//   deworming_administered — antiparasitics are sold over the counter and are
-//     routinely applied by the owner at home, so counting them would measure
-//     owner diligence, not access to professional service.
-//   weight_recorded, note_added — owner self-reports; measuring them would make
-//     the layer a proxy for registry engagement instead of veterinary access.
-const VET_ACTIVITY_EVENT_TYPES = [
-  "vet_visit_logged",
-  "vaccination_administered",
-  "sterilization_performed",
-  "microchip_implanted",
-  "clinical_info_logged",
-] as const;
+/** Active/lost pets — the live population every coverage share is taken over.
+ *  Mirrors activePetsCondition (lib/metrics/population) without its ctx-bound
+ *  scope clause, which this file supplies separately via petsScope. */
+const ACTIVE_PETS: SQL = sql`${pets.status} IN ('active', 'lost')`;
 
-// metrics:vet-desert (desierto-veterinario) — per-PROVINCE days since the last
-// veterinary act (VET_ACTIVITY_EVENT_TYPES), capped at the analytic window's
-// length.
+// metrics:vet-desert (desierto-veterinario) — per-PROVINCE SHARE OF ACTIVE PETS
+// WITH NO VETERINARY ACT IN THE PERIOD.
 //
-//   value = min(windowDays, days between the last veterinary act and `until`)
-//         = windowDays when NO veterinary act was ever registered in scope.
+//   value = 100 × (activePets − attendedPets) / activePets   (one decimal, 0-100)
+//     activePets   = pets in scope with status active/lost.
+//     attendedPets = DISTINCT pets of that universe with ≥1 event of
+//                    VET_ACTIVITY_EVENT_TYPES inside [since, until].
 //
-// The predicate was `vet_visit_logged` alone until 2026-07-26, which ignored
-// ~99,9% of the registered veterinary activity (85 visit events against ~67.000
-// vaccinations/sterilizations/microchip implants) and drove the layer to a
-// 23-of-24-provinces tie at the cap.
+// WHY A SHARE AND NOT A RECENCY (PO decision, 2026-07-26). This loader used to
+// return "days since the LAST veterinary act anywhere in the province", capped
+// at the window length. That is a MAX over thousands of pets, so it pins to
+// whichever pole the event volume implies and can never discriminate at
+// province grain: measured with the `vet_visit_logged`-only predicate, 23 of 24
+// provinces sat exactly at the 90-day cap; measured with the full act set, 20
+// sat at 0 days and 4 at 1 — two distinct values nationally. Widening the
+// predicate only moved the saturation to the opposite pole, and "no hay
+// desierto en ninguna parte" is a FALSE REASSURANCE, worse on a government
+// console than the false alarm it replaced.
 //
-// The recency MAX is deliberately NOT floored at `since`: a province whose last
-// visit predates the window still reads the honest cap (windowDays = "sin
-// actividad en todo el período"), never a fabricated smaller number. `asOf`
-// replays the signal ("as of t" the last visit was ...).
+// The per-pet framing does discriminate. Measured the same day over 90 days:
+// 24,6% (Mendoza) → 80,7% (Salta), all 24 provinces distinct, with the expected
+// geography (the AMBA/Centro core best served, the NOA/NEA provinces worst).
 //
-// k-anon: the unit's ACTIVE-PET UNIVERSE is the protected dimension (same as
-// fetchVetAccessByLocality) — a scoped province universe with < k pets gets NO
-// cell (suppressSmallCells; reported via suppressedCount) so "días sin
-// actividad" can never characterize a handful of identifiable pets. The event
-// recency itself is publishable at unit grain (loadUnitHistory already exposes
-// per-unit daily event counts).
+// NO CENSORING BOUND. The old value carried `censoredAtMax: 90` because the cap
+// meant "we stopped looking", not "90 days passed". A share has no such bound:
+// 100% is a MEASUREMENT ("none of the active pets was attended"), 0% is another
+// one, and every value between them is ordered. The registry entry therefore
+// dropped `censoredAtMax` rather than translating it — see layers.ts.
+//
+// THE WINDOW IS A REAL FLOOR. The recency deliberately had none (an act from
+// years back still set the value). A share of "sin atención EN EL PERÍODO" must
+// bound both ends, so acts before `since` do not count. `asOf` moves `until`,
+// replaying the share as of t.
+//
+// k-anon: the unit's ACTIVE-PET UNIVERSE is the protected dimension AND now the
+// denominator (same as fetchVetAccessByLocality) — a scoped province universe
+// with < k active pets gets NO cell (suppressSmallCells; reported via
+// suppressedCount), so the share can never characterize a handful of
+// identifiable pets.
 export async function loadVetDesertByProvince(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -942,24 +941,26 @@ export async function loadVetDesertByProvince(
   adminLocality?: string,
 ): Promise<ProvinceChoroplethRows> {
   const until = asOf ?? new Date();
-  const dayMs = 86_400_000;
-  // ROUND, not ceil: `until` is sampled milliseconds after the resolver anchored
-  // `since`, so a 90-day window measures 90d + ε — ceil would report "91 días"
-  // for every bare 90d period. Round restores the period the operator selected.
-  const windowDays = Math.max(1, Math.round((until.getTime() - since.getTime()) / dayMs));
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
 
-  // Universe: pets per province (no metric predicate) — the k-anon dimension.
-  const universe = await rollupPetsPerProvince([], scope);
+  // Denominator + k-anon dimension: ACTIVE pets per province. Deceased pets are
+  // excluded on purpose — a share of "mascotas sin atención" that counted them
+  // would inflate every province by its mortality history.
+  const universe = await rollupPetsPerProvince([ACTIVE_PETS], scope);
   const { visible, suppressedCount } = suppressSmallCells(universe, {
     count: (r) => r.count,
     key: (r) => r.province,
     k: 5,
   });
 
-  // Last vet-attended event per province (≤ until; see the no-floor note above).
+  // Numerator complement: DISTINCT active pets with ≥1 veterinary act inside the
+  // period. COUNT DISTINCT, not COUNT — one pet visited five times is ONE pet
+  // attended, and counting acts would let a single heavily-treated animal erase
+  // a province's desert.
   const conditions: SQL[] = [
+    ACTIVE_PETS,
     inArray(petEvents.eventType, VET_ACTIVITY_EVENT_TYPES),
+    gte(petEvents.occurredAt, since),
     lte(petEvents.occurredAt, until),
     isNotNull(pets.jurisdictionProvince),
   ];
@@ -967,30 +968,26 @@ export async function loadVetDesertByProvince(
   const rows = await db
     .select({
       province: pets.jurisdictionProvince,
-      lastAt: sql<string | null>`MAX(${petEvents.occurredAt})`,
+      attended: countDistinct(pets.id),
     })
     .from(petEvents)
     .innerJoin(pets, eq(petEvents.petId, pets.id))
     .where(and(...conditions))
     .groupBy(pets.jurisdictionProvince)
     .limit(PER_LAYER_CAP);
-  const lastByProvince = new Map<string, string>();
+  const attendedByProvince = new Map<string, number>();
   for (const r of rows) {
-    if (r.province && r.lastAt) lastByProvince.set(r.province, r.lastAt);
+    if (r.province) attendedByProvince.set(r.province, r.attended);
   }
 
   const cells: ProvinceChoroplethCell[] = [];
   for (const r of visible as unknown as ProvinceRollupRow[]) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    const lastAt = lastByProvince.get(r.province);
-    const days = lastAt
-      ? Math.min(
-          windowDays,
-          Math.max(0, Math.floor((until.getTime() - new Date(lastAt).getTime()) / dayMs)),
-        )
-      : windowDays;
-    cells.push({ provinceCode: code, label: r.province, value: days });
+    if (r.count <= 0) continue; // no live population → no share to publish
+    const attended = Math.min(attendedByProvince.get(r.province) ?? 0, r.count);
+    const pct = Math.round(((r.count - attended) / r.count) * 100 * 10) / 10;
+    cells.push({ provinceCode: code, label: r.province, value: pct });
   }
   return { cells, truncated: false, suppressedCount };
 }

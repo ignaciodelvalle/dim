@@ -460,7 +460,12 @@ describe("PanoramaLayer.valueKind — only counts are summable", () => {
     expect(kindOf("tendencia")).toBe("delta");
     expect(kindOf("reunificacion")).toBe("rate");
     expect(kindOf("acceso-veterinario")).toBe("rate");
-    expect(kindOf("desierto-veterinario")).toBe("duration");
+    // WAS "duration" — the layer measured days since the last veterinary act.
+    // It now measures the SHARE of active pets with no act in the period (PO
+    // 2026-07-26), which is a percentage: still not summable, but for a new
+    // reason. Summing days produced "Registros 2.138"; summing percentages
+    // would produce an equally meaningless number, so the declaration stays.
+    expect(kindOf("desierto-veterinario")).toBe("rate");
     expect(kindOf("indice-territorial")).toBe("index");
   });
 

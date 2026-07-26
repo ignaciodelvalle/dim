@@ -130,6 +130,44 @@ describe("provinceSeqClassScale — the lifted province legend scale (map/legend
     const liveScale = provinceSeqClassScale(fc);
     expect(liveScale?.breaks).not.toEqual(legendScale?.breaks);
   });
+
+  // POLARITY (2026-07-26). The sequential ramp darkens with value, which is the
+  // alarm reading for a harm magnitude and the exact inverse for the two layers
+  // where a HIGH value is the good news (acceso-veterinario, indice-territorial).
+  // `computeClassScale({ invert })` has always been able to reverse it; this call
+  // site simply never passed the layer's declared polarity through.
+  describe("higher-is-better polarity", () => {
+    it("reverses the ramp so the darkest class lands on the LOWEST value", () => {
+      const normal = provinceSeqClassScale(fc, null);
+      const inverted = provinceSeqClassScale(fc, null, { invert: true });
+      expect(inverted).not.toBeNull();
+      // Same classing — only the colour assignment flips.
+      expect(inverted?.breaks).toEqual(normal?.breaks);
+      expect(inverted?.colors).toEqual([...(normal?.colors ?? [])].reverse());
+    });
+
+    it("leaves the ramp untouched by default (every harm layer is unaffected)", () => {
+      expect(provinceSeqClassScale(fc, null, { invert: false })?.colors).toEqual(
+        provinceSeqClassScale(fc, null)?.colors,
+      );
+    });
+
+    it("paints the inverted ramp on the map fill, not only in the legend", () => {
+      // Map/legend parity must survive the inversion — a legend that flips while
+      // the fill does not is worse than no inversion at all.
+      const painted = decodeStep(
+        (provinceColorExpr(fc, null, { invert: true }) as unknown as unknown[])[3] as unknown[],
+      );
+      const paintedNormal = decodeStep(
+        (provinceColorExpr(fc, null) as unknown as unknown[])[3] as unknown[],
+      );
+      const scale = provinceSeqClassScale(fc, null, { invert: true });
+      expect(scale?.colors).toEqual(painted.colors);
+      expect(scale?.breaks).toEqual(painted.breaks);
+      // The FILL itself must flip — not only the legend it is lifted into.
+      expect(painted.colors).toEqual([...paintedNormal.colors].reverse());
+    });
+  });
 });
 
 describe("provinceMetaColorExpr — META'd rate layers (PO: classed threshold scale, NOT divergent)", () => {

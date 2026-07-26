@@ -130,3 +130,68 @@ describe("PanoramaDataTable — accessible view (Ley 26.653)", () => {
     expect(formosaRow).not.toHaveAttribute("aria-current");
   });
 });
+
+// ---------------------------------------------------------------------------
+// POLARITY (2026-07-26). This table RE-SORTS the rows it is handed, so the
+// domain ranking's polarity died here: `rankWorstUnits` returns a
+// higher-is-better layer worst-first (lowest value), and the default `value`
+// DESC sort then put the BEST unit at row 1 under a "Peores N" heading. A unit
+// test on rankWorstUnits alone stays green through that bug — this is the
+// surface where the order becomes visible.
+// ---------------------------------------------------------------------------
+
+/** acceso-veterinario shape: actos/1.000, where MORE is better. Handed over in
+ *  the domain's worst-first order (ascending), as rankWorstUnits produces. */
+const HIGHER_IS_BETTER_ROWS: RankedUnit[] = [
+  { key: "AR-A", label: "Salta", value: 690.9, gap: null },
+  { key: "AR-Q", label: "Neuquén", value: 1145.4, gap: null },
+  { key: "AR-M", label: "Mendoza", value: 1997.9, gap: null },
+];
+
+describe("PanoramaDataTable — higher-is-better polarity", () => {
+  it("keeps the LEAST-served unit first — the heading says 'Peores', so the order must too", () => {
+    render(
+      <PanoramaDataTable
+        rows={HIGHER_IS_BETTER_ROWS}
+        kind="density"
+        measureLabel="acceso veterinario (actos/1.000)"
+        higherIsBetter
+      />,
+    );
+    const rowHeaders = screen.getAllByRole("rowheader");
+    expect(rowHeaders[0]).toHaveTextContent("Salta");
+    expect(rowHeaders[rowHeaders.length - 1]).toHaveTextContent("Mendoza");
+    // The value column announces the ascending order it actually renders.
+    expect(screen.getByRole("columnheader", { name: /acceso veterinario/i })).toHaveAttribute(
+      "aria-sort",
+      "ascending",
+    );
+  });
+
+  it("still ranks a harm magnitude highest-first (the default is untouched)", () => {
+    // Identical rows, identical kind — ONLY the polarity flag differs.
+    render(
+      <PanoramaDataTable
+        rows={HIGHER_IS_BETTER_ROWS}
+        kind="density"
+        measureLabel="mortalidad registrada"
+      />,
+    );
+    const rowHeaders = screen.getAllByRole("rowheader");
+    expect(rowHeaders[0]).toHaveTextContent("Mendoza");
+    expect(rowHeaders[rowHeaders.length - 1]).toHaveTextContent("Salta");
+  });
+
+  it("lets the operator still flip the order by hand", () => {
+    render(
+      <PanoramaDataTable
+        rows={HIGHER_IS_BETTER_ROWS}
+        kind="density"
+        measureLabel="acceso veterinario (actos/1.000)"
+        higherIsBetter
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /acceso veterinario/i }));
+    expect(screen.getAllByRole("rowheader")[0]).toHaveTextContent("Mendoza");
+  });
+});

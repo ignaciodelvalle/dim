@@ -195,11 +195,23 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
             "Cobertura de esterilización",
           ],
           "layers": [
-            "Desierto veterinario (días sin actividad)",
+            "Desierto veterinario (% de mascotas sin atención)",
             "Clínicas veterinarias",
             "Refugios",
           ],
           "vista": "Desierto veterinario",
+        },
+        {
+          "kpis": [
+            "Cobertura antirrábica (perros, 12m)",
+            "Cobertura de esterilización",
+          ],
+          "layers": [
+            "Acceso veterinario (actos/1.000)",
+            "Clínicas veterinarias",
+            "Refugios",
+          ],
+          "vista": "Acceso veterinario",
         },
         {
           "kpis": [

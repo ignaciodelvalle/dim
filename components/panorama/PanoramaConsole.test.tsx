@@ -300,6 +300,65 @@ describe("PanoramaConsole — Desierto veterinario vista (new-vistas wave)", () 
   });
 });
 
+describe("PanoramaConsole — Acceso veterinario vista (polarity carried into the ranking)", () => {
+  // acceso-veterinario is the one layer whose value is GOOD when it is high
+  // (visitas por 1.000 mascotas activas). The registry declares that
+  // (`higherIsBetter: true`) and `rankWorstUnits` honours it, but the console
+  // built its rank options inline and never passed the flag through — so the
+  // ten BEST-served jurisdictions were listed under a "Peores 10" heading.
+  const provinceEnvelope = (cells: Array<{ code: string; name: string; value: number }>) => ({
+    features: {
+      type: "FeatureCollection" as const,
+      features: cells.map((c) => ({
+        type: "Feature" as const,
+        geometry: null,
+        properties: { provinceCode: c.code, province: c.name, value: c.value },
+      })),
+    },
+    truncated: false,
+    suppressedCount: 0,
+  });
+
+  function stubLayerFetch(layerId: string, body: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL): Promise<Response> => {
+        const url = String(input);
+        const payload = url.includes("/api/panorama/kpis")
+          ? INITIAL_KPIS
+          : url.includes(`/api/panorama/${layerId}`) && !url.includes("histogram=1")
+            ? body
+            : OK_ENVELOPE;
+        return Promise.resolve({ ok: true, json: async () => payload } as unknown as Response);
+      }),
+    );
+  }
+
+  it("ranks the LEAST-served jurisdiction first — a high rate is the good news", async () => {
+    stubLayerFetch(
+      "acceso-veterinario",
+      provinceEnvelope([
+        { code: "AR-M", name: "Mendoza", value: 1997.9 },
+        { code: "AR-A", name: "Salta", value: 690.9 },
+        { code: "AR-Q", name: "Neuquén", value: 1145.4 },
+      ]),
+    );
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Acceso veterinario/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
+
+    await waitFor(() => {
+      const rows = screen.getAllByRole("row").slice(1); // skip the header row
+      expect(rows.length).toBeGreaterThan(0);
+      // Salta (690,9 — the WORST access) must head the list, not Mendoza.
+      expect(within(rows[0]).getByText("Salta")).toBeVisible();
+      expect(within(rows[rows.length - 1]).getByText("Mendoza")).toBeVisible();
+    });
+  });
+});
+
 describe("PanoramaConsole — Tendencia vista (new-vistas wave)", () => {
   it("commits the tendencia board shallow (preset/layers/period=30d) and fetches its layer", async () => {
     renderConsole();

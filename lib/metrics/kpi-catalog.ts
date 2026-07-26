@@ -1089,10 +1089,10 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   vet_access_per_1k_locality: {
     id: "vet_access_per_1k_locality",
-    label: "Acceso veterinario (visitas / 1.000 activos)",
-    numerator: "COUNT vet_visit_logged events in the ctx period whose pet is homed in the locality",
+    label: "Acceso veterinario (actos / 1.000 activos)",
+    numerator: "COUNT VET_ACTIVITY_EVENT_TYPES events in ctx.period, by the pet's home locality",
     denominator: "COUNT active/lost pets homed in the locality, divided by 1,000",
-    source: "pets, pet_events (vet_visit_logged)",
+    source: "pets, pet_events (VET_ACTIVITY_EVENT_TYPES)",
     fetcherName: "fetchVetAccessByLocality",
     fetcherPath: "lib/metrics/vet-access.ts",
     cadence: "matches the caller's ProjectionContext period",
@@ -1100,7 +1100,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     suppression:
       "k-anon (k=5) on the per-locality active-pet population — a locality with <5 active pets is suppressed",
     caveat:
-      "Access-to-care equity signal surfaced on /gob/analytics; localities are sorted ascending by per-1k so care deserts surface first (the CABA vs periphery inequity). Denominator is PET population per locality, not human census. Scoped and grouped by the pet's HOME jurisdiction. Unit is 'per 1,000' (reusing the rate_per_10k unit slot — closest available). SEED-DENSITY CAVEAT: vet_visit_logged density is uneven, so per-1k rates are directional.",
+      "Access-to-care equity signal surfaced on /gob/analytics and on the panorama 'acceso-veterinario' choropleth; localities are sorted ascending by per-1k so care deserts surface first (the CABA vs periphery inequity). Denominator is PET population per locality, not human census. Scoped and grouped by the pet's HOME jurisdiction. Unit is 'per 1,000' (reusing the rate_per_10k unit slot — closest available). VET_ACTIVITY_EVENT_TYPES (lib/metrics/vet-access.ts) = vet_visit_logged, vaccination_administered, sterilization_performed, microchip_implanted, clinical_info_logged — every act that requires a veterinary professional, NOT only logged consults: restricted to vet_visit_logged the numerator was 85 rows nationally and returned 0,0 in 23 of 24 provinces. Deworming is excluded on purpose (over-the-counter, owner-applied). It does NOT filter on author_role — that names the reporter, not the performer. CAVEAT: only acts registered in MiMAR are visible, so this is a floor on real access, not a census of it.",
     window: "period",
     species: "all_species",
     basis: "ratio",

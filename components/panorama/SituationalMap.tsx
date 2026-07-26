@@ -1410,9 +1410,10 @@ export function SituationalMap({
           if (lock.locked) lockedProvinceBreaksRef.current.set(layer.id, lock.locked);
           else lockedProvinceBreaksRef.current.delete(layer.id);
           seqBreaks = lock.domain;
-          // Lift the SAME classed scale the fill renders (same values + frozen
-          // breaks) so the off-canvas legend swatches match the painted colors.
-          const seqScale = provinceSeqClassScale(layer.features, seqBreaks);
+          // Lift the SAME scale the fill renders — values, frozen breaks AND the
+          // declared polarity, else the legend describes a ramp nothing paints.
+          const invert = layer.higherIsBetter === true;
+          const seqScale = provinceSeqClassScale(layer.features, seqBreaks, { invert });
           if (seqScale) {
             nextProvinceSeqLegend[layer.id] = { breaks: seqScale.breaks, colors: seqScale.colors };
           }

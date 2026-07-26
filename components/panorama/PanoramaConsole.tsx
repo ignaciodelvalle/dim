@@ -1496,6 +1496,11 @@ export function PanoramaConsole({
         // the map can choose divergent vs sequential choropleth rendering.
         dataType: l.dataType,
         complianceTarget: l.complianceTarget,
+        // POLARITY (2026-07-26): a target-less layer whose HIGH value is the good
+        // news (acceso-veterinario) must paint its sequential ramp BACKWARDS, or
+        // the best-served jurisdictions get the alarm colour. Threaded from the
+        // registry like the fields above; absent = higher is worse (every other layer).
+        higherIsBetter: l.higherIsBetter,
         // new-vistas: delta-encoded layers (tendencia) render the zero-anchored
         // diverging classes — threaded from the registry like the fields above.
         deltaEncoded: l.deltaEncoded,
@@ -3421,6 +3426,11 @@ export function PanoramaConsole({
     return rankWorstUnits(rankedActiveLayer.features, {
       kind: effectiveRankingKind,
       target: rankingLayer.complianceTarget,
+      // POLARITY (2026-07-26): without this the ranking sorted EVERY target-less
+      // layer descending under a "Peores N" title — listing the ten BEST-served
+      // jurisdictions as the worst for acceso-veterinario. rankWorstUnits has
+      // always honoured the flag; this call site simply never passed it.
+      higherIsBetter: rankingLayer.higherIsBetter,
       limit: RANKING_LIMIT,
     });
   }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
@@ -3430,6 +3440,9 @@ export function PanoramaConsole({
     return rankUnitsInScope(rankedActiveLayer.features, {
       kind: effectiveRankingKind,
       target: rankingLayer.complianceTarget,
+      // Same polarity declaration as the Worst-N path above — the small-scope
+      // fallback orders the SAME units and must not disagree about which end is bad.
+      higherIsBetter: rankingLayer.higherIsBetter,
       limit: RANKING_LIMIT,
     });
   }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
@@ -4108,6 +4121,9 @@ export function PanoramaConsole({
           measuredUnits={rankingAllInScope.length}
           suppressedUnits={dockSuppressedCount}
           censoredAtMax={rankingLayer?.censoredAtMax}
+          // The table re-sorts what it is handed, so it needs the polarity too —
+          // passing it only to rankWorstUnits leaves the on-screen order wrong.
+          higherIsBetter={rankingLayer?.higherIsBetter}
           scopeFallback={rankingSmallScope}
           unitNoun={rankingUnitNoun}
           // Finding 4: the rate→count coercion below province grain turns this
