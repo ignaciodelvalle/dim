@@ -22,6 +22,7 @@ import {
   logOutreachPiiQuery,
 } from "@/lib/infra/outreach-pipelines";
 import { buildProjectionContext } from "@/lib/metrics";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Shared test fixtures
@@ -33,11 +34,11 @@ const TEST_PROVINCE = "Buenos Aires";
 const TEST_LOCALITY = `outreach-test-locality-${Date.now()}`;
 const OTHER_LOCALITY = `outreach-other-locality-${Date.now()}`;
 
-// Pet IDs tracked for assertions only — NOT for cleanup.
-// pet_events is append-only (Postgres trigger blocks DELETE per AGENTS.md).
-// Deleting pets that have child pet_events rows also fails (the FK's
-// ON DELETE CASCADE tries to DELETE pet_events, which the same trigger
-// blocks). No cleanup attempted for pets or events.
+// Pet IDs tracked for assertions AND cleanup.
+// pet_events is append-only (Postgres trigger blocks DELETE per AGENTS.md),
+// but __tests__/_helpers/db-overrides.ts provides an accountable escape hatch
+// (SET LOCAL app.allow_event_mutation) for exactly this: test-fixture
+// teardown. See afterAll below.
 const createdPetIds: string[] = [];
 
 beforeAll(async () => {
@@ -222,9 +223,23 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // pet_events + pets cannot be deleted (see comment above createdPetIds).
-  // audit_log is also append-only. No cleanup needed — unique locality names
-  // prevent cross-run data leakage. afterAll is intentionally a no-op here.
+  // Each pet is deleted in its OWN transaction, independently scoped by its
+  // own id. Deliberately NOT one transaction covering the whole list — if a
+  // single pet's cleanup fails, the others must still get cleaned up (see
+  // scheduling-attendance.test.ts's afterAll for the incident this guards
+  // against: a gated all-or-nothing transaction rolled back and left a leaked
+  // fixture behind). petEvents.petId scoping means this can never touch
+  // another suite's rows.
+  for (const petId of createdPetIds) {
+    try {
+      await withMutationOverride(async (tx) => {
+        await tx.delete(petEvents).where(eq(petEvents.petId, petId));
+        await tx.delete(pets).where(eq(pets.id, petId));
+      });
+    } catch (err) {
+      console.error(`outreach-pipelines.test.ts afterAll: failed to clean up pet ${petId}`, err);
+    }
+  }
 });
 
 // ---------------------------------------------------------------------------

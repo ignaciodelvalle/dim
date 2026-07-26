@@ -28,12 +28,17 @@ import {
   sendOverdueRabiesReminders,
 } from "@/lib/infra/outreach-reminders";
 import { buildProjectionContext } from "@/lib/metrics";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const TEST_PROVINCE = "Buenos Aires";
 const TEST_LOCALITY = `outreach-reminder-locality-${Date.now()}`;
 const OTHER_LOCALITY = `outreach-reminder-other-locality-${Date.now()}`;
 
 const createdProfileIds: string[] = [];
+// Every pet this suite creates (via makeOverduePet or directly), tracked so
+// afterAll can clean up pet_events + pets — scoped by id, never by a
+// PET-RMD-* LIKE prefix that could reach another suite's fixtures.
+const createdPetIds: string[] = [];
 const actorId = crypto.randomUUID();
 
 let overduePetId: string;
@@ -55,6 +60,7 @@ async function makeOverduePet(locality: string, name: string) {
       jurisdictionLocality: locality,
     })
     .returning({ id: pets.id });
+  createdPetIds.push(pet.id);
   const overdueDate = new Date(Date.now() - 400 * 86400_000);
   await db.insert(petEvents).values({
     petId: pet.id,
@@ -118,6 +124,7 @@ beforeAll(async () => {
     })
     .returning({ id: pets.id });
   currentPetId = petCurrent.id;
+  createdPetIds.push(currentPetId);
   const recentVaccDate = new Date(Date.now() - 30 * 86400_000);
   await db.insert(petEvents).values({
     petId: currentPetId,
@@ -132,13 +139,12 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // notifications + ownerships are NOT append-only — safe to delete.
-  await db.delete(notifications).where(eq(notifications.relatedPetId, overduePetId));
-  await db.delete(notifications).where(eq(notifications.relatedPetId, noOwnerPetId));
-  await db.delete(notifications).where(eq(notifications.relatedPetId, otherJurisdictionPetId));
-  await db.delete(notifications).where(eq(notifications.relatedPetId, currentPetId));
-  await db.delete(ownerships).where(eq(ownerships.petId, overduePetId));
-  await db.delete(ownerships).where(eq(ownerships.petId, otherJurisdictionPetId));
+  // notifications.relatedPetId is ON DELETE SET NULL (not cascade — see
+  // db/schema.ts) — delete explicitly, scoped per pet, so no residue
+  // notification rows outlive their pet.
+  for (const petId of createdPetIds) {
+    await db.delete(notifications).where(eq(notifications.relatedPetId, petId));
+  }
 
   // audit_log is append-only — GUC bypass, same pattern as
   // __tests__/outreach-pipelines.test.ts.
@@ -147,12 +153,28 @@ afterAll(async () => {
     await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
   });
 
+  // Each pet is deleted in its OWN transaction, scoped only by its own id —
+  // never a broad PET-RMD-* prefix match. ownerships.pet_id and
+  // pet_events.pet_id are both ON DELETE CASCADE from pets (db/schema.ts), so
+  // once the GUC override is set for this transaction (see
+  // __tests__/_helpers/db-overrides.ts), the cascade into the append-only
+  // pet_events table is allowed too. Deliberately NOT one transaction over the
+  // whole list — a single pet's failure must not block cleanup of the rest
+  // (see scheduling-attendance.test.ts's afterAll for the incident this
+  // guards against).
+  for (const petId of createdPetIds) {
+    try {
+      await withMutationOverride(async (tx) => {
+        await tx.delete(pets).where(eq(pets.id, petId));
+      });
+    } catch (err) {
+      console.error(`outreach-reminders.test.ts afterAll: failed to clean up pet ${petId}`, err);
+    }
+  }
+
   for (const id of createdProfileIds) {
     await db.delete(profiles).where(eq(profiles.id, id));
   }
-  // pets/pet_events cannot be deleted (append-only trigger) — no cleanup,
-  // same convention as outreach-pipelines.test.ts. Unique locality names
-  // prevent cross-run leakage.
 });
 
 function govtCtx(locality: string) {

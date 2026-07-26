@@ -54,6 +54,7 @@ vi.mock("@/components/ui/dashboard/DashboardFreshnessFooter", () => ({
 import { AlcanceScreen } from "@/app/gob/outreach/AlcanceScreen";
 import { auditLog, db, pets, profiles } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const TEST_PROVINCE = "Buenos Aires";
 const LOCALITY_A = `alcance-geo-a-${Date.now()}`;
@@ -64,6 +65,8 @@ const PET_A2_NAME = `AlcanceOverdueA2-${Date.now()}`;
 const PET_B1_NAME = `AlcanceOverdueB1-${Date.now()}`;
 
 let actorId: string;
+// Ids of the pets this suite creates, tracked for scoped cleanup in afterAll.
+const createdPetIds: string[] = [];
 
 function govtSession(jurisdictions: { province: string; locality: string }[]) {
   return {
@@ -93,29 +96,48 @@ beforeAll(async () => {
     [PET_A2_NAME, LOCALITY_A],
     [PET_B1_NAME, LOCALITY_B],
   ] as const) {
-    await db.insert(pets).values({
-      publicToken: `PET-ALC-${name}`,
-      name,
-      species: "dog",
-      sex: "male",
-      status: "active",
-      jurisdictionProvince: TEST_PROVINCE,
-      jurisdictionLocality: locality,
-    });
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: `PET-ALC-${name}`,
+        name,
+        species: "dog",
+        sex: "male",
+        status: "active",
+        jurisdictionProvince: TEST_PROVINCE,
+        jurisdictionLocality: locality,
+      })
+      .returning({ id: pets.id });
+    createdPetIds.push(pet.id);
   }
 });
 
 afterAll(async () => {
-  // pets/pet_events are append-only (no cleanup — unique locality/name
-  // suffixes prevent cross-run collisions, same convention as
-  // outreach-pipelines.test.ts). profiles/audit_log rows for the test actor
-  // ARE cleaned up (audit_log via the GUC bypass, same pattern used
-  // elsewhere in this suite).
+  // profiles/audit_log rows for the test actor (audit_log via the GUC bypass,
+  // same pattern used elsewhere in this suite).
   await db.transaction(async (tx) => {
     await tx.execute(sql`set local app.allow_audit_mutation = 'true'`);
     await tx.delete(auditLog).where(eq(auditLog.actorUserId, actorId));
   });
   await db.delete(profiles).where(eq(profiles.id, actorId));
+
+  // Each pet is deleted in its OWN transaction, scoped only by its own id —
+  // never a broad PET-ALC-* prefix match. pet_events is append-only; these
+  // fixtures never wrote any events, but the GUC override (see
+  // __tests__/_helpers/db-overrides.ts) is used anyway for consistency and to
+  // stay correct if a future change adds events here. Deliberately NOT one
+  // transaction over the whole list — a single pet's failure must not block
+  // cleanup of the rest (see scheduling-attendance.test.ts's afterAll for the
+  // incident this guards against).
+  for (const petId of createdPetIds) {
+    try {
+      await withMutationOverride(async (tx) => {
+        await tx.delete(pets).where(eq(pets.id, petId));
+      });
+    } catch (err) {
+      console.error(`alcance-geo-first.test.tsx afterAll: failed to clean up pet ${petId}`, err);
+    }
+  }
 });
 
 describe("AlcanceScreen — geo-first aggregates by default (PO decision 3)", () => {
