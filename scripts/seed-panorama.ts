@@ -51,6 +51,7 @@ import type { EventType } from "../db/schema";
 // db/index.ts load that the env bootstrap below must precede).
 import {
   dateInYear,
+  makeRegisteredByPicker,
   monthlyEventCount,
   pickDateInMonth,
   pickRegisteredYear,
@@ -3274,6 +3275,11 @@ async function seedModelProvinceHistory(
     // Downstream steps (zoonosis attachment, per-locality event spraying) key
     // off this instead of a post-insert SELECT.
     const tokenToId = new Map<string, string>();
+    // pet id → registration instant (ms). Every event this function attaches to
+    // a pet must fall at or after it: the pooled event loops below draw a pet at
+    // random from a whole province/locality, which without this map produces
+    // deaths, bites and outbreaks dated before the pet was ever registered.
+    const registeredAtMs = new Map<string, number>();
 
     const bump = (type: string): void => {
       eventCounts[type] = (eventCounts[type] ?? 0) + 1;
@@ -3311,6 +3317,7 @@ async function seedModelProvinceHistory(
       if (!registered) continue;
       const petId = registered.petId;
       tokenToId.set(meta.token, petId);
+      registeredAtMs.set(petId, registeredAt.getTime());
       bump("pet_registered");
 
       // Per year ≥ registeredYear: emit vaccination / sterilization per that
@@ -3324,7 +3331,9 @@ async function seedModelProvinceHistory(
           eventRows.push({
             petId,
             eventType: "vaccination_administered" satisfies EventType,
-            occurredAt: dateInYear(year, rng),
+            // notBefore=registeredAt: in the pet's own registration year an
+            // unbounded draw lands before the registration about half the time.
+            occurredAt: dateInYear(year, rng, 0, 11, registeredAt),
             recordedByUserId: ownerUserId,
             authorRole: "owner",
             authorVerified: false,
@@ -3345,7 +3354,7 @@ async function seedModelProvinceHistory(
           eventRows.push({
             petId,
             eventType: "sterilization_performed" satisfies EventType,
-            occurredAt: dateInYear(year, rng),
+            occurredAt: dateInYear(year, rng, 0, 11, registeredAt),
             recordedByUserId: ownerUserId,
             authorRole: "owner",
             authorVerified: false,
@@ -3378,12 +3387,40 @@ async function seedModelProvinceHistory(
       petsByLocality.get(loc.localityName)!.push(petId);
     }
 
+    // 4b. Eligible-pet picker — the fix for "events before the pet exists".
+    //
+    // The pooled loops below (zoonosis, death, bite, lost, shelter intake) pick
+    // a pet uniformly from a whole province or locality and date the event from
+    // a year/month trend curve. Those two draws were independent, so an event
+    // routinely landed before its own pet's pet_registered: 45% of all history
+    // events did, including 1623 of 3579 death_recorded — pets dying before
+    // they existed.
+    //
+    // The province seed fixed its equivalent by drawing the death date inside
+    // [registeredAt, anchor]. That shape does NOT transfer here: these dates
+    // come from monthlyEventCount/pickDateInMonth, which is the whole point of
+    // the history seed — it encodes the per-province trend and seasonality that
+    // the panorama history charts render. Re-drawing dates from each pet's
+    // window would preserve the invariant but destroy the curve.
+    //
+    // So the date is kept and the POOL is narrowed instead: pick only among
+    // pets already registered at that instant. The monthly histogram is
+    // therefore bit-for-bit unchanged, except in the earliest months where no
+    // pet exists yet and the event is correctly skipped.
+    //
+    // The picker itself lives in seed-history-utils.ts (pure, db-free) so the
+    // invariant is unit-tested rather than only observable by re-seeding 32k
+    // pets — see __tests__/seed-history-eligible-pet.test.ts.
+    const makeEligiblePicker = (petIds: readonly string[]) =>
+      makeRegisteredByPicker(petIds, registeredAtMs);
+
     // 5. Per-locality, per-year zoonosis events per the trend intensity. Attach
     //    each to one of that locality's history pets (in that province) so the
     //    event has a valid pet_id and inherits the locality's jurisdiction.
     for (const loc of localities) {
       const carrierPets = petsByLocality.get(loc.localityName) ?? [];
       if (carrierPets.length === 0) continue;
+      const pickCarrier = makeEligiblePicker(carrierPets);
 
       for (const year of HISTORY_YEARS) {
         const intensity = zoonosisByYear[year];
@@ -3393,9 +3430,13 @@ async function seedModelProvinceHistory(
         const count = guaranteed + (rng() < remainder ? 1 : 0);
 
         for (let z = 0; z < count; z++) {
-          const petId = carrierPets[Math.floor(rng() * carrierPets.length)];
+          // The rng draw stays in its original position so the deterministic
+          // stream is unchanged; only what it INDEXES INTO moves (see 4b).
+          const petDraw = rng();
           const useOutbreak = rng() < 0.5;
           const occurredAt = dateInYear(year, rng);
+          const petId = pickCarrier(occurredAt, petDraw);
+          if (!petId) continue;
           const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.01);
 
           if (useOutbreak) {
@@ -3463,6 +3504,7 @@ async function seedModelProvinceHistory(
     // clause; province/locality/kind for the perdidas and per-unit panorama
     // loaders).
     const allProvincePetIds = [...petsByLocality.values()].flat();
+    const pickProvincePet = makeEligiblePicker(allProvincePetIds);
     if (allProvincePetIds.length > 0) {
       // Monthly base count for the province (scales with its locality footprint).
       const monthlyBase = HISTORY_SCALE * Math.max(1, Math.round(localities.length / 50));
@@ -3481,10 +3523,14 @@ async function seedModelProvinceHistory(
           // --- death_recorded (mirrors base-seed payload exactly) ---
           const deathCount = monthlyEventCount(monthlyBase, archetype, year, month, rng);
           for (let d = 0; d < deathCount; d++) {
-            const petId = allProvincePetIds[Math.floor(rng() * allProvincePetIds.length)];
+            // rng draw kept in place (deterministic stream unchanged); it now
+            // indexes the pets already registered at occurredAt — see 4b.
+            const petDraw = rng();
             const loc = localities[Math.floor(rng() * localities.length)];
             const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.02);
             const occurredAt = pickDateInMonth(year, month, rng, ANCHOR);
+            const petId = pickProvincePet(occurredAt, petDraw);
+            if (!petId) continue;
             eventRows.push({
               petId,
               eventType: "death_recorded" satisfies EventType,
@@ -3521,10 +3567,12 @@ async function seedModelProvinceHistory(
           // --- incident_reported / bite (mirrors base-seed payload exactly) ---
           const biteCount = monthlyEventCount(monthlyBase, archetype, year, month, rng);
           for (let b = 0; b < biteCount; b++) {
-            const petId = allProvincePetIds[Math.floor(rng() * allProvincePetIds.length)];
+            const petDraw = rng();
             const loc = localities[Math.floor(rng() * localities.length)];
             const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.02);
             const occurredAt = pickDateInMonth(year, month, rng, ANCHOR);
+            const petId = pickProvincePet(occurredAt, petDraw);
+            if (!petId) continue;
             eventRows.push({
               petId,
               eventType: "incident_reported" satisfies EventType,
@@ -3562,10 +3610,12 @@ async function seedModelProvinceHistory(
             rng,
           );
           for (let l = 0; l < lostCount; l++) {
-            const petId = allProvincePetIds[Math.floor(rng() * allProvincePetIds.length)];
+            const petDraw = rng();
             const loc = localities[Math.floor(rng() * localities.length)];
             const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.02);
             const lostAt = pickDateInMonth(year, month, rng, ANCHOR);
+            const petId = pickProvincePet(lostAt, petDraw);
+            if (!petId) continue;
             eventRows.push({
               petId,
               eventType: "status_changed" satisfies EventType,
@@ -3606,9 +3656,11 @@ async function seedModelProvinceHistory(
             rng,
           );
           for (let a = 0; a < adoptCount; a++) {
-            const petId = allProvincePetIds[Math.floor(rng() * allProvincePetIds.length)];
+            const petDraw = rng();
             const loc = localities[Math.floor(rng() * localities.length)];
             const intakeAt = pickDateInMonth(year, month, rng, ANCHOR);
+            const petId = pickProvincePet(intakeAt, petDraw);
+            if (!petId) continue;
             const fosterAt = new Date(
               Math.min(intakeAt.getTime() + randInt(7, 21) * 86_400_000, ANCHOR.getTime()),
             );

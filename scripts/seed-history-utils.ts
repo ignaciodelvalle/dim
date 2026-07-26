@@ -38,9 +38,24 @@ export function makeMulberry32(seed: number): () => number {
  *
  * Bounds: result is always within [Y-01-01T00:00:00.000Z, Y-12-31T23:59:59.999Z]
  * (or the month-bounded sub-range). Uses one rng draw.
+ *
+ * `notBefore` raises the lower bound. A per-pet event drawn for the pet's OWN
+ * registration year would otherwise land uniformly across that whole year and
+ * so, roughly half the time, precede the registration that created the record —
+ * a vaccination applied to a pet that does not exist yet. Passing the pet's
+ * registeredAt confines the draw to the part of the year the pet was actually
+ * alive in the registry. Years after the registration year are unaffected
+ * (notBefore is already below the window).
  */
-export function dateInYear(year: number, rng: () => number, minMonth = 0, maxMonth = 11): Date {
-  const lo = Date.UTC(year, minMonth, 1, 0, 0, 0, 0);
+export function dateInYear(
+  year: number,
+  rng: () => number,
+  minMonth = 0,
+  maxMonth = 11,
+  notBefore?: Date,
+): Date {
+  const windowStart = Date.UTC(year, minMonth, 1, 0, 0, 0, 0);
+  const lo = notBefore === undefined ? windowStart : Math.max(windowStart, notBefore.getTime());
   // Day 0 of (maxMonth + 1) is the LAST day of maxMonth; +1 day minus 1ms gives
   // the inclusive end-of-month instant without overflowing into the next month.
   const hiExclusive = Date.UTC(year, maxMonth + 1, 1, 0, 0, 0, 0);
@@ -53,6 +68,54 @@ export function dateInYear(year: number, rng: () => number, minMonth = 0, maxMon
   if (hi > nowMs) hi = nowMs;
   const span = Math.max(0, hi - lo);
   return new Date(lo + Math.floor(rng() * (span + 1)));
+}
+
+/**
+ * Build a picker that returns a pet id drawn ONLY from the pets already
+ * registered at a given instant — the guard against seeding an event that
+ * happens before its own pet exists.
+ *
+ * The history seed dates its pooled events (deaths, bites, lost, shelter
+ * intakes, zoonosis) from a per-province trend/seasonality curve, and used to
+ * choose the pet with a completely independent draw. 45% of history events
+ * landed before their pet's pet_registered as a result — 1623 of 3579
+ * death_recorded events were pets dying before they existed.
+ *
+ * Narrowing the POOL rather than re-drawing the DATE is deliberate: the date
+ * carries the trend the panorama history charts exist to show, so it must be
+ * preserved exactly. Only the candidate set moves.
+ *
+ * @param petIds     candidate pets (any order; ids without a known registration
+ *                   instant are dropped rather than silently trusted)
+ * @param registeredAtMs  pet id → registration instant in epoch ms
+ * @returns (at, draw) => pet id, or null when NO pet was registered yet at
+ *          `at` — the caller must skip emitting the event. `draw` is a
+ *          pre-drawn uniform in [0,1), taken in the caller's original rng
+ *          position so the deterministic stream is unchanged.
+ */
+export function makeRegisteredByPicker(
+  petIds: readonly string[],
+  registeredAtMs: ReadonlyMap<string, number>,
+): (at: Date, draw: number) => string | null {
+  const sorted = petIds
+    .filter((id) => registeredAtMs.has(id))
+    .sort((a, b) => registeredAtMs.get(a)! - registeredAtMs.get(b)!);
+  const times = sorted.map((id) => registeredAtMs.get(id)!);
+
+  return (at, draw) => {
+    // Upper bound: how many pets were registered at or before `at`.
+    const t = at.getTime();
+    let lo = 0;
+    let hi = times.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (times[mid] <= t) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo === 0) return null;
+    // Clamp guards draw === 1 (some rngs are inclusive at the top).
+    return sorted[Math.min(lo - 1, Math.floor(draw * lo))];
+  };
 }
 
 /**
