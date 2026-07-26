@@ -29,8 +29,8 @@ import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 14 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(14);
+  it("contains exactly 15 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(15);
   });
 
   it("all preset ids are unique", () => {
@@ -38,7 +38,7 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 14 expected preset ids are present", () => {
+  it("all 15 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
@@ -49,8 +49,14 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(ids.has("control-poblacional")).toBe(true);
     expect(ids.has("mortalidad")).toBe(true);
     expect(ids.has("perdidas-reunificacion")).toBe(true);
-    // New-vistas wave (PO 2026-07-18): the vet-activity recency vista.
+    // New-vistas wave (PO 2026-07-18): the vet-activity vista. Its base
+    // statistic was re-shaped on 2026-07-26 from a recency (days since the last
+    // act — a MAX that could not discriminate) to the SHARE of active pets with
+    // no act in the period; the vista id is unchanged.
     expect(ids.has("desierto-veterinario")).toBe(true);
+    // Orphan-wiring close-out (2026-07-26): the intensity half of the same
+    // question — the LAST orphan layer in the registry.
+    expect(ids.has("acceso-veterinario")).toBe(true);
     expect(ids.has("tendencia")).toBe(true);
     expect(ids.has("riesgo-ppp")).toBe(true);
     // Orphan-wiring wave (2026-07-26): the two rate layers that had a loader,
@@ -305,6 +311,7 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
       "control-poblacional",
       "mortalidad",
       "desierto-veterinario",
+      "acceso-veterinario",
       "tendencia",
       "riesgo-ppp",
     ] as const) {
@@ -529,27 +536,33 @@ describe("PANORAMA_PRESETS — layer reachability", () => {
    * adding a layer without a vista, or dropping a layer out of its only vista,
    * must fail here and force an explicit decision.
    *
-   * WAS ["acceso-veterinario", "indice-territorial"] — both "higher is better"
-   * layers that the console read backwards. `indice-territorial` is now wired:
-   * its 0-100 score has a DEFINITIONAL meta of 100 (the three metas met), and a
-   * declared target is a polarity declaration the existing call sites already
-   * pass through, so it ranks worst-gap-first and fills on the META scale.
+   * IT IS NOW EMPTY, and that is the point of pinning it: every layer in the
+   * registry is reachable from at least one vista. `acceso-veterinario` was the
+   * last survivor and is wired as of 2026-07-26, once the two things blocking it
+   * landed — a numerator that actually discriminates (VET_ACTIVITY_EVENT_TYPES:
+   * 23 of 24 provinces used to read exactly 0,0) and the polarity carried
+   * through all THREE consumers that had been dropping it (the console's rank
+   * options, provinceSeqClassScale's `invert`, and PanoramaDataTable's own
+   * re-sort — the third was invisible until an end-to-end assertion looked at
+   * the rendered order).
    *
-   * `acceso-veterinario` survives DELIBERATELY. Its polarity is declared
-   * (`higherIsBetter: true`) and both mechanisms exist — the ranking honours it
-   * and `computeClassScale({ invert })` reverses the ramp — but the two consumer
-   * reads that would carry it (PanoramaConsole's inline rank options,
-   * provinceSeqClassScale's `computeClassScale` call) still do not pass it, and
-   * it has no honest target to ride instead. Wiring it today would list the ten
-   * BEST-served jurisdictions as "las peores" and paint them the alarm colour.
-   * An orphan with a written reason beats a vista that lies; see the rationale
-   * block on the `desierto-veterinario` preset for the two one-argument fixes.
+   * A new entry here demands a written reason, not a shrug.
    */
-  const KNOWN_ORPHANS: readonly LayerId[] = ["acceso-veterinario"];
+  const KNOWN_ORPHANS: readonly LayerId[] = [];
 
-  it("only the documented consumer-blocked layer is orphaned", () => {
+  it("no layer is orphaned — every one is reachable from a vista", () => {
     const orphans = PANORAMA_LAYERS.map((l) => l.id).filter((id) => !activated.has(id));
     expect(orphans.sort()).toEqual([...KNOWN_ORPHANS].sort());
+  });
+
+  it("the access-intensity layer has a vista — polarity, not a target, unblocked it", () => {
+    expect(activated.has("acceso-veterinario")).toBe(true);
+    const layer = PANORAMA_LAYERS.find((l) => l.id === "acceso-veterinario");
+    expect(layer?.higherIsBetter).toBe(true);
+    // Deliberately target-less: the country sits far below the ~1.000 actos/1.000
+    // floor the annual antirrábica booster implies, so declaring it would drop
+    // every province into the lowest META class and flatten the map.
+    expect(layer?.complianceTarget).toBeUndefined();
   });
 
   it("the territorial index has a vista — it ranks by attainment, not by magnitude", () => {
@@ -570,6 +583,55 @@ describe("PANORAMA_PRESETS — layer reachability", () => {
     const p = getPreset("desierto-veterinario")!;
     expect(p.references).toEqual(["clinicas", "refugios"]);
     expect(presetLayerIds(p)).toEqual(["desierto-veterinario", "clinicas", "refugios"]);
+  });
+
+  it("acceso-veterinario carries the same installed-capacity references", () => {
+    const p = getPreset("acceso-veterinario")!;
+    expect(p.base).toBe("acceso-veterinario");
+    expect(presetLayerIds(p)).toEqual(["acceso-veterinario", "clinicas", "refugios"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Copy honesty — the desert vista no longer measures days (PO 2026-07-26).
+// ---------------------------------------------------------------------------
+
+describe("desierto-veterinario — the copy states a coverage share, never a duration", () => {
+  const vista = () => getPreset("desierto-veterinario")!;
+  const layer = () => PANORAMA_LAYERS.find((l) => l.id === "desierto-veterinario")!;
+
+  it("no surface still promises 'días'", () => {
+    // The base statistic changed from "days since the last veterinary act" to
+    // "share of active pets with no act in the period". Every string an operator
+    // can read had to move with it, or the map would be labelled as a duration
+    // while painting a percentage.
+    for (const copy of [
+      vista().description,
+      layer().label,
+      layer().description,
+      layer().caption.measure,
+    ]) {
+      expect(copy.toLowerCase()).not.toMatch(/\bd[ií]as?\b/);
+    }
+  });
+
+  it("names the measure as a percentage of pets in the label and the caption", () => {
+    expect(layer().label).toContain("%");
+    expect(layer().caption.measure).toContain("%");
+    expect(layer().caption.window).toBe("period");
+  });
+
+  it("declares no censoring bound — 100% is a measurement, not a stopping point", () => {
+    // `censoredAtMax: 90` meant "we stopped looking at 90 days". A share is
+    // bounded at 100 by construction, so the legend must not render "≥100%" and
+    // the ranking must not disclaim a tie that does not exist.
+    expect(layer().censoredAtMax).toBeUndefined();
+  });
+
+  it("is higher-is-WORSE — more unattended pets is the alarm", () => {
+    // The inverse of its sibling acceso-veterinario. Declaring polarity here
+    // would flip the ramp and rank the WORST-covered provinces as the best.
+    expect(layer().higherIsBetter).toBeFalsy();
   });
 });
 

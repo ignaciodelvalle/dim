@@ -25,6 +25,7 @@ export type PresetId =
   | "mortalidad"
   | "perdidas-reunificacion"
   | "desierto-veterinario"
+  | "acceso-veterinario"
   | "tendencia"
   | "riesgo-ppp"
   | "indice-territorial";
@@ -351,12 +352,15 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     id: "desierto-veterinario",
     label: "Desierto veterinario",
     description:
-      "¿Qué zonas llevan más días sin actividad veterinaria registrada, y qué capacidad instalada hay para cubrirlas?",
-    // base: desierto-veterinario (days-without-vet-activity choropleth). The
-    // default 90d window is the vista's N: a quarter without ANY registered
-    // vet-attended event is a meaningful access gap (annual antirrábica boosters
-    // + routine controls make quarterly activity the expected floor). The period
-    // selector changes N and the caption follows (window: "period").
+      "¿Qué proporción de las mascotas de cada jurisdicción no recibió NINGUNA atención veterinaria en el período, y qué capacidad instalada hay para cubrirlas?",
+    // base: desierto-veterinario — the SHARE OF ACTIVE PETS WITH NO VETERINARY
+    // ACT in the period (PO decision 2026-07-26; it used to be "days since the
+    // last act", a MAX that could not discriminate at province grain — see the
+    // registry entry and loadVetDesertByProvince). The default 90d window is the
+    // vista's N: a quarter without ANY registered vet-attended event is a
+    // meaningful access gap (annual antirrábica boosters + routine controls make
+    // quarterly attention the expected floor). The period selector changes N and
+    // the caption follows (window: "period").
     base: "desierto-veterinario",
     // references: the INSTALLED CAPACITY that turns this vista from a diagnosis
     // into a diagnosis WITH A PLAN — where are the clinics and shelters that
@@ -378,46 +382,72 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // territory has no registered veterinary activity.
     metrics: ["cobertura", "esterilizacion"],
     //
-    // WHY THE BASE IS STILL `desierto-veterinario` AND NOT `acceso-veterinario`
-    // (re-evaluated 2026-07-26 with the polarity work in hand — still NOT
-    // swapped, but for a smaller and more specific reason than before).
+    // WHY THIS VISTA AND `acceso-veterinario` BOTH EXIST (2026-07-26).
     //
-    // The critique is CORRECT on the metric: `desierto-veterinario` is
-    // right-censored at the window length (censoredAtMax: 90) and 23 of 24
-    // provinces sit exactly at the cap, so the map is one colour and the ranking
-    // is a 23-way tie. `acceso-veterinario` (visits per 1.000 active pets, 12m)
-    // is continuous, normalized and does not saturate — it is the metric this
-    // vista's question actually means, and it is now DECLARED honestly
-    // (`higherIsBetter: true`) with the ranking (ranking.ts) and the ramp
-    // (class-scale.ts `invert`) both able to honour that declaration.
+    // They are the two halves of the same question and neither subsumes the
+    // other, so each gets its own vista (one base per preset — F2):
+    //   · here, the DEFICIT — what share of the live population the system
+    //     reached with nothing at all. It answers "¿a cuántas no llegamos?",
+    //     which is what a coverage program is budgeted against.
+    //   · `acceso-veterinario`, the INTENSITY — how many veterinary acts per
+    //     1.000 mascotas a territory sustains. It answers "¿cuánta atención hay
+    //     donde sí llegamos?", and a province can score well on it while leaving
+    //     a large tail untouched (a small, well-attended cohort lifts the rate).
+    // Measured the same day, they agree on the extremes (Salta worst, Mendoza
+    // best on both) and diverge in the middle — which is the evidence that they
+    // are two measures, not one metric shown twice.
     //
-    // What is still missing is not the mechanism but the two CONSUMER reads, in
-    // files this change does not own:
-    //   1. PanoramaConsole.tsx builds the rank options inline
-    //      (`{ kind, target, limit }`) and never passes `higherIsBetter`, so a
-    //      target-less higher-is-better layer still ranks descending under the
-    //      "Peores N" title — the ten BEST-served provinces listed as the worst.
-    //   2. province-choropleth-style.ts `provinceSeqClassScale` calls
-    //      `computeClassScale(values, { lockedBreaks })` and never passes
-    //      `invert`, so the sequential fill still darkens with value — the
-    //      best-served provinces painted as the alarm.
-    // Both are one argument each. Until they land, swapping trades a
-    // flat-but-honest map for a legible INVERTED one, which is the worse defect
-    // on a government console. `indice-territorial` did NOT have to wait for
-    // them: its meta of 100 is definitional, and a declared target is a polarity
-    // declaration the existing call sites already pass through.
+    // NEITHER declares a `complianceTarget`. For this layer there is no
+    // defensible "meta de mascotas sin atención" at all; for acceso-veterinario
+    // the annual antirrábica booster implies a ~1.000 actos/1.000 floor the
+    // whole country sits far below, so declaring it would drop every province
+    // into the lowest META class and flatten the map — the same saturation the
+    // reshaping above exists to escape. Polarity, not a target, is what makes
+    // both read correctly.
+  },
+  {
+    id: "acceso-veterinario",
+    label: "Acceso veterinario",
+    description:
+      "¿Cuánta atención veterinaria sostiene cada jurisdicción por cada 1.000 mascotas activas, y dónde está la red que podría cubrir el resto?",
+    // base: acceso-veterinario (actos veterinarios por 1.000 mascotas activas,
+    // ventana móvil de 12 meses). The LAST orphan layer in the registry: it
+    // shipped with a loader, a shared fetcher (/gob/analytics) and tests, and no
+    // vista ever activated it, so an operator could never see it.
     //
-    // A `complianceTarget` would unblock acceso-veterinario the same way — the
-    // annual antirrábica booster implies ~1.000 visitas/1.000 mascotas — and was
-    // rejected: the country sits far below that floor, so every province would
-    // land in the lowest META class and the map would go flat, re-creating the
-    // exact saturation this swap exists to escape. Fixing the ranking by
-    // breaking the map is not a fix.
-    //
-    // Independently REPORTED and also unfixed: the underlying metric counts only
-    // `vet_visit_logged`, so vaccinating 10.000 dogs does not register as
-    // veterinary activity. Widening that predicate would ALSO de-saturate this
-    // layer without touching polarity.
+    // WIRABLE ONLY NOW, and only because two things landed with it:
+    //   1. The NUMERATOR. It counted `vet_visit_logged` alone — 85 rows
+    //      nationally — so 23 of 24 provinces read exactly 0,0 and only CABA had
+    //      a value (14). A vista over that is a flat map. Widened to every act
+    //      that requires a veterinary professional (VET_ACTIVITY_EVENT_TYPES,
+    //      shared with the desert layer AND with /gob/analytics, so both
+    //      surfaces improved at once) it runs 690,9 (Salta) → 1.997,9 (Mendoza),
+    //      all 24 provinces distinct.
+    //   2. The POLARITY. This is one of the two layers where a HIGH value is the
+    //      GOOD news. The registry has declared it (`higherIsBetter: true`) and
+    //      ranking.ts/class-scale.ts have honoured it for a while, but the two
+    //      consumer reads dropped it: PanoramaConsole built its rank options
+    //      inline and provinceSeqClassScale never passed `invert`. Both now
+    //      carry it, so "Peores 10" lists the LEAST-served jurisdictions and the
+    //      dark class lands on the lowest rate instead of on the best-served.
+    base: "acceso-veterinario",
+    // references: the same INSTALLED CAPACITY the desert vista carries — the
+    // clinics and shelters an intervention could actually be deployed through.
+    // Reference layers are unlimited under F2 and contend for no slot.
+    references: ["clinicas", "refugios"],
+    level: "province",
+    // The layer's own window is a fixed trailing 12 months (temporal: false), so
+    // the period selector does not move this map. 90d keeps the board's period
+    // consistent with the sibling national vistas and with the reference layers.
+    periodPreset: "90d",
+    // A cross-province access comparison is a national question — same framing
+    // as every other province-choropleth vista.
+    framing: { kind: "national" },
+    // KNOWN GAP, stated rather than hidden (antiparasitario precedent): there is
+    // no `acceso-veterinario` PanoramaKpiId, so this vista cannot headline its
+    // own indicator. The two shown are the vet-DELIVERED interventions whose
+    // coverage is exactly what veterinary access buys.
+    metrics: ["cobertura", "esterilizacion"],
   },
   {
     id: "tendencia",
