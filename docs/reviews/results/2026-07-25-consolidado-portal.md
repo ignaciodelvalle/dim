@@ -381,3 +381,86 @@ Tomadas al cierre de la corrida. **No re-preguntar.**
 | 2 | **Fence de integridad del spine: bloqueante desde el día uno.** Rompe `pnpm verify` si una mascota no tiene su `pet_registered`. Sin perdón para lo existente | Ya está demostrado que un aviso que no bloquea se ignora: así se acumularon 855 huérfanas y así se silenció el barrido de fitness a fuerza de reseedear |
 | 3 | **La regla "Panorama sin costos" se revisa: capacidad instalada NO es presupuesto.** Clínicas, refugios y matriculados pueden mostrarse | Sin contraparte de capacidad, "Desierto veterinario" es diagnóstico sin plan. Las capas `clinicas` y `refugios` ya están construidas y huérfanas |
 | 4 | **Los 10 hallazgos sin verificar se verifican antes de tocar nada** | En esta misma corrida dos hallazgos "críticos" no sobrevivieron la verificación |
+
+---
+
+## 9 · Tareas derivadas del ViewScope único (C3) — 2026-07-26
+
+Salieron de discutir qué destraba C3 más allá de C6. Las cuatro primeras son
+accionables; las dos últimas son diseño y necesitan C3 terminado.
+
+### V1 · Fence de coherencia alcance ↔ autorización — **accionable YA, no espera a C3**
+
+**Qué:** un chequeo que compare, para un rol y mandato dados, el conjunto que RLS
+permite ver contra el conjunto que la pantalla declara estar mostrando.
+
+**Por qué ahora:** staging estuvo semanas con RLS apagado en 27 tablas y ninguna
+pantalla lo notó — porque ninguna deriva lo que muestra de la misma fuente que lo
+autoriza. Hoy son dos verdades que coinciden por disciplina, no por construcción.
+
+**Aceptación:** falla si existe un rol para el que el conjunto autorizado y el
+declarado difieren. Debe correr contra la base de destino, y por lo tanto **debe
+tener un skip elegante** cuando `DATABASE_URL` no apunta donde el operador cree
+— el informe de cutover marca ese modo de falla como el paso más riesgoso.
+
+### V2 · Alcance serializable en toda exportación — **el primer ladrillo del acto administrativo**
+
+**Qué:** que cada exportación (CSV, informe de una carilla, frame PNG) cargue el
+alcance como **objeto**, no como texto descriptivo.
+
+**Por qué:** la brecha G1 dice que no producimos acto administrativo por falta de
+expediente, firma y snapshot reproducible. Lo reproducible empieza acá: si el
+alcance viaja serializado, se puede **regenerar bit a bit lo que alguien firmó**.
+Con 54 derivaciones ad hoc, "reproducible" es una promesa incumplible.
+
+**Aceptación:** dado un artefacto exportado, un test reconstruye la misma vista y
+obtiene los mismos valores. Sin eso no hay firma digital que valga: se estaría
+firmando algo que no se puede volver a producir.
+
+### V3 · El grano de k-anonimato es propiedad del alcance — **gated en C3**
+
+**Qué:** que el nivel al que se aplica k=5 lo determine el alcance, no cada
+superficie por su cuenta.
+
+**Por qué:** hoy Panorama aplica k con criterio propio y los tableros no lo
+aplican; por eso `/gob` muestra "Confianza: baja · n=8" y Panorama no. Y es la
+causa real de que el funcionario acotado vea el mapa vacío: **lo obligamos a
+mirar en el grano donde la privacidad lo ciega** (medido: su alcance es la
+localidad, el grano más fino del cubo es el departamento).
+
+**Aceptación:** un operador con 3 localidades ve dato agregado a su departamento,
+no un mapa vacío.
+
+### V4 · Alta de jurisdicción como operación, no como trabajo manual — **accionable YA**
+
+**Qué:** dar de alta un municipio/provincia debe ser una operación con su propia
+pantalla y validación.
+
+**Por qué:** hay una cuenta de gobierno capturada en vivo, trabada en
+**"SIN LOCALIDADES — NO PUEDE OPERAR"**. Ese es el síntoma de que hoy es trabajo
+manual repetido, y es la primera fricción que encuentra un cliente nuevo.
+
+**Aceptación:** una jurisdicción nueva queda operativa sin edición manual de
+`govt_assignments`, y el estado "sin localidades" es imposible de alcanzar sin
+un aviso que diga cómo salir.
+
+### V5 · Alcance como unión y adyacencia — **diseño, gated en C3**
+
+Hoy el alcance es un embudo (nación → provincia → localidad) y nunca una
+conversación lateral. Se necesita expresar "mi jurisdicción más la vecina" y
+"el área del brote". **Los brotes no respetan límites administrativos; nuestro
+modelo de alcance sí.** Es el prerrequisito de la brecha G7 (traspaso
+interjurisdiccional).
+
+### V6 · Mapeo de la pretensión de jurisdicción de Mi Argentina — **diseño, gated en C3**
+
+Una identidad federada trae consigo un territorio. Con alcance único eso es un
+**mapeo**; con 54 derivaciones es una reescritura, y cada sitio que no se
+actualice le muestra a un funcionario federado un territorio que no le
+corresponde. Mi Argentina es premisa fundacional, no una integración más.
+
+---
+
+**Prioridad sugerida:** V1 y V4 no esperan a C3 y ambos atacan daño verificado
+hoy. V2 es el de mayor techo — es lo que separa un instrumento de lectura de uno
+que sirve para firmar.
