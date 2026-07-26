@@ -33,6 +33,7 @@ Runnable scripts invoked via `pnpm` commands. All TypeScript unless noted.
 | `seed-storylines-legends.ts` | Three historically iconic dogs as workflow stressors for 5 previously-missing event types. |
 | `seed-storylines-supporting.ts` | 15 ordinary supporting-cast pets distributed across CABA for dashboard population. |
 | `seed-history-utils.ts` | Shared utilities for history/timeline seeding (imported by storyline scripts). |
+| `reset-demo-pets.ts` | Deletes the curated demo pets (`DIM-DEMO-*`, `DIM-ARGO-DEMO`, `DIM-BRUNO-DEMO`) so the seeds recreate them through the real intake circuit. Local-only, requires `--yes`, audit-logged. |
 
 ## Cron / Scheduled Operations
 

@@ -30,6 +30,13 @@
  *   Cada entidad se busca por una clave estable antes de insertarse.
  *   Re-correrlo no duplica nada.
  *
+ * Circuito real de alta:
+ *   Argo y Bruno se crean con registerPet — el mismo caso de uso que maneja el
+ *   wizard de alta — y no con db.insert(pets). Ver la sección 4b. Para
+ *   REGENERARLOS hay que borrarlos primero (scripts/reset-demo-pets.ts): la
+ *   idempotencia por existencia hace que este seed saltee una mascota que ya
+ *   está, defectos incluidos.
+ *
  * Notas:
  *   - Refusa correr contra Supabase no-local o NODE_ENV=production.
  *   - Comparte el patrón de log/safety de seed-demo.ts.
@@ -82,9 +89,13 @@ function log(level: LogLevel, msg: string): void {
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
+import { resolveCanonicalJurisdiction } from "@/lib/infra/jurisdiction-validation";
 import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
+import { registerPet } from "@/src/modules/pets/application/register-pet";
+import type { ParsedPet } from "@/src/modules/pets/domain/types";
+import { PetsRepository } from "@/src/modules/pets/infrastructure/pets-repository";
 import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
 import { db } from "../db";
@@ -137,6 +148,139 @@ async function findProfileByEmail(email: string): Promise<{ id: string } | null>
 }
 
 // ---------------------------------------------------------------------------
+// 4b. The real intake circuit
+//
+// WHY registerPet AND NOT db.insert(pets)
+// ---------------------------------------
+// A pets row inserted directly is an operational cache row with no fact behind
+// it: the credential exists, but the append-only spine never recorded that
+// anyone registered the animal. That is the cache outranking the log, which is
+// exactly what invariant #3 forbids — and deriving the missing pet_registered
+// back OUT of the pets row (its name, its created_at) makes the inversion
+// worse, because it promotes the cache to the origin of the fact. The only
+// honest fix is to create these pets the way a user creates one: through the
+// use-case the alta wizard drives. It emits the pets row, the ownership row and
+// the pet_registered event in one transaction, and resolves the canonical
+// locality_id that a direct insert always left NULL.
+//
+// TWO INJECTED SEAMS, both already part of the use-case's Deps:
+//   1. repo.generatePublicToken → the stable DIM-ARGO-DEMO / DIM-BRUNO-DEMO
+//      tokens the runbook, e2e specs and this script's own idempotency guards
+//      key off. generatePublicToken is an injected repo method, so overriding
+//      it is the seam working as designed, not a bypass.
+//   2. now → the historical registration instant. These assets carry months of
+//      curated history; the default `new Date()` would stamp the registration
+//      AFTER the events it owns.
+//
+// WHAT THE CALLER STILL WRITES ITSELF
+// -----------------------------------
+// ParsedPet has no distinguishing_features, no jurisdiction_country and no
+// notion of an organization holding the animal — registerPet always writes an
+// OWNER ownership. Shelter custody and curated identity trim are applied as
+// post-registration cache updates, the same dual-write discipline the
+// production writers use.
+// ---------------------------------------------------------------------------
+
+/** Shelter operator who performs Argo's intake — org admin of Patitas del Norte. */
+const SHELTER_OPERATOR_EMAIL = "alejo@dim.test";
+
+type SpinePetSpec = {
+  token: string;
+  name: string;
+  breed: string;
+  color: string;
+  sex: ParsedPet["sex"];
+  dateOfBirth: string;
+  birthDateIsEstimated: boolean;
+  estimatedWeightKg: string | null;
+  acquisitionMethod: ParsedPet["acquisitionMethod"];
+  province: string;
+  locality: string;
+  /** The instant the credential was created. Must precede every curated event. */
+  registeredAt: Date;
+  /** The human who registered it — becomes recorded_by on pet_registered. */
+  actorUserId: string;
+};
+
+async function registerSpinePet(spec: SpinePetSpec): Promise<string | null> {
+  // Resolve the canonical locality FK exactly as the write path does
+  // (normalizeLocationForWrite → resolveCanonicalJurisdiction). A miss leaves
+  // the FK NULL — what a real registration outside the INDEC catalogue
+  // produces — never a fabricated id.
+  let localityId: string | null = null;
+  try {
+    const canonical = await resolveCanonicalJurisdiction({
+      rawProvince: spec.province,
+      rawLocality: spec.locality,
+    });
+    localityId = canonical.locality.id;
+  } catch {
+    localityId = null;
+  }
+
+  const parsed: ParsedPet = {
+    name: spec.name,
+    species: "dog",
+    sex: spec.sex,
+    breed: spec.breed,
+    dateOfBirth: spec.dateOfBirth,
+    birthDateIsEstimated: spec.birthDateIsEstimated,
+    color: spec.color,
+    // Chip left null on purpose: Argo arrives as an unchipped stray and is
+    // chipped two days later, which the microchip_implanted event and the
+    // canonical pet_identifications row below already tell. Declaring a chip
+    // at registration would make the credential claim a fact that had not
+    // happened yet.
+    microchipId: null,
+    microchipCountryCode: null,
+    microchipImplantedAt: null,
+    microchipImplantedBy: null,
+    microchipLocation: null,
+    estimatedWeightKg: spec.estimatedWeightKg,
+    favouriteFoods: [],
+    knownAllergies: [],
+    trainingLevel: null,
+    insuranceCompany: null,
+    insurancePolicyNumber: null,
+    jurisdictionProvince: spec.province,
+    jurisdictionLocality: spec.locality,
+    localityId,
+    acquisitionMethod: spec.acquisitionMethod,
+    emergencyInfoVisible: false,
+    permanentConditions: [],
+    permanentConditionsOther: null,
+    discloseConditionsPublicly: false,
+    custodyKind: "owner",
+  };
+
+  const result = await registerPet(
+    {
+      parsed,
+      potentiallyDangerousBreed: false,
+      uploadedPath: null,
+      uploadMimeType: null,
+      uploadSize: null,
+      clientIdempotencyKey: null,
+    },
+    {
+      repo: { ...PetsRepository, generatePublicToken: async () => spec.token },
+      actor: { user: { id: spec.actorUserId } },
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+      now: () => spec.registeredAt,
+    },
+  );
+
+  if (!result.ok) {
+    log("FAIL", `registerPet falló para ${spec.token}: ${result.error}`);
+    return null;
+  }
+  // result.notifications is deliberately dropped — registerPet only COLLECTS
+  // them; the action flushes them post-transaction. A seed has no user to ping.
+  return (result.value as NonNullable<typeof result.value>).petId;
+}
+
+// ---------------------------------------------------------------------------
 // 5. Asset 1 — Argo (stray dog at Patitas del Norte)
 // ---------------------------------------------------------------------------
 
@@ -183,37 +327,49 @@ async function seedArgo(): Promise<void> {
   // other seed scripts (seed-test-users, seed-storylines-*).
   const ARGO_CHIP = "858985112999000";
 
-  const [pet] = await db
-    .insert(schemas.pets)
-    .values({
-      publicToken: ARGO_PUBLIC_TOKEN,
-      species: "dog",
-      breed: "Mestizo",
-      name: "Argo",
-      sex: "male",
-      dateOfBirth: "2023-08-15",
-      birthDateIsEstimated: true,
-      color: "Marrón con manchas blancas",
-      distinguishingFeatures: "Oreja izquierda con muesca",
-      // Legacy chip columns omitted — ARCH-R; canonical row written to
-      // pet_identifications below.
-      estimatedWeightKg: "22.5",
-      potentiallyDangerousBreed: false,
-      jurisdictionCountry: "AR",
-      jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Palermo",
-      acquisitionMethod: "found_stray",
-      emergencyInfoVisible: false,
-      status: "active",
-    })
-    .returning({ id: schemas.pets.id });
+  // The shelter operator who takes Argo in is the actor on his registration.
+  const operator = await findProfileByEmail(SHELTER_OPERATOR_EMAIL);
+  if (!operator) {
+    log("FAIL", `No se encontró ${SHELTER_OPERATOR_EMAIL}. ¿Corriste seed-demo.ts primero?`);
+    return;
+  }
 
-  await db.insert(schemas.ownerships).values({
-    petId: pet.id,
-    ownerUserId: null,
-    ownerOrganizationId: orgId,
-    role: "shelter_custody",
+  // Registered the day he is taken in: a shelter creates the credential when
+  // the animal enters its custody, which is also what shelter_intake_recorded
+  // says. Every later asiento (chip, vacuna, castración, pesos) then falls
+  // after the registration that created the credential.
+  const petId = await registerSpinePet({
+    token: ARGO_PUBLIC_TOKEN,
+    name: "Argo",
+    breed: "Mestizo",
+    color: "Marrón con manchas blancas",
+    sex: "male",
+    dateOfBirth: "2023-08-15",
+    birthDateIsEstimated: true,
+    // Matches the last weight_recorded below, so the pet-cache re-derivation
+    // sweep sees the cache agree with the replayed spine.
+    estimatedWeightKg: "22.5",
+    acquisitionMethod: "found_stray",
+    province: "CABA",
+    locality: "Palermo",
+    registeredAt: intakeDate,
+    actorUserId: operator.id,
   });
+  if (!petId) return;
+
+  // Post-registration cache facts ParsedPet cannot carry.
+  await db
+    .update(schemas.pets)
+    .set({ distinguishingFeatures: "Oreja izquierda con muesca" })
+    .where(eq(schemas.pets.id, petId));
+
+  // Shelter custody: registerPet always writes an OWNER ownership (it has no
+  // notion of an organization holding an animal), so the row is re-pointed at
+  // the refuge — the same correction seed-panorama applies to its shelter pets.
+  await db
+    .update(schemas.ownerships)
+    .set({ ownerUserId: null, ownerOrganizationId: orgId, role: "shelter_custody" })
+    .where(eq(schemas.ownerships.petId, petId));
 
   const events = [
     {
@@ -278,7 +434,7 @@ async function seedArgo(): Promise<void> {
 
   for (const e of events) {
     await db.insert(schemas.petEvents).values({
-      petId: pet.id,
+      petId,
       eventType: e.eventType,
       occurredAt: e.occurredAt,
       authorRole: "shelter",
@@ -290,7 +446,7 @@ async function seedArgo(): Promise<void> {
 
   // Canonical microchip row — legacy pets.* columns not written (ARCH-R).
   await db.insert(schemas.petIdentifications).values({
-    petId: pet.id,
+    petId,
     kind: "microchip_iso",
     code: ARGO_CHIP,
     recordedAt: microchipDate.toISOString().slice(0, 10),
@@ -790,39 +946,32 @@ async function seedCustodyDisputeDemo(): Promise<void> {
 
   let petId = existingPet?.id;
   if (!petId) {
-    const [pet] = await db
-      .insert(schemas.pets)
-      .values({
-        publicToken: DISPUTE_PET_PUBLIC_TOKEN,
-        species: "dog",
-        breed: "Beagle",
-        name: "Bruno",
-        sex: "male",
-        dateOfBirth: "2021-03-10",
-        birthDateIsEstimated: false,
-        color: "Tricolor",
-        // estimatedWeightKg intentionally omitted (null): the pet-cache
-        // re-derivation fitness sweep (__tests__/pet-cache-rederivation.test.ts)
-        // checks this column against replayed weight_recorded events — a
-        // hardcoded value with no backing event would read as cache drift.
-        // Bruno's health history isn't the point of this asset (the dispute
-        // is); leave the weight cache genuinely empty rather than fake it.
-        potentiallyDangerousBreed: false,
-        jurisdictionCountry: "AR",
-        jurisdictionProvince: "CABA",
-        jurisdictionLocality: "Palermo",
-        acquisitionMethod: "adopted",
-        emergencyInfoVisible: false,
-        status: "active",
-      })
-      .returning({ id: schemas.pets.id });
-    petId = pet.id;
-
-    await db.insert(schemas.ownerships).values({
-      petId,
-      ownerUserId: currentOwner.id,
-      role: "owner",
+    // Registered by his current owner a year before the claim. The dispute
+    // only reads as a dispute if the credential predates it — a pet registered
+    // after the claim was raised would be a different, incoherent story.
+    const registeredId = await registerSpinePet({
+      token: DISPUTE_PET_PUBLIC_TOKEN,
+      name: "Bruno",
+      breed: "Beagle",
+      color: "Tricolor",
+      sex: "male",
+      dateOfBirth: "2021-03-10",
+      birthDateIsEstimated: false,
+      // estimatedWeightKg intentionally null: the pet-cache re-derivation
+      // fitness sweep (__tests__/pet-cache-rederivation.test.ts) checks this
+      // column against replayed weight_recorded events — a hardcoded value
+      // with no backing event would read as cache drift. Bruno's health
+      // history isn't the point of this asset (the dispute is); leave the
+      // weight cache genuinely empty rather than fake it.
+      estimatedWeightKg: null,
+      acquisitionMethod: "adopted",
+      province: "CABA",
+      locality: "Palermo",
+      registeredAt: daysAgo(365),
+      actorUserId: currentOwner.id,
     });
+    if (!registeredId) return;
+    petId = registeredId;
 
     log("OK", `Bruno creado (${DISPUTE_PET_PUBLIC_TOKEN}) — dueño: ${DISPUTE_CURRENT_OWNER_EMAIL}`);
   } else {

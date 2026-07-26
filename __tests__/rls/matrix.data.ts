@@ -334,22 +334,29 @@ export const RLS_MATRIX: RlsMatrix = {
       delete: deny("anon cannot delete"),
     },
     owner: {
-      // The owner@dim.test seed user is the from_owner of no transfer initially.
-      // The probe falls back to .select('*').limit(1) which will see 0 rows if
-      // none are scoped to this user — same deny outcome.
-      select: deny("owner has no fixture transfers seeded — zero rows from select probe"),
+      // These two cells used to say `deny`, with reasons that described an
+      // EMPTY TABLE ("no fixture transfers seeded", "no fixture row") rather
+      // than a policy. They passed only because pet_transfers happened to hold
+      // zero rows; the moment seed-owner-demo's pending transfer existed the
+      // harness reported `allow` and the matrix contradicted the policy its own
+      // header comment documents. A cell that asserts an accident is not a
+      // fitness check — corrected to match migration 0105.
+      select: allow("sender reads own transfers — 'pet_transfers read by sender' (0105)"),
       insert: deny("inserts go through server actions (BYPASSRLS)"),
       update: deny("updates go through server actions (BYPASSRLS)"),
       delete: deny("deletes go through server actions (BYPASSRLS)"),
     },
     other_user: {
-      select: deny("non-owner sees only their own transfers; no fixture row"),
+      // Genuinely deny, and not for lack of rows: no policy matches a user who
+      // is neither from_owner_id nor to_owner_id. This is the isolation
+      // assertion the table exists to make.
+      select: deny("non-owner is neither sender nor receiver — no SELECT policy matches"),
       insert: deny("non-owner cannot initiate transfers for another user"),
       update: deny("non-owner cannot mutate"),
       delete: deny("non-owner cannot delete"),
     },
     admin: {
-      select: deny("admin reads transfers via service role, not PostgREST (no fixture row)"),
+      select: allow("admin reads all transfers — 'pet_transfers read by admin' (0105)"),
       insert: deny("admin uses server actions"),
       update: deny("admin uses server actions"),
       delete: deny("admin uses server actions"),

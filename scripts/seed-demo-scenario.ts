@@ -521,17 +521,6 @@ async function seedFocalVaccinationCampaign(ownerUserId: string): Promise<number
     return 0;
   }
 
-  const [existingOffering] = await db
-    .select({ id: serviceOfferings.id })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.publicToken, FOCAL_CAMPAIGN_TOKEN))
-    .limit(1);
-
-  if (existingOffering) {
-    log("SKIP", `  ${FOCAL_CAMPAIGN_TOKEN} already seeded`);
-    return 0;
-  }
-
   const demoPetRows = await db
     .select({ id: pets.id })
     .from(pets)
@@ -543,24 +532,42 @@ async function seedFocalVaccinationCampaign(ownerUserId: string): Promise<number
     return 0;
   }
 
-  const [offeringRow] = await db
-    .insert(serviceOfferings)
-    .values({
-      publicToken: FOCAL_CAMPAIGN_TOKEN,
-      organizationId: clinicOrgId,
-      jurisdictionCountry: "AR",
-      jurisdictionProvince: FOCAL_PROVINCE,
-      jurisdictionLocality: FOCAL_LOCALITY,
-      serviceKind: "vaccination_rabies",
-      displayName: "Campaña antirrábica CABA (demo focal)",
-      description: "Campaña sanitaria focal para govt@ — seed-demo-scenario",
-      durationMinutes: 15,
-      slotCapacity: 6,
-      eligibilitySpecies: ["dog", "cat"],
-      status: "approved",
-      isPublic: true,
-    })
-    .returning({ id: serviceOfferings.id });
+  // The offering and its appointments are guarded SEPARATELY, on purpose.
+  // Treating the offering as a proxy for the whole asset made this function
+  // converge only from empty: appointments hang off pets (ON DELETE CASCADE)
+  // while the offering does not, so after the demo pets are rebuilt the
+  // offering survives, the early return fires, and the four DEMO-APT rows the
+  // campaign beat needs never come back. An idempotent seed has to converge
+  // from a PARTIAL state, not just from nothing.
+  const [existingOffering] = await db
+    .select({ id: serviceOfferings.id })
+    .from(serviceOfferings)
+    .where(eq(serviceOfferings.publicToken, FOCAL_CAMPAIGN_TOKEN))
+    .limit(1);
+
+  let offeringRow = existingOffering;
+  if (offeringRow) {
+    log("SKIP", `  ${FOCAL_CAMPAIGN_TOKEN} offering already exists — checking appointments`);
+  } else {
+    [offeringRow] = await db
+      .insert(serviceOfferings)
+      .values({
+        publicToken: FOCAL_CAMPAIGN_TOKEN,
+        organizationId: clinicOrgId,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: FOCAL_PROVINCE,
+        jurisdictionLocality: FOCAL_LOCALITY,
+        serviceKind: "vaccination_rabies",
+        displayName: "Campaña antirrábica CABA (demo focal)",
+        description: "Campaña sanitaria focal para govt@ — seed-demo-scenario",
+        durationMinutes: 15,
+        slotCapacity: 6,
+        eligibilitySpecies: ["dog", "cat"],
+        status: "approved",
+        isPublic: true,
+      })
+      .returning({ id: serviceOfferings.id });
+  }
 
   const effFrom = new Date(ANCHOR_DATE.getTime() - 45 * 24 * 3600 * 1000)
     .toISOString()
@@ -569,18 +576,27 @@ async function seedFocalVaccinationCampaign(ownerUserId: string): Promise<number
     .toISOString()
     .slice(0, 10);
 
-  const [ruleRow] = await db
-    .insert(serviceScheduleRules)
-    .values({
-      serviceOfferingId: offeringRow.id,
-      daysOfWeek: [1, 3, 5],
-      startTimeLocal: "09:00:00",
-      endTimeLocal: "12:00:00",
-      effectiveFrom: effFrom,
-      effectiveUntil: effUntil,
-      status: "active",
-    })
-    .returning({ id: serviceScheduleRules.id });
+  const [existingRule] = await db
+    .select({ id: serviceScheduleRules.id })
+    .from(serviceScheduleRules)
+    .where(eq(serviceScheduleRules.serviceOfferingId, offeringRow.id))
+    .limit(1);
+
+  let ruleRow = existingRule;
+  if (!ruleRow) {
+    [ruleRow] = await db
+      .insert(serviceScheduleRules)
+      .values({
+        serviceOfferingId: offeringRow.id,
+        daysOfWeek: [1, 3, 5],
+        startTimeLocal: "09:00:00",
+        endTimeLocal: "12:00:00",
+        effectiveFrom: effFrom,
+        effectiveUntil: effUntil,
+        status: "active",
+      })
+      .returning({ id: serviceScheduleRules.id });
+  }
 
   const appointmentStatuses = ["attended", "attended", "no_show", "confirmed"] as const;
   let aptCount = 0;
@@ -603,18 +619,31 @@ async function seedFocalVaccinationCampaign(ownerUserId: string): Promise<number
       continue;
     }
 
-    const [slotRow] = await db
-      .insert(timeSlots)
-      .values({
-        serviceOfferingId: offeringRow.id,
-        ruleId: ruleRow.id,
-        startsAt,
-        endsAt,
-        capacity: 6,
-        bookingsCount: 1,
-        status: "open",
-      })
-      .returning({ id: timeSlots.id });
+    // time_slots_unique_starts is UNIQUE on (offering, starts_at), and slots
+    // survive a demo-pet rebuild because they hang off the offering, not the
+    // pet. Reuse the slot when it is already there; only its appointment was
+    // cascaded away.
+    const [existingSlot] = await db
+      .select({ id: timeSlots.id })
+      .from(timeSlots)
+      .where(and(eq(timeSlots.serviceOfferingId, offeringRow.id), eq(timeSlots.startsAt, startsAt)))
+      .limit(1);
+
+    let slotRow = existingSlot;
+    if (!slotRow) {
+      [slotRow] = await db
+        .insert(timeSlots)
+        .values({
+          serviceOfferingId: offeringRow.id,
+          ruleId: ruleRow.id,
+          startsAt,
+          endsAt,
+          capacity: 6,
+          bookingsCount: 1,
+          status: "open",
+        })
+        .returning({ id: timeSlots.id });
+    }
 
     const status = appointmentStatuses[i];
     const createdAt = new Date(startsAt.getTime() - 2 * 24 * 3600 * 1000);
@@ -713,9 +742,38 @@ const DEMO_PET_IDENTITY: Record<
 // in any monthly aggregation window.
 const SERIES_MONTHS = [0, 1, 2, 3, 4, 5, 6] as const;
 
+/**
+ * How far back each demo pet's `pet_registered` is stamped.
+ *
+ * A credential cannot be younger than the libreta hanging off it. The oldest
+ * curated event on these pets is seed-demo-polish's weight point at
+ * monthsAgo(11.5), followed by its antirrábica at monthsAgo(10); this seed's
+ * own series reaches monthsBack(6). 14 clears the binding 11.5-month
+ * constraint with margin, so every asiento a funcionario scrolls through sits
+ * AFTER the registration that created the credential.
+ *
+ * Without the injected clock, registerPet defaults to `new Date()` and the
+ * registration lands after its own pet's history — the same inversion the
+ * spine fence exists to catch, just expressed in time instead of in absence.
+ */
+const DEMO_REGISTRATION_MONTHS_BACK = 14;
+
+/**
+ * The instant pet #index was registered. Staggered a day apart so ten demo
+ * registrations do not collapse onto one timestamp — the same reason
+ * seed-panorama injects a clock (a flat spike is not a plausible registry).
+ */
+function demoRegisteredAt(index: number): Date {
+  const d = monthsBack(DEMO_REGISTRATION_MONTHS_BACK);
+  d.setUTCDate(d.getUTCDate() + index);
+  d.setUTCHours(9 + (index % 8), 30, 0, 0);
+  return d;
+}
+
 async function ensureDemoPet(
   token: string,
   ownerUserId: string,
+  registeredAt: Date,
 ): Promise<{ id: string; existed: boolean }> {
   const [existing] = await db
     .select({ id: pets.id })
@@ -791,6 +849,9 @@ async function ensureDemoPet(
       actor: { user: { id: ownerUserId } },
       transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
         db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+      // Injected clock — see DEMO_REGISTRATION_MONTHS_BACK. The default
+      // `new Date()` would stamp the registration after the libreta it owns.
+      now: () => registeredAt,
     },
   );
 
@@ -859,8 +920,8 @@ async function seedFocalSeries(ownerUserId: string): Promise<{
   let sterilInserted = 0;
   let vaccInserted = 0;
 
-  for (const token of DEMO_PET_TOKENS) {
-    const { id, existed } = await ensureDemoPet(token, ownerUserId);
+  for (const [index, token] of DEMO_PET_TOKENS.entries()) {
+    const { id, existed } = await ensureDemoPet(token, ownerUserId, demoRegisteredAt(index));
     petIds.push(id);
     log(existed ? "SKIP" : "OK", `  pet ${token} → ${id.slice(0, 8)}…`);
   }
@@ -1291,20 +1352,27 @@ async function main(): Promise<void> {
   // D1: ensure focal govt with CABA assignment.
   const govtId = await ensureFocalGovt(adminId);
 
+  // Personal owner for the demo pets (institutional accounts can't own pets).
+  const ownerId = await ensureDemoOwner();
+
+  // D0-1 + D0-2: focal series with ≥4 buckets (owned by the personal owner).
+  //
+  // The pets come FIRST because the decomiso cases and the campaign
+  // appointments below both hang off them. Seeding those two before the pets
+  // existed meant a run against an empty demo cut logged "no DIM-DEMO pets
+  // found" and produced neither — the seed only ever worked because a previous
+  // run had left the pets behind. A seed that needs to be run twice to be
+  // correct is not idempotent; it is lucky.
+  const { petIds } = await seedFocalSeries(ownerId);
+
   // D1b: sanitary authority membership + focal decomisos for /gob/decomisos.
   const sanitaryOrgId = await ensureGovtSanitaryMembership(govtId);
   if (sanitaryOrgId) {
     await seedFocalDecomisos(govtId, sanitaryOrgId);
   }
 
-  // Personal owner for the demo pets (institutional accounts can't own pets).
-  const ownerId = await ensureDemoOwner();
-
   // D1c: focal vaccination campaign scoped to govt locality → /gob/campanas.
   await seedFocalVaccinationCampaign(ownerId);
-
-  // D0-1 + D0-2: focal series with ≥4 buckets (owned by the personal owner).
-  const { petIds } = await seedFocalSeries(ownerId);
 
   // D0-3: event_amended (Libro star beat).
   await seedAmendedEvent(petIds, ownerId);
