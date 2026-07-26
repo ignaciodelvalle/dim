@@ -51,8 +51,10 @@
 //     - happy path with no future slots: ok, slotsUpdated = 0
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import { withMutationOverride } from "@/__tests__/_helpers/db-overrides";
 
 import {
   appointments,
@@ -153,6 +155,10 @@ const UC_SO_OFFERING_TOKENS = {
 
 // Track inserted offering IDs for cleanup.
 const insertedOfferingIds: string[] = [];
+
+// Pets this test inserts directly (minimal rows that only exist to satisfy the
+// appointments.pet_id FK). Tracked so afterAll deletes exactly these ids.
+const insertedPetIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Setup / teardown
@@ -345,6 +351,7 @@ beforeAll(async () => {
         name: "UC SO Archive Pending Dog",
       })
       .returning({ id: pets.id });
+    insertedPetIds.push(pet.id);
 
     await db.insert(appointments).values({
       publicToken: generatePublicToken(),
@@ -359,6 +366,21 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Pets go first, one independent transaction per id, so nothing below can
+  // roll back the pet deletes and leave an orphan fixture behind. Scoped to
+  // the ids this test created — never a name match or a token-prefix LIKE.
+  //
+  // pet_events deletes are blocked by enforce_pet_events_append_only; bypass
+  // via the accountable SET LOCAL GUC pair (see _helpers/db-overrides.ts).
+  for (const pid of insertedPetIds) {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM appointments WHERE pet_id = ${pid}`);
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pid}`);
+      await tx.execute(sql`DELETE FROM ownerships WHERE pet_id = ${pid}`);
+      await tx.execute(sql`DELETE FROM pets WHERE id = ${pid}`);
+    }).catch(() => {});
+  }
+
   // Delete appointments and slots for pre-inserted offerings.
   for (const offeringId of insertedOfferingIds) {
     await db
