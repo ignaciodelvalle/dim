@@ -2865,10 +2865,20 @@ describe("fetchOutbreakHistory", () => {
     expect(row.diseaseName).toBe("null_label_disease");
   });
 
-  it("ordered by peakDate desc (most recent first)", async () => {
+  // PO decision 2026-07-26: the list leads with MOST RECENTLY ACTIVE, which is
+  // what the SQL already does (ORDER BY t.last_seen DESC) and what surveillance
+  // asks — "where is something still happening?" — not "which outbreak peaked
+  // hardest".
+  //
+  // This assertion used to check `peakDate`, which the query never promised.
+  // Last-seen and peak-day are different quantities, so it only ever agreed by
+  // luck; re-seeding shifted the RNG and exposed it (1 violating pair in 100).
+  // A green test is not evidence the behaviour is right.
+  it("ordered by lastSeen desc — most recently active first", async () => {
     const r = await fetchOutbreakHistory({ role: "admin" }, []);
+    expect(r.length).toBeGreaterThan(1);
     for (let i = 1; i < r.length; i++) {
-      expect(r[i - 1].peakDate >= r[i].peakDate).toBe(true);
+      expect(r[i - 1].lastSeen >= r[i].lastSeen).toBe(true);
     }
   });
 });

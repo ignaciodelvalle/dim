@@ -723,6 +723,16 @@ export type OutbreakHistoryRow = {
    * Tie-break: highest signal count first, then most-recent day.
    */
   peakDate: string;
+  /**
+   * Most recent signal in the cluster (MAX(occurred_at)) — the field the query
+   * actually ORDERs BY. It was computed and used for ordering but never
+   * returned, so the promised ordering was unverifiable from outside; the test
+   * that tried ended up asserting `peakDate` instead, a DIFFERENT quantity that
+   * only agreed by luck (measured: 1 violating pair in 100). Surfacing it makes
+   * "most recently active first" checkable, and answers the surveillance
+   * question the ordering exists for: where is something still happening?
+   */
+  lastSeen: string;
   /** Total outbreak_signal events from this disease in this locality, full history. */
   totalSignals: number;
 };
@@ -843,5 +853,6 @@ export async function fetchOutbreakHistory(
     // only to normalise, then emit as ISO date string.
     peakDate: new Date(r.peak_day).toISOString(),
     totalSignals: r.total_signals,
+    lastSeen: new Date(r.last_seen).toISOString(),
   }));
 }
