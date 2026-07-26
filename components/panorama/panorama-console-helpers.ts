@@ -514,3 +514,31 @@ export function rankingUnitNounFor(level: AggregationLevel, province: string | n
   if (province === "AR-C") return "comunas";
   return province ? "departamentos" : "localidades";
 }
+
+/**
+ * Should an active temporal frame (`asOf`) be parked back at live?
+ *
+ * The scrubber lives in the dock's "Línea de tiempo" pane. The original rule
+ * cleared the frame whenever that pane was hidden — collapsed OR another tab —
+ * so a historical frame could never sit on screen unannounced.
+ *
+ * PO decision 2026-07-26 retires the TAB half. The frame is no longer silent:
+ * the vista caption states the corte and current-state KPI tiles carry an
+ * "ESTADO ACTUAL · NO VARÍA CON LA FECHA" badge, both OUTSIDE the dock and both
+ * surviving a tab change. Meanwhile the guard was destroying the instrument's
+ * central use — reproduce a past moment, then cross it against the ranking or
+ * the records table. Clicking "Registros" to see what composed a frame threw
+ * the frame away.
+ *
+ * The COLLAPSED half stays: with the dock shut there is no scrubber on screen,
+ * so the operator has no control to move or reset the frame with.
+ *
+ * Extracted so the RULE is testable on its own rather than buried in an effect.
+ */
+export function shouldParkAtLive(input: {
+  dockOpen: boolean;
+  dockTab: string;
+  asOf: string | null;
+}): boolean {
+  return input.asOf !== null && !input.dockOpen;
+}

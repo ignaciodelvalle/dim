@@ -197,6 +197,7 @@ import {
   saveBoard,
   scopePeriodQsOf,
   seededLayerUsesProvinceCache,
+  shouldParkAtLive,
   unknownLayerIds,
 } from "@/components/panorama/panorama-console-helpers";
 
@@ -3951,13 +3952,26 @@ export function PanoramaConsole({
     }
   }, [temporalAvailable, asOf]);
 
-  // v2C dock: the TimeScrubber lives in the dock's "Línea de tiempo" pane. If
-  // it unmounts while a scrub is active (dock collapsed, or another tab), the
-  // map would keep showing a HISTORICAL frame with no visible control
-  // announcing it — a silent stale view (trust/safety). Park back at live
-  // whenever the scrubber pane is hidden mid-scrub.
+  // v2C dock: the TimeScrubber lives in the dock's "Línea de tiempo" pane. The
+  // original guard parked back at live whenever that pane was hidden — dock
+  // COLLAPSED or any other tab — because a scrub would otherwise leave a
+  // HISTORICAL frame on screen with no visible control announcing it.
+  //
+  // PO decision 2026-07-26: the TAB half of that guard is retired. Its premise
+  // no longer holds. Two announcements now sit OUTSIDE the dock and survive a
+  // tab change: the vista caption states the corte ("al 15 de junio de 2026
+  // (tiempo de validez)") and current-state KPI tiles carry an "ESTADO ACTUAL ·
+  // NO VARÍA CON LA FECHA" badge. The frame is no longer silent.
+  //
+  // What it cost: reproducing a past moment and then crossing it against the
+  // ranking or the records table — the instrument's central use — destroyed
+  // itself on inspection. Clicking "Registros" to see what made up a frame
+  // threw the frame away.
+  //
+  // The COLLAPSED half stays: with the dock shut there is no scrubber on screen
+  // at all, so the operator has no control to move or reset the frame with.
   useEffect(() => {
-    if ((!dockOpen || dockTab !== "timeline") && asOf !== null) {
+    if (shouldParkAtLive({ dockOpen, dockTab, asOf })) {
       setAsOf(null);
       setScrubResetToken((v) => v + 1);
     }
