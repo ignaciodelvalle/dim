@@ -17,6 +17,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { type ViewScopeDescriptor, viewScopeCsvHeaderLines } from "@/lib/ui/view-scope-descriptor";
+
 /** One per-unit cell of an active layer, as the table (and CSV) render it. */
 export type MapTableRow = {
   /** Layer name — disambiguates a multi-layer table. */
@@ -32,9 +34,11 @@ export type MapTableRow = {
    * The signed distance to the layer's compliance target ("−15,6"), for the rows
    * that HAVE one: an unsuppressed province-grain rate. Absent everywhere else —
    * a count has no target, a locality-grain rate is a count, and a protected
-   * cell has no value to compare. Exported by buildMapTableCsv; the on-screen
-   * table leaves this to the ranked "Brecha vs meta" column and the pinned popup,
-   * which sit next to the map that supplies the missing context. A CSV does not.
+   * cell has no value to compare. Rendered by BOTH buildMapTableCsv and the
+   * on-screen "Brecha vs meta" column: this table is the accessible mirror of a
+   * WebGL canvas, so shipping the gap only to the CSV and the hover popup handed
+   * a screen-reader user the value but not the comparison — the very asymmetry
+   * the table exists to fix.
    */
   gap?: string;
 };
@@ -92,9 +96,20 @@ function csvField(value: string): string {
  * that comparison is one hover away; in a file handed to someone else it is
  * unreachable, which left the export unable to answer the one question a
  * compliance layer exists to answer.
+ *
+ * V2 — `viewScope` prepends the serializable scope descriptor as a `#` comment
+ * block ABOVE the column header (see lib/ui/view-scope-descriptor.ts for why an
+ * inline block beats a sidecar file, and why the block goes first). A file
+ * exported without it stays byte-identical to the pre-V2 export, so every
+ * existing consumer and golden keeps working.
  */
-export function buildMapTableCsv(rows: MapTableRow[], truncatedLayers: string[] = []): string {
-  const lines = [CSV_HEADER.join(",")];
+export function buildMapTableCsv(
+  rows: MapTableRow[],
+  truncatedLayers: string[] = [],
+  viewScope?: ViewScopeDescriptor | null,
+): string {
+  const lines = viewScope ? [...viewScopeCsvHeaderLines(viewScope)] : [];
+  lines.push(CSV_HEADER.join(","));
   for (const r of rows) {
     lines.push(
       [csvField(r.layer), csvField(r.unit), csvField(r.value), csvField(r.gap ?? "")].join(","),
@@ -143,6 +158,11 @@ type Props = {
    * "nobody reported" are OPPOSITE states and must never share one sentence.
    */
   suppressedUnits?: number;
+  /**
+   * V2 — the serializable scope the exported CSV carries in its `#` header
+   * block. Absent → a pre-V2 (prose-only) export.
+   */
+  viewScope?: ViewScopeDescriptor | null;
 };
 
 /**
@@ -155,8 +175,12 @@ type Props = {
 export function useMapTableCsvHref(
   rows: MapTableRow[],
   truncatedLayers: string[] = [],
+  viewScope?: ViewScopeDescriptor | null,
 ): string | null {
-  const csv = useMemo(() => buildMapTableCsv(rows, truncatedLayers), [rows, truncatedLayers]);
+  const csv = useMemo(
+    () => buildMapTableCsv(rows, truncatedLayers, viewScope),
+    [rows, truncatedLayers, viewScope],
+  );
   const [href, setHref] = useState<string | null>(null);
   useEffect(() => {
     if (typeof window === "undefined" || rows.length === 0) {
@@ -198,8 +222,9 @@ export function MapDataTable({
   truncatedLayers,
   pointModeLayers = [],
   suppressedUnits = 0,
+  viewScope = null,
 }: Props) {
-  const href = useMapTableCsvHref(rows, truncatedLayers);
+  const href = useMapTableCsvHref(rows, truncatedLayers, viewScope);
   // Round-2 review #3a: the Capa column repeats the SAME value on every row
   // when a single layer is active — zero information, pure noise. Derive the
   // count straight from the rows already in scope (no new prop): when 2+
@@ -208,6 +233,11 @@ export function MapDataTable({
   // a self-contained file has no adjacent context to lean on).
   const rowLabels = useMemo(() => new Set(rows.map((r) => r.layer)), [rows]);
   const showLayerColumn = rowLabels.size > 1;
+  // Same rows-derived gating as Capa: with no compliance target in view the
+  // column would be empty on every row — noise next to the map. The CSV header
+  // stays fixed regardless (two exports of the same board must be diffable);
+  // an on-screen table has no such contract.
+  const showGapColumn = useMemo(() => rows.some((r) => r.gap !== undefined), [rows]);
   // Cowork QA ronda 3 §3: the "Valor" column never named its metric — with a
   // single metric in view, name it (and its true unit) so "204" is not read as a
   // bare, unlabeled number. With several metrics the Capa column already
@@ -257,6 +287,11 @@ export function MapDataTable({
               <th scope="col" className="px-2 py-1 text-right font-bold text-ln-op-ink-2">
                 {valueHeader}
               </th>
+              {showGapColumn && (
+                <th scope="col" className="px-2 py-1 text-right font-bold text-ln-op-ink-2">
+                  Brecha vs meta
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -272,6 +307,13 @@ export function MapDataTable({
                   {row.unit}
                 </th>
                 <td className="px-2 py-1 text-right tabular-nums text-ln-op-ink-2">{row.value}</td>
+                {showGapColumn && (
+                  // No target → EMPTY, never "0": a zero here would read as
+                  // "exactly on target", the opposite of "no hay comparación".
+                  <td className="px-2 py-1 text-right tabular-nums text-ln-op-ink-2">
+                    {row.gap ?? ""}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

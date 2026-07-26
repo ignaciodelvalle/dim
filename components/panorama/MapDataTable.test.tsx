@@ -52,6 +52,50 @@ describe("MapDataTable — Capa column gated on active-layer count (Round-2 revi
   });
 });
 
+// The on-screen table is the ACCESSIBLE MIRROR of the map. Exporting the gap to
+// CSV while withholding it on screen hands a screen-reader user the value but
+// not the comparison — the exact asymmetry this table exists to fix.
+//
+// Assertions read the rendered ROW CELLS, not getByText: a `title`/aria-only
+// string would satisfy a text query while staying invisible on screen.
+const GAP_ROWS: MapTableRow[] = [
+  { layer: "Cobertura antirrábica", unit: "Salta", value: "64,4 %", gap: "−15,6" },
+  // Same layer, no target reachable for this cell → the comparison is ABSENT.
+  { layer: "Cobertura antirrábica", unit: "Jujuy", value: "58,1 %" },
+];
+
+/** The visible text of every <td>/<th> in the row that names `unit`. */
+function rowCellsFor(unit: string): string[] {
+  const cell = screen.getByRole("rowheader", { name: unit });
+  const tr = cell.closest("tr");
+  if (!tr) throw new Error(`no row for ${unit}`);
+  return [...tr.querySelectorAll("td,th")].map((c) => c.textContent ?? "");
+}
+
+describe("MapDataTable — Brecha vs meta column (accessible mirror of the map)", () => {
+  it("renders the gap column header when a row carries a target comparison", () => {
+    render(<MapDataTable rows={GAP_ROWS} caption="cap" filename="f" />);
+    expect(screen.getByRole("columnheader", { name: "Brecha vs meta" })).toBeInTheDocument();
+  });
+
+  it("shows the signed gap in the row's own cell (same string the CSV exports)", () => {
+    render(<MapDataTable rows={GAP_ROWS} caption="cap" filename="f" />);
+    expect(rowCellsFor("Salta")).toContain("−15,6");
+  });
+
+  it("leaves the cell EMPTY when the row has no target — never a '0' that reads as on-target", () => {
+    render(<MapDataTable rows={GAP_ROWS} caption="cap" filename="f" />);
+    const cells = rowCellsFor("Jujuy");
+    expect(cells).toContain("");
+    expect(cells).not.toContain("0");
+  });
+
+  it("omits the column entirely when no active layer has a compliance target", () => {
+    render(<MapDataTable rows={TWO_LAYERS} caption="cap" filename="f" />);
+    expect(screen.queryByRole("columnheader", { name: "Brecha vs meta" })).not.toBeInTheDocument();
+  });
+});
+
 describe("MapDataTable — Valor column names the metric (cowork QA ronda 3 §3)", () => {
   it("names the Valor column '(conteo)' for a single locality-rate metric", () => {
     render(
