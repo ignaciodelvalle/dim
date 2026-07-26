@@ -881,11 +881,46 @@ export async function loadTendenciaByProvince(
   return { cells, truncated: false, suppressedCount };
 }
 
-// metrics:vet-desert (desierto-veterinario) — per-PROVINCE days since the last
-// vet_visit_logged event, capped at the analytic window's length.
+// The event types that constitute a VETERINARY ACT for the desert signal.
 //
-//   value = min(windowDays, days between the last vet visit and `until`)
-//         = windowDays when NO vet visit was ever registered in scope.
+// The rule is "did this act require a veterinary professional?", NOT "who typed
+// it in". `author_role` is the REPORTER, not the performer: 28.979 of the
+// 29.123 seeded vaccinations are owner-logged, so filtering on author_role='vet'
+// would measure vet-app adoption rather than veterinary activity. Justification
+// per member:
+//
+//   vet_visit_logged         — the clinical consult itself.
+//   vaccination_administered — the antirrábica must be applied by a licensed vet
+//                              (Ley 22.953); the act is veterinary whoever logs it.
+//   sterilization_performed  — surgery under anaesthesia; not owner-performable.
+//   microchip_implanted      — subcutaneous implant; a professional procedure.
+//   clinical_info_logged     — lab work / imaging / surgery / diagnosis records.
+//
+// DELIBERATELY EXCLUDED:
+//   deworming_administered — antiparasitics are sold over the counter and are
+//     routinely applied by the owner at home, so counting them would measure
+//     owner diligence, not access to professional service.
+//   weight_recorded, note_added — owner self-reports; measuring them would make
+//     the layer a proxy for registry engagement instead of veterinary access.
+const VET_ACTIVITY_EVENT_TYPES = [
+  "vet_visit_logged",
+  "vaccination_administered",
+  "sterilization_performed",
+  "microchip_implanted",
+  "clinical_info_logged",
+] as const;
+
+// metrics:vet-desert (desierto-veterinario) — per-PROVINCE days since the last
+// veterinary act (VET_ACTIVITY_EVENT_TYPES), capped at the analytic window's
+// length.
+//
+//   value = min(windowDays, days between the last veterinary act and `until`)
+//         = windowDays when NO veterinary act was ever registered in scope.
+//
+// The predicate was `vet_visit_logged` alone until 2026-07-26, which ignored
+// ~99,9% of the registered veterinary activity (85 visit events against ~67.000
+// vaccinations/sterilizations/microchip implants) and drove the layer to a
+// 23-of-24-provinces tie at the cap.
 //
 // The recency MAX is deliberately NOT floored at `since`: a province whose last
 // visit predates the window still reads the honest cap (windowDays = "sin
@@ -924,7 +959,7 @@ export async function loadVetDesertByProvince(
 
   // Last vet-attended event per province (≤ until; see the no-floor note above).
   const conditions: SQL[] = [
-    eq(petEvents.eventType, "vet_visit_logged"),
+    inArray(petEvents.eventType, VET_ACTIVITY_EVENT_TYPES),
     lte(petEvents.occurredAt, until),
     isNotNull(pets.jurisdictionProvince),
   ];

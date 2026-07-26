@@ -514,9 +514,21 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     id: "desierto-veterinario",
     // Not summable: per-unit value is DAYS without activity.
     valueKind: "duration",
-    // Right-censored at the window length: a unit with no vet visit at all
+    // Right-censored at the window length: a unit with no veterinary act at all
     // reports the cap, so the cap is "we stopped looking", not a measurement.
-    // Measured 2026-07-25: 23 of 24 provinces sit exactly here.
+    //
+    // KNOWN DEFECT — the statistic, not the predicate, is degenerate at province
+    // grain. Measured 2026-07-25 with the `vet_visit_logged`-only predicate:
+    // 23 of 24 provinces sat exactly at the 90-day cap. Widening the predicate to
+    // the full set of veterinary acts (2026-07-26, VET_ACTIVITY_EVENT_TYPES)
+    // removed that tie but flipped it to the opposite pole: 20 provinces at 0
+    // days and 4 at 1 day, only 2 distinct values nationally. "Days since the
+    // LAST act anywhere in the province" is a MAX over thousands of pets, so it
+    // pins to whichever pole the event volume implies and can never discriminate.
+    // The per-pet framing does — share of active pets with no veterinary act in
+    // the period runs 24,6% (Mendoza) → 80,7% (Salta) over 90 days. Re-shaping
+    // the statistic is a PO call (it swaps the vista's base), so it is NOT done
+    // here; until then this layer discriminates at neither pole.
     censoredAtMax: 90,
     label: "Desierto veterinario (días sin actividad)",
     description:

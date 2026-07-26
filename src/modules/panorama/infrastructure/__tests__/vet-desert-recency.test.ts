@@ -31,6 +31,10 @@ const PROVINCE_CODE = "AR-S";
 const LOC_VISIBLE = "PANORAMA-VD-VISIBLE"; // 6 pets, one visit 10 days ago
 const LOC_DESERT = "PANORAMA-VD-DESERT"; // 5 pets, no vet activity at all
 const LOC_SUBK = "PANORAMA-VD-SUBK"; // 2 pets (< k=5) → suppressed
+// 6 pets whose ONLY veterinary contact is a vaccination 10 days ago. A layer
+// that counts only `vet_visit_logged` reads this as a desert (the cap) even
+// though a professional attended every one of them.
+const LOC_VAX = "PANORAMA-VD-VAX";
 
 const GOVT: DashboardActor = { role: "govt" };
 const jurs = (locality: string): DashboardJurisdiction[] => [{ province: PROVINCE, locality }];
@@ -97,6 +101,29 @@ beforeAll(async () => {
   for (let i = 0; i < 2; i++) {
     await makePet(`DIM-VDS-000${i}`, LOC_SUBK);
   }
+
+  // Vaccination-only universe: 6 pets (≥ k), one vaccination 10 days ago and
+  // NO vet_visit_logged. Vaccinating is a veterinary act, so this is not a
+  // desert — the recency must read 10, not the cap.
+  let vaxPetId = "";
+  for (let i = 0; i < 6; i++) {
+    const id = await makePet(`DIM-VDX-000${i}`, LOC_VAX);
+    if (i === 0) vaxPetId = id;
+  }
+  await db.insert(petEvents).values({
+    petId: vaxPetId,
+    eventType: "vaccination_administered" as EventType,
+    occurredAt: VISIT_AT,
+    payload: validateEventPayload("vaccination_administered", {
+      vaccine_name: "Antirrábica",
+      brand: null,
+      batch: null,
+      administered_by: null,
+      next_due_at: null,
+    }) as Record<string, unknown>,
+    authorRole: "vet",
+    recordedByUserId: null,
+  });
 });
 
 afterAll(cleanup);
@@ -115,6 +142,15 @@ describe("loadVetDesertByProvince — recency value", () => {
     expect(res.cells).toHaveLength(1);
     // windowDays = ceil(30d / 1d) = 30 — "sin actividad en todo el período".
     expect(res.cells[0].value).toBe(30);
+  }, 30_000);
+
+  it("counts a vaccination as veterinary activity (not a desert at the cap)", async () => {
+    const res = await loadVetDesertByProvince(GOVT, jurs(LOC_VAX), SINCE);
+    expect(res.cells).toHaveLength(1);
+    // A professional vaccinated these pets 10 days ago. Reading the 30-day cap
+    // here would claim "sin actividad veterinaria en todo el período" about a
+    // province that was actively attended.
+    expect(res.cells[0].value).toBe(10);
   }, 30_000);
 
   it("replays the recency as of t (asOf 5 days ago → the visit was 5 days back)", async () => {
