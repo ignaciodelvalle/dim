@@ -39,7 +39,7 @@ import {
 } from "@/components/panorama/MapDataTable";
 import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
 import { MapLegends } from "@/components/panorama/MapLegends";
-import { type ModeOption, ModeSwitcher } from "@/components/panorama/ModeSwitcher";
+import { ModeSwitcher } from "@/components/panorama/ModeSwitcher";
 import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
 import { PanoramaBoardNotices } from "@/components/panorama/PanoramaBoardNotices";
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
@@ -66,7 +66,6 @@ import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { buildAllSuppressedNotice } from "@/components/panorama/all-suppressed-notice";
 import { coalescedGet } from "@/components/panorama/coalesced-get";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
-import { buildLayerReadout } from "@/components/panorama/map-popup";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import {
   activeVistaName,
@@ -76,6 +75,12 @@ import {
   legendRampEndpointLabels,
   legendRampTitle,
 } from "@/components/panorama/panorama-labels";
+import { buildMapModeControlModel } from "@/components/panorama/panorama-map-modes";
+import {
+  buildMapTableRows,
+  sumSuppressedTableUnits,
+  summarizeDockRecords,
+} from "@/components/panorama/panorama-map-table";
 import {
   binDailyCounts,
   binTimestamps,
@@ -3499,73 +3504,15 @@ export function PanoramaConsole({
     [activeLayers],
   );
 
-  // Each aggregate layer's cells become table rows, reusing the pinned popup's
-  // buildLayerReadout so value/unit/protected formatting is identical. A
-  // k-anon-suppressed cell reads "Protegido (k<5)", never a number.
-  const mapTableRows = useMemo<MapTableRow[]>(() => {
-    const rows: MapTableRow[] = [];
-    for (const layer of activeAggregateLayers) {
-      for (const f of layer.features.features) {
-        const p = f.properties as Record<string, unknown>;
-        // Mirror ranking.identify(): a detail-tier cell's own unit label
-        // (locality/place/departmentName) BEFORE the province, so N departments of
-        // one province don't all render as rows named after the province (WARNING 5).
-        const unit = String(
-          p.name ??
-            p.localityName ??
-            p.locality ??
-            p.place ??
-            p.departmentName ??
-            p.province ??
-            p.provinceName ??
-            p.department ??
-            p.provinceCode ??
-            p.code ??
-            "—",
-        );
-        const suppressed = p.suppressed === true;
-        const rawValue =
-          typeof p.value === "number" ? p.value : typeof p.count === "number" ? p.count : null;
-        // DATA-TRUTH (cowork QA ronda 3 §3, "204%" bug): a rate layer is a
-        // percentage ONLY at province grain. At locality grain the repository
-        // returns a per-unit COUNT (rate-by-locality deferred — repository.ts
-        // "V1 LIMITATION"), so formatting it as "%" produced the impossible
-        // "Palermo 204%". Format the locality count as a plain count (no %, no
-        // meta gap) — the column header names it "(conteo)" so it reads truthfully.
-        const localityRateCount = layer.dataType === "rate" && layer.level === "locality";
-        const readout = buildLayerReadout({
-          label: layer.label,
-          value: rawValue,
-          suppressed,
-          dataType: localityRateCount ? "density" : layer.dataType,
-          complianceTarget: localityRateCount ? undefined : layer.complianceTarget,
-        });
-        const value =
-          readout.state === "suppressed"
-            ? "Protegido (k<5)"
-            : readout.state === "nodata"
-              ? "Sin dato"
-              : (readout.valueText ?? "Sin dato");
-        rows.push({ layer: layer.label, unit, value });
-      }
-    }
-    rows.sort((a, b) => a.layer.localeCompare(b.layer, "es") || a.unit.localeCompare(b.unit, "es"));
-    return rows;
-  }, [activeAggregateLayers]);
+  // Row/summary construction lives in panorama-map-table.ts (pure, unit-tested);
+  // the console only memoizes it against the view data.
+  const mapTableRows = useMemo<MapTableRow[]>(
+    () => buildMapTableRows(activeAggregateLayers),
+    [activeAggregateLayers],
+  );
 
-  // Units the server measured but withheld under k-anonymity, across every layer
-  // that feeds (or would feed) the per-unit table. Lets the empty table separate
-  // "protegido" from "nadie reportó" — the same trichotomy the ranking keeps.
   const mapTableSuppressedUnits = useMemo(
-    () =>
-      activeLayers
-        .filter(
-          (l) =>
-            l.geomType === "choropleth" ||
-            l.renderMode === "graduated" ||
-            (l.renderMode === "points" && AGGREGATED_POINT_IDS.has(l.id as LayerId)),
-        )
-        .reduce((n, l) => n + (states[l.id as LayerId]?.suppressedCount ?? 0), 0),
+    () => sumSuppressedTableUnits(activeLayers, states),
     [activeLayers, states],
   );
 
@@ -3577,48 +3524,7 @@ export function PanoramaConsole({
     [activeAggregateLayers, states],
   );
 
-  // Round-2 review #4: the dock badge used to show mapTableRows.length (the number
-  // of UNITS with a row — e.g. 24 provinces), which read as a mismatch against a
-  // KPI that counts EVENTS (denuncias 3.026, zoonosis señales). Compute Σ(cell
-  // counts) across the aggregate COUNT layers (density/signal — NOT rate, whose
-  // cells are percentages that don't sum) so the dock total equals the primary KPI
-  // population. k-anon-suppressed cells hide their VALUE (only their existence), so
-  // Σ(visible) ≤ KPI at detail grain — surfaced as "(+N protegidas)" so the gap is
-  // honest, not silent. At province grain nothing is suppressed → Σ == KPI exactly.
-  const dockRecordSummary = useMemo(() => {
-    let total = 0;
-    let suppressed = 0;
-    let unitsWithEvents = 0;
-    let hasCountLayer = false;
-    // Cursor review: the summary copy hardcoded "Eventos en el período", wrong for
-    // current-state count layers (mortalidad, acceso-veterinario — temporal:false).
-    // Track whether ANY contributing count layer is period-flow; if none are, the
-    // total is a current-state stock and the copy must say so (label=number canon).
-    let anyPeriodLayer = false;
-    for (const layer of activeLayers) {
-      const isAggregate = layer.geomType === "choropleth" || layer.renderMode === "graduated";
-      if (!isAggregate || layer.dataType === "rate" || layer.dataType === "reference") continue;
-      // Summability is DECLARED, not inferred — see PanoramaLayer.valueKind.
-      if ((getLayer(layer.id as LayerId)?.valueKind ?? "count") !== "count") continue;
-      hasCountLayer = true;
-      if (isTemporalLayer(layer.id as LayerId)) anyPeriodLayer = true;
-      for (const f of layer.features.features) {
-        const p = f.properties as Record<string, unknown>;
-        if (p.suppressed === true) {
-          suppressed += 1;
-          continue;
-        }
-        const v = typeof p.value === "number" ? p.value : typeof p.count === "number" ? p.count : 0;
-        total += v;
-        // Cowork QA ronda 3 §"Consistencia": the header said "en 5 unidades" using
-        // mapTableRows.length (which counts rate count-density rows too), so "0
-        // eventos en 5 unidades" contradicted itself. Count ONLY the units that
-        // actually carry a visible event, so 0 events honestly reads "en 0 unidades".
-        if (v > 0) unitsWithEvents += 1;
-      }
-    }
-    return { hasCountLayer, total, suppressed, unitsWithEvents, anyPeriodLayer };
-  }, [activeLayers]);
+  const dockRecordSummary = useMemo(() => summarizeDockRecords(activeLayers), [activeLayers]);
   // The dock badge: the event total for count layers (== the primary KPI), else the
   // unit-row count for rate-only presets (coverage has no summable population).
   const dockBadgeCount = dockRecordSummary.hasCountLayer
@@ -3952,24 +3858,9 @@ export function PanoramaConsole({
     }
   }, [temporalAvailable, asOf]);
 
-  // v2C dock: the TimeScrubber lives in the dock's "Línea de tiempo" pane. The
-  // original guard parked back at live whenever that pane was hidden — dock
-  // COLLAPSED or any other tab — because a scrub would otherwise leave a
-  // HISTORICAL frame on screen with no visible control announcing it.
-  //
-  // PO decision 2026-07-26: the TAB half of that guard is retired. Its premise
-  // no longer holds. Two announcements now sit OUTSIDE the dock and survive a
-  // tab change: the vista caption states the corte ("al 15 de junio de 2026
-  // (tiempo de validez)") and current-state KPI tiles carry an "ESTADO ACTUAL ·
-  // NO VARÍA CON LA FECHA" badge. The frame is no longer silent.
-  //
-  // What it cost: reproducing a past moment and then crossing it against the
-  // ranking or the records table — the instrument's central use — destroyed
-  // itself on inspection. Clicking "Registros" to see what made up a frame
-  // threw the frame away.
-  //
-  // The COLLAPSED half stays: with the dock shut there is no scrubber on screen
-  // at all, so the operator has no control to move or reset the frame with.
+  // Park an active temporal frame back at live when the dock is collapsed.
+  // The rule, and why the tab half of it was retired, lives with the helper:
+  // panorama-console-helpers.ts -> shouldParkAtLive.
   useEffect(() => {
     if (shouldParkAtLive({ dockOpen, dockTab, asOf })) {
       setAsOf(null);
@@ -4331,124 +4222,37 @@ export function PanoramaConsole({
   // task #63: bivariate encoding toggle — offered ONLY on "Brotes activos" at
   // province framing (both inputs active). A map ENCODING switch (how the two
   // layers are drawn), not a data toggle. ARCHETYPE A: relocated from above the
-  // map into the monitoring rail so the geography leads the fold.
-  // task #24 fase 1 — the "Modo" switcher: ONE control projecting the gate's
-  // declarative mode list (capabilities.mapModes). The bivariate constraints
-  // stay console-owned (they read live caches/scrub state the domain doesn't
-  // hold): the join can't mix a frozen cobertura with an as-of zoonosis frame
-  // (live-edge only) and needs enough comparable units to classify (WARNING 7).
-  // #33 modes (delta/lag/as-of/heatmap) append options here, never new toggles.
-  // C2 language contract (2026-07-22, red-team #5): the bivariate join crosses
-  // LOW COVERAGE × HIGH SIGNALS — that is reporting/registration INTENSITY,
-  // not epidemiological risk (a province can rank "high" here purely because
-  // its padrón is thin, with zero actual outbreaks). "Riesgo (bivariado)" read
-  // as a risk verdict; every render site below now says "intensidad de
-  // reporte" instead, and the computation is UNCHANGED (only the label lies
-  // less).
-  const MODE_LABELS: Record<string, string> = {
-    auto: "Capas",
-    bivariate: "Intensidad de reporte (bivariado)",
-    percapita: "Per cápita (por 10.000 hab.)",
-  };
-  // Distinct es-AR copy per refusal reason: "count" → too few comparable
-  // jurisdictions; "tercile" → values too alike to cut honestly; "suppressed"
-  // → the cross would render almost entirely hatched (see bivariate.ts).
-  const bivariateRefusalNote =
-    bivariateDegenerateReason === "count"
-      ? `La intensidad de reporte combinada necesita al menos ${BIVARIATE_MIN_UNITS} jurisdicciones con datos comparables en ambas capas; en esta vista hay menos (por supresión de privacidad o falta de datos).`
-      : bivariateDegenerateReason === "tercile"
-        ? "Los valores de esta vista son demasiado parecidos para cortar en niveles de intensidad honestos."
-        : bivariateDegenerateReason === "suppressed"
-          ? "En esta vista el cruce quedaría casi todo protegido por k-anonimato: el mapa mostraría trama en vez de datos. Se muestran las capas por separado, que sí se leen."
-          : null;
-  // panorama-percapita: honest per-cápita notes.
-  //  - Drilled below province while the selection is on → EXPLICIT count
-  //    fallback (requirement: a note, not a silent swap).
-  //  - Eligible but the payload carries no census (stale cache / unseeded
-  //    table) → honest no-data note instead of an inert toggle.
-  const percapitaDrillNote =
-    percapitaMode && percapitaLayersEligible && level !== "province"
-      ? "Per cápita se calcula por provincia — en esta vista se muestra el conteo por unidad (no hay censo departamental todavía)."
-      : null;
-  const percapitaNoCensusNote =
-    percapitaMode && percapitaEligible && percapitaCensusMeta === null
-      ? "Sin datos del censo para esta vista — se muestra el conteo."
-      : null;
-  // panorama-percapita (F3): a per-cápita-eligible layer that resolved to its
-  // NEAR-band event-points mark serves REAL dots UN-enriched (get-layer-features
-  // skips the census join for points-mode results), so census metadata is absent
-  // for a reason that is NOT "no census data" and is NOT a department drill.
-  // Explain the points view explicitly instead of the misleading no-census/drill
-  // copy. Derived client-side from the SAME render mode the map paints — no new
-  // prop threaded.
-  const percapitaPointsNote =
-    percapitaMode &&
-    percapitaLayersEligible &&
-    activeLayers.some((l) => isPercapitaEligible(l.id as LayerId) && l.renderMode === "points")
-      ? "En la vista de puntos se muestran eventos individuales — la tasa per cápita aplica a la vista agregada por provincia."
-      : null;
-  const modeOptions: ModeOption[] = capabilities.mapModes.map((id) => ({
-    id,
-    label: MODE_LABELS[id] ?? id,
-    disabled: id === "bivariate" ? scrubbing || bivariateDegenerate : false,
-    title:
-      id === "bivariate"
-        ? scrubbing
-          ? "Intensidad de reporte — solo al último evento"
-          : (bivariateRefusalNote ?? undefined)
-        : undefined,
-  }));
-  // panorama-percapita: while the selection is ON but the view dropped below
-  // province (a drill), the gate no longer offers "percapita" — keep the segment
-  // VISIBLE but disabled so the fallback is explicit, never a silent vanish.
-  if (percapitaMode && percapitaLayersEligible && !capabilities.mapModes.includes("percapita")) {
-    modeOptions.push({
-      id: "percapita",
-      label: MODE_LABELS.percapita,
-      disabled: true,
-      title: "Per cápita se calcula por provincia",
-    });
-  }
-  // Department-grain per-cápita stays PHASE 2 (INDEC census import pending —
-  // see percapita.ts). Its disabled "(en desarrollo)" roadmap option is HIDDEN
-  // (#14, 2026-07-23): a visibly unfinished control reads as broken product;
-  // the percapita drill-fallback note above already names the prerequisite.
-  // The ACTIVE segment mirrors what the MAP paints: "auto" when the operator
-  // hasn't selected an encoding; the encoding id while it actually renders; and
-  // NO segment while the selection is suspended (mode on, mid-scrub/degenerate/
-  // drilled) — the note below explains why. Preserves the pre-#24 visual semantics.
-  const modeValue = bivariateActive
-    ? "bivariate"
-    : percapitaActive
-      ? "percapita"
-      : bivariateMode || percapitaMode
-        ? ""
-        : "auto";
+  // map into the monitoring rail so the geography leads the fold. The segment
+  // list, the active value and the honest refusal copy are a pure projection —
+  // see panorama-map-modes.ts (task #24 fase 1, C2 language contract).
+  const mapModeModel = buildMapModeControlModel({
+    mapModes: capabilities.mapModes,
+    activeLayers,
+    level,
+    scrubbing,
+    bivariateEligible,
+    bivariateActive,
+    bivariateMode,
+    bivariateDegenerate,
+    bivariateDegenerateReason,
+    bivariatePair,
+    percapitaActive,
+    percapitaMode,
+    percapitaEligible,
+    percapitaLayersEligible,
+    percapitaHasCensus: percapitaCensusMeta !== null,
+  });
   const bivariateControl = (
     <ModeSwitcher
-      options={modeOptions}
-      value={modeValue}
+      options={mapModeModel.options}
+      value={mapModeModel.value}
       onChange={(id) => {
         setBivariateMode(id === "bivariate");
         setPercapitaMode(id === "percapita");
       }}
       heading="Modo del mapa"
-      sub={
-        bivariateEligible
-          ? (bivariatePair?.switcherSub ??
-            "Cómo se pinta la vista — la intensidad de reporte cruza cobertura baja × señales altas")
-          : "Cómo se pinta la vista — per cápita normaliza por población del censo"
-      }
-      note={
-        // Same visibility as pre-#24: the note explains the disabled segment
-        // even before the operator selects it (only while an encoding is offered
-        // at all — ModeSwitcher hides itself when mapModes is just ["auto"]).
-        bivariateEligible && scrubbing
-          ? "Intensidad de reporte — solo al último evento (la cobertura no se reconstruye en el tiempo)."
-          : bivariateEligible && bivariateRefusalNote
-            ? bivariateRefusalNote
-            : (percapitaPointsNote ?? percapitaDrillNote ?? percapitaNoCensusNote)
-      }
+      sub={mapModeModel.sub}
+      note={mapModeModel.note}
     />
   );
 
