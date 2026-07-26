@@ -226,16 +226,28 @@ export type PanoramaCapabilities = {
 export type MetaLayerLike = { dataType?: string; complianceTarget?: number };
 
 /**
- * The former `isMeta` predicate, defined ONCE. A rate layer with a compliance
- * target renders the classed-step META choropleth (`choropleth-meta`); every
- * other choropleth base renders the sequential scale (`choropleth-seq`). This is
- * the single source the four copy-pasted call sites now read, so they cannot
- * drift from each other or from the gate's resolved `encoding.kind`.
+ * The former `isMeta` predicate, defined ONCE. A layer with an ATTAINMENT TARGET
+ * renders the classed-step META choropleth (`choropleth-meta`) — fixed cutoffs
+ * at [0.5T, 0.75T, T], where the dark class is the met meta; every other
+ * choropleth base renders the sequential scale (`choropleth-seq`), where the
+ * dark class is simply "more". This is the single source the four copy-pasted
+ * call sites read, so they cannot drift from each other or from the gate's
+ * resolved `encoding.kind`.
+ *
+ * WIDENED 2026-07-26: it used to also require `dataType === "rate"`, which
+ * conflated two independent axes — the AGGREGATION routing (what dataType is
+ * for) and whether the value has a meta to be read against. The cost was paid by
+ * `indice-territorial`: a 0-100 attainment score routed as a density, so it fell
+ * to the sequential ramp and painted the best-performing provinces the same dark
+ * "more of it" colour the harm layers use. What makes a scale a meta scale is
+ * the target, so the predicate now asks only for the target. No existing layer
+ * changes behaviour — until this commit only rate layers declared one, and
+ * `complianceTarget` is documented as an attainment floor for every dataType.
  */
 export function isMetaLayer<T extends MetaLayerLike>(
   layer: T,
 ): layer is T & { complianceTarget: number } {
-  return layer.dataType === "rate" && typeof layer.complianceTarget === "number";
+  return typeof layer.complianceTarget === "number";
 }
 
 /** The base (rate|density) layer among the active set, or null. F2 guarantees at

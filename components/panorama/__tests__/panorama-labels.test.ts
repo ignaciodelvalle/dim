@@ -224,6 +224,17 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
           ],
           "vista": "Riesgo PPP",
         },
+        {
+          "kpis": [
+            "Cobertura antirrábica (perros, 12m)",
+            "Cobertura de esterilización",
+            "Microchip",
+          ],
+          "layers": [
+            "Índice territorial (0-100)",
+          ],
+          "vista": "Índice territorial",
+        },
       ]
     `);
   });

@@ -29,8 +29,8 @@ import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 13 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(13);
+  it("contains exactly 14 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(14);
   });
 
   it("all preset ids are unique", () => {
@@ -38,7 +38,7 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 13 expected preset ids are present", () => {
+  it("all 14 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
@@ -57,6 +57,9 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     // tests and production call sites but no vista that activated them.
     expect(ids.has("microchip")).toBe(true);
     expect(ids.has("antiparasitario")).toBe(true);
+    // Polarity wave (2026-07-26): the composite scorecard, wirable once a
+    // higher-is-better layer could be ranked and painted without inverting.
+    expect(ids.has("indice-territorial")).toBe(true);
   });
 
   it("every preset has a non-empty label", () => {
@@ -526,19 +529,34 @@ describe("PANORAMA_PRESETS — layer reachability", () => {
    * adding a layer without a vista, or dropping a layer out of its only vista,
    * must fail here and force an explicit decision.
    *
-   * Both survivors are blocked by the SAME defect, not by two separate ones:
-   * they are "higher is better" magnitudes classified as `dataType: "density"`,
-   * and the console is polarity-blind for density layers — rankWorstUnits sorts
-   * descending under a "Peores N" title, and the sequential ramp darkens with
-   * value. Wiring either one today would paint the BEST territories as the
-   * alarm and rank them as the worst. See the rationale block on the
-   * `desierto-veterinario` preset for the unblocking work.
+   * WAS ["acceso-veterinario", "indice-territorial"] — both "higher is better"
+   * layers that the console read backwards. `indice-territorial` is now wired:
+   * its 0-100 score has a DEFINITIONAL meta of 100 (the three metas met), and a
+   * declared target is a polarity declaration the existing call sites already
+   * pass through, so it ranks worst-gap-first and fills on the META scale.
+   *
+   * `acceso-veterinario` survives DELIBERATELY. Its polarity is declared
+   * (`higherIsBetter: true`) and both mechanisms exist — the ranking honours it
+   * and `computeClassScale({ invert })` reverses the ramp — but the two consumer
+   * reads that would carry it (PanoramaConsole's inline rank options,
+   * provinceSeqClassScale's `computeClassScale` call) still do not pass it, and
+   * it has no honest target to ride instead. Wiring it today would list the ten
+   * BEST-served jurisdictions as "las peores" and paint them the alarm colour.
+   * An orphan with a written reason beats a vista that lies; see the rationale
+   * block on the `desierto-veterinario` preset for the two one-argument fixes.
    */
-  const KNOWN_ORPHANS: readonly LayerId[] = ["acceso-veterinario", "indice-territorial"];
+  const KNOWN_ORPHANS: readonly LayerId[] = ["acceso-veterinario"];
 
-  it("only the two documented polarity-blocked layers are orphaned", () => {
+  it("only the documented consumer-blocked layer is orphaned", () => {
     const orphans = PANORAMA_LAYERS.map((l) => l.id).filter((id) => !activated.has(id));
     expect(orphans.sort()).toEqual([...KNOWN_ORPHANS].sort());
+  });
+
+  it("the territorial index has a vista — it ranks by attainment, not by magnitude", () => {
+    expect(activated.has("indice-territorial")).toBe(true);
+    // The pairing is only honest because the layer declares its meta: without a
+    // target the console would rank a higher-is-better score descending.
+    expect(PANORAMA_LAYERS.find((l) => l.id === "indice-territorial")?.complianceTarget).toBe(100);
   });
 
   it("microchip is reachable — the legal headline KPI now has a territorial home", () => {

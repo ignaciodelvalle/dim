@@ -193,24 +193,56 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     expect(getLayer("decomisos")?.dataType).toBe("reference");
   });
 
-  it("F5: rate layers declare a complianceTarget; non-rate layers do not", () => {
+  /**
+   * WAS "rate layers declare a complianceTarget; NON-RATE layers do not".
+   *
+   * The second half was locking in a conflation, not a rule: it read `dataType`
+   * — which decides the AGGREGATION path — as if it also decided whether a value
+   * has a meta to be read against. `indice-territorial` pays for that: a 0-100
+   * attainment score routed as a density, and therefore denied the meta scale
+   * and the gap ranking that are the only honest way to read it (the mean of
+   * three target-attainments is 100 exactly when the three metas are met).
+   *
+   * What must stay pinned is the real constraint: a target is an ATTAINMENT
+   * floor, so it may only be declared where reaching a higher value is the goal.
+   * A count / duration / delta layer declaring one would paint policy fiction —
+   * there is no "meta de mordeduras" and no meta for days without vet activity.
+   */
+  it("F5: every rate layer declares a positive complianceTarget", () => {
     for (const layer of PANORAMA_LAYERS) {
-      if (layer.dataType === "rate") {
-        expect(
-          layer.complianceTarget,
-          `${layer.id} is a rate layer and must declare complianceTarget`,
-        ).toBeTypeOf("number");
-        expect(
-          (layer.complianceTarget as number) > 0,
-          `${layer.id} complianceTarget must be positive`,
-        ).toBe(true);
-      } else {
-        expect(
-          layer.complianceTarget,
-          `${layer.id} is not a rate layer and must NOT have complianceTarget`,
-        ).toBeUndefined();
-      }
+      if (layer.dataType !== "rate") continue;
+      expect(
+        layer.complianceTarget,
+        `${layer.id} is a rate layer and must declare complianceTarget`,
+      ).toBeTypeOf("number");
+      expect(
+        (layer.complianceTarget as number) > 0,
+        `${layer.id} complianceTarget must be positive`,
+      ).toBe(true);
     }
+  });
+
+  it("F5: a non-rate layer may declare a target only if higher is better", () => {
+    for (const layer of PANORAMA_LAYERS) {
+      if (layer.dataType === "rate" || layer.complianceTarget === undefined) continue;
+      expect(
+        layer.higherIsBetter,
+        `${layer.id} declares a complianceTarget, so a HIGHER value must be the goal: a target on a count/duration/delta layer would be an invented meta`,
+      ).toBe(true);
+      expect(
+        (layer.complianceTarget as number) > 0,
+        `${layer.id} complianceTarget must be positive`,
+      ).toBe(true);
+    }
+  });
+
+  it("polarity: only the two higher-is-better layers declare it", () => {
+    const declared = PANORAMA_LAYERS.filter((l) => l.higherIsBetter === true).map((l) => l.id);
+    // The default (absent) means "more of this is worse", which is the correct
+    // reading for every harm count, for days without vet activity and for the
+    // event delta. Only these two invert it — and both are documented in the
+    // registry with why. A new layer added here without a rationale is a bug.
+    expect(declared.sort()).toEqual(["acceso-veterinario", "indice-territorial"]);
   });
 
   it("F5: cobertura complianceTarget is 80 (antirrábica legal goal)", () => {

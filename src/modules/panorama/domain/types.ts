@@ -197,14 +197,47 @@ export type PanoramaLayer = {
    */
   dataType: LayerDataType;
   /**
-   * F5: the legal/public-health compliance target for `dataType: "rate"` layers.
-   * When set, the province choropleth renders as a DIVERGENT scale anchored at
-   * this value (below = warning pole, above = good pole). Non-rate layers omit
-   * this field — using a diverging scale for a density count is misleading.
+   * F5: the legal/public-health ATTAINMENT target of the layer's value.
+   *
+   * A target is always a FLOOR to reach, never a ceiling to stay under: below it
+   * is the warning pole, at/above it is the good pole. The province choropleth
+   * classes on it (`isMetaLayer` → the META scale anchored at [0.5T, 0.75T, T])
+   * and the ranking orders by the gap to it, worst gap first.
+   *
+   * Every `dataType: "rate"` layer declares one. A NON-rate layer may declare one
+   * ONLY when its value is a bounded ATTAINMENT whose target is definitional
+   * rather than invented — `indice-territorial` is the one case: its 0-100 score
+   * IS the mean attainment of three metas, so 100 means "the three metas met",
+   * not a number someone picked. A count/duration/delta layer must NOT declare a
+   * target: there is no "meta de mordeduras", and classing a density on a
+   * fabricated target would paint policy fiction.
    *
    * Unit: same as the layer's `value` property (percentage for cobertura: 0–100).
    */
   complianceTarget?: number;
+  /**
+   * POLARITY: `true` when a HIGH value is GOOD news for this layer.
+   *
+   * The console was polarity-BLIND for the sequential (no-target) family: the
+   * ranking sorted every such layer descending under a "Peores N" title and the
+   * sequential ramp darkened with value. That is right for the layers whose
+   * value is an amount of harm (mortalidad, denuncias, días sin actividad
+   * veterinaria, Δ de incidentes) — more IS worse — and it inverts the meaning
+   * for the two layers where more is better: `acceso-veterinario` (visitas por
+   * 1.000 mascotas) and `indice-territorial` (índice de cumplimiento 0-100).
+   * Wiring those without declaring polarity would list the BEST-served
+   * jurisdictions as "las peores" and paint them as the alarm.
+   *
+   * DEFAULT (absent) = higher is WORSE — today's behaviour for all 17 other
+   * layers, so this is additive and no layer had to be migrated.
+   *
+   * Redundant-but-true on a layer that also declares a `complianceTarget`: a
+   * target already tells the ranking and the fill which pole is good, so the
+   * consumers that only read the target stay correct. It is declared anyway
+   * because the polarity is a fact about the METRIC, and a reader should not
+   * have to infer it from the presence of a second field.
+   */
+  higherIsBetter?: boolean;
   /**
    * new-vistas wave (tendencia): the layer's `value` is a SIGNED DELTA
    * (current window − prior equivalent window), not a magnitude. The province

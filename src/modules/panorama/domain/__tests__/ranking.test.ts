@@ -143,6 +143,52 @@ describe("rankWorstUnits — density layers (count desc)", () => {
   });
 });
 
+// POLARITY. "Worst" is a claim about meaning: for a harm count the worst unit is
+// the biggest number, for an access or attainment measure it is the smallest.
+// The default is unchanged (higher = worse), so no existing layer moved.
+describe("rankWorstUnits — higher-is-better layers (polarity)", () => {
+  it("ranks the LEAST-served unit first when a high value is good news", () => {
+    // acceso-veterinario shape: visitas por 1.000 mascotas. Under the old
+    // unconditional descending sort this list came back best-first, and the
+    // panel's "Peores 10 · acceso veterinario" heading turned it into a lie.
+    const features = fc([
+      densityFeature("Formosa", 8),
+      densityFeature("CABA", 310),
+      densityFeature("Chaco", 22),
+    ]);
+
+    const rows = rankWorstUnits(features, { kind: "density", higherIsBetter: true, limit: 10 });
+
+    expect(rows.map((r) => r.label)).toEqual(["Formosa", "Chaco", "CABA"]);
+    expect(rows[0]).toMatchObject({ value: 8, gap: null });
+  });
+
+  it("an attainment target orders by the gap even on a density-kind layer", () => {
+    // indice-territorial shape: a 0-100 score with a definitional meta of 100.
+    // The console passes `target` for every layer it ranks, so declaring one is
+    // what makes this layer read correctly with no caller change.
+    const features = fc([
+      rateFeature("AR-B", "Buenos Aires", 71),
+      rateFeature("AR-F", "Formosa", 24),
+      rateFeature("AR-C", "CABA", 100), // meta met — not a "worst" unit
+    ]);
+
+    const rows = rankWorstUnits(features, { kind: "density", target: 100, limit: 10 });
+
+    expect(rows.map((r) => r.label)).toEqual(["Formosa", "Buenos Aires"]);
+    expect(rows[0]).toMatchObject({ value: 24, gap: 76 });
+  });
+
+  it("leaves harm counts alone — the default is still highest-first", () => {
+    const features = fc([densityFeature("Rosario", 12), densityFeature("La Plata", 40)]);
+
+    expect(rankWorstUnits(features, { kind: "density" }).map((r) => r.label)).toEqual([
+      "La Plata",
+      "Rosario",
+    ]);
+  });
+});
+
 // P2.5 small-scope fallback: rank EVERY in-scope unit by the metric, including
 // at/above-meta rate units that rankWorstUnits drops — so a jurisdiction with
 // fewer than a full Worst-N still sees its units ordered, not "sin datos".
@@ -183,5 +229,27 @@ describe("rankUnitsInScope — small-scope fallback (P2.5)", () => {
 
     expect(rows.map((r) => r.label)).toEqual(["Recoleta", "Palermo"]);
     expect(rows[0]).toMatchObject({ value: 9, gap: null });
+  });
+
+  it("the small-scope fallback honours polarity too (least-served first)", () => {
+    // The two orderings must agree: a scoped operator seeing "tus N comunas"
+    // and a national operator seeing "Peores 10" cannot disagree about which
+    // end of the same layer is the bad end.
+    const features = fc([densityFeature("Palermo", 90), densityFeature("Recoleta", 12)]);
+
+    const rows = rankUnitsInScope(features, { kind: "density", higherIsBetter: true, limit: 10 });
+
+    expect(rows.map((r) => r.label)).toEqual(["Recoleta", "Palermo"]);
+  });
+
+  it("the small-scope fallback keeps at-meta units on a targeted density layer", () => {
+    const features = fc([rateFeature("AR-C", "CABA", 100), rateFeature("AR-F", "Formosa", 24)]);
+
+    const rows = rankUnitsInScope(features, { kind: "density", target: 100, limit: 10 });
+
+    // Worst attainment first, and the at-meta unit stays listed without a gap.
+    expect(rows.map((r) => r.label)).toEqual(["Formosa", "CABA"]);
+    expect(rows[0]).toMatchObject({ value: 24, gap: 76 });
+    expect(rows[1]).toMatchObject({ value: 100, gap: null });
   });
 });

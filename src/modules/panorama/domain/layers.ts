@@ -397,8 +397,17 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
   },
   {
     id: "acceso-veterinario",
-    // Not summable: per-unit value is visits per 1.000 inhabitants, not a row count.
+    // Not summable: per-unit value is visits per 1.000 active pets, not a row count.
     valueKind: "rate",
+    // POLARITY: more visits = better access. One of only two layers in this
+    // registry where the sequential ramp and the "Peores N" ranking must run
+    // BACKWARDS (see PanoramaLayer.higherIsBetter). No `complianceTarget`: the
+    // annual antirrábica booster implies a floor of ~1.000 visitas/1.000
+    // mascotas, but classing the map on a target the whole country sits far
+    // below collapses it into a single class — the saturation defect this layer
+    // exists to avoid. It stays a QUANTILE sequential layer, which is why the
+    // ramp inversion (not a target) is what unblocks it.
+    higherIsBetter: true,
     label: "Acceso veterinario (visitas/1.000)",
     description:
       "Visitas veterinarias por cada 1.000 mascotas activas, por unidad — señal de acceso a la atención (los 'desiertos' de atención son las zonas con menos visitas). Ventana móvil de 12 meses.",
@@ -547,6 +556,19 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     id: "indice-territorial",
     // Not summable: per-unit value is a 0-100 composite index.
     valueKind: "index",
+    // POLARITY: a higher score is a better-performing territory.
+    higherIsBetter: true,
+    // ATTAINMENT TARGET — definitional, not invented. The score is the mean of
+    // `targetAttainment(rate, target) = min(100, rate/target*100)` over the
+    // antirrábica / esterilización / microchip metas (lib/analytics/
+    // territorial-index.ts), so 100 means exactly "las tres metas cumplidas" and
+    // is reachable by construction. Declaring it is what makes the layer READ
+    // correctly today: the ranking orders by the gap to 100 (worst attainment
+    // first, with the same "−N pts" chip the compliance vistas show) and the
+    // fill takes the META path, where the dark class is the met meta — the same
+    // reading as cobertura/microchip, instead of the sequential family's
+    // "dark = more of a bad thing".
+    complianceTarget: 100,
     label: "Índice territorial (0-100)",
     description:
       "Índice compuesto por provincia (0-100): media del cumplimiento de metas de antirrábica, esterilización y microchip. Puntúa territorios, nunca personas.",
@@ -556,11 +578,14 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     scopeFilterable: true,
     privacy: "none",
     temporal: false,
-    // A 0-100 attainment index (unweighted mean of three target-attainments) —
-    // rendered on a SEQUENTIAL scale, not divergent: it is already an attainment
-    // score, so there is no external compliance target to anchor a divergent scale.
-    // Classified "density" (a no-target magnitude) rather than "rate" for exactly
-    // that reason.
+    // Stays "density" for AGGREGATION routing: dataType decides which loader and
+    // which per-unit path the layer takes, and this is not a rate over a
+    // population — it is a composite score the index computation hands over
+    // ready-made. What it is NOT is a no-target magnitude: the `complianceTarget`
+    // above carries the attainment reading (fill + ranking), which is a separate
+    // axis from the routing one. Superseded note: this comment used to say the
+    // layer had "no external compliance target to anchor" — true of an EXTERNAL
+    // one, wrong about its own definitional 100.
     dataType: "density",
     // PROVINCE-ONLY by design: computeJurisdictionIndex scores ≤24 provinces and
     // has no locality/department grain, so BOTH render levels fill the province

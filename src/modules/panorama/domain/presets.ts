@@ -26,7 +26,8 @@ export type PresetId =
   | "perdidas-reunificacion"
   | "desierto-veterinario"
   | "tendencia"
-  | "riesgo-ppp";
+  | "riesgo-ppp"
+  | "indice-territorial";
 
 /**
  * Optional map framing a preset applies on activation (panorama-redesign Fase 1).
@@ -378,35 +379,40 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     metrics: ["cobertura", "esterilizacion"],
     //
     // WHY THE BASE IS STILL `desierto-veterinario` AND NOT `acceso-veterinario`
-    // (evaluated 2026-07-26, deliberately NOT swapped).
+    // (re-evaluated 2026-07-26 with the polarity work in hand — still NOT
+    // swapped, but for a smaller and more specific reason than before).
     //
     // The critique is CORRECT on the metric: `desierto-veterinario` is
     // right-censored at the window length (censoredAtMax: 90) and 23 of 24
     // provinces sit exactly at the cap, so the map is one colour and the ranking
     // is a 23-way tie. `acceso-veterinario` (visits per 1.000 active pets, 12m)
     // is continuous, normalized and does not saturate — it is the metric this
-    // vista's question actually means.
+    // vista's question actually means, and it is now DECLARED honestly
+    // (`higherIsBetter: true`) with the ranking (ranking.ts) and the ramp
+    // (class-scale.ts `invert`) both able to honour that declaration.
     //
-    // It is NOT swapped in yet because the console is POLARITY-BLIND for
-    // "density" layers, and acceso-veterinario is the only layer in the registry
-    // where a HIGH value is GOOD news:
-    //   1. ranking.ts sorts every density layer DESCENDING and the panel titles
-    //      it "Peores N" — so the ten BEST-served provinces would be listed as
-    //      the worst.
-    //   2. the sequential fill (class-scale.ts, SCALE_BLUE_SEQ) darkens with
-    //      value, and every other sequential layer here means "dark = more of a
-    //      bad thing" (mortalidad, denuncias, and this layer's own "DARK = many
-    //      days without activity = the desert signal") — so the best-served
-    //      provinces would paint as the alarm.
-    // Swapping today trades a flat-but-honest map for a legible INVERTED one,
-    // which is the worse defect on a government console.
+    // What is still missing is not the mechanism but the two CONSUMER reads, in
+    // files this change does not own:
+    //   1. PanoramaConsole.tsx builds the rank options inline
+    //      (`{ kind, target, limit }`) and never passes `higherIsBetter`, so a
+    //      target-less higher-is-better layer still ranks descending under the
+    //      "Peores N" title — the ten BEST-served provinces listed as the worst.
+    //   2. province-choropleth-style.ts `provinceSeqClassScale` calls
+    //      `computeClassScale(values, { lockedBreaks })` and never passes
+    //      `invert`, so the sequential fill still darkens with value — the
+    //      best-served provinces painted as the alarm.
+    // Both are one argument each. Until they land, swapping trades a
+    // flat-but-honest map for a legible INVERTED one, which is the worse defect
+    // on a government console. `indice-territorial` did NOT have to wait for
+    // them: its meta of 100 is definitional, and a declared target is a polarity
+    // declaration the existing call sites already pass through.
     //
-    // UNBLOCKING WORK (small, but outside this domain-only change): declare the
-    // polarity on the layer (e.g. `higherIsBetter`), honour it in
-    // rankWorstUnits/rankUnitsInScope, and reverse the sequential ramp for such
-    // layers. That single fix also unblocks `indice-territorial` (0-100
-    // attainment index — same "higher is better", same two traps), which is why
-    // both stay orphaned together rather than for two separate reasons.
+    // A `complianceTarget` would unblock acceso-veterinario the same way — the
+    // annual antirrábica booster implies ~1.000 visitas/1.000 mascotas — and was
+    // rejected: the country sits far below that floor, so every province would
+    // land in the lowest META class and the map would go flat, re-creating the
+    // exact saturation this swap exists to escape. Fixing the ranking by
+    // breaking the map is not a fix.
     //
     // Independently REPORTED and also unfixed: the underlying metric counts only
     // `vet_visit_logged`, so vaccinating 10.000 dogs does not register as
@@ -460,6 +466,37 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // encoding-seeding rule kept from the a948c975 revert), and the badge stays
     // "Riesgo PPP" while it is selected (?encoding=bivariate round-trips).
     encodings: ["bivariate"],
+  },
+  {
+    id: "indice-territorial",
+    label: "Índice territorial",
+    description: "¿Qué jurisdicciones están más lejos de cumplir las tres metas a la vez?",
+    // base: indice-territorial (0-100 composite). The compliance family already
+    // has one vista per meta (cumplimiento, control-poblacional, microchip);
+    // none of them answers "¿quién está peor EN CONJUNTO?", which is the
+    // question a national director actually asks before allocating anything.
+    // This vista is that synthesis, and it is the layer's first home: it shipped
+    // with a loader, a tested computation (lib/analytics/territorial-index.ts)
+    // and production call sites, activated by no vista at all.
+    //
+    // WIRABLE ONLY NOW, and only because the polarity work landed with it: the
+    // index is one of the two layers where a HIGH value is GOOD news. Under the
+    // old reading it would have ranked the best-governed provinces as "Peores
+    // 10" and painted them the dark alarm colour. Declaring its definitional
+    // meta of 100 (see the registry entry) puts it on the attainment path the
+    // compliance vistas already use — worst gap first, dark = meta cumplida.
+    base: "indice-territorial",
+    level: "province",
+    periodPreset: "90d",
+    // A cross-province scorecard only reads with the whole country in frame —
+    // same national framing as every other compliance vista.
+    framing: { kind: "national" },
+    // The three components the score is the mean of — so the operator can see
+    // WHICH meta is dragging a province down, instead of only that it is down.
+    // Deliberately not a fourth "índice" tile: there is no PanoramaKpiId for it
+    // (the same honest gap the antiparasitario vista states), and inventing one
+    // here would duplicate the map's own number.
+    metrics: ["cobertura", "esterilizacion", "microchip"],
   },
 ] as const;
 

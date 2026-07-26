@@ -58,8 +58,19 @@ export type ClassScale = {
  * [0,1,3,4] (drops one mid stop but keeps both poles); n=1 → the mid stop (a
  * single flat class). No new palette is introduced — this only re-samples the
  * existing ramp.
+ *
+ * `invert` REVERSES the assignment so the darkest stop lands on the LOWEST
+ * class. What the sequential family communicates is "dark = the alarm": on
+ * mortalidad, denuncias or días sin actividad veterinaria the alarm is the high
+ * end, so the default ramp is already right. On a HIGHER-IS-BETTER layer
+ * (PanoramaLayer.higherIsBetter — visitas veterinarias por 1.000) the alarm is
+ * the LOW end, and painting it with the pale "barely anything here" stop while
+ * the best-served territory gets the darkest ink tells the operator the opposite
+ * of the truth. Inverting keeps the one convention true in both directions.
+ * (The META path needs none of this: its target already declares which pole is
+ * good, and there "dark = meta cumplida" is the established reading.)
  */
-export function classColors(n: number): string[] {
+export function classColors(n: number, opts?: { invert?: boolean }): string[] {
   const scale = SCALE_BLUE_SEQ;
   if (n <= 1) return [scale[Math.floor(scale.length / 2)]];
   const out: string[] = [];
@@ -67,7 +78,7 @@ export function classColors(n: number): string[] {
     const idx = Math.round((i * (scale.length - 1)) / (n - 1));
     out.push(scale[idx]);
   }
-  return out;
+  return opts?.invert === true ? out.reverse() : out;
 }
 
 /** Sort ascending, drop non-finite, keep only STRICTLY increasing values —
@@ -101,13 +112,23 @@ function quantileSorted(sorted: readonly number[], p: number): number {
  * @param opts.lockedBreaks frozen interior breaks (scrub scale-lock) captured from
  *                          the live-edge QUANTILE scale → reused verbatim so a unit
  *                          keeps its class-color across frames. Wins over target.
+ * @param opts.invert       the layer is HIGHER-IS-BETTER → reverse the ramp so the
+ *                          darkest class is the LOWEST value (see `classColors`).
+ *                          Breaks are untouched: only the colour assignment flips.
+ *                          Callers pass `layer.higherIsBetter` for a sequential
+ *                          (target-less) layer; a META'd layer must not pass it.
  */
 export function computeClassScale(
   values: readonly number[],
-  opts?: { target?: number | null; lockedBreaks?: readonly number[] | null },
+  opts?: {
+    target?: number | null;
+    lockedBreaks?: readonly number[] | null;
+    invert?: boolean;
+  },
 ): ClassScale {
   const target = opts?.target ?? null;
   const lockedBreaks = opts?.lockedBreaks ?? null;
+  const invert = opts?.invert === true;
   const finite = values.filter((v) => typeof v === "number" && Number.isFinite(v));
 
   // Scrub scale-lock: reuse the FROZEN breaks captured at the live edge
@@ -118,7 +139,7 @@ export function computeClassScale(
   if (lockedBreaks && lockedBreaks.length > 0) {
     const breaks = dedupeAscending([...lockedBreaks]);
     if (breaks.length > 0) {
-      return { breaks, colors: classColors(breaks.length + 1), method: "locked" };
+      return { breaks, colors: classColors(breaks.length + 1, { invert }), method: "locked" };
     }
   }
 
@@ -126,16 +147,17 @@ export function computeClassScale(
   // For a meta of 80 → [40, 60, 80] → classes <40 / 40–60 / 60–80 / ≥80.
   if (target != null && Number.isFinite(target) && target > 0) {
     const breaks = dedupeAscending([0.5 * target, 0.75 * target, target]);
-    return { breaks, colors: classColors(breaks.length + 1), method: "meta" };
+    return { breaks, colors: classColors(breaks.length + 1, { invert }), method: "meta" };
   }
 
-  if (finite.length === 0) return { breaks: [], colors: classColors(1), method: "flat" };
+  if (finite.length === 0)
+    return { breaks: [], colors: classColors(1, { invert }), method: "flat" };
 
   const min = Math.min(...finite);
   const max = Math.max(...finite);
   // Degenerate range (all equal) → a single flat class; MapLibre `step` needs a
   // real ascending threshold, so a break-less scale is a flat fill (see stepExpr).
-  if (!(max > min)) return { breaks: [], colors: classColors(1), method: "flat" };
+  if (!(max > min)) return { breaks: [], colors: classColors(1, { invert }), method: "flat" };
 
   // Too few units for meaningful quantiles → equal-interval over the range.
   if (finite.length < CLASS_COUNT) {
@@ -145,7 +167,7 @@ export function computeClassScale(
         (_, i) => min + ((max - min) * (i + 1)) / CLASS_COUNT,
       ),
     );
-    return { breaks, colors: classColors(breaks.length + 1), method: "interval" };
+    return { breaks, colors: classColors(breaks.length + 1, { invert }), method: "interval" };
   }
 
   // Quantile breaks: each class holds ~1/CLASS_COUNT of the units.
@@ -155,7 +177,7 @@ export function computeClassScale(
       quantileSorted(sorted, (i + 1) / CLASS_COUNT),
     ),
   );
-  return { breaks, colors: classColors(breaks.length + 1), method: "quantile" };
+  return { breaks, colors: classColors(breaks.length + 1, { invert }), method: "quantile" };
 }
 
 /**

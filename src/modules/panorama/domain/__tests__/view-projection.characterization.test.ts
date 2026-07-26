@@ -77,10 +77,20 @@ import {
 // ---------------------------------------------------------------------------
 
 /** isMeta — SituationalMap.tsx:1936 / :2814, MapLegends.tsx:138, map-popup.ts:68
- *  (the predicate copy-pasted ×4). A rate layer with a compliance target renders
- *  the classed-step META choropleth; otherwise the sequential choropleth. */
+ *  (the predicate copy-pasted ×4, since consolidated into the gate's
+ *  `isMetaLayer`). A layer with an ATTAINMENT TARGET renders the classed-step
+ *  META choropleth; otherwise the sequential choropleth.
+ *
+ *  CORRECTED 2026-07-26: this reconstruction used to also require
+ *  `dataType === "rate"`, mirroring the shared predicate at the time. That extra
+ *  clause was never about what a meta scale IS — it conflated the aggregation
+ *  routing with whether the value has a meta to be read against, and it denied
+ *  the meta scale to `indice-territorial`, whose 0-100 score is nothing but
+ *  attainment of three metas. The shared predicate dropped the clause; this copy
+ *  follows it, because a characterization that no longer characterizes the code
+ *  it mirrors pins fiction. */
 function isMeta(layer: PanoramaLayer): boolean {
-  return layer.dataType === "rate" && typeof layer.complianceTarget === "number";
+  return typeof layer.complianceTarget === "number";
 }
 
 /** bivariate eligibility — PanoramaConsole.tsx:2134-2138. The SOLE gate for the

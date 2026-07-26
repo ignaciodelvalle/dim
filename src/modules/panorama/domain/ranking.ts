@@ -8,10 +8,19 @@
 // PRIVACY INVARIANT (§5.1): a ranked row is NEVER derived from a k-anon
 // suppressed cell. Suppressed cells carry value/count = null and are dropped
 // before any ordering — no rate or count ever leaks from a < k=5 cell.
+//
+// POLARITY INVARIANT: "worst" is a claim about MEANING, not about magnitude.
+// This module used to sort every non-rate layer descending, which silently
+// assumed that more of anything is worse. That holds for harm counts and for
+// days without veterinary activity; it inverts for the layers where a high value
+// is the good news (visitas veterinarias por 1.000, índice de cumplimiento
+// 0-100), and "Peores 10" over the ten BEST-served provinces is a lie a
+// government console cannot ship. Polarity is therefore taken from the layer:
+// explicitly (`higherIsBetter`) or, equivalently, from an attainment `target`.
 
 import type { FeatureCollection } from "./types";
 
-/** How a layer is ranked: rate → gap vs meta; density → raw count. */
+/** How a layer is ranked: rate → gap vs meta; density → raw magnitude. */
 export type RankingKind = "rate" | "density";
 
 /** One ranked administrative unit (row in RankedUnitsPanel / PanoramaDataTable). */
@@ -28,13 +37,61 @@ export type RankedUnit = {
 
 type RankOptions = {
   kind: RankingKind;
-  /** Compliance target (required for rate ranking; ignored for density). */
+  /**
+   * The layer's ATTAINMENT target (PanoramaLayer.complianceTarget).
+   *
+   * Required for rate ranking. Also honoured for a DENSITY-kind layer that
+   * declares one (`indice-territorial`): a target is always a floor to reach, so
+   * its presence already answers "which end is bad" — the ranking orders by the
+   * gap to it, worst gap first, exactly as it does for a rate.
+   */
   target?: number;
   /** Worst-N cap (PO decision #2 = 10). */
   limit?: number;
+  /**
+   * POLARITY of a target-less magnitude (PanoramaLayer.higherIsBetter): `true`
+   * when a HIGH value is GOOD news, so the WORST unit is the LOWEST one.
+   *
+   * Absent = higher is worse — the reading every count/duration/delta layer
+   * needs (mortalidad, denuncias, días sin actividad) and the behaviour this
+   * module had before polarity existed, so the default is a no-op.
+   *
+   * Ignored when a `target` is present: an attainment target is itself a
+   * polarity declaration and the gap ordering already runs worst-first.
+   */
+  higherIsBetter?: boolean;
 };
 
 const DEFAULT_LIMIT = 10;
+
+/**
+ * ATTAINMENT ordering — rank by the gap to a target instead of by raw magnitude.
+ *
+ * True for every `rate` layer and for any layer that declares a target, whatever
+ * its `dataType`. Reading the target (not the dataType) is what lets a
+ * higher-is-better layer rank honestly at the EXISTING call sites: the console
+ * already passes `target: rankingLayer.complianceTarget` for every layer it
+ * ranks, so a density layer that declares one is ordered worst-first without any
+ * caller change.
+ */
+function ranksByAttainment(opts: RankOptions): boolean {
+  return opts.kind === "rate" || typeof opts.target === "number";
+}
+
+/**
+ * Compare two magnitudes so the WORSE unit sorts first.
+ *
+ * WHY THIS MATTERS FOR THE HEADING. The panel title is not derived from any
+ * polarity flag — `PanoramaDataTable` builds it from the row count and the
+ * layer's measure label ("Peores {n} · {métrica}"), and the informe mirrors it.
+ * So the title asserts exactly one thing: that the rows are the WORST ones. The
+ * fix for a higher-is-better layer is therefore the ORDER, not the words — get
+ * the order right and "Peores 10 · acceso veterinario" becomes true (the ten
+ * least-served jurisdictions); leave it wrong and no rewording can save it.
+ */
+function worseFirst(a: number, b: number, higherIsBetter: boolean): number {
+  return higherIsBetter ? a - b : b - a;
+}
 
 type UnitProps = {
   provinceCode?: unknown;
@@ -83,15 +140,20 @@ function identify(p: UnitProps): { key: string; label: string } | null {
 /**
  * Rank the worst administrative units for a layer.
  *
- *  - `rate`: units strictly BELOW `target`, ordered by the largest gap first.
- *    An empty result means "no jurisdiction below meta in this scope".
- *  - `density`: units ordered by the highest event count first (gap = null).
+ *  - ATTAINMENT (rate, or any layer with a `target`): units strictly BELOW the
+ *    target, ordered by the largest gap first. An empty result means "no
+ *    jurisdiction below meta in this scope".
+ *  - MAGNITUDE (target-less density): units ordered worst first — highest count
+ *    first by default, LOWEST first when the layer declares `higherIsBetter`
+ *    (visitas veterinarias, índice de cumplimiento). gap = null either way.
  *
  * Suppressed / non-numeric cells are excluded (privacy invariant). Returns at
  * most `limit` rows (default 10).
  */
 export function rankWorstUnits(features: FeatureCollection, opts: RankOptions): RankedUnit[] {
   const limit = opts.limit ?? DEFAULT_LIMIT;
+  const byAttainment = ranksByAttainment(opts);
+  const higherIsBetter = opts.higherIsBetter ?? false;
   const rows: RankedUnit[] = [];
 
   for (const f of features.features) {
@@ -102,7 +164,7 @@ export function rankWorstUnits(features: FeatureCollection, opts: RankOptions): 
     const id = identify(p);
     if (id === null) continue;
 
-    if (opts.kind === "rate") {
+    if (byAttainment) {
       if (typeof p.value !== "number") continue;
       const target = opts.target ?? 0;
       const gap = target - p.value;
@@ -120,7 +182,9 @@ export function rankWorstUnits(features: FeatureCollection, opts: RankOptions): 
     }
   }
 
-  rows.sort((a, b) => (opts.kind === "rate" ? (b.gap ?? 0) - (a.gap ?? 0) : b.value - a.value));
+  rows.sort((a, b) =>
+    byAttainment ? (b.gap ?? 0) - (a.gap ?? 0) : worseFirst(a.value, b.value, higherIsBetter),
+  );
   return rows.slice(0, limit);
 }
 
@@ -134,17 +198,22 @@ export function rankWorstUnits(features: FeatureCollection, opts: RankOptions): 
  * ALL non-suppressed units so the operator sees "tus N unidades, ordenadas por
  * {métrica}":
  *
- *  - `rate`: every unit with a numeric value, WORST coverage first (value
- *    ascending). `gap` = target − value only when strictly below meta (so the
- *    panel's "−N pts" chip still shows for below-meta units and is omitted for
- *    at/above-meta ones — no misleading "−(negative)").
- *  - `density`: identical to `rankWorstUnits` (all units by count descending).
+ *  - ATTAINMENT (rate, or any layer with a `target`): every unit with a numeric
+ *    value, WORST attainment first (value ascending). `gap` = target − value
+ *    only when strictly below meta (so the panel's "−N pts" chip still shows for
+ *    below-meta units and is omitted for at/above-meta ones — no misleading
+ *    "−(negative)").
+ *  - MAGNITUDE (target-less density): identical to `rankWorstUnits` — all units
+ *    worst first, which is highest-count first unless the layer declares
+ *    `higherIsBetter`, in which case it is lowest first.
  *
  * Suppressed / non-numeric cells are excluded (privacy invariant), exactly as
  * `rankWorstUnits`. Returns at most `limit` rows (default 10).
  */
 export function rankUnitsInScope(features: FeatureCollection, opts: RankOptions): RankedUnit[] {
   const limit = opts.limit ?? DEFAULT_LIMIT;
+  const byAttainment = ranksByAttainment(opts);
+  const higherIsBetter = opts.higherIsBetter ?? false;
   const rows: RankedUnit[] = [];
 
   for (const f of features.features) {
@@ -154,7 +223,7 @@ export function rankUnitsInScope(features: FeatureCollection, opts: RankOptions)
     const id = identify(p);
     if (id === null) continue;
 
-    if (opts.kind === "rate") {
+    if (byAttainment) {
       if (typeof p.value !== "number") continue;
       const target = opts.target ?? 0;
       const gap = target - p.value;
@@ -168,7 +237,10 @@ export function rankUnitsInScope(features: FeatureCollection, opts: RankOptions)
     }
   }
 
-  // rate → worst coverage first (lowest value); density → highest count first.
-  rows.sort((a, b) => (opts.kind === "rate" ? a.value - b.value : b.value - a.value));
+  // attainment → worst attainment first (lowest value); magnitude → worst first
+  // under the layer's own polarity (highest count, or lowest when high is good).
+  rows.sort((a, b) =>
+    byAttainment ? a.value - b.value : worseFirst(a.value, b.value, higherIsBetter),
+  );
   return rows.slice(0, limit);
 }
