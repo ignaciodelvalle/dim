@@ -28,18 +28,39 @@
  *       { "do": "sleep",  "ms": 1500 },
  *       { "do": "shot",   "name": "after-drill" },
  *       { "do": "text",   "selector": "main" },
- *       { "do": "eval",   "expr": "document.querySelectorAll('[data-testid]').length" }
+ *       { "do": "eval",   "expr": "document.querySelectorAll('[data-testid]').length" },
+ *       { "do": "assert", "expr": "document.querySelectorAll('canvas').length > 0",
+ *                         "why": "maplibre initialised" },
+ *       { "do": "anon" }
  *     ]
  *   }
  *
  * Console errors and uncaught page errors are always collected and printed at the
  * end — a clean screenshot over a broken console is not a passing state.
+ *
+ * EXIT CODES — why this driver can be trusted in a pipeline
+ * ---------------------------------------------------------------------------
+ * It could not, until 2026-07-27. The loop caught every step error, logged
+ * STEP FAILED, continued, and then called process.exit(0) unconditionally: run
+ * it against six broken surfaces and it still went green. A fence that cannot
+ * fail is worse than no fence, because it hands out permission.
+ *
+ * The catch-and-continue is deliberate and stays — a smoke run that aborts on
+ * step 3 tells you about one surface when you asked about six. What changed is
+ * that failures are now REMEMBERED and reported at the end:
+ *
+ *   exit 0  every step ran and every assert held
+ *   exit 1  at least one step threw, or at least one assert did not hold
+ *
+ * `eval` still only prints — it is for looking. `assert` is for judging: it
+ * evaluates an expression in the page and compares it to `expected` (default
+ * `true`), and a mismatch is what turns the run red.
  */
 
 import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { type BrowserContext, type Page, chromium } from "@playwright/test";
+import { type Browser, type BrowserContext, type Page, chromium } from "@playwright/test";
 
 // ---------------------------------------------------------------------------
 // Args
@@ -52,9 +73,10 @@ const args = new Map(
   }),
 );
 
-const DEFAULT_OUT = resolve(
-  "C:/Users/ignac/AppData/Local/Temp/claude/C--dev-dim/fbc69ed4-726f-4750-ac0d-3b5c4c5de034/scratchpad/vis",
-);
+// Repo-relative, and under the already-gitignored scratch directory. It used to
+// be an absolute path into one machine's temp folder, committed — which meant
+// the checked-in cutover smoke wrote nowhere useful on anyone else's box.
+const DEFAULT_OUT = resolve(process.cwd(), "tmp/qa-vis");
 
 type Step =
   | { do: "goto"; url: string }
@@ -66,7 +88,16 @@ type Step =
   | { do: "press"; key: string }
   | { do: "sleep"; ms: number }
   | { do: "text"; selector?: string; limit?: number }
-  | { do: "eval"; expr: string };
+  | { do: "eval"; expr: string }
+  // The judging step. `expected` defaults to true; comparison is structural
+  // (JSON), so objects and arrays work. `why` is printed on failure — a red
+  // assert should explain itself without anyone opening the step file.
+  | { do: "assert"; expr: string; expected?: unknown; why?: string }
+  // Drop the session: continue in a brand-new context with no cookies and no
+  // storage state. The cutover smoke's /login step needs this — with a live
+  // session that route redirects to the panel, so the check reads the panel's
+  // h1 and proves nothing about what an unauthenticated citizen hits first.
+  | { do: "anon" };
 
 type StepFile = {
   email?: string;
@@ -169,7 +200,34 @@ function locate(page: Page, s: { testid?: string; selector?: string; text?: stri
   throw new Error("step needs one of: testid | selector | text");
 }
 
-async function runStep(page: Page, step: Step, shots: string[]): Promise<void> {
+/**
+ * A step can replace the page under it (`anon`), so the loop holds the browser
+ * state in one mutable object rather than a `page` binding it cannot reassign.
+ */
+type Session = {
+  browser: Browser;
+  context: BrowserContext;
+  page: Page;
+};
+
+/** Everything a run needs to report at the end, and to decide its exit code. */
+type Report = {
+  shots: string[];
+  /** One line per step that threw or assert that did not hold. */
+  failures: string[];
+  consoleErrors: string[];
+};
+
+/** Attach the console/pageerror collectors to a page. Re-run after `anon`. */
+function watchConsole(page: Page, consoleErrors: string[]): void {
+  page.on("console", (m) => {
+    if (m.type() === "error") consoleErrors.push(m.text().slice(0, 300));
+  });
+  page.on("pageerror", (e) => consoleErrors.push(`PAGEERROR: ${String(e).slice(0, 300)}`));
+}
+
+async function runStep(session: Session, step: Step, report: Report): Promise<void> {
+  const page = session.page;
   switch (step.do) {
     case "goto": {
       const path = normalizeUrl(step.url);
@@ -188,7 +246,7 @@ async function runStep(page: Page, step: Step, shots: string[]): Promise<void> {
     case "shot": {
       const path = resolve(cfg.out, `${cfg.tag}-${step.name}.png`);
       await page.screenshot({ path, fullPage: step.clip === "full" });
-      shots.push(path);
+      report.shots.push(path);
       console.log(`  shot -> ${path}`);
       break;
     }
@@ -227,14 +285,50 @@ async function runStep(page: Page, step: Step, shots: string[]): Promise<void> {
       break;
     }
     case "eval": {
-      const value = await page.evaluate((e) => {
-        // biome-ignore lint/security/noGlobalEval: QA-only driver, expression comes from the local step file
-        return eval(e);
-      }, step.expr);
+      const value = await pageEval(page, step.expr);
       console.log(`  eval ${step.expr} => ${JSON.stringify(value)}`);
       break;
     }
+    case "assert": {
+      const expected = "expected" in step ? step.expected : true;
+      const actual = await pageEval(page, step.expr);
+      // Structural comparison, so an assert can pin an object or an array and
+      // not just a scalar. Both sides go through JSON so `undefined` and a
+      // missing key compare equal — which is what a page check wants.
+      const held = JSON.stringify(actual) === JSON.stringify(expected);
+      if (held) {
+        console.log(`  assert OK  ${step.expr} => ${JSON.stringify(actual)}`);
+        break;
+      }
+      const why = step.why ? `\n    why it matters: ${step.why}` : "";
+      const line = `assert FAILED: ${step.expr}\n    expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}${why}`;
+      report.failures.push(line);
+      console.log(`  ${line}`);
+      break;
+    }
+    case "anon": {
+      // A fresh context, not just a fresh page: cookies and localStorage are
+      // what carry the session, and both live on the context.
+      await session.context.close().catch(() => {});
+      session.context = await session.browser.newContext({
+        viewport: { width: cfg.viewport[0], height: cfg.viewport[1] },
+        deviceScaleFactor: 1,
+        reducedMotion: args.get("reduced") ? "reduce" : "no-preference",
+      });
+      session.page = await session.context.newPage();
+      watchConsole(session.page, report.consoleErrors);
+      console.log("  anon (signed out — new context, no cookies, no storage state)");
+      break;
+    }
   }
+}
+
+/** Evaluate an expression string inside the page and return its value. */
+function pageEval(page: Page, expr: string): Promise<unknown> {
+  return page.evaluate((e) => {
+    // biome-ignore lint/security/noGlobalEval: QA-only driver, expression comes from the local step file
+    return eval(e);
+  }, expr);
 }
 
 // ---------------------------------------------------------------------------
@@ -258,11 +352,8 @@ async function main() {
   });
   const page = await context.newPage();
 
-  const consoleErrors: string[] = [];
-  page.on("console", (m) => {
-    if (m.type() === "error") consoleErrors.push(m.text().slice(0, 300));
-  });
-  page.on("pageerror", (e) => consoleErrors.push(`PAGEERROR: ${String(e).slice(0, 300)}`));
+  const report: Report = { shots: [], failures: [], consoleErrors: [] };
+  watchConsole(page, report.consoleErrors);
 
   console.log(
     `[qa-vis] ${cfg.email} @ ${cfg.viewport[0]}x${cfg.viewport[1]} -> ${cfg.base} (session: ${storageState ? "cached" : "fresh login"})`,
@@ -273,32 +364,59 @@ async function main() {
     await context.storageState({ path: statePath(cfg.email) });
   }
 
-  const shots: string[] = [];
-  for (const step of cfg.steps) {
+  const session: Session = { browser, context, page };
+
+  for (const [i, step] of cfg.steps.entries()) {
     try {
-      await runStep(page, step, shots);
+      await runStep(session, step, report);
     } catch (e) {
-      console.log(`  STEP FAILED (${step.do}): ${String(e).split("\n")[0]}`);
-      const failShot = resolve(cfg.out, `${cfg.tag}-FAIL-${step.do}.png`);
-      await page.screenshot({ path: failShot }).catch(() => {});
+      // Catch-and-continue is on purpose: a smoke run that aborts on step 3
+      // reports one surface when you asked about six. The failure is recorded,
+      // not swallowed — it decides the exit code below.
+      const first = String(e).split("\n")[0];
+      report.failures.push(`step ${i + 1} (${step.do}) threw: ${first}`);
+      console.log(`  STEP FAILED (${step.do}): ${first}`);
+      const failShot = resolve(cfg.out, `${cfg.tag}-FAIL-${i + 1}-${step.do}.png`);
+      await session.page.screenshot({ path: failShot }).catch(() => {});
       console.log(`  fail shot -> ${failShot}`);
     }
   }
 
-  console.log(`\n=== CONSOLE ERRORS (${consoleErrors.length}) ===`);
-  for (const e of [...new Set(consoleErrors)].slice(0, 25)) console.log(`  ${e}`);
+  const uniqueConsoleErrors = [...new Set(report.consoleErrors)];
 
-  console.log(`\n=== SHOTS (${shots.length}) ===`);
-  for (const s of shots) console.log(`  ${s}`);
+  console.log(`\n=== CONSOLE ERRORS (${uniqueConsoleErrors.length}) ===`);
+  for (const e of uniqueConsoleErrors.slice(0, 25)) console.log(`  ${e}`);
+
+  console.log(`\n=== SHOTS (${report.shots.length}) ===`);
+  for (const s of report.shots) console.log(`  ${s}`);
+
+  const passed = report.failures.length === 0;
+
+  console.log("\n=== RESULT ===");
+  if (passed) {
+    console.log(`  PASS — ${cfg.steps.length} step(s), 0 failures.`);
+  } else {
+    console.log(`  FAIL — ${report.failures.length} of ${cfg.steps.length} step(s):`);
+    for (const f of report.failures) console.log(`  · ${f}`);
+  }
 
   // Machine-readable index so a caller can pick the files up without parsing logs.
   writeFileSync(
     resolve(cfg.out, `${cfg.tag}-index.json`),
-    JSON.stringify({ shots, consoleErrors: [...new Set(consoleErrors)] }, null, 2),
+    JSON.stringify(
+      {
+        passed,
+        failures: report.failures,
+        shots: report.shots,
+        consoleErrors: uniqueConsoleErrors,
+      },
+      null,
+      2,
+    ),
   );
 
   await browser.close();
-  process.exit(0);
+  process.exit(passed ? 0 : 1);
 }
 
 main().catch((e) => {
