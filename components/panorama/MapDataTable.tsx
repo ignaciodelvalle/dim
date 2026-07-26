@@ -103,6 +103,25 @@ type Props = {
    * exports looking complete. Absent/empty → no comment lines.
    */
   truncatedLayers?: string[];
+  /**
+   * UX audit 2026-07-26 (finding 2) — labels of active layers that WOULD tabulate
+   * but are currently painting individual records (the near-zoom points band), so
+   * they contribute no per-unit cells.
+   *
+   * Live repro (CABA · vista Bienestar): the CABA inset drill lands the camera at
+   * z=11, denuncias flips to points, this table gets zero rows and used to print
+   * "Sin datos por unidad" — beside a KPI reading 39 denuncias, ~20 bubbles on the
+   * map and an Estadísticas ranking saying "20 comunas SÍ reportaron". Zooming out
+   * one step (z=9) restored 21 rows from the SAME scope and period. "Sin datos" is
+   * a claim about the world; that was a fact about the zoom.
+   */
+  pointModeLayers?: string[];
+  /**
+   * How many in-scope units reported but had to be withheld by k-anonymity. Same
+   * epistemic split PanoramaDataTable's `rankingEmptyState` keeps: "protected" and
+   * "nobody reported" are OPPOSITE states and must never share one sentence.
+   */
+  suppressedUnits?: number;
 };
 
 /**
@@ -130,7 +149,35 @@ export function useMapTableCsvHref(
   return href;
 }
 
-export function MapDataTable({ rows, caption, filename, metrics, truncatedLayers }: Props) {
+/**
+ * Why this table is empty, in es-AR — the three causes the old single sentence
+ * collapsed into one blind "no hay datos". Pure, so the branches are testable
+ * without a DOM.
+ */
+export function mapTableEmptyMessage(input: {
+  pointModeLayers: string[];
+  suppressedUnits: number;
+}): string {
+  const { pointModeLayers, suppressedUnits } = input;
+  if (pointModeLayers.length > 0) {
+    const named = pointModeLayers.length === 1 ? pointModeLayers[0] : pointModeLayers.join(" y ");
+    return `A este nivel de zoom, ${named} se dibuja${pointModeLayers.length === 1 ? "" : "n"} como registros individuales, no como valores por unidad. Alejá el mapa para volver a la tabla por unidad — no es que no haya datos.`;
+  }
+  if (suppressedUnits > 0) {
+    return `${suppressedUnits.toLocaleString("es-AR")} unidades del alcance SÍ reportaron, pero sus valores son tan bajos que mostrarlos identificaría casos (k<5). Hay señal; no se puede publicar al detalle.`;
+  }
+  return "Sin datos por unidad para las capas activas en este alcance.";
+}
+
+export function MapDataTable({
+  rows,
+  caption,
+  filename,
+  metrics,
+  truncatedLayers,
+  pointModeLayers = [],
+  suppressedUnits = 0,
+}: Props) {
   const href = useMapTableCsvHref(rows, truncatedLayers);
   // Round-2 review #3a: the Capa column repeats the SAME value on every row
   // when a single layer is active — zero information, pure noise. Derive the
@@ -154,7 +201,7 @@ export function MapDataTable({ rows, caption, filename, metrics, truncatedLayers
   if (rows.length === 0) {
     return (
       <p className="text-xs leading-snug text-ln-op-mute">
-        Sin datos por unidad para las capas activas en este alcance.
+        {mapTableEmptyMessage({ pointModeLayers, suppressedUnits })}
       </p>
     );
   }

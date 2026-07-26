@@ -85,6 +85,20 @@ type Props = {
   /** es-AR plural unit noun for the fallback heading (comunas/localidades/…). */
   unitNoun?: string;
   /**
+   * UX audit 2026-07-26 (finding 4): the rows are ordered by raw VOLUME, not by
+   * how badly each unit is doing — set when the console coerced a `rate` ranking
+   * to counts because the measure only resolves as a percentage at province
+   * grain (repository "V1 LIMITATION", the same coercion that appends "(conteo)"
+   * to `measureLabel`).
+   *
+   * Descending counts under a "Peores N" heading printed Córdoba · Capital (147
+   * vaccinations) as the WORST department in the province — the one that did the
+   * most work, named the worst. A count is a volume, not a level: the ordering is
+   * fine, the framing was the lie. So the heading drops "Peores" and the table
+   * states outright that more records is not worse.
+   */
+  orderedByVolume?: boolean;
+  /**
    * A2 (map plan): rich hover/focus PREVIEW for a row — the unit's key numbers
    * plus the "entrar" hint, so reading the detail costs zero clicks. Omit and
    * the table renders exactly as before.
@@ -203,6 +217,7 @@ export function PanoramaDataTable({
   onHover,
   scopeFallback = false,
   unitNoun = "jurisdicciones",
+  orderedByVolume = false,
   preview,
 }: Props) {
   const emptyState = rankingEmptyState({
@@ -298,16 +313,29 @@ export function PanoramaDataTable({
 
   // P2.5: name the ranking framing + metric in the heading so "peores en qué" is
   // answerable at a glance (Cowork H8). Small scope → "Tus N {unitNoun} · métrica";
-  // else "Peores N · métrica". Mirrors the retired RankedUnitsPanel heading.
+  // volume order (see `orderedByVolume`) → "Mayor volumen N · métrica"; else
+  // "Peores N · métrica". Mirrors the retired RankedUnitsPanel heading.
+  const rankedCount = rows.length > 0 ? rows.length : 10;
   const heading = scopeFallback
     ? `Tus ${rows.length} ${unitNoun} · ${measureLabel}`
-    : `Peores ${rows.length > 0 ? rows.length : 10} · ${measureLabel}`;
+    : orderedByVolume
+      ? `Mayor volumen ${rankedCount} · ${measureLabel}`
+      : `Peores ${rankedCount} · ${measureLabel}`;
 
   return (
     <section aria-labelledby={headingId} className="space-y-2">
       <h3 id={headingId} className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         {heading}
       </h3>
+      {/* A volume order is not a judgement. Said BEFORE the table, because a
+          descending list still LOOKS like a leaderboard of failure — the exact
+          reading that made Capital (147 vaccinations) head a "Peores 10". */}
+      {orderedByVolume && rows.length > 0 && (
+        <p className="text-xs leading-snug text-ln-op-mute">
+          Ordenadas por cantidad de registros, de mayor a menor. Un conteo no es un nivel: más
+          registros no significa peor situación. El porcentaje se calcula solo a nivel provincia.
+        </p>
+      )}
       {/* A tie at the measurement bound is not an ordering. Say so BEFORE the
           table, because the table's own shape ("Peores N") asserts a ranking. */}
       {rows.length > 1 &&

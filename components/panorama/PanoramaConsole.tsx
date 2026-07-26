@@ -3482,6 +3482,22 @@ export function PanoramaConsole({
     [activeLayers],
   );
 
+  // UX audit 2026-07-26 (finding 2): the layers that WOULD tabulate but are
+  // currently in the near-zoom POINTS band, so they emit individual records
+  // instead of per-unit cells and contribute zero rows above. Registros used to
+  // report that as "sin datos por unidad" — a claim about the world made from a
+  // fact about the camera. The CABA inset drill lands at z=11, which is exactly
+  // this band, so the flagship demo path hit it: KPI 39, map bubbles, ranking
+  // "20 comunas SÍ reportaron", table "sin datos". Named here, spoken by
+  // MapDataTable.
+  const pointModeLayerLabels = useMemo(
+    () =>
+      activeLayers
+        .filter((l) => l.renderMode === "points" && AGGREGATED_POINT_IDS.has(l.id as LayerId))
+        .map((l) => l.label),
+    [activeLayers],
+  );
+
   // Each aggregate layer's cells become table rows, reusing the pinned popup's
   // buildLayerReadout so value/unit/protected formatting is identical. A
   // k-anon-suppressed cell reads "Protegido (k<5)", never a number.
@@ -3535,6 +3551,22 @@ export function PanoramaConsole({
     rows.sort((a, b) => a.layer.localeCompare(b.layer, "es") || a.unit.localeCompare(b.unit, "es"));
     return rows;
   }, [activeAggregateLayers]);
+
+  // Units the server measured but withheld under k-anonymity, across every layer
+  // that feeds (or would feed) the per-unit table. Lets the empty table separate
+  // "protegido" from "nadie reportó" — the same trichotomy the ranking keeps.
+  const mapTableSuppressedUnits = useMemo(
+    () =>
+      activeLayers
+        .filter(
+          (l) =>
+            l.geomType === "choropleth" ||
+            l.renderMode === "graduated" ||
+            (l.renderMode === "points" && AGGREGATED_POINT_IDS.has(l.id as LayerId)),
+        )
+        .reduce((n, l) => n + (states[l.id as LayerId]?.suppressedCount ?? 0), 0),
+    [activeLayers, states],
+  );
 
   // K4 (honest exports): labels of table-contributing layers capped at the
   // server row limit — the CSV builder appends a truncation comment for each.
@@ -4075,6 +4107,10 @@ export function PanoramaConsole({
         filename="panorama-mapa"
         metrics={mapTableMetrics}
         truncatedLayers={mapTableTruncatedLayers}
+        // Finding 2: WHY the table is empty, when it is — the near-zoom points
+        // band, or k-anon protection. Never a bare "sin datos".
+        pointModeLayers={pointModeLayerLabels}
+        suppressedUnits={mapTableSuppressedUnits}
       />
     </div>
   );
@@ -4124,6 +4160,10 @@ export function PanoramaConsole({
           censoredAtMax={rankingLayer?.censoredAtMax}
           scopeFallback={rankingSmallScope}
           unitNoun={rankingUnitNoun}
+          // Finding 4: the rate→count coercion below province grain turns this
+          // into a VOLUME order. "Peores 10 · cobertura antirrábica (conteo)"
+          // crowned Córdoba · Capital (147 vaccinations) the worst department.
+          orderedByVolume={rankLocalityRateCount}
         />
         {dockSuppressedCount > 0 && (
           <p className="flex items-center gap-2 text-xs text-ln-op-mute">
@@ -4150,7 +4190,13 @@ export function PanoramaConsole({
   // already narrates that empty state in its own body).
   const dockRankingSubtitle =
     effectiveRankingKind !== null && rankingLayer !== null
-      ? `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.${percapitaActive ? " El mapa pinta tasas por 10.000 hab.; este ranking ordena por conteos." : ""}`
+      ? `${
+          // Finding 4: below province grain the measure is a COUNT, so this
+          // subtitle must not promise an ordering "por cobertura" either.
+          rankLocalityRateCount
+            ? `Ordena ${rankingUnitNoun} por cantidad de registros de ${rankingLayer.caption.measure} en el alcance actual.`
+            : `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.`
+        }${percapitaActive ? " El mapa pinta tasas por 10.000 hab.; este ranking ordena por conteos." : ""}`
       : undefined;
 
   // The calendar heatmap sits ABOVE the ranking as its own <section>, so a later
@@ -4451,6 +4497,9 @@ export function PanoramaConsole({
                 unitNoun: rankingUnitNoun,
                 suppressedCount: dockSuppressedCount,
                 unavailable: rankingDataUnavailable,
+                // Finding 4 — the printed informe and the dock ranking are one
+                // projection; both drop "Peores" when the order is by volume.
+                orderedByVolume: rankLocalityRateCount,
               }
             : null,
         caption: informeCaption,
@@ -4476,6 +4525,7 @@ export function PanoramaConsole({
       rankingUnitNoun,
       dockSuppressedCount,
       rankingDataUnavailable,
+      rankLocalityRateCount,
       informeCaption,
       activeLayers,
       boundedJurisdiction,

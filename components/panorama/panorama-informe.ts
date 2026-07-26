@@ -64,6 +64,13 @@ export type InformeRankingInput = {
   suppressedCount: number;
   /** The base layer produced no data — never claim "sin unidades bajo meta". */
   unavailable: boolean;
+  /**
+   * UX audit 2026-07-26 (finding 4): the rows are ordered by raw VOLUME, not by
+   * badness — the rate→count coercion below province grain. Same flag
+   * PanoramaDataTable takes; the printed informe and the on-screen ranking are
+   * the SAME projection and must not disagree about what the order means.
+   */
+  orderedByVolume?: boolean;
 };
 
 export type BuildInformeInput = {
@@ -195,11 +202,15 @@ function firstSentence(definition: string): string {
 }
 
 function buildRanking(ranking: InformeRankingInput): InformeRankingModel {
-  // Header mirrors RankedUnitsPanel: small scope → "Tus N {unitNoun}", else
-  // "Peores N", both suffixed with the metric so "peores en qué" is answerable.
+  // Header mirrors PanoramaDataTable: small scope → "Tus N {unitNoun}", a volume
+  // order → "Mayor volumen N", else "Peores N" — all suffixed with the metric so
+  // "peores en qué" is answerable.
+  const rankedCount = ranking.rows.length > 0 ? ranking.rows.length : RANKING_LIMIT;
   const heading = ranking.smallScope
     ? `Tus ${ranking.rows.length} ${ranking.unitNoun} · ${ranking.measureLabel}`
-    : `Peores ${ranking.rows.length > 0 ? ranking.rows.length : RANKING_LIMIT} · ${ranking.measureLabel}`;
+    : ranking.orderedByVolume
+      ? `Mayor volumen ${rankedCount} · ${ranking.measureLabel}`
+      : `Peores ${rankedCount} · ${ranking.measureLabel}`;
 
   const columnLabel =
     ranking.kind === "rate" ? `${ranking.measureLabel} · pts vs objetivo` : ranking.measureLabel;

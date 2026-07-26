@@ -74,3 +74,50 @@ describe("MapDataTable — Valor column names the metric (cowork QA ronda 3 §3)
     expect(screen.getByRole("columnheader", { name: "Valor" })).toBeInTheDocument();
   });
 });
+
+// ---------------------------------------------------------------------------
+// UX audit 2026-07-26 (finding 2) — the zero-row state told ONE story for
+// several opposite causes.
+//
+// Live repro (CABA · vista Bienestar): the CABA inset drill lands the camera at
+// z=11, which flips denuncias into the near-zoom POINTS band. Points are
+// individual records, not per-unit cells, so this table gets zero rows and
+// printed "Sin datos por unidad para las capas activas en este alcance." —
+// while the KPI read 39 denuncias, the map painted ~20 bubbles and the
+// Estadísticas ranking said "20 comunas SÍ reportaron". Zooming out one step
+// (z=9) restored 21 rows from the SAME scope and period.
+//
+// "Sin datos" is a claim about the WORLD; this was a fact about the ZOOM. Same
+// class of defect as the ranking's suppression-vs-no-signal collapse.
+// ---------------------------------------------------------------------------
+
+describe("MapDataTable — the empty state names WHY it is empty (UX audit 2026-07-26)", () => {
+  it("says the layers are drawing individual records at this zoom, not that there is no data", () => {
+    render(
+      <MapDataTable
+        rows={[]}
+        caption="cap"
+        filename="f"
+        pointModeLayers={["Denuncias de bienestar"]}
+      />,
+    );
+
+    expect(screen.getByText(/registros individuales/i)).toBeInTheDocument();
+    expect(screen.getByText(/Denuncias de bienestar/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sin datos por unidad/i)).not.toBeInTheDocument();
+  });
+
+  it("names k-anonymity when every in-scope unit reported but was withheld", () => {
+    render(<MapDataTable rows={[]} caption="cap" filename="f" suppressedUnits={20} />);
+
+    expect(screen.getByText(/20 unidades/)).toBeInTheDocument();
+    expect(screen.getByText(/identificaría casos/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Sin datos por unidad/i)).not.toBeInTheDocument();
+  });
+
+  it("keeps the plain no-signal copy when nothing reported and no view mode explains it", () => {
+    render(<MapDataTable rows={[]} caption="cap" filename="f" />);
+
+    expect(screen.getByText(/Sin datos por unidad/i)).toBeInTheDocument();
+  });
+});

@@ -157,12 +157,18 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
     .map((l) => l.label)
     .join(" · ");
 
+  // UX audit 2026-07-26 (finding 5): this used to `return null`, and since the
+  // dock renders the pane slot verbatim, "Referencias" became a NAMED TAB THAT
+  // OPENS ONTO NOTHING — measured live on the Síntomas vista, where every active
+  // layer is a graduated point layer whose values all sit under k=5, so no ramp,
+  // no division fill and no resolved graduated scale exist. A blank panel reads
+  // as broken software; the honest answer is that there is nothing to decode
+  // because the map is not encoding anything by color or size right now.
   const anyLegend =
     provinceLegends.length > 0 ||
     hasGraduatedLayer ||
     divisionLegend !== null ||
     bivariateLayer !== null;
-  if (!anyLegend) return null;
 
   return (
     <section
@@ -177,6 +183,13 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
       <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
         Cómo leer los colores y símbolos del mapa.
       </p>
+      {!anyLegend && (
+        <p className="text-[var(--text-xs)] leading-snug text-ln-op-ink-2">
+          Por ahora no hay escalas que decodificar: las capas activas no están pintando ningún valor
+          por color ni por tamaño en este alcance (por ejemplo, cuando todos los valores quedan
+          protegidos por k&lt;5). Activá otra capa o ampliá el alcance para ver las referencias.
+        </p>
+      )}
       <div className="space-y-2 text-ln-op-ink-2">
         {/* task #63: the bivariate legend IS the 3×3 matrix — coverage terciles
             (x, "Cobertura →") × signal terciles (y, "Señales ↑"). The risk corner
