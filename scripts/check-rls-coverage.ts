@@ -20,11 +20,34 @@
 // migration 0113 for the design rationale: the app connects via service-role
 // (BYPASSRLS), so deny-all to PostgREST cannot lock the app out.
 //
+// WHICH DATABASE — this fence skips, loudly
+// ---------------------------------------------------------------------------
+// It judges whatever DATABASE_URL points at, so it must never guess which
+// database that is. A non-local host is a SKIP (the cutover runbook leaves a
+// staging pooler in the shell — readiness doc §B4 — and "fixing" RLS blind
+// against the wrong database is worse than the lost half hour); an unreachable
+// database is a SKIP with the reason quoted. Both name the host and say which
+// checks did not run. Auditing a remote database on purpose: --allow-remote.
+// The contract is shared with lint:scope-authz and lint:spine — see
+// scripts/_db-target.ts.
+//
 // Run:  pnpm tsx scripts/check-rls-coverage.ts   (or: pnpm lint:rls)
-// Exits 0 when every non-allowlisted table has RLS + at least one policy.
+// Exits 0 when every non-allowlisted table has RLS + at least one policy, and
+//   when the run was skipped (remote or unreachable — a DB-less CI box is not
+//   a failure).
 // Exits 1 listing each violation.
 
 import postgres from "postgres";
+
+import {
+  DEFAULT_LOCAL_URL,
+  type DbTarget,
+  describeTarget,
+  lines,
+  remoteRemedy,
+  remoteSkipReason,
+  reportSkip as reportDbSkip,
+} from "./_db-target";
 
 // ---------------------------------------------------------------------------
 // Allowlist — tables with RLS ENABLED and zero policies (intentional deny-all)
@@ -102,15 +125,18 @@ type Violation = {
 // Main
 // ---------------------------------------------------------------------------
 
-async function runCheck(): Promise<void> {
-  const dbUrl =
-    process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:54322/postgres";
+const SKIPPED_CHECKS =
+  "  NOT run: RLS-enabled and policy-count coverage over every public table (the whole fence).";
 
-  const sql = postgres(dbUrl, { max: 1 });
-
-  let rows: TableRlsRow[];
+/**
+ * Read RLS state for every public table, or return null when the run was
+ * skipped — remote host without the opt-in, or an unreachable database. A null
+ * has ALREADY reported itself; the caller just stops.
+ */
+async function fetchCoverage(rawUrl: string, target: DbTarget): Promise<TableRlsRow[] | null> {
+  const sql = postgres(rawUrl, { max: 1, connect_timeout: 5 });
   try {
-    rows = await sql<TableRlsRow[]>`
+    return await sql<TableRlsRow[]>`
       SELECT
         c.relname        AS table_name,
         c.relrowsecurity AS rls_enabled,
@@ -124,33 +150,86 @@ async function runCheck(): Promise<void> {
       GROUP BY c.relname, c.relrowsecurity
       ORDER BY c.relname
     `;
+  } catch (err) {
+    // A DB-less box is not a failure — but it is not a pass either, and it has
+    // to say which checks did not run. Same contract as lint:scope-authz and
+    // lint:spine, so `pnpm verify` behaves one way, not three.
+    reportDbSkip({
+      fence: "check-rls-coverage",
+      reason: `could not reach the database (${err instanceof Error ? err.message : String(err)}).`,
+      target,
+      skipped: SKIPPED_CHECKS,
+      remedy: lines(
+        "  Start the local stack with pnpm db:start, or set DATABASE_URL to a reachable database.",
+        "  A DB-less CI box is not a failure — but this run proved nothing about RLS.",
+      ),
+    });
+    return null;
   } finally {
-    await sql.end();
+    await sql.end({ timeout: 1 }).catch(() => {});
   }
+}
 
-  const totalTables = rows.length;
+/** Split the tables into violations and intentional, allowlisted deny-alls. */
+export function evaluateCoverage(rows: TableRlsRow[]): {
+  violations: Violation[];
+  allowlisted: string[];
+} {
   const violations: Violation[] = [];
   const allowlisted: string[] = [];
 
   for (const row of rows) {
     if (SCHEMA_IGNORE_LIST.has(row.table_name)) continue;
 
-    const policyCount = Number.parseInt(row.policy_count, 10);
-    const inAllowlist = Object.prototype.hasOwnProperty.call(DENY_ALL_ALLOWLIST, row.table_name);
-
     if (!row.rls_enabled) {
       violations.push({ table_name: row.table_name, kind: "rls_disabled" });
       continue;
     }
 
-    if (policyCount === 0) {
-      if (inAllowlist) {
-        allowlisted.push(row.table_name);
-      } else {
-        violations.push({ table_name: row.table_name, kind: "no_policies" });
-      }
+    if (Number.parseInt(row.policy_count, 10) !== 0) continue;
+
+    if (Object.prototype.hasOwnProperty.call(DENY_ALL_ALLOWLIST, row.table_name)) {
+      allowlisted.push(row.table_name);
+    } else {
+      violations.push({ table_name: row.table_name, kind: "no_policies" });
     }
   }
+
+  return { violations, allowlisted };
+}
+
+export async function runCheck(argv: string[] = []): Promise<void> {
+  const allowRemote = argv.includes("--allow-remote");
+
+  const rawUrl = process.env.DATABASE_URL ?? DEFAULT_LOCAL_URL;
+  const usingDefault = process.env.DATABASE_URL === undefined;
+  const target = describeTarget(rawUrl);
+
+  // A staging pooler in DATABASE_URL is the readiness doc's §B4 trap. This
+  // fence used to walk straight into it and print a wall of violations about a
+  // database nobody meant to audit.
+  const remoteSkip = remoteSkipReason(target, allowRemote);
+  if (remoteSkip !== null) {
+    reportDbSkip({
+      fence: "check-rls-coverage",
+      reason: remoteSkip,
+      target,
+      skipped: SKIPPED_CHECKS,
+      remedy: remoteRemedy("SELECTs pg_class / pg_policies"),
+    });
+    return;
+  }
+
+  const rows = await fetchCoverage(rawUrl, target);
+  if (rows === null) return;
+
+  // The database being judged is named on EVERY exit path, pass or fail.
+  const origin = usingDefault ? "default local URL" : "DATABASE_URL";
+  const remoteNote = target.isLocal ? "" : " [REMOTE — --allow-remote]";
+  const dbLine = `  Database: ${target.label} (from ${origin})${remoteNote}`;
+
+  const totalTables = rows.length;
+  const { violations, allowlisted } = evaluateCoverage(rows);
 
   if (violations.length > 0) {
     for (const v of violations) {
@@ -165,8 +244,12 @@ async function runCheck(): Promise<void> {
       }
     }
     console.error(
-      `\n✗ RLS coverage check FAILED — ${violations.length} violation(s) across ${totalTables} tables. ` +
-        `Allowlisted deny-all tables (excluded): ${allowlisted.length}.`,
+      lines(
+        "",
+        `✗ RLS coverage check FAILED — ${violations.length} violation(s) across ${totalTables} tables. ` +
+          `Allowlisted deny-all tables (excluded): ${allowlisted.length}.`,
+        dbLine,
+      ),
     );
     process.exit(1);
   }
@@ -176,6 +259,7 @@ async function runCheck(): Promise<void> {
       `${totalTables - allowlisted.length} have policies; ` +
       `${allowlisted.length} are intentional deny-all (allowlisted): ${allowlisted.join(", ")}.`,
   );
+  console.log(dbLine);
 }
 
 // Guard: only run when invoked directly (not when imported by tests).
@@ -187,7 +271,7 @@ const isMain =
     import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
 
 if (isMain) {
-  runCheck().catch((err) => {
+  runCheck(process.argv.slice(2)).catch((err) => {
     console.error("✗ check-rls-coverage: unexpected error:", err);
     process.exit(1);
   });
