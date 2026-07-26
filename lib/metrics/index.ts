@@ -234,7 +234,7 @@ export type {
 // scoped via petsScopeClause.
 export { fetchDewormingCoverage } from "./deworming";
 export type { DewormingCoverageResult, ProvinceDewormingRow } from "./deworming";
-export { fetchVetAccessByLocality, perThousand } from "./vet-access";
+export { VET_ACTIVITY_EVENT_TYPES, fetchVetAccessByLocality, perThousand } from "./vet-access";
 export type { VetAccessResult, VetAccessRow } from "./vet-access";
 export { fetchMovementCorridors } from "./movement";
 export type { MovementCorridorsResult } from "./movement";
