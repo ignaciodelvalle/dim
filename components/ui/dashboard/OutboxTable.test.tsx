@@ -43,6 +43,57 @@ describe("OutboxTable — detail link", () => {
   });
 });
 
+// PO observation (/gob/outbox, 2026-07-26): the "Intentos" column looked blank
+// on EVERY row, including the ones flagged as SLA breaches. Diagnosis: the data
+// is not missing — `event_notification_outbox.attempts` is NOT NULL DEFAULT 0
+// and every row in the local stack reads 0 (the drainer has never run against
+// this data). What the column rendered for 0 was a muted "—", which at 13px in
+// a mute tone is indistinguishable from an empty cell.
+//
+// "—" is also the WRONG symbol here: it is the repo's "no value" glyph, and this
+// is not a missing value, it is a meaningful zero — nobody has tried to deliver
+// this notification yet. On a breached row that is the single most important
+// fact in it. Say it in words.
+describe("OutboxTable — Intentos states a real zero instead of looking blank", () => {
+  it("says 'Sin intentos' when the drainer never touched the row", () => {
+    const html = renderToStaticMarkup(
+      <OutboxTable rows={[{ ...ROW, attempts: 0 }]} caption="c" detailHrefFor={() => null} />,
+    );
+    // As VISIBLE TEXT, not as a title= tooltip — the old cell already carried
+    // `title="Sin intentos de entrega todavía"` on an em dash, which is exactly
+    // the kind of assertion that stays green while the screen stays blank.
+    expect(html).toContain(">Sin intentos<");
+  });
+
+  it("never renders a bare em dash for a zero-attempt row", () => {
+    const html = renderToStaticMarkup(
+      <OutboxTable
+        rows={[
+          {
+            ...ROW,
+            attempts: 0,
+            targetJurisdictionProvince: null,
+            targetJurisdictionLocality: null,
+          },
+        ]}
+        caption="c"
+        detailHrefFor={() => `/admin/outbox/${ROW.id}`}
+      />,
+    );
+    // The jurisdiction cell legitimately dashes when both parts are null; the
+    // attempts cell must not add a second, meaningless one.
+    expect(html.split("—")).toHaveLength(2);
+  });
+
+  it("still shows the count once there is one", () => {
+    const html = renderToStaticMarkup(
+      <OutboxTable rows={[{ ...ROW, attempts: 3 }]} caption="c" detailHrefFor={() => null} />,
+    );
+    expect(html).toContain(">3<");
+    expect(html).not.toContain("Sin intentos");
+  });
+});
+
 describe("OutboxTable — source-event → pet link", () => {
   it("links the source-event cell to the pet page when a token is supplied (admin)", () => {
     const map = new Map<string, string>([[ROW.sourceEventId, "DIM-CCCC-DDDD"]]);

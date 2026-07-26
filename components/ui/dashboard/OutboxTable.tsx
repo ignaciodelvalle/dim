@@ -198,11 +198,17 @@ export function OutboxTable({
                 <td className="py-2 px-3 text-sm text-ln-op-ink-2 text-center">
                   {/* W3: attempts=0 means the drainer never touched this row yet.
                       Rendering a bare "0" on a delivered/breached row read as a
-                      real (confusing) attempt count. Show an em dash for
-                      never-attempted; the number only once there is one. */}
+                      real (confusing) attempt count, so the cell dashed instead.
+                      PO, 2026-07-26: with every row at 0 (the drainer has not run
+                      against this data), the whole column read as BLANK — and an
+                      em dash is this repo's "no value" glyph, while `attempts` is
+                      NOT NULL DEFAULT 0: the value exists and it is zero. On a
+                      breached row "nobody has tried yet" is the most important
+                      fact in the row, so say it in words instead of punctuating
+                      it away. */}
                   {row.attempts === 0 ? (
-                    <span className="text-ln-op-mute" title="Sin intentos de entrega todavía">
-                      —
+                    <span className="text-[11px] text-ln-op-mute whitespace-nowrap">
+                      Sin intentos
                     </span>
                   ) : (
                     row.attempts
