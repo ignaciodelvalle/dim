@@ -26,6 +26,14 @@ export type LayerReadout = {
   state?: "suppressed" | "nodata";
   /** Rate layers with a compliance target: "meta 80% · −15,6". */
   metaText?: string;
+  /**
+   * The SIGNED gap alone ("−15,6"), for surfaces that carry the target in a
+   * column header instead of inline — today the map table's CSV export, whose
+   * "Brecha vs meta" column is the only thing telling a reader OFF the screen
+   * whether the unit complies. Same number, sign and formatting as `metaText`,
+   * so the two can never drift.
+   */
+  gapText?: string;
 };
 
 const UNICODE_MINUS = "−";
@@ -93,15 +101,19 @@ export function formatValueWithUnit(
   return value.toLocaleString("es-AR");
 }
 
-/** Format the compliance meta + signed gap for a rate layer: "meta 80% · −15,6".
- * A negative gap (below target) uses a true Unicode minus so the copy reads clean. */
-export function formatMetaGap(value: number, target: number): string {
-  const gap = value - target;
-  const rounded = Math.round(gap * 10) / 10;
+/** The signed distance to target, alone: "−15,6" (below) or "+4,2" (above).
+ * A negative gap uses a true Unicode minus so the copy reads clean. */
+export function formatSignedGap(value: number, target: number): string {
+  const rounded = Math.round((value - target) * 10) / 10;
   const sign = rounded < 0 ? UNICODE_MINUS : "+";
   const magnitude = Math.abs(rounded).toLocaleString("es-AR", { maximumFractionDigits: 1 });
+  return `${sign}${magnitude}`;
+}
+
+/** Format the compliance meta + signed gap for a rate layer: "meta 80% · −15,6". */
+export function formatMetaGap(value: number, target: number): string {
   const metaText = target.toLocaleString("es-AR", { maximumFractionDigits: 1 });
-  return `meta ${metaText}% · ${sign}${magnitude}`;
+  return `meta ${metaText}% · ${formatSignedGap(value, target)}`;
 }
 
 /** Build one layer's readout from its value + k-anon state. `value === null` with
@@ -137,10 +149,13 @@ export function buildLayerReadout(input: {
   const valueText = formatValueWithUnit(input.value, input.dataType, input.perCapita === true);
   // P2: the isMeta predicate reads the ONE shared registry helper (the gate's
   // encoding.kind source) instead of a local copy of the rate+target check.
-  const metaText = isMetaLayer(input)
-    ? formatMetaGap(input.value, input.complianceTarget)
+  const meta = isMetaLayer(input)
+    ? {
+        metaText: formatMetaGap(input.value, input.complianceTarget),
+        gapText: formatSignedGap(input.value, input.complianceTarget),
+      }
     : undefined;
-  return { label, valueText, metaText };
+  return { label, valueText, ...meta };
 }
 
 /** es-AR copy for a null-value state. */

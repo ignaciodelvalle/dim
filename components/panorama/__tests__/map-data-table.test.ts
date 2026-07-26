@@ -6,6 +6,38 @@ import { describe, expect, it } from "vitest";
 
 import { type MapTableRow, buildMapTableCsv, mapTableValueHeader } from "../MapDataTable";
 
+// Backlog item 10 (2026-07-25 consolidated review): "buildMapTableCsv no
+// exporta gap — para un instrumento cuyo tercer verbo declarado es EXPORTAR".
+// The map paints a compliance layer against its target, the pinned popup shows
+// "meta 80% · −15,6", the ranked table has a whole "Brecha vs meta" column — and
+// the file the operator hands to someone else dropped the only number that says
+// whether the jurisdiction is complying. A CSV is read WITHOUT the screen next
+// to it; it has to carry its own comparison.
+describe("buildMapTableCsv — the gap vs target travels with the export", () => {
+  it("declares the Brecha column in the header", () => {
+    expect(buildMapTableCsv([])).toBe("Capa,Unidad,Valor,Brecha vs meta");
+  });
+
+  it("exports the signed gap for a compliance row, es-AR formatted", () => {
+    const csv = buildMapTableCsv([
+      { layer: "Cobertura antirrábica", unit: "Salta", value: "64,4%", gap: "−15,6" },
+    ]);
+    expect(csv.split("\r\n")[1]).toBe('Cobertura antirrábica,Salta,"64,4%","−15,6"');
+  });
+
+  it("leaves the gap field empty for a layer with no target (never a fake 0)", () => {
+    const csv = buildMapTableCsv([{ layer: "Mordeduras", unit: "Salta", value: "12" }]);
+    expect(csv.split("\r\n")[1]).toBe("Mordeduras,Salta,12,");
+  });
+
+  it("leaves the gap field empty for a k-anon protected cell (no value → no gap)", () => {
+    const csv = buildMapTableCsv([
+      { layer: "Cobertura antirrábica", unit: "Chaco", value: "Protegido (k<5)" },
+    ]);
+    expect(csv.split("\r\n")[1]).toBe("Cobertura antirrábica,Chaco,Protegido (k<5),");
+  });
+});
+
 describe("buildMapTableCsv", () => {
   it("emits a header and one line per row (CRLF separated)", () => {
     const rows: MapTableRow[] = [
@@ -15,7 +47,7 @@ describe("buildMapTableCsv", () => {
     const csv = buildMapTableCsv(rows);
     // "64,4%" contains a comma → RFC-4180 quoting kicks in for that field.
     expect(csv).toBe(
-      'Capa,Unidad,Valor\r\nPerdidas,Salta,1.234\r\nCobertura antirrábica,Jujuy,"64,4%"',
+      'Capa,Unidad,Valor,Brecha vs meta\r\nPerdidas,Salta,1.234,\r\nCobertura antirrábica,Jujuy,"64,4%",',
     );
   });
 
@@ -28,11 +60,11 @@ describe("buildMapTableCsv", () => {
 
   it("quotes and escapes a field containing a comma or quote", () => {
     const csv = buildMapTableCsv([{ layer: 'A "special", layer', unit: "U", value: "1" }]);
-    expect(csv).toBe('Capa,Unidad,Valor\r\n"A ""special"", layer",U,1');
+    expect(csv).toBe('Capa,Unidad,Valor,Brecha vs meta\r\n"A ""special"", layer",U,1,');
   });
 
   it("returns a header-only document for no rows", () => {
-    expect(buildMapTableCsv([])).toBe("Capa,Unidad,Valor");
+    expect(buildMapTableCsv([])).toBe("Capa,Unidad,Valor,Brecha vs meta");
   });
 
   it("appends a truncation comment line per capped layer (honest exports)", () => {

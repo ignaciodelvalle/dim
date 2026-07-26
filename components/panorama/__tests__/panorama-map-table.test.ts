@@ -41,6 +41,62 @@ describe("buildMapTableRows", () => {
     expect(rows[0].unit).toBe("Palermo");
   });
 
+  it("carries the signed gap vs target for a province-grain rate cell", () => {
+    const rows = buildMapTableRows([
+      layer({
+        id: "cobertura",
+        label: "Cobertura antirrábica",
+        dataType: "rate",
+        level: "province",
+        complianceTarget: 80,
+        features: {
+          type: "FeatureCollection",
+          features: [cell({ name: "Salta", value: 64.4 })],
+        },
+      }),
+    ]);
+    // Same number, same sign convention and same es-AR formatting the pinned
+    // popup shows ("meta 80% · −15,6") — the export must not restate it.
+    expect(rows[0].gap).toBe("−15,6");
+  });
+
+  it("carries no gap for a locality-grain rate cell (the value is a count there)", () => {
+    const rows = buildMapTableRows([
+      layer({
+        id: "cobertura",
+        label: "Cobertura antirrábica",
+        dataType: "rate",
+        level: "locality",
+        complianceTarget: 80,
+        features: {
+          type: "FeatureCollection",
+          features: [cell({ localityName: "Palermo", value: 204 })],
+        },
+      }),
+    ]);
+    // The "204%" bug: at locality grain the repository returns a COUNT, so
+    // measuring it against a percentage target would resurrect exactly the
+    // comparison this table already refuses to print.
+    expect(rows[0].gap).toBeUndefined();
+  });
+
+  it("carries no gap for a suppressed cell (no value → no comparison)", () => {
+    const rows = buildMapTableRows([
+      layer({
+        id: "cobertura",
+        label: "Cobertura antirrábica",
+        dataType: "rate",
+        level: "province",
+        complianceTarget: 80,
+        features: {
+          type: "FeatureCollection",
+          features: [cell({ name: "Chaco", suppressed: true, value: 3 })],
+        },
+      }),
+    ]);
+    expect(rows[0].gap).toBeUndefined();
+  });
+
   it("says 'Protegido (k<5)' for a suppressed cell — never a number", () => {
     const rows = buildMapTableRows([
       layer({

@@ -47,7 +47,7 @@ describe("MapDataTable — Capa column gated on active-layer count (Round-2 revi
 
   it("CSV export keeps the Capa column regardless of on-screen visibility", () => {
     const csv = buildMapTableCsv(ONE_LAYER);
-    expect(csv.split("\r\n")[0]).toBe("Capa,Unidad,Valor");
+    expect(csv.split("\r\n")[0]).toBe("Capa,Unidad,Valor,Brecha vs meta");
     expect(csv).toContain("Cobertura antirrábica,Salta,");
   });
 });

@@ -28,6 +28,15 @@ export type MapTableRow = {
    * `protected` cells carry "Protegido (k<5)" here — never a number.
    */
   value: string;
+  /**
+   * The signed distance to the layer's compliance target ("−15,6"), for the rows
+   * that HAVE one: an unsuppressed province-grain rate. Absent everywhere else —
+   * a count has no target, a locality-grain rate is a count, and a protected
+   * cell has no value to compare. Exported by buildMapTableCsv; the on-screen
+   * table leaves this to the ranked "Brecha vs meta" column and the pinned popup,
+   * which sit next to the map that supplies the missing context. A CSV does not.
+   */
+  gap?: string;
 };
 
 /** Descriptor of one active aggregate metric — used to NAME the "Valor" column
@@ -58,7 +67,11 @@ export function mapTableValueHeader(metrics: ValueMetric[]): string {
   return `${m.label} (conteo)`;
 }
 
-const CSV_HEADER = ["Capa", "Unidad", "Valor"] as const;
+// "Brecha vs meta" is fixed, not conditional on the rows: a stable header is
+// what makes two exports of the same board diffable. Rows without a target
+// leave the field EMPTY — an absent comparison, never a "0" that would read as
+// "exactly on target".
+const CSV_HEADER = ["Capa", "Unidad", "Valor", "Brecha vs meta"] as const;
 
 /** Escape one CSV field: wrap in quotes and double any embedded quote when the
  * field contains a comma, quote, or newline (RFC 4180). */
@@ -73,11 +86,19 @@ function csvField(value: string): string {
  * looking complete — `truncatedLayers` (labels of capped layers) appends one
  * `#`-comment line per capped layer so the self-contained file carries the
  * same disclosure the on-screen layer panel shows.
+ *
+ * The "Brecha vs meta" column (backlog item 10, 2026-07-25) carries the same
+ * signed gap the pinned popup prints inline as "meta 80% · −15,6". On screen
+ * that comparison is one hover away; in a file handed to someone else it is
+ * unreachable, which left the export unable to answer the one question a
+ * compliance layer exists to answer.
  */
 export function buildMapTableCsv(rows: MapTableRow[], truncatedLayers: string[] = []): string {
   const lines = [CSV_HEADER.join(",")];
   for (const r of rows) {
-    lines.push([csvField(r.layer), csvField(r.unit), csvField(r.value)].join(","));
+    lines.push(
+      [csvField(r.layer), csvField(r.unit), csvField(r.value), csvField(r.gap ?? "")].join(","),
+    );
   }
   for (const label of truncatedLayers) {
     lines.push(`# Capa ${label} truncada: mostrando los 2000 registros más recientes`);

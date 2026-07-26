@@ -90,7 +90,12 @@ export function buildMapTableRows(aggregateLayers: readonly ActiveLayer[]): MapT
           : readout.state === "nodata"
             ? "Sin dato"
             : (readout.valueText ?? "Sin dato");
-      rows.push({ layer: layer.label, unit, value });
+      // Backlog item 10: the export carries the comparison, not just the number.
+      // `gapText` exists exactly when the readout printed a "meta … · gap" (a
+      // province-grain rate with a target, unsuppressed) — the locality COUNT
+      // demotion above already stripped the target, so the "204%" bug cannot
+      // come back through this column.
+      rows.push({ layer: layer.label, unit, value, gap: readout.gapText });
     }
   }
   rows.sort((a, b) => a.layer.localeCompare(b.layer, "es") || a.unit.localeCompare(b.unit, "es"));
