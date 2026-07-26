@@ -15,6 +15,9 @@
  * Steps (in order):
  *   1. `pnpm db:push` — drizzle-kit syncs schema.ts to the DB (enums, tables,
  *      columns, indexes, FKs). Authoritative for everything Drizzle models.
+ *      Then VERIFIED: every table db/schema.ts declares must exist afterwards.
+ *      push can fail mid-apply and still exit 0, and a bootstrap that trusts
+ *      the exit code carries the damage forward silently (see verifyPushLanded).
  *   2. Replay `db/migrations/*.sql` in numeric order, BEST-EFFORT. After
  *      step 1 the schema already matches schema.ts, so "column already exists"
  *      errors are expected and ignored. What we actually want from this step
@@ -50,7 +53,8 @@
  *
  * Exit codes:
  *   0   success
- *   1   step 1 (db:push) or step 3 (db/*.sql) failed
+ *   1   step 1 failed — db:push errored, OR it exited 0 without creating every
+ *       table db/schema.ts declares — or step 3 (db/*.sql) failed
  *   2   step 4 (a seed script) failed
  *   3   DATABASE_URL not set
  *   4   DATABASE_URL points at a non-local host (use --allow-remote to override)
@@ -271,6 +275,120 @@ function psql(file: string, opts: { strict: boolean }): boolean {
   return result.status === 0;
 }
 
+/**
+ * Run a one-shot query and return its rows as raw lines (`-t -A`), or null if
+ * the query could not be run at all. Same docker-or-host-psql fallback as
+ * psql() above.
+ */
+function psqlQuery(query: string): string[] | null {
+  const flags = ["-t", "-A", "-c", query];
+  const result = POSTGRES_CONTAINER
+    ? spawnSync(
+        "docker",
+        ["exec", "-i", POSTGRES_CONTAINER, "psql", "-U", pg.user, "-d", pg.db, ...flags],
+        {
+          encoding: "utf8",
+        },
+      )
+    : spawnSync("psql", ["-h", pg.host, "-p", pg.port, "-U", pg.user, "-d", pg.db, ...flags], {
+        encoding: "utf8",
+        env: { ...process.env, PGPASSWORD: pg.password },
+      });
+  if (result.status !== 0) return null;
+  return (result.stdout ?? "")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0);
+}
+
+/**
+ * Every table name db/schema.ts declares, read from the source.
+ *
+ * Deliberately a regex over the file rather than an import: importing schema.ts
+ * from here would drag in drizzle and the server-only sentinel for what is a
+ * list of string literals. Both call shapes are covered —
+ * `pgTable("name", {…})` and the multi-line `pgTable(\n  "name",`.
+ */
+function declaredTableNames(): string[] {
+  const source = readFileSync("db/schema.ts", "utf8");
+  const names = [...source.matchAll(/pgTable\(\s*"([a-z0-9_]+)"/g)].map((m) => m[1]);
+  return [...new Set(names)].sort();
+}
+
+/**
+ * Step 1 verification — did the push actually create what schema.ts declares?
+ *
+ * `drizzle-kit push` can fail partway through and STILL exit 0. Observed
+ * 2026-07-26 on a virgin database: the schema declares indexes over
+ * public.immutable_unaccent, a function that is not born until migration 0146,
+ * so push errored mid-apply and reported success. CI happened to survive it
+ * because step 2 replays the migrations — which means the failure mode is
+ * invisible rather than absent. Bootstrap declared FATAL only on a non-zero
+ * exit code, so it sailed past.
+ *
+ * Comparing declared names against present ones names the missing tables
+ * instead of just counting them, and a count would have its own blind spot:
+ * the DB legitimately holds tables schema.ts does not declare (_dim_migrations,
+ * Supabase internals), so equal totals would not have meant equal sets.
+ */
+function verifyPushLanded(): void {
+  const declared = declaredTableNames();
+  if (declared.length === 0) {
+    console.error(
+      "FATAL: could not read any pgTable(...) declarations from db/schema.ts.\n" +
+        "  This check derives what the push SHOULD have created; an empty derivation\n" +
+        "  is not a pass, it means the parse broke and the check would wave anything through.",
+    );
+    process.exit(1);
+  }
+
+  const present = psqlQuery(
+    "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
+  );
+  if (present === null) {
+    const how = POSTGRES_CONTAINER
+      ? `docker exec ${POSTGRES_CONTAINER} psql`
+      : `psql -h ${pg.host} -p ${pg.port}`;
+    console.error(
+      `FATAL: could not list tables after db:push — the database is unreachable from this script.\n  Tried ${how}.`,
+    );
+    process.exit(1);
+  }
+
+  const have = new Set(present);
+  const missing = declared.filter((t) => !have.has(t));
+
+  if (missing.length > 0) {
+    console.error(
+      [
+        "",
+        "==============================================================",
+        "  FATAL: db:push exited 0 but the schema did not fully land.",
+        "==============================================================",
+        `  Declared in db/schema.ts: ${declared.length} table(s)`,
+        `  Present in the database:  ${declared.length - missing.length} of them`,
+        `  MISSING (${missing.length}): ${missing.join(", ")}`,
+        "",
+        "  drizzle-kit push can fail partway through and still report success.",
+        "  Scroll up: the real error is in the push output, usually a missing",
+        "  function or extension an index depends on (e.g. immutable_unaccent,",
+        "  which migration 0146 creates).",
+        "",
+        "  Recovery on a virgin DB: run the migration replay first —",
+        "    pnpm db:bootstrap        (step 2 replays db/migrations/*.sql)",
+        "  then re-run this bootstrap. If it still fails, the push error is real.",
+        "==============================================================",
+        "",
+      ].join("\n"),
+    );
+    process.exit(1);
+  }
+
+  console.log(
+    `✓ push landed — all ${declared.length} table(s) declared in db/schema.ts exist in the database.`,
+  );
+}
+
 function pnpmRun(
   command: string,
   scriptArgs: string[] = [],
@@ -313,6 +431,9 @@ if (!pnpmRun("db:push", [], { CI: "true" })) {
   console.error("FATAL: db:push failed.");
   process.exit(1);
 }
+
+// An exit code of 0 from drizzle-kit push is not evidence the schema landed.
+verifyPushLanded();
 
 if (BARE) {
   console.log("\n--bare: stopping after step 1.");
