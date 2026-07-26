@@ -1,0 +1,50 @@
+{
+  "_comment": "Cutover smoke — the surfaces a staging promotion is most likely to break, driven in a real browser. Run BEFORE promoting (against local) and AFTER (against staging, via --base). Read every PNG: a 200 response proves the route resolved, not that the screen is usable. Usage: pnpm exec tsx scripts/qa-vis.ts --steps=scripts/qa-vis-cutover.json [--base=https://dim-staging.vercel.app]",
+  "out": "C:/Users/ignac/.claude/jobs/ef3dba5c/tmp/cutover",
+  "tag": "cutover",
+  "steps": [
+    { "do": "goto", "url": "/admin/panorama" },
+    { "do": "sleep", "ms": 14000 },
+    { "do": "shot", "name": "01-panorama-default" },
+    {
+      "_why": "The flagship. canvas>0 proves maplibre initialised; a 200 with canvas 0 is the clobbered-build signature (BUILD_ID rewritten under a running server: chunks 400, nothing hydrates).",
+      "do": "eval",
+      "expr": "JSON.stringify({canvas: document.querySelectorAll('canvas').length, h1: (document.querySelector('h1')||{}).innerText, notFound: document.body.innerText.indexOf('No encontramos')>=0})"
+    },
+    { "do": "goto", "url": "/admin/panorama?preset=mortalidad" },
+    { "do": "sleep", "ms": 14000 },
+    { "do": "shot", "name": "02-mortalidad-legend" },
+    {
+      "_why": "Legend honesty. The ramp must describe the DATA, not the classifier: this view once painted values 1..63 under a legend reading '2 ... 6', on an EXPORTABLE surface. Also checks the k-anon chip is present rather than silently absent.",
+      "do": "eval",
+      "expr": "JSON.stringify({canvas: document.querySelectorAll('canvas').length, protegido: document.body.innerText.indexOf('protegido')>=0})"
+    },
+    { "do": "goto", "url": "/gob" },
+    { "do": "sleep", "ms": 8000 },
+    { "do": "shot", "name": "03-gob-panel" },
+    {
+      "_why": "es-AR thousands separator. A government panel that prints 1507 beside 3.541 reads like two systems talking. 'raw' must be false.",
+      "do": "eval",
+      "expr": "JSON.stringify({h1: (document.querySelector('h1')||{}).innerText, sep: document.body.innerText.indexOf('1.507')>=0, raw: document.body.innerText.indexOf(' 1507')>=0})"
+    },
+    { "do": "goto", "url": "/gob/vigilancia" },
+    { "do": "sleep", "ms": 8000 },
+    { "do": "shot", "name": "04-vigilancia-semaforo" },
+    {
+      "_why": "Semaphore honesty. 'Cumplimiento observacion 10d' is painted against a STATUTORY target of 100 (Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA). A failing rate must never render in the ok tone. Read the PNG: this one cannot be asserted from text alone.",
+      "do": "eval",
+      "expr": "JSON.stringify({h1: (document.querySelector('h1')||{}).innerText, tile: document.body.innerText.indexOf('Cumplimiento observaci')>=0})"
+    },
+    { "do": "goto", "url": "/admin" },
+    { "do": "sleep", "ms": 6000 },
+    { "do": "shot", "name": "05-admin-panel" },
+    { "do": "goto", "url": "/login" },
+    { "do": "sleep", "ms": 4000 },
+    { "do": "shot", "name": "06-login" },
+    {
+      "_why": "Anonymous surface. After promotion this is what an unauthenticated citizen hits first, and it is the page that reveals a missing NEXT_PUBLIC_SITE_URL or a broken CSP nonce.",
+      "do": "eval",
+      "expr": "JSON.stringify({h1: (document.querySelector('h1')||{}).innerText})"
+    }
+  ]
+}
