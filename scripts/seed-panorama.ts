@@ -225,12 +225,13 @@ const PETS_PER_CAPITA = Number(process.env.PETS_PER_CAPITA ?? "0.5");
  * 469/559 — all healthy), and buys a seed that cannot drift from the code path
  * it is supposed to demonstrate.
  *
- * KNOWN GAP, NOT CAUSED BY THIS RATIO: the Mortalidad view shows 0 visible
- * departments here. It was already nearly blind at 67k — deceased pets are
- * 0.3% of the province seed, which spreads ~1.4 per department at this volume
- * and only ~5.6 at 4× (measured: 7 of 28 departments would clear k=5 at the old
- * volume). Restoring that view needs the DEATH RATE raised, not the pet count;
- * ~6× the current volume would be required to fix it by density alone.
+ * RESOLVED GAP (was: "the Mortalidad view shows 0 visible departments"). The
+ * cause was the DEATH RATE, not this ratio — the old flat 0.3% deceased share
+ * spread ~1.4 deaths per department, so every department cell sat under the k=5
+ * floor and the view rendered 0 of 38. The share is now derived from a published
+ * crude death rate scaled by per-pet exposure (see ANNUAL_DEATH_RATE_BY_SPECIES),
+ * which lands the register near 3% deceased. Volume was never the lever: at the
+ * old rate even 4× this population left ~5.6 deaths per department.
  */
 const SCALE = Number(process.env.SCALE ?? "0.0005");
 
@@ -263,6 +264,44 @@ const REUNIFICATION_RATE = Number(process.env.PANO_REUNIFICATION_RATE ?? "0.45")
 // gets booked; a per-province multiplier (see PROVINCE_CAMPAIGN_DEMAND) layers
 // jurisdiction spread on top.
 const CAMPAIGN_BOOKING_RATE = Number(process.env.PANO_CAMPAIGN_BOOKING_RATE ?? "0.62");
+
+// ─── Mortality (sourced — see the citation below before changing) ───────────
+const MS_PER_YEAR = 365.25 * 24 * 3600 * 1000;
+
+/**
+ * Annual CRUDE DEATH RATE for owned companion animals, by species.
+ *
+ * This constant is an assertion about the world, so it is anchored to a
+ * published source rather than chosen to make a dashboard look populated.
+ *
+ * SOURCE: New JC Jr, Salman MD, King M, Scarlett JM, Kass PH, Hutchison JM
+ * (2004), "Birth and Death Rate Estimates of Cats and Dogs in U.S. Households
+ * and Related Factors", Journal of Applied Animal Welfare Science 7(4):229-241.
+ * Reported crude death rates: 7.9 dog deaths per 100 dogs per year and 8.3 cat
+ * deaths per 100 cats per year in US households. It remains the most
+ * comprehensive published crude death rate for OWNED companion animals; there
+ * is no Argentine equivalent, and companion-animal mortality is not subject to
+ * routine national monitoring anywhere.
+ *
+ * CORROBORATION (independent population, different method): O'Neill DG, Church
+ * DB, McGreevy PD, Thomson PC, Brodbelt DC (2013), "Longevity and mortality of
+ * owned dogs in England", The Veterinary Journal 198(3):638-643 — median
+ * longevity 12.0 years across 102,609 dogs under primary veterinary care. In a
+ * stationary population the crude death rate is the reciprocal of mean
+ * lifespan, so 1/12.0 ≈ 8.3%/yr, the same order as New et al.'s 7.9%.
+ *
+ * NOT CALIBRATED TO THE SUPPRESSION THRESHOLD. Whether the resulting cells
+ * clear the k=5 k-anonymity floor is an OUTCOME of these figures, never an
+ * input to them. If a cell stays suppressed, that is an honest report of a
+ * thin population — do not raise these numbers to light it up.
+ */
+const ANNUAL_DEATH_RATE_BY_SPECIES: Record<string, number> = {
+  dog: 0.079,
+  cat: 0.083,
+};
+
+/** Species with no published crude rate: the dog/cat midpoint, flagged as such. */
+const ANNUAL_DEATH_RATE_DEFAULT = 0.081;
 
 type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE" | "FAIL";
 function log(tag: LogTag, msg: string): void {
@@ -1574,6 +1613,8 @@ async function seedPets(
     const perPetMeta: Array<{
       index: number;
       status: "active" | "lost" | "deceased";
+      /** Registration instant — also the start of this pet's mortality exposure. */
+      registeredAt: Date;
       lat: number;
       lng: number;
       provinceName: string;
@@ -1599,13 +1640,48 @@ async function seedPets(
       const baseLng = loc ? loc.lng : -58.4 + gaussianJitter(6);
       const { lat, lng } = jitteredCoord(baseLat, baseLng, 0.03);
 
-      // Status: ~0.4% lost, ~0.3% deceased, rest active
-      const r = rng();
+      // Historical registration instant — can be older than the event window.
+      // Drawn HERE rather than at registration time in phase 2 because the
+      // mortality draw immediately below needs this pet's EXPOSURE: how long it
+      // has been on the register and therefore at risk.
+      const registeredAt = randomWindowDate(WINDOW_DAYS + 180);
+      const exposureYears = (ANCHOR_MS - registeredAt.getTime()) / MS_PER_YEAR;
+
+      // Status. Two independent draws, because they answer different questions.
+      //
+      //   lost (0.4%)  — an operational prevalence of the "currently lost"
+      //                  caseload. Unchanged.
+      //
+      //   deceased     — DERIVED, not chosen. Panorama's Mortalidad layer
+      //                  counts pets CURRENTLY status='deceased'
+      //                  (metricPredicate('mortality') in
+      //                  repository-choropleth.ts) — a cumulative STOCK, not an
+      //                  annual flow. So the per-pet probability is the
+      //                  published annual crude rate scaled by that pet's own
+      //                  exposure:  P(dead now) = annual_rate × exposureYears.
+      //
+      //                  Registrations spread uniformly over WINDOW_DAYS+180 =
+      //                  270 days, so mean exposure is 135 d ≈ 0.37 yr and the
+      //                  expected deceased share of the register is
+      //                  ≈ 0.08 × 0.37 ≈ 3.0%. That replaces a flat 0.3% that
+      //                  was neither sourced nor exposure-aware, and which left
+      //                  the Mortalidad view suppressed in every department.
+      //
+      // DISTRIBUTION: the hazard is per-pet and independent of locality, so
+      // deaths fall in proportion to the pet population — the map shows no
+      // territorial pattern that this seed invented, only binomial noise.
+      // Age-correlated mortality would be more faithful still, but every pet
+      // this seed registers carries dateOfBirth: null (see registerSeedPet), so
+      // there are no ages to correlate against. Adding synthetic ages is the
+      // prerequisite for that upgrade, not a tweak to these rates.
+      const lostDraw = rng();
+      const deathDraw = rng();
+      const annualDeathRate = ANNUAL_DEATH_RATE_BY_SPECIES[species] ?? ANNUAL_DEATH_RATE_DEFAULT;
       let status: "active" | "lost" | "deceased" = "active";
-      if (r < 0.004) {
+      if (lostDraw < 0.004) {
         status = "lost";
         lostPets++;
-      } else if (r < 0.007) {
+      } else if (deathDraw < annualDeathRate * exposureYears) {
         status = "deceased";
         deceasedPets++;
       }
@@ -1623,6 +1699,7 @@ async function seedPets(
       perPetMeta.push({
         index: idx,
         status,
+        registeredAt,
         lat,
         lng,
         provinceName,
@@ -1671,8 +1748,9 @@ async function seedPets(
       // Drawn BEFORE registration: it lands in the pet_registered payload that
       // registerPet writes, so it has to be known up front.
       const acquisitionMethod = drawAcquisitionMethod(shelterOrg?.id ?? null);
-      // Historical registration instant — can be older than the event window.
-      const registeredAt = randomWindowDate(WINDOW_DAYS + 180);
+      // Drawn in phase 1 (the mortality hazard needs it to size this pet's
+      // exposure), carried here so registerPet stamps the same instant.
+      const registeredAt = meta.registeredAt;
 
       // ── The real intake circuit ──────────────────────────────────────────
       const registered = await registerSeedPet(
@@ -1792,7 +1870,13 @@ async function seedPets(
 
       // Deceased pet → death_recorded event
       if (meta.status === "deceased") {
-        const diedAt = randomWindowDate(WINDOW_DAYS);
+        // Uniform INSIDE the pet's own exposure window [registeredAt, anchor],
+        // not the flat trailing 90 days this replaced: registrations reach 270
+        // days back, so a fixed 90-day draw produced pets whose recorded death
+        // predated the registration that created the record.
+        const diedAt = new Date(
+          meta.registeredAt.getTime() + rng() * (ANCHOR_MS - meta.registeredAt.getTime()),
+        );
         deceasedPetIds.push({ petId, deceasedAt: diedAt });
         evts.push({
           petId,
