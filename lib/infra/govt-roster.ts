@@ -13,6 +13,30 @@ export function isDeadGovt(active: boolean, activeLocalityCount: number): boolea
   return active && activeLocalityCount === 0;
 }
 
+/**
+ * The way OUT of the dead state (V4 onboarding).
+ *
+ * `isDeadGovt` only DIAGNOSES — the roster pill "sin localidades — no puede
+ * operar" tells an admin the account is stuck but not what clears it. A live
+ * capture of a real govt account (portal review 2026-07-25) sat in exactly that
+ * state with no in-product next step on screen, which read as "hand-edit
+ * govt_assignments" even though the assign flow already exists.
+ *
+ * So the rule this module now enforces: the dead state is NEVER rendered
+ * without this remedy beside it. The capability was never missing — the
+ * WAYFINDING was. Assignment happens on the govt detail screen, which hosts
+ * AssignLocalityForm → assignGovtLocalityAction → assignGovtLocalityForAuthority
+ * (admin-capability checked, canonical-catalog validated, audited, notified).
+ */
+export const DEAD_GOVT_REMEDY =
+  "Asignale al menos una localidad para que pueda entrar a /gob. La cuenta ya existe: solo le falta jurisdicción.";
+
+/** Where an admin goes to clear the dead state — the detail screen that hosts
+ * the assign-locality form. Kept beside the copy so the two can never drift. */
+export function deadGovtRemedyHref(govtUserId: string): string {
+  return `/admin/govts/${govtUserId}`;
+}
+
 // ---------------------------------------------------------------------------
 // Roster console filters (/admin/govts) — pure input normalizers so the page
 // can search + status-filter + truncate without special-casing seed rows.

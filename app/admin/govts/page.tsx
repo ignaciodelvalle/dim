@@ -14,6 +14,7 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
+  DEAD_GOVT_REMEDY,
   type GovtStatusFilter,
   isDeadGovt,
   matchEmailIds,
@@ -293,6 +294,9 @@ function GovtRow({ govt }: GovtRowProps) {
               {govt.displayName}
             </Link>
             <p className="text-sm text-ln-op-mute">{govt.email}</p>
+            {/* V4: the dead-state pill diagnoses; this states the way out, so the
+                roster never shows a stuck account without its next step. */}
+            {isDead && <p className="text-sm text-ln-op-ink-2">{DEAD_GOVT_REMEDY}</p>}
           </div>
 
           <div className="flex items-center gap-3 shrink-0">

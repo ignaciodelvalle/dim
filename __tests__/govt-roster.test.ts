@@ -4,7 +4,13 @@
 import { describe, expect, it } from "vitest";
 
 import { type GovtActivityRow, sortGovtActivityByActivity } from "@/lib/analytics/admin-metrics";
-import { isDeadGovt, matchEmailIds, normalizeGovtStatus } from "@/lib/infra/govt-roster";
+import {
+  DEAD_GOVT_REMEDY,
+  deadGovtRemedyHref,
+  isDeadGovt,
+  matchEmailIds,
+  normalizeGovtStatus,
+} from "@/lib/infra/govt-roster";
 
 describe("isDeadGovt", () => {
   it("flags an active govt with zero localities", () => {
@@ -19,6 +25,29 @@ describe("isDeadGovt", () => {
   it("never flags a deactivated govt", () => {
     expect(isDeadGovt(false, 0)).toBe(false);
     expect(isDeadGovt(false, 3)).toBe(false);
+  });
+});
+
+// V4 — the "sin localidades" dead end must never be stated without stating the
+// way out. The badge diagnoses; this copy prescribes. Pinned as a contract so a
+// future copy edit cannot silently drop the remedy and restore the dead end.
+describe("DEAD_GOVT_REMEDY", () => {
+  it("names the concrete action that clears the state", () => {
+    // The operator must learn WHAT to do, not merely that something is wrong.
+    expect(DEAD_GOVT_REMEDY).toMatch(/asign/i);
+    expect(DEAD_GOVT_REMEDY).toMatch(/localidad/i);
+  });
+
+  it("is es-AR prose, not a bare status label", () => {
+    // A label like "sin localidades" restates the problem; a remedy is a sentence.
+    expect(DEAD_GOVT_REMEDY.length).toBeGreaterThan(30);
+    expect(DEAD_GOVT_REMEDY).not.toMatch(/no puede operar\s*$/i);
+  });
+
+  it("points at the detail screen where the assign form actually lives", () => {
+    // The remedy is only honest if the href resolves to the screen that hosts
+    // AssignLocalityForm (app/admin/govts/[userId]/page.tsx).
+    expect(deadGovtRemedyHref("abc-123")).toBe("/admin/govts/abc-123");
   });
 });
 

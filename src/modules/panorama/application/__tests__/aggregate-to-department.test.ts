@@ -166,6 +166,97 @@ describe("aggregateCellsToDepartment", () => {
 // is what turns near-total locality-tier suppression into a readable department
 // map) without a database — suppressSmallCells is the exact k-anon primitive the
 // repository's toAggregatedCells calls.
+// ---------------------------------------------------------------------------
+// SECURITY: the fold is a REGROUPING, never a WIDENING.
+//
+// A govt operator is scoped to LOCALITIES; the map draws DEPARTMENTS. It is
+// tempting to close that gap by aggregating at the department grain in SQL so a
+// municipal operator's sparse map fills in. That would be an AUTHORIZATION
+// change, not a rendering fix: measured on the local seed, a Santa Cruz /
+// El Calafate operator is assigned 11 pets in 1 locality; their department
+// (78028 Lago Argentino) holds 33 pets across 3 localities and the province
+// holds 394 across 28. Filling the map that way shows an operator pets they
+// were never granted.
+//
+// The fold is safe precisely because it is PURE and CLOSED over its input: the
+// scope clause filters first, and the fold only regroups rows that already
+// survived it. These tests pin that closure so a future "resolve up to a grain
+// that has data" cannot be implemented by widening the fold.
+// ---------------------------------------------------------------------------
+describe("aggregateCellsToDepartment — non-widening invariant", () => {
+  it("conserves the total count (no pet is invented, none is dropped)", () => {
+    const input = [
+      row({
+        locality: "El Calafate",
+        departmentCode: "78028",
+        departmentName: "Lago Argentino",
+        count: 11,
+      }),
+      row({ province: "CABA", locality: "Palermo", count: 206 }),
+      row({
+        province: "Tierra del Fuego",
+        locality: "Ushuaia",
+        departmentCode: "94015",
+        departmentName: "Ushuaia",
+        count: 50,
+      }),
+    ];
+    const total = input.reduce((n, r) => n + r.count, 0);
+    const out = aggregateCellsToDepartment(input);
+    expect(out.reduce((n, r) => n + r.count, 0)).toBe(total);
+  });
+
+  it("never emits a unit that no input row contributed to", () => {
+    // The operator is assigned ONE locality of department 78028. The fold must
+    // emit that department carrying ONLY the assigned locality's count — it has
+    // no way to reach the department's other localities, and must not acquire
+    // one. A cell of 11 (not 33) is the correct, scoped answer.
+    const out = aggregateCellsToDepartment([
+      row({
+        locality: "El Calafate",
+        departmentCode: "78028",
+        departmentName: "Lago Argentino",
+        count: 11,
+      }),
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].departmentCode).toBe("78028");
+    expect(out[0].count).toBe(11);
+  });
+
+  it("groups ONLY co-departmental input rows — disjoint scopes stay disjoint", () => {
+    // A 3-locality operator whose localities sit in three different units gets
+    // three cells, never one merged national blob.
+    const out = aggregateCellsToDepartment([
+      row({
+        province: "Santa Cruz",
+        locality: "El Calafate",
+        departmentCode: "78028",
+        departmentName: "Lago Argentino",
+        count: 11,
+      }),
+      row({ province: "CABA", locality: "Palermo", count: 206 }),
+      row({
+        province: "Tierra del Fuego",
+        locality: "Ushuaia",
+        departmentCode: "94015",
+        departmentName: "Ushuaia",
+        count: 50,
+      }),
+    ]);
+    expect(out).toHaveLength(3);
+    expect(new Set(out.map((r) => r.province))).toEqual(
+      new Set(["Santa Cruz", "CABA", "Tierra del Fuego"]),
+    );
+  });
+
+  it("an empty scope folds to nothing — never to a province-wide fallback", () => {
+    // The honest answer for a scope with no rows is NO cells. Substituting a
+    // coarser unit here is the widening this suite exists to prevent.
+    expect(aggregateCellsToDepartment([])).toEqual([]);
+  });
+});
+
 describe("department fold + k-anon (aggregated point loader pipeline)", () => {
   it("makes a department VISIBLE whose member localities are each below k=5 but sum to >= 5", () => {
     const folded = aggregateCellsToDepartment([

@@ -7,9 +7,18 @@ import { ResetCredentialsButton } from "@/app/admin/_components/ResetCredentials
 import { AssignLocalityForm } from "@/app/admin/govts/_components/AssignLocalityForm";
 import { DeactivateGovtActions } from "@/app/admin/govts/_components/DeactivateGovtForm";
 import { RevokeLocalityRowActions } from "@/app/admin/govts/_components/RevokeLocalityRowActions";
-import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
+import { Icon } from "@/components/Icon";
+import {
+  OpCallout,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpCodeBadge,
+  OpPill,
+} from "@/components/ui/dashboard";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { DEAD_GOVT_REMEDY } from "@/lib/infra/govt-roster";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
 import { AR_TIME_ZONE, accountTypeLabel, formatDateShort } from "@/lib/utils/format";
@@ -133,7 +142,21 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         </h2>
 
         {activeAssignments.length === 0 ? (
-          <p className="text-sm text-ln-op-mute">Sin localidades activas.</p>
+          // V4: an active govt with zero localities cannot enter /gob. State the
+          // consequence AND the remedy here — the assign form sits right below,
+          // so this turns a dead end into a one-step operation.
+          isActive ? (
+            // `nature` is for data epistemics (measured zero vs no signal); this
+            // is an operational blocker, so it takes the default jurisdiction-
+            // warning treatment the callout already serves.
+            <OpCallout
+              title="Sin localidades — no puede operar"
+              body={DEAD_GOVT_REMEDY}
+              icon={<Icon name="alerta" decorative />}
+            />
+          ) : (
+            <p className="text-sm text-ln-op-mute">Sin localidades activas.</p>
+          )
         ) : (
           <ul className="space-y-2">
             {activeAssignments.map((a) => {
