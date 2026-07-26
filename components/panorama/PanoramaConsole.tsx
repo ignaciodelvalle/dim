@@ -89,6 +89,7 @@ import {
 import { Z_LOCALITY, resolveDataLevel } from "@/components/panorama/situational-map-utils";
 import { useAsOfFrame } from "@/components/panorama/use-asof-frame";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
+import { screenViewExplanation } from "@/components/panorama/view-explanation-screen";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
@@ -3034,18 +3035,30 @@ export function PanoramaConsole({
   // beside "Copiar vista" so the operator reads in words exactly what the link
   // they are about to share reproduces (explainViewState is the proof the
   // canonical value is complete: every visible coordinate is describable).
+  const explainNames = useMemo(
+    () => ({
+      provinceLabel: (code: string) => provinceByCode(code)?.name,
+      localityLabel: (_prov: string, loc: string) =>
+        scopeData.localities.find((l) => l.slug === loc)?.name,
+      // Finding #1: a bounded (govt) operator's data is scoped — name their real
+      // jurisdiction instead of "todas las provincias"; an admin at department
+      // grain gets the grain-qualified national phrase.
+      boundedScopeLabel: boundedJurisdiction ? (scopeLabel ?? undefined) : undefined,
+      renderLevel: level,
+    }),
+    [scopeData.localities, boundedJurisdiction, scopeLabel, level],
+  );
   const viewExplanation = useMemo(
-    () =>
-      explainViewState(viewState, {
-        provinceLabel: (code) => provinceByCode(code)?.name,
-        localityLabel: (_prov, loc) => scopeData.localities.find((l) => l.slug === loc)?.name,
-        // Finding #1: a bounded (govt) operator's data is scoped — name their real
-        // jurisdiction instead of "todas las provincias"; an admin at department
-        // grain gets the grain-qualified national phrase.
-        boundedScopeLabel: boundedJurisdiction ? (scopeLabel ?? undefined) : undefined,
-        renderLevel: level,
-      }),
-    [viewState, scopeData.localities, boundedJurisdiction, scopeLabel, level],
+    () => explainViewState(viewState, explainNames),
+    [viewState, explainNames],
+  );
+  // The SAME sentence, trimmed of what the screen around it already states (the
+  // vista title, the scope selector, the vista's eponymous layer). Only the
+  // on-screen block uses this: the copied link, the informe and the embed keep
+  // the full sentence, which travels alone and needs its subject.
+  const screenExplanation = useMemo(
+    () => screenViewExplanation(viewState, explainNames),
+    [viewState, explainNames],
   );
 
   // A2 (automatic department-grain LOD): a committed province/locality still reads
@@ -4821,9 +4834,15 @@ export function PanoramaConsole({
                   vista" and the informe print use it too), now a fully-visible
                   subtitle under the vista title. No clamp, no toggle: it just
                   wraps. Declutters the map surface (item 3) without losing the
-                  "¿qué estoy viendo?" answer (Epic C1). */}
+                  "¿qué estoy viendo?" answer (Epic C1).
+
+                  PO 2026-07-26: as a SUBTITLE it re-stated its own title and the
+                  scope pill above it — the vista 3×, the scope 3×, in four lines,
+                  beside truncated KPI numbers. screenViewExplanation trims what
+                  this container already says; the travelling copies (link,
+                  informe, embed) still get the whole sentence. */}
               <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
-                {viewExplanation}
+                {screenExplanation}
               </p>
               {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
                   changes the board silently; one tap returns to the vista left. */}
