@@ -207,7 +207,7 @@ export function OutboxTable({
                       fact in the row, so say it in words instead of punctuating
                       it away. */}
                   {row.attempts === 0 ? (
-                    <span className="text-[11px] text-ln-op-mute whitespace-nowrap">
+                    <span className="text-[var(--text-sm)] text-ln-op-mute whitespace-nowrap">
                       Sin intentos
                     </span>
                   ) : (

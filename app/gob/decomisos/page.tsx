@@ -261,7 +261,7 @@ export default async function DecomisosDashboardPage({
           <h2 className="text-[var(--text-md)] font-semibold text-ln-op-ink">
             Episodios de custodia registrados
           </h2>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-[var(--text-md)] text-ln-op-mute">
             El período seleccionado no filtra este listado: sólo afecta los indicadores de arriba.
             Se muestran los 200 episodios más recientes, sin importar su fecha de apertura.
           </p>
