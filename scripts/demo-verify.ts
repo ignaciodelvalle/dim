@@ -70,11 +70,19 @@ const {
 // 4. Constants
 // ---------------------------------------------------------------------------
 
-// Must match FOCAL_LOCALITY in scripts/seed-demo-scenario.ts — "CABA" is not
-// a valid locality_name in ar_localities (issue #758); the componente record
-// for the whole city resolves under this canonical name instead.
+// Must match FOCAL_LOCALITY in scripts/seed-demo-scenario.ts.
+//
+// This is a BARRIO, deliberately. "Ciudad Autónoma de Buenos Aires" is the INDEC
+// whole-city aggregate (indec_id 02000010), which check-locality-integrity drops
+// from ar_localities because it double-counts the barrios that tile the same
+// city — so it is a sentinel for whole-province subsumption (lib/metrics/scope.ts
+// isWholeProvinceLocality), never a value that matches real rows. Measured on the
+// local DB: 0 of 1176 CABA pets and 0 of 49 CABA panorama_cube department cells
+// carry it, while checkGovtUser() below does an exact eq() on it — which is why
+// this constant, not the seed's, was the stale side of the mismatch (issue #758
+// migrated the seed to "Palermo" and left the verifier behind).
 const FOCAL_PROVINCE = "CABA";
-const FOCAL_LOCALITY = "Ciudad Autónoma de Buenos Aires";
+const FOCAL_LOCALITY = "Palermo";
 const REQUIRED_MONTHS = 4;
 
 type CheckResult = { label: string; ok: boolean; detail?: string };
