@@ -12,12 +12,13 @@
 import { and, eq, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, organizations, petEvents, pets } from "@/db";
+import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import {
-  type DashboardActor,
-  type DashboardJurisdiction,
-  jurisdictionPairClause,
-} from "@/lib/metrics";
-import { casesScopeClause, petsCurrentJurisdictionClause, petsScopeClause } from "./_scope";
+  casesScopeClause,
+  organizationsScopeClause,
+  petsCurrentJurisdictionClause,
+  petsScopeClause,
+} from "./_scope";
 
 export type ExportPeriod = { since?: Date; until?: Date };
 
@@ -199,28 +200,13 @@ export async function fetchOrganizationsForExport(
   const conditions: ReturnType<typeof sql>[] = [];
 
   // Orgs are scoped by their primary jurisdiction. Govt sees only orgs whose
-  // jurisdiction_province / locality matches one of their assignments.
-  if (actor.role === "govt") {
-    if (jurisdictions.length === 0) return [];
-    const pairs = jurisdictionPairClause(
-      jurisdictions,
-      sql`${organizations.jurisdictionProvince}`,
-      sql`${organizations.jurisdictionLocality}`,
-    );
-    // pairs is non-null because jurisdictions.length > 0 (guarded above).
-    if (pairs) conditions.push(sql`(${pairs})`);
-  } else if (adminProvince) {
-    // Admin province/locality drill-down (export honors the active filter,
-    // Fase C 2026-07-21) — mirrors petsScopeClause/casesScopeClause's admin
-    // branch. No adminProvince → unrestricted, exactly as before.
-    const adminClause = adminLocality
-      ? and(
-          eq(organizations.jurisdictionProvince, adminProvince),
-          eq(organizations.jurisdictionLocality, adminLocality),
-        )
-      : eq(organizations.jurisdictionProvince, adminProvince);
-    if (adminClause) conditions.push(sql`(${adminClause})`);
-  }
+  // jurisdiction_province / locality matches one of their assignments; admin's
+  // province/locality drill-down narrows the export to the ACTIVE filter (Fase
+  // C 2026-07-21). Both branches resolved by the ONE shared helper (C3, ONE
+  // VIEWSCOPE) — admin with no drill → null → unrestricted, exactly as before.
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+  const scope = organizationsScopeClause(actor, jurisdictions, adminProvince, adminLocality);
+  if (scope) conditions.push(sql`(${scope})`);
 
   const rows = await db
     .select({

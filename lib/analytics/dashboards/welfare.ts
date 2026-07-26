@@ -17,30 +17,14 @@ import {
 } from "drizzle-orm";
 
 import { caseEvents, cases, analyticsDb as db, petEvents, profiles, welfareReports } from "@/db";
-import {
-  type DashboardActor,
-  type DashboardJurisdiction,
-  jurisdictionPairClause,
-} from "@/lib/metrics";
+import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
-import { DAY_MS } from "./_scope";
+import { DAY_MS, welfareReportsScopeClause } from "./_scope";
 
-// Build a scope clause for the `welfare_reports` table.
-// Admin: null (no restriction). Govt: OR of jurisdiction pair matches.
-// Exported so the maltrato list page and its tests can reuse the same logic.
-export function welfareReportsScopeClause(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-) {
-  if (actor.role === "admin") return null;
-  return (
-    jurisdictionPairClause(
-      jurisdictions,
-      sql`${welfareReports.jurisdictionProvince}`,
-      sql`${welfareReports.jurisdictionLocality}`,
-    ) ?? sql`false`
-  );
-}
+// welfareReportsScopeClause now lives in ./_scope alongside every other
+// dashboard scope helper (C3, ONE VIEWSCOPE). Re-exported here so the maltrato
+// list page, the govt-dashboards barrel and their tests keep their import path.
+export { welfareReportsScopeClause };
 
 // ============================================================================
 // Moderation queue WHERE-clause builder (jurisdiction denuncia moderation)
@@ -193,42 +177,36 @@ export function buildMaltratoListConditions(filters: MaltratoListFilters) {
 
   const conditions = [];
 
-  // 1. Jurisdiction scope (govt only — admin is unscoped by welfareReportsScopeClause).
-  const scope = welfareReportsScopeClause(actor, filteredJurisdictions);
+  // 1. Jurisdiction scope — govt jurisdiction pairs, OR the admin's URL
+  //    province/locality selection (?province= / ?locality=) as a drill
+  //    predicate. ONE helper resolves both (C3, ONE VIEWSCOPE), so this list
+  //    and fetchWelfareMetrics' KPI tiles cannot drift apart on scope. Govt
+  //    users must NOT pass selectedProvince/selectedLocality; their scope is
+  //    already enforced by filteredJurisdictions (assignments ∩ URL selection,
+  //    computed in the page layer) and the helper ignores them for govt.
+  const scope = welfareReportsScopeClause(
+    actor,
+    filteredJurisdictions,
+    selectedProvince ?? undefined,
+    selectedLocality ?? undefined,
+  );
   if (scope) conditions.push(sql`(${scope})`);
 
-  // 2. Admin province/locality filter — applies when an admin selects a province
-  //    or province+locality via the URL (?province= / ?locality=). Govt users must
-  //    NOT pass these fields; their scope is already enforced by filteredJurisdictions
-  //    (intersection of assignments ∩ URL selection, computed in the page layer).
-  if (actor.role === "admin" && selectedProvince) {
-    if (selectedLocality) {
-      conditions.push(
-        and(
-          eq(welfareReports.jurisdictionProvince, selectedProvince),
-          eq(welfareReports.jurisdictionLocality, selectedLocality),
-        ),
-      );
-    } else {
-      conditions.push(eq(welfareReports.jurisdictionProvince, selectedProvince));
-    }
-  }
-
-  // 3. Moderation exclusion — hide flagged rows awaiting admin review.
+  // 2. Moderation exclusion — hide flagged rows awaiting admin review.
   conditions.push(
     sql`(${welfareReports.flaggedAt} IS NULL OR ${welfareReports.moderationResolvedAt} IS NOT NULL)`,
   );
 
-  // 4. Kind narrow filter.
+  // 3. Kind narrow filter.
   if (kind) conditions.push(eq(welfareReports.kind, kind as never));
 
-  // 5. Severity narrow filter.
+  // 4. Severity narrow filter.
   if (severity) conditions.push(eq(welfareReports.severity, severity as never));
 
-  // 6. Status narrow filter — restores parity with the old ?status= JS filtering.
+  // 5. Status narrow filter — restores parity with the old ?status= JS filtering.
   if (status) conditions.push(eq(welfareReports.status, status as never));
 
-  // 7. Queue predicate.
+  // 6. Queue predicate.
   switch (queue) {
     case "urgent":
       // Critical or high severity, not yet in a terminal status.
@@ -299,8 +277,6 @@ export async function fetchWelfareMetrics(
   currentUserId: string,
   filters?: WelfareMetricsFilters,
 ): Promise<WelfareMetrics> {
-  const scope = welfareReportsScopeClause(actor, jurisdictions);
-
   if (actor.role === "govt" && jurisdictions.length === 0) {
     return { unassignedCount: 0, myCount: 0, inProgressCount: 0, closedMonth: 0 };
   }
@@ -308,23 +284,21 @@ export async function fetchWelfareMetrics(
   const since30d = new Date(Date.now() - 30 * DAY_MS);
   const { kind, severity, status, selectedProvince, selectedLocality } = filters ?? {};
 
+  // Jurisdiction scope — the SAME helper call buildMaltratoListConditions makes,
+  // admin drill included (C3, ONE VIEWSCOPE). This is what keeps a tile and the
+  // list it drills into from disagreeing about which province they describe.
+  const scope = welfareReportsScopeClause(
+    actor,
+    jurisdictions,
+    selectedProvince ?? undefined,
+    selectedLocality ?? undefined,
+  );
+
   // Domain narrow filters — the SAME eq() clauses buildMaltratoListConditions
   // applies to the list (identical enums, identical scope logic), so a tile
   // and the list it drills into always agree under the same filter set.
   const domainConditions: SQL[] = [];
   if (scope) domainConditions.push(sql`(${scope})`);
-  if (actor.role === "admin" && selectedProvince) {
-    if (selectedLocality) {
-      domainConditions.push(
-        and(
-          eq(welfareReports.jurisdictionProvince, selectedProvince),
-          eq(welfareReports.jurisdictionLocality, selectedLocality),
-        ) as SQL,
-      );
-    } else {
-      domainConditions.push(eq(welfareReports.jurisdictionProvince, selectedProvince) as SQL);
-    }
-  }
   if (kind) domainConditions.push(eq(welfareReports.kind, kind as never) as SQL);
   if (severity) domainConditions.push(eq(welfareReports.severity, severity as never) as SQL);
   if (status) domainConditions.push(eq(welfareReports.status, status as never) as SQL);

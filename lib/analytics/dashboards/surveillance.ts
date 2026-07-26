@@ -11,16 +11,18 @@
 import { type SQL, and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
-import {
-  type DashboardActor,
-  type DashboardJurisdiction,
-  jurisdictionPairClause,
-} from "@/lib/metrics";
+import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
 import { aggregateRowsByDepartment } from "../subregion-aggregate";
 import type { SubregionCaseCount } from "../subregion-redaction";
-import { DAY_MS, casesScopeClause, petsCurrentJurisdictionClause, petsScopeClause } from "./_scope";
+import {
+  DAY_MS,
+  casesScopeClause,
+  outbreakSignalScopeClause,
+  petsCurrentJurisdictionClause,
+  petsScopeClause,
+} from "./_scope";
 
 export type SurveillanceFilters = {
   /** Inclusive lower bound for occurredAt. */
@@ -63,39 +65,9 @@ export type DiseaseSummary = {
   count24h: number;
 };
 
-// Build the scope-match SQL clause on outbreak_signal events.
-// - admin, no province selected → null (no restriction; caller omits the clause)
-// - admin + province selected   → payload province (+ optional locality) predicate
-//   (Panorama-style admin drill-down — mirrors petEventsScopeClause's admin
-//   branch in lib/metrics/scope.ts; additive-only, never widens scope)
-// - govt with no assignments    → `false` (matches nothing)
-// - govt with assignments       → OR of `(province=X AND locality=Y)` pairs
-function outbreakSignalScopeClause(
-  actor: DashboardActor,
-  jurisdictions: DashboardJurisdiction[],
-  adminProvince?: string,
-  adminLocality?: string,
-) {
-  if (actor.role === "admin") {
-    // Backward-compat: no adminProvince → unrestricted, exactly as before.
-    if (!adminProvince) return null;
-    if (adminLocality) {
-      return and(
-        sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${adminProvince}`,
-        sql`(${petEvents.payload}->>'pet_jurisdiction_locality') = ${adminLocality}`,
-      );
-    }
-    return sql`(${petEvents.payload}->>'pet_jurisdiction_province') = ${adminProvince}`;
-  }
-  // Govt with no active assignments — match nothing.
-  return (
-    jurisdictionPairClause(
-      jurisdictions,
-      sql`(${petEvents.payload}->>'pet_jurisdiction_province')`,
-      sql`(${petEvents.payload}->>'pet_jurisdiction_locality')`,
-    ) ?? sql`false`
-  );
-}
+// outbreakSignalScopeClause (payload-snapshot scope on outbreak_signal events)
+// now lives in ./_scope alongside every other dashboard scope helper (C3, ONE
+// VIEWSCOPE) — this module kept a byte-identical private copy of it.
 
 // Same guard as petsCurrentJurisdictionClause, wrapped in an EXISTS subquery
 // for pet_events queries that do NOT already join the pets table.

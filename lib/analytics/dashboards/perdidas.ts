@@ -4,11 +4,7 @@
 import { and, count, desc, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 
 import { analyticsDb as db, ownerships, petEvents, pets, profiles } from "@/db";
-import {
-  type DashboardActor,
-  type DashboardJurisdiction,
-  jurisdictionPairClause,
-} from "@/lib/metrics";
+import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { likeContains } from "@/lib/utils/like-helpers";
 import { DAY_MS, petsScopeClause } from "./_scope";
 
@@ -60,27 +56,17 @@ export async function fetchLostPets(
 
   // Govt scope filters on the pet's own jurisdiction columns. Pets without a
   // declared jurisdiction are excluded from the govt view (no way to scope-match)
-  // but visible to admin.
-  if (actor.role === "govt") {
-    if (jurisdictions.length === 0) return [];
-    const pairs = jurisdictionPairClause(
-      jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    // pairs is non-null here because jurisdictions.length > 0 (guarded above).
-    if (pairs) conditions.push(sql`(${pairs})`);
-  }
-
-  // Admin province/locality drill-down — same pattern as fetchPerdidasMetrics
-  // and buildMaltratoListConditions. Admin has no assignments to narrow, so the
-  // URL selection is applied as an explicit predicate instead.
-  if (actor.role === "admin" && filters.adminProvince) {
-    conditions.push(sql`${pets.jurisdictionProvince} = ${filters.adminProvince}`);
-    if (filters.adminLocality) {
-      conditions.push(sql`${pets.jurisdictionLocality} = ${filters.adminLocality}`);
-    }
-  }
+  // but visible to admin. Admin has no assignments to narrow, so its URL
+  // province/locality selection becomes the drill predicate instead — BOTH
+  // resolved by the ONE shared helper (C3, ONE VIEWSCOPE).
+  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+  const petsScope = petsScopeClause(
+    actor,
+    jurisdictions,
+    filters.adminProvince,
+    filters.adminLocality,
+  );
+  if (petsScope) conditions.push(sql`(${petsScope})`);
 
   // Push `q` (text search) and `since` (lost-event window) into SQL so the
   // 500-row cap is applied AFTER filtering, not before. Previously the full
@@ -316,16 +302,11 @@ export async function fetchPerdidasMetrics(
 
   // 1. Count active lost pets in scope.
   const activeConditions = [eq(pets.status, "lost")];
-  const petsScope = petsScopeClause(actor, jurisdictions);
+  // ONE pets-scope predicate — govt jurisdiction pairs OR the admin
+  // province/locality drill. Reused for the recovered-count query below, so the
+  // two numbers can never disagree about what "in scope" means.
+  const petsScope = petsScopeClause(actor, jurisdictions, adminProvince, adminLocality);
   if (petsScope) activeConditions.push(sql`(${petsScope})`);
-  // Admin province drill-down: append explicit province predicate (same pattern
-  // as buildMaltratoListConditions). Govt users must NOT pass adminProvince.
-  if (actor.role === "admin" && adminProvince) {
-    activeConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
-    if (adminLocality) {
-      activeConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
-    }
-  }
 
   // Count-only fast path (qw#6): the /gob home shows only activeCount. Serve it
   // with the single COUNT above and skip the recovered join + fetchLostPets.
@@ -350,41 +331,29 @@ export async function fetchPerdidasMetrics(
     sql`(${petEvents.payload}->>'to_status') = 'active'`,
     gte(petEvents.occurredAt, since30d),
   ];
-  // Apply scope by joining to pets.
-  if (actor.role === "govt") {
-    if (jurisdictions.length === 0) {
-      // No assignments — return zeros immediately.
-      return { activeCount: 0, recoveredMonth: 0, avgDaysActive: 0 };
-    }
-    const pairs = jurisdictionPairClause(
-      jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    // pairs is non-null because jurisdictions.length > 0 (guarded above).
-    if (pairs) recoveredConditions.push(sql`(${pairs})`);
+  // Apply scope by joining to pets — the SAME petsScope predicate the active
+  // count uses. The pets join is added below (needsRecoveredJoin).
+  if (actor.role === "govt" && jurisdictions.length === 0) {
+    // No assignments — return zeros immediately.
+    return { activeCount: 0, recoveredMonth: 0, avgDaysActive: 0 };
   }
-  // Admin province drill-down: narrow the recovered count to the province.
-  // The pets table join is added below for the admin+province path.
-  if (actor.role === "admin" && adminProvince) {
-    recoveredConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
-    if (adminLocality) {
-      recoveredConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
-    }
-  }
+  if (petsScope) recoveredConditions.push(sql`(${petsScope})`);
 
   // 3. Average days active: average of (now - occurredAt) for the most recent
   // `status_changed → lost` event per pet, for pets currently in status='lost'.
   // We compute this in JS using the per-pet markedLostAt timestamps from
   // fetchLostPets. If the caller already holds the lostPets array (e.g. /gob/perdidas
   // fetches it in parallel), pass it via opts.lostPets to avoid a redundant DB call.
-  // For admin+province, filter the JS array to the province after fetching (the
-  // LostPetRow already carries province/locality fields).
+  // The internal fetch carries the SAME admin drill this function received (C3,
+  // ONE VIEWSCOPE). Before, it was called un-drilled and the province narrowing
+  // happened in JS BELOW — but fetchLostPets caps at 500 rows, so an admin
+  // drilled into a small province averaged over whatever slice of the NATIONAL
+  // top-500 happened to fall in it, not over that province's lost pets.
 
   const lostPetsPromise =
     opts?.lostPets !== undefined
       ? Promise.resolve(opts.lostPets)
-      : fetchLostPets(actor, jurisdictions);
+      : fetchLostPets(actor, jurisdictions, { adminProvince, adminLocality });
 
   // Whether to join the pets table for the recovered-count query.
   // Govt always joins (to apply jurisdiction pairs on pets columns).
@@ -409,7 +378,9 @@ export async function fetchPerdidasMetrics(
     lostPetsPromise,
   ]);
 
-  // For admin+province, narrow the lostPets JS array to the selected province.
+  // Defensive narrowing for a CALLER-SUPPLIED array (opts.lostPets), whose
+  // provenance this function cannot verify. Idempotent for the internally
+  // fetched rows above — those are already drilled in SQL.
   const lostPets =
     actor.role === "admin" && adminProvince
       ? lostPetsRaw.filter(

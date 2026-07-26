@@ -6,11 +6,7 @@ import { and, count, countDistinct, desc, eq, gte, sql } from "drizzle-orm";
 
 import { custodyDisputes, analyticsDb as db, petEvents, pets } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
-import {
-  type DashboardActor,
-  type DashboardJurisdiction,
-  jurisdictionPairClause,
-} from "@/lib/metrics";
+import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { DAY_MS, custodyDisputesScopeClause, petsScopeClause } from "./_scope";
 
 // NOTE(E5): The spec references "shelter_adoption" as an acquisition method,
@@ -143,17 +139,17 @@ export async function fetchAnalyticsMetrics(
   const adminProvince = opts.adminProvince;
   const adminLocality = opts.adminLocality;
 
-  const petsScope = petsScopeClause(actor, jurisdictions);
+  // ONE pets-scope predicate for all three pets-based counts below (C3, ONE
+  // VIEWSCOPE): govt jurisdiction pairs OR the admin province/locality drill,
+  // resolved by the shared helper. adminProvince/adminLocality are inert for
+  // govt actors (their ctx.scope.kind is "jurisdictions", so the admin branch
+  // never fires) — the same invariant the hand-rolled `actor.role === "admin"`
+  // guards used to spell out at each call site.
+  const petsScope = petsScopeClause(actor, jurisdictions, adminProvince, adminLocality);
 
   // 1. totalPets: active or lost in scope.
   const totalConditions = [sql`${pets.status} IN ('active', 'lost')`];
   if (petsScope) totalConditions.push(sql`(${petsScope})`);
-  // Admin province drill-down: append explicit province predicate (same pattern
-  // as buildMaltratoListConditions). Govt users must NOT pass adminProvince.
-  if (actor.role === "admin" && adminProvince) {
-    totalConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
-    if (adminLocality) totalConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
-  }
 
   // 2. adoptionRate: pet_registered events with acquisition_method='adopted', last 12m.
   //    Scope via inner join to pets.jurisdictionProvince/Locality.
@@ -162,23 +158,9 @@ export async function fetchAnalyticsMetrics(
     eq(petEvents.eventType, "pet_registered"),
     gte(petEvents.occurredAt, since12m),
   ];
-  if (actor.role === "govt") {
-    // jurisdictions.length > 0 guaranteed by early-return at top of function.
-    const pairs = jurisdictionPairClause(
-      jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    if (pairs) acquisitionConditions.push(sql`(${pairs})`);
-  }
-  // Admin province drill-down for acquisition events: add province predicate.
+  // Same pets-scope predicate as totalPets — applied to the joined `pets` row.
   // The innerJoin to pets is added below via needsJoin.
-  if (actor.role === "admin" && adminProvince) {
-    acquisitionConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
-    if (adminLocality) {
-      acquisitionConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
-    }
-  }
+  if (petsScope) acquisitionConditions.push(sql`(${petsScope})`);
 
   // 3. rabiesVaccinationRate: distinct petIds with ≥1 vaccination_administered where
   //    vaccine_name accent-insensitively matches rabia/rabies/antirrábica/antirrabica.
@@ -193,22 +175,8 @@ export async function fetchAnalyticsMetrics(
     // Amendment overlay (audit A2): match the CURRENT (corrected) vaccine name.
     sql`unaccent(${amendedPayloadText("vaccine_name")}) ILIKE unaccent(${"%rabi%"})`,
   ];
-  if (actor.role === "govt") {
-    // jurisdictions.length > 0 guaranteed by early-return at top of function.
-    const pairs = jurisdictionPairClause(
-      jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    if (pairs) rabiesConditions.push(sql`(${pairs})`);
-  }
-  // Admin province drill-down for rabies events: add province predicate.
-  if (actor.role === "admin" && adminProvince) {
-    rabiesConditions.push(sql`${pets.jurisdictionProvince} = ${adminProvince}`);
-    if (adminLocality) {
-      rabiesConditions.push(sql`${pets.jurisdictionLocality} = ${adminLocality}`);
-    }
-  }
+  // Same pets-scope predicate again — applied to the joined `pets` row.
+  if (petsScope) rabiesConditions.push(sql`(${petsScope})`);
 
   // 4. custodyDisputes: open disputes in the `custody_disputes` table — the SAME
   //    source the /gob/disputas queue lists, so the KPI alarm and the queue
@@ -217,15 +185,15 @@ export async function fetchAnalyticsMetrics(
   //    location-subject rows with no custody_disputes aggregate (nothing for the
   //    queue to surface) — producing a "9" alarm over an empty queue.
   const disputeConditions = [eq(custodyDisputes.status, "open")];
-  const disputesScope = custodyDisputesScopeClause(actor, jurisdictions);
+  // custody_disputes carries its own jurisdiction columns; the shared helper
+  // resolves both the govt pairs and the admin province/locality drill.
+  const disputesScope = custodyDisputesScopeClause(
+    actor,
+    jurisdictions,
+    adminProvince,
+    adminLocality,
+  );
   if (disputesScope) disputeConditions.push(sql`(${disputesScope})`);
-  // Admin province drill-down (custody_disputes carries its own jurisdiction cols).
-  if (actor.role === "admin" && adminProvince) {
-    disputeConditions.push(sql`${custodyDisputes.jurisdictionProvince} = ${adminProvince}`);
-    if (adminLocality) {
-      disputeConditions.push(sql`${custodyDisputes.jurisdictionLocality} = ${adminLocality}`);
-    }
-  }
 
   // Whether petEvents sub-queries need an innerJoin to pets for province scoping.
   // Govt always joins (to apply jurisdiction pairs). Admin+province also joins.
@@ -370,24 +338,12 @@ export async function fetchAcquisitionTrend(
     sql`(${petEvents.payload}->>'acquisition_method') IS NOT NULL`,
   ];
 
-  if (actor.role === "govt") {
-    // jurisdictions.length > 0 guaranteed by early-return above.
-    const pairs = jurisdictionPairClause(
-      jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    if (pairs) conditions.push(sql`(${pairs})`);
-  }
-  // Admin province drill-down (Panorama-style) — same pattern as
-  // fetchAnalyticsMetrics/fetchPerdidasMetrics. Backward-compat: absent →
-  // unrestricted, exactly as before.
-  if (actor.role === "admin" && opts.adminProvince) {
-    conditions.push(sql`${pets.jurisdictionProvince} = ${opts.adminProvince}`);
-    if (opts.adminLocality) {
-      conditions.push(sql`${pets.jurisdictionLocality} = ${opts.adminLocality}`);
-    }
-  }
+  // ONE pets-scope predicate: govt jurisdiction pairs OR the admin
+  // province/locality drill (Panorama-style), resolved by the shared helper —
+  // same call as fetchAnalyticsMetrics/fetchPerdidasMetrics. Backward-compat:
+  // admin with no drill → null → unrestricted, exactly as before.
+  const petsScope = petsScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+  if (petsScope) conditions.push(sql`(${petsScope})`);
 
   // Whether the petEvents query needs an innerJoin to pets for province scoping.
   // Govt always joins (jurisdiction pairs); admin+adminProvince also joins.
@@ -512,23 +468,10 @@ export async function fetchDeathCauses(
     gte(petEvents.occurredAt, since12m),
   ];
 
-  if (actor.role === "govt") {
-    // jurisdictions.length > 0 guaranteed by early-return above.
-    const pairs = jurisdictionPairClause(
-      jurisdictions,
-      sql`${pets.jurisdictionProvince}`,
-      sql`${pets.jurisdictionLocality}`,
-    );
-    if (pairs) conditions.push(sql`(${pairs})`);
-  }
-  // Admin province drill-down (Panorama-style) — backward-compat: absent →
-  // unrestricted, exactly as before.
-  if (actor.role === "admin" && opts.adminProvince) {
-    conditions.push(sql`${pets.jurisdictionProvince} = ${opts.adminProvince}`);
-    if (opts.adminLocality) {
-      conditions.push(sql`${pets.jurisdictionLocality} = ${opts.adminLocality}`);
-    }
-  }
+  // ONE pets-scope predicate (govt pairs OR admin drill) — see
+  // fetchAcquisitionTrend above. Backward-compat: admin with no drill → null.
+  const petsScope = petsScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
+  if (petsScope) conditions.push(sql`(${petsScope})`);
 
   // Govt always joins (jurisdiction pairs); admin+adminProvince also joins.
   const needsJoin = actor.role === "govt" || (actor.role === "admin" && !!opts.adminProvince);

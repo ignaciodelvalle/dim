@@ -10,12 +10,13 @@
 
 import { type SQL, and, eq, sql } from "drizzle-orm";
 
-import { cases, custodyDisputes, pets } from "@/db";
+import { cases, custodyDisputes, organizations, pets, welfareReports } from "@/db";
 import {
   type DashboardActor,
   type DashboardJurisdiction,
   buildProjectionContext,
   jurisdictionPairClause,
+  petEventsScopeClause as metricsPetEventsScopeClause,
   petsScopeClause as metricsPetsScopeClause,
 } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
@@ -92,9 +93,12 @@ export function casesScopeClause(
 }
 
 // Build a scope clause for the `custody_disputes` table — the domain aggregate
-// that the /gob/disputas queue lists. Admin: null (no restriction). Govt: OR of
-// (jurisdictionProvince=X AND jurisdictionLocality=Y) pairs; govt with no
-// assignments → sql`false` (matches nothing).
+// that the /gob/disputas queue lists.
+// - admin, no province selected → null (no restriction)
+// - admin + province selected   → province (+ optional locality) predicate
+//   (Panorama-style admin drill-down; mirrors casesScopeClause exactly)
+// - govt: OR of (jurisdictionProvince=X AND jurisdictionLocality=Y) pairs; govt
+//   with no assignments → sql`false` (matches nothing).
 //
 // Exported so /gob/disputas builds its queue scope with the IDENTICAL predicate
 // the analytics "Disputas de custodia" KPI counts — that shared predicate is
@@ -102,14 +106,116 @@ export function casesScopeClause(
 export function custodyDisputesScopeClause(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
 ): SQL | null {
-  if (actor.role === "admin") return null;
+  if (actor.role === "admin") {
+    // Backward-compat: no adminProvince → unrestricted, exactly as before.
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      return and(
+        eq(custodyDisputes.jurisdictionProvince, adminProvince),
+        eq(custodyDisputes.jurisdictionLocality, adminLocality),
+      ) as SQL;
+    }
+    return eq(custodyDisputes.jurisdictionProvince, adminProvince);
+  }
   return (
     jurisdictionPairClause(
       jurisdictions,
       sql`${custodyDisputes.jurisdictionProvince}`,
       sql`${custodyDisputes.jurisdictionLocality}`,
     ) ?? sql`false`
+  );
+}
+
+// Build a scope clause for the `welfare_reports` table — the maltrato queue and
+// its KPI tiles. Same contract as casesScopeClause:
+// - admin, no province selected → null (no restriction)
+// - admin + province selected   → province (+ optional locality) predicate
+// - govt: OR of pairs; govt with no assignments → sql`false`.
+//
+// Moved here from dashboards/welfare.ts (C3, ONE VIEWSCOPE): the admin
+// province/locality drill used to be hand-rolled TWICE alongside it
+// (buildMaltratoListConditions and fetchWelfareMetrics), which is exactly the
+// KPI↔list divergence risk those two call sites exist to prevent. One helper,
+// one predicate, both call sites.
+export function welfareReportsScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
+  if (actor.role === "admin") {
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      return and(
+        eq(welfareReports.jurisdictionProvince, adminProvince),
+        eq(welfareReports.jurisdictionLocality, adminLocality),
+      ) as SQL;
+    }
+    return eq(welfareReports.jurisdictionProvince, adminProvince);
+  }
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${welfareReports.jurisdictionProvince}`,
+      sql`${welfareReports.jurisdictionLocality}`,
+    ) ?? sql`false`
+  );
+}
+
+// Build a scope clause for the `organizations` table (the /gob organizations
+// export). Orgs are scoped by their PRIMARY jurisdiction columns. Same contract
+// as casesScopeClause; govt with no assignments → sql`false`, which the export
+// caller may still short-circuit for free.
+export function organizationsScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+): SQL | null {
+  if (actor.role === "admin") {
+    if (!adminProvince) return null;
+    if (adminLocality) {
+      return and(
+        eq(organizations.jurisdictionProvince, adminProvince),
+        eq(organizations.jurisdictionLocality, adminLocality),
+      ) as SQL;
+    }
+    return eq(organizations.jurisdictionProvince, adminProvince);
+  }
+  return (
+    jurisdictionPairClause(
+      jurisdictions,
+      sql`${organizations.jurisdictionProvince}`,
+      sql`${organizations.jurisdictionLocality}`,
+    ) ?? sql`false`
+  );
+}
+
+// Scope clause over the outbreak_signal event PAYLOAD's jurisdiction SNAPSHOT
+// (`pet_jurisdiction_province` / `pet_jurisdiction_locality`).
+//
+// ⚠️ VALID ONLY for outbreak_signal-family queries — see petEventsScopeClause's
+// docblock in lib/metrics/scope.ts for the "ghost-payload" bug class this
+// guards against on every other event type. Govt fetchers must ALSO apply
+// petsCurrentJurisdictionClause (above) so a moved pet cannot leak through a
+// stale snapshot (scope-security review 2026-07-04, Part A1/A2).
+//
+// A thin adapter over the canonical lib/metrics/ helper — the surveillance
+// module used to keep a byte-identical private copy (C3, ONE VIEWSCOPE).
+export function outbreakSignalScopeClause(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  adminProvince?: string,
+  adminLocality?: string,
+) {
+  return metricsPetEventsScopeClause(
+    buildProjectionContext(actor, jurisdictions, windows.trailing12m(), {
+      adminProvince,
+      adminLocality,
+    }),
   );
 }
 
