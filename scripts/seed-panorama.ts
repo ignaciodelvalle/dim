@@ -179,6 +179,15 @@ const { PROVINCES } = await import("@/lib/reference/ar-provincias");
 const { generateReferenceCode } = await import("../src/modules/welfare/domain/reference-code");
 const { generatePrefixedToken } = await import("@/lib/infra/publicToken");
 
+// ─── The real intake circuit ────────────────────────────────────────────────
+// Panorama pets are created through the SAME use-case the alta wizard drives
+// (registerPet), not through a direct db.insert(pets). See registerSeedPet
+// below for why this matters and what the seed still has to do on top.
+const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+const { PetsRepository } = await import("@/src/modules/pets/infrastructure/pets-repository");
+const { resolveCanonicalJurisdiction } = await import("@/lib/infra/jurisdiction-validation");
+type ParsedPetInput = import("@/src/modules/pets/domain/types").ParsedPet;
+
 // ---------------------------------------------------------------------------
 // 5. Constants + helpers
 // ---------------------------------------------------------------------------
@@ -193,7 +202,37 @@ const WINDOW_DAYS = Number(process.env.PANORAMA_WINDOW_DAYS ?? "90");
 const WINDOW_MS = WINDOW_DAYS * 24 * 3600 * 1000;
 
 const PETS_PER_CAPITA = Number(process.env.PETS_PER_CAPITA ?? "0.5");
-const SCALE = Number(process.env.SCALE ?? "0.002");
+
+/**
+ * Down-sample ratio for the per-province pet population.
+ *
+ * 0.0005 (≈11.5k province pets, ≈32k total with the history seed) replaced the
+ * old 0.002 (≈46k province pets, ≈67k total) when this seed moved off bulk
+ * insert and onto the real intake circuit (registerPet, one transaction per
+ * pet). PO decision: fidelity of the intake path beats density of the fixture —
+ * the 67k figure was chosen to make the map look dense, not because any real
+ * jurisdiction has that many.
+ *
+ * MEASURED at the time of the change (local Supabase, k=5 suppression):
+ *
+ *   volume   run time   department cells visible / total
+ *   67.7k    ~11 min*   1600 / 2111   (75.8%)
+ *   32.4k     5m35s     1431 / 1973   (72.5%)
+ *   (* extrapolated from the measured 108 registrations/sec)
+ *
+ * So the cut costs ~3 points of department-grain visibility on the three
+ * high-volume metrics (rabies 466/667, sterilization 493/643, microchip
+ * 469/559 — all healthy), and buys a seed that cannot drift from the code path
+ * it is supposed to demonstrate.
+ *
+ * KNOWN GAP, NOT CAUSED BY THIS RATIO: the Mortalidad view shows 0 visible
+ * departments here. It was already nearly blind at 67k — deceased pets are
+ * 0.3% of the province seed, which spreads ~1.4 per department at this volume
+ * and only ~5.6 at 4× (measured: 7 of 28 departments would clear k=5 at the old
+ * volume). Restoring that view needs the DEATH RATE raised, not the pet count;
+ * ~6× the current volume would be required to fix it by density alone.
+ */
+const SCALE = Number(process.env.SCALE ?? "0.0005");
 
 /**
  * Multiplier applied to the base monthly event rate inside
@@ -295,6 +334,190 @@ function panoPublicToken(i: number): string {
  */
 function panoName(_i: number, baseName: string): string {
   return baseName;
+}
+
+// ---------------------------------------------------------------------------
+// 5a-bis. The real intake circuit — registerSeedPet
+// ---------------------------------------------------------------------------
+
+/**
+ * Seed provenance tags written to pets.seed_tag (migration 0160).
+ *
+ * public_token already carries a PANO- prefix, but that column is RENDERED
+ * (public credential page, QR payload) — a product identifier, not an
+ * infrastructure one. seed_tag is the internal channel, so a fence can exempt
+ * or select synthetic rows without pattern-matching a user-facing string.
+ */
+const SEED_TAG_PANORAMA = "panorama";
+const SEED_TAG_PANORAMA_HIST = "panorama-hist";
+
+/**
+ * Memoized (province, locality) → ar_localities.id resolution.
+ *
+ * Uses resolveCanonicalJurisdiction — the SAME resolver the write path uses via
+ * normalizeLocationForWrite, and the same one scripts/backfill-locality-id.ts
+ * uses. Resolving per DISTINCT pair rather than per pet keeps this to a few
+ * hundred queries instead of one per pet.
+ *
+ * A miss caches `null`: the pet keeps its free-text jurisdiction columns and a
+ * NULL FK, exactly like a real registration whose locality is not in the INDEC
+ * catalog. That is the honest outcome — NOT a reason to invent an id.
+ */
+const localityIdCache = new Map<string, string | null>();
+
+async function resolveLocalityId(
+  provinceName: string,
+  localityName: string | null,
+): Promise<string | null> {
+  if (!localityName) return null;
+  const key = `${provinceName}||${localityName}`;
+  const cached = localityIdCache.get(key);
+  if (cached !== undefined) return cached;
+
+  let resolved: string | null = null;
+  try {
+    const canonical = await resolveCanonicalJurisdiction({
+      rawProvince: provinceName,
+      rawLocality: localityName,
+    });
+    resolved = canonical.locality.id;
+  } catch {
+    // JurisdictionValidationError — the pair is not in the catalog. Leave the
+    // FK NULL; the centroid fallback keeps the pet visible on the panorama.
+    resolved = null;
+  }
+  localityIdCache.set(key, resolved);
+  return resolved;
+}
+
+/** Everything the seed knows about a pet before it is registered. */
+type SeedPetSpec = {
+  /** Global pet index — drives the deterministic PANO- token. */
+  index: number;
+  name: string;
+  species: string;
+  sex: "male" | "female" | "unknown";
+  provinceName: string;
+  localityName: string | null;
+  dangerousBreed: boolean;
+  acquisitionMethod: string;
+  /** Historical instant the registration is stamped with. */
+  registeredAt: Date;
+  seedTag: string;
+};
+
+/**
+ * Register one synthetic pet through the REAL intake use-case.
+ *
+ * WHY THIS AND NOT db.insert(pets)
+ * --------------------------------
+ * The direct-insert seed wrote final state and skipped the application layer
+ * entirely, so it silently diverged from what the alta wizard actually
+ * produces: no pet_registered event on some paths, and — measured — 2 of 67.710
+ * pets with a locality_id. Routing through registerPet means the seed cannot
+ * drift from the real circuit, because it IS the real circuit: the pets row,
+ * the ownership row, the pet_registered event and the microchip double-write
+ * are all emitted by src/modules/pets, in one transaction, exactly as a real
+ * registration emits them.
+ *
+ * THE TWO INJECTED DEPENDENCIES
+ * -----------------------------
+ * 1. `repo.generatePublicToken` is overridden to return the deterministic
+ *    PANO-NNNNNN token. This is NOT a bypass — generatePublicToken is already
+ *    an injected repo method, so overriding it is the seam working as designed.
+ *    It has to be overridden: the seed's idempotent delete-and-reseed keys off
+ *    the PANO- prefix (see the PANO- TAG header), and a random DIM- token would
+ *    both break cleanup and flood the DIM-* fitness sweep with 20k synthetic
+ *    pets.
+ * 2. `now` supplies the historical registration instant. The panorama dataset's
+ *    entire value is its temporal distribution; the default `new Date()` would
+ *    collapse every registration onto one instant and flatten every trend chart
+ *    in the national console.
+ *
+ * NOTIFICATIONS
+ * -------------
+ * registerPet COLLECTS notifications into its return value and does not write
+ * them — flushNotifications is called by the action, post-transaction (see
+ * src/modules/pets/actions.ts). Ignoring `result.notifications` here therefore
+ * discards them at zero cost; no sink needs injecting. This matters: ~4% of
+ * seeded dogs are PPP-flagged, which would otherwise mean hundreds of synthetic
+ * ppp_registration_reminder rows landing on the demo owner's bell.
+ *
+ * WHAT THE SEED STILL WRITES ITSELF
+ * ---------------------------------
+ * ParsedPet has no `status`, `deceasedAt` or `jurisdictionCountry`, and
+ * registerPet always writes an OWNER ownership. Lost/deceased status and
+ * shelter custody are post-registration facts; the caller applies them as cache
+ * updates backed by the status_changed / death_recorded events it emits, which
+ * is the same dual-write discipline the production writers use.
+ */
+async function registerSeedPet(
+  spec: SeedPetSpec,
+  ownerUserId: string,
+  /** Token override — the history seed uses its own PANO-HIST- namespace. */
+  tokenOverride?: string,
+): Promise<{ petId: string } | null> {
+  const localityId = await resolveLocalityId(spec.provinceName, spec.localityName);
+
+  const parsed: ParsedPetInput = {
+    name: spec.name,
+    species: spec.species,
+    sex: spec.sex,
+    breed: null,
+    dateOfBirth: null,
+    birthDateIsEstimated: false,
+    color: null,
+    microchipId: null,
+    microchipCountryCode: null,
+    microchipImplantedAt: null,
+    microchipImplantedBy: null,
+    microchipLocation: null,
+    estimatedWeightKg: null,
+    favouriteFoods: [],
+    knownAllergies: [],
+    trainingLevel: null,
+    insuranceCompany: null,
+    insurancePolicyNumber: null,
+    jurisdictionProvince: spec.provinceName,
+    jurisdictionLocality: spec.localityName,
+    localityId,
+    acquisitionMethod: spec.acquisitionMethod as ParsedPetInput["acquisitionMethod"],
+    emergencyInfoVisible: false,
+    permanentConditions: [],
+    permanentConditionsOther: null,
+    discloseConditionsPublicly: false,
+    custodyKind: "owner",
+  };
+
+  const token = tokenOverride ?? panoPublicToken(spec.index);
+
+  const result = await registerPet(
+    {
+      parsed,
+      potentiallyDangerousBreed: spec.dangerousBreed,
+      uploadedPath: null,
+      uploadMimeType: null,
+      uploadSize: null,
+      // No idempotency key: the seed's idempotency is the PANO- delete-and-reseed,
+      // and a null key skips the per-pet advisory lock + duplicate SELECT.
+      clientIdempotencyKey: null,
+    },
+    {
+      repo: { ...PetsRepository, generatePublicToken: async () => token },
+      actor: { user: { id: ownerUserId } },
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+      now: () => spec.registeredAt,
+    },
+  );
+
+  if (!result.ok) {
+    log("WARN", `  registerPet failed for ${token}: ${result.error}`);
+    return null;
+  }
+  // result.notifications is deliberately DROPPED — see the doc comment above.
+  const value = result.value as NonNullable<typeof result.value>;
+  return { petId: value.petId };
 }
 
 // ---------------------------------------------------------------------------
@@ -1167,6 +1390,31 @@ async function seedWelfareReports(
 // 12. Build per-pet event list
 // ---------------------------------------------------------------------------
 
+/**
+ * Draw the acquisition method for a pet (D-adoption).
+ *
+ * /gob/analytics derives the adoption rate from the pet_registered payload
+ * field (acquisition_method='adopted'), NOT from adoption_finalized — so the
+ * KPI only moves when this is populated. Shelter-custody pets always count as
+ * adopted; the rest pick up the baseline rate.
+ *
+ * Hoisted out of buildPetEvents because registerPet now owns the
+ * pet_registered event, and it needs this value BEFORE the pet exists.
+ */
+function drawAcquisitionMethod(shelterOrgId: string | null): string {
+  return shelterOrgId !== null || rng() < ADOPTION_ACQUISITION_RATE
+    ? "adopted"
+    : pick(["purchased", "found_stray", "gift", "born_in_litter", "other"] as const);
+}
+
+/**
+ * Build the POST-REGISTRATION event list for a pet.
+ *
+ * pet_registered is NOT emitted here any more — registerSeedPet drives the real
+ * registerPet use-case, which emits it inside the registration transaction with
+ * the canonical payload shape. Emitting a second one here would duplicate the
+ * spine's registration fact.
+ */
 function buildPetEvents(
   petId: string,
   ownerUserId: string,
@@ -1179,35 +1427,6 @@ function buildPetEvents(
 ): Array<Record<string, unknown>> {
   const events: Array<Record<string, unknown>> = [];
   const coverage = PROVINCE_COVERAGE[provinceName] ?? { vacc: 0.15, chip: 0.05, ster: 0.18 };
-
-  // Acquisition method (D-adoption): a fraction of registrations are "adopted".
-  // /gob/analytics derives the adoption rate from this pet_registered payload
-  // field (acquisition_method='adopted'), NOT from adoption_finalized — so the
-  // KPI only moves when this is populated. Shelter-custody pets always count
-  // as adopted; the rest pick up the baseline rate.
-  const acquisitionMethod: string =
-    opts.shelterOrgId !== null || rng() < ADOPTION_ACQUISITION_RATE
-      ? "adopted"
-      : pick(["purchased", "found_stray", "gift", "born_in_litter", "other"] as const);
-
-  // Always: pet_registered
-  const registeredAt = randomWindowDate(WINDOW_DAYS + 180); // can be older than window
-  events.push({
-    petId,
-    eventType: "pet_registered" satisfies EventType,
-    occurredAt: registeredAt,
-    recordedByUserId: ownerUserId,
-    authorRole: "owner",
-    authorVerified: false,
-    payload: {
-      source: "seed-panorama",
-      species,
-      pet_index: petIndex,
-      acquisition_method: acquisitionMethod,
-      potentially_dangerous_breed: opts.dangerousBreed,
-    },
-    ...writePoint(jitteredCoord(lat, lng, 0.02)),
-  });
 
   // Vaccination: per coverage rate
   if (rng() < coverage.vacc) {
@@ -1349,8 +1568,9 @@ async function seedPets(
       `  ${provinceName}: ${provinceCount} pets (pop ${censusProv.population.toLocaleString()})`,
     );
 
-    // Collect pet rows for this province
-    const petRows: Array<Record<string, unknown>> = [];
+    // Collect the per-pet plan for this province. Pets are no longer bulk
+    // inserted — phase 2 below drives registerPet (the real intake use-case)
+    // once per pet, so this phase only decides WHAT to register.
     const perPetMeta: Array<{
       index: number;
       status: "active" | "lost" | "deceased";
@@ -1359,6 +1579,8 @@ async function seedPets(
       provinceName: string;
       localityName: string | null;
       species: string;
+      name: string;
+      sex: "male" | "female" | "unknown";
       dangerousBreed: boolean;
       reunified: boolean;
     }> = [];
@@ -1398,25 +1620,6 @@ async function seedPets(
       // found event + status flip are emitted alongside the lost event below.
       const reunified = status === "lost" && rng() < REUNIFICATION_RATE;
 
-      const publicToken = panoPublicToken(idx);
-      const petName = panoName(idx, name);
-
-      petRows.push({
-        publicToken,
-        species,
-        name: petName,
-        sex,
-        // A reunified pet ends back "active" — the status flip is captured by
-        // the paired lost→found status_changed events on the timeline.
-        status: status === "lost" && reunified ? "active" : status,
-        jurisdictionCountry: "AR",
-        jurisdictionProvince: provinceName,
-        jurisdictionLocality: loc?.localityName ?? null,
-        potentiallyDangerousBreed: dangerousBreed,
-        emergencyInfoVisible: false,
-        ...(status === "deceased" ? { deceasedAt: randomWindowDate(WINDOW_DAYS) } : {}),
-      });
-
       perPetMeta.push({
         index: idx,
         status,
@@ -1425,42 +1628,29 @@ async function seedPets(
         provinceName,
         localityName: loc?.localityName ?? null,
         species,
+        name: panoName(idx, name),
+        sex,
         dangerousBreed,
         reunified,
       });
     }
 
-    // Batch insert pets
-    for (let b = 0; b < petRows.length; b += BATCH_SIZE) {
-      const batch = petRows.slice(b, b + BATCH_SIZE);
-      await db.insert(pets).values(
-        batch as Parameters<typeof db.insert<typeof pets>>[0] extends {
-          values: (v: infer V) => unknown;
-        }
-          ? V
-          : never,
-      );
-    }
-
-    // Fetch inserted pet IDs by publicToken
-    const startToken = panoPublicToken(globalIndex);
-    const endToken = panoPublicToken(globalIndex + provinceCount - 1);
-    const insertedPets = await db
-      .select({ id: pets.id, publicToken: pets.publicToken })
-      .from(pets)
-      .where(sql`${pets.publicToken} >= ${startToken} AND ${pets.publicToken} <= ${endToken}`)
-      .orderBy(pets.publicToken);
-
-    const tokenToId = new Map(insertedPets.map((p) => [p.publicToken, p.id]));
-
-    // Build ownerships + events
-    const ownershipRows: Array<Record<string, unknown>> = [];
+    // Phase 2: register each pet through the REAL intake circuit, then append
+    // its post-registration events.
+    //
+    // The pets row + owner ownership + pet_registered event now come out of
+    // registerPet (see registerSeedPet). What stays here is what the use-case
+    // has no input for: shelter custody, lost/deceased status, and the
+    // deceasedAt cache — each of them backed by an event this loop emits.
     const eventRows: Array<Record<string, unknown>> = [];
+    // Cache-column corrections applied after registration, grouped so they cost
+    // one UPDATE per distinct shape instead of one per pet.
+    const shelterOwnerships: Array<{ petId: string; orgId: string }> = [];
+    const lostPetIds: string[] = [];
+    const deceasedPetIds: Array<{ petId: string; deceasedAt: Date }> = [];
 
     for (let i = 0; i < provinceCount; i++) {
       const meta = perPetMeta[i];
-      const petId = tokenToId.get(panoPublicToken(meta.index));
-      if (!petId) continue;
 
       // ~2% of pets belong to a shelter org (if available). C5 fix: the
       // fallback used to be the FIRST org unconditionally (`shelterOrgs[0]`,
@@ -1478,18 +1668,36 @@ async function seedPets(
         ? (shelterOrgs.find((o) => o.provinceName === meta.provinceName) ?? pick(shelterOrgs))
         : null;
 
+      // Drawn BEFORE registration: it lands in the pet_registered payload that
+      // registerPet writes, so it has to be known up front.
+      const acquisitionMethod = drawAcquisitionMethod(shelterOrg?.id ?? null);
+      // Historical registration instant — can be older than the event window.
+      const registeredAt = randomWindowDate(WINDOW_DAYS + 180);
+
+      // ── The real intake circuit ──────────────────────────────────────────
+      const registered = await registerSeedPet(
+        {
+          index: meta.index,
+          name: meta.name,
+          species: meta.species,
+          sex: meta.sex,
+          provinceName: meta.provinceName,
+          localityName: meta.localityName,
+          dangerousBreed: meta.dangerousBreed,
+          acquisitionMethod,
+          registeredAt,
+          seedTag: SEED_TAG_PANORAMA,
+        },
+        ownerUserId,
+      );
+      if (!registered) continue;
+      const petId = registered.petId;
+
+      // Shelter custody: registerPet always writes an OWNER ownership (its
+      // ParsedPet has no notion of an organization holding the animal), so the
+      // ~2% shelter pets have that row re-pointed at the org afterwards.
       if (shelterOrg) {
-        ownershipRows.push({
-          petId,
-          ownerOrganizationId: shelterOrg.id,
-          role: "shelter_custody",
-        });
-      } else {
-        ownershipRows.push({
-          petId,
-          ownerUserId,
-          role: "owner",
-        });
+        shelterOwnerships.push({ petId, orgId: shelterOrg.id });
       }
 
       // Build events
@@ -1506,6 +1714,11 @@ async function seedPets(
 
       // Lost pet → status_changed event (active → lost).
       if (meta.status === "lost") {
+        // A reunified pet ends back "active" — the status flip is captured by
+        // the paired lost→found status_changed events on the timeline, so only
+        // the still-lost ones need the cache column moved off registerPet's
+        // default "active".
+        if (!meta.reunified) lostPetIds.push(petId);
         const lostAt = randomWindowDate(30); // recent
         evts.push({
           petId,
@@ -1579,10 +1792,12 @@ async function seedPets(
 
       // Deceased pet → death_recorded event
       if (meta.status === "deceased") {
+        const diedAt = randomWindowDate(WINDOW_DAYS);
+        deceasedPetIds.push({ petId, deceasedAt: diedAt });
         evts.push({
           petId,
           eventType: "death_recorded" satisfies EventType,
-          occurredAt: randomWindowDate(WINDOW_DAYS),
+          occurredAt: diedAt,
           recordedByUserId: ownerUserId,
           authorRole: "owner",
           authorVerified: false,
@@ -1619,16 +1834,42 @@ async function seedPets(
       }
     }
 
-    // Batch insert ownerships
-    for (let b = 0; b < ownershipRows.length; b += BATCH_SIZE) {
-      const batch = ownershipRows.slice(b, b + BATCH_SIZE);
-      await db.insert(ownerships).values(
-        batch as Parameters<typeof db.insert<typeof ownerships>>[0] extends {
-          values: (v: infer V) => unknown;
-        }
-          ? V
-          : never,
-      );
+    // ── Post-registration cache corrections ──────────────────────────────
+    // Each of these mirrors a fact the loop above already wrote to the event
+    // spine; none of them invents state the spine does not carry.
+
+    // Shelter custody: re-point registerPet's owner ownership at the org.
+    for (let b = 0; b < shelterOwnerships.length; b += BATCH_SIZE) {
+      const batch = shelterOwnerships.slice(b, b + BATCH_SIZE);
+      for (const { petId, orgId } of batch) {
+        await db
+          .update(ownerships)
+          .set({ ownerUserId: null, ownerOrganizationId: orgId, role: "shelter_custody" })
+          .where(eq(ownerships.petId, petId));
+      }
+    }
+
+    // status='lost' — backed by the status_changed(active→lost) event above.
+    for (let b = 0; b < lostPetIds.length; b += BATCH_SIZE) {
+      const batch = lostPetIds.slice(b, b + BATCH_SIZE);
+      await db.update(pets).set({ status: "lost" }).where(inArray(pets.id, batch));
+    }
+
+    // status='deceased' + deceasedAt — backed by the death_recorded event above.
+    for (const { petId, deceasedAt } of deceasedPetIds) {
+      await db.update(pets).set({ status: "deceased", deceasedAt }).where(eq(pets.id, petId));
+    }
+
+    // Seed provenance (migration 0160). registerPet has no input for it — it is
+    // an infrastructure marker, not a fact about the animal — so the seed
+    // stamps its own rows after the fact.
+    const provinceTokens = perPetMeta.map((m) => panoPublicToken(m.index));
+    for (let b = 0; b < provinceTokens.length; b += BATCH_SIZE) {
+      const batch = provinceTokens.slice(b, b + BATCH_SIZE);
+      await db
+        .update(pets)
+        .set({ seedTag: SEED_TAG_PANORAMA })
+        .where(inArray(pets.publicToken, batch));
     }
 
     // Batch insert events
@@ -1673,41 +1914,46 @@ async function seedSetPieces(
     extraEvents: Array<Record<string, unknown>>,
     status: "active" | "lost" | "deceased" = "active",
   ): Promise<string> {
-    const token = panoPublicToken(gIdx);
+    const index = gIdx;
     const petName = panoName(gIdx, pick(PET_NAMES));
     gIdx++;
 
-    const [petRow] = await db
-      .insert(pets)
-      .values({
-        publicToken: token,
-        species: "dog",
-        name: petName,
-        sex: "unknown",
-        status,
-        jurisdictionCountry: "AR",
-        jurisdictionProvince: provinceName,
-        jurisdictionLocality: localityName,
-        potentiallyDangerousBreed: false,
-        emergencyInfoVisible: false,
-        ...(status === "deceased" ? { deceasedAt: randomWindowDate(30) } : {}),
-      })
-      .returning({ id: pets.id });
-
-    await db.insert(ownerships).values({ petId: petRow.id, ownerUserId, role: "owner" });
-
-    // Base registration event
-    const baseEvts: Array<Record<string, unknown>> = [
+    // Set-piece pets go through the SAME real intake circuit as the bulk ones —
+    // registerPet emits their pets row, owner ownership and pet_registered
+    // event. Only the status cache (these set-pieces stage lost/deceased
+    // scenarios) is applied afterwards, backed by the extraEvents the caller
+    // supplies.
+    const registered = await registerSeedPet(
       {
-        petId: petRow.id,
-        eventType: "pet_registered" satisfies EventType,
-        occurredAt: randomWindowDate(WINDOW_DAYS + 180),
-        recordedByUserId: ownerUserId,
-        authorRole: "owner",
-        authorVerified: false,
-        payload: { source: "seed-panorama-setpiece" },
-        ...writePoint(jitteredCoord(lat, lng, 0.01)),
+        index,
+        name: petName,
+        species: "dog",
+        sex: "unknown",
+        provinceName,
+        localityName,
+        dangerousBreed: false,
+        acquisitionMethod: "other",
+        registeredAt: randomWindowDate(WINDOW_DAYS + 180),
+        seedTag: SEED_TAG_PANORAMA,
       },
+      ownerUserId,
+    );
+    if (!registered) throw new Error(`set-piece registration failed at index ${index}`);
+    const petRow = { id: registered.petId };
+
+    if (status !== "active") {
+      await db
+        .update(pets)
+        .set({
+          status,
+          ...(status === "deceased" ? { deceasedAt: randomWindowDate(30) } : {}),
+        })
+        .where(eq(pets.id, petRow.id));
+    }
+    await db.update(pets).set({ seedTag: SEED_TAG_PANORAMA }).where(eq(pets.id, petRow.id));
+
+    // Post-registration events (pet_registered already emitted by registerPet).
+    const baseEvts: Array<Record<string, unknown>> = [
       ...extraEvents.map((e) => ({ ...e, petId: petRow.id })),
     ];
 
@@ -2893,11 +3139,14 @@ async function seedModelProvinceHistory(
         2026: { pets: 0, vacc: 0, ster: 0, zoon: 0 },
       };
 
-    const petRows: Array<Record<string, unknown>> = [];
     const perPetMeta: Array<{
       token: string;
+      index: number;
       registeredYear: HistoryYear;
       species: string;
+      name: string;
+      sex: "male" | "female" | "unknown";
+      localityName: string;
       lat: number;
       lng: number;
     }> = [];
@@ -2916,84 +3165,68 @@ async function seedModelProvinceHistory(
         const { lat, lng } = jitteredCoord(loc.lat, loc.lng, 0.02);
 
         const token = histToken(histIdx);
-        petRows.push({
-          publicToken: token,
+        perPetMeta.push({
+          token,
+          index: histIdx,
+          registeredYear,
           species,
           name: histName(histIdx, baseName),
           sex,
-          status: "active",
-          jurisdictionCountry: "AR",
-          jurisdictionProvince: provinceName,
-          jurisdictionLocality: loc.localityName,
-          potentiallyDangerousBreed: false,
-          emergencyInfoVisible: false,
+          localityName: loc.localityName,
+          lat,
+          lng,
         });
-        perPetMeta.push({ token, registeredYear, species, lat, lng });
         perYear[registeredYear].pets++;
         histIdx++;
       }
     }
 
-    // 2. Batch insert pets, then fetch their ids by token.
-    for (let b = 0; b < petRows.length; b += BATCH_SIZE) {
-      const batch = petRows.slice(b, b + BATCH_SIZE);
-      await db.insert(pets).values(
-        batch as Parameters<typeof db.insert<typeof pets>>[0] extends {
-          values: (v: infer V) => unknown;
-        }
-          ? V
-          : never,
-      );
-    }
-
-    const tokens = perPetMeta.map((m) => m.token);
-    const tokenToId = new Map<string, string>();
-    for (let b = 0; b < tokens.length; b += BATCH_SIZE) {
-      const batchTokens = tokens.slice(b, b + BATCH_SIZE);
-      const inserted = await db
-        .select({ id: pets.id, publicToken: pets.publicToken })
-        .from(pets)
-        .where(inArray(pets.publicToken, batchTokens));
-      for (const row of inserted) tokenToId.set(row.publicToken, row.id);
-    }
-
-    // 3. Build ownerships + per-pet, per-year coverage events.
-    const ownershipRows: Array<Record<string, unknown>> = [];
+    // 2. Build per-pet, per-year coverage events. Each pet is created through
+    //    the REAL intake circuit (registerPet) rather than bulk inserted, so a
+    //    history pet is indistinguishable from a real registration except for
+    //    its seed_tag and PANO-HIST- token.
     const eventRows: Array<Record<string, unknown>> = [];
+    // token → pet id, populated as each pet clears the real intake circuit.
+    // Downstream steps (zoonosis attachment, per-locality event spraying) key
+    // off this instead of a post-insert SELECT.
+    const tokenToId = new Map<string, string>();
 
     const bump = (type: string): void => {
       eventCounts[type] = (eventCounts[type] ?? 0) + 1;
     };
 
     for (const meta of perPetMeta) {
-      const petId = tokenToId.get(meta.token);
-      if (!petId) continue;
+      // Drawn before registration: both land in the pet_registered event that
+      // registerPet writes.
+      const registeredAt = dateInYear(meta.registeredYear, rng);
+      const acquisitionMethod = pick([
+        "purchased",
+        "found_stray",
+        "gift",
+        "born_in_litter",
+        "other",
+      ] as const);
 
-      ownershipRows.push({ petId, ownerUserId, role: "owner" });
-
-      // pet_registered — dated in the registration year. Mirrors the main seed's
-      // pet_registered payload shape + writePoint location.
-      eventRows.push({
-        petId,
-        eventType: "pet_registered" satisfies EventType,
-        occurredAt: dateInYear(meta.registeredYear, rng),
-        recordedByUserId: ownerUserId,
-        authorRole: "owner",
-        authorVerified: false,
-        payload: {
-          source: "seed-panorama-history",
+      const registered = await registerSeedPet(
+        {
+          index: meta.index,
+          name: meta.name,
           species: meta.species,
-          acquisition_method: pick([
-            "purchased",
-            "found_stray",
-            "gift",
-            "born_in_litter",
-            "other",
-          ] as const),
-          potentially_dangerous_breed: false,
+          sex: meta.sex,
+          provinceName,
+          localityName: meta.localityName,
+          dangerousBreed: false,
+          acquisitionMethod,
+          registeredAt,
+          seedTag: SEED_TAG_PANORAMA_HIST,
         },
-        ...writePoint(jitteredCoord(meta.lat, meta.lng, 0.01)),
-      });
+        ownerUserId,
+        // History rows carry their own token namespace (PANO-HIST-NNNNNN).
+        meta.token,
+      );
+      if (!registered) continue;
+      const petId = registered.petId;
+      tokenToId.set(meta.token, petId);
       bump("pet_registered");
 
       // Per year ≥ registeredYear: emit vaccination / sterilization per that
@@ -3389,16 +3622,16 @@ async function seedModelProvinceHistory(
       }
     }
 
-    // 8. Batch insert ownerships + events.
-    for (let b = 0; b < ownershipRows.length; b += BATCH_SIZE) {
-      const batch = ownershipRows.slice(b, b + BATCH_SIZE);
-      await db.insert(ownerships).values(
-        batch as Parameters<typeof db.insert<typeof ownerships>>[0] extends {
-          values: (v: infer V) => unknown;
-        }
-          ? V
-          : never,
-      );
+    // 8. Stamp seed provenance, then batch insert the post-registration events.
+    //    Ownerships are no longer inserted here — registerPet wrote an owner
+    //    ownership for every history pet inside its registration transaction.
+    const histTokens = perPetMeta.map((m) => m.token);
+    for (let b = 0; b < histTokens.length; b += BATCH_SIZE) {
+      const batch = histTokens.slice(b, b + BATCH_SIZE);
+      await db
+        .update(pets)
+        .set({ seedTag: SEED_TAG_PANORAMA_HIST })
+        .where(inArray(pets.publicToken, batch));
     }
     for (let b = 0; b < eventRows.length; b += BATCH_SIZE) {
       const batch = eventRows.slice(b, b + BATCH_SIZE);

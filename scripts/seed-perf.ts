@@ -219,6 +219,23 @@ const PERF_TAG = "PERF-";
 const BATCH_SIZE = 200;
 
 /**
+ * Seed-provenance marker written to pets.seed_tag (migration 0160).
+ *
+ * This seed DELIBERATELY bulk-inserts pets instead of driving the real intake
+ * use-case (registerPet), because its entire purpose is VOLUME — it exists to
+ * put enough rows in front of the query planner to expose slow paths, not to
+ * exercise intake fidelity. One transaction per pet would make it useless for
+ * that job.
+ *
+ * That trade is only defensible if it is VISIBLE. Stamping seed_tag='perf'
+ * lets the spine-integrity fence exempt these rows by an explicit, greppable
+ * predicate instead of silently pattern-matching the PERF- token prefix — so
+ * "this fixture has no pet_registered event" is a recorded decision rather
+ * than an accident nobody notices.
+ */
+const SEED_TAG_PERF = "perf";
+
+/**
  * Number of "showcase" pets that each carry one event of every EVENT_TYPE.
  * These are the first SHOWCASE_COUNT pets by index (PERF-000000 …).
  * They are normal PERF-tagged pets so --clean removes them.
@@ -1134,6 +1151,8 @@ async function buildStateShowcase(ownerUserId: string, seedOrgId: string | null)
         acquisitionMethod: "adopted",
         potentiallyDangerousBreed: false,
         emergencyInfoVisible: false,
+        // Provenance: bulk volume fixture, exempt from the spine-integrity fence.
+        seedTag: SEED_TAG_PERF,
         ...(overrides as object),
       } as Parameters<typeof db.insert>[0] extends { values: (v: infer V) => unknown } ? V : never)
       .returning({ id: pets.id });
@@ -1709,6 +1728,8 @@ async function seedOutbreakCluster(
         acquisitionMethod: "other",
         potentiallyDangerousBreed: false,
         emergencyInfoVisible: false,
+        // Provenance: bulk volume fixture, exempt from the spine-integrity fence.
+        seedTag: SEED_TAG_PERF,
       })
       .returning({ id: pets.id });
 
@@ -1882,6 +1903,8 @@ async function runSeed(ownerUserId: string, seedOrgId: string | null): Promise<v
             acquisitionMethod: pick(ACQUISITION_METHODS, rng),
             potentiallyDangerousBreed: false,
             emergencyInfoVisible: false,
+            // Provenance: bulk volume fixture, exempt from the spine-integrity fence.
+            seedTag: SEED_TAG_PERF,
           })
           .returning({ id: pets.id });
 

@@ -592,6 +592,14 @@ export const pets = pgTable(
     // visible). References the uuid PK — not indec_id — so CABA barrios (null
     // indec_id) are attributable too.
     localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
+    // Internal seed-provenance marker (migration 0160). NULL for every real pet
+    // registration; set ONLY by scripts/seed-*.ts to the generating script's tag
+    // ('panorama', 'panorama-hist', 'perf'). Mirrors welfare_reports.seed_tag
+    // (0155): a plain column carries the provenance so the rendered public_token
+    // does not have to double as one. Never rendered — do NOT select this column
+    // in citizen/operator-facing queries. The spine-integrity fence reads it to
+    // exempt bulk volume fixtures (seed-perf) explicitly rather than silently.
+    seedTag: text("seed_tag"),
     // How the owner came to have this pet. Nullable so existing rows survive db:push
     // without a default. Collected at registration and included in pet_registered payload.
     acquisitionMethod: petAcquisitionMethodEnum("acquisition_method"),
@@ -731,6 +739,11 @@ export const pets = pgTable(
     localityIdIdx: index("pets_locality_id_idx")
       .on(table.localityId)
       .where(sql`${table.localityId} IS NOT NULL`),
+    // Seed-provenance index (migration 0160). Partial on IS NOT NULL — only
+    // synthetic rows carry a tag, so the index stays empty in production.
+    seedTagIdx: index("pets_seed_tag_idx")
+      .on(table.seedTag)
+      .where(sql`${table.seedTag} IS NOT NULL`),
     statusIdx: index("pets_status_idx").on(table.status),
     // PII soft-delete partial (compliance PR 1).
     // Renamed from public_pets_deleted_idx → pets_deleted_idx (migration 0095).

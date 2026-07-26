@@ -141,6 +141,14 @@ const {
   ALERT_FIRING_OPEN_STATUSES,
 } = await import("../db");
 
+// The real intake circuit — demo pets are registered through the same use-case
+// the alta wizard drives, so they carry a pet_registered event and a resolved
+// locality_id exactly like a real registration. See ensureDemoPet.
+const { registerPet } = await import("@/src/modules/pets/application/register-pet");
+const { PetsRepository } = await import("@/src/modules/pets/infrastructure/pets-repository");
+const { resolveCanonicalJurisdiction } = await import("@/lib/infra/jurisdiction-validation");
+type ParsedPetInput = import("@/src/modules/pets/domain/types").ParsedPet;
+
 // ---------------------------------------------------------------------------
 // 4. Constants
 // ---------------------------------------------------------------------------
@@ -718,29 +726,80 @@ async function ensureDemoPet(
   if (existing) return { id: existing.id, existed: true };
 
   const identity = DEMO_PET_IDENTITY[token];
-  const [pet] = await db
-    .insert(pets)
-    .values({
-      publicToken: token,
-      species: "dog",
-      name: identity?.name ?? token,
-      breed: identity?.breed ?? null,
-      color: identity?.color ?? null,
-      sex: identity?.sex ?? "unknown",
-      status: "active",
-      jurisdictionCountry: "AR",
-      jurisdictionProvince: FOCAL_PROVINCE,
-      jurisdictionLocality: FOCAL_LOCALITY,
-    })
-    .returning({ id: pets.id });
 
-  await db.insert(ownerships).values({
-    petId: pet.id,
-    ownerUserId,
-    role: "owner",
-  });
+  // Resolve the canonical locality FK the same way the write path does
+  // (normalizeLocationForWrite → resolveCanonicalJurisdiction). A miss leaves
+  // the FK NULL, which is what a real registration outside the INDEC catalog
+  // produces — never a fabricated id.
+  let localityId: string | null = null;
+  try {
+    const canonical = await resolveCanonicalJurisdiction({
+      rawProvince: FOCAL_PROVINCE,
+      rawLocality: FOCAL_LOCALITY,
+    });
+    localityId = canonical.locality.id;
+  } catch {
+    localityId = null;
+  }
 
-  return { id: pet.id, existed: false };
+  const parsed: ParsedPetInput = {
+    name: identity?.name ?? token,
+    species: "dog",
+    sex: identity?.sex ?? "unknown",
+    breed: identity?.breed ?? null,
+    dateOfBirth: null,
+    birthDateIsEstimated: false,
+    color: identity?.color ?? null,
+    microchipId: null,
+    microchipCountryCode: null,
+    microchipImplantedAt: null,
+    microchipImplantedBy: null,
+    microchipLocation: null,
+    estimatedWeightKg: null,
+    favouriteFoods: [],
+    knownAllergies: [],
+    trainingLevel: null,
+    insuranceCompany: null,
+    insurancePolicyNumber: null,
+    jurisdictionProvince: FOCAL_PROVINCE,
+    jurisdictionLocality: FOCAL_LOCALITY,
+    localityId,
+    acquisitionMethod: null,
+    emergencyInfoVisible: false,
+    permanentConditions: [],
+    permanentConditionsOther: null,
+    discloseConditionsPublicly: false,
+    custodyKind: "owner",
+  };
+
+  // Registering through the real use-case is what guarantees the pet lands in
+  // the event spine (pet_registered) instead of appearing as a bare cache row.
+  // generatePublicToken is overridden because the demo cut addresses its pets
+  // by stable DIM-DEMO-NNNN tokens (docs, e2e specs and demo-verify.ts all key
+  // off them); it is an injected repo method, so this is the seam, not a bypass.
+  const result = await registerPet(
+    {
+      parsed,
+      potentiallyDangerousBreed: false,
+      uploadedPath: null,
+      uploadMimeType: null,
+      uploadSize: null,
+      clientIdempotencyKey: null,
+    },
+    {
+      repo: { ...PetsRepository, generatePublicToken: async () => token },
+      actor: { user: { id: ownerUserId } },
+      transaction: async <T>(cb: (tx: unknown) => Promise<T>) =>
+        db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
+    },
+  );
+
+  if (!result.ok) throw new Error(`registerPet failed for ${token}: ${result.error}`);
+  // result.notifications is intentionally dropped — registerPet only collects
+  // them; the action flushes. A seed has no user to notify.
+  const value = result.value as NonNullable<typeof result.value>;
+
+  return { id: value.petId, existed: false };
 }
 
 async function ensurePetEvent(

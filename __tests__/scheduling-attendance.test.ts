@@ -420,20 +420,41 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 
 afterAll(async () => {
-  // If beforeAll threw, the IDs are undefined — skip the explicit deletes and
-  // let purgeUserByEmail handle whatever orphans exist via profile cascade.
-  if (petId && offeringOrgId && offeringVetId && orgId) {
+  // Cleanup is split into two independently-committed steps, and the pet step
+  // is NOT gated on the org/offering ids.
+  //
+  // WHY (leak observed 2026-07-25): this used to be one transaction guarded by
+  // `if (petId && offeringOrgId && offeringVetId && orgId)`. Any statement
+  // failing inside it rolled the WHOLE thing back, so no pet row was deleted —
+  // and the purgeUserByEmail calls below then cascaded the ownership rows away
+  // anyway. The residue was an ownerless pet still holding its
+  // pet_identifications microchip row, which is precisely the shape that trips
+  // the pet-cache fitness sweep (a canonical chip with no microchip_implanted
+  // event derives microchipId=null and reports drift). One leaked fixture left
+  // __tests__/pet-cache-rederivation.test.ts red until someone reseeded.
+  //
+  // Deleting the pets FIRST and in their own transaction means the fixture can
+  // never outlive the ownership rows that make it reachable.
+  const petList = [petId, secondPetId].filter(Boolean);
+  if (petList.length > 0) {
     // pet_events deletes are blocked by enforce_pet_events_append_only;
     // bypass via the SET LOCAL GUC inside a transaction (same pattern as
     // admin-decisions.test.ts).
-    const offeringList = [offeringOrgId, offeringVetId, offeringMicrochipId].filter(Boolean);
-    const petList = [petId, secondPetId].filter(Boolean);
     await withMutationOverride(async (tx) => {
       for (const pid of petList) {
+        await tx.execute(sql`DELETE FROM appointments WHERE pet_id = ${pid}`);
         await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pid}`);
         await tx.execute(sql`DELETE FROM reminders WHERE pet_id = ${pid}`);
         await tx.execute(sql`DELETE FROM pet_identifications WHERE pet_id = ${pid}::uuid`);
+        await tx.delete(ownerships).where(eq(ownerships.petId, pid));
+        await tx.execute(sql`DELETE FROM pets WHERE id = ${pid}`);
       }
+    });
+  }
+
+  const offeringList = [offeringOrgId, offeringVetId, offeringMicrochipId].filter(Boolean);
+  if (offeringList.length > 0 || orgId) {
+    await withMutationOverride(async (tx) => {
       // Delete appointments + slots by service_offering_id (broader than pet_id —
       // catches any orphan rows from prior failed runs).
       for (const oid of offeringList) {
@@ -441,12 +462,12 @@ afterAll(async () => {
         await tx.execute(sql`DELETE FROM time_slots WHERE service_offering_id = ${oid}`);
         await tx.execute(sql`DELETE FROM service_offerings WHERE id = ${oid}`);
       }
-      for (const pid of petList) {
-        await tx.delete(ownerships).where(eq(ownerships.petId, pid));
-        await tx.execute(sql`DELETE FROM pets WHERE id = ${pid}`);
+      if (orgId) {
+        await tx.execute(
+          sql`DELETE FROM organization_memberships WHERE organization_id = ${orgId}`,
+        );
+        await tx.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
       }
-      await tx.execute(sql`DELETE FROM organization_memberships WHERE organization_id = ${orgId}`);
-      await tx.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
     });
   }
 

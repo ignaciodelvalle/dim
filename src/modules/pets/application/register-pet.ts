@@ -35,6 +35,23 @@ type Deps = {
   repo: typeof PetsRepository;
   actor: Actor;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
+  /**
+   * Clock. Supplies the instant stamped on the pet_registered event
+   * (occurredAt/recordedAt) and on the ownership row's startedAt.
+   *
+   * Defaults to `new Date()`, which is what every production caller wants and
+   * gets by omitting it. It is injectable for the same reason `repo` and
+   * `transaction` are: a caller that must register a pet AT A PAST INSTANT has
+   * no other honest way to do it. The demo seed (scripts/seed-panorama.ts)
+   * needs exactly that — its whole value is a realistic temporal distribution
+   * of registrations across a multi-month window, and a hardcoded `new Date()`
+   * would collapse every synthetic registration onto one instant and flatten
+   * every trend chart in the national console.
+   *
+   * This is clock injection, not a seed hook: the use-case stays deterministic
+   * and testable, and no seed-specific branch enters the production path.
+   */
+  now?: () => Date;
 };
 
 // ---------------------------------------------------------------------------
@@ -53,7 +70,7 @@ export async function registerPet(
     wasDuplicate: boolean;
   }>
 > {
-  const { repo, actor, transaction } = deps;
+  const { repo, actor, transaction, now: clock } = deps;
   const { user } = actor;
   const {
     parsed,
@@ -64,7 +81,7 @@ export async function registerPet(
     clientIdempotencyKey,
   } = input;
 
-  const now = new Date();
+  const now = clock ? clock() : new Date();
 
   // 1. Generate unique public token (pre-tx, advisory-check + retry loop inside repo).
   const publicToken = await repo.generatePublicToken();
