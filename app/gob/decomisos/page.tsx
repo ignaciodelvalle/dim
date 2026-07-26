@@ -246,112 +246,133 @@ export default async function DecomisosDashboardPage({
         )}
       </section>
 
-      {rows.length === 0 ? (
-        <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-12 text-center space-y-2">
-          <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavía.</p>
-          <p className="text-sm text-ln-op-mute">
-            {'Usá el botón "Nuevo decomiso" para registrar una incautación por Ley 14.346.'}
+      {/* A control that filters ONE block must not look like it filters the
+          screen. The period selector above drives the seizures KPI and nothing
+          else (see the OpFilterBar comment) — the list below is the most recent
+          200 episodes, period-independent. Unlabelled, that reads as a bug:
+          narrow the period, watch the KPI fall, watch the list not move. Worse
+          when the list is EMPTY, where "no hay decomisos" silently invites the
+          reading "…en este período", which the query never asked.
+
+          Making the list period-aware is a product decision and is NOT taken
+          here; this states the boundary the code already has. */}
+      <section aria-label="Episodios de custodia registrados" className="space-y-3">
+        <div className="space-y-0.5">
+          <h2 className="text-[var(--text-md)] font-semibold text-ln-op-ink">
+            Episodios de custodia registrados
+          </h2>
+          <p className="text-[13px] text-ln-op-mute">
+            El período seleccionado no filtra este listado: sólo afecta los indicadores de arriba.
+            Se muestran los 200 episodios más recientes, sin importar su fecha de apertura.
           </p>
         </div>
-      ) : (
-        <ul className="space-y-3">
-          {rows.map(({ c, petName, petToken, petSpecies, receiverName }) => {
-            const days = daysElapsed(c.openedAt);
-            const canReassign = c.status === "open" && Boolean(c.receiverOrganizationId);
-            // The episode is still in the OPENING govt org's direct custody
-            // while status='open' (any accept/handoff closes THIS case and
-            // opens a new one for the receiver — see accept-decomiso-handoff.ts).
-            // Subject-kind (registered pet with a former owner) is validated
-            // server-side; unowned strays fail cleanly with a clear error.
-            const canReturnToOwner = c.status === "open";
+        {rows.length === 0 ? (
+          <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-12 text-center space-y-2">
+            <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavía.</p>
+            <p className="text-sm text-ln-op-mute">
+              {'Usá el botón "Nuevo decomiso" para registrar una incautación por Ley 14.346.'}
+            </p>
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {rows.map(({ c, petName, petToken, petSpecies, receiverName }) => {
+              const days = daysElapsed(c.openedAt);
+              const canReassign = c.status === "open" && Boolean(c.receiverOrganizationId);
+              // The episode is still in the OPENING govt org's direct custody
+              // while status='open' (any accept/handoff closes THIS case and
+              // opens a new one for the receiver — see accept-decomiso-handoff.ts).
+              // Subject-kind (registered pet with a former owner) is validated
+              // server-side; unowned strays fail cleanly with a clear error.
+              const canReturnToOwner = c.status === "open";
 
-            return (
-              <li key={c.id}>
-                <OpCard>
-                  <OpCardBody>
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="space-y-1 min-w-0">
-                        {/* Case code + pet */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Link
-                            href={`/gob/casos/${c.publicCode}`}
-                            className="text-[13px] font-semibold text-ln-op-azul hover:underline font-mono no-underline"
-                          >
-                            {c.publicCode}
-                          </Link>
-                          {petName && (
-                            <span className="text-[13px] text-ln-op-ink">
-                              {petName}
-                              <span className="text-ln-op-mute">
-                                {" "}
-                                ({petSpecies ? speciesLabel(petSpecies) : "—"})
+              return (
+                <li key={c.id}>
+                  <OpCard>
+                    <OpCardBody>
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="space-y-1 min-w-0">
+                          {/* Case code + pet */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Link
+                              href={`/gob/casos/${c.publicCode}`}
+                              className="text-[13px] font-semibold text-ln-op-azul hover:underline font-mono no-underline"
+                            >
+                              {c.publicCode}
+                            </Link>
+                            {petName && (
+                              <span className="text-[13px] text-ln-op-ink">
+                                {petName}
+                                <span className="text-ln-op-mute">
+                                  {" "}
+                                  ({petSpecies ? speciesLabel(petSpecies) : "—"})
+                                </span>
                               </span>
-                            </span>
+                            )}
+                            {petToken && (
+                              <span className="text-[11px] font-mono text-ln-op-mute">
+                                {petToken}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Phase pill */}
+                          <OpPill tone={phasePillTone(c.status, c.receiverOrganizationId)}>
+                            {phaseLabel(c.status, c.receiverOrganizationId)}
+                          </OpPill>
+                        </div>
+
+                        {/* Days elapsed */}
+                        <div className="text-right flex-shrink-0">
+                          <p className="text-lg font-bold text-ln-op-ink tabular-nums">{days}</p>
+                          <p className="text-sm text-ln-op-mute">{days === 1 ? "día" : "días"}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-3 flex-wrap text-sm text-ln-op-mute mt-3">
+                        <div className="space-y-0.5">
+                          <p>
+                            Abierto el {formatDate(c.openedAt)}
+                            {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
+                          </p>
+                          {receiverName && (
+                            <p>
+                              Refugio:{" "}
+                              <span className="text-ln-op-ink font-medium">{receiverName}</span>
+                            </p>
                           )}
-                          {petToken && (
-                            <span className="text-[11px] font-mono text-ln-op-mute">
-                              {petToken}
-                            </span>
+                          {!c.receiverOrganizationId && c.status === "open" && (
+                            <p className="text-ln-op-warn">Sin refugio asignado</p>
                           )}
                         </div>
 
-                        {/* Phase pill */}
-                        <OpPill tone={phasePillTone(c.status, c.receiverOrganizationId)}>
-                          {phaseLabel(c.status, c.receiverOrganizationId)}
-                        </OpPill>
+                        <div className="flex gap-2">
+                          <Link
+                            href={`/gob/casos/${c.publicCode}`}
+                            className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-sm"
+                          >
+                            Ver caso
+                          </Link>
+                          {canReassign && (
+                            <ReasignarButton
+                              casePublicCode={c.publicCode}
+                              currentReceiverName={receiverName ?? "el refugio actual"}
+                              currentReceiverOrgId={c.receiverOrganizationId}
+                              receiverOrgs={receiverOrgs}
+                            />
+                          )}
+                          {canReturnToOwner && (
+                            <DevolverAlDuenoButton casePublicCode={c.publicCode} />
+                          )}
+                        </div>
                       </div>
-
-                      {/* Days elapsed */}
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-lg font-bold text-ln-op-ink tabular-nums">{days}</p>
-                        <p className="text-sm text-ln-op-mute">{days === 1 ? "día" : "días"}</p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center justify-between gap-3 flex-wrap text-sm text-ln-op-mute mt-3">
-                      <div className="space-y-0.5">
-                        <p>
-                          Abierto el {formatDate(c.openedAt)}
-                          {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
-                        </p>
-                        {receiverName && (
-                          <p>
-                            Refugio:{" "}
-                            <span className="text-ln-op-ink font-medium">{receiverName}</span>
-                          </p>
-                        )}
-                        {!c.receiverOrganizationId && c.status === "open" && (
-                          <p className="text-ln-op-warn">Sin refugio asignado</p>
-                        )}
-                      </div>
-
-                      <div className="flex gap-2">
-                        <Link
-                          href={`/gob/casos/${c.publicCode}`}
-                          className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline text-sm"
-                        >
-                          Ver caso
-                        </Link>
-                        {canReassign && (
-                          <ReasignarButton
-                            casePublicCode={c.publicCode}
-                            currentReceiverName={receiverName ?? "el refugio actual"}
-                            currentReceiverOrgId={c.receiverOrganizationId}
-                            receiverOrgs={receiverOrgs}
-                          />
-                        )}
-                        {canReturnToOwner && (
-                          <DevolverAlDuenoButton casePublicCode={c.publicCode} />
-                        )}
-                      </div>
-                    </div>
-                  </OpCardBody>
-                </OpCard>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+                    </OpCardBody>
+                  </OpCard>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
 
       <DashboardFreshnessFooter ctx={seizuresCtx} />
     </div>
