@@ -538,7 +538,8 @@ export function rankingUnitNounFor(level: AggregationLevel, province: string | n
 export function shouldParkAtLive(input: {
   dockOpen: boolean;
   dockTab: string;
-  asOf: string | null;
+  /** The active as-of instant, or null when the board is live. */
+  asOf: Date | string | null;
 }): boolean {
   return input.asOf !== null && !input.dockOpen;
 }
