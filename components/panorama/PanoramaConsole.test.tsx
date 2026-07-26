@@ -279,7 +279,13 @@ describe("PanoramaConsole — Desierto veterinario vista (new-vistas wave)", () 
     expect(params.get("preset")).toBe("desierto-veterinario");
     // The vista's N: 90 days without registered vet activity (the period IS N).
     expect(params.get("period")).toBe("90d");
-    expect(params.get("layers")).toBe("desierto-veterinario");
+    // Orphan-wiring 2026-07-26: the vista now also activates the two INSTALLED
+    // CAPACITY directories (clínicas + refugios) as reference layers, so the
+    // diagnosis ships with the network you could deploy through. Reference
+    // layers are unlimited under F2 — they take neither the base nor the signal
+    // slot — and the registry order here is the console's own layer ordering,
+    // not the preset's activation order.
+    expect(params.get("layers")).toBe("refugios,clinicas,desierto-veterinario");
 
     await waitFor(() => {
       const layerCalls = fetchMock.mock.calls

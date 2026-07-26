@@ -71,8 +71,10 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
     );
   });
 
-  // The QA-requested snapshot: the 8 vistas' displayed KPI + layer label sets.
-  it("snapshots the de-dup output across all 8 vistas", () => {
+  // The QA-requested snapshot: every vista's displayed KPI + layer label sets
+  // (the catalogue has grown past the 8 this was written for — it walks
+  // PANORAMA_PRESETS, so the count is never hardcoded).
+  it("snapshots the de-dup output across every vista", () => {
     const snapshot = PANORAMA_PRESETS.map((p) => ({
       vista: p.label,
       kpis: p.metrics.map((id) => shortKpiLabel(p.id, id, CANONICAL_KPI[id])),
@@ -114,6 +116,26 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
             "Cobertura antirrábica (perros, 12m)",
           ],
           "vista": "Cumplimiento antirrábico",
+        },
+        {
+          "kpis": [
+            "Zoonosis activas",
+            "Cobertura antirrábica (perros, 12m)",
+          ],
+          "layers": [
+            "Cobertura antiparasitaria (12m)",
+          ],
+          "vista": "Desparasitación",
+        },
+        {
+          "kpis": [
+            "Microchip",
+            "Registro PPP",
+          ],
+          "layers": [
+            "Penetración microchip (C1)",
+          ],
+          "vista": "Identificación por microchip",
         },
         {
           "kpis": [
@@ -174,6 +196,8 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
           ],
           "layers": [
             "Desierto veterinario (días sin actividad)",
+            "Clínicas veterinarias",
+            "Refugios",
           ],
           "vista": "Desierto veterinario",
         },

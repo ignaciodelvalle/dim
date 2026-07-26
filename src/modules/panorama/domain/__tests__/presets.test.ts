@@ -29,8 +29,8 @@ import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types
 // ---------------------------------------------------------------------------
 
 describe("PANORAMA_PRESETS — catalogue integrity", () => {
-  it("contains exactly 11 presets", () => {
-    expect(PANORAMA_PRESETS).toHaveLength(11);
+  it("contains exactly 13 presets", () => {
+    expect(PANORAMA_PRESETS).toHaveLength(13);
   });
 
   it("all preset ids are unique", () => {
@@ -38,7 +38,7 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("all 11 expected preset ids are present", () => {
+  it("all 13 expected preset ids are present", () => {
     const ids = new Set(PANORAMA_PRESETS.map((p) => p.id));
     expect(ids.has("brotes-activos")).toBe(true);
     expect(ids.has("sintomas")).toBe(true);
@@ -53,6 +53,10 @@ describe("PANORAMA_PRESETS — catalogue integrity", () => {
     expect(ids.has("desierto-veterinario")).toBe(true);
     expect(ids.has("tendencia")).toBe(true);
     expect(ids.has("riesgo-ppp")).toBe(true);
+    // Orphan-wiring wave (2026-07-26): the two rate layers that had a loader,
+    // tests and production call sites but no vista that activated them.
+    expect(ids.has("microchip")).toBe(true);
+    expect(ids.has("antiparasitario")).toBe(true);
   });
 
   it("every preset has a non-empty label", () => {
@@ -292,6 +296,8 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
     for (const id of [
       "brotes-activos",
       "cumplimiento",
+      "antiparasitario",
+      "microchip",
       "registro-ppp",
       "control-poblacional",
       "mortalidad",
@@ -481,6 +487,71 @@ describe("PANORAMA_PRESETS — metrics field", () => {
     const p = getPreset("mortalidad")!;
     expect(p.base).toBe("mortalidad");
     expect(p.metrics).toEqual(["mortalidad", "esterilizacion"]);
+  });
+
+  // Orphan-wiring wave (2026-07-26).
+  it("microchip surfaces the microchip layer as base and headlines its own KPI first", () => {
+    // The layer was the most-referenced orphan in the codebase (195 production
+    // files) and a headline legal KPI on /gob, with no way to see it
+    // territorially. Its own indicator LEADS the column — the vista is not
+    // allowed to headline a neighbour's metric.
+    const p = getPreset("microchip")!;
+    expect(p.base).toBe("microchip");
+    expect(p.metrics[0]).toBe("microchip");
+    expect(p.metrics).toEqual(["microchip", "ppp"]);
+  });
+
+  it("antiparasitario surfaces the deworming layer as base", () => {
+    const p = getPreset("antiparasitario")!;
+    expect(p.base).toBe("antiparasitario");
+    // KNOWN GAP, asserted so it is not mistaken for an oversight: there is no
+    // `antiparasitario` PanoramaKpiId (get-panorama-kpis emits no deworming
+    // tile), so this vista cannot list its own indicator yet. When that KPI
+    // lands, this expectation should FLIP to `metrics[0] === "antiparasitario"`.
+    expect(p.metrics).toEqual(["zoonosis", "cobertura"]);
+    expect(p.metrics).not.toContain("antiparasitario" as never);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Layer reachability — the orphan audit, locked (scripts/inventory-reachability)
+// ---------------------------------------------------------------------------
+
+describe("PANORAMA_PRESETS — layer reachability", () => {
+  const activated = new Set<LayerId>(PANORAMA_PRESETS.flatMap((p) => presetLayerIds(p)));
+
+  /**
+   * The layers NO vista activates. An orphaned layer is invisible to every
+   * operator no matter how well it is built or tested, so this set is pinned:
+   * adding a layer without a vista, or dropping a layer out of its only vista,
+   * must fail here and force an explicit decision.
+   *
+   * Both survivors are blocked by the SAME defect, not by two separate ones:
+   * they are "higher is better" magnitudes classified as `dataType: "density"`,
+   * and the console is polarity-blind for density layers — rankWorstUnits sorts
+   * descending under a "Peores N" title, and the sequential ramp darkens with
+   * value. Wiring either one today would paint the BEST territories as the
+   * alarm and rank them as the worst. See the rationale block on the
+   * `desierto-veterinario` preset for the unblocking work.
+   */
+  const KNOWN_ORPHANS: readonly LayerId[] = ["acceso-veterinario", "indice-territorial"];
+
+  it("only the two documented polarity-blocked layers are orphaned", () => {
+    const orphans = PANORAMA_LAYERS.map((l) => l.id).filter((id) => !activated.has(id));
+    expect(orphans.sort()).toEqual([...KNOWN_ORPHANS].sort());
+  });
+
+  it("microchip is reachable — the legal headline KPI now has a territorial home", () => {
+    expect(activated.has("microchip")).toBe(true);
+  });
+
+  it("the installed-capacity directories hang off the vet-desert diagnosis", () => {
+    // PO 2026-07-25: "capacidad instalada NO es presupuesto" — clinics and
+    // shelters are showable, and they are what turns "Desierto veterinario"
+    // into a diagnosis with a plan.
+    const p = getPreset("desierto-veterinario")!;
+    expect(p.references).toEqual(["clinicas", "refugios"]);
+    expect(presetLayerIds(p)).toEqual(["desierto-veterinario", "clinicas", "refugios"]);
   });
 });
 

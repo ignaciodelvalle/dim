@@ -17,6 +17,8 @@ export type PresetId =
   | "brotes-activos"
   | "sintomas"
   | "cumplimiento"
+  | "antiparasitario"
+  | "microchip"
   | "registro-ppp"
   | "bienestar"
   | "control-poblacional"
@@ -189,9 +191,17 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     id: "cumplimiento",
     label: "Cumplimiento antirrábico",
     description: "¿Qué jurisdicciones están por debajo de la meta de cobertura antirrábica?",
-    // base: cobertura — the ONLY existing rate/compliance layer (antirrábica).
-    // Future: a metric selector (microchip / PPP / esterilización) requires dedicated
-    // rate layers that don't exist yet; cobertura is the sole rate layer in v1.
+    // base: cobertura — the antirrábica rate (Ley 22.953).
+    //
+    // The old note here ("a metric selector requires dedicated rate layers that
+    // don't exist yet") is obsolete: microchip, ppp, esterilizacion and
+    // antiparasitario ALL exist as rate layers today. They can't share this
+    // map (one base per preset — F2), so each has its own vista, and the
+    // compliance family is now five same-shaped vistas. D1
+    // (docs/design/sdd/2026-07-25-panorama-d1-consolidacion-vistas.md) proposes
+    // collapsing them into ONE vista with a metric selector — that is the right
+    // end state and it is a PO decision, not a wiring one. Until it lands, a
+    // dedicated vista is the only way an operator can see these layers at all.
     base: "cobertura",
     level: "province",
     periodPreset: "90d",
@@ -203,6 +213,52 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // target-progress meter (bar) against TARGETS via toneForTarget. The
     // coverage denominator now rides the shared footer caption.
     metrics: ["cobertura", "esterilizacion", "microchip"],
+  },
+  {
+    id: "antiparasitario",
+    label: "Desparasitación",
+    description: "¿Qué jurisdicciones tienen baja cobertura antiparasitaria (últimos 12 meses)?",
+    // base: antiparasitario (rate choropleth, benchmark 80%) — a sanitary
+    // coverage of the SAME shape as cobertura/esterilizacion/microchip, so it
+    // renders a target-anchored (META) fill and a below-meta gap ranking with no
+    // polarity ambiguity. Orphan wiring: the layer shipped 2026-07-16 with a
+    // loader, tests and 17 production sites, and no preset ever activated it.
+    base: "antiparasitario",
+    level: "province",
+    periodPreset: "90d",
+    // A province-level coverage-vs-benchmark ranking is a national question —
+    // same framing as cumplimiento / control-poblacional.
+    framing: { kind: "national" },
+    // KNOWN GAP, stated rather than hidden: there is no `antiparasitario`
+    // PanoramaKpiId — get-panorama-kpis emits no deworming tile — so this vista
+    // cannot headline its own indicator (the same smell D1 §4.1 flags on
+    // desierto-veterinario). The two shown are the honest neighbours: the
+    // parasitic-zoonosis signal deworming exists to prevent (hidatidosis is
+    // named in the zoonosis layer) and the sibling 12-month sanitary coverage.
+    // When a deworming KPI lands it becomes the headline and these follow it.
+    metrics: ["zoonosis", "cobertura"],
+  },
+  {
+    id: "microchip",
+    label: "Identificación por microchip",
+    description: "¿Qué jurisdicciones están más lejos de la meta de identificación (microchip)?",
+    // base: microchip (rate choropleth, Ley Prov 14.107 · meta 80%).
+    //
+    // WHY its own vista: microchip is a HEADLINE legal KPI on /gob and the most
+    // widely referenced layer in the codebase (195 production files), yet no
+    // preset activated it — an operator could read the national percentage and
+    // had NO way to ask "¿dónde?". It cannot ride cumplimiento's map (one base
+    // per preset — F2), so it gets its own, exactly like registro-ppp and
+    // mortalidad before it.
+    base: "microchip",
+    level: "province",
+    periodPreset: "90d",
+    // A province-level compliance ranking is a national question (cumplimiento
+    // precedent) — frame the country so the laggards are comparable at a glance.
+    framing: { kind: "national" },
+    // The Ley Prov 14.107 pair, mirroring registro-ppp's column in reverse: the
+    // vista's own indicator leads, its legal sibling follows.
+    metrics: ["microchip", "ppp"],
   },
   {
     id: "registro-ppp",
@@ -293,13 +349,25 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
   {
     id: "desierto-veterinario",
     label: "Desierto veterinario",
-    description: "¿Qué zonas llevan más días sin actividad veterinaria registrada?",
+    description:
+      "¿Qué zonas llevan más días sin actividad veterinaria registrada, y qué capacidad instalada hay para cubrirlas?",
     // base: desierto-veterinario (days-without-vet-activity choropleth). The
     // default 90d window is the vista's N: a quarter without ANY registered
     // vet-attended event is a meaningful access gap (annual antirrábica boosters
     // + routine controls make quarterly activity the expected floor). The period
     // selector changes N and the caption follows (window: "period").
     base: "desierto-veterinario",
+    // references: the INSTALLED CAPACITY that turns this vista from a diagnosis
+    // into a diagnosis WITH A PLAN — where are the clinics and shelters that
+    // could cover the silent territory, and where is there nothing to deploy
+    // through? Unblocked by the PO ruling 2026-07-25: "capacidad instalada NO es
+    // presupuesto" — the standing "Panorama shows no costs" rule was being read
+    // so broadly that the two directory layers stayed orphaned for months.
+    // Reference layers are unlimited under F2 and never contend for the base or
+    // signal slot, so this costs the vista nothing. They are DIRECTORY pins
+    // (temporal: false): they do not move with the period or the time scrub, and
+    // a clinic pin is a registered site, never a claim that it is open today.
+    references: ["clinicas", "refugios"],
     level: "province",
     periodPreset: "90d",
     // A province-level access overview is a national question — frame the
@@ -308,6 +376,42 @@ export const PANORAMA_PRESETS: readonly PanoramaPreset[] = [
     // Vet-delivered intervention KPIs — the coverage measures that stall when a
     // territory has no registered veterinary activity.
     metrics: ["cobertura", "esterilizacion"],
+    //
+    // WHY THE BASE IS STILL `desierto-veterinario` AND NOT `acceso-veterinario`
+    // (evaluated 2026-07-26, deliberately NOT swapped).
+    //
+    // The critique is CORRECT on the metric: `desierto-veterinario` is
+    // right-censored at the window length (censoredAtMax: 90) and 23 of 24
+    // provinces sit exactly at the cap, so the map is one colour and the ranking
+    // is a 23-way tie. `acceso-veterinario` (visits per 1.000 active pets, 12m)
+    // is continuous, normalized and does not saturate — it is the metric this
+    // vista's question actually means.
+    //
+    // It is NOT swapped in yet because the console is POLARITY-BLIND for
+    // "density" layers, and acceso-veterinario is the only layer in the registry
+    // where a HIGH value is GOOD news:
+    //   1. ranking.ts sorts every density layer DESCENDING and the panel titles
+    //      it "Peores N" — so the ten BEST-served provinces would be listed as
+    //      the worst.
+    //   2. the sequential fill (class-scale.ts, SCALE_BLUE_SEQ) darkens with
+    //      value, and every other sequential layer here means "dark = more of a
+    //      bad thing" (mortalidad, denuncias, and this layer's own "DARK = many
+    //      days without activity = the desert signal") — so the best-served
+    //      provinces would paint as the alarm.
+    // Swapping today trades a flat-but-honest map for a legible INVERTED one,
+    // which is the worse defect on a government console.
+    //
+    // UNBLOCKING WORK (small, but outside this domain-only change): declare the
+    // polarity on the layer (e.g. `higherIsBetter`), honour it in
+    // rankWorstUnits/rankUnitsInScope, and reverse the sequential ramp for such
+    // layers. That single fix also unblocks `indice-territorial` (0-100
+    // attainment index — same "higher is better", same two traps), which is why
+    // both stay orphaned together rather than for two separate reasons.
+    //
+    // Independently REPORTED and also unfixed: the underlying metric counts only
+    // `vet_visit_logged`, so vaccinating 10.000 dogs does not register as
+    // veterinary activity. Widening that predicate would ALSO de-saturate this
+    // layer without touching polarity.
   },
   {
     id: "tendencia",
