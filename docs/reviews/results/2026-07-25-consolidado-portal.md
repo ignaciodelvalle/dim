@@ -368,3 +368,16 @@ rotación de personal.
 - `2026-07-25-portal-operativa.md`
 - `2026-07-25-portal-administracion.md`
 - `scripts/inventory-reachability.ts` — auditoría de alcanzabilidad, re-ejecutable
+
+---
+
+## 8 · Decisiones del PO — 2026-07-25
+
+Tomadas al cierre de la corrida. **No re-preguntar.**
+
+| # | Decisión | Fundamento |
+|---|---|---|
+| 1 | **Seed: fidelidad sobre volumen.** Si el circuito real es más lento, se baja el volumen — nunca se vuelve al insert masivo para el seed de demo | Las 67.000 mascotas se eligieron para que el mapa se viera denso, no por realismo. `seed-perf` sigue insertando en bloque, marcado con procedencia |
+| 2 | **Fence de integridad del spine: bloqueante desde el día uno.** Rompe `pnpm verify` si una mascota no tiene su `pet_registered`. Sin perdón para lo existente | Ya está demostrado que un aviso que no bloquea se ignora: así se acumularon 855 huérfanas y así se silenció el barrido de fitness a fuerza de reseedear |
+| 3 | **La regla "Panorama sin costos" se revisa: capacidad instalada NO es presupuesto.** Clínicas, refugios y matriculados pueden mostrarse | Sin contraparte de capacidad, "Desierto veterinario" es diagnóstico sin plan. Las capas `clinicas` y `refugios` ya están construidas y huérfanas |
+| 4 | **Los 10 hallazgos sin verificar se verifican antes de tocar nada** | En esta misma corrida dos hallazgos "críticos" no sobrevivieron la verificación |
