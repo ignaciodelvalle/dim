@@ -114,6 +114,14 @@ export type ActiveLayer = {
    */
   complianceTarget?: number;
   /**
+   * POLARITY (PanoramaLayer.higherIsBetter): `true` when a HIGH value is GOOD
+   * news, so the SEQUENTIAL ramp must be reversed and the darkest class must
+   * land on the LOWEST value. Only meaningful for a target-less sequential
+   * choropleth — a `complianceTarget` already declares which pole is good, and
+   * the META scale reads it. Absent = higher is worse (every other layer).
+   */
+  higherIsBetter?: boolean;
+  /**
    * new-vistas wave (tendencia): the layer's `value` is a SIGNED DELTA — the
    * province fill renders the zero-anchored diverging classes (delta-scale.ts)
    * instead of the quantile/META paths. Threaded from the layer registry.

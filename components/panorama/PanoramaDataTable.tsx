@@ -71,6 +71,23 @@ type Props = {
    * identical values, which is what desierto-veterinario shipped on 2026-07-25.
    */
   censoredAtMax?: number;
+  /**
+   * POLARITY of the ranked layer (PanoramaLayer.higherIsBetter): `true` when a
+   * HIGH value is GOOD news, so the WORST unit is the LOWEST one.
+   *
+   * THIS TABLE RE-SORTS THE ROWS IT IS GIVEN. `rankWorstUnits` already hands
+   * them over worst-first, but the default sort below (density → `value` desc)
+   * then overrode that order, so a higher-is-better layer had its BEST unit
+   * pushed to row 1 under a heading that says "Peores N". The domain module's
+   * polarity support was therefore dead on arrival at this surface, no matter
+   * what the console passed it (found 2026-07-26 while wiring acceso-veterinario
+   * — a unit test on `rankWorstUnits` alone stays green through this bug).
+   *
+   * Ignored for `kind: "rate"`, which sorts by the gap to the target: a target
+   * is itself a polarity declaration and the gap is already worst-first.
+   * Absent = higher is worse — the reading every other layer needs.
+   */
+  higherIsBetter?: boolean;
   /** The unit key currently highlighted on the map (hover sync), or null. */
   highlightedKey?: string | null;
   /** Fired on row hover/focus (key) and blur/leave (null) — mirrors to the map. */
@@ -213,6 +230,7 @@ export function PanoramaDataTable({
   measuredUnits,
   suppressedUnits = 0,
   censoredAtMax,
+  higherIsBetter = false,
   highlightedKey = null,
   onHover,
   scopeFallback = false,
@@ -265,9 +283,14 @@ export function PanoramaDataTable({
     onHover?.(null);
     setPreviewAnchor(null);
   };
-  // Default: worst first — rate by gap desc, density by value desc.
+  // Default: WORST FIRST, which is what the heading asserts — rate by gap desc,
+  // density by value desc, EXCEPT for a higher-is-better density layer, where
+  // the worst unit is the lowest one and the default therefore runs ascending
+  // (see the `higherIsBetter` prop for why this override has to live here).
   const [sortKey, setSortKey] = useState<SortKey>(kind === "rate" ? "gap" : "value");
-  const [sortDir, setSortDir] = useState<SortDir>("desc");
+  const [sortDir, setSortDir] = useState<SortDir>(
+    kind !== "rate" && higherIsBetter ? "asc" : "desc",
+  );
   const headingId = useId();
 
   const sorted = useMemo(() => {

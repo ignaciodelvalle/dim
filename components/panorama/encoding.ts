@@ -51,6 +51,10 @@ export type ChoroplethLayerLike = {
   features: FeatureCollection;
   dataType?: string;
   complianceTarget?: number;
+  /** POLARITY: a HIGH value is GOOD news → the SEQUENTIAL ramp runs backwards
+   *  (PanoramaLayer.higherIsBetter). Ignored on the META path, where the target
+   *  already declares the good pole, and on the delta path, which anchors at 0. */
+  higherIsBetter?: boolean;
   /** new-vistas wave: the value is a SIGNED DELTA → zero-anchored diverging
    *  classes (delta-scale.ts) instead of the quantile/META paths. */
   deltaEncoded?: boolean;
@@ -120,7 +124,12 @@ export function resolveChoroplethEncoding(
       meta: true,
     };
   }
-  const scale = provinceSeqClassScale(layer.features, opts?.lockedSeqBreaks ?? null);
+  // Sequential (quantile) path — the ONE place a target-less layer's declared
+  // polarity has to be honoured, or a higher-is-better layer paints its
+  // best-served units the alarm colour.
+  const scale = provinceSeqClassScale(layer.features, opts?.lockedSeqBreaks ?? null, {
+    invert: layer.higherIsBetter === true,
+  });
   if (scale === null) return null;
   return {
     kind: "choropleth-seq",

@@ -107,10 +107,20 @@ export function classedProvinceFill(
  * present the scale renders those exact breaks instead of re-deriving quantiles
  * from the current frame (frame-stable colors, still quantile-balanced).
  * Returns null when the layer has no numeric values (the fill paints all neutral).
+ *
+ * `opts.invert` carries the layer's declared POLARITY (PanoramaLayer.
+ * higherIsBetter). The sequential ramp darkens with value, which is the alarm
+ * reading for a harm magnitude and the exact inverse for the layers where a HIGH
+ * value is the good news (`acceso-veterinario`, `indice-territorial`). This call
+ * site used to drop the flag on the floor, so the mechanism existed
+ * (`computeClassScale({ invert })`) while the map still painted the best-served
+ * jurisdictions as the alarm — which is why `acceso-veterinario` could not be
+ * given a vista. Default (absent/false) is a no-op for every other layer.
  */
 export function provinceSeqClassScale(
   features: FeatureCollection,
   lockedBreaks?: readonly number[] | null,
+  opts?: { invert?: boolean },
 ): ClassScale | null {
   const values: number[] = [];
   for (const f of features.features) {
@@ -119,7 +129,10 @@ export function provinceSeqClassScale(
     values.push(p.value);
   }
   if (values.length === 0) return null;
-  return computeClassScale(values, { lockedBreaks: lockedBreaks ?? null });
+  return computeClassScale(values, {
+    lockedBreaks: lockedBreaks ?? null,
+    invert: opts?.invert === true,
+  });
 }
 
 export function provinceColorExpr(
@@ -129,8 +142,11 @@ export function provinceColorExpr(
   // frame's own quantiles, so a value keeps the same class-color across every
   // as-of frame.
   lockedBreaks?: readonly number[] | null,
+  // The layer's polarity — see provinceSeqClassScale. Threaded through so the
+  // painted fill and the lifted legend can never disagree about which end is bad.
+  opts?: { invert?: boolean },
 ): ExpressionSpecification {
-  const scale = provinceSeqClassScale(features, lockedBreaks);
+  const scale = provinceSeqClassScale(features, lockedBreaks, opts);
   // No data at all — paint everything neutral.
   if (scale === null) return COLOR_NO_DATA as unknown as ExpressionSpecification;
   // P3: the fill is assembled from the ONE resolved scale (classedProvinceFill),
