@@ -23,9 +23,9 @@
     { "do": "sleep", "ms": 8000 },
     { "do": "shot", "name": "03-gob-panel" },
     {
-      "_why": "es-AR thousands separator. A government panel that prints 1507 beside 3.541 reads like two systems talking. 'raw' must be false.",
+      "_why": "es-AR thousands separator. A government panel printing 1507 beside 3.541 reads like two systems talking. Do NOT pin a literal figure -- a reseed changes it and the check silently stops biting. rawFourDigit counts bare 4+ digit runs with no separator. It is NOT expected to be 0: law and decree numbers legitimately carry none (measured baseline on /gob = 2, samples ['5470','4078'] -- Ley CABA 5470, Decreto 4078). Read `samples`: a figure that is a COUNT and not a legal citation is the defect. Re-baseline this number when the copy changes rather than letting it drift silently.",
       "do": "eval",
-      "expr": "JSON.stringify({h1: (document.querySelector('h1')||{}).innerText, sep: document.body.innerText.indexOf('1.507')>=0, raw: document.body.innerText.indexOf(' 1507')>=0})"
+      "expr": "(function(){var t=document.body.innerText.split(/[^0-9.]+/).filter(function(x){return x.length>=4&&x.indexOf('.')<0&&!isNaN(Number(x))});return JSON.stringify({h1:(document.querySelector('h1')||{}).innerText, rawFourDigit:t.length, samples:t.slice(0,5)})})()"
     },
     { "do": "goto", "url": "/gob/vigilancia" },
     { "do": "sleep", "ms": 8000 },
@@ -33,7 +33,7 @@
     {
       "_why": "Semaphore honesty. 'Cumplimiento observacion 10d' is painted against a STATUTORY target of 100 (Ord. CABA 41.831 art. 9 / Decreto 4669/1973 PBA). A failing rate must never render in the ok tone. Read the PNG: this one cannot be asserted from text alone.",
       "do": "eval",
-      "expr": "JSON.stringify({h1: (document.querySelector('h1')||{}).innerText, tile: document.body.innerText.indexOf('Cumplimiento observaci')>=0})"
+      "expr": "JSON.stringify({h1: (document.querySelector('h1')||{}).innerText, tile: document.body.innerText.toLowerCase().indexOf('cumplimiento observaci')>=0})"
     },
     { "do": "goto", "url": "/admin" },
     { "do": "sleep", "ms": 6000 },
@@ -42,7 +42,7 @@
     { "do": "sleep", "ms": 4000 },
     { "do": "shot", "name": "06-login" },
     {
-      "_why": "Anonymous surface. After promotion this is what an unauthenticated citizen hits first, and it is the page that reveals a missing NEXT_PUBLIC_SITE_URL or a broken CSP nonce.",
+      "_why": "Anonymous surface. NOTE: with an active session this route redirects to the panel, so h1 reads 'Panel de administracion' and the check proves nothing -- run this step signed OUT (fresh context, no cached state) to exercise what an unauthenticated citizen hits first, and to reveal a missing NEXT_PUBLIC_SITE_URL or a broken CSP nonce.",
       "do": "eval",
       "expr": "JSON.stringify({h1: (document.querySelector('h1')||{}).innerText})"
     }
