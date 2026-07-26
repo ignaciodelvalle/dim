@@ -1,8 +1,13 @@
 name: CI
 
+# integration/** is here because of what happened without it: CI last ran on
+# 2026-06-12, and the 794 commits built since then on integration branches —
+# including every fence added in July — never once went through it. A pipeline
+# that only watches the branch you merge INTO tells you about the breakage after
+# you own it. Long-lived integration branches get the same gate as main.
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, "integration/**"]
   pull_request:
     branches: [main, develop]
 
@@ -38,13 +43,16 @@ jobs:
         # and the autofix codemods.
         run: pnpm lint:tokens
 
-      - name: Lint (authorization + RLS guards)
-        # CRITICAL: these enforce the impersonation-export guard, RLS coverage,
-        # and server-action guard discipline. They run in `pnpm verify` (the
-        # Definition of Done) but were previously absent from CI — a PR could
-        # merge green while introducing an unguarded action or an RLS-less
-        # table. Keep CI in parity with `pnpm verify`.
-        run: pnpm lint:authz && pnpm lint:rls
+      - name: Lint (authorization guards)
+        # CRITICAL: enforces the impersonation-export guard and server-action
+        # guard discipline. Runs in `pnpm verify` (the Definition of Done) but
+        # was previously absent from CI — a PR could merge green while
+        # introducing an unguarded action. Keep CI in parity with `pnpm verify`.
+        #
+        # The three DB-backed fences (lint:rls, lint:scope-authz, lint:spine)
+        # are NOT here: this job has no Postgres, so all three would skip and
+        # report nothing. They run in the `test` job, which has the real stack.
+        run: pnpm lint:authz
 
       - name: Lint (actions, UI, deps, guardrails)
         run: pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
@@ -342,6 +350,25 @@ jobs:
         # migrations, apply db/*.sql (triggers/RLS/storage), seed reference
         # data + test users. See scripts/db-bootstrap.ts for the contract.
         run: pnpm db:bootstrap
+
+      - name: Lint (DB-backed security fences)
+        # The three fences in `pnpm verify` that need a real database. They live
+        # in this job and not in `check` because a DB-less box makes all three
+        # skip — honestly, and loudly, but a skip proves nothing. Here, right
+        # after bootstrap, they run against the same schema the tests will use.
+        #
+        #   lint:rls         every public table has RLS + at least one policy
+        #   lint:scope-authz the jurisdiction WHERE-clauses are backed by RLS
+        #   lint:spine       no pet exists as a cache row without its
+        #                    pet_registered event (invariant #3)
+        #
+        # These three close the DB-backed half of the CI ↔ `pnpm verify` drift.
+        # The offline half is still open and is WIDER than it looks: measured
+        # 2026-07-27, `verify` runs 43 lints and this workflow runs 14 of them.
+        # See docs/plans/ola1-spec-conflicts.md §SC-1 for the list and why
+        # closing it was left out of this batch. When you add a lint to
+        # `verify`, add it here or to `check` — the parity is the whole point.
+        run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine
 
       - name: Run tests with coverage (vitest)
         # Coverage-threshold enforcement (V1-9). The thresholds in
