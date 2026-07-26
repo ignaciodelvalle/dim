@@ -77,6 +77,15 @@ import { readFileSync } from "node:fs";
 
 import postgres from "postgres";
 
+import {
+  DEFAULT_LOCAL_URL,
+  type DbTarget,
+  describeTarget,
+  lines,
+  remoteRemedy,
+  remoteSkipReason,
+  reportSkip as reportDbSkip,
+} from "./_db-target";
 import { stripComments } from "./check-scope-discipline";
 
 // ---------------------------------------------------------------------------
@@ -290,63 +299,22 @@ export function evaluateCoherence(input: {
 // ---------------------------------------------------------------------------
 // Which database am I looking at?
 // ---------------------------------------------------------------------------
+//
+// This fence wrote the local-vs-remote doctrine; its two DB-backed sisters
+// (lint:rls, lint:spine) now answer the same question the same way, so the
+// answer lives in scripts/_db-target.ts. Re-exported here because that is the
+// import path the fence's own tests have always used.
 
-export const DEFAULT_LOCAL_URL = "postgresql://postgres:postgres@localhost:54322/postgres";
-
-/** Hostnames that are unambiguously a developer's own machine / Docker stack. */
-export const LOCAL_HOSTS = new Set([
-  "localhost",
-  "127.0.0.1",
-  "::1",
-  "[::1]",
-  "0.0.0.0",
-  "host.docker.internal",
-  // The hostname the Supabase CLI's own containers use on the compose network.
-  "supabase_db_dim",
-  "db",
-]);
-
-export type DbTarget = {
-  /** Human-readable `host:port/database`, never containing credentials. */
-  label: string;
-  host: string;
-  isLocal: boolean;
-  /** Set when the URL could not be parsed at all. */
-  parseError: string | null;
-};
-
-/**
- * Describe the target database WITHOUT connecting and WITHOUT ever echoing a
- * password. An unparseable URL is treated as non-local — the safe assumption.
- */
-export function describeTarget(rawUrl: string): DbTarget {
-  try {
-    const u = new URL(rawUrl);
-    const host = u.hostname.toLowerCase();
-    const port = u.port === "" ? "5432" : u.port;
-    const database = u.pathname.replace(/^\//, "") || "(default)";
-    return {
-      label: `${host}:${port}/${database}`,
-      host,
-      isLocal: LOCAL_HOSTS.has(host),
-      parseError: null,
-    };
-  } catch (err) {
-    return {
-      label: "(unparseable DATABASE_URL)",
-      host: "(unparseable)",
-      isLocal: false,
-      parseError: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
+export {
+  DEFAULT_LOCAL_URL,
+  LOCAL_HOSTS,
+  type DbTarget,
+  describeTarget,
+} from "./_db-target";
 
 // ---------------------------------------------------------------------------
 // Reporting
 // ---------------------------------------------------------------------------
-
-/** Join message lines. Keeps every operator-facing message readable in source. */
-const lines = (...parts: string[]): string => parts.join("\n");
 
 const SKIPPED_CHECKS = lines(
   "  NOT run: RLS-enabled, table-exists, unconditional-read-policy (checks 2-4).",
@@ -354,14 +322,13 @@ const SKIPPED_CHECKS = lines(
 );
 
 function reportSkip(reason: string, target: DbTarget, remedy: string): void {
-  console.warn(
-    lines(
-      `[skip] check-scope-authz: ${reason}`,
-      `  Database looked at: ${target.label}`,
-      SKIPPED_CHECKS,
-      remedy,
-    ),
-  );
+  reportDbSkip({
+    fence: "check-scope-authz",
+    reason,
+    target,
+    skipped: SKIPPED_CHECKS,
+    remedy,
+  });
 }
 
 function describeViolation(v: Violation): string {
@@ -450,20 +417,9 @@ export async function runCheck(argv: string[] = []): Promise<void> {
   const usingDefault = process.env.DATABASE_URL === undefined;
   const target = describeTarget(rawUrl);
 
-  if (!target.isLocal && !allowRemote) {
-    reportSkip(
-      target.parseError === null
-        ? `DATABASE_URL points at "${target.host}", which is not a local host.`
-        : `DATABASE_URL could not be parsed (${target.parseError}).`,
-      target,
-      lines(
-        "  This fence judges the database your migrations run against. Auditing a remote one is a",
-        "  deliberate act, not a side effect of a stale shell: re-run with --allow-remote",
-        "  (the fence is strictly read-only — it SELECTs pg_class / pg_policies and nothing else).",
-        "  To check locally instead: pnpm db:start, then unset DATABASE_URL or point it at",
-        `  ${DEFAULT_LOCAL_URL}`,
-      ),
-    );
+  const remoteSkip = remoteSkipReason(target, allowRemote);
+  if (remoteSkip !== null) {
+    reportSkip(remoteSkip, target, remoteRemedy("SELECTs pg_class / pg_policies"));
     console.log(
       `  Scope-gated tables derived offline (${gated.length}): ${gatedLabel} — derivation OK.`,
     );
