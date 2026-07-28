@@ -356,3 +356,47 @@ matching pet, not more static reading.
 **Still untouched**: `a11y-regression`, `admin-case-detail-shell` (fails on a
 `Línea de tiempo` heading — unrelated to the picker), `authz-ab-isolation`,
 `crisis-owner-lost-flow`, `crisis-seams`, `cuenta-hang-verify`.
+
+---
+
+## SC-4 progress — five of seven cleared, and none of it was a product defect
+
+Worked the revised proposal to its end. Every failure diagnosed so far turned out to be
+the test, not the app — but only one of the three causes was guessable from the code.
+
+| Spec | Cause | State |
+|---|---|---|
+| `create-pet` | click() promise never resolves on the N3 client-side redirect | **fixed** (`f116b63d`) — 300s hang → passes in 8.5s |
+| `admin-case-detail-shell` | pinned a case code that no longer exists → asserting against a 404 | **fixed** (`9d9f8963`) |
+| `gob-case-detail-shell` | same pinned code (was never reached in CI before the clock ran out) | **fixed** (`9d9f8963`) |
+| `demo/_helpers` denuncia submit | same click() cause as create-pet | **fixed** (`f116b63d`), not yet re-run end to end |
+| `authz-ab-isolation` | — | passes locally (3/3); CI-only, cause unknown |
+| `cuenta-hang-verify` | — | passes locally (3/3); CI-only, cause unknown |
+| `a11y-regression` | focus assertion on the pet-profile flip | **open** |
+| `crisis-owner-lost-flow` | lost-state flip on the public credential | **open** |
+
+**The click() one is worth remembering.** `createPetAction` and
+`createWelfareReportAction` both return `redirectTo` and let the form push it
+client-side — the N3 contract the repo adopted because Next 15.5 drops a `redirect()`
+issued from a server action in production. Playwright's post-click wait never sees that
+App Router transition settle, so `click()` hangs forever; `noWaitAfter` is a no-op on
+click in Playwright 1.60. Any future spec that submits a server-action form has to fire
+the click and assert the navigation, not await the click.
+
+Before blaming the harness the alta was instrumented, because "the success screen
+hangs" would have been a serious production claim:
+
+```
+reached /credencial          300 ms
+requests still open at +15s  0
+credential h1                "<name> ya tiene su credencial"
+```
+
+Fast, complete, correct. Worth writing down that two confident diagnoses in this entry
+were wrong before this one was right — the catalogue, then the rate limiter. Both died
+to a measurement that took minutes.
+
+**`authz-ab-isolation` and `cuenta-hang-verify` pass locally and failed in CI.** That is
+the one bucket where the CI-vs-local difference is still unexplained, and it is where
+the parallelism/rate-limit family of causes is still live — just not for the picker.
+Worth re-checking against the next CI run rather than theorising again.
