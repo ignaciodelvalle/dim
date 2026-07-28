@@ -165,14 +165,18 @@ describe("createWelfareReportAction — anonymity fully unlinks the account", ()
     setUser({ id: "user-123" });
 
     const { createWelfareReportAction } = await import("../../actions");
-    await createWelfareReportAction({ error: null }, baseFormData("anonymous"));
+    const state = await createWelfareReportAction({ error: null }, baseFormData("anonymous"));
 
     // The report row must NOT carry the account id.
     expect(reporterUserIdFromInsert()).toBeNull();
     // The case opened for it must not attribute an opener either.
     expect(mockOpenCase).toHaveBeenCalledWith(expect.objectContaining({ openedByUserId: null }));
-    // Lands on the anonymous tracking surface (retrievable by DEN code), NOT /denuncias/mias.
-    expect(mockRedirect).toHaveBeenCalledWith(`/denuncias/codigo/${REF_CODE}?nueva=1`);
+    // Lands on the anonymous tracking surface (retrievable by DEN code), NOT
+    // /denuncias/mias. Asserted on the RETURNED destination since the B.2
+    // migration — the action no longer calls redirect(), whose transition the
+    // App Router drops: a filed report and no receipt (nav contract N3).
+    expect(state.redirectTo).toBe(`/denuncias/codigo/${REF_CODE}?nueva=1`);
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("non-anonymous + logged-in session: reporter_user_id is the user and redirect goes to /denuncias/mias", async () => {
@@ -182,22 +186,24 @@ describe("createWelfareReportAction — anonymity fully unlinks the account", ()
     fd.set("reporterContactEmail", "reporter@example.com");
 
     const { createWelfareReportAction } = await import("../../actions");
-    await createWelfareReportAction({ error: null }, fd);
+    const state = await createWelfareReportAction({ error: null }, fd);
 
     expect(reporterUserIdFromInsert()).toBe("user-123");
     expect(mockOpenCase).toHaveBeenCalledWith(
       expect.objectContaining({ openedByUserId: "user-123" }),
     );
-    expect(mockRedirect).toHaveBeenCalledWith("/denuncias/mias");
+    expect(state.redirectTo).toBe("/denuncias/mias");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("anonymous + no session: unchanged — reporter_user_id null, tracking-code redirect", async () => {
     setUser(null);
 
     const { createWelfareReportAction } = await import("../../actions");
-    await createWelfareReportAction({ error: null }, baseFormData("anonymous"));
+    const state = await createWelfareReportAction({ error: null }, baseFormData("anonymous"));
 
     expect(reporterUserIdFromInsert()).toBeNull();
-    expect(mockRedirect).toHaveBeenCalledWith(`/denuncias/codigo/${REF_CODE}?nueva=1`);
+    expect(state.redirectTo).toBe(`/denuncias/codigo/${REF_CODE}?nueva=1`);
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

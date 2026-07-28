@@ -328,11 +328,14 @@ export async function walkDenunciaWizard(
   const submit = page.getByRole("button", { name: /enviar denuncia/i });
   await expect(submit, "denuncia submit button").toBeEnabled();
 
-  // Fired, not awaited — same reason as e2e/create-pet.spec.ts's submit.
-  // createWelfareReportAction returns `redirectTo` and the form pushes it
-  // client-side (the N3 contract), and Playwright's post-click wait never sees
-  // that App Router transition settle, so the click's promise never resolves.
-  // The navigation below is the assertion that matters.
+  // Fired, not awaited — same reason as e2e/create-pet.spec.ts's submit: the
+  // click's promise never resolves on a client-side post-action navigation.
+  //
+  // (When this comment was first written it claimed createWelfareReportAction
+  // already returned `redirectTo`. It did not — the use case returned it and the
+  // ACTION handed it to redirect(). Read one link of the chain, asserted the
+  // whole thing. The action follows N3 as of the B.2 migration; the workaround
+  // was right for the wrong stated reason.)
   void submit.click().catch(() => {});
 
   // createWelfareReportAction redirects to the comprobante on success.

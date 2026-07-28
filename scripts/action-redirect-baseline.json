@@ -1,14 +1,12 @@
 {
   "_comment": "Server-action files still calling next/navigation redirect() (nav contract N3). This is DEBT, not approval: each entry is a place the App Router can drop the navigation and the user sees nothing happen. Counts may only go DOWN. Regenerate after a migration with: pnpm tsx scripts/check-action-redirect.ts --write-baseline",
   "files": {
-    "app/actions/booking.ts": 1,
     "app/actions/pregnancy.ts": 2,
     "app/actions/service-offerings.ts": 1,
     "app/actions/tattoo.ts": 1,
     "src/modules/foster/actions.ts": 2,
     "src/modules/pets/actions.ts": 4,
     "src/modules/surveillance/actions.ts": 2,
-    "src/modules/transfers/actions.ts": 1,
-    "src/modules/welfare/actions.ts": 2
+    "src/modules/transfers/actions.ts": 1
   }
 }

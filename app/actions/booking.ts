@@ -14,7 +14,6 @@
 
 import { sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { db, ownerships } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
@@ -66,7 +65,10 @@ export async function bookSlotAction(
   if ("error" in result) return result;
 
   revalidatePath("/mis-turnos");
-  redirect(`/mis-turnos/${result.appointmentToken}`);
+  // N3: return the destination, do not redirect() from the action. The App
+  // Router drops that transition in production — the appointment IS booked and
+  // the user is left staring at the form (lib/ui/full-page-action-nav.ts).
+  return { ...result, redirectTo: `/mis-turnos/${result.appointmentToken}` };
 }
 
 export async function cancelAppointmentByOwnerAction(

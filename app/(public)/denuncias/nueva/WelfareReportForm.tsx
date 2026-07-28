@@ -17,6 +17,7 @@
 // task, this form is the intended, maintained org path — extend it here, don't
 // leave it implying a quick swap is pending.
 
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
@@ -96,6 +97,10 @@ export function WelfareReportForm({
   // actionRef) that are always current — so the first-render closure stays valid
   // across the component lifetime even as files are added/removed.
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
+  // N3: the action returns the receipt's URL and this navigates to it. It used
+  // to redirect() server-side, a transition the App Router drops in production —
+  // which on a maltrato report means it is FILED and the operator sees nothing.
+  useActionRedirect(state.redirectTo, state);
   const { key: idempotencyKey } = useIdempotencyKey();
 
   function handleFilesSelected(files: FileList | null) {

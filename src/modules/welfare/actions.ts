@@ -22,7 +22,6 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
 import {
   db,
@@ -88,7 +87,19 @@ import { WelfareRepository } from "./infrastructure/welfare-repository";
 // ---------------------------------------------------------------------------
 
 export type { TriageDecision } from "./application/triage-welfare-report";
-export type WelfareReportFormState = { error: string | null };
+export type WelfareReportFormState = {
+  error: string | null;
+  /**
+   * Where the wizard should go on success — nav contract N3.
+   *
+   * NOT redirect(). The use case has always computed this; the action used to
+   * hand it to next/navigation, whose transition the App Router drops in
+   * production. On a denuncia that means the report is FILED, the reference
+   * code exists, and the citizen is left on the form with no receipt and no
+   * error (lib/ui/full-page-action-nav.ts).
+   */
+  redirectTo?: string | null;
+};
 export type TriageResult = { ok: true } | { error: string };
 export type ModerationResult = { ok: true } | { error: string };
 export type AssignResult = { ok: true } | { ok: false; error: string };
@@ -1212,7 +1223,7 @@ export async function createWelfareReportAction(
     return { error: result.error };
   }
 
-  redirect(result.redirectTo);
+  return { error: null, redirectTo: result.redirectTo };
 }
 
 // ---------------------------------------------------------------------------
@@ -1444,7 +1455,7 @@ export async function createOrgWelfareReportAction(
     return { error: result.error };
   }
 
-  redirect(result.redirectTo);
+  return { error: null, redirectTo: result.redirectTo };
 }
 
 // ---------------------------------------------------------------------------

@@ -44,6 +44,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LocationFieldsChange } from "@/components/LocationFields";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { clearDraft, restoreDraft, saveDraft } from "@/lib/ui/denuncia-autosave";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { createWelfareReportAction } from "@/src/modules/welfare/actions";
 import type { WelfareReportKind } from "@/src/modules/welfare/domain/types";
 
@@ -343,18 +344,16 @@ export function DenunciaWizard() {
 
       const result = await createWelfareReportAction({ error: null }, formData);
 
-      // Action redirects on success — if we reach here, it returned an error.
       if (result?.error) {
         setSubmitError(result.error);
+      } else if (result?.redirectTo) {
+        // N3: the action names the receipt, this navigates to it. A full
+        // document navigation is the one mechanism the App Router cannot drop —
+        // and a dropped one here means a filed report with no receipt shown.
+        clearDraft();
+        navigateAfterActionSuccess(result.redirectTo);
       }
     } catch (err) {
-      // Next.js redirect() throws an internal error the router intercepts.
-      // On a successful redirect: clear autosave then rethrow so navigation succeeds.
-      const digest = (err as { digest?: string }).digest ?? "";
-      if (digest.startsWith("NEXT_REDIRECT")) {
-        clearDraft();
-        throw err;
-      }
       setSubmitError(
         err instanceof Error ? err.message : "Ocurrió un error inesperado. Intentá de nuevo.",
       );
@@ -364,9 +363,8 @@ export function DenunciaWizard() {
   }
 
   // NOTE: this wizard never renders a success screen inline — on a successful
-  // submit, createWelfareReportAction redirects to /denuncias/codigo/[code],
-  // which is the canonical receipt. The catch block above clears the autosave
-  // draft on the NEXT_REDIRECT signal.
+  // submit it navigates to /denuncias/codigo/[code], the canonical receipt, and
+  // clears the autosave draft on the way out.
 
   return (
     // Single <form> wrapping the wizard — no native action, submit handled by handleSubmit.
