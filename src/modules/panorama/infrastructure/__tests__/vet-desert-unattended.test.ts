@@ -29,7 +29,7 @@
 //
 // Integration test — local Supabase + Postgres.
 
-import { inArray } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, petEvents, pets } from "@/db";
@@ -52,6 +52,8 @@ const LOC_DEWORM = "PANORAMA-VU-DEWORM"; // idem, but the act is a deworming
 const LOC_OLD = "PANORAMA-VU-OLD"; // idem, but the visit predates the window
 const LOC_REPEAT = "PANORAMA-VU-REPEAT"; // 6 pets, ONE pet with 3 visits
 const LOC_DECEASED = "PANORAMA-VU-DECEASED"; // 6 attended active + 4 deceased
+const LOC_LATE_REG = "PANORAMA-VU-LATEREG"; // 5 registered long ago + 5 after the cut
+const LOC_DIED_LATER = "PANORAMA-VU-DIEDLATER"; // 6 alive at the cut, 3 died after it
 const LOC_SUBK = "PANORAMA-VU-SUBK"; // 2 active pets (< k=5) → suppressed
 
 const GOVT: DashboardActor = { role: "govt" };
@@ -60,14 +62,33 @@ const jurs = (locality: string): DashboardJurisdiction[] => [{ province: PROVINC
 const DAY_MS = 86_400_000;
 const SINCE = new Date(Date.now() - 30 * DAY_MS);
 const INSIDE_WINDOW = new Date(Date.now() - 10 * DAY_MS);
+// The replay cut sits INSIDE the 30-day window, so [since, cut] is a real
+// window with room for acts on either side of it. First written with the cut
+// equal to `since`, which made the replay window empty and the fixture unable
+// to discriminate anything.
+const LONG_AGO = new Date("2019-01-01T00:00:00Z");
+const REPLAY_CUT = new Date(Date.now() - 15 * 86_400_000);
+const ACT_BEFORE_CUT = new Date(Date.now() - 20 * 86_400_000);
+const AFTER_CUT = new Date(Date.now() - 5 * 86_400_000);
 const BEFORE_WINDOW = new Date(Date.now() - 200 * DAY_MS);
 
 const petIds: string[] = [];
 let seq = 0;
 
+/**
+ * A pet in the universe, anchored in the spine.
+ *
+ * `registeredAt` matters since the as-of-t denominator (PO decision D3): the
+ * universe is "pets registered before t and not deceased at t", and both facts
+ * are read from the event log, not from the cache columns. These fixtures used
+ * to insert a pets row with NO pet_registered event at all — a cache row with
+ * no spine anchor, which is exactly the state invariant #3 forbids and
+ * lint:spine now blocks in the seeds.
+ */
 async function makePet(
   locality: string,
   status: "active" | "deceased" = "active",
+  registeredAt: Date = new Date("2020-01-01T00:00:00Z"),
 ): Promise<string> {
   seq += 1;
   const token = `DIM-VU-${String(seq).padStart(4, "0")}`;
@@ -84,7 +105,31 @@ async function makePet(
     })
     .returning({ id: pets.id });
   petIds.push(row.id);
+  await db.insert(petEvents).values({
+    petId: row.id,
+    eventType: "pet_registered" as EventType,
+    occurredAt: registeredAt,
+    payload: {},
+    authorRole: "owner",
+    recordedByUserId: null,
+  });
   return row.id;
+}
+
+/** Record a status transition in the spine, the way the app does. */
+async function addStatusChange(
+  petId: string,
+  toStatus: "active" | "lost" | "deceased",
+  occurredAt: Date,
+): Promise<void> {
+  await db.insert(petEvents).values({
+    petId,
+    eventType: "status_changed" as EventType,
+    occurredAt,
+    payload: { from_status: "active", to_status: toStatus, payload_version: 1 },
+    authorRole: "owner",
+    recordedByUserId: null,
+  });
 }
 
 const PAYLOADS: Record<string, Record<string, unknown>> = {
@@ -169,6 +214,37 @@ beforeAll(async () => {
   for (let i = 0; i < 4; i++) await makePet(LOC_DECEASED, "deceased");
   // Sub-k universe: 2 active pets → suppressed, no cell.
   await seedUniverse(LOC_SUBK, 2, 1, "vet_visit_logged", INSIDE_WINDOW);
+
+  // ---- as-of-t denominator fixtures (PO decision D3) --------------------
+  // Both fixtures are built so the replay and the live view give DIFFERENT
+  // percentages. A fixture where both answers agree cannot tell whether the
+  // denominator travelled — it would pass before the fix and after it.
+  //
+  // LATE_REG: 5 registered long ago and ALL attended inside the window, plus 5
+  // registered after the cut and never attended.
+  //   live   → 10 pets, 5 attended  → 50% unattended
+  //   replay →  5 pets, 5 attended  →  0% unattended
+  for (let i = 0; i < 5; i++) {
+    const id = await makePet(LOC_LATE_REG, "active", LONG_AGO);
+    await addAct(id, "vet_visit_logged", ACT_BEFORE_CUT);
+  }
+  for (let i = 0; i < 5; i++) await makePet(LOC_LATE_REG, "active", AFTER_CUT);
+
+  // DIED_LATER: 9 registered long ago; the 3 that die after the cut are the
+  // attended ones, so removing them changes the share as well as the universe.
+  //   live   → 6 alive,  0 attended → 100% unattended
+  //   replay → 9 alive,  3 attended →  67% unattended
+  for (let i = 0; i < 9; i++) {
+    const id = await makePet(LOC_DIED_LATER, "active", LONG_AGO);
+    if (i < 3) {
+      await addAct(id, "vet_visit_logged", ACT_BEFORE_CUT);
+      await addStatusChange(id, "deceased", AFTER_CUT);
+      // The app dual-writes: the event is the fact, the column is the cache the
+      // live view reads. A fixture that only wrote the event would leave the
+      // live view seeing a pet the spine says is dead.
+      await db.update(pets).set({ status: "deceased" }).where(eq(pets.id, id));
+    }
+  }
 }, 60_000);
 
 afterAll(cleanup);
@@ -234,6 +310,27 @@ describe("loadVetDesertByProvince — share of active pets with no veterinary ac
       expect(v).toBeLessThanOrEqual(100);
     }
   }, 60_000);
+});
+
+// PO decision D3 (2026-07-28). The claim "asOf moves `until`, replaying the
+// share as of t" was only half true: the NUMERATOR travelled (events filtered
+// to [since, asOf]) while the DENOMINATOR stayed today's population. A pet
+// registered yesterday joined the denominator of a replay from six months ago,
+// and one that died last week was missing from a replay in which it was alive.
+// The PO chose the honest replay over a caption disclaiming it.
+describe("loadVetDesertByProvince — the denominator travels with the numerator (D3)", () => {
+  it("excludes pets registered AFTER the replay cut", async () => {
+    // Live: 10 pets, 5 attended → 50%. At the cut only the 5 attended existed.
+    expect(await pctFor(LOC_LATE_REG)).toBe(50);
+    expect(await pctFor(LOC_LATE_REG, REPLAY_CUT)).toBe(0);
+  });
+
+  it("counts a pet that was alive AT the cut even though it died later", async () => {
+    // Live: the 3 attended ones are gone → 6 pets, 0 attended → 100%.
+    // At the cut all 9 were alive and 3 had been attended → 67%.
+    expect(await pctFor(LOC_DIED_LATER)).toBe(100);
+    expect(await pctFor(LOC_DIED_LATER, REPLAY_CUT)).toBeCloseTo(66.7, 1);
+  });
 });
 
 describe("loadVetDesertByProvince — k-anon on the ACTIVE-pet universe", () => {

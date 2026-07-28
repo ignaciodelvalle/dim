@@ -893,6 +893,54 @@ export async function loadTendenciaByProvince(
  *  scope clause, which this file supplies separately via petsScope. */
 const ACTIVE_PETS: SQL = sql`${pets.status} IN ('active', 'lost')`;
 
+/**
+ * The ACTIVE-pet universe **as of `t`**, read from the spine rather than the
+ * cache columns (PO decision D3, 2026-07-28).
+ *
+ * A replay used to move only the numerator: events were filtered to
+ * [since, asOf] while the denominator stayed today's `pets.status`. So a pet
+ * registered yesterday joined the denominator of a replay from six months ago,
+ * and a pet that died last week was missing from a replay in which it was
+ * alive. The screen claimed a replay the data supported by halves.
+ *
+ * Two facts, both from the event log:
+ *   · it existed at t — a pet_registered event at or before t;
+ *   · it was not dead at t — the LAST status_changed at or before t did not
+ *     leave it deceased (no transition at all means it is still as registered).
+ *
+ * Deliberately NOT `pets.created_at` / `pets.status`: those are operational
+ * caches, and a temporal replay decided by a column that only knows "now" is
+ * the defect this closes, not a cheaper way to fix it.
+ *
+ * Only used when a cut is actually requested — the live view's population IS
+ * today's, so it keeps the plain indexed predicate above.
+ */
+function activePetsAsOf(t: Date): SQL {
+  // Bound as an ISO string, the convention this file already uses two hundred
+  // lines up (`win.since.toISOString()`): the driver will not bind a Date
+  // inside a raw template.
+  const at = t.toISOString();
+  return sql`
+    EXISTS (
+      SELECT 1 FROM ${petEvents} reg
+      WHERE reg.pet_id = ${pets.id}
+        AND reg.event_type = 'pet_registered'
+        AND reg.occurred_at <= ${at}::timestamptz
+    )
+    AND COALESCE(
+      (
+        SELECT sc.payload->>'to_status' FROM ${petEvents} sc
+        WHERE sc.pet_id = ${pets.id}
+          AND sc.event_type = 'status_changed'
+          AND sc.occurred_at <= ${at}::timestamptz
+        ORDER BY sc.occurred_at DESC
+        LIMIT 1
+      ),
+      'active'
+    ) IN ('active', 'lost')
+  `;
+}
+
 // metrics:vet-desert (desierto-veterinario) — per-PROVINCE SHARE OF ACTIVE PETS
 // WITH NO VETERINARY ACT IN THE PERIOD.
 //
@@ -946,7 +994,8 @@ export async function loadVetDesertByProvince(
   // Denominator + k-anon dimension: ACTIVE pets per province. Deceased pets are
   // excluded on purpose — a share of "mascotas sin atención" that counted them
   // would inflate every province by its mortality history.
-  const universe = await rollupPetsPerProvince([ACTIVE_PETS], scope);
+  // The denominator travels with the numerator when a cut is requested (D3).
+  const universe = await rollupPetsPerProvince([asOf ? activePetsAsOf(until) : ACTIVE_PETS], scope);
   const { visible, suppressedCount } = suppressSmallCells(universe, {
     count: (r) => r.count,
     key: (r) => r.province,
@@ -958,7 +1007,13 @@ export async function loadVetDesertByProvince(
   // attended, and counting acts would let a single heavily-treated animal erase
   // a province's desert.
   const conditions: SQL[] = [
-    ACTIVE_PETS,
+    // The SAME universe predicate as the denominator above. Left on today's
+    // ACTIVE_PETS, the numerator silently dropped any pet that had been
+    // attended before the cut and died after it — so the replay under-counted
+    // attention exactly where the denominator had just been taught to include
+    // it. A share whose two halves describe different populations is not a
+    // share.
+    asOf ? activePetsAsOf(until) : ACTIVE_PETS,
     inArray(petEvents.eventType, VET_ACTIVITY_EVENT_TYPES),
     gte(petEvents.occurredAt, since),
     lte(petEvents.occurredAt, until),
