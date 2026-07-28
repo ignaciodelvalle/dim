@@ -135,7 +135,7 @@ test.describe("Final seams cross-POV", () => {
           const sp = await stranger.newPage();
           await sp.goto(`/p/${petToken}`, { waitUntil: "domcontentloaded" });
           await sp.waitForLoadState("networkidle").catch(() => {});
-          const lostBanner = sp.locator('[data-section="lost-urgent-banner"]');
+          const lostBanner = sp.locator('[data-section="lost-urgent-strip"]');
           const lostHeadline = sp.getByText(/estoy perdida|está perdida|SE BUSCA/i);
           await expect(lostBanner.or(lostHeadline).first()).toBeVisible({
             timeout: 25_000,

@@ -338,6 +338,14 @@ describe("/p/[publicToken] — LOST path renders the single-card structure (pet-
     expect(html).toContain('data-situation="perdida"');
     expect(html).toContain('data-section="masthead-situation-chip"');
     expect(html).toContain("Perdida");
+    // NOTE (2026-07-28): this pins the absence of the RETIRED full-page
+    // takeover (LostPublicCredential), a component that no longer exists in the
+    // tree at all — so the assertion cannot fail and proves nothing on its own.
+    // It is kept as a tombstone: if anyone reintroduces that selector, this
+    // catches it. What actually guards the CURRENT lost treatment is the pair
+    // above (data-situation + masthead chip) plus the e2e specs asserting
+    // data-section="lost-urgent-strip", which is a DIFFERENT element and does
+    // render here.
     expect(html).not.toContain('data-section="lost-urgent-banner"');
 
     // The normal credential body still renders (identity grid + footer).

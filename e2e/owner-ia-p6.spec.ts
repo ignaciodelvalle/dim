@@ -435,7 +435,7 @@ test("9 — public /p/{flagship} renders with no auth, no carousel chrome, no co
 
     // No contact PII on an ACTIVE credential: no lost-mode owner disclosure, and
     // no phone-number pattern anywhere in the body.
-    await expect(page.locator("[data-section='lost-urgent-banner']")).toHaveCount(0);
+    await expect(page.locator("[data-section='lost-urgent-strip']")).toHaveCount(0);
     const body = (await page.locator("body").innerText()).replace(/\s+/g, " ");
     expect(body, "no phone-number PII on the active public credential").not.toMatch(
       /(\+?54\s?9?\s?11[\s-]?\d{4}[\s-]?\d{4})|(\b11[\s-]?\d{4}[\s-]?\d{4}\b)/,
@@ -457,7 +457,7 @@ test("10 — lost pet: public page shows the lost banner; owner profile shows Lo
   try {
     await gotoPublicResilient(page, `/p/${LOST_TOKEN}`);
     await expect(
-      page.locator("[data-section='lost-urgent-banner']"),
+      page.locator("[data-section='lost-urgent-strip']"),
       "public lost banner rendered",
     ).toBeVisible();
   } finally {

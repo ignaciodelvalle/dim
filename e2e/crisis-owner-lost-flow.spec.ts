@@ -44,7 +44,16 @@ test("owner marks a pet lost — public credential flips to lost state for a str
   // registry — any will do, we just need one currently NOT lost.
   await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle").catch(() => {});
-  const petLink = page.locator('a[href^="/mis-mascotas/"]', { hasText: /registrada/i }).first();
+  // `:has(img)` because the name is read from the photo's alt below, and a pet
+  // without a photo renders a placeholder instead of an <img> — the locator
+  // then waits out the whole test budget on an element that will never exist.
+  // Hit while running this suite repeatedly: e2e/create-pet.spec.ts adds a
+  // photo-less pet to THIS SAME owner on every run and never cleans it up, so
+  // the newest card is progressively more likely to be one of those. A fresh CI
+  // database happens not to show it; a developer's does, quickly.
+  const petLink = page
+    .locator('a[href^="/mis-mascotas/"]:has(img)', { hasText: /registrada/i })
+    .first();
   test.skip(
     (await petLink.count()) === 0,
     "owner@dim.test has no active (non-lost) pet — skipping mark-lost flow.",
@@ -95,7 +104,7 @@ test("owner marks a pet lost — public credential flips to lost state for a str
       const response = await strangerPage.goto(`/p/${token}`);
       expect(response?.status()).toBeLessThan(400);
 
-      const banner = strangerPage.locator('[data-section="lost-urgent-banner"]');
+      const banner = strangerPage.locator('[data-section="lost-urgent-strip"]');
       await expect(banner).toBeVisible();
       // Headline is sex-dependent (lostBannerHeadline): "ESTÁ PERDIDO" (male),
       // "ESTÁ PERDIDA" (female) or "SE PERDIÓ" (unknown) — match any variant.

@@ -114,7 +114,7 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
         const sp = await stranger.newPage();
         const res = await sp.goto(`/p/${token}`, { waitUntil: "domcontentloaded" });
         expect(res?.status(), "public credential responds 2xx/3xx").toBeLessThan(400);
-        await expect(sp.locator('[data-section="lost-urgent-banner"]')).toBeVisible({
+        await expect(sp.locator('[data-section="lost-urgent-strip"]')).toBeVisible({
           timeout: 20_000,
         });
         // Phone was disclosed → the call CTA renders.
@@ -168,7 +168,7 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       try {
         const sp2 = await stranger2.newPage();
         await sp2.goto(`/p/${token}`, { waitUntil: "domcontentloaded" });
-        await expect(sp2.locator('[data-section="lost-urgent-banner"]')).toHaveCount(0);
+        await expect(sp2.locator('[data-section="lost-urgent-strip"]')).toHaveCount(0);
         await expect(sp2.getByText(/application error/i)).not.toBeVisible();
       } finally {
         await stranger2.close();
