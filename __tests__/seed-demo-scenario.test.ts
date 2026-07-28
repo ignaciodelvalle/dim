@@ -30,6 +30,50 @@ import {
 const FOCAL_PROVINCE = "CABA";
 const FOCAL_LOCALITY = "Palermo";
 
+// ---------------------------------------------------------------------------
+// The precondition this file forgot to declare
+// ---------------------------------------------------------------------------
+//
+// Every assertion below is about artefacts `pnpm seed:demo:scenario` creates —
+// DIM-DEMO- pets, their event series, admin's alert subscription, govt's CABA
+// assignment. Nothing in `pnpm db:bootstrap` creates any of them, and this file
+// creates none of them either.
+//
+// So `pnpm test` green was only reachable on a database where somebody had run
+// the demo seed by hand: in practice one long-lived local stack. The documented
+// CI recipe (supabase start → db:bootstrap → test) produced 8 red tests, and
+// the Definition of Done — "paste the green output" — quietly depended on
+// undeclared state. That is the suite-wide version of a green that proves
+// nothing (external review, H3).
+//
+// The fix is a declared precondition, not a seed step in bootstrap: the demo
+// scenario is demo furniture, and CI has no business building it to satisfy a
+// test. When it is absent these tests SKIP, and announce it — see below for
+// where the announcement had to go.
+//
+// PO decision D2, recommended option (docs/plans/2026-07-27-plan-ejecucion-ola1.md §1).
+const demoPetCount = await db
+  .select({ n: sql<number>`count(*)::int` })
+  .from(pets)
+  .where(sql`${pets.publicToken} LIKE 'DIM-DEMO-%'`)
+  .then((rows) => rows[0]?.n ?? 0)
+  .catch(() => 0);
+
+const HAS_DEMO_SEED = demoPetCount > 0;
+
+// HOW THE SKIP ANNOUNCES ITSELF — and why not with console.warn
+//
+// A console.warn here does not print. Vitest buffers console output per task
+// and discards it for a file whose tests are all skipped, so the "loud log"
+// the review asked for would have been a silent one — the exact failure this
+// file is being fixed for, in a new costume. Measured before choosing this.
+//
+// The reason therefore travels in the suite NAMES, which every reporter prints
+// and which land in the CI log next to the `N skipped` count.
+const SKIP_NOTE = HAS_DEMO_SEED
+  ? ""
+  : " [SKIPPED — no DIM-DEMO- pets; UNVERIFIED. Run pnpm seed:demo:scenario]";
+
 // Lazily resolve admin+govt profile ids once per test run.
 async function resolveProfileIds(): Promise<{ adminId: string; govtId: string }> {
   // We query via the Supabase admin SDK through a raw SQL call since
@@ -53,7 +97,7 @@ async function resolveProfileIds(): Promise<{ adminId: string; govtId: string }>
   return { adminId: adminRow.id, govtId: govtRow.id };
 }
 
-describe("D0 — focal CABA series invariants", () => {
+describe.skipIf(!HAS_DEMO_SEED)(`D0 — focal CABA series invariants${SKIP_NOTE}`, () => {
   it("D0-1: ≥4 distinct months of sterilization_performed events in CABA (DEMO- pets)", async () => {
     const demoPets = await db
       .select({ id: pets.id })
@@ -216,7 +260,7 @@ describe("D0 — focal CABA series invariants", () => {
   });
 });
 
-describe("D1 — focal govt account invariants", () => {
+describe.skipIf(!HAS_DEMO_SEED)(`D1 — focal govt account invariants${SKIP_NOTE}`, () => {
   it("D1: govt@dim.test has role=govt in profiles", async () => {
     const rows = (await db.execute(sql`
       SELECT p.role
@@ -253,9 +297,11 @@ describe("D1 — focal govt account invariants", () => {
   });
 });
 
-describe("B2 — compliance coverage populated (no metric reads 0% universal)", () => {
-  it("microchip_iso coverage is non-zero in CABA and Buenos Aires", async () => {
-    const rows = (await db.execute(sql`
+describe.skipIf(!HAS_DEMO_SEED)(
+  `B2 — compliance coverage populated (no metric reads 0% universal)${SKIP_NOTE}`,
+  () => {
+    it("microchip_iso coverage is non-zero in CABA and Buenos Aires", async () => {
+      const rows = (await db.execute(sql`
       SELECT p.jurisdiction_province AS prov,
              count(*) FILTER (WHERE EXISTS (
                SELECT 1 FROM pet_identifications pi
@@ -267,14 +313,14 @@ describe("B2 — compliance coverage populated (no metric reads 0% universal)", 
       GROUP BY p.jurisdiction_province
     `)) as unknown as Array<{ prov: string; chipped: number }>;
 
-    expect(rows.length).toBe(2);
-    for (const r of rows) {
-      expect(Number(r.chipped)).toBeGreaterThan(0);
-    }
-  });
+      expect(rows.length).toBe(2);
+      for (const r of rows) {
+        expect(Number(r.chipped)).toBeGreaterThan(0);
+      }
+    });
 
-  it("rabies coverage (dogs, vaccine_name) is non-zero in CABA", async () => {
-    const rows = (await db.execute(sql`
+    it("rabies coverage (dogs, vaccine_name) is non-zero in CABA", async () => {
+      const rows = (await db.execute(sql`
       SELECT count(DISTINCT pe.pet_id) AS vacc
       FROM pet_events pe
       JOIN pets p ON p.id = pe.pet_id
@@ -284,6 +330,7 @@ describe("B2 — compliance coverage populated (no metric reads 0% universal)", 
         AND p.jurisdiction_province = 'CABA'
     `)) as unknown as Array<{ vacc: number }>;
 
-    expect(Number(rows[0]?.vacc ?? 0)).toBeGreaterThan(0);
-  });
-});
+      expect(Number(rows[0]?.vacc ?? 0)).toBeGreaterThan(0);
+    });
+  },
+);
