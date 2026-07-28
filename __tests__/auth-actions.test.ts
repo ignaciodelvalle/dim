@@ -213,7 +213,7 @@ describe("loginAction", () => {
     const result = await loginAction({ error: null }, loginForm({ email: DEACT_ADMIN_EMAIL }));
 
     expect(result).toEqual({
-      error: "Tu cuenta institucional está desactivada. Contactá al equipo de MiMAR.",
+      error: "Tu cuenta institucional está desactivada. Contactá al equipo de miMAR.",
       email: DEACT_ADMIN_EMAIL,
     });
     expect(signOutMock).toHaveBeenCalledTimes(1);

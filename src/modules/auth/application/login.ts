@@ -91,7 +91,7 @@ export async function loginAction(
   if (isDeactivatedInstitutional(profile)) {
     await supabase.auth.signOut();
     return {
-      error: "Tu cuenta institucional está desactivada. Contactá al equipo de MiMAR.",
+      error: "Tu cuenta institucional está desactivada. Contactá al equipo de miMAR.",
       email,
     };
   }

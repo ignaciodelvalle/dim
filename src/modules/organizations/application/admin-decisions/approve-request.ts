@@ -210,7 +210,7 @@ function bodyForApproval(type: ApprovalRequest["type"], notes: string | null): s
   const trail = notes ? ` Notas: ${notes}` : "";
   switch (type) {
     case "role_upgrade_vet":
-      return `Verificamos tu matrícula. Ya figurás como veterinario/a en MiMAR.${trail}`;
+      return `Verificamos tu matrícula. Ya figurás como veterinario/a en miMAR.${trail}`;
     case "organization_verification":
       return `Tu organización ahora figura como verificada. Los eventos que registres aparecen con el sello de verificación.${trail}`;
     case "service_dog_credential_verification":

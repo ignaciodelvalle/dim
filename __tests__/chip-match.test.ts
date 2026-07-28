@@ -772,7 +772,7 @@ describe("createIntake — active-chip cross-check", () => {
 
     // Honest hard block — NOT a raw unique-violation crash, NOT a "continue anyway".
     expect(result.ok).toBeUndefined();
-    expect(result.error).toMatch(/ya está registrado en MiMAR para una mascota activa/i);
+    expect(result.error).toMatch(/ya está registrado en miMAR para una mascota activa/i);
     // The old bug surfaced the raw driver string — assert it never does.
     expect(result.error ?? "").not.toMatch(/unique|constraint|duplicate key/i);
     // No warning / continue-anyway path is offered for the doomed case.

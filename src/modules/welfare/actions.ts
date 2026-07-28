@@ -656,7 +656,7 @@ async function requireOrgInterventionAccess(
 
   if (!orgRow) return { error: "No sos miembro activo de esta organización." };
   if (!orgRow.orgVerified)
-    return { error: "Tu organización todavía no está verificada por MiMAR." };
+    return { error: "Tu organización todavía no está verificada por miMAR." };
   // Defense-in-depth: derivation targets are restricted to eligible recipients
   // in deriveWelfareToOrgAction; mirror that exact constraint here (shared
   // canReceiveDerivedWelfare rule) so a data-integrity drift can never widen the
@@ -1258,7 +1258,7 @@ export async function createOrgWelfareReportAction(
 
   if (!orgRow) return { error: "No sos miembro activo de esta organización." };
   if (!orgRow.orgVerified) {
-    return { error: "Tu organización todavía no está verificada por MiMAR." };
+    return { error: "Tu organización todavía no está verificada por miMAR." };
   }
   if (!ORG_WELFARE_ROLES.has(orgRow.memberRole)) {
     return {

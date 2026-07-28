@@ -60,12 +60,12 @@ import { PetsRepository } from "./infrastructure/pets-repository";
 const ALLOWED_SPECIES = ["dog", "cat", "rabbit", "guinea_pig", "ferret", "other"] as const;
 
 // Duplicate-chip gate (data-quality gate P3). A microchip is a globally-unique
-// identity: if it already exists in MiMAR, the pet exists — the owner must
+// identity: if it already exists in miMAR, the pet exists — the owner must
 // claim it or request a transfer, not register a second credential for it.
 // Points at the claim wizard (/mis-mascotas/reclamar), which also opens a
 // custody dispute when the chip is registered to someone else.
 const CHIP_ALREADY_REGISTERED_MSG =
-  "Este microchip ya figura registrado en MiMAR para otra mascota. Si es tuya, vinculala a tu cuenta o pedí la transferencia desde “Mis mascotas › Reclamar una mascota”.";
+  "Este microchip ya figura registrado en miMAR para otra mascota. Si es tuya, vinculala a tu cuenta o pedí la transferencia desde “Mis mascotas › Reclamar una mascota”.";
 
 // Re-export for consumers that import the type from this module.
 export type { NewPetFormState } from "./domain/types";
@@ -206,7 +206,7 @@ export async function createPetAction(
       if (match.pet.status === "deceased") {
         return {
           error:
-            "Este chip está asociado a una mascota registrada como fallecida en MiMAR. Pedile a un admin que revise el caso antes de continuar.",
+            "Este chip está asociado a una mascota registrada como fallecida en miMAR. Pedile a un admin que revise el caso antes de continuar.",
         };
       }
     }

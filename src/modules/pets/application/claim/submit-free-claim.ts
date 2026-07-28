@@ -95,7 +95,7 @@ export async function submitFreeClaimForUser(
         .for("update");
       if (!pet) throw new FreeClaimGuardError("No encontramos la mascota.");
       if (pet.status === "deceased") {
-        throw new FreeClaimGuardError("Esta mascota figura como fallecida en MiMAR.");
+        throw new FreeClaimGuardError("Esta mascota figura como fallecida en miMAR.");
       }
       if (pet.status === "lost") {
         throw new FreeClaimGuardError(

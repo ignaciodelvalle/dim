@@ -545,7 +545,7 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     // `acceso-veterinario`, where a high value is the good news.
     label: "Desierto veterinario (% de mascotas sin atención)",
     description:
-      "Porcentaje de mascotas activas SIN ningún acto veterinario registrado en MiMAR durante el período, por provincia — consulta, vacunación, esterilización, implante de microchip o registro clínico (la desparasitación no cuenta: es de venta libre y se aplica en casa). Mide cobertura de atención, no distancia a un veterinario: la ausencia de registro no implica ausencia de atención.",
+      "Porcentaje de mascotas activas SIN ningún acto veterinario registrado en miMAR durante el período, por provincia — consulta, vacunación, esterilización, implante de microchip o registro clínico (la desparasitación no cuenta: es de venta libre y se aplica en casa). Mide cobertura de atención, no distancia a un veterinario: la ausencia de registro no implica ausencia de atención.",
     geomType: "choropleth",
     source: "metrics:vet-desert",
     // Dark sienna — distinct from acceso-veterinario's mustard (#b6992d) and

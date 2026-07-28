@@ -145,7 +145,7 @@ export type WelfareReportSubjectKind = (typeof WELFARE_REPORT_SUBJECT_KINDS)[num
 export function welfareReportSubjectKindLabel(kind: WelfareReportSubjectKind | string): string {
   switch (kind) {
     case "registered_pet":
-      return "Mascota MiMAR registrada";
+      return "Mascota miMAR registrada";
     case "unowned_animal":
       return "Animal sin dueño identificado";
     case "location":

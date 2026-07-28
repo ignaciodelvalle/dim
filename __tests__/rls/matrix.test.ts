@@ -26,6 +26,7 @@ import {
   petAchievementViews,
   petEvents,
   petIdentifications,
+  petTransfers,
   pets,
 } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/infra/case-helpers";
@@ -70,6 +71,15 @@ let ownerPetId: string | null = null;
 let setupError: string | null = null;
 let fixtureCaseId: string | null = null;
 let fixtureAchievementViewId: string | null = null;
+// Fixture pet_transfers row. The owner/admin SELECT cells were corrected to
+// `allow` (matrix.data.ts) once someone noticed they only said `deny` because
+// the table happened to be empty — but no fixture followed, so on a database
+// where nothing had created a transfer the harness read `deny` again and the
+// two cells failed. That is the same accident with the sign flipped: a security
+// cell whose verdict depends on whether rows happen to exist is not measuring a
+// policy. Self-provisioned here, like the cases / achievement-view /
+// identification fixtures above, and cleaned up in afterAll.
+let fixtureTransferId: string | null = null;
 let fixtureIdentificationId: string | null = null;
 // pet-document-redesign REQ-1.2/1.3 (migration 0115) fixtures. Uses a
 // DEDICATED second pet (not `ownerPetId`) so its case-attached pet_events
@@ -200,6 +210,28 @@ beforeAll(async () => {
       .onConflictDoNothing()
       .returning({ id: petAchievementViews.id });
     fixtureAchievementViewId = avRow?.id ?? null;
+  }
+
+  // Fixture pet_transfers row — sender is the owner, receiver is the admin, so
+  // the matrix's three verdicts are all exercised by ONE row: owner reads it as
+  // sender (allow), admin reads it as admin (allow), and other_user is neither
+  // party (deny) — the isolation assertion this table exists to make.
+  const ownerCtxForTransfer = contexts.get("owner");
+  const adminCtxForTransfer = contexts.get("admin");
+  if (ownerPetId && ownerCtxForTransfer?.userId && adminCtxForTransfer?.userId) {
+    const [transferRow] = await db
+      .insert(petTransfers)
+      .values({
+        publicToken: `TRF-RLSFIX-${Date.now().toString(36).toUpperCase()}`,
+        petId: ownerPetId,
+        fromOwnerId: ownerCtxForTransfer.userId,
+        toOwnerId: adminCtxForTransfer.userId,
+        toOwnerEmail: ROLE_USERS.admin.email,
+        status: "pending",
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      })
+      .returning({ id: petTransfers.id });
+    fixtureTransferId = transferRow?.id ?? null;
   }
 
   // Fixture pet_identifications row — the probe used to rely on SEEDED
@@ -345,6 +377,12 @@ afterAll(async () => {
     await db
       .delete(cases)
       .where(eq(cases.id, fixtureCaseId))
+      .catch(() => {});
+  }
+  if (fixtureTransferId) {
+    await db
+      .delete(petTransfers)
+      .where(eq(petTransfers.id, fixtureTransferId))
       .catch(() => {});
   }
   if (fixtureAchievementViewId) {

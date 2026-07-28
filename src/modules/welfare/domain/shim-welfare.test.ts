@@ -87,7 +87,7 @@ describe("lib/welfare.ts shim — domain exports are identical to original value
   });
 
   it("welfareReportSubjectKindLabel produces the same output as original", () => {
-    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota MiMAR registrada");
+    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota miMAR registrada");
     expect(welfareReportSubjectKindLabel("unowned_animal")).toBe("Animal sin dueño identificado");
     expect(welfareReportSubjectKindLabel("location")).toBe("Lugar / situación");
     expect(welfareReportSubjectKindLabel("general")).toBe("Otro");

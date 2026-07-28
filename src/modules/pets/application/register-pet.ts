@@ -136,7 +136,7 @@ export async function registerPet(
           userId: user.id,
           notificationType: "ppp_registration_reminder",
           title: `${parsed.name}: registrá tu PPP en el provincial`,
-          body: `Tu mascota está marcada como raza potencialmente peligrosa por ${parsed.breed ?? "su raza"}. La Ley CABA 4078 / Ley Provincial 14.107 requiere que la inscribas en el registro provincial correspondiente. MiMAR la marcó automáticamente con la flag oficial.`,
+          body: `Tu mascota está marcada como raza potencialmente peligrosa por ${parsed.breed ?? "su raza"}. La Ley CABA 4078 / Ley Provincial 14.107 requiere que la inscribas en el registro provincial correspondiente. miMAR la marcó automáticamente con la flag oficial.`,
           severity: "warning",
           ctaLabel: "Más info sobre PPP",
           ctaUrl: "https://www.argentina.gob.ar/justicia/derechofacil/leysimple/maltrato-animales",

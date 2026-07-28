@@ -162,7 +162,7 @@ describe("WELFARE_REPORT_SUBJECT_KINDS", () => {
 
 describe("welfareReportSubjectKindLabel", () => {
   it("returns correct label for registered_pet", () => {
-    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota MiMAR registrada");
+    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota miMAR registrada");
   });
 
   it("returns correct label for location", () => {

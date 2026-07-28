@@ -53,7 +53,7 @@ export async function submitClaimDisputeForUser(
     .limit(1);
   if (!pet) return { error: "No encontramos la mascota." };
   if (pet.status === "deceased") {
-    return { error: "Esta mascota figura como fallecida en MiMAR." };
+    return { error: "Esta mascota figura como fallecida en miMAR." };
   }
   if (pet.inCustodyDispute) {
     return { error: "Ya hay una disputa abierta para esta mascota." };

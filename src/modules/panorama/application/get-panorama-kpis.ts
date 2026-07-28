@@ -683,7 +683,7 @@ export async function getPanoramaKpis(
         formula:
           "COUNT DISTINCT perros con vaccination_administered (vaccine_name ~* 'antirr[áa]bica|rabies', últimos 12m) / COUNT DISTINCT perros del padrón. «Cobertura del padrón» = perros del padrón / población canina estimada (censo humano × 0,158 perros/hab.).",
         caveat:
-          "Solo se cuentan vacunas registradas en MiMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; si la jurisdicción no tiene fila de censo se muestra «sin estimación censal». «Firmado por matrícula» es la porción firmada por un veterinario matriculado (author_role='vet', verificado) — la parte que el registro oficial cuenta como «al día».",
+          "Solo se cuentan vacunas registradas en miMAR. La cobertura real puede ser mayor si existen campañas fuera del sistema. La «población canina estimada» deriva del censo humano INDEC con un factor de tenencia (0,158 perros/hab., ancla EAH CABA) — es una estimación, no un censo canino; si la jurisdicción no tiene fila de censo se muestra «sin estimación censal». «Firmado por matrícula» es la porción firmada por un veterinario matriculado (author_role='vet', verificado) — la parte que el registro oficial cuenta como «al día».",
       },
     },
     {
@@ -702,7 +702,7 @@ export async function getPanoramaKpis(
         formula:
           "COUNT DISTINCT mascotas con sterilization_performed / COUNT DISTINCT mascotas activas en alcance",
         caveat:
-          "Obligatoria por ley provincial en Santa Fe, Mendoza, La Rioja, Chubut y San Juan; programática en el resto. Solo se cuentan esterilizaciones registradas en MiMAR.",
+          "Obligatoria por ley provincial en Santa Fe, Mendoza, La Rioja, Chubut y San Juan; programática en el resto. Solo se cuentan esterilizaciones registradas en miMAR.",
       },
     },
     {
@@ -746,7 +746,7 @@ export async function getPanoramaKpis(
         formula:
           "COUNT DISTINCT(PPP con dangerous_breed_attested) / COUNT DISTINCT(PPP activos en alcance) × 100",
         caveat:
-          "Solo cuenta atestaciones registradas en MiMAR. Si no hay PPP en el alcance (denominador 0) se muestra «sin PPP» en lugar de 0%. Es un estado actual (no depende del período).",
+          "Solo cuenta atestaciones registradas en miMAR. Si no hay PPP en el alcance (denominador 0) se muestra «sin PPP» en lugar de 0%. Es un estado actual (no depende del período).",
       },
     },
     {
@@ -920,10 +920,10 @@ export async function getPanoramaKpis(
       source: "repository.loadMortalityByProvince",
       info: {
         definition:
-          "Mascotas actualmente en estado «fallecida» registradas en MiMAR, en el alcance seleccionado. Es un estado actual (no depende del período).",
+          "Mascotas actualmente en estado «fallecida» registradas en miMAR, en el alcance seleccionado. Es un estado actual (no depende del período).",
         formula: "COUNT(mascotas con status='deceased') en alcance",
         caveat:
-          "Solo cuenta fallecimientos registrados en MiMAR; la mortalidad real puede ser mayor. No depende de la línea de tiempo (estado actual). El detalle (/gob/mortalidad) usa una definición distinta: fallecimientos ocurridos EN el período seleccionado (un flujo), no el stock actual de mascotas fallecidas — los dos números no van a coincidir.",
+          "Solo cuenta fallecimientos registrados en miMAR; la mortalidad real puede ser mayor. No depende de la línea de tiempo (estado actual). El detalle (/gob/mortalidad) usa una definición distinta: fallecimientos ocurridos EN el período seleccionado (un flujo), no el stock actual de mascotas fallecidas — los dos números no van a coincidir.",
       },
     },
   ];

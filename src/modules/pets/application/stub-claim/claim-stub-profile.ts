@@ -91,7 +91,7 @@ export async function claimStubProfile(
     .limit(1);
   if (!currentProfile) {
     return {
-      error: "No encontramos tu perfil MiMAR. Volvé a iniciar sesión.",
+      error: "No encontramos tu perfil miMAR. Volvé a iniciar sesión.",
     };
   }
   if (currentProfile.dniHash && currentProfile.dniHash !== dniHashValue) {

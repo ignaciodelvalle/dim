@@ -111,7 +111,7 @@ export async function requestVetUpgradeForUser(
   const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
   if (!profile) return { error: "Perfil no encontrado." };
   if (profile.role === "vet") {
-    return { error: "Ya sos veterinario/a en MiMAR." };
+    return { error: "Ya sos veterinario/a en miMAR." };
   }
 
   // Prerequisite: DNI must be verified before submitting a vet upgrade.
@@ -204,7 +204,7 @@ export async function requestVetUpgradeForUser(
         userId,
         notificationType: "approval_request_submitted_self",
         title: "Solicitud de verificación profesional enviada",
-        body: "Vamos a verificar tu matrícula y te avisamos. Mientras tanto podés seguir usando MiMAR como dueño.",
+        body: "Vamos a verificar tu matrícula y te avisamos. Mientras tanto podés seguir usando miMAR como dueño.",
         severity: "info",
         ctaLabel: "Ver estado",
         ctaUrl: "/cuenta/upgrade",

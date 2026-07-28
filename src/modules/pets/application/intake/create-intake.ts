@@ -76,7 +76,7 @@ const CUSTODY_ROLES: readonly CustodyRole[] = ["shelter_custody", "owner"];
 // Note: a chip on a LOST pet is handled earlier (redirect to the match/
 // reunification flow); this message covers the active-owner case only.
 const CHIP_MATCH_ACTIVE_BLOCK_MSG =
-  "Este microchip ya está registrado en MiMAR para una mascota activa con familia. No se puede crear un segundo ingreso con el mismo chip. Si la familia entregó al animal, tiene que iniciar la transferencia de titularidad desde su cuenta. Si el animal está perdido, pedile a la familia que lo marque como perdido en MiMAR: recién ahí el sistema te propone confirmar la coincidencia y registrar la custodia.";
+  "Este microchip ya está registrado en miMAR para una mascota activa con familia. No se puede crear un segundo ingreso con el mismo chip. Si la familia entregó al animal, tiene que iniciar la transferencia de titularidad desde su cuenta. Si el animal está perdido, pedile a la familia que lo marque como perdido en miMAR: recién ahí el sistema te propone confirmar la coincidencia y registrar la custodia.";
 
 function parseIntakeForm(formData: FormData) {
   const loc = parseLocationFromFormData(formData);
@@ -262,7 +262,7 @@ export async function createIntake(
         // BLOCK unconditionally — admin review required.
         return {
           error:
-            "Este chip está asociado a una mascota registrada como fallecida en MiMAR. Pedile a un admin que revise el caso antes de continuar.",
+            "Este chip está asociado a una mascota registrada como fallecida en miMAR. Pedile a un admin que revise el caso antes de continuar.",
         };
       }
     }

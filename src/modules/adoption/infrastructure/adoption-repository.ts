@@ -840,7 +840,7 @@ export const AdoptionRepository = {
     }
 
     if (!row.applicantUserId) {
-      return { error: "La postulación no tiene un postulante con cuenta MiMAR." };
+      return { error: "La postulación no tiene un postulante con cuenta miMAR." };
     }
 
     return { applicantUserId: row.applicantUserId };

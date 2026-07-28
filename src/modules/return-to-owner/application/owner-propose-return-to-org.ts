@@ -129,7 +129,7 @@ export async function ownerProposeReturnToOrgUseCase({
     if (!toOrgId) {
       return {
         error:
-          "No se encontró una adopción ni una organización asociada para esta mascota. Solo podés devolver mascotas recibidas a través de MiMAR.",
+          "No se encontró una adopción ni una organización asociada para esta mascota. Solo podés devolver mascotas recibidas a través de miMAR.",
       };
     }
   }
