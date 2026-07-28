@@ -15,7 +15,7 @@
 
 import { getLayer } from "./layers";
 import { getPreset } from "./presets";
-import type { AggregationLevel } from "./types";
+import type { AggregationLevel, LayerId } from "./types";
 import type { PanoramaViewState } from "./view-state";
 
 /** Optional display-name resolvers — the console has the human province/locality
@@ -128,9 +128,23 @@ function layerLabels(view: PanoramaViewState): string[] {
  * dropping it would hide a filter that really is doing something. An empty view
  * keeps it too: there is no number for it to misdescribe.
  */
-function allLayersAreCurrentState(view: PanoramaViewState): boolean {
-  const layers = view.layers.map((id) => getLayer(id)).filter((l) => l !== undefined);
+/**
+ * True when every active layer is a current-state layer, so a period label
+ * would describe a window none of the numbers on screen respect.
+ *
+ * Exported and keyed on IDS because there are TWO clocks on the console — this
+ * caption and the dock's `buildViewMeta` — and only this one had the rule. The
+ * card said "Estado actual" while the dock stamped "últimos 90 días" over the
+ * same numbers (external design review P1-F4). Two derivations of one rule is
+ * how they came apart; one derivation is how they stay together.
+ */
+export function layerIdsAreAllCurrentState(ids: readonly LayerId[]): boolean {
+  const layers = ids.map((id) => getLayer(id)).filter((l) => l !== undefined);
   return layers.length > 0 && layers.every((l) => l.temporal === false);
+}
+
+function allLayersAreCurrentState(view: PanoramaViewState): boolean {
+  return layerIdsAreAllCurrentState(view.layers);
 }
 
 /**

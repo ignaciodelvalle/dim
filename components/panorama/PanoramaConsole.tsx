@@ -3519,6 +3519,7 @@ export function PanoramaConsole({
         until,
         periodParam,
         states,
+        asOf,
       }),
     }),
     [

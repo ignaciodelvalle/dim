@@ -11,6 +11,7 @@ import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 import type { ViewScopeAuthority } from "@/lib/ui/view-scope-descriptor";
+import { formatDate } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { periodDaysPhrase } from "@/src/modules/panorama/domain/caption";
 import {
@@ -25,6 +26,7 @@ import type {
   FeatureCollection,
   LayerId,
 } from "@/src/modules/panorama/domain/types";
+import { layerIdsAreAllCurrentState } from "@/src/modules/panorama/domain/view-state-caption";
 
 export const EMPTY_FC: FeatureCollection = { type: "FeatureCollection", features: [] };
 
@@ -497,6 +499,8 @@ export function buildViewMeta(input: {
   /** Active period preset id, so a fixed-start window (ytd) names its frame. */
   periodParam: string;
   states: Record<LayerId, LayerPanelState>;
+  /** The as-of cut, when the operator is looking at a past frame. */
+  asOf: Date | null;
 }): { scopeLabel: string; periodLabel: string; suppressedCount: number } {
   const scopeLabel = input.locality
     ? "Localidad seleccionada"
@@ -507,8 +511,19 @@ export function buildViewMeta(input: {
     1,
     Math.round((input.until.getTime() - input.since.getTime()) / 86_400_000),
   );
-  // #14 (2026-07-23): year-shaped day counts read as years ("últimos 3 años").
-  const periodLabel = periodDaysPhrase(days, input.periodParam);
+  // ONE clock per screen (P1-F4). The view card already refused to stamp a
+  // period over numbers that ignore it; the dock did not, so the same figures
+  // carried "Estado actual" in one corner and "últimos 90 días" in another. The
+  // rule is now derived in ONE place (layerIdsAreAllCurrentState) and read by
+  // both — two derivations is how they came apart.
+  const activeLayerIds = PANORAMA_LAYERS.filter((l) => input.states[l.id]?.active).map((l) => l.id);
+  const base = layerIdsAreAllCurrentState(activeLayerIds)
+    ? "estado actual"
+    : // #14 (2026-07-23): year-shaped day counts read as years ("últimos 3 años").
+      periodDaysPhrase(days, input.periodParam);
+  // The dock never declared the as-of cut, so a past frame was indistinguishable
+  // from the live one in the corner that names the window.
+  const periodLabel = input.asOf === null ? base : `${base} · al ${formatDate(input.asOf)}`;
   const suppressedCount = PANORAMA_LAYERS.reduce(
     (sum, l) => sum + (input.states[l.id]?.active ? (input.states[l.id]?.suppressedCount ?? 0) : 0),
     0,
