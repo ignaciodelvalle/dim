@@ -62,8 +62,19 @@ function phasePillTone(status: string, receiverOrgId: string | null): PhasePillT
   return "triaged";
 }
 
-function daysElapsed(openedAt: Date): number {
-  return Math.floor((Date.now() - openedAt.getTime()) / (1000 * 60 * 60 * 24));
+/**
+ * How long the episode HAS LASTED — which stops at its closure.
+ *
+ * This used to run off Date.now() unconditionally, so a closed episode kept
+ * counting. A real row read "CERRADO · Abierto el 19 de junio · Cerrado el 19
+ * de junio" with "36 días" in bold beside it: the episode lasted zero days, and
+ * the largest number on the row said otherwise (external design review C8/U3).
+ * The most prominent figure on a row lying, in a system whose whole premise is
+ * that the record does not.
+ */
+function daysElapsed(openedAt: Date, closedAt: Date | null): number {
+  const end = closedAt ? closedAt.getTime() : Date.now();
+  return Math.max(0, Math.floor((end - openedAt.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 export default async function DecomisosDashboardPage({
@@ -276,7 +287,7 @@ export default async function DecomisosDashboardPage({
         ) : (
           <ul className="space-y-3">
             {rows.map(({ c, petName, petToken, petSpecies, receiverName }) => {
-              const days = daysElapsed(c.openedAt);
+              const days = daysElapsed(c.openedAt, c.closedAt ?? null);
               const canReassign = c.status === "open" && Boolean(c.receiverOrganizationId);
               // The episode is still in the OPENING govt org's direct custody
               // while status='open' (any accept/handoff closes THIS case and

@@ -524,3 +524,42 @@ this document.
 
 **Next step**: read the tattoo branch of `rederivePetCache` against the payload of that
 event, and decide whether the fixture is odd or the branch is.
+
+---
+
+## SC-6 — A.9's second half needs its own unit: urgency ordering vs keyset pagination
+
+**Batch**: A · **Unit**: A.9 (second half) · **Spec**: `2026-07-27-critique-operativa.md` U4
+
+A.9's first half is done: the decomisos "N días" now freezes at `closedAt`
+(commit below). The second half — "«Urgencia» ordena el total, no la página" — is
+not a copy change and does not fit inside this batch.
+
+**What it is.** `/gob/casos` fetches 50 rows by `openedAt` keyset and then sorts
+them by urgency IN THE CLIENT (`CaseQueue.tsx:199-213`). The header says so out
+loud: "Mostrando los 50 más recientes de 112" sits directly above "Ordenar por:
+Urgencia". An old, ultra-urgent case at position 51 never reaches the top.
+
+**Why it is not a small change.** The score is expressible in SQL —
+`closedAt IS NOT NULL → 0, else floor(age_days) × kind_severity` — and that part
+is easy. The problem is underneath it: the queue paginates with a KEYSET cursor
+on `opened_at`. Ordering by a computed score while paginating by a different
+column produces skipped and repeated rows. Making it correct means the cursor
+carries the score (plus `id` as a tiebreak) and `keyset-pagination.ts` learns a
+second shape — on the queue a jurisdiction operator uses to decide what to do
+next.
+
+**Options, for the record.**
+1. Score in SQL + score-carrying cursor. Correct, and the only version that
+   makes the control mean what it says. Est. one focused session.
+2. Sort server-side and drop keyset for offset on this screen. Simpler, and
+   trades a correctness bug for a performance one at 112 rows and growing.
+3. Leave the sort client-side and make the CONTROL honest — label it "ordenar
+   esta página". Cheap, truthful, and abandons the feature's actual purpose.
+
+Recommendation: **(1), as its own unit.** It is the only one where an operator
+opening the queue sees the most urgent case first, which is the entire claim the
+control makes.
+
+Not attempted at the end of a long session: a subtle pagination rework on a
+government queue is precisely where a rushed change hides a skipped row.
