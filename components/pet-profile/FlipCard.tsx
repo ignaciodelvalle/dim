@@ -55,6 +55,19 @@ type FlipCardProps = {
   activeFace: FlipCardFace;
   /** Toggles the face — wired by the caller (PetDetailTabsPanel.switchFace) to its ?tab= write. */
   onFlip: () => void;
+  /**
+   * Fired the moment a face becomes the PAINTED one — i.e. after the turn's
+   * edge-on swap, not when `activeFace` was requested.
+   *
+   * This exists because focus cannot be moved any earlier. The inactive face is
+   * `display:none`, and `HTMLElement.focus()` on a display:none element is a
+   * silent no-op in a real browser. A caller focusing on the `activeFace`
+   * change lands ~205ms before the swap and loses the focus into <body> — which
+   * is exactly what a keyboard user experiences as "the card flipped and I lost
+   * my place". jsdom does not enforce the display rule, so a unit test asserting
+   * document.activeElement passes while the browser does the opposite.
+   */
+  onFaceShown?: (face: FlipCardFace) => void;
   /** Pet situation for the chrome band — threaded to BOTH DocumentChrome faces
    *  so flipping the card never loses the state (pet-state-header). */
   situation?: ChromeSituation | null;
@@ -68,7 +81,14 @@ function prefersReducedMotion(): boolean {
   );
 }
 
-export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCardProps) {
+export function FlipCard({
+  front,
+  back,
+  activeFace,
+  onFlip,
+  onFaceShown,
+  situation,
+}: FlipCardProps) {
   // `displayedFace` lags `activeFace` during the turn — it swaps at the edge-on
   // midpoint so the content change is invisible. Initialised to activeFace so
   // the FIRST render (server + client hydration) is identical and deterministic.
@@ -79,10 +99,31 @@ export function FlipCard({ front, back, activeFace, onFlip, situation }: FlipCar
   const turnElRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
 
+  // Kept in a ref so `commit` (and therefore `maybeTurn`) does not change
+  // identity when the caller passes a fresh closure each render.
+  const onFaceShownRef = useRef(onFaceShown);
+  onFaceShownRef.current = onFaceShown;
+
   const commit = useCallback((face: FlipCardFace) => {
     displayedRef.current = face;
     setDisplayedFace(face);
   }, []);
+
+  // Announce the shown face from an EFFECT, not from `commit`. The listener
+  // focuses the face, and focus only takes on an element the browser has
+  // actually laid out — an announcement fired inside commit (or in a
+  // microtask after it) still runs before React has committed the DOM, so the
+  // target is `display:none` and .focus() is a silent no-op. Skips the first
+  // run: the initial face is not something the user flipped to, and stealing
+  // focus on page load would be its own defect.
+  const announcedRef = useRef(false);
+  useEffect(() => {
+    if (!announcedRef.current) {
+      announcedRef.current = true;
+      return;
+    }
+    onFaceShownRef.current?.(displayedFace);
+  }, [displayedFace]);
 
   const maybeTurn = useCallback(() => {
     if (turningRef.current) return;

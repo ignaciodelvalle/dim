@@ -10,7 +10,8 @@
 // removed again — this time WITH the a11y contract the band button now fully
 // owns: descriptive accessible name ("Girar a Libreta/Credencial"),
 // aria-pressed toggle state, keyboard reachability (it is a real button), and
-// focus moved onto the newly-shown face after a flip (see focus effect below).
+// focus moved onto the newly-shown face after a flip (see focusShownFace below,
+// wired to FlipCard.onFaceShown — it has to wait for the face to be painted).
 //
 // - Reads the active face from ?tab= (default: credencial).
 // - Syncs hash fragments: legacy anchors (#libreta, #vacunas, #historial,
@@ -33,11 +34,11 @@
 //   component (and thus the Libreta face) is rendered.
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import type { ChromeSituation } from "@/components/pet-profile/DocumentChrome";
-import { FlipCard, PET_FACE_PANEL_ID } from "@/components/pet-profile/FlipCard";
+import { FlipCard, type FlipCardFace, PET_FACE_PANEL_ID } from "@/components/pet-profile/FlipCard";
 import { type PetFace, resolvePetFace } from "@/lib/domain/pet-face-nav";
 import { pushTabUrl, replaceTabUrl } from "@/lib/ui/sheet-nav";
 
@@ -225,11 +226,23 @@ export function PetDetailTabsPanel({
   }
 
   // Move focus onto the shown face after a user-initiated flip settles.
-  useEffect(() => {
+  //
+  // Driven by FlipCard's onFaceShown, NOT by an `activeFace` effect. activeFace
+  // changes the instant the button is pressed; the face it names is still
+  // `display:none` for the ~205ms until the turn reaches edge-on and swaps, and
+  // .focus() on a display:none element is a silent no-op in a real browser.
+  // Focus therefore went nowhere and stayed on <body> — measured in Chromium:
+  // the card flipped correctly and document.activeElement was BODY 4s later,
+  // i.e. a keyboard user flipped the credential and lost their place.
+  //
+  // The jsdom interaction test did not catch it because jsdom lets focus() land
+  // on a display:none element. It passed while the browser did the opposite —
+  // and e2e/a11y-regression.spec.ts, once CI finally ran it, said so.
+  const focusShownFace = useCallback((face: FlipCardFace) => {
     if (!focusPanelAfterFlipRef.current) return;
     focusPanelAfterFlipRef.current = false;
-    document.getElementById(PET_FACE_PANEL_ID[activeFace])?.focus();
-  }, [activeFace]);
+    document.getElementById(PET_FACE_PANEL_ID[face])?.focus();
+  }, []);
 
   // THE flip trigger (single control): the band turn button DocumentChrome
   // renders inside each face (FlipCard.onFlip → switchFace). It writes ?tab=
@@ -245,6 +258,7 @@ export function PetDetailTabsPanel({
         back={libretaContent}
         activeFace={activeFace}
         onFlip={switchFace}
+        onFaceShown={focusShownFace}
         situation={situation}
       />
     </div>

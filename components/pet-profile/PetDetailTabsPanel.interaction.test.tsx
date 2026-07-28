@@ -238,6 +238,19 @@ describe("PetDetailTabsPanel — Girar affordance (router-hot-path fix)", () => 
 
     // Focus lands on the back-face container (tabIndex=-1, focused by id) so a
     // keyboard/screen-reader user is taken to the content that appeared.
+    //
+    // THIS ASSERTION CANNOT FAIL FOR THE REASON IT LOOKS LIKE IT CHECKS.
+    // jsdom lets .focus() land on a `display:none` element; a real browser
+    // ignores it silently. So this stayed green for months while Chromium left
+    // focus on <body> after every flip — measured 2026-07-28, activeElement was
+    // BODY four seconds after the keypress. The cause was focusing on the
+    // `activeFace` change, ~205ms before FlipCard's turn actually swaps the
+    // painted face; the fix routes focus through FlipCard.onFaceShown.
+    //
+    // Keep this test — it pins the wiring — but the guard that would catch a
+    // regression is e2e/a11y-regression.spec.ts ("the band Girar button is
+    // keyboard-operable…"), which runs in a real browser. Do not treat a green
+    // here as evidence that focus moves.
     await waitFor(() => {
       expect(document.activeElement?.id).toBe("pet-face-libreta");
     });

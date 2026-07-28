@@ -21,8 +21,27 @@ export const DEMO_PHOTOS = ["bolt.jpg", "courage.jpg", "hachi.jpg"].map((f) =>
   path.join(PHOTO_DIR, f),
 );
 
+// Login is rate-limited per client IP, and the middleware trusts x-real-ip.
+// A spec that logs in once per test drains the bucket and every later login
+// answers "Demasiados intentos. Esperá un momento y volvé a probar." — measured
+// on e2e/a11y-regression.spec.ts, whose 5 tests each log in as the same owner:
+// 4 passed and the 5th could not get past /login.
+//
+// Handing every login a distinct address makes each one look like a fresh
+// visitor. TEST-NET-3 (RFC 5737) is the documentation range, so these can never
+// collide with a real client. e2e/owner-ia-p6.spec.ts and
+// e2e/authz-ab-isolation.spec.ts each grew their own private copy of this; it
+// lives here now so the next spec does not have to rediscover the throttle.
+let ipCounter = 0;
+export function uniqueIp(): string {
+  ipCounter += 1;
+  return `203.0.113.${(ipCounter % 250) + 1}`;
+}
+
 /** Log in through the real UI at /login and wait until we leave the login page. */
 export async function loginAs(page: Page, email: string): Promise<void> {
+  // Fresh apparent origin per login — see uniqueIp above.
+  await page.setExtraHTTPHeaders({ "x-real-ip": uniqueIp() });
   await page.goto("/login");
   // Let hydration finish before interacting — clicks dispatched before React
   // attaches handlers are silently dropped (clickthrough audit 2026-07-03,
