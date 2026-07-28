@@ -194,7 +194,20 @@ export type DivisionLegendDescriptor = {
  * META'd rate layers are ALSO lifted here (their breaks are fixed by the compliance
  * target, so frame-stable and lift-parity-safe without a scrub lock).
  */
-export type ProvinceSeqLegend = Record<string, { breaks: number[]; colors: string[] }>;
+export type ProvinceSeqLegend = Record<
+  string,
+  {
+    breaks: number[];
+    colors: string[];
+    /**
+     * True min/max of the values this layer paints. The legend's endpoints come
+     * from here; `breaks` are interior class boundaries and describe the
+     * classifier, not the data (P1-F3 — Mortalidad published "4 … 15" against a
+     * real 24,6 → 80,7, on an exportable PNG).
+     */
+    extent?: { min: number; max: number };
+  }
+>;
 
 export type SituationalMapProps = {
   /** The set of currently-active layers (perdidas default-on). */

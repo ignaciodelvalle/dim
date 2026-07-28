@@ -450,7 +450,36 @@ describe("legendRampEndpointLabels — the ramp describes the DATA, not the clas
     expect(out).toEqual({ min: "1", max: "63" });
   });
 
-  it("falls back to the breaks when no ramp extent is available", () => {
+  // P1-F3 (external design review, 2026-07-27): the fix above only ever covered
+  // the DIVISION branch. A province choropleth has no divisionLegend, so it kept
+  // reading the interior breaks — Mortalidad published "4 … 15" and the vet
+  // desert "67 … 79" against a real national range of 24,6 → 80,7. Same defect,
+  // same exportable PNG, one branch over.
+  it("prints the true PROVINCE extremes when there is no division ramp", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: layer,
+      liftedBreaks: [30, 45, 60, 75],
+      divisionLegend: null,
+      provinceExtent: { min: 24.6, max: 80.7 },
+    });
+    expect(out).toEqual({ min: "25", max: "81" });
+  });
+
+  it("prefers the division ramp over the province extent when both are present", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: layer,
+      liftedBreaks: [2, 3, 4, 6],
+      divisionLegend: { hasRamp: true, min: 1, max: 63 },
+      provinceExtent: { min: 24.6, max: 80.7 },
+    });
+    expect(out).toEqual({ min: "1", max: "63" });
+  });
+
+  // The breaks stay as the LAST resort — when neither extent is known there is
+  // nothing better to print. This is no longer the province path's normal case.
+  it("falls back to the breaks only when NEITHER extent is available", () => {
     const out = legendRampEndpointLabels({
       bivariateActive: false,
       captionLayer: layer,

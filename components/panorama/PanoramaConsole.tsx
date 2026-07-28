@@ -4245,6 +4245,7 @@ export function PanoramaConsole({
         captionLayer,
         liftedBreaks: captionLayer ? (provinceSeqLegend[captionLayer.id]?.breaks ?? null) : null,
         divisionLegend,
+        provinceExtent: captionLayer ? (provinceSeqLegend[captionLayer.id]?.extent ?? null) : null,
       }),
     [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive],
   );

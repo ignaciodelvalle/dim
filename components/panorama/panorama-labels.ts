@@ -166,8 +166,17 @@ export function legendRampEndpointLabels(input: {
   /** The lifted classed breaks the caption layer's province fill paints, or null. */
   liftedBreaks: readonly number[] | null;
   divisionLegend: { hasRamp: boolean; min: number; max: number } | null;
+  /**
+   * True extremes of the PROVINCE features being painted, when the caller knows
+   * them. Without this the province branch fell back to the interior class
+   * breaks and published a range that was simply not the data's — Mortalidad
+   * read "4 … 15" and the vet desert "67 … 79" against a real national
+   * 24,6 → 80,7 (external design review P1-F3). Same defect the division branch
+   * had fixed; it just never crossed over.
+   */
+  provinceExtent?: { min: number; max: number } | null;
 }): { min: string; max: string } | null {
-  const { bivariateActive, captionLayer, liftedBreaks, divisionLegend } = input;
+  const { bivariateActive, captionLayer, liftedBreaks, divisionLegend, provinceExtent } = input;
   if (bivariateActive) return null;
   if (captionLayer && liftedBreaks) {
     if (liftedBreaks.length === 0) return null;
@@ -182,10 +191,14 @@ export function legendRampEndpointLabels(input: {
     // a range off by an order of magnitude. divisionLegend already carries the
     // true extremes (the fallback branch below has always used them); the
     // classed branch was simply shadowing them.
-    const lo = Math.round(divisionLegend?.hasRamp ? divisionLegend.min : liftedBreaks[0]);
-    const dataMax = divisionLegend?.hasRamp
-      ? divisionLegend.max
-      : liftedBreaks[liftedBreaks.length - 1];
+    // Preference order, most truthful first: the division ramp's extent, then
+    // the province features' extent, and only then the interior breaks — which
+    // are a classifier artefact and describe the data by accident at best.
+    const extent = divisionLegend?.hasRamp
+      ? { min: divisionLegend.min, max: divisionLegend.max }
+      : (provinceExtent ?? null);
+    const lo = Math.round(extent ? extent.min : liftedBreaks[0]);
+    const dataMax = extent ? extent.max : liftedBreaks[liftedBreaks.length - 1];
     const hi = isMeta ? Math.round(captionLayer.complianceTarget as number) : Math.round(dataMax);
     if (isMeta) return { min: `${lo}${unit}`, max: `${hi}${unit} meta` };
     // RIGHT-CENSORED endpoint: the layer stopped measuring here, so the number

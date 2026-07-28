@@ -97,6 +97,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import {
   provinceMetaClassScale,
   provinceSeqClassScale,
+  provinceValueExtent,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -1415,7 +1416,13 @@ export function SituationalMap({
           const invert = layer.higherIsBetter === true;
           const seqScale = provinceSeqClassScale(layer.features, seqBreaks, { invert });
           if (seqScale) {
-            nextProvinceSeqLegend[layer.id] = { breaks: seqScale.breaks, colors: seqScale.colors };
+            nextProvinceSeqLegend[layer.id] = {
+              breaks: seqScale.breaks,
+              colors: seqScale.colors,
+              // Carried so the legend can publish the data's real endpoints
+              // instead of the classifier's interior breaks (P1-F3).
+              extent: provinceValueExtent(layer.features) ?? undefined,
+            };
           }
         }
         if (mountedRef.current.has(layer.id)) {

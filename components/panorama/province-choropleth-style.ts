@@ -99,6 +99,33 @@ export function classedProvinceFill(
  * Returns a flat COLOR_NO_DATA expression when the layer has no values.
  */
 /**
+ * The province values a choropleth actually paints — one number per feature
+ * that carries a province code and a finite value.
+ *
+ * Shared so the legend's extremes and the ramp's classing read the SAME set.
+ * They used to be derived separately, and the legend published a range the map
+ * never painted (P1-F3): a duplicated filter is a drift waiting to happen.
+ */
+export function provinceValues(features: FeatureCollection): number[] {
+  const values: number[] = [];
+  for (const f of features.features) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
+    values.push(p.value);
+  }
+  return values;
+}
+
+/** True min/max of what the province choropleth paints, or null when empty. */
+export function provinceValueExtent(
+  features: FeatureCollection,
+): { min: number; max: number } | null {
+  const values = provinceValues(features);
+  if (values.length === 0) return null;
+  return { min: Math.min(...values), max: Math.max(...values) };
+}
+
+/**
  * The THRESHOLD-CLASSED scale (breaks + colors) a SEQUENTIAL province choropleth
  * renders — the single source of truth shared by the map fill (provinceColorExpr,
  * below) and the off-canvas legend (lifted through SituationalMap so the swatch
@@ -122,12 +149,7 @@ export function provinceSeqClassScale(
   lockedBreaks?: readonly number[] | null,
   opts?: { invert?: boolean },
 ): ClassScale | null {
-  const values: number[] = [];
-  for (const f of features.features) {
-    const p = f.properties as ProvinceFeatureProps;
-    if (typeof p.provinceCode !== "string" || !isFiniteValue(p.value)) continue;
-    values.push(p.value);
-  }
+  const values = provinceValues(features);
   if (values.length === 0) return null;
   return computeClassScale(values, {
     lockedBreaks: lockedBreaks ?? null,
