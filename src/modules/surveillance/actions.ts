@@ -24,7 +24,6 @@
 // AUDIT_LOG: NONE on bite/rabies. Outbreak: all 4 write audit_log inside tx (use-case handles it).
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { db, notifications } from "@/db";
 import { notifyOutbreakInvestigationOpened } from "@/lib/domain/authority";
@@ -87,11 +86,17 @@ async function flushNotifications(
 // Re-exported types (matches original app/actions/bite.ts public surface)
 // ---------------------------------------------------------------------------
 
-export type BiteFormState = { error: string | null };
+export type BiteFormState = {
+  error: string | null;
+  /** N3 post-action destination — see the note on ProfessionalCloseResult below. */
+  redirectTo?: string;
+};
 export type ReportBiteFromOrgFormState = {
   error: string | null;
   ok?: boolean;
   petToken?: string;
+  /** N3 post-action destination — see the note on ProfessionalCloseResult below. */
+  redirectTo?: string;
   /** CAS-XXXX-XXXX code of the opened bite-incident case (receipt reference). */
   casePublicCode?: string;
 };
@@ -225,9 +230,13 @@ export async function reportBiteAction(
   // Redirect to the dedicated success page so the owner sees the observation-
   // period details and next steps, not a silent pet-profile redirect.
   // Carry the opened bite-incident case code so the receipt can quote it.
-  redirect(
-    `/mis-mascotas/${publicToken}/eventos/nuevo/mordedura/exito?caso=${encodeURIComponent(result.value.casePublicCode)}`,
-  );
+  // N3, like professionalCloseAction below: hand the destination back. This
+  // file already carried that contract — and this call, on the OWNER's bite
+  // report, never adopted it.
+  return {
+    error: null,
+    redirectTo: `/mis-mascotas/${publicToken}/eventos/nuevo/mordedura/exito?caso=${encodeURIComponent(result.value.casePublicCode)}`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -409,7 +418,11 @@ export async function reportBiteFromOrgAction(
       casePublicCode: result.value.casePublicCode,
     };
   }
-  redirect(`/org/${orgToken}?evento=mordedura_reportada`);
+  // No `ok` here on purpose: `ok` is what makes the form render its inline
+  // SuccessScreen (the noRedirect branch above). This branch NAVIGATES, so it
+  // reports only where to go — setting both would ask the form to do two
+  // different things with one state.
+  return { error: null, redirectTo: `/org/${orgToken}?evento=mordedura_reportada` };
 }
 
 // ---------------------------------------------------------------------------

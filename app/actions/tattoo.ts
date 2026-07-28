@@ -1,23 +1,5 @@
 "use server";
 
-// tattoo.ts — thin shim (strangler migration 34/61).
-//
-// Business logic moved to:
-//   src/modules/pets/application/tattoo/
-//
-// This file provides createTattooAction (outer auth-guarded server action
-// used by UI components). The bare createTattooForUser writer is NOT
-// exported here (authz triage 2026-07-04): every export of a "use server"
-// file is an independently-addressable server action, so a bare writer
-// taking caller-supplied petId/userId would let any client forge tattoo
-// events. Callers import it from
-// src/modules/pets/application/tattoo/create-tattoo directly.
-//
-// CRITICAL: Every runtime export in a "use server" file must be an async
-// function. Types are re-exported with `export type` (erased at runtime).
-
-import { redirect } from "next/navigation";
-
 import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { type SupabaseServerClient, requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -141,5 +123,6 @@ export async function createTattooAction(
     await cleanupAttachment(supabase, upload.uploadedPath);
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }

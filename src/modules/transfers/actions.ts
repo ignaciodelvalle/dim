@@ -28,7 +28,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { acceptCrossOrgTransfer } from "./application/accept-cross-org-transfer";
 import { acceptPetTransfer } from "./application/accept-pet-transfer";
@@ -654,6 +653,12 @@ export async function cancelCrossOrgTransferAction(input: {
 
 export type TransferCustodyFormState = {
   error: string | null;
+  /**
+   * N3 post-action destination. The action must NOT redirect() — the App
+   * Router drops a server action's own redirect in production: the write
+   * commits and the screen never moves (lib/ui/full-page-action-nav.ts).
+   */
+  redirectTo?: string | null;
 };
 
 export async function transferCustodyAction(
@@ -693,5 +698,6 @@ export async function transferCustodyAction(
   // lives), not to a "transferido" toast that would misrepresent an unaccepted
   // proposal as a completed handoff.
   revalidatePath(`/org/${orgToken}/transferencias`);
-  redirect(`/org/${orgToken}/transferencias`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/org/${orgToken}/transferencias` };
 }

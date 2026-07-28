@@ -3,7 +3,15 @@
 import type { Pet } from "@/db";
 import type { PetEventAuthorship } from "@/lib/infra/pet-access";
 
-export type PregnancyFormState = { error: string | null };
+export type PregnancyFormState = {
+  error: string | null;
+  /**
+   * N3 post-action destination. The action must NOT redirect() — the App
+   * Router drops a server action's own redirect in production: the write
+   * commits and the screen never moves (lib/ui/full-page-action-nav.ts).
+   */
+  redirectTo?: string | null;
+};
 
 export const PREGNANCY_OUTCOMES = [
   "live_birth",

@@ -19,7 +19,6 @@
 
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { db, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -128,7 +127,8 @@ export async function createServiceOfferingAction(
   if ("error" in result) return { error: result.error };
 
   revalidatePath(`/org/${orgToken}/servicios`);
-  redirect(`/org/${orgToken}/servicios`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/org/${orgToken}/servicios` };
 }
 
 export async function approveServiceOfferingAction(

@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { todayIsoInAr } from "@/lib/utils/format";
 
@@ -16,6 +17,10 @@ const FORM_ID = "pregnancy-started-form";
 
 export function PregnancyStartedForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const today = todayIsoInAr();
 

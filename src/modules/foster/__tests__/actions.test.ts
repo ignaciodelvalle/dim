@@ -207,12 +207,14 @@ describe("assignFosterAction", () => {
       notifications: [NOTIFICATION],
     });
     const fd = fakeFormData({ fosterUserId: "u-1", expectedWeeks: "4", notes: "test note" });
-    await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
+    const state = await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
     expect(assignFoster).toHaveBeenCalledWith(
       { petPublicToken: "PET-tok", fosterUserId: "u-1", expectedWeeksRaw: "4", notes: "test note" },
       expect.objectContaining({ actor: expect.objectContaining({ user: MOCK_USER }) }),
     );
-    expect(redirect).toHaveBeenCalledWith("/org/ORG-tok/mascotas?foster=PET-tok");
+    // N3 (B.2): returned, not redirect()ed.
+    expect(state.redirectTo).toBe("/org/ORG-tok/mascotas?foster=PET-tok");
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("uses ?foster= redirect param (not ?fostend=)", async () => {
@@ -222,8 +224,8 @@ describe("assignFosterAction", () => {
       notifications: [],
     });
     const fd = fakeFormData({ fosterUserId: "u-1" });
-    await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
-    const [path] = vi.mocked(redirect).mock.calls[0];
+    const state = await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
+    const path = state.redirectTo ?? "";
     expect(path).toContain("?foster=");
     expect(path).not.toContain("?fostend=");
   });
@@ -253,8 +255,8 @@ describe("endFosterAction", () => {
       notifications: [],
     });
     const fd = fakeFormData({ reason: "returned" });
-    await endFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
-    const [path] = vi.mocked(redirect).mock.calls[0];
+    const state = await endFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
+    const path = state.redirectTo ?? "";
     expect(path).toContain("?fostend=");
     expect(path).not.toContain("?foster=");
   });

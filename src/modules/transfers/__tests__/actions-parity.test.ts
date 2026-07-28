@@ -933,7 +933,7 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) UR
     );
   });
 
-  it("redirects to the transfers hub on success (proposal opened, not an immediate flip)", async () => {
+  it("returns the transfers hub on success (proposal opened, not an immediate flip)", async () => {
     const { redirect } = await import("next/navigation");
     mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
@@ -949,8 +949,12 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) UR
     });
     const formData = new FormData();
     formData.append("destinationOrgId", "org-2");
-    await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
-    expect(redirect).toHaveBeenCalledWith("/org/org-tok/transferencias");
+    // N3 (B.2): the action RETURNS the hub and the form navigates. A server
+    // action's own redirect() is dropped by the App Router in production — the
+    // transfer proposal would open and the operator would see nothing.
+    const state = await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
+    expect(state.redirectTo).toBe("/org/org-tok/transferencias");
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("returns error (no redirect) on use-case failure", async () => {

@@ -3,6 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
 
 const SELECTABLE_END_REASONS = [
@@ -43,8 +44,14 @@ export function EndFosterButton({
         { error: null },
         formData,
       );
-      if (result.error) setError(result.error);
-      // success → action redirects; we won't reach here in that case
+      if (result.error) {
+        setError(result.error);
+      } else if (result.redirectTo) {
+        // N3: the action names the destination and this navigates. It used to
+        // redirect() server-side — a transition the App Router drops, so the
+        // foster stay ENDED and the operator kept looking at the button.
+        navigateAfterActionSuccess(result.redirectTo);
+      }
     });
   }
 

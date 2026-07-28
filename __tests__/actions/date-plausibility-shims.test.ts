@@ -114,13 +114,14 @@ describe("recordPregnancyStartedAction — date plausibility", () => {
   it("accepts today's AR date and rejects tomorrow's", async () => {
     const { recordPregnancyStartedAction } = await import("@/app/actions/pregnancy");
 
-    await expect(
-      recordPregnancyStartedAction(
-        "DIM-TEST-0001",
-        { error: null },
-        formData({ occurredAt: TODAY_AR }),
-      ),
-    ).rejects.toThrow("REDIRECT");
+    // N3 (B.2): the action RETURNS its destination now — redirect() from a
+    // server action is dropped by the App Router in production.
+    const state = await recordPregnancyStartedAction(
+      "DIM-TEST-0001",
+      { error: null },
+      formData({ occurredAt: TODAY_AR }),
+    );
+    expect(state.redirectTo).toBeTruthy();
     expect(mockPregnancyStartedWriter).toHaveBeenCalledOnce();
 
     mockPregnancyStartedWriter.mockClear();
@@ -138,13 +139,14 @@ describe("recordPregnancyEndedAction — date plausibility", () => {
   it("accepts today's AR date and rejects tomorrow's", async () => {
     const { recordPregnancyEndedAction } = await import("@/app/actions/pregnancy");
 
-    await expect(
-      recordPregnancyEndedAction(
-        "DIM-TEST-0001",
-        { error: null },
-        formData({ occurredAt: TODAY_AR, outcome: "live_birth", liveBirthsCount: "3" }),
-      ),
-    ).rejects.toThrow("REDIRECT");
+    // N3 (B.2): the action RETURNS its destination now — redirect() from a
+    // server action is dropped by the App Router in production.
+    const state = await recordPregnancyEndedAction(
+      "DIM-TEST-0001",
+      { error: null },
+      formData({ occurredAt: TODAY_AR, outcome: "live_birth", liveBirthsCount: "3" }),
+    );
+    expect(state.redirectTo).toBeTruthy();
     expect(mockPregnancyEndedWriter).toHaveBeenCalledOnce();
 
     mockPregnancyEndedWriter.mockClear();
@@ -172,9 +174,13 @@ describe("createTattooAction — date plausibility", () => {
   it("accepts today's AR date and rejects tomorrow's", async () => {
     const { createTattooAction } = await import("@/app/actions/tattoo");
 
-    await expect(
-      createTattooAction("DIM-TEST-0001", { error: null }, tattooFormData(TODAY_AR)),
-    ).rejects.toThrow("REDIRECT");
+    // N3 (B.2): the action RETURNS its destination now.
+    const state = await createTattooAction(
+      "DIM-TEST-0001",
+      { error: null },
+      tattooFormData(TODAY_AR),
+    );
+    expect(state.redirectTo).toBeTruthy();
     expect(mockCreateTattooForUser).toHaveBeenCalledOnce();
 
     mockCreateTattooForUser.mockClear();

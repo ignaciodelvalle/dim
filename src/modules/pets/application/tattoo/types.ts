@@ -1,6 +1,14 @@
 // Use-case types for createTattooForUser (strangler migration 34/61).
 
-export type EventFormState = { error: string | null };
+export type EventFormState = {
+  error: string | null;
+  /**
+   * N3 post-action destination. The action must NOT redirect() — the App
+   * Router drops a server action's own redirect in production: the write
+   * commits and the screen never moves (lib/ui/full-page-action-nav.ts).
+   */
+  redirectTo?: string | null;
+};
 
 export type TattooLocation =
   | "inner_ear_left"

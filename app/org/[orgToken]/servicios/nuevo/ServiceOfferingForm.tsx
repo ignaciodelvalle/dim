@@ -20,6 +20,7 @@ import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
 import type { ServiceKindDef } from "@/lib/reference/service-kinds";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
 
@@ -39,6 +40,10 @@ export function ServiceOfferingForm({
   orgToken: string;
 }) {
   const [state, formAction, isPending] = useActionState(createAction, INITIAL_STATE);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
   const [step, setStep] = useState(1);
 
   return (

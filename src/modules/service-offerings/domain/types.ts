@@ -5,7 +5,15 @@ export type ServiceOfferingResult = { error: string } | { ok: true };
 
 export type UpdateCapacityResult = { ok: true; slotsUpdated: number } | { error: string };
 
-export type ServiceOfferingFormState = { error: string | null };
+export type ServiceOfferingFormState = {
+  error: string | null;
+  /**
+   * N3 post-action destination. The action must NOT redirect() — the App
+   * Router drops a server action's own redirect in production: the write
+   * commits and the screen never moves (lib/ui/full-page-action-nav.ts).
+   */
+  redirectTo?: string | null;
+};
 
 /** Discriminated provider: org-side only (vet provider is not yet exposed here). */
 export type OrgProvider = {

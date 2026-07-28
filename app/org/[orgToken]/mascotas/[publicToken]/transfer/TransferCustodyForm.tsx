@@ -2,6 +2,7 @@
 
 import { LnField, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import {
   type TransferCustodyFormState,
   transferCustodyAction,
@@ -26,6 +27,10 @@ export function TransferCustodyForm({
 }) {
   const action = transferCustodyAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
 
   // Controlled field state — preserves typed input on validation error.
   const [notes, setNotes] = useState("");

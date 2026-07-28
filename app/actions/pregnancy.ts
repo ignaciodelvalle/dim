@@ -1,18 +1,5 @@
 "use server";
 
-// pregnancy.ts — thin shim (strangler migration 18/61).
-//
-// Business logic moved to:
-//   src/modules/pets/application/pregnancy/
-//
-// This file re-exports the 2 pregnancy writers (used by integration tests)
-// and provides the 2 auth-guarded action wrappers for UI components.
-//
-// CRITICAL: Every runtime export in a "use server" file must be an async
-// function. Types are re-exported with `export type` (erased at runtime).
-
-import { redirect } from "next/navigation";
-
 import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import { requireAlivePetAccess } from "@/lib/infra/pet-access";
 import { parseDateInput } from "@/lib/utils/format";
@@ -87,7 +74,8 @@ export async function recordPregnancyStartedAction(
     notes,
   });
   if (!result.ok) return { error: result.error };
-  redirect(`/mis-mascotas/${publicToken}`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 export async function recordPregnancyEndedAction(
@@ -135,5 +123,6 @@ export async function recordPregnancyEndedAction(
     notes,
   });
   if (!result.ok) return { error: result.error };
-  redirect(`/mis-mascotas/${publicToken}`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }
