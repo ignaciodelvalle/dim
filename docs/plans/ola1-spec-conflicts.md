@@ -400,3 +400,71 @@ to a measurement that took minutes.
 the one bucket where the CI-vs-local difference is still unexplained, and it is where
 the parallelism/rate-limit family of causes is still live — just not for the picker.
 Worth re-checking against the next CI run rather than theorising again.
+
+---
+
+## SC-4 final — seven of eight cleared; the eighth is a real open question
+
+| Spec | Cause | State |
+|---|---|---|
+| `create-pet` | Playwright's click() cannot resolve on the N3 client-side redirect | fixed `f116b63d` |
+| `demo/_helpers` denuncia | same | fixed `f116b63d` |
+| `admin-case-detail-shell` | pinned a case code that no longer exists → asserted against a 404 | fixed `9d9f8963` |
+| `gob-case-detail-shell` | same pinned code | fixed `9d9f8963` |
+| `a11y-regression` | **real product defect** — focus never moved on flip | fixed `c9114b61` |
+| `crisis-owner-lost-flow` | selector renamed away + a photo-less pet | fixed `130d1f15` |
+| `crisis-public` | same dead selector | fixed `130d1f15` |
+| `crisis-seams` | `/gob/perdidas` renders no pet rows at all | **OPEN** |
+| `authz-ab-isolation`, `cuenta-hang-verify` | — | pass locally; CI-only, unexplained |
+
+### The one product defect, and why nothing caught it
+
+Flipping the pet credential with the keyboard left focus on `<body>`. Focus was
+moved from an effect on `activeFace`, which changes the instant the button is
+pressed — but FlipCard keeps that face `display:none` for ~205ms until the turn
+reaches edge-on, and `.focus()` on a display:none element is a silent no-op in a
+real browser. Measured: card turned correctly, URL became `?tab=libreta`,
+`document.activeElement` was BODY four seconds later.
+
+The jsdom interaction test asserting `document.activeElement` passed the whole
+time, because jsdom does not enforce the display rule. **Eighth instance of the
+green-for-the-wrong-reason pattern**, and the first one this wave found in the
+product rather than in a test.
+
+### The three safety assertions that were measuring nothing
+
+Five e2e specs waited on `[data-section="lost-urgent-banner"]`. The app renders
+`lost-urgent-strip`; the banner name belongs to `LostPublicCredential.tsx`,
+deleted some time ago. The positive assertions merely failed. The NEGATIVE ones
+— `crisis-public.spec.ts:88`, `owner-ia-p6.spec.ts:438`,
+`crisis-seams.spec.ts:171`, each asserting `toHaveCount(0)` to prove the lost
+banner does not appear for a pet that is not lost — passed unconditionally
+against a name nothing renders. Three crisis-path safety checks, green and
+empty, for as long as the rename has been in.
+
+### Still open: `/gob/perdidas` lists nothing
+
+`crisis-seams` fails asserting the freshly-lost pet appears on the operator
+board. Measured before stopping:
+
+- the pet IS lost in the database (`DIM-33FP-UF3N`, CABA/Palermo);
+- the spec logs in as **admin**, so scope is national — the jurisdiction
+  explanation is already ruled out by the spec's own design;
+- the list fetcher's limit is 500 and there are 37 lost pets, so it is not
+  truncation;
+- the page rendered — filters, KPI, chrome all present — with **zero** `/p/DIM-`
+  links. Not "this pet is missing": no pet rows at all.
+
+That is either a real operator-facing defect (the national lost board shows
+nothing) or a streaming/selector detail in the spec. Deciding between those
+needs a focused look at how `LostPetRow` links and whether the list streams —
+not a guess at the end of a long session, which is how the two wrong diagnoses
+earlier in this entry happened.
+
+### Test hygiene debt surfaced along the way
+
+`e2e/create-pet.spec.ts` adds a pet to `owner@dim.test` on every run and never
+cleans it up. They accumulate photo-less in the shared registry and change what
+other specs pick first — that is what made `crisis-owner-lost-flow` hang on an
+`<img>` that will never exist. Same class as the seed's spine orphans fixed in
+Lote 0: a fixture that leaks into shared state. Worth a cleanup block.
