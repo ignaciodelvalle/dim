@@ -149,3 +149,79 @@ All four were found by turning CI on — which is the batch's whole purpose.
 - **`/admin/panorama` renders no `h1`.** The cutover smoke's eval returned `{}` for
   `document.querySelector('h1')`. Not investigated — whether that is intentional
   belongs with the panorama semantics critiques (P-series), not here.
+
+---
+
+## SC-3 — `pnpm test` is not reproducible from `db:bootstrap` — five files, not one
+
+**Batch**: 0 · **Found by**: the first CI run of the suite, ever (run 30336385726)
+**Spec**: `2026-07-26-cowork-hallazgos.md` §H3, which found the tip of this
+
+With bootstrap fixed and the fences green, the suite ran in CI for the first time:
+
+```
+Test Files  5 failed | 1049 passed | 2 skipped (1056)
+```
+
+Every one of the five fails the same way — an assertion against data that a database
+built by `db:bootstrap` does not contain:
+
+| File | Assertion | What it needs |
+|---|---|---|
+| `__tests__/govt-dashboards.test.ts` › fetchOutbreakHistory | `expected 0 to be greater than 1` | outbreak events across ≥2 periods |
+| `__tests__/seed-hygiene.test.ts` › notification hygiene (0157) | `expected 0 to be greater than 0` | notification rows to inspect |
+| `__tests__/rls/matrix.test.ts` › `pet_transfers` owner+admin select | `Matrix says allow but harness saw deny (rows=0)` | at least one transfer row |
+| `src/modules/panorama/…/cube-parity.test.ts` › national+department superset | `expected false to be true` | a built panorama cube |
+| `src/modules/panorama/…/choropleth-by-level.test.ts` › U5 rollup + coverage | `expected 0 to be greater than 0` | mortality data across localities |
+
+**This is not a regression.** It has been true for as long as these tests have existed;
+CI last ran 2026-06-12 and no local stack is ever empty. H3 identified the pattern in
+one file (`seed-demo-scenario`, 11 tests) and the plan scheduled it as unit H.2. The
+pattern is five files wide.
+
+The `rls/matrix.test.ts` case deserves its own note: an empty table reads as `deny`, so
+the harness reports a policy failure that is really a fixture failure. That is the same
+defect as case #3 of the review guide (the RLS matrix that only passed while the table
+was empty) — with the sign flipped. A matrix whose verdict depends on whether rows
+happen to exist is not measuring RLS.
+
+**Why it was NOT fixed in this batch.** Each file needs a per-file judgment that is
+exactly the kind of call the plan reserves for the PO — seed the data in CI, or declare
+the precondition and skip:
+
+- outbreak history and choropleth need *analytic* data; seeding it in CI means owning a
+  fixture whose shape the metrics depend on;
+- cube-parity needs the cube BUILT, i.e. a refresh step in CI;
+- the RLS matrix should almost certainly seed its own rows per case rather than skip —
+  a security matrix that skips is worse than one that is red;
+- `seed-hygiene` may simply belong behind the same declared precondition as H3.
+
+Doing five different things by guess, at the end of a batch, is how a green that means
+nothing gets built. Lote 0 stops here with the mechanism working and the truth visible.
+
+**Proposal.** Fold this into unit H.2 and widen it: H.2 becomes "make `pnpm test`
+reproducible from `db:bootstrap`", one decision per file, with the RLS matrix handled
+first because it is the only one where a skip would cost real safety. Estimated ~1
+session on top of what H.2 already carried.
+
+**Decision needed from the PO**: same question as SC-1 — Ola 1 (H.2 widened) or its own
+slot. Recommendation: **widen H.2**. It is the same defect class, and the plan already
+has a home for it.
+
+## Where Lote 0 actually landed
+
+CI, at `90884c95`, on `integration/all-20260703`:
+
+```
+Lint, typecheck, build     success   ← was failing (TS2307)
+Schema vs migrations drift success   ← was failing (immutable_unaccent)
+Dependency audit           success
+Bootstrap DB               success   ← was failing (15 of 52 tables)
+DB-backed security fences  success   ← new; found and fixed 3 spine orphans
+Tests (vitest)             failure   ← 1049 passed, 5 files short: SC-3
+```
+
+The batch's stated criterion was "green end to end". Five test files stand between here
+and that, and they are a batch of their own (SC-3). Everything the criterion was FOR —
+CI running at all, on this branch, with the fences enforced and the bootstrap honest —
+is in place.
