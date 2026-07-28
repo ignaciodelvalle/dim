@@ -92,6 +92,15 @@ jobs:
           pnpm lint:professionalism && pnpm lint:uuid && pnpm lint:dupes &&
           pnpm lint:file-size && pnpm lint:seed-ids
 
+      - name: Lint (post-mutation redirect ban)
+        # The sibling of lint:nav. router.refresh() was already banned for this
+        # defect; redirect() inside a server action has the same one and nothing
+        # looked for it — which is how the LOGIN kept calling it three times on
+        # the app's busiest screen. Ratchets against
+        # scripts/action-redirect-baseline.json: existing calls are counted debt,
+        # a new one fails. See scripts/check-action-redirect.ts.
+        run: pnpm lint:action-redirect
+
       - name: Lint (router.refresh ban)
         # Nav burn-down N2 (2026-07-04): router.refresh() rides the App
         # Router transition machinery with the production silent-drop defect

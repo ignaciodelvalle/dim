@@ -2,12 +2,18 @@
 
 import { type AuthFormState, loginAction } from "@/app/actions/auth";
 import { LnField, LnInput } from "@/components/ui/Field";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useActionState, useState } from "react";
 
 const initialState: AuthFormState = { error: null };
 
 export function LoginForm({ returnTo }: { returnTo: string | null }) {
   const [state, formAction, isPending] = useActionState(loginAction, initialState);
+  // N3: the action returns where to go; this performs the full document
+  // navigation the App Router cannot be trusted to do after a server action.
+  // `state` as the fire key so a second successful login in the same mounted
+  // document (same destination string) still navigates.
+  useActionRedirect(state.redirectTo, state);
   return (
     <LoginFormView
       state={state}

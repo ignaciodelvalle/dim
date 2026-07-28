@@ -181,10 +181,16 @@ describe("loginAction", () => {
       error: null,
     });
 
-    // The action redirects, which our mock turns into a throw.
-    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(/NEXT_REDIRECT/);
+    // N3 contract (X1-F3): the action RETURNS its destination and the form
+    // performs a full document navigation. It must not call next/navigation's
+    // redirect() — that response resolves while the App Router silently drops
+    // the transition, which on THIS surface reads as "Ingresando…" → the button
+    // returning to "Iniciar sesión" → nothing at all.
+    const state = await loginAction({ error: null }, loginForm());
+    expect(state.redirectTo).toBe("/inicio");
+    expect(state.error).toBeNull();
     expect(signInMock).toHaveBeenCalledWith({ email: OWNER_EMAIL, password: PASS });
-    expect(mockRedirect).toHaveBeenCalledWith("/inicio");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("honors a safe returnTo for non-admin/govt roles", async () => {
@@ -193,10 +199,9 @@ describe("loginAction", () => {
       error: null,
     });
 
-    await expect(
-      loginAction({ error: null }, loginForm({ returnTo: "/mis-mascotas/abc" })),
-    ).rejects.toThrow(/NEXT_REDIRECT/);
-    expect(mockRedirect).toHaveBeenCalledWith("/mis-mascotas/abc");
+    const state = await loginAction({ error: null }, loginForm({ returnTo: "/mis-mascotas/abc" }));
+    expect(state.redirectTo).toBe("/mis-mascotas/abc");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   // Task #39: a deactivated institutional account must never come out of
@@ -237,7 +242,7 @@ describe("loginAction", () => {
   it("enforces both a per-IP and a per-email login budget", async () => {
     signInMock.mockResolvedValue({ data: { user: { id: ownerUserId } }, error: null });
 
-    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(/NEXT_REDIRECT/);
+    await loginAction({ error: null }, loginForm());
 
     // Two independent budgets are consumed: per-IP and per-email.
     expect(mockEnforceRateLimit).toHaveBeenCalledWith(
@@ -258,11 +263,12 @@ describe("loginAction", () => {
       error: null,
     });
 
-    await expect(
-      loginAction({ error: null }, loginForm({ returnTo: "//evil.com/phish" })),
-    ).rejects.toThrow(/NEXT_REDIRECT/);
-    // Unsafe returnTo is dropped; owner lands on /inicio.
-    expect(mockRedirect).toHaveBeenCalledWith("/inicio");
+    const state = await loginAction({ error: null }, loginForm({ returnTo: "//evil.com/phish" }));
+    // Unsafe returnTo is dropped; owner lands on /inicio. Still asserted on the
+    // RETURNED destination — the open-redirect guard must survive the move off
+    // redirect(), since that is the security half of this action.
+    expect(state.redirectTo).toBe("/inicio");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });
 

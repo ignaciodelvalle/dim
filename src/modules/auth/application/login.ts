@@ -1,4 +1,9 @@
-// Use-case: loginAction — password login + role-based redirect (strangler migration 26/61).
+// Use-case: loginAction — password login + role-based landing (strangler migration 26/61).
+//
+// NAV CONTRACT N3: this action RETURNS `redirectTo`; it does not call
+// next/navigation's redirect(). See AuthFormState.redirectTo for the mechanism
+// and lib/ui/full-page-action-nav.ts for the evidence. lint:action-redirect
+// keeps it that way.
 //
 // @no-auth-required: login is by definition pre-authentication.
 
@@ -19,7 +24,6 @@ import {
   safeReturnTo,
 } from "@/lib/infra/role-landing";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 
 import type { AuthFormState } from "./types";
 
@@ -97,10 +101,10 @@ export async function loginAction(
   }
 
   const role = profile?.role ?? "owner";
-  if (returnTo && role !== "admin" && role !== "govt") redirect(returnTo);
+  if (returnTo && role !== "admin" && role !== "govt") return { error: null, redirectTo: returnTo };
 
   if (role === "vet") {
-    redirect(await resolveVetLanding(userId));
+    return { error: null, redirectTo: await resolveVetLanding(userId) };
   }
 
   // For owners: check whether they hold an active admin membership in any org
@@ -121,5 +125,5 @@ export async function loginAction(
     hasOrgAdminMembership = !!membership;
   }
 
-  redirect(pathForRole(role, { hasOrgAdminMembership }));
+  return { error: null, redirectTo: pathForRole(role, { hasOrgAdminMembership }) };
 }
