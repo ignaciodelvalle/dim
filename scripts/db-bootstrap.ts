@@ -15,9 +15,9 @@
  * Steps (in order):
  *   1. `pnpm db:push` — drizzle-kit syncs schema.ts to the DB (enums, tables,
  *      columns, indexes, FKs). Authoritative for everything Drizzle models.
- *      Then VERIFIED: every table db/schema.ts declares must exist afterwards.
- *      push can fail mid-apply and still exit 0, and a bootstrap that trusts
- *      the exit code carries the damage forward silently (see verifyPushLanded).
+ *      On a virgin DB this step legitimately does NOT finish: the schema has
+ *      generated columns over public.immutable_unaccent, which migration 0146
+ *      creates. push reports what it managed and moves on.
  *   2. Replay `db/migrations/*.sql` in numeric order, BEST-EFFORT. After
  *      step 1 the schema already matches schema.ts, so "column already exists"
  *      errors are expected and ignored. What we actually want from this step
@@ -25,6 +25,10 @@
  *      (e.g. check_pet_event_case_id_immutable, enforce_admin_no_pets,
  *      cases_set_updated_at) and triggers. Real failures here are quiet by
  *      design; if a custom function doesn't land, downstream tests will yell.
+ *      Then VERIFIED: steps 1+2 are one contract, and this is where the schema
+ *      is supposed to be whole — every table db/schema.ts declares must exist.
+ *      push can exit 0 having created a quarter of the schema, and a bootstrap
+ *      that trusts the exit code carries that forward (see verifySchemaLanded).
  *   3. Apply the non-RLS orthogonal `db/*.sql` STRICTLY:
  *        triggers.sql → storage.sql → welfare_storage.sql
  *      These files are normally pasted into Studio by hand (see the header of
@@ -53,8 +57,8 @@
  *
  * Exit codes:
  *   0   success
- *   1   step 1 failed — db:push errored, OR it exited 0 without creating every
- *       table db/schema.ts declares — or step 3 (db/*.sql) failed
+ *   1   step 1 (db:push errored), step 2 (the schema is still incomplete after
+ *       the replay), or step 3 (db/*.sql) failed
  *   2   step 4 (a seed script) failed
  *   3   DATABASE_URL not set
  *   4   DATABASE_URL points at a non-local host (use --allow-remote to override)
@@ -316,67 +320,93 @@ function declaredTableNames(): string[] {
 }
 
 /**
- * Step 1 verification — did the push actually create what schema.ts declares?
- *
- * `drizzle-kit push` can fail partway through and STILL exit 0. Observed
- * 2026-07-26 on a virgin database: the schema declares indexes over
- * public.immutable_unaccent, a function that is not born until migration 0146,
- * so push errored mid-apply and reported success. CI happened to survive it
- * because step 2 replays the migrations — which means the failure mode is
- * invisible rather than absent. Bootstrap declared FATAL only on a non-zero
- * exit code, so it sailed past.
- *
- * Comparing declared names against present ones names the missing tables
- * instead of just counting them, and a count would have its own blind spot:
- * the DB legitimately holds tables schema.ts does not declare (_dim_migrations,
- * Supabase internals), so equal totals would not have meant equal sets.
+ * Which tables db/schema.ts declares but the database does not have. Returns
+ * null when the question could not be asked (DB unreachable).
  */
-function verifyPushLanded(): void {
-  const declared = declaredTableNames();
-  if (declared.length === 0) {
-    console.error(
-      "FATAL: could not read any pgTable(...) declarations from db/schema.ts.\n" +
-        "  This check derives what the push SHOULD have created; an empty derivation\n" +
-        "  is not a pass, it means the parse broke and the check would wave anything through.",
-    );
-    process.exit(1);
-  }
-
+function missingTables(declared: string[]): string[] | null {
   const present = psqlQuery(
     "SELECT tablename FROM pg_tables WHERE schemaname = 'public' ORDER BY tablename",
   );
-  if (present === null) {
+  if (present === null) return null;
+  const have = new Set(present);
+  return declared.filter((t) => !have.has(t));
+}
+
+/**
+ * Did the schema actually land? — the H10 gate.
+ *
+ * `drizzle-kit push` can fail partway through and STILL exit 0. Reproduced on
+ * a virgin database: the schema declares generated columns over
+ * public.immutable_unaccent, a function that is not born until migration 0146,
+ * so push errors mid-apply and reports success. 4 of 52 tables get created.
+ * Bootstrap declared FATAL only on a non-zero exit code, so it sailed past
+ * carrying a quarter of a schema forward.
+ *
+ * WHERE THIS IS MEASURED, AND WHY IT MOVED
+ * ---------------------------------------------------------------------------
+ * The first version of this gate ran right after step 1 and made a partial push
+ * fatal. That was wrong, and CI said so within the hour: on a virgin database
+ * step 1 CANNOT complete — the egg-and-chicken above is structural, not a
+ * defect. Step 1 and step 2 are one contract, and the replay in step 2 is what
+ * creates the missing function and then the missing tables.
+ *
+ * So the FATAL belongs after step 2, where the schema is genuinely supposed to
+ * be whole. After step 1 the same measurement is still worth printing — it is
+ * how you tell "push did everything" from "push did what it could and the
+ * replay finished the job" — but it is a note, not a verdict.
+ *
+ * Names, not a count: the DB legitimately holds tables schema.ts does not
+ * declare (_dim_migrations, Supabase internals), so equal totals would not
+ * have meant equal sets.
+ */
+function reportSchemaAfterPush(declared: string[]): void {
+  const missing = missingTables(declared);
+  if (missing === null) return; // step 2's check will report the unreachable DB
+  if (missing.length === 0) {
+    console.log(`✓ push landed all ${declared.length} declared table(s).`);
+    return;
+  }
+  const created = declared.length - missing.length;
+  const why =
+    "  Expected on a virgin DB — the schema declares generated columns over\n" +
+    "  public.immutable_unaccent, which migration 0146 creates. Step 2 replays the\n" +
+    "  migrations and finishes the job; step 2's check is the one that can fail.";
+  console.log(
+    `NOTE: push created ${created} of ${declared.length} declared table(s); ${missing.length} still missing.\n${why}`,
+  );
+}
+
+/** The gate: after the replay, every declared table must exist. */
+function verifySchemaLanded(declared: string[]): void {
+  const missing = missingTables(declared);
+
+  if (missing === null) {
     const how = POSTGRES_CONTAINER
       ? `docker exec ${POSTGRES_CONTAINER} psql`
       : `psql -h ${pg.host} -p ${pg.port}`;
     console.error(
-      `FATAL: could not list tables after db:push — the database is unreachable from this script.\n  Tried ${how}.`,
+      `FATAL: could not list tables to verify the schema — the database is unreachable from this script.\n  Tried ${how}.`,
     );
     process.exit(1);
   }
-
-  const have = new Set(present);
-  const missing = declared.filter((t) => !have.has(t));
 
   if (missing.length > 0) {
     console.error(
       [
         "",
         "==============================================================",
-        "  FATAL: db:push exited 0 but the schema did not fully land.",
+        "  FATAL: the schema did not fully land.",
         "==============================================================",
         `  Declared in db/schema.ts: ${declared.length} table(s)`,
         `  Present in the database:  ${declared.length - missing.length} of them`,
         `  MISSING (${missing.length}): ${missing.join(", ")}`,
         "",
-        "  drizzle-kit push can fail partway through and still report success.",
-        "  Scroll up: the real error is in the push output, usually a missing",
-        "  function or extension an index depends on (e.g. immutable_unaccent,",
-        "  which migration 0146 creates).",
+        "  Step 1 (drizzle-kit push) can fail partway through and still exit 0,",
+        "  and step 2 (the migration replay) tolerates per-statement errors by",
+        "  design. Between them the schema is supposed to be whole. It is not.",
         "",
-        "  Recovery on a virgin DB: run the migration replay first —",
-        "    pnpm db:bootstrap        (step 2 replays db/migrations/*.sql)",
-        "  then re-run this bootstrap. If it still fails, the push error is real.",
+        "  Scroll up for the first real error in either step — usually a missing",
+        "  function or extension that a column or index depends on.",
         "==============================================================",
         "",
       ].join("\n"),
@@ -385,8 +415,22 @@ function verifyPushLanded(): void {
   }
 
   console.log(
-    `✓ push landed — all ${declared.length} table(s) declared in db/schema.ts exist in the database.`,
+    `✓ schema landed — all ${declared.length} table(s) declared in db/schema.ts exist in the database.`,
   );
+}
+
+/** Fail early if the derivation itself broke — an empty one waves anything through. */
+function declaredTablesOrDie(): string[] {
+  const declared = declaredTableNames();
+  if (declared.length === 0) {
+    console.error(
+      "FATAL: could not read any pgTable(...) declarations from db/schema.ts.\n" +
+        "  This check derives what the bootstrap SHOULD have created; an empty derivation\n" +
+        "  is not a pass, it means the parse broke and the check would wave anything through.",
+    );
+    process.exit(1);
+  }
+  return declared;
 }
 
 function pnpmRun(
@@ -423,6 +467,22 @@ function tsxRun(scriptPath: string): boolean {
 // Step 1 — Schema via drizzle-kit push
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Step 0 — Prerequisites push cannot create for itself
+// ---------------------------------------------------------------------------
+
+header("Step 0/4 — db/prerequisites.sql (extensions + functions push needs)");
+if (!psql("db/prerequisites.sql", { strict: true })) {
+  console.error(
+    "FATAL: db/prerequisites.sql failed.\n" +
+      "  Nothing downstream can work: push emits generated columns that call these\n" +
+      "  functions, so without them it creates a fraction of the schema and exits 0.\n" +
+      "  See the header of db/prerequisites.sql.",
+  );
+  process.exit(1);
+}
+console.log("✓ prerequisites applied (pgcrypto, unaccent, public.immutable_unaccent).");
+
 header("Step 1/4 — drizzle-kit push (schema.ts → DB)");
 // drizzle.config.ts opts into strict (interactive) mode unless CI=true.
 // Bootstrap is automation by definition — force non-interactive so it
@@ -433,10 +493,16 @@ if (!pnpmRun("db:push", [], { CI: "true" })) {
 }
 
 // An exit code of 0 from drizzle-kit push is not evidence the schema landed.
-verifyPushLanded();
+// After step 1 that is a note; after step 2 it is the gate. See the docblock
+// on verifySchemaLanded for why the verdict cannot live here.
+const DECLARED_TABLES = declaredTablesOrDie();
+reportSchemaAfterPush(DECLARED_TABLES);
 
 if (BARE) {
-  console.log("\n--bare: stopping after step 1.");
+  console.log(
+    "\n--bare: stopping after step 1. NOTE: the schema-landed gate runs after the\n" +
+      "  step 2 replay, so --bare on a virgin DB legitimately leaves tables missing.",
+  );
   process.exit(0);
 }
 
@@ -465,6 +531,11 @@ for (const fileName of migrationFiles) {
 console.log(
   `Migrations replayed: ${migrationsClean}/${migrationsAttempted} exit-zero (non-zero exits are tolerated — see header).`,
 );
+
+// Steps 1 and 2 are one contract: push does what it can, the replay finishes
+// it. THIS is the point where the schema is supposed to be whole, so this is
+// where a half-applied schema stops being carried forward silently (H10).
+verifySchemaLanded(DECLARED_TABLES);
 
 // ---------------------------------------------------------------------------
 // Step 2.5 — Baseline the migration tracking table
