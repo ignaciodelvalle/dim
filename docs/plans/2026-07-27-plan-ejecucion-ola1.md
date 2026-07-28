@@ -43,6 +43,24 @@ que compra la autonomía del resto:
 | D5 | Confirmar pill y correr el codemod en toda la app | D.1 |
 | D6 | `grain` faltante **tira error** | H.1 |
 
+### Herramientas — Graphify (decidido 2026-07-28, sin instalar)
+
+El PO aprobó probar [Graphify](https://graphify.com/) (`pip install graphifyy` — la
+doble y es el nombre real) y delegó el momento en el agente. **Momento elegido: al
+cerrar el Lote B, prueba durante el Lote C.**
+
+Es local (Tree-sitter, sin embeddings, el código no sale de la máquina) y su caso a
+favor acá es concreto: el `rg` de este entorno mangea identificadores, y las preguntas
+de impacto cruzado cuestan 3-4 greps cada una. Su riesgo también es concreto: un índice
+desactualizado no falla ruidosamente, devuelve una respuesta plausible y equivocada —
+el modo de falla más caro de esta ola.
+
+**Regla si se adopta**: lo que diga el grafo es una pista, no una fuente; se verifica
+contra el archivo antes de tocar código. **Criterio de baja**: si ahorra búsquedas
+reales en el Lote C se queda; si da una respuesta stale una sola vez, se saca.
+
+Detalle completo en engram `tooling/graphify-trial`.
+
 Sin responder: **D1** (RLS de staging antes del cutover — acción del PO con su runbook) y
 **D7** (fecha tentativa de cutover). El orden entre SC-1/SC-3/SC-4 y los lotes queda
 delegado en el agente.
