@@ -53,7 +53,7 @@ import {
 import { AllSuppressedNoticeCard } from "@/components/panorama/all-suppressed-notice";
 import {
   type DivisionLevel,
-  divisionFillColorExpr,
+  divisionFillForLayer,
   divisionSuppressedFilter,
   divisionValueBounds,
   joinCellsToDivisionsMulti,
@@ -97,7 +97,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import {
   provinceMetaClassScale,
   provinceSeqClassScale,
-  provinceValueExtent,
+  provinceSeqLegendEntry,
+  provinceSeqScaleForLayer,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -1411,18 +1412,10 @@ export function SituationalMap({
           if (lock.locked) lockedProvinceBreaksRef.current.set(layer.id, lock.locked);
           else lockedProvinceBreaksRef.current.delete(layer.id);
           seqBreaks = lock.domain;
-          // Lift the SAME scale the fill renders — values, frozen breaks AND the
-          // declared polarity, else the legend describes a ramp nothing paints.
-          const invert = layer.higherIsBetter === true;
-          const seqScale = provinceSeqClassScale(layer.features, seqBreaks, { invert });
+          // The SAME scale the fill renders — polarity included, by name now.
+          const seqScale = provinceSeqScaleForLayer(layer, seqBreaks);
           if (seqScale) {
-            nextProvinceSeqLegend[layer.id] = {
-              breaks: seqScale.breaks,
-              colors: seqScale.colors,
-              // Carried so the legend can publish the data's real endpoints
-              // instead of the classifier's interior breaks (P1-F3).
-              extent: provinceValueExtent(layer.features) ?? undefined,
-            };
+            nextProvinceSeqLegend[layer.id] = provinceSeqLegendEntry(seqScale, layer.features);
           }
         }
         if (mountedRef.current.has(layer.id)) {
@@ -1788,18 +1781,12 @@ export function SituationalMap({
           id: fillId,
           type: "fill",
           source: DIVISION_SRC,
-          paint: choroplethFillPaint(
-            divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true }),
-          ),
+          paint: choroplethFillPaint(divisionFillForLayer(layer, values, lockedBreaks)),
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
       );
     } else {
-      map.setPaintProperty(
-        fillId,
-        "fill-color",
-        divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true }),
-      );
+      map.setPaintProperty(fillId, "fill-color", divisionFillForLayer(layer, values, lockedBreaks));
     }
     wireDivisionInteractions(map, layer);
   }
@@ -1812,11 +1799,7 @@ export function SituationalMap({
   ) {
     const fillId = divisionFillLayerId(layer.id);
     if (map.getLayer(fillId)) {
-      map.setPaintProperty(
-        fillId,
-        "fill-color",
-        divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true }),
-      );
+      map.setPaintProperty(fillId, "fill-color", divisionFillForLayer(layer, values, lockedBreaks));
     } else {
       addDivisionFillLayer(map, layer, values, lockedBreaks);
     }

@@ -322,3 +322,19 @@ export function filterDepartmentsByPrefix(
     return typeof code === "string" && normalizeDepartmentCode(code).startsWith(prefix);
   });
 }
+
+/**
+ * The division fill for a LAYER — reads its declared polarity so the callers do
+ * not each have to remember to (D4: dark = alarm, always).
+ *
+ * The map had three call sites all passing `{ invert: layer.higherIsBetter }`
+ * by hand; the polarity rule belongs beside the ramp it governs, not repeated
+ * at every place a ramp is painted.
+ */
+export function divisionFillForLayer(
+  layer: { higherIsBetter?: boolean },
+  values: ReadonlyMap<string, number>,
+  lockedBreaks?: readonly number[] | null,
+): ExpressionSpecification {
+  return divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true });
+}

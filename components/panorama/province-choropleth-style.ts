@@ -242,3 +242,32 @@ export function provinceValueBounds(features: FeatureCollection): ScaleBounds | 
   if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
   return { min, max };
 }
+
+/**
+ * The legend entry for a province choropleth: the scale that paints it, plus the
+ * TRUE extremes of what it paints.
+ *
+ * Built here, next to the scale, so the legend and the ramp can never be derived
+ * from different sets — the drift that let Mortalidad publish "4 … 15" over data
+ * running 24,6 → 80,7 (P1-F3).
+ */
+export function provinceSeqLegendEntry(
+  scale: ClassScale,
+  features: FeatureCollection,
+): { breaks: number[]; colors: string[]; extent?: { min: number; max: number } } {
+  return {
+    breaks: scale.breaks,
+    colors: scale.colors,
+    extent: provinceValueExtent(features) ?? undefined,
+  };
+}
+
+/** The province scale for a LAYER, reading its declared polarity (D4). */
+export function provinceSeqScaleForLayer(
+  layer: { features: FeatureCollection; higherIsBetter?: boolean },
+  lockedBreaks?: readonly number[] | null,
+): ClassScale | null {
+  return provinceSeqClassScale(layer.features, lockedBreaks, {
+    invert: layer.higherIsBetter === true,
+  });
+}
