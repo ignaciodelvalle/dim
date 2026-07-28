@@ -44,7 +44,7 @@ import { useEffect, useRef, useState } from "react";
 import type { LocationFieldsChange } from "@/components/LocationFields";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { clearDraft, restoreDraft, saveDraft } from "@/lib/ui/denuncia-autosave";
-import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+import { useActionNavigate } from "@/lib/ui/use-action-redirect";
 import { createWelfareReportAction } from "@/src/modules/welfare/actions";
 import type { WelfareReportKind } from "@/src/modules/welfare/domain/types";
 
@@ -114,6 +114,10 @@ export function DenunciaWizard() {
   const [hasLocationPoint, setHasLocationPoint] = useState(false);
   const [stepError, setStepError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
+  // The receipt navigation does not block, so `isPending` alone would re-enable
+  // "Enviar denuncia" over the filled form while the comprobante loads — and a
+  // second tap files a second report (X1-F1).
+  const [navigate, navigating] = useActionNavigate();
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   // Ref to the outer <form> so we can read all inputs at submit time,
@@ -351,7 +355,7 @@ export function DenunciaWizard() {
         // document navigation is the one mechanism the App Router cannot drop —
         // and a dropped one here means a filed report with no receipt shown.
         clearDraft();
-        navigateAfterActionSuccess(result.redirectTo);
+        navigate(result.redirectTo);
       }
     } catch (err) {
       setSubmitError(
@@ -557,7 +561,7 @@ export function DenunciaWizard() {
             onEvidenceFilesChange={(evidenceFiles) => updateState({ evidenceFiles })}
             onEvidenceErrorChange={(evidenceError) => updateState({ evidenceError })}
             onSubmit={handleSubmit}
-            isPending={isPending}
+            isPending={isPending || navigating}
             error={submitError}
           />
         </LnWizardShell>

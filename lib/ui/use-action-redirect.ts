@@ -26,13 +26,63 @@
 // feedback. Each submission returns a NEW state object, so keying on result
 // identity re-fires the redirect every time the action succeeds.
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { navigateAfterActionSuccess } from "./full-page-action-nav";
 
-export function useActionRedirect(redirectTo: string | null | undefined, fireKey?: unknown): void {
+/**
+ * Fires the post-action navigation and reports whether the document is on its
+ * way out, so callers can keep their control busy until it actually leaves.
+ *
+ * WHY THE RETURN VALUE (X1-F1, external design review)
+ * `window.location.assign()` does not block: it starts the fetch and returns.
+ * A control gated only on the action's own pending flag therefore re-enables,
+ * with its idle label, while the OLD page is still on screen. On a real
+ * connection that reads as "Guardando…" → "Crear mascota" enabled again and
+ * nothing changed → seconds later, the new page. The impatient user taps again,
+ * and most call sites have no UI idempotency guard behind them.
+ *
+ * `navigating` never goes back down. There is nothing to come back to — the
+ * document is leaving — and a flag that could flip false would reopen the exact
+ * window this closes.
+ *
+ * Usage:
+ *   const navigating = useActionRedirect(state.redirectTo, state);
+ *   <button disabled={isPending || navigating}>
+ *     {isPending || navigating ? "Guardando…" : "Guardar"}
+ *   </button>
+ */
+export function useActionRedirect(
+  redirectTo: string | null | undefined,
+  fireKey?: unknown,
+): boolean {
+  const [navigating, setNavigating] = useState(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies(fireKey): fireKey is a DELIBERATE extra dependency — it is not read inside the effect; its only job is re-firing the redirect when a new submission resolves to the identical destination string (see module comment).
   useEffect(() => {
-    if (redirectTo) navigateAfterActionSuccess(redirectTo);
+    if (!redirectTo) return;
+    setNavigating(true);
+    navigateAfterActionSuccess(redirectTo);
   }, [redirectTo, fireKey]);
+  return navigating;
+}
+
+/**
+ * The imperative twin of useActionRedirect, for call sites that own their own
+ * submit handler (a `startTransition` around a direct action call) rather than
+ * going through useActionState.
+ *
+ * Same reason for existing: `window.location.assign()` returns immediately, so
+ * a transition's own `pending` drops the moment the handler finishes and the
+ * control comes back to life over the old page (X1-F1).
+ *
+ *   const [navigate, navigating] = useActionNavigate();
+ *   <button disabled={pending || navigating}>…</button>
+ */
+export function useActionNavigate(): [(targetUrl: string) => void, boolean] {
+  const [navigating, setNavigating] = useState(false);
+  const navigate = useCallback((targetUrl: string) => {
+    setNavigating(true);
+    navigateAfterActionSuccess(targetUrl);
+  }, []);
+  return [navigate, navigating];
 }

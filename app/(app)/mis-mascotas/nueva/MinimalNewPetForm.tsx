@@ -112,7 +112,11 @@ export function MinimalNewPetForm({
     },
     initialState,
   );
-  useActionRedirect(state.redirectTo, state);
+  // `navigating` outlives the action: assign() does not block, so a button
+  // gated on isPending alone comes back to life over the old page while the
+  // credential screen is still in flight (X1-F1).
+  const navigating = useActionRedirect(state.redirectTo, state);
+  const busy = isPending || navigating;
 
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -517,10 +521,10 @@ export function MinimalNewPetForm({
           ) : duplicatePrompt ? null : (
             <button
               type="submit"
-              disabled={isPending}
+              disabled={busy}
               className="inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-[var(--text-md)] font-semibold text-white transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isPending ? (
+              {busy ? (
                 <>
                   <span
                     aria-hidden="true"

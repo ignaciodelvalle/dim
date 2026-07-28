@@ -4,6 +4,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+import { useActionNavigate } from "@/lib/ui/use-action-redirect";
 import {
   acceptPetTransferAction,
   cancelPetTransferAction,
@@ -24,6 +25,8 @@ export function AcceptTransferActions({
   petName: string;
 }) {
   const [pending, startTransition] = useTransition();
+  // `busy` is what the controls read: the transition's pending PLUS the window
+  // where the document is on its way out (X1-F1 — see useActionNavigate).
   const [error, setError] = useState<string | null>(null);
   const [showRejectReason, setShowRejectReason] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
@@ -33,6 +36,11 @@ export function AcceptTransferActions({
   // Previously accept fired on a single click while reject asked for a
   // reason + a second confirm click — backwards (audit finding, safety pass
   // 2026-07-19).
+  // Accepting a transfer twice returns a confusing post-hoc error, and the
+  // control invited exactly that: the transition's pending dropped the instant
+  // assign() returned, re-enabling the button over the unchanged page (X1-F1).
+  const [navigate, navigating] = useActionNavigate();
+  const busy = pending || navigating;
   const [confirmAccept, setConfirmAccept] = useState(false);
   const acceptTriggerRef = useRef<HTMLButtonElement>(null);
 
@@ -48,7 +56,7 @@ export function AcceptTransferActions({
       // the pet profile with one full document navigation so its
       // SSR ownership badges match the DB (soft push + refresh is
       // banned — see lib/ui/full-page-action-nav.ts).
-      navigateAfterActionSuccess(`/mis-mascotas/${petToken}`);
+      navigate(`/mis-mascotas/${petToken}`);
     });
   }
 
@@ -86,7 +94,7 @@ export function AcceptTransferActions({
               </button>
               <button
                 type="button"
-                disabled={pending}
+                disabled={busy}
                 onClick={() => {
                   startTransition(async () => {
                     const result = await rejectPetTransferAction({
@@ -105,7 +113,7 @@ export function AcceptTransferActions({
                 }}
                 className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
-                {pending ? "Enviando…" : "Confirmar rechazo"}
+                {busy ? "Enviando…" : "Confirmar rechazo"}
               </button>
             </div>
           </div>
@@ -113,7 +121,7 @@ export function AcceptTransferActions({
           <div className="flex gap-2">
             <button
               type="button"
-              disabled={pending}
+              disabled={busy}
               onClick={() => setShowRejectReason(true)}
               className="flex-1 rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
             >
@@ -122,7 +130,7 @@ export function AcceptTransferActions({
             <button
               ref={acceptTriggerRef}
               type="button"
-              disabled={pending}
+              disabled={busy}
               onClick={() => setConfirmAccept(true)}
               className="flex-1 rounded-[3px] bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
@@ -132,13 +140,13 @@ export function AcceptTransferActions({
         )}
         <ConfirmDialog
           open={confirmAccept}
-          onClose={() => !pending && setConfirmAccept(false)}
+          onClose={() => !busy && setConfirmAccept(false)}
           onConfirm={handleAccept}
           title="Aceptar transferencia de titularidad"
           description={`Vas a aceptar la transferencia de titularidad de ${petName}. Esta acción no se puede deshacer.`}
           confirmLabel="Aceptar transferencia"
           tone="warn"
-          pending={pending}
+          pending={busy}
           triggerRef={acceptTriggerRef}
         />
       </div>
@@ -162,7 +170,7 @@ export function AcceptTransferActions({
             <div className="flex gap-2">
               <button
                 type="button"
-                disabled={pending}
+                disabled={busy}
                 onClick={() => {
                   startTransition(async () => {
                     const result = await cancelPetTransferAction(transferToken);
@@ -183,7 +191,7 @@ export function AcceptTransferActions({
               </button>
               <button
                 type="button"
-                disabled={pending}
+                disabled={busy}
                 onClick={() => setConfirmCancel(false)}
                 className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
               >

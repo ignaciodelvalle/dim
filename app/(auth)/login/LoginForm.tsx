@@ -13,12 +13,16 @@ export function LoginForm({ returnTo }: { returnTo: string | null }) {
   // navigation the App Router cannot be trusted to do after a server action.
   // `state` as the fire key so a second successful login in the same mounted
   // document (same destination string) still navigates.
-  useActionRedirect(state.redirectTo, state);
+  const navigating = useActionRedirect(state.redirectTo, state);
   return (
     <LoginFormView
       state={state}
       formAction={formAction}
-      isPending={isPending}
+      // `navigating` outlives the action (X1-F1): assign() does not block, so a
+      // button gated on isPending alone snaps back to "Iniciar sesión" over the
+      // login page while the destination is still loading — the exact frame the
+      // review filmed, and the one that makes a user press again.
+      isPending={isPending || navigating}
       returnTo={returnTo}
     />
   );
