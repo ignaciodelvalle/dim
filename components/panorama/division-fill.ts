@@ -247,6 +247,13 @@ export function divisionFillColorExpr(
   // frame's own quantiles, so a value keeps the same class-color across every
   // as-of frame of a scrub.
   lockedBreaks?: readonly number[] | null,
+  // ONE polarity convention across the console (PO decision D4, 2026-07-28):
+  // dark = alarm, always. The province branch has always inverted the ramp for
+  // a layer that declares `higherIsBetter`; this branch never received the flag,
+  // so drilling in flipped the meaning of dark under the reader — acceso-
+  // veterinario read dark = fewer acts (worse) at province level and dark = more
+  // attended pets (better) one zoom later, under the same legend (P1-F1).
+  opts?: { invert?: boolean },
 ): ExpressionSpecification {
   if (values.size === 0) return TRANSPARENT as unknown as ExpressionSpecification;
 
@@ -264,7 +271,7 @@ export function divisionFillColorExpr(
 
   const scale = computeClassScale(
     pairs.map(([, v]) => v),
-    { lockedBreaks: lockedBreaks ?? null },
+    { lockedBreaks: lockedBreaks ?? null, invert: opts?.invert === true },
   );
 
   return [

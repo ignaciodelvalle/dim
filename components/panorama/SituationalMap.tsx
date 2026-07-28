@@ -1788,12 +1788,18 @@ export function SituationalMap({
           id: fillId,
           type: "fill",
           source: DIVISION_SRC,
-          paint: choroplethFillPaint(divisionFillColorExpr(values, lockedBreaks)),
+          paint: choroplethFillPaint(
+            divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true }),
+          ),
         },
         map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined,
       );
     } else {
-      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values, lockedBreaks));
+      map.setPaintProperty(
+        fillId,
+        "fill-color",
+        divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true }),
+      );
     }
     wireDivisionInteractions(map, layer);
   }
@@ -1806,7 +1812,11 @@ export function SituationalMap({
   ) {
     const fillId = divisionFillLayerId(layer.id);
     if (map.getLayer(fillId)) {
-      map.setPaintProperty(fillId, "fill-color", divisionFillColorExpr(values, lockedBreaks));
+      map.setPaintProperty(
+        fillId,
+        "fill-color",
+        divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true }),
+      );
     } else {
       addDivisionFillLayer(map, layer, values, lockedBreaks);
     }

@@ -409,6 +409,12 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     // ramp inversion (not a target) is what unblocks it.
     higherIsBetter: true,
     label: "Acceso veterinario (actos/1.000)",
+    // The ONLY count-fallback layer in this registry that lacked a countLabel,
+    // so the drill-level legend printed the rate title over a count and read
+    // "Acceso veterinario (actos/1.000) (conteo) · 5 → 2.184" — a rate and a
+    // count in the same sentence (external design review P1-F1). Every sibling
+    // rate layer declares what its count actually counts; this one now does too.
+    countLabel: "Mascotas con acto veterinario",
     description:
       "Actos veterinarios por cada 1.000 mascotas activas, por unidad — señal de acceso a la atención (los 'desiertos' de atención son las zonas con menos actos). Cuenta consultas, vacunaciones, esterilizaciones, implantes de microchip y registros clínicos; la desparasitación no cuenta, porque es de venta libre. Ventana móvil de 12 meses.",
     geomType: "choropleth",
@@ -544,6 +550,12 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     // default — so `higherIsBetter` stays absent here, unlike its sibling
     // `acceso-veterinario`, where a high value is the good news.
     label: "Desierto veterinario (% de mascotas sin atención)",
+    // Found by widening the countLabel fence to rate-VALUED layers (P1-F1): the
+    // drill fallback paints a headcount, so it needs a name that is a headcount.
+    // "Sin atención registrada", not "sin atención" — the layer's own
+    // description is careful that absence of record is not absence of care, and
+    // the legend must not undo that in four words.
+    countLabel: "Mascotas sin atención registrada",
     description:
       "Porcentaje de mascotas activas SIN ningún acto veterinario registrado en miMAR durante el período, por provincia — consulta, vacunación, esterilización, implante de microchip o registro clínico (la desparasitación no cuenta: es de venta libre y se aplica en casa). Mide cobertura de atención, no distancia a un veterinario: la ausencia de registro no implica ausencia de atención.",
     geomType: "choropleth",

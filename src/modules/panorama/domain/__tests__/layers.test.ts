@@ -40,11 +40,22 @@ describe("PANORAMA_LAYERS registry", () => {
   // drops the rate stems ("Cobertura"/"Penetración"/"Registro") that would
   // misname a headcount as a percentage once " (conteo)" is appended
   // (components/panorama/panorama-labels.ts's legendRampTitle).
-  it("every rate layer declares a count-truthful countLabel (no rate-implying stem)", () => {
+  // WIDENED 2026-07-28 (P1-F1): this keyed on `dataType`, which describes how the
+  // layer is CLASSED, not what its values ARE. acceso-veterinario carries a rate
+  // (actos/1.000) but is classed "density" because it has no compliance target,
+  // so it slipped past and the drill legend printed
+  // "Acceso veterinario (actos/1.000) (conteo) · 5 → 2.184" — a rate title over a
+  // count. `valueKind` is the honest key: any layer whose per-unit value is a
+  // rate needs a name for what the count-fallback actually counts.
+  it("every rate-VALUED layer declares a count-truthful countLabel (no rate-implying stem)", () => {
     const rateStems = ["Cobertura", "Penetración", "Registro"];
     for (const layer of CHOROPLETH_LAYERS) {
-      if (layer.dataType !== "rate") continue;
-      expect(layer.countLabel, `${layer.id} is dataType:"rate" but has no countLabel`).toBeTruthy();
+      const isRateValued = layer.dataType === "rate" || layer.valueKind === "rate";
+      if (!isRateValued) continue;
+      expect(
+        layer.countLabel,
+        `${layer.id} carries a rate value but has no countLabel — its drill legend would name a headcount with a rate title`,
+      ).toBeTruthy();
       for (const stem of rateStems) {
         expect(layer.countLabel?.includes(stem)).toBe(false);
       }

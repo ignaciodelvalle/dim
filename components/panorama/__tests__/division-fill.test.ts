@@ -345,3 +345,41 @@ describe("filterDepartmentsByPrefix", () => {
     expect(filtered).toHaveLength(2);
   });
 });
+
+// P1-F1 + PO decision D4 (2026-07-28): ONE polarity convention across the
+// console — dark = alarm, always. The province branch already honoured a
+// layer's `higherIsBetter` by inverting its ramp; the division branch never
+// received the flag, so drilling into a "más es mejor" layer silently flipped
+// the meaning of dark under the reader's feet. Live case: acceso-veterinario —
+// dark = fewer acts (worse) at province level, dark = more attended pets
+// (better) one zoom in, same legend.
+describe("divisionFillColorExpr — polarity (D4: dark = alarm, always)", () => {
+  const values = new Map<string, number>([
+    ["a", 1],
+    ["b", 5],
+    ["c", 9],
+  ]);
+
+  it("inverts the ramp when the layer declares higher-is-better", () => {
+    const plain = JSON.stringify(divisionFillColorExpr(values, null));
+    const inverted = JSON.stringify(divisionFillColorExpr(values, null, { invert: true }));
+    expect(inverted).not.toBe(plain);
+  });
+
+  it("leaves the ramp alone when the layer does not declare it", () => {
+    const plain = JSON.stringify(divisionFillColorExpr(values, null));
+    const explicitFalse = JSON.stringify(divisionFillColorExpr(values, null, { invert: false }));
+    expect(explicitFalse).toBe(plain);
+  });
+
+  it("paints the same colours as the province ramp for the same values and polarity", () => {
+    // The two branches must agree: a value that reads dark on the province map
+    // must read dark after drilling in. Comparing the emitted colour lists is
+    // the strongest available check without a live map.
+    const inverted = JSON.stringify(divisionFillColorExpr(values, null, { invert: true }));
+    const plain = JSON.stringify(divisionFillColorExpr(values, null, { invert: false }));
+    const colours = (expr: string) => (expr.match(/#[0-9a-f]{6}/gi) ?? []).join(",");
+    expect(colours(inverted)).not.toBe(colours(plain));
+    expect(colours(inverted).split(",").sort()).toEqual(colours(plain).split(",").sort());
+  });
+});

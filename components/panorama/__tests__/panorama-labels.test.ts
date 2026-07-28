@@ -510,3 +510,65 @@ describe("legendRampEndpointLabels — the ramp describes the DATA, not the clas
     expect(out).toEqual({ min: "12%", max: "80% meta" });
   });
 });
+
+// P1-F1 + PO decision D4: the ramp encodes polarity in colour (dark = alarm),
+// and colour cannot be the only carrier of meaning — the same WCAG 1.4.1 rule
+// the tone glyphs already honour. The captured legend read
+// "Acceso veterinario (actos/1.000) (conteo) · 5 → 2.184" with no way to know
+// which end was the bad news, and for that layer the bad news is the LOW one.
+describe("legendRampEndpointLabels — the endpoints say which end is the alarm", () => {
+  const layer = { dataType: "density" as const };
+
+  it("marks the LOW end worse by default (higher = more of a bad thing)", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: layer,
+      liftedBreaks: [2, 4, 6],
+      divisionLegend: null,
+      provinceExtent: { min: 1, max: 9 },
+      higherIsBetter: false,
+    });
+    expect(out).toEqual({ min: "1 · mejor", max: "9 · peor" });
+  });
+
+  it("flips the marks when the layer declares higher-is-better", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: layer,
+      liftedBreaks: [2, 4, 6],
+      divisionLegend: null,
+      provinceExtent: { min: 1, max: 9 },
+      higherIsBetter: true,
+    });
+    expect(out).toEqual({ min: "1 · peor", max: "9 · mejor" });
+  });
+
+  it("says nothing about polarity when the caller does not declare one", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: layer,
+      liftedBreaks: [2, 4, 6],
+      divisionLegend: null,
+      provinceExtent: { min: 1, max: 9 },
+    });
+    expect(out).toEqual({ min: "1", max: "9" });
+  });
+
+  // On a meta layer the MAX endpoint is the target, not the best observed value
+  // — "95% meta" is a goal, so calling it "mejor" would assert something about
+  // the data that is not there. The MIN is still the worst observed value and
+  // gets marked like everywhere else. (First written the other way round, on the
+  // reasoning that "meta" alone conveys direction; that saves four characters
+  // and loses the reader on the end that actually matters.)
+  it("marks the low end but never the target: 'meta' is a goal, not a best value", () => {
+    const out = legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: { dataType: "rate" as const, complianceTarget: 95 },
+      liftedBreaks: [10, 40, 70],
+      divisionLegend: null,
+      provinceExtent: { min: 5, max: 90 },
+      higherIsBetter: true,
+    });
+    expect(out).toEqual({ min: "5% · peor", max: "95% meta" });
+  });
+});

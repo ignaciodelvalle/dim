@@ -175,8 +175,34 @@ export function legendRampEndpointLabels(input: {
    * had fixed; it just never crossed over.
    */
   provinceExtent?: { min: number; max: number } | null;
+  /**
+   * The caption layer's declared polarity. When given, each endpoint says which
+   * end is the alarm — the ramp carries that in colour (dark = alarm, PO
+   * decision D4) and colour must never be the only carrier, the same WCAG 1.4.1
+   * rule the tone glyphs already honour.
+   *
+   * The captured legend read "Acceso veterinario (actos/1.000) · 5 → 2.184"
+   * with nothing to say that for THAT layer the low end is the bad news
+   * (external design review P1-F1). Omit to print bare numbers.
+   */
+  higherIsBetter?: boolean;
 }): { min: string; max: string } | null {
-  const { bivariateActive, captionLayer, liftedBreaks, divisionLegend, provinceExtent } = input;
+  const {
+    bivariateActive,
+    captionLayer,
+    liftedBreaks,
+    divisionLegend,
+    provinceExtent,
+    higherIsBetter,
+  } = input;
+  // "· mejor" / "· peor" rather than layer-specific prose: one vocabulary the
+  // reader learns once, on every layer, in four characters.
+  const polarity =
+    higherIsBetter === undefined
+      ? { lo: "", hi: "" }
+      : higherIsBetter
+        ? { lo: " · peor", hi: " · mejor" }
+        : { lo: " · mejor", hi: " · peor" };
   if (bivariateActive) return null;
   if (captionLayer && liftedBreaks) {
     if (liftedBreaks.length === 0) return null;
@@ -200,7 +226,9 @@ export function legendRampEndpointLabels(input: {
     const lo = Math.round(extent ? extent.min : liftedBreaks[0]);
     const dataMax = extent ? extent.max : liftedBreaks[liftedBreaks.length - 1];
     const hi = isMeta ? Math.round(captionLayer.complianceTarget as number) : Math.round(dataMax);
-    if (isMeta) return { min: `${lo}${unit}`, max: `${hi}${unit} meta` };
+    // A meta endpoint already states the direction ("95% meta"), so a polarity
+    // word there would be noise on top of a target.
+    if (isMeta) return { min: `${lo}${unit}${polarity.lo}`, max: `${hi}${unit} meta` };
     // RIGHT-CENSORED endpoint: the layer stopped measuring here, so the number
     // is a bound and must read as one. Without the "≥" the desierto legend
     // printed "90 / 90" — two identical numbers presented as a range, when the
@@ -208,8 +236,10 @@ export function legendRampEndpointLabels(input: {
     const censor = captionLayer.censoredAtMax;
     const hiIsCensored = typeof censor === "number" && hi >= censor;
     return {
-      min: `${lo}${unit}`,
-      max: hiIsCensored ? `≥${Math.round(censor)}${unit}` : `${hi}${unit}`,
+      min: `${lo}${unit}${polarity.lo}`,
+      max: hiIsCensored
+        ? `≥${Math.round(censor)}${unit}${polarity.hi}`
+        : `${hi}${unit}${polarity.hi}`,
     };
   }
   if (divisionLegend?.hasRamp) {
