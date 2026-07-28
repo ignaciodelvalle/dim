@@ -487,3 +487,40 @@ one.
 
 Verified: the fence reported 30 missing before the workflow was edited, 43/43 after;
 `pnpm verify` exit 0 end to end.
+
+---
+
+## SC-5 — `rederivePetCache` derives no tattoo date from a spine that has the event
+
+**Found**: 2026-07-28, local `pnpm test` (1 failed / 12371 passed).
+**Does NOT reproduce in CI** — that job's database is fresh and has no tattoo events, so
+`pet-cache-rederivation.test.ts` passes there. Local-only, and NOT residue of this
+session's e2e runs: the data is dated 2026-07-26.
+
+`__tests__/pet-cache-rederivation.test.ts` › "every seed pet has a cache that matches its
+re-derived value" flags `DIM-JUF5-ZW5J` (derpy) on one column:
+
+```
+tattooRecordedAt: { stored: "2026-07-26", derived: null, matches: false }
+```
+
+Measured while narrowing it:
+
+- `pets.tattoo_recorded_at` and `pets.tattoo_code` are both **NULL** on that row, so the
+  `stored` value is not coming from the pets table (schema.ts:547 marks the tattoo
+  columns ARCH-S);
+- the spine **does** hold the event: `tattoo_recorded` at `2026-07-26 23:37:54+00`.
+
+So the derivation returns null from a log that has the source. That is either a real gap
+in `lib/infra/rederive-pet-cache.ts`'s tattoo branch — which would matter, because this
+sweep is the fitness net for every writer that touches the pet cache — or a legitimate
+condition (a later event superseding it, a payload shape the branch does not read) that
+the report is not explaining.
+
+**Not chased further on purpose.** It is not blocking CI, it needs a careful read of the
+tattoo derivation against the event payload, and it surfaced at the end of a long
+session — the same conditions that produced two wrong confident diagnoses earlier in
+this document.
+
+**Next step**: read the tattoo branch of `rederivePetCache` against the payload of that
+event, and decide whether the fixture is odd or the branch is.
