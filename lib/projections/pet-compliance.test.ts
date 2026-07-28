@@ -164,6 +164,42 @@ describe("deriveComplianceState — rabies state machine", () => {
     expect(rabies?.state).toBe("Registrada");
     expect(rabies?.tone).toBe("ok");
   });
+
+  // C5/#1 (external design review, reproduced live): a dose on record with no
+  // next_due_at has UNKNOWN currency. The projection already knew that
+  // internally; the card did not carry it, so the panel stamped "VIGENTE" over
+  // it and the summary counted it as "al día". Both are the project's own
+  // stated rule inverted — "'no sabemos' nunca se sella VIGENTE"
+  // (LibretaSanitariaView.tsx:127-132, which is why the "SIN DATO" vstamp
+  // exists at all).
+  it("a dose with no next_due_at reports its currency as UNKNOWN on the card", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", null, VET)] }),
+    );
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies?.currencyKnown).toBe(false);
+  });
+
+  it("a dose with a real next_due_at reports its currency as KNOWN", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", VET)] }),
+    );
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    expect(rabies?.currencyKnown).toBe(true);
+  });
+
+  it("does NOT count an unknown-currency dose as 'al día' in the summary", () => {
+    const state = deriveComplianceState(
+      baseInput({ events: [vaccination("Antirrábica", null, VET)] }),
+    );
+    const rabies = state.cards.find((c) => c.key === "rabies");
+    // The card still reads "Registrada" — the libreta shows a real asiento and
+    // this must never regress to "Sin registro" (UX gate M5a, pinned above).
+    expect(rabies?.state).toBe("Registrada");
+    // But "registered" is not "current": counting it would make the panel say
+    // "N de N al día" beside a card stamped SIN DATO.
+    expect(state.summary.ok).toBe(0);
+  });
 });
 
 // H1 — provenance gates compliance: only professional/institutional events clear.

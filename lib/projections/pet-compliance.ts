@@ -77,6 +77,17 @@ export type ObligationCard = {
   detail: string | null; // es-AR secondary line (date, provider, chip number)
   legalFootnote: string; // es-AR muted legal citation
   hint?: string | null; // es-AR nudge to get a self-reported event verified (H1)
+  /**
+   * Whether `tone` reflects a REAL vigencia. False for a dose that is on record
+   * but carries no next_due_at: the asiento exists, the currency is unknowable.
+   *
+   * The projection always knew this internally; the card did not carry it, so
+   * ComplianceObligationsPanel stamped "VIGENTE" over it and the summary
+   * counted it "al día" — the project's own rule inverted ("'no sabemos' nunca
+   * se sella VIGENTE", LibretaSanitariaView.tsx:127-132). Undefined means the
+   * obligation has no currency dimension at all (microchip, PPP).
+   */
+  currencyKnown?: boolean;
   // Dual honest vaccine state — see ComplianceDual. Rabies-only, declared-dose-only.
   dual?: ComplianceDual;
 };
@@ -339,6 +350,10 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
       currencyKnown = false;
     }
   }
+
+  // Stamp the currency-knowability onto the card ONCE, for every branch above,
+  // so the panel and the summary read the same fact the projection computed.
+  base = { ...base, currencyKnown };
 
   // ---- PROVENANCE overlay (task #78) ----
   const tier: ProvenanceTier | null = dose
@@ -608,7 +623,11 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
   cards.sort((a, b) => TONE_SEVERITY[a.tone] - TONE_SEVERITY[b.tone]);
 
   const total = cards.length;
-  const ok = cards.filter((c) => c.tone === "ok").length;
+  // `currencyKnown === false` is a dose on record whose vigencia is unknowable.
+  // It is NOT "al día": counting it produced "3 de 3 al día" beside a card the
+  // panel now stamps SIN DATO — the same self-contradiction the vigilancia tile
+  // had (C5, external design review).
+  const ok = cards.filter((c) => c.tone === "ok" && c.currencyKnown !== false).length;
   const worstTone = cards.length > 0 ? cards[0].tone : "ok";
 
   return {

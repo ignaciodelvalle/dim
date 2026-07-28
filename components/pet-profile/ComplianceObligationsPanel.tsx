@@ -56,6 +56,17 @@ const CURRENCY_TO_BADGE: Record<"ok" | "due" | "over", NonNullable<LnBadgeProps[
 };
 
 function StatusBadge({ card }: { card: ObligationCard }) {
+  // A dose on record with no next_due_at has UNKNOWN currency, and the stamp
+  // has a variant that says so. This used to render `tone: "ok"` as "VIGENTE"
+  // — a fabricated seal over "no sabemos", on the one screen whose whole
+  // premise is that the document does not lie. The project had already written
+  // the rule (LibretaSanitariaView.tsx:127-132) and built the variant
+  // (StatusFlag.tsx "unknown" → "SIN DATO"); this panel just never asked.
+  // External design review C5/#1, reproduced live: "Vacuna antirrábica
+  // [VIGENTE] · Aplicada 14/01/2018".
+  if (card.key === "rabies" && card.currencyKnown === false) {
+    return <LnVstamp variant="unknown" className="flex-shrink-0" />;
+  }
   if (card.key === "rabies" && VSTAMP_TONES.has(card.tone)) {
     return <LnVstamp variant={card.tone as "ok" | "due" | "over"} className="flex-shrink-0" />;
   }
