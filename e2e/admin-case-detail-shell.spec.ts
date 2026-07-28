@@ -13,12 +13,24 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
 // Denuncias · ← Volver a mi app", found zero operator actions, and reported
 // being unable to do the job at all.
 //
-// Admin has universal scope, so any seed case serves; this one is the same
-// in-scope CABA case the govt sibling spec uses.
-const CASE_CODE = "CAS-99DF-75CC";
-
+// Admin has universal scope, so any case serves. It is READ FROM THE QUEUE
+// rather than hardcoded: this spec used to pin "CAS-99DF-75CC", a code from an
+// old seed that no longer exists — measured, 5595 cases in the database and not
+// that one — so every assertion below was being made against a 404 page whose
+// heading is "No encontramos esta página". Nobody saw it because the e2e suite
+// had not run in CI since 2026-06-12.
+//
+// Taking the first row of the operator's own queue also makes the case in-scope
+// by construction, which is stronger than trusting a literal to stay in scope.
 test("admin case detail keeps the operator shell", async ({ page }) => {
   await loginAs(page, ACCOUNTS.admin);
+
+  await page.goto("/admin/casos");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const queueLink = page.locator('a[href^="/admin/casos/"]').first();
+  await expect(queueLink, "at least one case in the admin queue").toBeVisible();
+  const CASE_CODE = ((await queueLink.getAttribute("href")) ?? "").split("/").pop() ?? "";
+  expect(CASE_CODE, "case code read from the queue").not.toBe("");
 
   // 1. Direct navigation to the admin-scoped case detail must NOT redirect away
   //    (out-of-shell to /casos, or bounced by an auth gate).

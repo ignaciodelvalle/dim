@@ -7,11 +7,23 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
 // public citizen chrome. The case row used to link at /casos/[code] (citizen
 // layout); it now links at /gob/casos/[code] (operator layout).
 //
-// In-scope seed case for govt@dim.test (Palermo/CABA assignment):
-const IN_SCOPE_CASE = "CAS-99DF-75CC";
-
+// The in-scope case is READ FROM THE OPERATOR'S OWN QUEUE, not hardcoded. This
+// spec used to pin "CAS-99DF-75CC", a code from an old seed that no longer
+// exists (measured: 5595 cases in the database, not that one), so its
+// assertions were being made against a 404 whose heading is "No encontramos
+// esta página". Its admin sibling had the same literal and the same silence.
+//
+// A row from govt@dim.test's own queue is in-scope by construction, which is a
+// stronger guarantee than a literal that has to stay in scope forever.
 test("govt case detail keeps the operator shell", async ({ page }) => {
   await loginAs(page, ACCOUNTS.govt);
+
+  await page.goto("/gob/casos");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const queueLink = page.locator('a[href^="/gob/casos/"]').first();
+  await expect(queueLink, "at least one case in the govt queue").toBeVisible();
+  const IN_SCOPE_CASE = ((await queueLink.getAttribute("href")) ?? "").split("/").pop() ?? "";
+  expect(IN_SCOPE_CASE, "case code read from the queue").not.toBe("");
 
   // 1. Direct navigation to the gob-scoped case detail must NOT redirect away
   //    (out-of-shell to /casos, or bounced to / by an auth gate).
