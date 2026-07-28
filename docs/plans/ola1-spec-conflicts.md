@@ -251,17 +251,40 @@ a11y-regression  admin-case-detail-shell  authz-ab-isolation  create-pet
 crisis-owner-lost-flow  crisis-seams  cuenta-hang-verify
 ```
 
-**The dominant pattern is the locality catalogue.** Eleven failures are shaped like
-`locator('ul button').filter({ hasText: 'Palermo' })` never becoming visible — the
-locality picker finding nothing. `scripts/import-indec-localities.ts` fetches
-`https://infra.datos.gob.ar/georef/localidades_censales.csv` live at bootstrap time and
-**falls back to a bundled 53-row sample fixture when the fetch fails**. So the catalogue
-CI gets is decided by a third-party government host being up during the run. The
-external review hit exactly this in its own sandbox (§0.1: the live import returned 403
-and fell back).
+**CORRECTION (same session, before acting on it).** The first version of this entry
+blamed the locality catalogue: eleven failures are shaped like
+`locator('ul button').filter({ hasText: 'Palermo' })` never becoming visible, and
+`scripts/import-indec-localities.ts` does fetch datos.gob.ar live with a silent fallback
+to an 8-row sample fixture. That was a plausible story built without reading the CI
+bootstrap output. The output says the opposite:
 
-A suite whose result depends on datos.gob.ar's uptime is not a gate. That is the same
-family as SC-3 — undeclared state — with the state living on someone else's server.
+```
+> INDEC localities (~4k rows) (scripts/import-indec-localities.ts)
+Parsed 4027 CSV rows
+Done. inserted=4026 updated=0 noop=0 removed=0 skipped=1 errors=0
+> CABA barrios (48 rows)
+CABA barrios import done: 48 inserted, 0 updated, 0 no-op, 0 errors
+```
+
+**The catalogue was complete in CI.** No fallback happened. Palermo was there. Pinning
+the fixture would have fixed nothing and would have masked whatever this really is.
+
+The live fetch remains a real fragility worth removing on its own merits — a suite
+whose fixtures come off a government host is a suite that fails on someone else's bad
+day — but it is NOT the cause of these seven, and it is not urgent.
+
+**The open hypothesis, untested.** `searchLocalitiesPublicAction` is rate-limited at 60
+searches/minute against a SINGLE shared bucket (`PUBLIC_RATE_LIMIT_SENTINEL =
+"__public__"`), and when it trips it returns `{ error: "rate_limited" }` — which a
+typeahead renders as no options, i.e. exactly the observed symptom, with nothing in the
+log. A debounced picker across parallel Playwright workers can plausibly drain 60/min.
+Several specs already carry a `uniqueIp()` / `x-real-ip` workaround for the LOGIN rate
+limiter, so the shape is known in this repo — but the locality bucket is keyed on a
+sentinel, not on IP, so that workaround would not help it.
+
+This is a hypothesis with a mechanism, not a diagnosis. The cheap test is to run the
+failing specs locally and see whether they pass; if they do, the difference is
+CI parallelism, and the rate limiter is the first suspect.
 
 The remaining failures (the band Girar button, the case timeline heading, the
 lost-urgent banner) are NOT obviously catalogue-shaped and need looking at one by one.
@@ -271,13 +294,17 @@ None has ever run in CI, so none can be assumed pre-existing OR new without chec
 non-deterministic fixture source, a possibly-too-small time budget, and an unknown
 number of genuine defects underneath. Untangling them is a batch.
 
-**Proposal.**
-1. Pin the catalogue: `INDEC_LOCALITIES_CSV` pointing at a committed fixture for CI, so
-   the run stops depending on a government host. The env override already exists — this
-   is a workflow line, not new code. Do this first; it may clear most of the seven.
-2. Re-run, then triage what survives.
+**Proposal (revised after the correction).**
+1. Run the seven specs locally, one at a time, against the same build. That separates
+   "fails everywhere" (a real defect) from "fails only in CI" (parallelism, timing, or
+   the rate limiter). Costs one local run; decides everything after it.
+2. For whatever is CI-only, test the rate-limit hypothesis directly before changing
+   anything: a test-only bypass, a higher ceiling under a CI env flag, or per-worker
+   bucket keys — but only once it is the measured cause.
 3. Only then decide whether 30 minutes is the right budget, with a real measurement of
    how long a green suite takes.
+4. Separately, and not urgently: stop the INDEC import from depending on a live
+   third-party fetch during CI bootstrap.
 
 **Decision needed from the PO**: this and SC-3 are the same shape and probably one
 piece of work — "make the suites reproducible in CI". Recommendation: **one batch,
