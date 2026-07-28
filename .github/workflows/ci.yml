@@ -137,6 +137,14 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: dummy_service_role_key
           DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
 
+      - name: Lint (CSP × prerender)
+        # Runs AFTER the build because it reads the build output. The CSP mints a
+        # per-request nonce and carries 'strict-dynamic', so a prerendered page
+        # ships with unnonce'd scripts and 100% of its JS is refused in prod: it
+        # renders and arrives dead. Found twice (the 404, then /recuperar); this
+        # is what stops the third.
+        run: pnpm lint:csp-prerender
+
   dep-audit:
     name: Dependency audit
     runs-on: ubuntu-latest
