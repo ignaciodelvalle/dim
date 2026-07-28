@@ -9,6 +9,7 @@
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput } from "@/components/ui/Field";
 import { provinceByName } from "@/lib/reference/ar-provincias";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 import { type FormEvent, useActionState, useState } from "react";
 
@@ -28,6 +29,10 @@ export function MoveForm({
   currentLocality: string | null;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: recordMoveAction returns the destination; this navigates. It used to
+  // redirect() server-side, which the App Router drops — the move was recorded
+  // and the owner stayed on the form.
+  useActionRedirect(state.redirectTo, state);
   const [clientError, setClientError] = useState<string | null>(null);
 
   function handleSubmit(e: FormEvent<HTMLFormElement>) {

@@ -6,6 +6,7 @@
 // pet_profile_updated event (audit trail) before updating the column.
 
 import { LnField, LnSelect } from "@/components/ui/Field";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 import { useActionState } from "react";
 
@@ -32,6 +33,10 @@ export function CorrectSpeciesForm({
   petName: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side — a transition the App Router drops in production,
+  // so the edit saved and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
 
   return (
     <form action={formAction} className="flex flex-col gap-3.5">

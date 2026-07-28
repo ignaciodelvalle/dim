@@ -233,12 +233,15 @@ describe("createPetAction", () => {
         pet: { status: "lost", publicToken: "DIM-LOST-0001" },
       });
 
-      await expect(
-        createPetAction(
-          { error: null },
-          makeCreateFormData({ acquisitionMethod: "found_stray", microchipId: "724123456789012" }),
-        ),
-      ).rejects.toThrow("REDIRECT:/mis-mascotas/nueva/match/DIM-LOST-0001");
+      // N3 (B.2 migration): the action RETURNS the match page rather than
+      // redirect()ing to it. The old comment defending this call — "request-edge:
+      // redirect stays here" — never said why it would be immune to a defect
+      // that hits every other one.
+      const state = await createPetAction(
+        { error: null },
+        makeCreateFormData({ acquisitionMethod: "found_stray", microchipId: "724123456789012" }),
+      );
+      expect(state.redirectTo).toBe("/mis-mascotas/nueva/match/DIM-LOST-0001");
     });
 
     it("returns CHIP_MATCH_ACTIVE warning when match status=active and no forceToken", async () => {
@@ -528,10 +531,10 @@ describe("updatePetAction", () => {
       const { db } = await import("@/db");
       const insertSpy = db.insert as ReturnType<typeof vi.fn>;
 
-      // updatePetAction succeeds (redirect throws) — catch the redirect
-      await expect(
-        updatePetAction("DIM-TEST-0001", { error: null }, makeUpdateFormData()),
-      ).rejects.toThrow(/REDIRECT/);
+      // updatePetAction succeeds and RETURNS its destination (N3) — the
+      // notifications must already be flushed by then.
+      const state = await updatePetAction("DIM-TEST-0001", { error: null }, makeUpdateFormData());
+      expect(state.redirectTo).toBe("/mis-mascotas/DIM-TEST-0001");
 
       expect(insertSpy).toHaveBeenCalled();
     });

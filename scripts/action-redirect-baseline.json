@@ -5,7 +5,6 @@
     "app/actions/service-offerings.ts": 1,
     "app/actions/tattoo.ts": 1,
     "src/modules/foster/actions.ts": 2,
-    "src/modules/pets/actions.ts": 4,
     "src/modules/surveillance/actions.ts": 2,
     "src/modules/transfers/actions.ts": 1
   }

@@ -34,7 +34,6 @@ import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
-import { redirect } from "next/navigation";
 
 /**
  * Parses the domain layer's `estimatedWeightKg: string | null` into the
@@ -185,7 +184,14 @@ export async function createPetAction(
     const match = await lookupByChip(parsed.microchipId);
     if (match) {
       if (match.pet.status === "lost") {
-        redirect(`/mis-mascotas/nueva/match/${match.pet.publicToken}`);
+        // N3: the form navigates. This is a MID-action branch, so the comment
+        // that once sat here ("request-edge: redirect stays here") was the only
+        // thing defending it — and it never said why this call would be immune
+        // to a defect that hits every other one (X1-F3).
+        return {
+          error: null,
+          redirectTo: `/mis-mascotas/nueva/match/${match.pet.publicToken}`,
+        };
       }
 
       if (match.pet.status === "active") {
@@ -431,7 +437,8 @@ export async function updatePetAction(
 
   await flushNotifications(result.notifications);
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -511,7 +518,8 @@ export async function recordMoveAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -575,5 +583,6 @@ export async function correctPetSpeciesAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }

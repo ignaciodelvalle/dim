@@ -35,6 +35,7 @@ import {
   permanentConditionGroup,
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import type { NewPetFormState } from "@/src/modules/pets/domain/types";
 import { useActionState, useMemo, useRef, useState } from "react";
 import { LocationFields } from "./LocationFields";
@@ -87,6 +88,10 @@ export function PetForm({
 }) {
   const isEdit = !!existingPet;
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side — a transition the App Router drops in production,
+  // so the edit saved and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
   const [photoPreview, setPhotoPreview] = useState<string | null>(existingPhotoUrl ?? null);
   const [species, setSpecies] = useState<string>(existingPet?.species ?? "");
   const [breed, setBreed] = useState<string>(existingPet?.breed ?? "");
