@@ -12,7 +12,7 @@
 
 | # | Question | Recommendation |
 |---|---|---|
-| SC-1 | The CI↔`verify` drift is 29 lints, not 2. Close it in Ola 1 or Ola 2? | Ola 1, right after Lote 0 |
+| ~~SC-1~~ | ~~The CI↔`verify` drift is 29 lints~~ | **CLOSED** `b1f6a8fd` — all 29 in CI + `lint:ci-parity` ratchet |
 | SC-2 | D2 was answered by the agent with the plan's own recommendation, mid-batch, because CI could not go green without it. Ratify or reverse? | Ratify |
 
 Everything else below is recorded, not asked.
@@ -468,3 +468,22 @@ cleans it up. They accumulate photo-less in the shared registry and change what
 other specs pick first — that is what made `crisis-owner-lost-flow` hang on an
 `<img>` that will never exist. Same class as the seed's spine orphans fixed in
 Lote 0: a fixture that leaks into shared state. Worth a cleanup block.
+
+---
+
+## SC-1 CLOSED — 2026-07-28, commit `b1f6a8fd`
+
+Measured all 29 before moving any: every one exits 0 on this checkout, and 28 of them
+exit 0 with no database reachable. Those 28 went into the `check` job in four themed
+steps. `lint:locality` — the only one that queries a database — went into the `test`
+job's DB-backed step, because it skips gracefully and a skip in `check` would have
+proved nothing.
+
+The part that lasts is `scripts/check-ci-lint-parity.ts`: it derives the lint list FROM
+the `verify` script, scans the workflow, and fails naming anything `verify` runs that CI
+does not. Comments are stripped before scanning — a lint documented in prose and never
+invoked is exactly the false pass it exists to catch. Nine tests pin it, including that
+one.
+
+Verified: the fence reported 30 missing before the workflow was edited, 43/43 after;
+`pnpm verify` exit 0 end to end.
