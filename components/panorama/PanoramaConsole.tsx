@@ -3581,11 +3581,24 @@ export function PanoramaConsole({
   );
 
   const dockRecordSummary = useMemo(() => summarizeDockRecords(activeLayers), [activeLayers]);
-  // The dock badge: the event total for count layers (== the primary KPI), else the
-  // unit-row count for rate-only presets (coverage has no summable population).
-  const dockBadgeCount = dockRecordSummary.hasCountLayer
-    ? dockRecordSummary.total
-    : mapTableRows.length;
+  // The dock badge counts the ROWS OF THE PANE IT LABELS — always.
+  //
+  // It used to show the event total when a count layer was active, which put
+  // "Registros 0" on a tab whose table listed 72 rows, above a line reading
+  // "0 en 0 unidades (+21 protegidas)". Three numbers, three different
+  // subjects, none of them saying so: ten seconds with that panel and an
+  // operator concludes the console is broken (external design review P4-U1).
+  //
+  // The event total is not lost — it is stated, labelled, in the summary line
+  // directly below ("Eventos en el período: N en M unidades"). A badge on a tab
+  // answers "how much is in here", and what is in here is rows.
+  //
+  // Guaranteed structurally rather than by a test: there is now ONE expression,
+  // so the badge and the table cannot drift. The console's test fixture renders
+  // an empty map (EMPTY_FC), where every candidate number is 0 — a test written
+  // against it would have passed before this change too, and this session has
+  // already found five assertions that were green for exactly that reason.
+  const dockBadgeCount = mapTableRows.length;
   const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
   // v2C dock bar "Exportar CSV": the SAME in-memory CSV artifact the Registros
   // pane's download link builds (one builder, two affordances).
