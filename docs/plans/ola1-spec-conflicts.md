@@ -310,3 +310,49 @@ number of genuine defects underneath. Untangling them is a batch.
 piece of work — "make the suites reproducible in CI". Recommendation: **one batch,
 after Lote 0, before the cutover**, since the cutover's whole premise is that CI tells
 the truth about what is being promoted.
+
+---
+
+## SC-4 follow-up — one of the seven diagnosed and fixed; where the rest stands
+
+Worked the revised proposal's step 1 (run the specs locally) and it paid off immediately.
+
+**Confirmed and fixed: stale selectors, not a broken picker.** `create-pet.spec.ts` and
+`e2e/demo/_helpers.ts` waited on `li button` / `ul button` inside the locality typeahead.
+`LnCombobox` puts `role="option"` on the `<li>` itself and renders no button in the list
+— its own header comment says so. Both selectors matched nothing, so the tests reported
+an empty picker. Evidence the data was never the problem:
+
+```
+local  ar_localities: 4074 rows · Palermo present · locality_name_norm NULL on 0 rows
+CI     Parsed 4027 CSV rows · inserted=4026 · CABA barrios 48 inserted
+```
+
+Fixed by matching on role (commit `ccc7b3f7`). Verified: `create-pet` now clears the
+locality step and advances to paso 2.
+
+**The rate-limit hypothesis is dead.** Both specs failed locally with `--workers=1`, no
+parallelism and no burst. `searchLocalitiesPublicAction`'s 60/min shared bucket is not
+what was happening. Recorded so nobody re-runs that thought.
+
+**Where `create-pet` stands now.** It reaches paso 2 and times out waiting for the
+`Crear mascota` button, while the run does end up navigated to
+`/mis-mascotas/nueva/DIM-4FQZ-8MBC/credencial` — i.e. a pet WAS created. Two facts from
+`MinimalNewPetForm.tsx` that any next step has to reconcile:
+
+- the wizard is genuinely two-step, ONE `<form>`, ONE submit (`useState<1|2>`,
+  documented as a PO decision of 2026-07-08). `Continuar` is `type="button"`; only
+  `Crear mascota` is `type="submit"`. So the buttons are not the anomaly.
+- the submit button is NOT RENDERED while a duplicate prompt is showing
+  (`duplicatePrompt ? null : …`, line 517) — the affirmative action becomes
+  `crear igual`. A spec re-run against a database where it already created its pet
+  would therefore wait forever for a button that is deliberately absent.
+
+That last point is a hypothesis about test idempotency, NOT a verified diagnosis — the
+same kind of claim that was wrong the first time this entry was written. The way to
+settle it is a trace (`--trace on`) or a run against a database where this owner has no
+matching pet, not more static reading.
+
+**Still untouched**: `a11y-regression`, `admin-case-detail-shell` (fails on a
+`Línea de tiempo` heading — unrelated to the picker), `authz-ab-isolation`,
+`crisis-owner-lost-flow`, `crisis-seams`, `cuenta-hang-verify`.
