@@ -150,6 +150,16 @@ export function legendRampTitle(input: {
 }
 
 /**
+ * "· mejor" / "· peor" for a ramp's two ends — one vocabulary the reader learns
+ * once, on every layer, in four characters. Empty when the caller declares no
+ * polarity, so nothing is asserted that the layer has not said.
+ */
+function polarityMarks(higherIsBetter: boolean | undefined): { lo: string; hi: string } {
+  if (higherIsBetter === undefined) return { lo: "", hi: "" };
+  return higherIsBetter ? { lo: " · peor", hi: " · mejor" } : { lo: " · mejor", hi: " · peor" };
+}
+
+/**
  * Round-3 QA fix 6: low/high endpoint labels flanking the collapsed ramp, so
  * "what does dark mean" is answerable WITHOUT opening the pill (LegendPill.tsx
  * collapsed strip). Sequential: the classed domain's low/high breaks. Meta
@@ -195,14 +205,7 @@ export function legendRampEndpointLabels(input: {
     provinceExtent,
     higherIsBetter,
   } = input;
-  // "· mejor" / "· peor" rather than layer-specific prose: one vocabulary the
-  // reader learns once, on every layer, in four characters.
-  const polarity =
-    higherIsBetter === undefined
-      ? { lo: "", hi: "" }
-      : higherIsBetter
-        ? { lo: " · peor", hi: " · mejor" }
-        : { lo: " · mejor", hi: " · peor" };
+  const polarity = polarityMarks(higherIsBetter);
   if (bivariateActive) return null;
   if (captionLayer && liftedBreaks) {
     if (liftedBreaks.length === 0) return null;
