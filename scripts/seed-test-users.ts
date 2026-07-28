@@ -900,6 +900,27 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
       role: "shelter_custody",
     });
 
+    // The pet's birth certificate in the spine. Without it these three rows are
+    // pets that, as far as the append-only log is concerned, were never
+    // registered — a cache row outranking the spine, which is what invariant #3
+    // forbids. lint:spine caught exactly this the first time CI ran the fence
+    // against a database built by db:bootstrap (2026-07-28): three orphans,
+    // Lola / Toby / Rocco, straight out of this loop.
+    //
+    // It is dated one second before the intake so the spine reads in the order
+    // the events actually happened: registered, then taken in.
+    const registeredAt = new Date(Date.now() - 1000);
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "pet_registered",
+      occurredAt: registeredAt,
+      recordedByUserId: intakeActorId,
+      authorRole: "shelter",
+      authorOrganizationId: orgId,
+      authorVerified: true,
+      payload: { source: "seed-script" },
+    });
+
     await db.insert(petEvents).values({
       petId: pet.id,
       eventType: "shelter_intake_recorded",
