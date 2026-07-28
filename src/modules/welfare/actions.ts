@@ -87,19 +87,10 @@ import { WelfareRepository } from "./infrastructure/welfare-repository";
 // ---------------------------------------------------------------------------
 
 export type { TriageDecision } from "./application/triage-welfare-report";
-export type WelfareReportFormState = {
-  error: string | null;
-  /**
-   * Where the wizard should go on success — nav contract N3.
-   *
-   * NOT redirect(). The use case has always computed this; the action used to
-   * hand it to next/navigation, whose transition the App Router drops in
-   * production. On a denuncia that means the report is FILED, the reference
-   * code exists, and the citizen is left on the form with no receipt and no
-   * error (lib/ui/full-page-action-nav.ts).
-   */
-  redirectTo?: string | null;
-};
+// N3 (lib/ui/full-page-action-nav.ts): the action RETURNS its destination and
+// the form navigates. A dropped navigation here is a FILED denuncia with no
+// receipt shown, so this is never redirect().
+export type WelfareReportFormState = { error: string | null; redirectTo?: string | null };
 export type TriageResult = { ok: true } | { error: string };
 export type ModerationResult = { ok: true } | { error: string };
 export type AssignResult = { ok: true } | { ok: false; error: string };
