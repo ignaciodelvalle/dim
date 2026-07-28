@@ -215,8 +215,13 @@ jobs:
     runs-on: ubuntu-latest
 
     # Catches schema.ts changes that aren't backed by a migration (or vice
-    # versa). Spins up a clean Postgres, applies the migrations, and asks
-    # drizzle-kit if `db:push` would change anything — if it would, drift exists.
+    # versa). Spins up a clean Postgres, applies the prerequisites, pushes
+    # schema.ts, and asks drizzle-kit whether a SECOND push would change
+    # anything — if it would, drift exists.
+    #
+    # It does NOT replay db/migrations/*.sql, despite what this comment said
+    # until 2026-07-27. The check is schema.ts against itself via push
+    # idempotency; the migration tree is covered by the `test` job's bootstrap.
     services:
       postgres:
         image: postgres:16
@@ -253,7 +258,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply migrations via drizzle-kit push
+      - name: Apply schema prerequisites
+        # push emits generated columns that call public.immutable_unaccent, so
+        # the function has to exist before it runs. On this job's bare Postgres
+        # it does not, and push fails partway while still exiting 0 — which is
+        # what made the drift check below report phantom drift rather than the
+        # missing function. See the header of db/prerequisites.sql.
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/prerequisites.sql
+
+      - name: Apply schema via drizzle-kit push
         run: pnpm db:push
 
       - name: Confirm zero pending changes
