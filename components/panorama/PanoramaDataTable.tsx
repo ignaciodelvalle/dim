@@ -22,6 +22,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { RankedRowPreview } from "@/components/panorama/RankedRowPreview";
+import { formatNegativeGap } from "@/components/panorama/map-popup";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { RankedUnit, RankingKind } from "@/src/modules/panorama/domain/ranking";
 
@@ -441,7 +442,7 @@ export function PanoramaDataTable({
                       {/* One decimal + the unit: Math.round printed a real
                           sub-half-point gap as "−0", reporting a below-target
                           unit as having none. */}
-                      {row.gap !== null ? `−${row.gap.toFixed(1)} pts` : "—"}
+                      {row.gap !== null ? `${formatNegativeGap(row.gap)} pts` : "—"}
                     </td>
                   )}
                 </tr>

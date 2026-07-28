@@ -9,6 +9,8 @@ import {
   countReadoutLabel,
   divisionReadoutDataType,
   formatMetaGap,
+  formatNegativeGap,
+  formatSignedGap,
   formatValueWithUnit,
 } from "../map-popup";
 
@@ -249,5 +251,29 @@ describe("buildPinnedPopupHtml", () => {
     });
     expect(html).toContain("k-anonimato");
     expect(html).not.toMatch(/pano-pin-value/);
+  });
+});
+
+// P4-F1: the ranking table and the row preview hand-rolled `−${gap.toFixed(1)}`
+// — a DOT decimal on a console where every other number carries the es-AR
+// comma, and an ASCII hyphen where the typographic minus belongs.
+describe("formatNegativeGap — an already-computed shortfall", () => {
+  it("uses the es-AR decimal comma", () => {
+    expect(formatNegativeGap(15.6)).toContain("15,6");
+    expect(formatNegativeGap(15.6)).not.toContain("15.6");
+  });
+
+  it("uses the Unicode minus, not a hyphen", () => {
+    expect(formatNegativeGap(15.6).startsWith("−")).toBe(true);
+    expect(formatNegativeGap(15.6).startsWith("-")).toBe(false);
+  });
+
+  it("keeps one decimal — a 0,4 gap must not round to zero", () => {
+    expect(formatNegativeGap(0.4)).toBe("−0,4");
+  });
+
+  it("agrees with formatSignedGap on the same shortfall", () => {
+    // 80 against a target of 95,6 is a 15,6-point gap either way.
+    expect(formatSignedGap(80, 95.6)).toBe(formatNegativeGap(15.6));
   });
 });

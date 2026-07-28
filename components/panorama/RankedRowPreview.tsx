@@ -13,6 +13,7 @@
 // SAME resolver the click handler uses (resolveRowDrillTarget), so an
 // affordance can never promise an outcome the click doesn't deliver.
 
+import { formatNegativeGap } from "@/components/panorama/map-popup";
 import type { RankingKind } from "@/src/modules/panorama/domain/ranking";
 import type { RankedUnit } from "@/src/modules/panorama/domain/ranking";
 
@@ -44,7 +45,7 @@ export function RankedRowPreview({
           {/* One decimal, not Math.round: a real 0.4-point gap printed as "−0"
               reports a unit that is BELOW target as having no gap. "pts" because
               the number sits under a percentage and is itself percentage POINTS. */}
-          Brecha vs meta: <span className="tabular-nums">−{row.gap.toFixed(1)} pts</span>
+          Brecha vs meta: <span className="tabular-nums">{formatNegativeGap(row.gap)} pts</span>
         </p>
       )}
       <p className="mt-2 text-ln-op-mute">

@@ -103,11 +103,27 @@ export function formatValueWithUnit(
 
 /** The signed distance to target, alone: "−15,6" (below) or "+4,2" (above).
  * A negative gap uses a true Unicode minus so the copy reads clean. */
+export function formatGapMagnitude(gap: number): string {
+  return Math.abs(gap).toLocaleString("es-AR", { maximumFractionDigits: 1 });
+}
+
+/**
+ * An already-computed shortfall, rendered the way the whole console renders
+ * numbers: es-AR decimal comma and the Unicode minus, not a hyphen.
+ *
+ * Exists because two call sites had hand-rolled `−${gap.toFixed(1)}` — a
+ * DOT decimal on a government surface whose every other number uses a comma,
+ * with an ASCII hyphen where the typographic minus belongs (external design
+ * review P4-F1).
+ */
+export function formatNegativeGap(gap: number): string {
+  return `${UNICODE_MINUS}${formatGapMagnitude(gap)}`;
+}
+
 export function formatSignedGap(value: number, target: number): string {
   const rounded = Math.round((value - target) * 10) / 10;
   const sign = rounded < 0 ? UNICODE_MINUS : "+";
-  const magnitude = Math.abs(rounded).toLocaleString("es-AR", { maximumFractionDigits: 1 });
-  return `${sign}${magnitude}`;
+  return `${sign}${formatGapMagnitude(rounded)}`;
 }
 
 /** Format the compliance meta + signed gap for a rate layer: "meta 80% · −15,6". */
