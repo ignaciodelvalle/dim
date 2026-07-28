@@ -26,6 +26,7 @@ import { usePathname } from "next/navigation";
 
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { isNavItemActive } from "@/components/layout/nav-active";
+import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 
 // The pet-profile route is `/mis-mascotas/{DIM-token}` (and its sub-routes:
 // /asistencia, /libreta, …). Pet public tokens always start with `DIM-`, so a
@@ -128,9 +129,23 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
   const asentarHref = currentPetToken
     ? `/mis-mascotas/${currentPetToken}?sheet=anotar`
     : "/inicio?sheet=anotar";
+  // SAME-ROUTE opens go through SheetTriggerLink, CROSS-route stays a real
+  // navigation (X1-F4).
+  //
+  // lib/ui/sheet-nav.ts was written because "the Anotar icon fail 3/3 in
+  // production… the router must never sit on their hot path". The pet profile's
+  // own "Anotar" honoured that; this slot — the owner's number-one capture
+  // action on mobile — used a plain <Link> to the SAME route, which is a router
+  // soft-nav: the exact shape that failed 3/3 and caused the module to exist.
+  // The action was protected or exposed depending on which pixel the thumb
+  // covered.
+  //
+  // From anywhere else the link is genuinely cross-route: /inicio redirects to
+  // the most urgent pet AND forwards ?sheet=anotar, one navigation, correct.
+  const AsentarLink = currentPetToken ? SheetTriggerLink : Link;
   const asentar = (
     <li key="__asentar" className="min-w-0 flex-1">
-      <Link
+      <AsentarLink
         href={asentarHref}
         className="flex min-h-12 flex-col items-center justify-center gap-0.5 px-1 pt-1.5 pb-1 text-[var(--color-ln-azul)] no-underline transition-colors active:opacity-70"
       >
@@ -151,7 +166,7 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
           </svg>
         </span>
         <span className="w-full truncate text-center text-xs font-semibold">Asentar</span>
-      </Link>
+      </AsentarLink>
     </li>
   );
   navItems.splice(Math.ceil(navItems.length / 2), 0, asentar);
