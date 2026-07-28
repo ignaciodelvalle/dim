@@ -84,6 +84,22 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     const token = href.split("/mis-mascotas/")[1] ?? "";
     expect(token, "pet token parsed from registry link").toBeTruthy();
 
+    // The name is needed for the operator-board assertion further down, where
+    // the credential link is deliberately absent (see there).
+    //
+    // Read from the h1's FIRST TEXT NODE, not its innerText: the heading is
+    // `{name}<span class="ln-badge-reg">…</span>`, so innerText comes back as
+    // "E2EPet-1785241342414Inscripto" — name and status badge welded together,
+    // which matches nothing on the board.
+    await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" });
+    const petName = (
+      (await page
+        .locator("h1")
+        .first()
+        .evaluate((el) => el.firstChild?.textContent ?? "")) ?? ""
+    ).trim();
+    expect(petName, "pet name read from the profile h1").toBeTruthy();
+
     try {
       // --- Owner marks the pet lost (affirmative-consent disclosure) --------
       await page.goto(`/mis-mascotas/${token}/perdida`, { waitUntil: "domcontentloaded" });
@@ -138,12 +154,20 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       // Use admin (universal scope) so the projection assertion doesn't depend
       // on the arbitrary pet's locality matching a specific govt's jurisdiction
       // (a jurisdiction-scoped govt correctly sees only its own localities).
-      // The card links by href (→ /p/{token}), not visible token text.
+      //
+      // Asserted by NAME, not by a link to the credential. That universal scope
+      // is exactly a national/multi-province view, and PO decision 4b makes such
+      // a row drop every owner-identifying field — case code, owner name, exact
+      // last-seen point AND the `/p/{token}` link (LostPetRow's !showOwnerDetail
+      // branch). This spec used to assert that link here, so it was asserting
+      // the opposite of a recorded product decision; it failed the first time
+      // CI ran it. The name is what a national operator legitimately sees, and
+      // it is what "the lost pet appears on the board" actually means.
       await relogin(page, ACCOUNTS.admin);
       await page.goto("/gob/perdidas", { waitUntil: "domcontentloaded" });
       await expect(page.getByText(/mascotas perdidas/i).first()).toBeVisible({ timeout: 15_000 });
       await expect(
-        page.locator(`a[href*="${token}"]`).first(),
+        page.getByText(petName, { exact: false }).first(),
         "lost pet appears on the operator /gob/perdidas board",
       ).toBeVisible({ timeout: 15_000 });
 
