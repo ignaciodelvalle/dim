@@ -33,6 +33,20 @@ que compra la autonomía del resto:
 | D6 | `grain` faltante en ViewScope: ¿tira error? (H2) | la doctrina escrita dice "refusing beats defaulting"; el código defaultea | Que tire — es la doctrina propia |
 | D7 | Fecha tentativa de cutover | ordena si los lotes C/D corren antes o después del deploy | después del Lote B como mínimo |
 
+### Respuestas del PO (2026-07-28)
+
+| # | Decisión | Consecuencia |
+|---|---|---|
+| D2 | `skipIf` con precondición declarada, sin paso demo en `db:bootstrap` | Aplicada durante el Lote 0 (`d6778d80`) — CI no podía verdear sin eso |
+| D3 | **Denominador as-of-t** (NO la línea de copy) | A.6 deja de ser una línea: hay que acotar temporalmente `loadVetDesertByProvince` |
+| D4 | Oscuro = alarma SIEMPRE, `invert` propagado a la rama división | A.4 |
+| D5 | Confirmar pill y correr el codemod en toda la app | D.1 |
+| D6 | `grain` faltante **tira error** | H.1 |
+
+Sin responder: **D1** (RLS de staging antes del cutover — acción del PO con su runbook) y
+**D7** (fecha tentativa de cutover). El orden entre SC-1/SC-3/SC-4 y los lotes queda
+delegado en el agente.
+
 **Además del PO, en cualquier momento antes del cutover** (~30-45 min, runbook
 existente): ejecutar Fase 0-4 del `2026-07-26-cutover-staging-readiness.md`.
 
