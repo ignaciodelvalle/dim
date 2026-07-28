@@ -408,6 +408,31 @@ jobs:
         # data + test users. See scripts/db-bootstrap.ts for the contract.
         run: pnpm db:bootstrap
 
+      - name: Seed the analytic population + build the cube
+        # Five suites measure a POPULATION, not a fixture: the outbreak history,
+        # the cube↔live parity, the province/locality choropleth rollups. On a
+        # database that only holds catalogues and six test users they assert
+        # against nothing and fail — which is exactly what the first CI run in
+        # six weeks reported.
+        #
+        # seed-panorama is a legitimate test fixture rather than demo furniture
+        # (the distinction PO decision D2 drew): a fixed-seed PRNG and a
+        # hardcoded anchor date make it byte-identical run to run, it is
+        # idempotent, and it emits pet_registered + seed_tag for every pet, so
+        # the spine fence below stays green — verified against 32,373 locally
+        # seeded PANO- pets, zero of them orphans.
+        #
+        # SCALE=0.0004 is ~4,800 pets, ~200 per province. The default (0.002,
+        # ~24,000) is more density than any assertion here needs and costs CI
+        # minutes for nothing; going much thinner risks k-anon censoring the
+        # very cells the rollup tests read.
+        #
+        # cube:refresh follows because cube-parity asserts the cube AGAINST the
+        # live query — with no cube built there is nothing to compare.
+        env:
+          SCALE: "0.0004"
+        run: pnpm seed:panorama && pnpm cube:refresh
+
       - name: Lint (DB-backed security fences)
         # The three fences in `pnpm verify` that need a real database. They live
         # in this job and not in `check` because a DB-less box makes all three
