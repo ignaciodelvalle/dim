@@ -49,9 +49,10 @@ jobs:
         # was previously absent from CI — a PR could merge green while
         # introducing an unguarded action. Keep CI in parity with `pnpm verify`.
         #
-        # The three DB-backed fences (lint:rls, lint:scope-authz, lint:spine)
-        # are NOT here: this job has no Postgres, so all three would skip and
-        # report nothing. They run in the `test` job, which has the real stack.
+        # The four DB-backed fences (lint:rls, lint:scope-authz, lint:spine,
+        # lint:locality) are NOT here: this job has no Postgres, so all four
+        # would skip and report nothing. They run in the `test` job, which has
+        # the real stack.
         run: pnpm lint:authz
 
       - name: Lint (actions, UI, deps, guardrails)
@@ -65,6 +66,32 @@ jobs:
         # notifications consistency review.
         run: pnpm lint:notifications
 
+      - name: Lint (jurisdiction scope + authorization derivation)
+        # The scope layer's offline fences. Every one of these ran in `pnpm
+        # verify` and none had ever run in CI — see the parity note on the
+        # `lint:ci-parity` step below for how that happened.
+        run: >-
+          pnpm lint:scope && pnpm lint:view-scope &&
+          pnpm lint:authz-scoping && pnpm lint:authz-subsumption &&
+          pnpm lint:authz-orgtoken && pnpm lint:events
+
+      - name: Lint (metric contracts + query budget)
+        run: >-
+          pnpm lint:metric-labels && pnpm lint:metric-contract &&
+          pnpm lint:opened-reason && pnpm lint:db-budget && pnpm lint:timezone
+
+      - name: Lint (UI conventions)
+        run: >-
+          pnpm lint:select && pnpm lint:tablist && pnpm lint:eyebrow &&
+          pnpm lint:states && pnpm lint:empty-states && pnpm lint:screens &&
+          pnpm lint:icons && pnpm lint:maplibre && pnpm lint:hard-nav
+
+      - name: Lint (copy, brand, and identifiers)
+        run: >-
+          pnpm lint:copy-contract && pnpm lint:brand && pnpm lint:plural &&
+          pnpm lint:professionalism && pnpm lint:uuid && pnpm lint:dupes &&
+          pnpm lint:file-size && pnpm lint:seed-ids
+
       - name: Lint (router.refresh ban)
         # Nav burn-down N2 (2026-07-04): router.refresh() rides the App
         # Router transition machinery with the production silent-drop defect
@@ -73,6 +100,17 @@ jobs:
         # See scripts/check-router-refresh.ts and
         # docs/design/handoffs/2026-07-04-router-refresh-tiers.md.
         run: pnpm lint:nav
+
+      - name: Lint (CI ↔ verify parity)
+        # The ratchet that keeps this workflow honest. `pnpm verify` is the
+        # Definition of Done and runs on one machine; CI is what blocks a merge.
+        # When a lint joins one and not the other they quietly stop meaning the
+        # same thing — measured 2026-07-27, verify ran 43 lints and this file ran
+        # 13, so 29 fences had never executed in CI once.
+        #
+        # Adding them was the easy half. This step is the half that lasts: add a
+        # lint to `verify` without adding it here and the build fails, naming it.
+        run: pnpm lint:ci-parity
 
       - name: Typecheck (tsc)
         run: pnpm typecheck
@@ -380,6 +418,7 @@ jobs:
         #   lint:scope-authz the jurisdiction WHERE-clauses are backed by RLS
         #   lint:spine       no pet exists as a cache row without its
         #                    pet_registered event (invariant #3)
+        #   lint:locality    the INDEC locality catalogue is internally coherent
         #
         # These three close the DB-backed half of the CI ↔ `pnpm verify` drift.
         # The offline half is still open and is WIDER than it looks: measured
@@ -387,7 +426,7 @@ jobs:
         # See docs/plans/ola1-spec-conflicts.md §SC-1 for the list and why
         # closing it was left out of this batch. When you add a lint to
         # `verify`, add it here or to `check` — the parity is the whole point.
-        run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine
+        run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine && pnpm lint:locality
 
       - name: Run tests with coverage (vitest)
         # Coverage-threshold enforcement (V1-9). The thresholds in
