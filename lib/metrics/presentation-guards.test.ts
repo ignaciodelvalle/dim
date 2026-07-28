@@ -65,6 +65,46 @@ describe("smallNGate — the '100% con N=2' class", () => {
 });
 
 describe("guardRatioTone — composed value/tone/note for a rate tile", () => {
+  // C8/U1, reproduced live on /gob/vigilancia 2026-07-27: the rabies-10d tile
+  // rendered a neutral "—" while a red banner two centimetres below shouted
+  // "4 observaciones rábicas fuera del plazo legal", and the sibling ENO tile
+  // said "3 vencidas ahora". The tile had already swapped its headline to the
+  // live breach count (rabiesComplianceHeadline) — and then the zero-
+  // denominator gate, reading `closed === 0`, threw that away.
+  //
+  // The gate is right about ratios and wrong about this: a live count has no
+  // denominator to be empty. `valueIsRatio: false` is how a caller says the
+  // headline is no longer the rate.
+  it("does NOT dash a live breach headline just because the ratio's denominator is 0", () => {
+    const result = guardRatioTone(withBothGuards, {
+      n: 0,
+      computedTone: "danger",
+      formattedValue: "4 fuera de plazo ahora",
+      valueIsRatio: false,
+    });
+    expect(result).toEqual({ value: "4 fuera de plazo ahora", tone: "danger" });
+  });
+
+  it("does not apply the small-N note either when the value is not a ratio", () => {
+    const result = guardRatioTone(withBothGuards, {
+      n: 2,
+      computedTone: "danger",
+      formattedValue: "2 fuera de plazo ahora",
+      valueIsRatio: false,
+    });
+    expect(result).toEqual({ value: "2 fuera de plazo ahora", tone: "danger" });
+  });
+
+  it("still dashes when the value IS the ratio — the guard's actual job", () => {
+    const result = guardRatioTone(withBothGuards, {
+      n: 0,
+      computedTone: "danger",
+      formattedValue: "0,0%",
+      valueIsRatio: true,
+    });
+    expect(result).toEqual({ value: ZERO_DENOMINATOR_DASH, tone: "neutral" });
+  });
+
   it("n=0 with the zero-denominator guard renders the dash, neutral tone, no note", () => {
     const result = guardRatioTone(withBothGuards, {
       n: 0,

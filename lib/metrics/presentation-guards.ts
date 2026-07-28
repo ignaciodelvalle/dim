@@ -106,11 +106,33 @@ export type GuardedRatio = {
  * "no data" state that smallNGate deliberately excludes via its `n > 0`
  * check, so the two never fire simultaneously — this ordering only matters
  * for readability).
+ *
+ * `valueIsRatio: false` disables BOTH gates. Some tiles swap their headline
+ * for a live count when there is an active breach — "4 fuera de plazo ahora"
+ * instead of the period's compliance rate (rabiesComplianceHeadline,
+ * enoSlaHeadline). Both guards reason about a RATIO's denominator, and a live
+ * count has no denominator to be empty or small; applying them anyway replaces
+ * a statutory breach with a neutral dash.
+ *
+ * Which is what happened. Live on /gob/vigilancia, 2026-07-27: the rabies-10d
+ * tile rendered "—" in neutral while a red banner two centimetres below read
+ * "4 observaciones rábicas fuera del plazo legal" and the sibling ENO tile read
+ * "3 vencidas ahora". The tile had already computed the right headline; the
+ * gate, seeing `closed === 0`, threw it away (external design review C8/U1).
  */
 export function guardRatioTone(
   descriptor: Pick<KpiDefinition, "guards">,
-  input: { n: number; computedTone: Tone; formattedValue: string },
+  input: {
+    n: number;
+    computedTone: Tone;
+    formattedValue: string;
+    /** False when the headline is a live count rather than the rate. Default true. */
+    valueIsRatio?: boolean;
+  },
 ): GuardedRatio {
+  if (input.valueIsRatio === false) {
+    return { value: input.formattedValue, tone: input.computedTone };
+  }
   if (zeroDenominatorGate(descriptor, input.n)) {
     return { value: ZERO_DENOMINATOR_DASH, tone: "neutral" };
   }

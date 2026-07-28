@@ -189,6 +189,17 @@ type Props = {
      * generic (N-less) methodology sentence.
      */
     trendMonths?: number;
+    /**
+     * False when this render's headline is a LIVE COUNT rather than the rate —
+     * the breach-aware swap that rabiesComplianceHeadline / enoSlaHeadline do.
+     * Both ratio guards reason about a denominator, and a live count has none,
+     * so they are skipped. Default true.
+     *
+     * Not cosmetic: with it missing, the rabies-10d tile rendered a neutral
+     * "—" beside a red banner reading "4 observaciones rábicas fuera del plazo
+     * legal" (external design review C8/U1, reproduced live 2026-07-27).
+     */
+    valueIsRatio?: boolean;
   };
 };
 
@@ -471,6 +482,7 @@ function resolveOpKpiContract(
       n: guardInput.n,
       computedTone: rawTone,
       formattedValue: rawValue,
+      valueIsRatio: guardInput.valueIsRatio,
     });
     value = guarded.value;
     tone = guarded.tone;

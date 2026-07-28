@@ -449,7 +449,15 @@ export default async function GobVigilanciaPage({
               "Las observaciones con más de 10 días sin cierre generan un incumplimiento vivo y activan el banner de alerta.",
           }}
           descriptorId="rabies_observation_compliance_10d"
-          guardInput={{ n: rabiesCompliance.closed }}
+          // valueIsRatio false while a breach is live: rabiesComplianceHeadline
+          // has already swapped the headline to "N fuera de plazo ahora", and
+          // the zero-denominator guard would otherwise replace that statutory
+          // breach with a neutral "—" whenever nothing closed in the period
+          // (C8/U1 — the tile contradicted the red banner below it).
+          guardInput={{
+            n: rabiesCompliance.closed,
+            valueIsRatio: rabiesCompliance.openBreaches === 0,
+          }}
         />
         {/* Coherence fix (qa-triage-2026-07-23, finding #12): this tile used
             to headline the HISTORICAL onTimePct ("100%", period-scoped over
