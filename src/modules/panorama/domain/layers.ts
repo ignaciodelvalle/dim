@@ -549,7 +549,11 @@ export const PANORAMA_LAYERS: readonly PanoramaLayer[] = [
     // POLARITY: higher IS worse (more pets unattended), which is the registry
     // default — so `higherIsBetter` stays absent here, unlike its sibling
     // `acceso-veterinario`, where a high value is the good news.
-    label: "Desierto veterinario (% de mascotas sin atención)",
+    // "registrada" is not padding: it is the layer's own honesty note, which the
+    // description spells out ("la ausencia de registro no implica ausencia de
+    // atención") and the domain caption already carries. The label — the most
+    // read line of the three — was the one overclaiming (P1-F2).
+    label: "Desierto veterinario (% sin atención registrada)",
     // Found by widening the countLabel fence to rate-VALUED layers (P1-F1): the
     // drill fallback paints a headcount, so it needs a name that is a headcount.
     // "Sin atención registrada", not "sin atención" — the layer's own

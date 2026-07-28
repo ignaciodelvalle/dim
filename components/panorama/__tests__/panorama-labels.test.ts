@@ -195,7 +195,7 @@ describe("de-dup — shortKpiLabel / shortLayerLabel", () => {
             "Cobertura de esterilización",
           ],
           "layers": [
-            "Desierto veterinario (% de mascotas sin atención)",
+            "Desierto veterinario (% sin atención registrada)",
             "Clínicas veterinarias",
             "Refugios",
           ],
