@@ -308,7 +308,13 @@ export async function walkDenunciaWizard(
   await fullScroll(page);
   const submit = page.getByRole("button", { name: /enviar denuncia/i });
   await expect(submit, "denuncia submit button").toBeEnabled();
-  await submit.click();
+
+  // Fired, not awaited — same reason as e2e/create-pet.spec.ts's submit.
+  // createWelfareReportAction returns `redirectTo` and the form pushes it
+  // client-side (the N3 contract), and Playwright's post-click wait never sees
+  // that App Router transition settle, so the click's promise never resolves.
+  // The navigation below is the assertion that matters.
+  void submit.click().catch(() => {});
 
   // createWelfareReportAction redirects to the comprobante on success.
   await page.waitForURL(/\/denuncias\/codigo\//, { timeout: 30_000 });
