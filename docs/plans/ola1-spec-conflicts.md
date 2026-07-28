@@ -225,3 +225,61 @@ The batch's stated criterion was "green end to end". Five test files stand betwe
 and that, and they are a batch of their own (SC-3). Everything the criterion was FOR —
 CI running at all, on this branch, with the fences enforced and the bootstrap honest —
 is in place.
+
+---
+
+## SC-4 — E2E in CI: seven specs red and a 30-minute budget that runs out
+
+**Batch**: 0 · **Found by**: run 30337807311, the first E2E run in CI since 2026-06-12
+
+The E2E job reached its `timeout-minutes: 30` and GitHub reported the step as
+`cancelled`. It did NOT hang — it was producing results the whole time and simply ran
+out of budget. Everything before it passed, and that part matters:
+
+```
+Start Supabase local stack   success
+Bootstrap DB                 success   ← the step 0 fix works here too
+Extract Supabase env vars    success
+Build Next.js app            success
+Run Playwright e2e suite     cancelled (30 min budget exhausted)
+```
+
+Seven spec files failed before the clock ran out:
+
+```
+a11y-regression  admin-case-detail-shell  authz-ab-isolation  create-pet
+crisis-owner-lost-flow  crisis-seams  cuenta-hang-verify
+```
+
+**The dominant pattern is the locality catalogue.** Eleven failures are shaped like
+`locator('ul button').filter({ hasText: 'Palermo' })` never becoming visible — the
+locality picker finding nothing. `scripts/import-indec-localities.ts` fetches
+`https://infra.datos.gob.ar/georef/localidades_censales.csv` live at bootstrap time and
+**falls back to a bundled 53-row sample fixture when the fetch fails**. So the catalogue
+CI gets is decided by a third-party government host being up during the run. The
+external review hit exactly this in its own sandbox (§0.1: the live import returned 403
+and fell back).
+
+A suite whose result depends on datos.gob.ar's uptime is not a gate. That is the same
+family as SC-3 — undeclared state — with the state living on someone else's server.
+
+The remaining failures (the band Girar button, the case timeline heading, the
+lost-urgent banner) are NOT obviously catalogue-shaped and need looking at one by one.
+None has ever run in CI, so none can be assumed pre-existing OR new without checking.
+
+**Why it was NOT fixed in this batch.** Three different problems wearing one red X: a
+non-deterministic fixture source, a possibly-too-small time budget, and an unknown
+number of genuine defects underneath. Untangling them is a batch.
+
+**Proposal.**
+1. Pin the catalogue: `INDEC_LOCALITIES_CSV` pointing at a committed fixture for CI, so
+   the run stops depending on a government host. The env override already exists — this
+   is a workflow line, not new code. Do this first; it may clear most of the seven.
+2. Re-run, then triage what survives.
+3. Only then decide whether 30 minutes is the right budget, with a real measurement of
+   how long a green suite takes.
+
+**Decision needed from the PO**: this and SC-3 are the same shape and probably one
+piece of work — "make the suites reproducible in CI". Recommendation: **one batch,
+after Lote 0, before the cutover**, since the cutover's whole premise is that CI tells
+the truth about what is being promoted.
