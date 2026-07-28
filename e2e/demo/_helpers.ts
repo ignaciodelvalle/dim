@@ -243,8 +243,11 @@ export async function pickLocality(
   const input = page.locator(inputSelector);
   await expect(input, `locality typeahead ${inputSelector}`).toBeVisible();
   await input.fill(query);
-  // Results render as ul > li > button after a 200ms debounced server search.
-  const option = page.locator("ul button", { hasText: query }).first();
+  // Results render as role="option" rows after a 200ms debounced server search.
+  // Matched by role rather than markup: this was `ul button` until LnCombobox
+  // moved role="option" onto the <li> and dropped the inner button, and the
+  // stale selector went unnoticed while CI was not running the e2e suite.
+  const option = page.getByRole("option", { name: query }).first();
   await expect(option, `locality result for "${query}"`).toBeVisible({ timeout: 10_000 });
   await option.click();
   await page.waitForTimeout(300);

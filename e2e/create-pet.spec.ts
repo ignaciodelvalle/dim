@@ -74,13 +74,17 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   await localityInput.fill("Palermo");
 
   // Wait for the debounced (200ms) province-scoped search to render its
-  // <li><button> options, then select the first Palermo match. Selection fires
-  // on mousedown / Enter; the component's key handler preventDefaults Enter so
+  // options, then select the first Palermo match. Selection fires on
+  // mousedown / Enter; the component's key handler preventDefaults Enter so
   // it never submits the form.
-  const firstOption = page
-    .locator("li button")
-    .filter({ hasText: /Palermo/i })
-    .first();
+  //
+  // Matched by ROLE, not by markup. This used to be `li button`, which stopped
+  // matching when LnCombobox put role="option" on the <li> itself — there is no
+  // button in the list any more. The picker was fine; the selector had drifted,
+  // and nothing noticed because the e2e suite had not run in CI since
+  // 2026-06-12. The role is the contract a screen reader sees, so it does not
+  // rot the next time the markup moves.
+  const firstOption = page.getByRole("option", { name: /Palermo/i }).first();
   await expect(firstOption).toBeVisible({ timeout: 15_000 });
   await localityInput.press("Enter");
 
