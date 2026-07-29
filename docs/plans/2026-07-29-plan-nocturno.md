@@ -350,6 +350,23 @@ próxima sesión no tiene que volver a mirar el pool.
 vitest tira al **LEER** la propiedad, no al llamarla. `mod.fn?.()` NO alcanza
 sobre un módulo mockeado; hay que envolver en try/catch.
 
+## Batch 4 (D.5b) — y el dato nuevo sobre el exit code
+
+`pnpm verify` exit 0. Suite: **1066/1066 archivos, 12.533 passed, 0 FAIL,
+`SUITE_EXIT=0`**, y la aritmética cierra (`12533 + 4 + 11 = 12548`).
+
+**Pero cuidado con leer esto como "arreglado"**: la corrida anterior, con el
+MISMO fix del pool, salió 1 con un error de worker. O sea que el crash es
+**intermitente**, no determinista. El drenaje del pool recuperó tests perdidos
+(eso sí es un hecho medido y reproducible) y probablemente redujo la ventana,
+pero UNA corrida verde no prueba que la causa esté cerrada. Sigue abierto, y
+sigue acotado a la interacción entre proyectos.
+
+**El fence de tamaño cobró dos veces en la misma unidad** y las dos veces la
+respuesta fue partir, no re-baselinear: salieron `no-data-pattern.ts` (el tile),
+`no-data-overlay.ts` (las capas) y `map-pattern-images.ts` (el registro
+compartido). `SituationalMap.tsx` terminó en **3398**, justo en su tope.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -362,7 +379,7 @@ sobre un módulo mockeado; hay que envolver en try/catch.
 | C.4 | **hecha** — el spec nunca falló por selectores: los selects viven en un `<details>` NATIVO cerrado (el locator resolvía y el elemento estaba hidden), y lo abre un `<summary>`, no un button. Hallazgo de producto abierto: en sesión fresca el operador nuevo no ve ningún control de drill | `fec3e9df` |
 | D.6 | **hecha** — las tres. Header: el bloque de marca se aplastaba a 2px (era `flex-1 min-w-0` contra chips que no ceden) → `basis-[7rem]` hace wrappear. Foto: `CredentialPhoto` cliente con `onError` + 4 tests. Mapa: **el plan decía "falta atribución OSM" y estaba mal** — `LocationMap` ya la declara; `PublicLostSections` la RECORTABA (`h-40 overflow-hidden` sobre un mapa `h-64`, se perdían los 96px donde MapLibre la dibuja). Era licencia ODbL, no cosmética | |
 | D.5 (c) | **hecha** — PO eligió (c)+(b). Rampa re-espaciada: clase-1 vs tierra 4,21 → **16,38**, pasos parejos. + `color-distance.ts` (ΔE00) y el 4º test que pinneaba su defecto, reescrito | `3aee0ccd` |
-| D.5 (b) | **pendiente, va a la pasada de UI viva** — textura propia para "sin datos". Es una capa `fill-pattern` + filtro × 3 superficies (SituationalMap, CabaInset, MapChoropleth), y una textura no se shipea sin mirarla | |
+| D.5 (b) | **hecha** — puntillado propio para "sin datos" (provincia + división) + swatch de leyenda desde las mismas constantes. Verificado en vivo. **Falta**: CabaInset y MapChoropleth siguen con relleno plano | `9ec134bc` |
 | H.1 restante | **hecha** — `grain` faltante TIRA (D6) + los 7 throw-paths con test (21 en total) | |
 | H.2 | **hecha** — fence de precondición de seed. Medido antes de escribirlo: de 15 archivos que nombran un token de demo, 13 lo usan como fixture de render y 1 crea sus propias mascotas; **solo `seed-demo-scenario.test.ts` depende del seed, y ya lo declara**. El contrato ya se cumplía; faltaba el fence que lo mantenga | |
 | #38 recuperadas | **hecha** — selector event-sourced + 3 tests | `17903555` |
