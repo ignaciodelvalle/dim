@@ -2336,6 +2336,29 @@ describe("PanoramaConsole — embedded drill: masthead pill + level reset (live-
     );
   }
 
+  it("C.4: the scope pill NAMES THE ACT, so it reads as a control and not a status label", () => {
+    // The pill is the operator's only entry point to the province → locality
+    // drill, and the panel behind it starts closed. It used to render
+    // "◉ <jurisdictions> ▾" with the word "Alcance" sr-only: assistive tech
+    // heard a named control while a sighted operator saw a VALUE. That gap is
+    // what the review called "no visible way to drill" — the affordance was
+    // real and announced itself as a label. PO decision 2026-07-29: keep the
+    // panel closed, make the chip read as a control.
+    setUrl("/gob/panorama?period=3y");
+    renderScopedConsole();
+
+    const pill = screen.getByTestId("panorama-scope-pill");
+
+    // The verb is present for BOTH audiences: visibly next to the caret, and
+    // leading the accessible name.
+    expect(pill).toHaveTextContent(/Cambiar/);
+    expect(pill).toHaveTextContent(/Cambiar alcance\. Actualmente:/);
+
+    // ...and it still says WHERE it currently is. Naming the act must not cost
+    // the operator the state — the scope filters everything on this screen.
+    expect(pill).toHaveTextContent(/Nacional/);
+  });
+
   it("MEDIUM: the masthead pill re-labels to the drilled province on a client drill (was stuck on the server scopeLabel)", async () => {
     setUrl("/gob/panorama?period=3y");
     renderScopedConsole();

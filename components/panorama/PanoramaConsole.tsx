@@ -4846,10 +4846,29 @@ export function PanoramaConsole({
                   closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
                   summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
                   summary={
+                    /* This pill is the operator's ONLY entry point to the drill
+                       (province → locality); the panel behind it starts closed.
+                       It used to render as "◉ <jurisdictions> ▾" with the word
+                       "Alcance" sr-only — so assistive tech heard a named
+                       control and a sighted operator saw a VALUE. That is what
+                       the review meant by "no visible way to drill": the
+                       affordance existed but announced itself as a status
+                       label. Measured 2026-07-29 (C.4).
+
+                       PO decision: keep the panel closed by default, make the
+                       chip read as a control. So the VERB is now visible and
+                       the scope rides along as its current value, and the
+                       accessible name leads with the act too. */
                     <>
                       <span aria-hidden="true">◉</span>
-                      <span className="sr-only">Alcance</span>
+                      <span className="sr-only">Cambiar alcance. Actualmente:</span>
                       {liveScopeLabel || "Nacional"}
+                      <span
+                        aria-hidden="true"
+                        className="ml-0.5 font-normal text-[var(--text-xs)] underline decoration-dotted underline-offset-2"
+                      >
+                        Cambiar
+                      </span>
                       <span aria-hidden="true" className="text-[var(--text-xs)]">
                         ▾
                       </span>
