@@ -8,15 +8,11 @@ import { Icon } from "@/components/Icon";
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
-const ROLE_OPTIONS = [
-  { value: "current_owner", label: "Dueño actual" },
-  { value: "claimant_owner", label: "Reclamante (persona)" },
-  { value: "current_org_custody", label: "Organizacion en custodia" },
-  { value: "claimant_org", label: "Organizacion reclamante" },
-  { value: "witness", label: "Testigo" },
-] as const;
+import type { DisputePartyRole } from "@/src/modules/custody-disputes/domain/types";
 
-type RoleValue = (typeof ROLE_OPTIONS)[number]["value"];
+import { PARTY_ROLE_OPTIONS } from "./_party-roles";
+
+type RoleValue = DisputePartyRole;
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
@@ -312,7 +308,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setPartyRole(e.target.value as RoleValue)}
           className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
-          {ROLE_OPTIONS.map((r) => (
+          {PARTY_ROLE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}
             </option>

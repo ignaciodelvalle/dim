@@ -21,14 +21,7 @@ import { AddPartyForm } from "./AddPartyForm";
 import { EscalateDisputeForm } from "./EscalateDisputeForm";
 import { ResolveDisputeForm } from "./ResolveDisputeForm";
 import { WithdrawDisputeButton } from "./WithdrawDisputeButton";
-
-const PARTY_ROLE_LABELS: Record<string, string> = {
-  current_owner: "Dueño actual",
-  claimant_owner: "Reclamante",
-  current_org_custody: "Organización en custodia",
-  claimant_org: "Organización reclamante",
-  witness: "Testigo",
-};
+import { partyRoleLabel } from "./_party-roles";
 
 const STATUS_LABELS: Record<string, string> = {
   open: "Abierta",
@@ -169,7 +162,7 @@ export default async function DisputeDetailPage({
                     <p className="text-[13px] font-medium text-ln-op-ink">
                       {userProfile?.displayName ?? org?.displayName ?? "Desconocido"}
                       <span className="ml-2 text-sm text-ln-op-mute font-normal">
-                        {PARTY_ROLE_LABELS[party.partyRole] ?? party.partyRole}
+                        {partyRoleLabel(party.partyRole)}
                       </span>
                     </p>
                     {party.partyPositionSummary && (
