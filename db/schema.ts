@@ -4226,7 +4226,11 @@ export const petIdentifications = pgTable(
     kind: identificationKindEnum("kind").notNull(),
     status: identificationStatusEnum("status").notNull().default("active"),
     code: text("code"),
-    recordedAt: date("recorded_at").notNull(),
+    // NULLABLE since migration 0161: "when the identification was MADE", and
+    // the spine models genuinely-unknown (tattoo_date_known=false). NOT NULL
+    // forced writers to invent a date, and the seed invented the event's own
+    // date — which the credential then showed as the tattoo's.
+    recordedAt: date("recorded_at"),
     recordedByUserId: uuid("recorded_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),

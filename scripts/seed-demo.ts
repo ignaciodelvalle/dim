@@ -1128,7 +1128,24 @@ async function loadStoryline(
     const tattooLocation = typeof tp.location_on_body === "string" ? tp.location_on_body : null;
     const tattooDescription = typeof tp.description === "string" ? tp.description : null;
     const tattooRecordedBy = typeof tp.recorded_by === "string" ? tp.recorded_by : null;
-    const tattooRecordedAt = typeof tp.recorded_at === "string" ? tp.recorded_at : tattooEvent.date;
+    // MIRRORS THE PROJECTION, and must keep doing so.
+    //
+    // `recordedAt` on the identification row means "when the TATTOO was made",
+    // not "when we wrote this down". The tattoo_recorded payload says which of
+    // those it knows: `tattoo_date_known: false` with `recorded_at: null` is an
+    // event explicitly declining to state the date.
+    //
+    // This used to fall back to `tattooEvent.date` — the day the event was
+    // recorded — so the cache carried a tattoo date the event had refused to
+    // give, and the pet's credential showed it as fact. lib/projections/
+    // pet-tattoo.ts derives `dateKnown ? recorded_at : null`, so the fitness
+    // sweep (__tests__/pet-cache-rederivation.test.ts) caught the drift on
+    // DIM-JUF5-ZW5J: stored "2026-07-26", derived null.
+    //
+    // The projection is right. Unknown stays unknown.
+    const tattooDateKnown = tp.tattoo_date_known === true;
+    const tattooRecordedAt =
+      tattooDateKnown && typeof tp.recorded_at === "string" ? tp.recorded_at : null;
     if (tattooCode) {
       const [existingTattoo] = await db
         .select({ id: schemas.petIdentifications.id })
