@@ -31,6 +31,35 @@ export const CASE_KINDS = [
 
 export type CaseKind = (typeof CASE_KINDS)[number];
 
+/**
+ * Case kinds that have their OWN screen and must not appear in the generic
+ * /gob/casos queue.
+ *
+ * `custody_dispute` rows exist in BOTH `cases` (CAS- codes, read-only) and
+ * `custody_disputes` (DIS- tokens, with the resolve form). Live review
+ * 2026-07-28 found the same dispute listed under two codes with two different
+ * state chips (ABIERTO vs ABIERTA): 11 dead rows in Casos against 1 workable
+ * row in Disputas. PO decision the same day: `custody_disputes` is CANONICAL —
+ * it is where the work actually happens — so the Casos queue stops showing the
+ * shadow copy and links out instead.
+ *
+ * This is a ROUTING statement, not a data change: the `cases` rows still exist
+ * and nothing about them is deleted.
+ *
+ * DO NOT MERGE with GENERIC_CASE_LIST_EXCLUDED_KINDS (lib/infra/case-queries.ts).
+ * They share a mechanism and mean different things: that list hides kinds from
+ * OWNER-facing surfaces for privacy and de-duplication (a denuncia's subject
+ * must never see it); this one routes an OPERATOR to the screen where the work
+ * happens. Folding them together would make a navigation change silently alter
+ * a privacy rule.
+ */
+export const CASE_KINDS_ROUTED_ELSEWHERE: readonly CaseKind[] = ["custody_dispute"];
+
+/** Where an operator should go for a kind the Casos queue does not show. */
+export const ROUTED_ELSEWHERE_DESTINATION: Record<string, { href: string; label: string }> = {
+  custody_dispute: { href: "/gob/disputas", label: "Disputas de custodia" },
+};
+
 export const V1_CASE_KINDS: readonly CaseKind[] = [
   "bite_incident",
   "lost_pet_episode",

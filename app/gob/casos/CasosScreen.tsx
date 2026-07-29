@@ -63,14 +63,22 @@ import {
 } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
-import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
+import {
+  CASE_KINDS,
+  CASE_KINDS_ROUTED_ELSEWHERE,
+  type CaseKind,
+  caseKindLabel,
+} from "@/src/modules/cases/domain/case-kinds";
 
 const GOVT_CASOS_PAGE_LIMIT = 50;
 
 // Domain-axis options for the OpFilterBar (F-migration 2026-07-21, off the
 // bespoke <form>) — same values/labels the old hand-rolled selects used.
 // Estado is NOT here — see CasoEstadoFilter (BUGFIX opfilterbar-sweep-2026-07-21).
-const KIND_OPTIONS = CASE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) }));
+// Kinds routed to their own screen are not offered here — a filter that can
+// only ever return zero rows is a dead control (see CASE_KINDS_ROUTED_ELSEWHERE).
+const QUEUE_KINDS = CASE_KINDS.filter((k) => !CASE_KINDS_ROUTED_ELSEWHERE.includes(k));
+const KIND_OPTIONS = QUEUE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) }));
 
 type GovtCasosSearchParams = { cursor?: string; status?: string; kind?: string; province?: string };
 
@@ -100,8 +108,11 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   // to the SQL-facing open|closed|null via activeStatus below.
   const casoEstado = parseCasoEstado(sp.status);
   const activeStatus: "open" | "closed" | null = casoEstado === "all" ? null : casoEstado;
+  // A ?kind= naming a routed-away kind is ignored rather than honoured — the
+  // exclusion below would zero it out anyway, and honouring it would render a
+  // filter chip for a queue that cannot contain the kind.
   const kindFilter =
-    sp.kind && CASE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
+    sp.kind && QUEUE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
 
   // Province filter — scope-dependent:
   //  - admin: universal, every province is a valid choice, same as
@@ -121,7 +132,16 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   const provinceFilter =
     showProvinceFilter && sp.province && scopeProvinces.includes(sp.province) ? sp.province : null;
 
-  const filters = { status: activeStatus, kind: kindFilter, province: provinceFilter };
+  // excludeKinds applies to the LIST, the COUNT and the cursor at once — they
+  // share buildCaseKindStatusClauses, so the header can never claim a total the
+  // rows do not contain (live review 2026-07-28: 11 custody-dispute rows here
+  // against 1 workable row in /gob/disputas, same dispute, two codes).
+  const filters = {
+    status: activeStatus,
+    kind: kindFilter,
+    province: provinceFilter,
+    excludeKinds: CASE_KINDS_ROUTED_ELSEWHERE,
+  };
 
   // Fetch limit+1 to detect hasMore, plus the true total behind the cap (M4,
   // mirrors /admin/casos) so the header can read "N más recientes de M" when
@@ -245,7 +265,15 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
           <p className="text-[var(--text-md)] text-ln-op-mute">
             {scope.role === "admin"
               ? "Expedientes en todo el sistema. Vista universal admin."
-              : "Expedientes en tu jurisdicción asignada."}
+              : "Expedientes en tu jurisdicción asignada."}{" "}
+            {/* The queue no longer lists custody disputes (they live in their
+                own screen, with the resolve form). Saying so — and linking —
+                is what keeps the exclusion from reading as data loss. */}
+            Las disputas de custodia se trabajan en{" "}
+            <Link href="/gob/disputas" className="underline underline-offset-2">
+              Disputas
+            </Link>
+            .
           </p>
         }
       />

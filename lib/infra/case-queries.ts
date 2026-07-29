@@ -619,9 +619,18 @@ export async function listCaseKindDistributionForOrg(orgId: string): Promise<Cas
 export function buildCaseKindStatusClauses(filters: {
   kind?: CaseKind | null;
   status?: "open" | "closed" | null;
+  excludeKinds?: readonly CaseKind[];
 }): ReturnType<typeof and>[] {
   const clauses: ReturnType<typeof and>[] = [];
   if (filters.kind) clauses.push(eq(cases.caseKind, filters.kind) as ReturnType<typeof and>);
+  // Kinds that live on their own screen (CASE_KINDS_ROUTED_ELSEWHERE). Applied
+  // here — in the ONE builder both the govt and the admin queue share — so the
+  // list, the count and the pagination cursor can never disagree about which
+  // rows exist. An empty array is a no-op, so callers that do not route
+  // anything away are unaffected.
+  if (filters.excludeKinds && filters.excludeKinds.length > 0) {
+    clauses.push(notInArray(cases.caseKind, [...filters.excludeKinds]) as ReturnType<typeof and>);
+  }
   if (filters.status === "open") clauses.push(isNull(cases.closedAt) as ReturnType<typeof and>);
   if (filters.status === "closed")
     clauses.push(isNotNull(cases.closedAt) as ReturnType<typeof and>);
@@ -629,6 +638,11 @@ export function buildCaseKindStatusClauses(filters: {
 }
 
 export interface ListCasesForGovtFilters {
+  /**
+   * Kinds to hide because they have their own screen — pass
+   * CASE_KINDS_ROUTED_ELSEWHERE. Omit to show everything.
+   */
+  excludeKinds?: readonly CaseKind[];
   /** Filter by case kind. Null = all kinds. */
   kind?: CaseKind | null;
   /** Filter by open/closed status. Null = all. */
@@ -735,6 +749,11 @@ export async function countCasesForGovt(
 // ---------------------------------------------------------------------------
 
 export interface ListCasesForAdminFilters {
+  /**
+   * Kinds to hide because they have their own screen — pass
+   * CASE_KINDS_ROUTED_ELSEWHERE. Omit to show everything.
+   */
+  excludeKinds?: readonly CaseKind[];
   /** Filter by case kind. Null = all kinds. */
   kind?: CaseKind | null;
   /** Filter by open/closed status. Null = all. */

@@ -31,6 +31,7 @@ import {
   countCasesForGovt,
 } from "@/lib/infra/case-queries";
 import { keysetWhere } from "@/lib/utils/keyset-pagination";
+import { CASE_KINDS_ROUTED_ELSEWHERE } from "@/src/modules/cases/domain/case-kinds";
 
 function render(clause: ReturnType<typeof and> | undefined) {
   if (!clause) return { sql: "", params: [] as unknown[] };
@@ -172,5 +173,60 @@ describe("admin vs govt case filter builders — parity (#26 D2)", () => {
 describe("countCasesForGovt — DB-free empty-jurisdiction guard", () => {
   it("returns 0 for an empty jurisdictions array without querying the DB", async () => {
     await expect(countCasesForGovt([], {})).resolves.toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// excludeKinds — kinds that have their own screen never reach the generic queue.
+//
+// Live review 2026-07-28: the same custody dispute (Bruno) appeared in TWO
+// places under two codes — 11 rows in the /gob/casos tab (`cases`, CAS-, no
+// actions at all) against 1 row in /gob/disputas (`custody_disputes`, DIS-,
+// with the full resolve form) — and the two state chips did not even agree
+// (ABIERTO vs ABIERTA). PO decision the same day: `custody_disputes` is
+// canonical, so the generic queue stops showing the shadow copy.
+//
+// The exclusion lives in buildCaseKindStatusClauses, the ONE builder the list,
+// the count and the keyset cursor all share, so a header can never claim a
+// total its rows do not contain.
+// ---------------------------------------------------------------------------
+
+describe("buildCaseKindStatusClauses — excludeKinds", () => {
+  it("emits no clause when excludeKinds is absent or empty (pure no-op)", () => {
+    expect(buildCaseKindStatusClauses({})).toHaveLength(0);
+    expect(buildCaseKindStatusClauses({ excludeKinds: [] })).toHaveLength(0);
+  });
+
+  it("emits a NOT IN clause naming every excluded kind", () => {
+    const clauses = buildCaseKindStatusClauses({ excludeKinds: CASE_KINDS_ROUTED_ELSEWHERE });
+    expect(clauses).toHaveLength(1);
+    const { sql: text, params } = new PgDialect().sqlToQuery(and(...clauses)!);
+    expect(text).toContain("not in");
+    expect(params).toEqual([...CASE_KINDS_ROUTED_ELSEWHERE]);
+  });
+
+  it("routes custody_dispute away — the kind the decision was about", () => {
+    // Named explicitly: if someone empties CASE_KINDS_ROUTED_ELSEWHERE, the
+    // assertion above still passes on an empty list. This one does not.
+    expect(CASE_KINDS_ROUTED_ELSEWHERE).toContain("custody_dispute");
+  });
+
+  it("composes with kind and status rather than replacing them", () => {
+    const clauses = buildCaseKindStatusClauses({
+      kind: "bite_incident",
+      status: "open",
+      excludeKinds: CASE_KINDS_ROUTED_ELSEWHERE,
+    });
+    expect(clauses).toHaveLength(3);
+  });
+
+  it("reaches the govt where-clause, so list/count/cursor cannot diverge", () => {
+    const { sql: text, params } = new PgDialect().sqlToQuery(
+      buildGovtCaseWhereClause([{ province: "Córdoba", locality: "Villa María" }], {
+        excludeKinds: CASE_KINDS_ROUTED_ELSEWHERE,
+      }),
+    );
+    expect(text).toContain("not in");
+    expect(params).toContain("custody_dispute");
   });
 });
