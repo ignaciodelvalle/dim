@@ -130,12 +130,25 @@ formulario renderiza y el botón no está adjunto cuando se lo evalúa. Es la cl
 de hidratación/clickthrough que el repo ya documentó (#39), no la lógica de
 firma.
 
-**Diferencia entre mi corrida a mano y el spec** (por acá va el próximo paso):
-yo usé el primer org y `DIM-PAMP-0001`; el spec resuelve
-`/Clínica Veterinaria Recoleta/i` y usa `ROCCO_TOKEN`, y corre DESPUÉS del test
-(a), que marca esa misma mascota perdida y luego encontrada. Probar el spec (b)
-AISLADO (`--grep "(b) clinic signs"`) separa "estado dejado por (a)" de
-"timing de hidratación" en un solo intento.
+**Dos hipótesis más, ambas DESCARTADAS con evidencia:**
+- *"Es estado que deja el test (a)"* — NO. Aislado con `--grep "clinic signs"`
+  falla igual.
+- *"Es que Rocco (`DIM-DEMO-0001`) quedó `lost` de una corrida previa"* — NO.
+  Restaurado a `active` por SQL, falla igual.
+
+**Lo que queda por probar** (el próximo intento, en este orden):
+1. La diferencia que SIGUE en pie: mi corrida a mano usó el PRIMER org
+   (`DIM-4H5R-4P4S`) y `DIM-PAMP-0001`; el spec resuelve
+   `/Clínica Veterinaria Recoleta/i` y usa `DIM-DEMO-0001`. Reproducir a mano
+   con ESA combinación exacta: si falla, es la relación org↔mascota (¿Rocco no
+   pertenece a Recoleta y la página muestra otra cosa?); si pasa, es el spec.
+2. Mirar `test-results/…crisis-seams…/test-failed-1.png`, que ya está en disco y
+   muestra la pantalla exacta en el momento del timeout. Es lo más barato y
+   debería haberlo hecho antes que las dos hipótesis descartadas.
+
+**Nota de método**: dos hipótesis seguidas descartadas por medición. La captura
+de pantalla estaba disponible desde el primer fallo y la ignoré en favor de
+teorizar — leer la evidencia que ya existe antes de generar hipótesis nuevas.
 
 ## Estado (se actualiza durante la corrida)
 
