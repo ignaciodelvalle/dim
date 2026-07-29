@@ -64,6 +64,15 @@ const GAP_ROWS: MapTableRow[] = [
   { layer: "Cobertura antirrábica", unit: "Jujuy", value: "58,1 %" },
 ];
 
+/**
+ * GAP_ROWS with the gap removed and NOTHING else changed — same layer, same
+ * units, same values. The single-axis control for the column-omission test.
+ */
+const NO_GAP_ROWS: MapTableRow[] = [
+  { layer: "Cobertura antirrábica", unit: "Salta", value: "64,4 %" },
+  { layer: "Cobertura antirrábica", unit: "Jujuy", value: "58,1 %" },
+];
+
 /** The visible text of every <td>/<th> in the row that names `unit`. */
 function rowCellsFor(unit: string): string[] {
   const cell = screen.getByRole("rowheader", { name: unit });
@@ -91,8 +100,24 @@ describe("MapDataTable — Brecha vs meta column (accessible mirror of the map)"
   });
 
   it("omits the column entirely when no active layer has a compliance target", () => {
+    // H8.3: this used to render TWO_LAYERS, which differs from GAP_ROWS on TWO
+    // axes — no gap AND a second layer. If `showGapColumn` ever coupled to the
+    // active-layer count instead of the presence of a gap, the test would still
+    // pass and nobody would learn. NO_GAP_ROWS is GAP_ROWS with the gap removed
+    // and nothing else changed, so the ONE varying axis is the one under test.
+    render(<MapDataTable rows={NO_GAP_ROWS} caption="cap" filename="f" />);
+    expect(screen.queryByRole("columnheader", { name: "Brecha vs meta" })).not.toBeInTheDocument();
+    // Positive anchor: an empty table renders no columnheader at all, so the
+    // negative above would also pass on a table that rendered nothing. Proving
+    // the table IS there is what makes the absence meaningful.
+    expect(screen.getByRole("columnheader", { name: "Unidad" })).toBeInTheDocument();
+    expect(screen.getByRole("rowheader", { name: "Salta" })).toBeInTheDocument();
+  });
+
+  it("still omits the column with 2+ layers and no target (the count is not the trigger)", () => {
     render(<MapDataTable rows={TWO_LAYERS} caption="cap" filename="f" />);
     expect(screen.queryByRole("columnheader", { name: "Brecha vs meta" })).not.toBeInTheDocument();
+    expect(screen.getByRole("columnheader", { name: "Capa" })).toBeInTheDocument();
   });
 });
 

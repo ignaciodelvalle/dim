@@ -64,16 +64,31 @@ const GOVT_DRILLED_TO_PALERMO: ViewScopeAuthority = {
   adminDrill: null,
 };
 
+// NO FIELD HERE MAY EQUAL THE PARSER'S FALLBACK.
+//
+// This fixture used to read `basis: "valid"`, `verifiedOnly: false`,
+// `encoding: null` — which are, exactly, what parseViewScope substitutes when a
+// field is MISSING (`?? "valid"`, `=== true`, `?? null`). The round-trip test
+// therefore could not tell a parser that preserves those three fields from one
+// that discards them. Measured, not argued: replacing all three reads with
+// hardcoded defaults left all 10 tests green (cowork H2, reproduced 2026-07-28).
+//
+// A reproducibility fixture whose values are the defaults proves reproducibility
+// of nothing. Each value below is deliberately the OTHER side of its fallback.
+const NON_DEFAULT_BASIS = "transaction" as const; // parser falls back to "valid"
+const NON_DEFAULT_VERIFIED_ONLY = true; // parser falls back to false
+const NON_DEFAULT_ENCODING = "percapita" as const; // parser falls back to null
+
 function viewOf(over: Partial<PanoramaViewState> = {}): PanoramaViewState {
   return makeViewState({
     scope: { kind: "province", province: "Ciudad Autónoma de Buenos Aires" },
     period: { kind: "preset", preset: "90d" },
     asOf: "2026-05-01T00:00:00.000Z",
-    basis: "valid",
+    basis: NON_DEFAULT_BASIS,
     layers: ["perdidas"],
-    verifiedOnly: false,
+    verifiedOnly: NON_DEFAULT_VERIFIED_ONLY,
     preset: "bienestar",
-    encoding: null,
+    encoding: NON_DEFAULT_ENCODING,
     ...over,
   });
 }
@@ -227,25 +242,44 @@ describe("ViewScopeDescriptor · divergence (the C3 subtlety)", () => {
     // One mutation per coordinate that changes what an operator SEES. Each must
     // move the bytes; a coordinate that does not is a coordinate the artifact
     // cannot reproduce.
-    const mutations: Array<[string, Partial<PanoramaViewState>]> = [
-      ["scope", { scope: { kind: "province", province: "Córdoba" } }],
-      ["period", { period: { kind: "preset", preset: "7d" } }],
-      ["asOf", { asOf: "2026-06-01T00:00:00.000Z" }],
-      ["basis", { basis: "transaction" }],
-      ["layers", { layers: ["perdidas", "denuncias"] }],
-      ["verifiedOnly", { verifiedOnly: true }],
-      ["encoding", { encoding: "bivariate" }],
-      ["preset", { preset: "sintomas" }],
+    // Each entry also carries a READ, because "the bytes moved" only guards the
+    // SERIALIZE side. The parser can happily write the mutated value into the
+    // payload and then drop it on the way back — which is exactly what this
+    // module did for basis/verifiedOnly/encoding until 2026-07-28 (cowork H2).
+    // Asserting the round-tripped value closes the other half.
+    const mutations: Array<
+      [string, Partial<PanoramaViewState>, (v: PanoramaViewState) => unknown]
+    > = [
+      ["scope", { scope: { kind: "province", province: "Córdoba" } }, (v) => v.scope],
+      ["period", { period: { kind: "preset", preset: "7d" } }, (v) => v.period],
+      ["asOf", { asOf: "2026-06-01T00:00:00.000Z" }, (v) => v.asOf],
+      // Mutations are the OPPOSITE side of the fixture's non-default values —
+      // mutating a field to the value it already holds moves no bytes.
+      ["basis", { basis: "valid" }, (v) => v.basis],
+      ["layers", { layers: ["perdidas", "denuncias"] }, (v) => v.layers],
+      ["verifiedOnly", { verifiedOnly: false }, (v) => v.verifiedOnly],
+      ["encoding", { encoding: "bivariate" }, (v) => v.encoding],
+      ["preset", { preset: "sintomas" }, (v) => v.preset],
     ];
-    for (const [name, over] of mutations) {
+    for (const [name, over, read] of mutations) {
+      const mutated = viewOf(over);
       const after = serializeViewScope(
         makeViewScopeDescriptor({
           authority: GOVT_DRILLED_TO_PALERMO,
-          view: viewOf(over),
+          view: mutated,
           grain: "locality",
         }),
       );
       expect(after, `mutating ${name} must change the serialized scope`).not.toBe(before);
+
+      // PARSE SIDE: the mutated value comes back, and comes back DIFFERENT from
+      // the unmutated source. The second half matters — a parser that always
+      // returns the fixture's value would satisfy the first.
+      const rebuilt = toPanoramaViewState(parseViewScope(after));
+      expect(read(rebuilt), `${name} must survive the round trip`).toEqual(read(mutated));
+      expect(read(rebuilt), `${name} must differ from the unmutated source`).not.toEqual(
+        read(source),
+      );
     }
 
     // The rendered GRAIN is not a ViewState field — it is derived at runtime

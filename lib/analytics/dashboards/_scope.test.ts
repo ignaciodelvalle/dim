@@ -26,10 +26,13 @@ import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import * as scopeModule from "./_scope";
 import {
+  casesScopeClause,
   custodyDisputesScopeClause,
   organizationsScopeClause,
   outbreakSignalScopeClause,
+  petsScopeClause,
   welfareReportsScopeClause,
 } from "./_scope";
 
@@ -50,11 +53,52 @@ const WHOLE_CABA: DashboardJurisdiction = {
 
 // Every helper with the same four-argument shape, so the three guarantees are
 // asserted once per table rather than once per hand-written test.
+//
+// That sentence was a claim this table did not honour: it listed three of the
+// FIVE helpers with that signature. `casesScopeClause` and `petsScopeClause`
+// — the two with the widest blast radius, since cases feed the operator queues
+// and pets feed nearly every dashboard — were the two left out (plan unit H.5).
+// A table whose header says "every" and enumerates a subset is the exact shape
+// this wave keeps finding: a test that reads as coverage and is not.
+//
+// If you add a helper to _scope.ts with this signature, add it HERE too. The
+// guard below fails if you don't.
 const HELPERS = [
+  { name: "casesScopeClause", fn: casesScopeClause, table: "cases" },
+  { name: "petsScopeClause", fn: petsScopeClause, table: "pets" },
   { name: "custodyDisputesScopeClause", fn: custodyDisputesScopeClause, table: "custody_disputes" },
   { name: "welfareReportsScopeClause", fn: welfareReportsScopeClause, table: "welfare_reports" },
   { name: "organizationsScopeClause", fn: organizationsScopeClause, table: "organizations" },
 ] as const;
+
+// The guard the comment above promises. Without it, "add it HERE too" is a
+// request nobody enforces — and the table drifts back into a subset the moment
+// someone adds a sixth helper, which is precisely how it became a subset the
+// first time.
+//
+// `outbreakSignalScopeClause` is deliberately excluded: it scopes over the
+// outbreak_signal event PAYLOAD's jurisdiction snapshot, not live table
+// columns, so it cannot share the `table`-name assertions. It has its own
+// describe block below — excluded, not forgotten.
+const PAYLOAD_HELPERS = new Set(["outbreakSignalScopeClause"]);
+
+describe("the HELPERS table covers every helper it claims to", () => {
+  it("lists every 4-argument *ScopeClause export of _scope.ts", () => {
+    const exported = Object.entries(scopeModule)
+      .filter(
+        ([name, value]) =>
+          typeof value === "function" &&
+          name.endsWith("ScopeClause") &&
+          !PAYLOAD_HELPERS.has(name) &&
+          (value as (...args: unknown[]) => unknown).length === 4,
+      )
+      .map(([name]) => name)
+      .sort();
+
+    expect(exported.length).toBeGreaterThan(0); // the filter itself must not go inert
+    expect(HELPERS.map((h) => h.name).sort()).toEqual(exported);
+  });
+});
 
 describe.each(HELPERS)("$name — scope contract", ({ fn, table }) => {
   it("admin with no drill → null (unrestricted)", () => {

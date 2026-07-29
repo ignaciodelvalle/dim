@@ -1,4 +1,5 @@
-// Scope-discipline linter for lib/analytics/dashboards/** (task #57).
+// Scope-discipline linter for lib/analytics/** (task #57; territory widened
+// from dashboards/ only to the whole directory 2026-07-28, plan unit H.6).
 //
 // Motivation: lib/analytics/dashboards/_scope.ts exists so every govt-facing
 // dashboard fetcher enforces jurisdiction scope through ONE reviewed set of
@@ -14,11 +15,23 @@
 // forbid the pattern outright (existing occurrences are grandfathered in the
 // baseline below); it forbids NEW, unreviewed occurrences.
 //
-// Scope: ONLY lib/analytics/dashboards/*.ts, excluding _scope.ts itself (the
-// one sanctioned home for these predicates). This is a narrow, single-domain
-// fence — it does NOT scan lib/infra/case-queries.ts, outbox-query.ts,
-// audit-history-query.ts, omnibox-search.ts, or gob-pet-subview.ts. Those are
-// a DIFFERENT domain (operator list-queries) that legitimately hand-rolls
+// TERRITORY: lib/analytics/*.ts AND lib/analytics/dashboards/*.ts, excluding
+// _scope.ts itself (the one sanctioned home for these predicates).
+//
+// The parent directory was added 2026-07-28 (plan unit H.6). Until then the
+// fence globbed `lib/analytics/dashboards/*.ts` only — and five sibling modules
+// one directory UP were hand-rolling exactly the predicates it exists to catch,
+// completely unwatched: admin-metrics.ts, campaign-metrics.ts,
+// analytics-ranking.ts, govt-home-kpis.ts, compliance-metrics.ts. The fence was
+// not wrong; the code had moved and the glob had not. That is this wave's
+// recurring shape (see also check-brand-casing's glob, widened the same week),
+// and it is why SCANNED_GLOBS is exported and asserted by a test: a fence that
+// silently stops matching reports "clean" forever, which is worse than no fence
+// because it is believed.
+//
+// Still NOT scanned: lib/infra/case-queries.ts, outbox-query.ts,
+// audit-history-query.ts, omnibox-search.ts, gob-pet-subview.ts. Those are a
+// DIFFERENT domain (operator list-queries) that legitimately hand-rolls
 // jurisdiction scoping via jurisdictionPairClause/jurisdictionScopeContains
 // today, and are explicitly out of scope for this fence.
 //
@@ -198,8 +211,17 @@ export function extractOffenses(relPath: string, rawSrc: string): Offense[] {
   return offenses;
 }
 
+/**
+ * Every glob this fence scans. `lib/analytics/*.ts` was added 2026-07-28 (H.6)
+ * because the fence had been guarding a directory the code had partly moved out
+ * of — see the TERRITORY note in the header. Exported so a test can assert the
+ * territory still covers both, which is the failure this whole wave keeps
+ * finding: a fence whose glob quietly stops matching where the code lives.
+ */
+export const SCANNED_GLOBS = ["lib/analytics/*.ts", "lib/analytics/dashboards/*.ts"];
+
 export function listScannedFiles(): string[] {
-  const files = globSync("lib/analytics/dashboards/*.ts");
+  const files = SCANNED_GLOBS.flatMap((g) => globSync(g));
   return [...new Set(files.map((f) => f.replaceAll("\\", "/")))]
     .filter((f) => f !== SCOPE_FILE)
     .filter((f) => !f.includes(".test."))
@@ -295,7 +317,7 @@ function runScan(): void {
 
   if (files.length === 0) {
     console.error(
-      "✗ check-scope-discipline: found no files to scan under lib/analytics/dashboards/*.ts.",
+      `✗ check-scope-discipline: found no files to scan under ${SCANNED_GLOBS.join(" or ")}.`,
     );
     process.exit(1);
   }

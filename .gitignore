@@ -77,3 +77,6 @@ ds-bundle/
 
 # Playwright MCP session artifacts (screenshots, snapshots)
 .playwright-mcp/
+
+# Graphify knowledge-graph output (local index, rebuilt on demand)
+graphify-out/

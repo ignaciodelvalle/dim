@@ -187,6 +187,11 @@ describe("aggregateCellsToDepartment — non-widening invariant", () => {
   it("conserves the total count (no pet is invented, none is dropped)", () => {
     const input = [
       row({
+        // Explicit — the header above tells a Santa Cruz / El Calafate story and
+        // this fixture inherited row()'s "Buenos Aires" default, so the data
+        // contradicted the prose that justifies it. The sibling test below
+        // already spells Santa Cruz out.
+        province: "Santa Cruz",
         locality: "El Calafate",
         departmentCode: "78028",
         departmentName: "Lago Argentino",
@@ -204,6 +209,14 @@ describe("aggregateCellsToDepartment — non-widening invariant", () => {
     const total = input.reduce((n, r) => n + r.count, 0);
     const out = aggregateCellsToDepartment(input);
     expect(out.reduce((n, r) => n + r.count, 0)).toBe(total);
+    // The sum alone does not press the invariant: collapsing all three provinces
+    // into ONE national blob conserves it perfectly (H8.2). Pin the DISTRIBUTION
+    // too — the sum is only meaningful alongside where the counts landed.
+    expect(Object.fromEntries(out.map((r) => [`${r.province}/${r.locality}`, r.count]))).toEqual({
+      "Santa Cruz/Lago Argentino": 11,
+      "CABA/Palermo": 206,
+      "Tierra del Fuego/Ushuaia": 50,
+    });
   });
 
   it("never emits a unit that no input row contributed to", () => {
@@ -248,6 +261,79 @@ describe("aggregateCellsToDepartment — non-widening invariant", () => {
     expect(new Set(out.map((r) => r.province))).toEqual(
       new Set(["Santa Cruz", "CABA", "Tierra del Fuego"]),
     );
+    // Three cells with the right province labels would also survive a fold that
+    // SWAPPED their counts (H8.2: "nunca afirma los counts por celda"). Pin each
+    // cell to its own number so a misattribution cannot pass as a disjointness.
+    expect(Object.fromEntries(out.map((r) => [r.province, r.count]))).toEqual({
+      "Santa Cruz": 11,
+      CABA: 206,
+      "Tierra del Fuego": 50,
+    });
+  });
+
+  // The fixture H8.2 found missing: a department the operator was NOT granted,
+  // asserted absent. Everything else in this describe presses what the fold DOES
+  // with its input; nothing pressed what it must never ADD.
+  //
+  // This is not hypothetical symmetry. The sibling fold in
+  // lib/analytics/subregion-aggregate.ts (aggregateRowsByDepartment) returns the
+  // FULL department set for a province by design — every department present with
+  // an honest zero, because /gob/perdidas draws a complete choropleth. If someone
+  // ever "unified" the two, a govt operator scoped to one locality would receive
+  // a cell for every department in the country. The fold's safety rests entirely
+  // on being CLOSED over its input, so closure is what gets asserted.
+  it("never emits a department absent from the input — the out-of-grant cell must not appear", () => {
+    // The operator holds ONE locality in department 78028. 94015 (Ushuaia) is a
+    // real department in DEPARTMENT_REPRESENTATIVE_POINTS that they were not
+    // granted; a widening fold that reached for "any grain with a known point"
+    // would surface it.
+    expect(DEPARTMENT_REPRESENTATIVE_POINTS["94015"]).toBeDefined();
+    expect(DEPARTMENT_REPRESENTATIVE_POINTS["78028"]).toBeDefined();
+
+    const out = aggregateCellsToDepartment([
+      row({
+        province: "Santa Cruz",
+        locality: "El Calafate",
+        departmentCode: "78028",
+        departmentName: "Lago Argentino",
+        count: 11,
+      }),
+    ]);
+
+    const emitted = out.map((r) => r.departmentCode);
+    expect(emitted).toEqual(["78028"]);
+    expect(emitted).not.toContain("94015");
+    // And the granted department carries only the granted locality's count —
+    // 11, not the 33 the whole department holds on the local seed.
+    expect(out.map((r) => r.count)).toEqual([11]);
+  });
+
+  it("emits no cell for a department whose only input row belongs to another province", () => {
+    // Two rows, two provinces, two departments. Neither may borrow the other's
+    // unit: a fold that keyed on department code ALONE would be correct here by
+    // luck, so the codes are distinct AND the provinces are asserted per cell.
+    const out = aggregateCellsToDepartment([
+      row({
+        province: "Santa Cruz",
+        locality: "El Calafate",
+        departmentCode: "78028",
+        departmentName: "Lago Argentino",
+        count: 11,
+      }),
+      row({
+        province: "Tierra del Fuego",
+        locality: "Ushuaia",
+        departmentCode: "94015",
+        departmentName: "Ushuaia",
+        count: 50,
+      }),
+    ]);
+    expect(
+      Object.fromEntries(out.map((r) => [r.departmentCode, `${r.province}:${r.count}`])),
+    ).toEqual({
+      "78028": "Santa Cruz:11",
+      "94015": "Tierra del Fuego:50",
+    });
   });
 
   it("an empty scope folds to nothing — never to a province-wide fallback", () => {

@@ -341,11 +341,16 @@ describe("F1 dataType taxonomy (Panorama v2)", () => {
     expect(ids).toEqual(["clinicas", "decomisos", "refugios"].sort());
   });
 
-  it("partition: AGGREGATED_POINT + REFERENCE covers all 8 point layers", () => {
+  it("partition: AGGREGATED_POINT + REFERENCE covers every point layer", () => {
     const allPointIds = POINT_LAYERS.map((l) => l.id).sort();
     const aggregatedAndReference = [...AGGREGATED_POINT_LAYERS, ...REFERENCE_LAYERS]
       .map((l) => l.id)
       .sort();
+    // The title used to say "all 8 point layers" while POINT_LAYERS held 9
+    // (H8.4). A hardcoded number in a title drifts silently; a hardcoded number
+    // in an ASSERTION does not — and it also stops this partition from passing
+    // vacuously with both sides empty.
+    expect(allPointIds).toHaveLength(9);
     expect(aggregatedAndReference).toEqual(allPointIds);
   });
 });

@@ -22,7 +22,12 @@ import {
   presetLayerIds,
   shouldEmitPresetFrame,
 } from "@/src/modules/panorama/domain/presets";
-import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types";
+import { rankWorstUnits } from "@/src/modules/panorama/domain/ranking";
+import type {
+  FeatureCollection,
+  LayerId,
+  PanoramaKpiId,
+} from "@/src/modules/panorama/domain/types";
 
 // ---------------------------------------------------------------------------
 // Catalogue integrity
@@ -238,7 +243,11 @@ describe("PANORAMA_PRESETS — F2 compatibility (activation sequence)", () => {
     assertPresetIsCompatible(p);
   });
 
-  it("all 6 presets pass the compatibility replay (parametric)", () => {
+  it("every preset passes the compatibility replay (parametric)", () => {
+    // Titled "all 6 presets" while iterating 15 (H8.4). The count belongs in an
+    // assertion, where it cannot drift unnoticed — and where it also proves the
+    // loop ran at all.
+    expect(PANORAMA_PRESETS).toHaveLength(15);
     for (const p of PANORAMA_PRESETS) {
       assertPresetIsCompatible(p);
     }
@@ -329,16 +338,71 @@ describe("PANORAMA_PRESETS — optional framing field", () => {
     expect(PANORAMA_PRESETS.some((p) => p.framing != null)).toBe(true);
   });
 
-  it("a framing value, when present, is a valid PresetFraming shape", () => {
+  // H8.1: the previous version of this test looped over PANORAMA_PRESETS,
+  // `continue`d past every `national` framing, and asserted the bbox shape in a
+  // body that NEVER RAN — every preset is national or framing-less, and the
+  // module's single `kind: "bbox"` is the type union, not data. It affirmed
+  // exactly nothing while reading as shape coverage.
+  //
+  // Split into three assertions that can each fail: the corpus composition is
+  // pinned, the bbox rule is exercised against a real bbox, and the union is
+  // closed. Plan unit C.3 will introduce AR_BBOX framing — when it lands, the
+  // composition pin below changes and whoever changes it is looking straight at
+  // the rule that validates the thing they added.
+
+  /** The shape contract a bbox framing must satisfy: [[minLng,minLat],[maxLng,maxLat]]. */
+  function assertValidBboxFraming(framing: Extract<PresetFraming, { kind: "bbox" }>): void {
+    expect(framing.bounds).toHaveLength(2);
+    expect(framing.bounds[0]).toHaveLength(2);
+    expect(framing.bounds[1]).toHaveLength(2);
+    const [[minLng, minLat], [maxLng, maxLat]] = framing.bounds;
+    expect(maxLng).toBeGreaterThan(minLng);
+    expect(maxLat).toBeGreaterThan(minLat);
+  }
+
+  it("the bbox shape rule accepts a well-formed bbox and rejects an inverted one", () => {
+    // Exercised against a synthetic value so the rule is tested TODAY, with zero
+    // bbox presets in the corpus — the gap that made the old test vacuous.
+    assertValidBboxFraming({
+      kind: "bbox",
+      bounds: [
+        [-73.6, -55.1],
+        [-53.6, -21.8],
+      ],
+    });
+    expect(() =>
+      assertValidBboxFraming({
+        kind: "bbox",
+        bounds: [
+          [-53.6, -21.8],
+          [-73.6, -55.1],
+        ],
+      }),
+    ).toThrow();
+  });
+
+  it("pins the framing composition of the corpus (12 national, 0 bbox today)", () => {
+    const composition = PANORAMA_PRESETS.reduce<Record<string, number>>((acc, p) => {
+      const key = p.framing?.kind ?? "none";
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    }, {});
+    // If C.3 gives a preset AR_BBOX framing, this fails and the next assertion
+    // starts doing real work. That is the intended handoff, not a nuisance.
+    expect(composition.bbox ?? 0).toBe(0);
+    expect(composition.national).toBe(12);
+  });
+
+  it("every framing in the corpus is a member of the union, and each bbox is well-formed", () => {
+    let checked = 0;
     for (const p of PANORAMA_PRESETS) {
-      if (p.framing === undefined) continue;
-      if (p.framing.kind === "national") continue;
-      // bbox framing must carry [[minLng,minLat],[maxLng,maxLat]].
-      expect(p.framing.kind).toBe("bbox");
-      expect(p.framing.bounds).toHaveLength(2);
-      expect(p.framing.bounds[0]).toHaveLength(2);
-      expect(p.framing.bounds[1]).toHaveLength(2);
+      if (!p.framing) continue;
+      checked++;
+      expect(["national", "bbox"]).toContain(p.framing.kind);
+      if (p.framing.kind === "bbox") assertValidBboxFraming(p.framing);
     }
+    // The guard the old test lacked: a loop that examined nothing cannot pass.
+    expect(checked).toBeGreaterThan(0);
   });
 });
 
@@ -628,10 +692,46 @@ describe("desierto-veterinario — the copy states a coverage share, never a dur
     expect(layer().censoredAtMax).toBeUndefined();
   });
 
-  it("is higher-is-WORSE — more unattended pets is the alarm", () => {
-    // The inverse of its sibling acceso-veterinario. Declaring polarity here
-    // would flip the ramp and rank the WORST-covered provinces as the best.
-    expect(layer().higherIsBetter).toBeFalsy();
+  it("is higher-is-WORSE — the field is left UNDECLARED, which is the default", () => {
+    // H8.4 flagged the old `toBeFalsy()` here as loose. Pinning it exact turned
+    // up something worth stating: the value is `undefined`, not `false`. The
+    // layer does not declare polarity at all — ranking.ts reads it as
+    // `opts.higherIsBetter ?? false`, so absent and false behave identically and
+    // absence is the deliberate choice. Pinned to undefined so "someone declared
+    // it" is always a visible edit, in either direction.
+    expect(layer().higherIsBetter).toBeUndefined();
+  });
+
+  it("ranks the WORST-covered province first — the polarity, as behaviour", () => {
+    // The assertion above pins a DECLARATION; this one pins what the title
+    // actually promises. `undefined` and `false` are indistinguishable to
+    // ranking.ts, so a field-only test cannot tell a correct default from a
+    // coincidence — only running the ranking can.
+    const features = {
+      type: "FeatureCollection",
+      features: [
+        {
+          type: "Feature" as const,
+          geometry: null,
+          properties: { provinceCode: "AR-B", label: "Buenos Aires", value: 12, suppressed: false },
+        },
+        {
+          type: "Feature" as const,
+          geometry: null,
+          properties: { provinceCode: "AR-F", label: "Formosa", value: 61, suppressed: false },
+        },
+      ],
+    } as unknown as FeatureCollection;
+
+    const rows = rankWorstUnits(features, {
+      kind: "density",
+      higherIsBetter: layer().higherIsBetter,
+      limit: 10,
+    });
+    // 61% of pets unattended is WORSE than 12%, so Formosa leads the list of
+    // places that need help. If the polarity were ever declared `true`, this
+    // flips and the province in the best shape is presented as the emergency.
+    expect(rows.map((r) => r.label)).toEqual(["Formosa", "Buenos Aires"]);
   });
 });
 
