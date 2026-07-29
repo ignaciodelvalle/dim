@@ -226,6 +226,33 @@ Mi recomendación es **(c) + (b)**: subir el piso de clase-1 para que un dato
 bajo se vea como dato, y darle a sin-datos una marca propia en vez de pelear el
 eje de luminosidad.
 
+## C.3 — lo verificado y lo que falta (un solo salto)
+
+**Ya está bien, verificado:**
+- `shouldEmitPresetFrame` SÍ está cableado — `PanoramaConsole.tsx` lo llama y
+  setea `presetFrame` con un token incremental (~L2786).
+- La **URL es determinística**: el commit escribe `period`, `layers`, `level` y
+  `preset` explícitamente sobre los params vivos.
+- `AR_BBOX` ya es el extent nacional ESTÁTICO que usa el camino de "← Volver"
+  (`SituationalMap.tsx:1046`) y `MAX_BOUNDS` (`situational-map-config.ts:491`).
+
+**Lo único que falta verificar (un salto):** cuando `presetFrame` llega al mapa
+con `kind: "national"`, ¿resuelve a `AR_BBOX` o al snapshot de extent-de-datos
+(`nationalBboxRef`)? Ese ref es la trampa que v2C ya arregló en el path de back:
+en una sesión con cámara restaurada equivale a la vista regional, así que un
+frame "nacional" reencuadra a la misma región — un no-op visible.
+
+Rastrear `presetFrame` desde `PanoramaConsole` hasta su consumidor en
+`SituationalMap` cierra la unidad. Si ya usa `AR_BBOX`, C.3 está hecha y sólo
+falta el test; si usa el ref, es un cambio de una línea con el precedente ya
+escrito al lado.
+
+**Nota de método**: un `rg --glob '!*.test.*'` sobre varias rutas me devolvió
+CERO y casi concluyo que el framing era código muerto. Es el segundo grep
+defectuoso de la sesión (el otro: buscar `/Crear mascota` contra selectores
+`/crear mascota/i`). Cuando un grep dice "no existe" sobre algo que el plan
+afirma que existe, desconfiar del grep antes que del plan.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -233,17 +260,17 @@ eje de luminosidad.
 | SC-5 | **hecha** — suite verde de punta a punta por primera vez | `88dce3ba` |
 | #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
 | #31 crisis-seams (b) | **parcial** — bug del helper arreglado; queda un cuelgue real específico de Rocco@Recoleta | `1ea0a95e` |
-| C.3 | pendiente | |
+| C.3 | **casi** — URL determinística y framing cableado ya verificados; falta 1 salto (¿AR_BBOX o el ref?) | |
 | C.4 | **affordance verificada existente**; falta el test — el spec no localiza los selects que un script tsx sí ve. Detalle arriba | |
 | D.6 | pendiente | |
 | D.5 | **medida, bloqueada en decisión** — sobre-restringido en un eje; opciones y recomendación arriba | |
 | H.1 restante | **hecha** — `grain` faltante TIRA (D6) + los 7 throw-paths con test (21 en total) | |
-| H.2 | pendiente | |
-| #38 recuperadas | pendiente | |
+| H.2 | **parcial** — herramienta de limpieza + fence que la nombra; el contrato de seed-demo-scenario sigue abierto | `c9a90f65` |
+| #38 recuperadas | **hecha** — selector event-sourced + 3 tests | `17903555` |
 | #40 k-anon provincia | pendiente | |
 | D.3 | pendiente | |
 | D.4 | pendiente | |
-| D.1 | pendiente | |
+| D.1 | **reclasificada: NO es barata** — 22 archivos de UI + verificación visual. Va a la pasada de e2e | |
 | SC-6 | pendiente | |
 | C.1 | pendiente | |
 | C.2 | pendiente | |
