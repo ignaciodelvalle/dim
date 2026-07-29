@@ -308,6 +308,24 @@ Workaround: `pnpm start -p 3001` y trabajar ahí.
 éxito sin verificar que el servidor viejo murió. Un guard que no puede fallar
 ruidosamente es peor que no tenerlo, porque compra confianza que no tiene.
 
+## Validación del batch 3 (pasada de UI)
+
+`pnpm verify` exit 0. Suite: **1065/1065 archivos, 12.521 tests passed, 0 FAIL**.
+
+**Dato honesto sobre el conteo**: `12541 total − 12521 passed − 4 skipped − 11
+todo = 5` sin explicar (la corrida anterior dejaba 2 sin explicar). Ningún
+archivo reporta fallo ni "did not complete", así que lo más probable es
+colección variable (`describe.skipIf` que depende del estado de la DB). Pero
+NO puedo afirmarlo con certeza, y esa incertidumbre es exactamente el costo de
+un suite que sale 1 por diseño. Refuerza que arreglar el exit code es unidad
+propia, no cosmética.
+
+**El ratchet de tamaño de archivo cobró, y con razón**: el cambio del chip dejó
+`PanoramaConsole.tsx` en 5106 líneas contra 5089 de baseline. Re-baselinear
+hubiera sido la respuesta equivocada a un ratchet que existe para impedir eso.
+Se extrajo `ScopePillSummary.tsx` y el archivo quedó en **5079** — más chico que
+antes de tocarlo.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
