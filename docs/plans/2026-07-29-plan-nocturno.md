@@ -105,13 +105,38 @@ El arreglo sistémico va en **H.2** (contrato de seed/fixture): o pasan por el
 circuito real, o llevan `seed_tag` (que la fence exime por diseño), o limpian
 en su `afterAll`. Elegir una y aplicarla a todas.
 
+## #31 crisis-seams (b) — lo que YA se descartó (retomar desde acá)
+
+El título de la tarea dice "no encuentra su botón". **Es falso**: el botón se
+resuelve bien. El fallo real es `submitAndWait` esperando `?firmado=1` y
+agotando 45s — el submit no navega.
+
+Descartado con evidencia:
+- **No es el gate duro del servidor** (`atender/actions.ts:146`, rechaza vacunas
+  fuera del catálogo): el spec carga `"Antirrábica"`, y `lookups.ts:90` la tiene
+  con ese nombre exacto.
+- **No es el panel de revisión del cliente** (`AtenderVaccinationGate.tsx:100`):
+  sólo aparece cuando el nombre NO se reconoce con certeza, y un match exacto
+  supera `VACCINE_AUTOSELECT_CONFIDENCE = 0.85`.
+- **No es el botón**: `getByRole("button", { name: /registrar vacuna/i })`
+  resuelve; si no, el error sería otro.
+
+Quedan dos hipótesis, y se distinguen en una corrida:
+1. La action falla validación y devuelve error **sin navegar** — el form muestra
+   el mensaje y el spec nunca lo lee.
+2. Forma N3: la action commitea y el redirect se pierde.
+
+**Próximo paso concreto**: guionar el flujo con playwright, hacer submit, y
+volcar el `innerText` del form y los errores de consola inmediatamente después.
+Eso separa (1) de (2) en un solo intento.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
 |---|---|---|
 | SC-5 | **hecha** — suite verde de punta a punta por primera vez | `88dce3ba` |
 | #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
-| #31 crisis-seams (b) | pendiente | |
+| #31 crisis-seams (b) | **en curso** — diagnóstico abajo, sin arreglo aún | |
 | C.3 | pendiente | |
 | C.4 | pendiente | |
 | D.6 | pendiente | |
