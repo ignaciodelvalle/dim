@@ -59,7 +59,6 @@ import {
 import { withDbBudget, withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
-import Image from "next/image";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import {
@@ -69,6 +68,7 @@ import {
   MEDICAL_SECTION_ID,
   REPORT_SECTION_ID,
 } from "./CredentialActionBar";
+import { CredentialPhoto } from "./CredentialPhoto";
 import {
   CredentialOriginOrg,
   CredentialTier2Medical,
@@ -602,17 +602,27 @@ export default async function PublicCredentialPage({
             >
               m
             </div>
-            <div className="min-w-0 flex-1">
+            {/* `basis-[7rem]` is what makes the row WRAP instead of crushing.
+                Measured at exactly 390px: this block was flex-1 min-w-0 against
+                two chips that cannot shrink (a flex item defaults to
+                min-width:auto, so their intrinsic text width is a floor). It
+                therefore absorbed the whole deficit and collapsed — clientWidth
+                2px against a scrollWidth of 58px, i.e. "Credencial pública"
+                rendered into a 2-pixel-wide box. Giving it a basis floor makes
+                the flex-wrap already on .pc-head do its job: the chips drop to a
+                second line. `truncate` is the last-resort guard below it. */}
+            <div className="min-w-0 flex-1 basis-[7rem]">
               <span className="font-[var(--font-ln-serif)] text-[13px] font-semibold text-ln-ink">
                 miMAR
               </span>
-              <span className="block font-[var(--font-ln-mono)] text-[8px] uppercase tracking-[.14em] text-ln-mute">
+              <span className="block truncate font-[var(--font-ln-mono)] text-[8px] uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
               </span>
             </div>
-            {/* Tier chip */}
+            {/* Tier chip — nowrap so it never breaks "NIVEL 2 · DATOS MÉDICOS"
+                mid-label; it wraps as a whole unit or not at all. */}
             <span
-              className={`rounded-full border px-2 py-[3px] font-[var(--font-ln-mono)] text-[9px] font-semibold tracking-[.08em] ${tier2Active ? "border-ln-ok-100 bg-ln-ok-050 text-ln-ok" : "border-ln-celeste-100 bg-ln-celeste-050 text-ln-azul"}`}
+              className={`whitespace-nowrap rounded-full border px-2 py-[3px] font-[var(--font-ln-mono)] text-[9px] font-semibold tracking-[.08em] ${tier2Active ? "border-ln-ok-100 bg-ln-ok-050 text-ln-ok" : "border-ln-celeste-100 bg-ln-celeste-050 text-ln-azul"}`}
             >
               {tier2Active ? "NIVEL 2 · DATOS MÉDICOS" : "NIVEL 0 · IDENTIDAD"}
             </span>
@@ -644,28 +654,10 @@ export default async function PublicCredentialPage({
               raw Supabase original on a phone, never larger. `sizes` reflects the
               card: full-width up to the 460px cap. The Supabase storage host is
               allowlisted in next.config (images.remotePatterns). */}
-          {photoUrl ? (
-            <Image
-              src={photoUrl}
-              alt={pet.name}
-              width={460}
-              height={345}
-              priority
-              sizes="(max-width: 480px) 100vw, 460px"
-              className="block w-full aspect-[4/3] object-cover"
-            />
-          ) : (
-            <div
-              className="grid w-full place-items-center aspect-[4/3]"
-              style={{
-                background: "repeating-linear-gradient(135deg,#e7e2d6 0 11px,#f1eee5 11px 22px)",
-              }}
-            >
-              <span className="font-[var(--font-ln-serif)] text-[56px] font-semibold text-ln-mute">
-                {pet.name.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          )}
+          <CredentialPhoto src={photoUrl ?? null} petName={pet.name} />
+          {/* CredentialPhoto also owns the no-photo placeholder, so a URL that
+              404s at request time degrades to the same initial-letter card
+              instead of a broken-image glyph. */}
 
           {/* Name bar */}
           <div className="px-4 pt-[15px] pb-3">

@@ -164,6 +164,15 @@
   --text-title: 22px;
   --text-2xl: 24px;
 
+  /* "Sin foto" diagonal-stripe motif. The same 135° pattern is hardcoded at
+     ~8 call sites with THREE near-identical hex pairs (#f2efe6 / #f1eee5 /
+     #f3f0e7) and five stripe widths — Chip.tsx, RegRow.tsx, Sheet.tsx,
+     adoptar/*, mis-mascotas. Named here so those can converge on one motif;
+     the credential placeholder is the first user. Migrating the rest is a
+     separate cleanup, flagged in docs/reviews/results/2026-07-27-critique-craft.md. */
+  --pattern-no-photo-a: #e7e2d6;
+  --pattern-no-photo-b: #f1eee5;
+
   /* Leading (line-height) scale — paired with text-* steps */
   --leading-xs: 1.4; /* tight for micro labels */
   --leading-sm: 1.4; /* tight for secondary labels */
@@ -3240,9 +3249,35 @@ body {
   font-weight: 600;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  /* The chip wraps to the next header line as ONE unit. Without this, "PERDIDA
+     · hace 1 mes" breaks between the label and the recency at narrow widths and
+     the chip's pill background renders as two ragged stacked rows. */
+  white-space: nowrap;
 }
 .pc-sit-chip svg {
   flex-shrink: 0;
+}
+/* Credential "sin foto" placeholder — shown when the pet has no photo AND when
+   a stored photo URL fails to load at runtime (CredentialPhoto's onError). It
+   lives here rather than inline because the 56px display letter has no --text-*
+   token (the scale tops out at 24px) and an inline gradient would carry raw hex
+   into a style prop — the two things the design-token ratchet rejects. */
+.pc-photo-placeholder {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: repeating-linear-gradient(
+    135deg,
+    var(--pattern-no-photo-a) 0 11px,
+    var(--pattern-no-photo-b) 11px 22px
+  );
+}
+.pc-photo-placeholder-initial {
+  font-family: var(--font-ln-serif);
+  font-size: 56px;
+  font-weight: 600;
+  color: var(--color-ln-mute);
 }
 .pc-sit-chip-recency {
   font-weight: 500;

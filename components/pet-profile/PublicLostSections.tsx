@@ -286,8 +286,16 @@ export function PublicLostSections({
               {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
             </p>
           )}
+          {/* No fixed height and no overflow-hidden here, and no border either:
+              LocationMap already carries its own h-64 and rounded border. This
+              wrapper used to clamp it to h-40 and clip, which cut the bottom 96px
+              — exactly where MapLibre draws the attribution control. The ODbL
+              licence requires that credit be visible, so the clip was a licensing
+              defect, not a cosmetic one (it also produced the double frame).
+              This is the only one of LocationMap's eight call sites that wrapped
+              it in a fixed-height box; the other seven let it size itself. */}
           {hasLastSeenCoords ? (
-            <div className="mt-3 h-40 w-full overflow-hidden rounded-xl border border-ln-line">
+            <div className="mt-3 w-full">
               <LocationMap lat={lastSeenLat as number} lng={lastSeenLng as number} />
             </div>
           ) : (
