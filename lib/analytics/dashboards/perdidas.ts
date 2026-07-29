@@ -27,13 +27,28 @@ export type LostPetRow = {
 export const PET_STATUS_VALUES = ["active", "lost", "deceased"] as const;
 export type PetStatusFilter = (typeof PET_STATUS_VALUES)[number] | "all";
 
+/**
+ * How long back "recovered" looks. Mirrors `recoveredMonth`'s own window so the
+ * KPI and the list it drills into can never disagree about the period.
+ */
+export const RECOVERED_WINDOW_DAYS = 30;
+
+/**
+ * Selector for the /gob/perdidas list. A pet STATUS is not enough to express
+ * "recovered": recovery is a TRANSITION (lost → active) that lives in the
+ * spine, and `status='active'` matches every living animal that was never lost.
+ * That is exactly what shipped — the tab labelled "Recuperadas" listed the
+ * whole padrón (260 rows) beside a KPI reading 2 (live review 2026-07-28).
+ */
+export type PetListSelector = PetStatusFilter | "recovered";
+
 export async function fetchLostPets(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   filters: {
     since?: Date;
     species?: string;
-    status?: PetStatusFilter | null;
+    status?: PetListSelector | null;
     q?: string | null;
     /**
      * Admin province drill-down (mirrors fetchPerdidasMetrics). Only set when
@@ -48,10 +63,33 @@ export async function fetchLostPets(
   // Default to 'lost' only — preserves backward-compat for metrics and
   // any other caller that omits the status filter.
   const statusFilter = filters.status ?? "lost";
+  // "recovered" is EVENT-SOURCED, not a status: pets that went lost → active
+  // inside the window. Built from the same predicate `recoveredMonth` uses
+  // (`from_status='lost' AND to_status='active'`, see the KPI's own docblock)
+  // so the count and this list can never describe different populations.
+  //
+  // A lost pet later marked `deceased` is a BAJA, not a recovery — the
+  // to_status guard keeps it out, matching the PO decision behind the KPI
+  // ("don't conflate the metric with its label", 2026-07-19).
+  // ISO string + explicit ::timestamptz below. A bare Date inside a raw sql``
+  // fragment reaches the driver untyped and fails at EXECUTION with
+  // ERR_INVALID_ARG_TYPE — the same shape that bit the SLA CASE clause.
+  const recoveredSince = new Date(Date.now() - RECOVERED_WINDOW_DAYS * 24 * 60 * 60 * 1000);
   const conditions =
-    statusFilter === "all"
-      ? [sql`${pets.status} IN ('active', 'lost', 'deceased')`]
-      : [eq(pets.status, statusFilter)];
+    statusFilter === "recovered"
+      ? [
+          sql`EXISTS (
+            SELECT 1 FROM ${petEvents} rec
+            WHERE rec.pet_id = ${pets.id}
+              AND rec.event_type = 'status_changed'
+              AND (rec.payload->>'from_status') = 'lost'
+              AND (rec.payload->>'to_status') = 'active'
+              AND rec.occurred_at >= ${recoveredSince.toISOString()}::timestamptz
+          )`,
+        ]
+      : statusFilter === "all"
+        ? [sql`${pets.status} IN ('active', 'lost', 'deceased')`]
+        : [eq(pets.status, statusFilter)];
   if (filters.species) conditions.push(eq(pets.species, filters.species));
 
   // Govt scope filters on the pet's own jurisdiction columns. Pets without a

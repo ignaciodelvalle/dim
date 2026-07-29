@@ -741,6 +741,87 @@ describe("fetchLostPets", () => {
     });
   }
 
+  /** Mark a pet recovered the way the app does: status back to active + the
+   *  status_changed event the KPI counts. */
+  async function markRecovered(petId: string, hoursAgo: number) {
+    await db.update(pets).set({ status: "active" }).where(eq(pets.id, petId));
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "status_changed",
+      occurredAt: new Date(Date.now() - hoursAgo * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        from_status: "lost",
+        to_status: "active",
+        location_description: null,
+        reason: null,
+      },
+      authorRole: "owner",
+      recordedByUserId: ownerUserId,
+    });
+  }
+
+  // The tab labelled "Recuperadas" used to map to `status=active` and therefore
+  // listed the whole living padrón — 260 rows beside a KPI reading 2 (live
+  // review 2026-07-28). Recovery is a TRANSITION in the spine, not a status: a
+  // pet that was never lost is `active` too.
+  describe("status=recovered — event-sourced, not a status", () => {
+    it("lists a pet that went lost → active, and NOT one that was merely never lost", async () => {
+      const recovered = await insertFixturePet({
+        name: "Recovered-CABA",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      const neverLost = await insertFixturePet({
+        name: "NeverLost-CABA",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      await markLost(recovered, 48);
+      await markRecovered(recovered, 2);
+
+      const names = new Set(
+        (await fetchLostPets({ role: "admin" }, [], { status: "recovered" })).map((r) => r.petName),
+      );
+      expect(names.has("Recovered-CABA")).toBe(true);
+      // The whole point: `neverLost` is status=active too, and must NOT appear.
+      expect(names.has("NeverLost-CABA")).toBe(false);
+    });
+
+    it("excludes a recovery older than the window the KPI uses", async () => {
+      const old = await insertFixturePet({
+        name: "RecoveredLongAgo",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      await markLost(old, 24 * 90);
+      await markRecovered(old, 24 * 60); // 60 days ago — outside the 30d window
+
+      const names = new Set(
+        (await fetchLostPets({ role: "admin" }, [], { status: "recovered" })).map((r) => r.petName),
+      );
+      expect(names.has("RecoveredLongAgo")).toBe(false);
+    });
+
+    it("does not count a pet still lost as recovered", async () => {
+      const stillLost = await insertFixturePet({
+        name: "StillLost",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      await markLost(stillLost, 3);
+
+      const names = new Set(
+        (await fetchLostPets({ role: "admin" }, [], { status: "recovered" })).map((r) => r.petName),
+      );
+      expect(names.has("StillLost")).toBe(false);
+    });
+  });
+
   it("admin sees all lost pets across provinces", async () => {
     const a = await insertFixturePet({
       name: "Lost-CABA",
