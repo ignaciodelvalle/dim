@@ -321,5 +321,37 @@ export const analyticsDb: PostgresJsDatabase<typeof schema> = new Proxy(realAnal
   },
 });
 
+/**
+ * Close the postgres.js pool(s) held by THIS module registry. Test lifecycle
+ * only — never call it from app code, which wants its pool to outlive a request.
+ *
+ * WHY IT EXISTS: vitest gives each test file its own module registry, so each
+ * db-project file builds its own pool. The previous design ABANDONED those pools
+ * and leaned on `idle_timeout: 20` to drain them 20 seconds later. That race is
+ * only won if the run keeps going for another 20 seconds — when the last file
+ * finishes, the worker exits immediately and the still-open sockets are torn
+ * down under it, which surfaced as:
+ *
+ *   Error: [vitest-pool]: Worker forks emitted error
+ *   Caused by: Error: Worker exited unexpectedly
+ *
+ * That made `pnpm test` exit 1 on a run with ZERO failing tests, and a suite
+ * whose exit code is 1 by design cannot tell a real regression from its own
+ * noise — the instrument stops measuring. Draining explicitly at the end of each
+ * file makes the recycling the comment above already claims actually happen.
+ *
+ * In test `analyticsClient === client`, so the Set collapses to one pool; in
+ * other environments it closes both.
+ */
+export async function closeDbPools(): Promise<void> {
+  if (!DATABASE_URL_PRESENT) return;
+  const pools = new Set([client, analyticsClient]);
+  await Promise.all(
+    // Never let a teardown failure fail a green run: the pool is being discarded
+    // either way, and this function exists to REMOVE exit-code noise.
+    [...pools].map((pool) => pool.end({ timeout: 5 }).catch(() => undefined)),
+  );
+}
+
 // Re-export everything from schema so app code can `import { pets, db } from "@/db"`.
 export * from "./schema";

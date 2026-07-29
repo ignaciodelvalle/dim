@@ -13,6 +13,9 @@
 // The "unit" project loads only ./setup-env (no URL forcing) — safe because its
 // files provably never reach the database client. See __tests__/db-reachability.ts.
 
+// Safe to hoist: this pulls in vitest's own hook registry, not the DB client.
+import { afterAll } from "vitest";
+
 // Env loading (.env.local, .env) — shared with the "unit" project.
 import "./setup-env";
 
@@ -45,3 +48,39 @@ if (
   // tell them apart, and forcing the local sb_secret matches `supabase status`.
   process.env.SUPABASE_SERVICE_ROLE_KEY = LOCAL_SERVICE_KEY;
 }
+
+// Drain this file's connection pool before its worker can be torn down.
+//
+// Each test file gets its own module registry, so each one builds its own
+// postgres.js pool. Those pools used to be abandoned, with `idle_timeout: 20`
+// expected to drain them 20 seconds later — a race the run only wins if it
+// keeps going that long. After the last file the worker exits at once, open
+// sockets get cut under it, and vitest reports "Worker exited unexpectedly".
+// Zero tests failed and `pnpm test` still exited 1, which is worse than a
+// cosmetic problem: a suite that always exits non-zero cannot distinguish a
+// real regression from its own teardown noise.
+//
+// The import is DYNAMIC on purpose. A static one is hoisted above the
+// URL-forcing statements above, so db/index.ts would capture DATABASE_URL
+// before this file corrects it. By the time this hook runs the test file has
+// already imported the module, so this resolves the cached instance.
+//
+// And it is GUARDED on purpose. 45 files here call vi.mock("@/db"), so this
+// import resolves to their MOCK. Optional chaining is not enough: vitest's mock
+// proxy throws on property ACCESS, not on call, so even `mod.closeDbPools?.()`
+// fails with "No closeDbPools export is defined on the @/db mock" — measured,
+// it broke all 45 files on the first attempt at this fix.
+//
+// Skipping them is the CORRECT semantics rather than a dodge: a file that
+// mocked the module never evaluated the real one, so that registry holds no
+// pool to drain. And nothing meaningful is hidden by the catch — closeDbPools
+// already swallows its own failures internally, because a teardown error must
+// never turn a green run red. That is the whole point of this hook.
+afterAll(async () => {
+  try {
+    const dbModule = (await import("@/db")) as { closeDbPools?: () => Promise<void> };
+    await dbModule.closeDbPools?.();
+  } catch {
+    // Mocked @/db — no real pool in this file's registry.
+  }
+});
