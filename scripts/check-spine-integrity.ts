@@ -187,6 +187,15 @@ export async function runCheck(argv: string[] = []): Promise<void> {
       "  If this is a BULK PERF FIXTURE: set pets.seed_tag = 'perf' at insert time.\n" +
         "  Do not add a new exemption without a reviewed decision.",
     );
+    // Naming the way OUT, not only the problem. This fence caught three leaks in
+    // one day and each time cost a hand-written GUC transaction under a blocked
+    // commit — pet_events has a BEFORE DELETE trigger, so the obvious DELETE
+    // fails and the escape hatch is not discoverable from the error alone.
+    console.error(
+      "\n  To clear residue a PREVIOUS run left behind (local DB, known test prefixes only):\n" +
+        "    pnpm tsx scripts/clean-test-orphans.ts           — lists what it would remove\n" +
+        "    pnpm tsx scripts/clean-test-orphans.ts --apply   — removes it",
+    );
     console.error(`\n${exemptLine}`);
     console.error(dbLine);
     process.exit(1);
