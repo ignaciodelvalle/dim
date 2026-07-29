@@ -5,6 +5,35 @@
 > cierra sola: `pnpm verify` + suite + commit propio. Una unidad que falla NO
 > bloquea las siguientes — se marca abajo y se sigue.
 
+## ACUERDO DE TRABAJO (PO, 2026-07-29 — tras una noche de rendimiento pobre)
+
+La corrida de anoche cerró 2 de 10 unidades. El diagnóstico NO fue el entorno:
+
+1. **Puse adelante lo más caro.** Tres de las primeras cuatro unidades dependían
+   de e2e o de navegar la app viva — el trabajo 5-10x más lento que hay acá.
+2. **Teoricé antes de leer la evidencia que la app ya había escrito. Tres veces.**
+   Playwright deja una captura en CADA fallo; en crisis-seams y en C.4 la
+   respuesta estaba ahí desde el primer intento y llegué después de descartar
+   dos hipótesis en cada caso.
+3. **Diagnostiqué una unidad entera contra un servidor con `.next` clobbereado**
+   y tuve que retractar la conclusión. Trabajo neto negativo.
+4. **Hice fallar el gate por cosas de 3 segundos** (orden de imports, variable sin
+   usar). Cada `verify` fallado son 5-8 minutos.
+
+**Dos decisiones del PO que cambian el método:**
+
+- **Gate en BATCH de 3-4 unidades.** Implementar 3-4, correr UN gate completo,
+  commitear cada unidad por separado igual. Si algo rompe se bisecta entre 3-4
+  commits — barato, porque cada unidad sigue siendo su propio commit.
+- **Todo lo barato primero.** El bloque que no necesita servidor ni navegador
+  (H.1, H.2, D.5, #38, D.1) va de corrido. Todo lo de e2e/UI viva se junta en
+  una pasada aparte, reconstruyendo el servidor UNA sola vez al principio.
+
+**Reglas mecánicas que salen de esto:**
+- `pnpm biome check --write` SIEMPRE antes de `verify`. 3 segundos contra 8 minutos.
+- Ante un fallo de e2e: **abrir la captura ANTES de formular ninguna hipótesis.**
+- Nunca dejar un spec rojo commiteado. Si no se cierra, se borra y se documenta.
+
 ## La restricción que manda: el costo del gate
 
 Medido en esta sesión, no estimado:
@@ -169,7 +198,7 @@ contexto del SPEC (no del script) lo separa en una corrida.
 | C.4 | **affordance verificada existente**; falta el test — el spec no localiza los selects que un script tsx sí ve. Detalle arriba | |
 | D.6 | pendiente | |
 | D.5 | pendiente | |
-| H.1 restante | pendiente | |
+| H.1 restante | **hecha** — `grain` faltante TIRA (D6) + los 7 throw-paths con test (21 en total) | |
 | H.2 | pendiente | |
 | #38 recuperadas | pendiente | |
 | #40 k-anon provincia | pendiente | |

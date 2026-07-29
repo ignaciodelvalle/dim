@@ -379,3 +379,116 @@ describe("ViewScopeDescriptor · privacy", () => {
     ).toEqual([]);
   });
 });
+
+// ---------------------------------------------------------------------------
+// REFUSAL PATHS — the parser's seven throws, six of which had no test.
+//
+// A parser is only trustworthy in both directions: it must reconstruct a good
+// descriptor AND refuse a broken one. The round-trip tests above prove the
+// first half; a parser that accepted anything would pass all of them. Every
+// throw below is a promise this module makes in its own header ("refusing beats
+// defaulting"), and an untested promise is a preference.
+// ---------------------------------------------------------------------------
+
+describe("parseViewScope — what it refuses", () => {
+  /** A structurally valid payload, so each case below varies exactly one thing. */
+  function goodPayload(): Record<string, unknown> {
+    const d = makeViewScopeDescriptor({
+      authority: GOVT_DRILLED_TO_PALERMO,
+      view: viewOf(),
+      grain: "locality",
+    });
+    return JSON.parse(serializeViewScope(d));
+  }
+
+  it("the baseline payload parses — otherwise every case below would pass for the wrong reason", () => {
+    expect(() => parseViewScope(JSON.stringify(goodPayload()))).not.toThrow();
+  });
+
+  it("refuses text that is not JSON", () => {
+    expect(() => parseViewScope("{not json")).toThrow(/not valid JSON/i);
+  });
+
+  it("refuses valid JSON that is not an object", () => {
+    expect(() => parseViewScope("42")).toThrow(/not an object/i);
+    expect(() => parseViewScope('"a string"')).toThrow(/not an object/i);
+    expect(() => parseViewScope("null")).toThrow(/not an object/i);
+  });
+
+  it("refuses an ARRAY too — just not with that message", () => {
+    // `typeof [] === "object"` in JS, so an array slips past the not-an-object
+    // guard and is caught one line later by the version check. It IS refused,
+    // which is what matters; asserted separately rather than folded into the
+    // case above so the test states what actually happens instead of what the
+    // guard's name suggests.
+    expect(() => parseViewScope("[]")).toThrow();
+  });
+
+  it("refuses a version it does not speak", () => {
+    const p = goodPayload();
+    p.v = 999;
+    expect(() => parseViewScope(JSON.stringify(p))).toThrow();
+  });
+
+  it("refuses a payload missing authority or view", () => {
+    const noAuthority = goodPayload();
+    // biome-ignore lint/performance/noDelete: exercising an absent key is the point
+    delete noAuthority.authority;
+    expect(() => parseViewScope(JSON.stringify(noAuthority))).toThrow(/missing authority or view/i);
+
+    const noView = goodPayload();
+    // biome-ignore lint/performance/noDelete: exercising an absent key is the point
+    delete noView.view;
+    expect(() => parseViewScope(JSON.stringify(noView))).toThrow(/missing authority or view/i);
+  });
+
+  it("refuses a role outside admin|govt — an artifact may not invent an authority", () => {
+    const p = goodPayload();
+    (p.authority as Record<string, unknown>).role = "owner";
+    expect(() => parseViewScope(JSON.stringify(p))).toThrow(/role must be admin or govt/i);
+  });
+
+  it("refuses a mandate/effective that is not a jurisdiction list", () => {
+    const p = goodPayload();
+    (p.authority as Record<string, unknown>).mandate = ["Buenos Aires"];
+    expect(() => parseViewScope(JSON.stringify(p))).toThrow(/province, locality/i);
+  });
+
+  it("refuses a view with no scope or no period", () => {
+    const noScope = goodPayload();
+    (noScope.view as Record<string, unknown>).scope = null;
+    expect(() => parseViewScope(JSON.stringify(noScope))).toThrow(
+      /scope and view.period|required/i,
+    );
+
+    const noPeriod = goodPayload();
+    (noPeriod.view as Record<string, unknown>).period = null;
+    expect(() => parseViewScope(JSON.stringify(noPeriod))).toThrow(/required/i);
+  });
+
+  // D6 (PO decision 2026-07-27) — the one that used to DEFAULT instead of refuse.
+  it("refuses a missing or invalid grain instead of assuming province", () => {
+    // The old behaviour was `?? "province"`: a descriptor signed over a
+    // DEPARTMENT map would silently reproduce a PROVINCE one — the exact
+    // divergence the C3 test claims to prevent.
+    const missing = goodPayload();
+    // biome-ignore lint/performance/noDelete: absence is the case under test
+    delete (missing.view as Record<string, unknown>).grain;
+    expect(() => parseViewScope(JSON.stringify(missing))).toThrow(/grain/i);
+
+    const bogus = goodPayload();
+    (bogus.view as Record<string, unknown>).grain = "barrio";
+    expect(() => parseViewScope(JSON.stringify(bogus))).toThrow(/grain/i);
+  });
+
+  it("round-trips BOTH grains — refusing the absent one must not break the present ones", () => {
+    for (const grain of ["province", "locality"] as const) {
+      const d = makeViewScopeDescriptor({
+        authority: GOVT_DRILLED_TO_PALERMO,
+        view: viewOf(),
+        grain,
+      });
+      expect(parseViewScope(serializeViewScope(d)).view.grain).toBe(grain);
+    }
+  });
+});

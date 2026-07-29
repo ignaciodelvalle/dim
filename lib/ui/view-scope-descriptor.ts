@@ -342,6 +342,20 @@ export function parseViewScope(text: string): ViewScopeDescriptor {
   if (!isJurisdictionArray(authority.mandate) || !isJurisdictionArray(authority.effective)) {
     throw new Error("ViewScope: mandate/effective must be (province, locality) lists");
   }
+  // GRAIN IS REQUIRED — refusing beats defaulting (PO decision D6, 2026-07-27).
+  //
+  // This used to fall back to "province" further down (`?? "province"`), which
+  // contradicted the doctrine this module states about itself: a descriptor
+  // with no grain would silently reproduce a PROVINCE choropleth where a
+  // DEPARTMENT one had been signed. That is precisely the divergence the C3
+  // test claims to prevent — an artifact must reproduce what somebody signed,
+  // or say it cannot.
+  if (view.grain !== "province" && view.grain !== "locality") {
+    throw new Error(
+      'ViewScope: view.grain is required and must be "province" or "locality" — ' +
+        "a descriptor without it cannot reproduce the map it was signed from",
+    );
+  }
   if (view.scope == null || view.period == null) {
     throw new Error("ViewScope: view.scope and view.period are required");
   }
@@ -357,7 +371,8 @@ export function parseViewScope(text: string): ViewScopeDescriptor {
     },
     view: {
       scope: canonicalScope(view.scope as ViewScope),
-      grain: (view.grain as AggregationLevel) ?? "province",
+      // Validated above — no fallback: see the grain guard in this function.
+      grain: view.grain as AggregationLevel,
       period: canonicalPeriod(view.period as ViewPeriod),
       asOf: (view.asOf as string | null) ?? null,
       basis: (view.basis as TimeBasis) ?? "valid",
