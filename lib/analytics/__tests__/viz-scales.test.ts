@@ -1,31 +1,23 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  MAP_FILL_DISTINCT_FLOOR,
+  contrastRatio,
+  deltaE00,
+  relLuminance,
+} from "@/lib/analytics/color-distance";
+import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
   COLOR_DIVERGENT_NEUTRAL,
   COLOR_NO_DATA,
+  COLOR_SUPPRESSED,
   RAMP_BLUE,
   SCALE_BLUE_SEQ,
   divergentStops,
   lerpHex,
   sampleStops,
 } from "@/lib/analytics/viz-scales";
-
-/** WCAG relative-luminance of an `#rrggbb` color (0..1). */
-function relLuminance(hex: string): number {
-  const m = /^#?([0-9a-fA-F]{6})$/.exec(hex.trim());
-  if (!m) throw new Error(`bad hex: ${hex}`);
-  const n = Number.parseInt(m[1], 16);
-  const chan = (c: number) => {
-    const s = c / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  };
-  const r = chan((n >> 16) & 0xff);
-  const g = chan((n >> 8) & 0xff);
-  const b = chan(n & 0xff);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
 
 describe("lerpHex", () => {
   it("returns the endpoints at t=0 and t=1", () => {
@@ -73,15 +65,6 @@ describe("sampleStops", () => {
   });
 });
 
-/** WCAG contrast ratio between two `#rrggbb` colors. */
-function contrastRatio(a: string, b: string): number {
-  const la = relLuminance(a);
-  const lb = relLuminance(b);
-  const lighter = Math.max(la, lb);
-  const darker = Math.min(la, lb);
-  return (lighter + 0.05) / (darker + 0.05);
-}
-
 describe("COLOR_DIVERGENT_ABOVE (CVD margin fix)", () => {
   // Night-1 dataviz audit: teal-600 (#0d9488) measured ΔE 10.7 vs the neutral
   // slate under deuteranopia simulation — inside the marginal 8-12 band. The
@@ -114,8 +97,33 @@ describe("COLOR_NO_DATA (light-canvas no-data neutral)", () => {
   // v2C flipped the operator map to the LIGHT canvas (dark skin retired). The
   // active choropleth ramp is now SCALE_BLUE_SEQ (bright→dark). No-data must not
   // be confusable with a real value.
-  it("is distinct from the palest data class (empty ≠ low signal)", () => {
-    expect(COLOR_NO_DATA.toLowerCase()).not.toBe(SCALE_BLUE_SEQ[0].toLowerCase());
+  it("is PERCEPTUALLY distinct from the palest data class (empty ≠ low signal)", () => {
+    // REGRESSION GUARD (D.5, 2026-07-29). This assertion used to read
+    // `expect(COLOR_NO_DATA).not.toBe(SCALE_BLUE_SEQ[0])` — string inequality.
+    // It passed green for a year while the two fills measured ΔE00 4.62, i.e.
+    // a reader could not tell "no data" from "lowest data" anywhere on the map.
+    // A test that pins hex strings does not pin the promise the legend makes.
+    expect(deltaE00(COLOR_NO_DATA, SCALE_BLUE_SEQ[0])).toBeGreaterThanOrEqual(
+      MAP_FILL_DISTINCT_FLOOR,
+    );
+  });
+
+  it("separates from the suppressed fill by TEXTURE, not by color alone", () => {
+    // Measured: ΔE00 4.93 — BELOW MAP_FILL_DISTINCT_FLOOR. This pair is held
+    // apart by the 45° hatch (hatch-pattern.ts), not by its fill color, and
+    // that is a deliberate design: "protegido" is encoded by texture + legend
+    // text, never color alone.
+    //
+    // THE EXPOSURE THIS PINS: when no canvas is available, buildHatchImageData()
+    // returns null and SituationalMap falls back to a SOLID COLOR_SUPPRESSED
+    // fill (SituationalMap.tsx ~1827). In that fallback the texture is gone and
+    // 4.93 is the ONLY thing separating "protected" from "empty" — weak. The
+    // bound below stops that gap from quietly shrinking further; raising it to
+    // MAP_FILL_DISTINCT_FLOOR requires re-spacing the greys (plan D.5 option
+    // (a)), which the PO deferred on 2026-07-29.
+    const measured = deltaE00(COLOR_NO_DATA, COLOR_SUPPRESSED);
+    expect(measured).toBeGreaterThan(4.5);
+    expect(measured).toBeLessThan(MAP_FILL_DISTINCT_FLOOR);
   });
 
   it("stays lighter than the mid class so empty never reads as high signal", () => {
@@ -124,5 +132,46 @@ describe("COLOR_NO_DATA (light-canvas no-data neutral)", () => {
     // ramp's mid class; the neutral (achromatic) hue separates it from the pale
     // low class.
     expect(relLuminance(COLOR_NO_DATA)).toBeGreaterThan(relLuminance(SCALE_BLUE_SEQ[2]));
+  });
+});
+
+describe("SCALE_BLUE_SEQ perceptual floors (plan D.5)", () => {
+  // The land canvas the operator choropleth is painted on. Mirrors
+  // components/panorama/situational-map-config.ts COLOR_LAND — copied here for
+  // the same reason NAVY_MAP_CANVAS above is: importing that module pulls in
+  // MapLibre and DetailDrawer, which a lib-level unit test has no business
+  // loading. If COLOR_LAND ever moves, this copy must move with it.
+  const COLOR_LAND = "#eef1f4";
+
+  it("keeps the LOWEST data class distinguishable from bare land", () => {
+    // THE BUG THIS UNIT EXISTS FOR: at #eff3ff this measured 4.21, so a province
+    // reporting a real (low) value looked identical to unpainted map. The map
+    // under-reported coverage that actually existed.
+    expect(deltaE00(SCALE_BLUE_SEQ[0], COLOR_LAND)).toBeGreaterThanOrEqual(MAP_FILL_DISTINCT_FLOOR);
+  });
+
+  it("keeps every adjacent class pair distinguishable", () => {
+    for (let i = 0; i < SCALE_BLUE_SEQ.length - 1; i++) {
+      expect(deltaE00(SCALE_BLUE_SEQ[i], SCALE_BLUE_SEQ[i + 1])).toBeGreaterThanOrEqual(
+        MAP_FILL_DISTINCT_FLOOR,
+      );
+    }
+  });
+
+  it("steps evenly — equal steps of data look like equal steps", () => {
+    // A sequential scale whose steps jump 10.77 → 21.21 (the pre-D.5 ramp) makes
+    // the top of the range look like a cliff and the bottom like a plateau. Cap
+    // the spread so no single class transition dominates the reading.
+    const steps: number[] = [];
+    for (let i = 0; i < SCALE_BLUE_SEQ.length - 1; i++) {
+      steps.push(deltaE00(SCALE_BLUE_SEQ[i], SCALE_BLUE_SEQ[i + 1]));
+    }
+    expect(Math.max(...steps) / Math.min(...steps)).toBeLessThan(2);
+  });
+
+  it("descends in luminance so a higher value is always a darker fill", () => {
+    for (let i = 0; i < SCALE_BLUE_SEQ.length - 1; i++) {
+      expect(relLuminance(SCALE_BLUE_SEQ[i])).toBeGreaterThan(relLuminance(SCALE_BLUE_SEQ[i + 1]));
+    }
   });
 });

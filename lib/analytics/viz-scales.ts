@@ -27,14 +27,35 @@ export type ColorScale5 = readonly [string, string, string, string, string];
 
 /**
  * Blue sequential — default for counts, density, enrollment.
- * ColorBrewer Blues (5-class): #eff3ff → #084594
+ * ColorBrewer Blues, steps 4–8 of the 9-class family: #9ecae1 → #08519c
+ *
+ * RE-STEPPED 2026-07-29 (plan D.5). The previous ramp took the 5-class family
+ * (#eff3ff → #084594), whose two palest steps are both near-white. Measured in
+ * ΔE00 on the light operator canvas, that made the LOWEST data class a lie:
+ *
+ *   old #eff3ff vs land #eef1f4 = 4.21  → a province WITH data read as bare map
+ *   old #eff3ff vs COLOR_NO_DATA = 4.62 → and as a province with NO data
+ *
+ * So the map under-reported coverage that existed. The fix is not a different
+ * palest color — a sweep of the whole Blues family found no single step that
+ * clears the land AND keeps its distance from the next class up (moving it down
+ * to #c6dbef buys 9.80 against land but collapses class-1↔class-2 to 3.15).
+ * Five classes did not fit between near-white and navy; the ramp had to start
+ * lower. Taking five CONSECUTIVE steps of the 9-class family instead:
+ *
+ *   class-1 vs land 16.38 | vs no-data 15.49 | vs suppressed 12.76
+ *   adjacent classes 9.53 · 9.22 · 12.37 · 11.35  (all ≥ MAP_FILL_DISTINCT_FLOOR)
+ *
+ * The steps are also EVEN, which is the point of a sequential scale — equal
+ * steps of data should look like equal steps. The old ramp ran 10.77 → 21.21.
+ * Pinned by viz-scales.test.ts against the real ΔE00, not string inequality.
  */
 export const SCALE_BLUE_SEQ: ColorScale5 = [
-  "#eff3ff",
-  "#bdd7e7",
+  "#9ecae1",
   "#6baed6",
+  "#4292c6",
   "#2171b5",
-  "#084594",
+  "#08519c",
 ] as const;
 
 /**
@@ -46,7 +67,7 @@ export const SCALE_BLUE_SEQ: ColorScale5 = [
  * (v2C flipped the operator map to the light canvas, `fd757227`; the dark skin
  * and its inverted blue→cyan ramp were retired).
  */
-export const RAMP_BLUE: ColorRamp = ["#eff3ff", "#084594"] as const;
+export const RAMP_BLUE: ColorRamp = [SCALE_BLUE_SEQ[0], SCALE_BLUE_SEQ[4]] as const;
 
 /**
  * Orange sequential — for coverage / compliance rates.
@@ -272,10 +293,17 @@ export function sampleStops(stops: ReadonlyArray<[number, string]>, value: numbe
  * choropleth the confusion risk inverts vs the old navy canvas: a DARK no-data
  * fill would read as a HIGH value, so no-data stays LIGHTER than the ramp's mid
  * class (the honesty invariant pinned by viz-scales.test.ts) while remaining
- * distinct from the palest data class ({@link SCALE_BLUE_SEQ}[0] = #eff3ff, a
- * blue-white) by being a neutral grey. Also distinct from the suppressed fill
- * ({@link COLOR_SUPPRESSED} = #d1d5db, darker + carries the k-anon hatch). The
- * legend labels this swatch "Sin datos". */
+ * distinct from the palest data class ({@link SCALE_BLUE_SEQ}[0]) by BOTH hue
+ * (neutral grey vs blue) and lightness — ΔE00 15.49 after the D.5 re-stepping,
+ * up from 4.62, when "low value" and "no value" were the same fill to the eye.
+ * Also distinct from the suppressed fill ({@link COLOR_SUPPRESSED} = #d1d5db,
+ * darker + carries the k-anon hatch). The legend labels this swatch "Sin datos".
+ *
+ * KNOWN, ACCEPTED (PO decision 2026-07-29, plan D.5 option (c)): this grey sits
+ * ΔE00 1.48 from the land canvas — "no data" and "outside the analysis" read as
+ * neighbours. The contrast budget was spent on the class-1 pair instead, which
+ * is the one that MISREPRESENTED. Giving no-data its own textural mark (the way
+ * suppression already has its hatch) is option (b), tracked separately. */
 export const COLOR_NO_DATA = "#e7eaed" as const;
 
 /** Suppressed cells (< k-anonymity threshold) get this distinct fill. */
