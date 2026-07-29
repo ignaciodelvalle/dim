@@ -82,8 +82,11 @@ un bug de la función. Empezar por reproducir con una mascota concreta.
    con 0 reemplazos, cascada CSS). Un verde sobre mutación no aplicada es
    indistinguible de un test vacuo. `grep -c` el token mutado antes de leer el
    resultado.
-3. **Nadie corre `build` mientras haya revisores vivos** sobre `:3000`. Si hay
-   que rebuildear: bajar servidor → build → `qa-up.ps1`.
+3. **Nadie corre `build` mientras haya algo usando `:3000`** — y ANTES de correr
+   cualquier e2e local, rebuildear y reiniciar. Un `verify` deja el servidor
+   sirviendo chunks viejos (400, MIME `text/html`), la página no hidrata y TODO
+   e2e falla por la razón equivocada. Mordió 4 veces en una sesión, la última
+   costó un diagnóstico entero que hubo que retractar.
 4. **Buscar case-insensitive cuando el selector lo es.** Un `rg 'Crear mascota'`
    no encuentra `/crear mascota/i` — 25 selectores invisibles hasta correr tests.
 5. **Si `lint:spine` marca una mascota huérfana** creada por la propia corrida:
@@ -105,30 +108,34 @@ El arreglo sistémico va en **H.2** (contrato de seed/fixture): o pasan por el
 circuito real, o llevan `seed_tag` (que la fence exime por diseño), o limpian
 en su `afterAll`. Elegir una y aplicarla a todas.
 
-## #31 crisis-seams (b) — lo que YA se descartó (retomar desde acá)
+## #31 crisis-seams (b) — RETRACTACIÓN + estado real
 
-El título de la tarea dice "no encuentra su botón". **Es falso**: el botón se
-resuelve bien. El fallo real es `submitAndWait` esperando `?firmado=1` y
-agotando 45s — el submit no navega.
+**Retracto el diagnóstico anterior de este archivo.** Lo escribí contra un
+servidor `:3000` con `.next` clobbereado: los chunks devolvían 400 con MIME
+`text/html`, la página nunca hidrataba y ningún handler de submit se enganchaba.
+Cualquier conclusión sacada ahí no valía. **Cuarta vez que esta trampa muerde en
+la sesión** — ver la regla 3, que ahora incluye correr e2e locales.
 
-Descartado con evidencia:
-- **No es el gate duro del servidor** (`atender/actions.ts:146`, rechaza vacunas
-  fuera del catálogo): el spec carga `"Antirrábica"`, y `lookups.ts:90` la tiene
-  con ese nombre exacto.
-- **No es el panel de revisión del cliente** (`AtenderVaccinationGate.tsx:100`):
-  sólo aparece cuando el nombre NO se reconoce con certeza, y un match exacto
-  supera `VACCINE_AUTOSELECT_CONFIDENCE = 0.85`.
-- **No es el botón**: `getByRole("button", { name: /registrar vacuna/i })`
-  resuelve; si no, el error sería otro.
+**Verificado contra un servidor FRESCO** (build + `qa-up.ps1` antes de medir):
+el flujo de firma de vacuna **funciona**. Guionado a mano sobre
+`DIM-PAMP-0001` en la clínica del primer org: el botón está visible y
+habilitado, el submit navega a `?firmado=1`, cero errores de consola, cero
+mensajes de validación. No hay defecto de producto en la firma.
 
-Quedan dos hipótesis, y se distinguen en una corrida:
-1. La action falla validación y devuelve error **sin navegar** — el form muestra
-   el mensaje y el spec nunca lo lee.
-2. Forma N3: la action commitea y el redirect se pierde.
+**Lo que sigue fallando** es el spec, y ahora falla en otro lugar:
+`locator.evaluate` agota 20s esperando
+`getByRole('button', { name: /registrar vacuna/i })` — dentro de `submitAndWait`.
+El input `vaccineName` YA pasó su propia aserción de visibilidad, así que el
+formulario renderiza y el botón no está adjunto cuando se lo evalúa. Es la clase
+de hidratación/clickthrough que el repo ya documentó (#39), no la lógica de
+firma.
 
-**Próximo paso concreto**: guionar el flujo con playwright, hacer submit, y
-volcar el `innerText` del form y los errores de consola inmediatamente después.
-Eso separa (1) de (2) en un solo intento.
+**Diferencia entre mi corrida a mano y el spec** (por acá va el próximo paso):
+yo usé el primer org y `DIM-PAMP-0001`; el spec resuelve
+`/Clínica Veterinaria Recoleta/i` y usa `ROCCO_TOKEN`, y corre DESPUÉS del test
+(a), que marca esa misma mascota perdida y luego encontrada. Probar el spec (b)
+AISLADO (`--grep "(b) clinic signs"`) separa "estado dejado por (a)" de
+"timing de hidratación" en un solo intento.
 
 ## Estado (se actualiza durante la corrida)
 
