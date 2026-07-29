@@ -130,24 +130,33 @@ Recoleta — probablemente la relación org↔mascota. Eso ya es señal de PRODU
 no de test. Próximo paso: reproducir a mano con esa combinación exacta y leer la
 respuesta del server action.
 
-## C.4 — arranque, sin conclusión todavía
+## C.4 — la affordance EXISTE (probado); el test no la alcanza (abierto)
 
-Buscado en `components/panorama/**` y `app/gob/panorama/**`: el ÚNICO `<select>`
-está en `OverlayDisclosure.tsx`, y no es de provincia/localidad. No aparece
-ningún componente de drill por dropdown en la superficie del panorama.
+**Lo que quedó probado con evidencia, contra la app viva:**
+- Un script tsx propio (login govt → `/gob/panorama` → volcar todos los
+  `<select>`) encuentra DOS: uno etiquetado **"Provincia"** con opciones
+  `Todas | Tierra del Fuego | Santa Cruz | CABA`, y otro **"Localidad"**.
+  Ambos reportan `139×44`, `display:block`, `visibility:visible`, **sin ancestro
+  oculto**.
+- La captura de la pantalla (`test-results/panorama-drill-affordance-…`) muestra
+  el control de scope como un **chip desplegable** arriba a la izquierda —
+  "Tierra del Fuego, Santa Cruz, CABA ▾".
 
-Eso CONTRADICE lo que reportó el revisor de panorama ("real labelled
-`<select>`s", tras retractarse de su primer hallazgo). Dos lecturas posibles y
-no sé cuál es:
-- el control vive fuera de `components/panorama` (¿la barra de scope del shell
-  de /gob?), o
-- el revisor vio los `<select>` de OverlayDisclosure y los leyó como drill.
+**Conclusión sobre la UNIDAD**: la review tenía razón y mi grep del código estaba
+mal — el camino visible de drill EXISTE. Lo que falta del enunciado es "y
+testeable".
 
-**Próximo paso**: en vez de seguir grepeando, mirar la página viva —
-`e2e/demo/_capture-live.ts --role govt --routes "/gob/panorama"` y volcar TODOS
-los `<select>` con su accessible name. Eso zanja la pregunta en una corrida, y
-es el mismo error de método de crisis-seams: teorizar sobre código en vez de
-leer la evidencia que la app produce.
+**Lo que NO logré, y es el próximo paso:** un spec de Playwright no encuentra
+esos selects. Probado y fallido: `getByLabel` anclado, `getByLabel` laxo,
+`getByRole("combobox", {name})`, fijar viewport 1440×900, y hacer click en el
+chip antes de aserir. El spec quedó BORRADO en vez de commiteado en rojo.
+
+La pregunta a responder primero, porque es rarísima: **mi script tsx los ve y el
+spec no.** Diferencias que quedan sin descartar: el config
+`playwright.local3000.config.ts` (¿storageState? ¿baseURL? ¿otro viewport?), y
+si los selects viven en un portal que aparece sólo tras una interacción que mi
+heurística de "click en el chip" no acierta. Volcar el HTML del panel en el
+contexto del SPEC (no del script) lo separa en una corrida.
 
 ## Estado (se actualiza durante la corrida)
 
@@ -157,7 +166,7 @@ leer la evidencia que la app produce.
 | #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
 | #31 crisis-seams (b) | **parcial** — bug del helper arreglado; queda un cuelgue real específico de Rocco@Recoleta | `1ea0a95e` |
 | C.3 | pendiente | |
-| C.4 | **abierta** — no encuentro el dropdown de drill; contradice a la review. Próximo paso escrito arriba | |
+| C.4 | **affordance verificada existente**; falta el test — el spec no localiza los selects que un script tsx sí ve. Detalle arriba | |
 | D.6 | pendiente | |
 | D.5 | pendiente | |
 | H.1 restante | pendiente | |
