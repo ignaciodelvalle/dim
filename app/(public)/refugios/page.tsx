@@ -125,7 +125,7 @@ export default async function RefugiosIndexPage() {
         {/* Header */}
         <header className="space-y-2">
           <h1
-            className="text-[30px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
+            className="text-3xl font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             Refugios y redes de rescate

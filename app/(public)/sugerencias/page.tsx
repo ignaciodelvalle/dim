@@ -15,7 +15,7 @@ export default function SugerenciasPage() {
     <div className="bg-[var(--color-ln-paper)]">
       <div className="mx-auto max-w-2xl px-6 py-16 space-y-6">
         <h1
-          className="text-[30px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
+          className="text-3xl font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
           style={{ fontFamily: "var(--font-ln-serif)" }}
         >
           Hacer una sugerencia

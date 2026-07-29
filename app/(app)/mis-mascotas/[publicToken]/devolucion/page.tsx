@@ -136,7 +136,7 @@ export default async function DevolucionPage({
           ← Volver al perfil
         </Link>
         <div className="mb-6">
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Devolver {pet.name}
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -220,7 +220,7 @@ export default async function DevolucionPage({
 
           {/* Header */}
           <div className="mb-6">
-            <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
               Devolver {pet.name}
             </h1>
             <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -305,7 +305,7 @@ export default async function DevolucionPage({
     <div className="mx-auto max-w-lg px-8 py-7 pb-12">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Devolución de {pet.name}
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">

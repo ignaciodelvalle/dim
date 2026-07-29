@@ -181,7 +181,7 @@ export default async function WelfareReportDetailPage({
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-start justify-between gap-3">
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {welfareReportKindLabel(report.kind)}
           </h1>
           <div className="flex flex-shrink-0 flex-wrap gap-1.5">

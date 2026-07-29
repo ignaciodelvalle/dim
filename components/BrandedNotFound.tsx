@@ -26,7 +26,7 @@ export function BrandedNotFound({
         ?
       </div>
       <h1
-        className="text-[26px] font-semibold tracking-[-0.015em] text-[var(--color-ln-ink)]"
+        className="text-3xl font-semibold tracking-[-0.015em] text-[var(--color-ln-ink)]"
         style={{ fontFamily: "var(--font-ln-serif)" }}
       >
         {title}

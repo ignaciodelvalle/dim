@@ -53,7 +53,7 @@ export default async function ProposalDetailPage({
         <p className="mb-1 font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
           {org.displayName} te propone cuidar a
         </p>
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           {pet.name}
         </h1>
         <p className="mt-1 text-[13px] text-[var(--color-ln-mute)]">

@@ -10,8 +10,9 @@
 //   3. Arbitrary hex values inside Tailwind arbitrary-value classnames
 //      (e.g. bg-[#eef6f0], border-[#c8e2d2]) — use ln-* token utilities instead
 //      (e.g. bg-[var(--color-ln-ok-050)], border-[var(--color-ln-ok-100)]).
-//   4. Arbitrary text-[Npx] sizes — use --text-xs…2xl scale tokens instead
-//      (text-[var(--text-sm)], text-[var(--text-md)], …).
+//   4. Arbitrary text-[Npx] sizes — use Tailwind's NAMED size utilities
+//      (text-sm, text-md, text-3xl, …), which read the --text-* theme scale.
+//      NOT text-[var(--text-sm)]: see rule 9, that form silently does nothing.
 //   5. Arbitrary spacing p/m/gap/space-[Npx|rem] — prefer Tailwind's default
 //      spacing scale or --space-* custom tokens.
 //   6. Arbitrary rounded-[Npx] radius — use --radius-xs/sm/md/lg tokens instead.
@@ -161,8 +162,33 @@ export const OP_TOKEN_UTILITY =
 // ---------------------------------------------------------------------------
 
 // Rule 4: Arbitrary text sizes — text-[Npx] or text-[N.Npx].
-// Note: text-[var(--text-*)] is intentionally NOT matched (correct token form).
 export const ARBITRARY_TEXT_PX = /\btext-\[\d+\.?\d*px\]/g;
+
+// Rule 9: text-[var(--text-*)] — a DEAD font-size (measured 2026-07-29).
+//
+// This form used to be documented right here as "the correct token form" and
+// recommended by rule 4's own error message, so 703 of them accumulated across
+// 207 files. Every one of them is a no-op. Tailwind v4 cannot tell whether an
+// arbitrary `text-[…]` is a size or a colour, and for a bare CSS variable it
+// resolves to COLOUR. Read straight out of the compiled stylesheet:
+//
+//   .text-\[var\(--text-sm\)\]{color:var(--text-sm)}
+//
+// So the element gets `color: 12px` — invalid, dropped — and keeps whatever
+// font-size it inherited. Nothing failed: not the build, not this fence, not
+// 12.5k tests. It only surfaced when a heading was measured in the browser and
+// came back 16px instead of 28px.
+//
+// The working form is Tailwind's NAMED utility (`text-sm`, `text-3xl`), which
+// compiles to `font-size:var(--text-sm)` because --text-* IS Tailwind v4's
+// font-size namespace. Same token, same single source of truth, and it actually
+// applies.
+//
+// Ratcheted rather than fixed in one sweep: unbreaking 703 declarations means
+// 703 elements suddenly rendering at their INTENDED size, which is a visible
+// change across the whole app and belongs to a deliberate pass with the PO,
+// not to a silent codemod.
+export const DEAD_TEXT_VAR = /\btext-\[var\(--text-[a-z0-9-]+\)\]/g;
 
 // Rule 5: Arbitrary spacing — p/m/gap/space etc. with [Npx] or [Nrem].
 // Also matches Tailwind's compound shorthand (2-4 underscore-separated values,
@@ -198,6 +224,7 @@ export const HEX_IN_STYLE =
 
 type BaselineCounts = {
   text: number;
+  deadTextVar: number;
   space: number;
   rounded: number;
   shadow: number;
@@ -261,6 +288,7 @@ function runChecks(): void {
     const lines = src.split(/\r?\n/);
     const baselineCounts: BaselineCounts = baseline[relPath] ?? {
       text: 0,
+      deadTextVar: 0,
       space: 0,
       rounded: 0,
       shadow: 0,
@@ -325,6 +353,7 @@ function runChecks(): void {
     // --- Rules 4–8 (file-level ratchet) ---
     const actual = {
       text: countMatches(src, ARBITRARY_TEXT_PX),
+      deadTextVar: countMatches(src, DEAD_TEXT_VAR),
       space: countMatches(src, ARBITRARY_SPACING_PX),
       rounded: countMatches(src, ARBITRARY_RADIUS_PX),
       shadow: countMatches(src, ARBITRARY_SHADOW),
@@ -332,7 +361,16 @@ function runChecks(): void {
     };
 
     const categories: Array<[keyof BaselineCounts, string, string]> = [
-      ["text", "text-[Npx]", "use a --text-* token (e.g. text-[var(--text-sm)])"],
+      [
+        "text",
+        "text-[Npx]",
+        "use Tailwind's NAMED size utility, which reads the --text-* scale (text-sm, text-3xl, …). NOT text-[var(--text-sm)] — that compiles to `color` and does nothing.",
+      ],
+      [
+        "deadTextVar",
+        "text-[var(--text-*)]",
+        "DEAD font-size: Tailwind v4 compiles this to `color:var(--text-*)`, so the element keeps its inherited size. Use the named utility instead (text-sm, text-3xl, …).",
+      ],
       [
         "space",
         "spacing-[Npx|rem]",

@@ -306,7 +306,7 @@ function TerminalShell({
         {/* a11y: h1 is the first meaningful content; focus lands here
             naturally since it's the page heading (no JS focus-trap needed). */}
         <div className="space-y-2">
-          <h1 className="font-[var(--font-ln-serif)] text-[28px] font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-[var(--font-ln-serif)] text-3xl font-semibold text-[var(--color-ln-ink)]">
             {title}
           </h1>
           <p className="text-[13px] text-[var(--color-ln-mute)]">

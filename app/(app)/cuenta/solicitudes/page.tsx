@@ -140,7 +140,7 @@ export default async function SolicitudesPage({
 
       {/* Header */}
       <div className="mb-6 flex items-baseline gap-3.5">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis solicitudes
         </h1>
         <span className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">

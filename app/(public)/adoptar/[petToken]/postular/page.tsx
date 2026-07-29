@@ -264,7 +264,7 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
+          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           Esta cuenta no puede postularse
@@ -301,7 +301,7 @@ function NoLongerAvailable({ name }: { name: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
+          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           {name} ya no está disponible
@@ -338,7 +338,7 @@ function AlreadyApplied({ name }: { name: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-[26px] tracking-[-0.02em]"
+          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           Ya postulaste para {name}

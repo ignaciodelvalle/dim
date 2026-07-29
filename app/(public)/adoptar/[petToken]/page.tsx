@@ -358,7 +358,7 @@ export default async function AdoptarFichaPage({
             }}
           >
             <span
-              className="font-[var(--font-ln-serif)] text-[72px] font-semibold"
+              className="font-[var(--font-ln-serif)] text-hero font-semibold"
               style={{ color: "var(--color-ln-mute)" }}
             >
               {pet.name.charAt(0).toUpperCase()}
@@ -733,7 +733,7 @@ function RecentlyAdopted({ name }: { name: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-[30px] tracking-[-0.02em]"
+          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           ¡{name} ya encontró su hogar!
@@ -779,7 +779,7 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
           No disponible por ahora
         </div>
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-[28px] tracking-[-0.02em]"
+          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           {name} no está disponible en este momento

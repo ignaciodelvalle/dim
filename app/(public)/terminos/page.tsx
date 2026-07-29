@@ -12,7 +12,7 @@ export default function TerminosPage() {
       <div className="max-w-2xl mx-auto px-6 py-12 space-y-10">
         <header className="space-y-2">
           <h1
-            className="text-[32px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
+            className="text-4xl font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             Términos de uso

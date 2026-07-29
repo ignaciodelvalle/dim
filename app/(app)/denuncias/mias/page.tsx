@@ -73,7 +73,7 @@ export default async function MisDenunciasPage() {
       {/* Header */}
       <div className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis denuncias
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">

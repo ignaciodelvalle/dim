@@ -67,7 +67,7 @@ export default async function MembershipsPage() {
 
       {/* Header */}
       <div className="mb-7 flex items-baseline gap-3.5">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis organizaciones
         </h1>
         <span className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">

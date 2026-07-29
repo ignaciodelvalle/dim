@@ -14,7 +14,7 @@ export default function BuscarDenunciaPage() {
             ← Inicio
           </Link>
           <h1
-            className="text-[30px] font-semibold tracking-[-0.015em] text-[var(--color-ln-ink)] leading-tight"
+            className="text-3xl font-semibold tracking-[-0.015em] text-[var(--color-ln-ink)] leading-tight"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             Buscar mi denuncia

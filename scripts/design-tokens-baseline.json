@@ -2,12 +2,13 @@
   "_meta": {
     "generatedAt": "2026-07-05",
     "branch": "integration/all-20260703",
-    "totalViolations": 1980,
+    "totalViolations": 2454,
     "description": "Baseline of arbitrary text/spacing/radius/shadow/hex-in-style values. Files listed here are grandfathered. New violations in unlisted files or counts exceeding these values will fail lint:tokens."
   },
   "files": {
     "components/AdoptionListingCard.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -15,13 +16,15 @@
     },
     "components/AdoptionQueueList.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "components/BrandedNotFound.tsx": {
-      "text": 1,
+    "components/BulkApprovalQueueList.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -29,6 +32,7 @@
     },
     "components/CasesWidget.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -36,6 +40,7 @@
     },
     "components/NotificationCard.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -43,6 +48,7 @@
     },
     "components/OrgSetupChecklist.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -50,13 +56,15 @@
     },
     "components/PetForm.tsx": {
       "text": 18,
+      "deadTextVar": 0,
       "space": 1,
-      "rounded": 4,
+      "rounded": 2,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/VerifyOrgButton.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -64,6 +72,7 @@
     },
     "components/ui/AmendedBadge.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -71,6 +80,7 @@
     },
     "components/ui/Badge.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -78,6 +88,7 @@
     },
     "components/ui/Button.test.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -85,13 +96,15 @@
     },
     "components/ui/Button.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 3,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/CaptureConfidenceCard.tsx": {
       "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
@@ -99,6 +112,7 @@
     },
     "components/ui/Card.tsx": {
       "text": 0,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 2,
@@ -106,6 +120,7 @@
     },
     "components/ui/Chip.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 5,
       "rounded": 1,
       "shadow": 0,
@@ -113,13 +128,23 @@
     },
     "components/ui/ConfirmDialog.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 2,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "components/ui/CopyButton.tsx": {
       "text": 1,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/ui/DateInputAr.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -127,6 +152,7 @@
     },
     "components/ui/DemoModeBanner.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -134,6 +160,7 @@
     },
     "components/ui/DocElements.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -141,20 +168,31 @@
     },
     "components/ui/Field.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 5,
       "rounded": 1,
       "shadow": 2,
       "hexStyle": 0
     },
     "components/ui/Hero.tsx": {
-      "text": 3,
+      "text": 2,
+      "deadTextVar": 0,
       "space": 6,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/ui/HoverTip.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/Ledger.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -162,27 +200,47 @@
     },
     "components/ui/LnCardSkeleton.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
+    "components/ui/OfflineBanner.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/ui/RegRow.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 4,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
+    "components/ui/ResultCount.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/ui/Sheet.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 12,
-      "rounded": 4,
+      "rounded": 2,
       "shadow": 1,
       "hexStyle": 0
     },
     "components/ui/StatusFlag.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 5,
       "rounded": 0,
       "shadow": 0,
@@ -190,13 +248,15 @@
     },
     "components/ui/SuccessScreen.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 2,
+      "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/Tabs.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 6,
       "rounded": 1,
       "shadow": 0,
@@ -204,6 +264,7 @@
     },
     "components/ui/Toggle.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 1,
@@ -211,6 +272,7 @@
     },
     "components/ui/UrlTabs.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -218,6 +280,7 @@
     },
     "components/ui/dashboard/AnalyticsLoadFallback.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -225,13 +288,23 @@
     },
     "components/ui/dashboard/CaseDetailShell.tsx": {
       "text": 8,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/ui/dashboard/CaseHeader.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/dashboard/CaseQueue.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -239,6 +312,7 @@
     },
     "components/ui/dashboard/DashboardFreshnessFooter.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -246,6 +320,7 @@
     },
     "components/ui/dashboard/OpBreach.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -253,6 +328,15 @@
     },
     "components/ui/dashboard/OpBulkBar.tsx": {
       "text": 4,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/ui/dashboard/OpBulkResultPanel.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -260,6 +344,7 @@
     },
     "components/ui/dashboard/OpButton.tsx": {
       "text": 0,
+      "deadTextVar": 2,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -267,6 +352,7 @@
     },
     "components/ui/dashboard/OpCallout.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -274,6 +360,7 @@
     },
     "components/ui/dashboard/OpCard.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -281,6 +368,7 @@
     },
     "components/ui/dashboard/OpCardSkeleton.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -288,6 +376,7 @@
     },
     "components/ui/dashboard/OpCodeBadge.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 1,
       "shadow": 0,
@@ -295,6 +384,7 @@
     },
     "components/ui/dashboard/OpKpi.tsx": {
       "text": 2,
+      "deadTextVar": 5,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -302,20 +392,39 @@
     },
     "components/ui/dashboard/OpKpiSkeleton.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
+    "components/ui/dashboard/OpMaintenanceScreen.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/ui/dashboard/OpMobileDrawer.tsx": {
-      "text": 7,
+      "text": 4,
+      "deadTextVar": 4,
       "space": 5,
-      "rounded": 5,
+      "rounded": 2,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/ui/dashboard/OpOfflineBanner.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/dashboard/OpOmnibox.tsx": {
       "text": 3,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
@@ -323,6 +432,7 @@
     },
     "components/ui/dashboard/OpPill.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 2,
       "shadow": 0,
@@ -330,20 +440,23 @@
     },
     "components/ui/dashboard/OpRail.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 3,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/dashboard/OpRailNav.tsx": {
-      "text": 4,
+      "text": 2,
+      "deadTextVar": 3,
       "space": 4,
-      "rounded": 4,
+      "rounded": 2,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/ui/dashboard/OpScopeChip.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -351,6 +464,7 @@
     },
     "components/ui/dashboard/OpStatusPill.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 3,
       "shadow": 0,
@@ -358,6 +472,7 @@
     },
     "components/ui/dashboard/OpTopbar.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -365,6 +480,31 @@
     },
     "components/ui/dashboard/OutboxTable.tsx": {
       "text": 6,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/ui/dashboard/ScreenHeader.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/pet-profile/AsientoCard.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/pet-profile/CredentialFace.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -372,6 +512,23 @@
     },
     "components/pet-profile/ExportLibretaButton.tsx": {
       "text": 1,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/pet-profile/LibretaFace.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/pet-profile/LostCaseBlock.tsx": {
+      "text": 0,
+      "deadTextVar": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -379,6 +536,7 @@
     },
     "components/pet-profile/LostDisclosureCard.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -386,6 +544,7 @@
     },
     "components/pet-profile/LostLastSeenCard.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -393,6 +552,47 @@
     },
     "components/pet-profile/LostScanFeed.tsx": {
       "text": 5,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/pet-profile/LostShareCard.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/pet-profile/MarkFoundInlineForm.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/pet-profile/PetSwitcherAvatars.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/CabaInset.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/CalendarHeatmap.tsx": {
+      "text": 0,
+      "deadTextVar": 10,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -400,13 +600,79 @@
     },
     "components/panorama/DetailDrawer.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
+    "components/panorama/FiltroPanel.tsx": {
+      "text": 0,
+      "deadTextVar": 13,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/KpiChips.tsx": {
+      "text": 0,
+      "deadTextVar": 14,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/panorama/LayerPanel.tsx": {
       "text": 2,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/LegendPill.tsx": {
+      "text": 0,
+      "deadTextVar": 11,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/MapErrorBoundary.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/MapLegends.tsx": {
+      "text": 0,
+      "deadTextVar": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/ModeSwitcher.tsx": {
+      "text": 0,
+      "deadTextVar": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaBoardNotices.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaConsole.tsx": {
+      "text": 0,
+      "deadTextVar": 30,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -414,6 +680,31 @@
     },
     "components/panorama/PanoramaDemoDisclosure.tsx": {
       "text": 1,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaDock.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaInformeSituacion.tsx": {
+      "text": 0,
+      "deadTextVar": 15,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaKpiFooter.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -421,20 +712,111 @@
     },
     "components/panorama/PanoramaKpiTile.tsx": {
       "text": 0,
+      "deadTextVar": 2,
       "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaMetricsColumn.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaRail.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaShell.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PanoramaStatSection.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/PeriodPanel.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/ScopePillSummary.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/SimpleDetalleToggle.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/panorama/SituationalMap.tsx": {
+      "text": 0,
+      "deadTextVar": 11,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/panorama/SituationalMapDynamic.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 1
     },
+    "components/panorama/TimeScrubber.tsx": {
+      "text": 0,
+      "deadTextVar": 14,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/operator/NovedadesCard.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/maps/StaticFirstMap.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "components/layout/AppCitizenMasthead.tsx": {
       "text": 18,
+      "deadTextVar": 0,
       "space": 6,
       "rounded": 3,
       "shadow": 1,
@@ -442,27 +824,87 @@
     },
     "components/layout/AppShell.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/layout/AppShellDrawer.tsx": {
-      "text": 5,
+      "text": 3,
+      "deadTextVar": 3,
       "space": 4,
-      "rounded": 3,
+      "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/layout/ContextSwitcher.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/layout/GovtJurisdictionsChip.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/landing/CrisisBand.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/landing/FeaturesSection.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/landing/LandingFooter.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/landing/story-screens.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/landing/StorySection.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/gob/OutreachRabiesReminderList.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "components/charts/ForecastChart.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -470,6 +912,7 @@
     },
     "components/casos/CaseDetailView.tsx": {
       "text": 8,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -477,6 +920,7 @@
     },
     "components/admin/AlertInboxTable.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 2,
       "shadow": 0,
@@ -484,6 +928,15 @@
     },
     "components/admin/AlertSubscriptionForm.tsx": {
       "text": 9,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/admin/CronsDownBanner.tsx": {
+      "text": 0,
+      "deadTextVar": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -491,6 +944,15 @@
     },
     "components/admin/EventLedgerTable.tsx": {
       "text": 1,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "components/admin/PetStatusDriftCard.tsx": {
+      "text": 0,
+      "deadTextVar": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -498,6 +960,7 @@
     },
     "components/admin/QueueHealthCockpit.tsx": {
       "text": 0,
+      "deadTextVar": 6,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -505,6 +968,7 @@
     },
     "components/admin/RuleImpactBanner.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -512,6 +976,7 @@
     },
     "app/global-error.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -519,13 +984,15 @@
     },
     "app/r/invite/[token]/page.tsx": {
       "text": 2,
+      "deadTextVar": 2,
       "space": 0,
-      "rounded": 5,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/page.tsx": {
       "text": 7,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -533,13 +1000,23 @@
     },
     "app/org/[orgToken]/layout.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/org/[orgToken]/OrgDailyLoopOrientation.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/page.tsx": {
       "text": 18,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -547,6 +1024,7 @@
     },
     "app/org/[orgToken]/voluntarios/page.tsx": {
       "text": 7,
+      "deadTextVar": 1,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -554,6 +1032,7 @@
     },
     "app/org/[orgToken]/voluntarios/VolunteerRow.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -561,6 +1040,7 @@
     },
     "app/org/[orgToken]/voluntarios/propuestas/page.tsx": {
       "text": 4,
+      "deadTextVar": 1,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -568,6 +1048,7 @@
     },
     "app/org/[orgToken]/transitos/EndFosterButton.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -575,6 +1056,7 @@
     },
     "app/org/[orgToken]/transitos/page.tsx": {
       "text": 5,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -582,6 +1064,7 @@
     },
     "app/org/[orgToken]/transferencias/page.tsx": {
       "text": 3,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -589,6 +1072,7 @@
     },
     "app/org/[orgToken]/transferencias/recibidas/DecomisoHandoffActions.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -596,6 +1080,7 @@
     },
     "app/org/[orgToken]/transferencias/recibidas/IncomingTransferActions.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -603,6 +1088,7 @@
     },
     "app/org/[orgToken]/transferencias/recibidas/page.tsx": {
       "text": 2,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -610,6 +1096,7 @@
     },
     "app/org/[orgToken]/transferencias/nueva/page.tsx": {
       "text": 6,
+      "deadTextVar": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -617,6 +1104,7 @@
     },
     "app/org/[orgToken]/transferencias/nueva/ProposeTransferForm.tsx": {
       "text": 7,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -624,6 +1112,7 @@
     },
     "app/org/[orgToken]/servicios/page.tsx": {
       "text": 4,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -631,6 +1120,7 @@
     },
     "app/org/[orgToken]/servicios/[offeringToken]/CapacityEditor.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -638,6 +1128,7 @@
     },
     "app/org/[orgToken]/servicios/[offeringToken]/page.tsx": {
       "text": 4,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -645,6 +1136,7 @@
     },
     "app/org/[orgToken]/servicios/[offeringToken]/agenda/AgendaRuleForm.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -652,6 +1144,7 @@
     },
     "app/org/[orgToken]/servicios/[offeringToken]/agenda/page.tsx": {
       "text": 11,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -659,6 +1152,7 @@
     },
     "app/org/[orgToken]/servicios/nuevo/page.tsx": {
       "text": 3,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -666,6 +1160,7 @@
     },
     "app/org/[orgToken]/servicios/nuevo/ServiceOfferingForm.tsx": {
       "text": 10,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -673,6 +1168,7 @@
     },
     "app/org/[orgToken]/pets/no-aptas/page.tsx": {
       "text": 3,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -680,6 +1176,7 @@
     },
     "app/org/[orgToken]/mordedura/nuevo/OrgBiteForm.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -687,6 +1184,7 @@
     },
     "app/org/[orgToken]/mordedura/nuevo/page.tsx": {
       "text": 1,
+      "deadTextVar": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -694,6 +1192,7 @@
     },
     "app/org/[orgToken]/miembros/ChangeRoleSelect.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -701,6 +1200,7 @@
     },
     "app/org/[orgToken]/miembros/EventWriteToggle.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -708,6 +1208,7 @@
     },
     "app/org/[orgToken]/miembros/LeaveOrgButton.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -715,6 +1216,7 @@
     },
     "app/org/[orgToken]/miembros/page.tsx": {
       "text": 7,
+      "deadTextVar": 1,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -722,6 +1224,7 @@
     },
     "app/org/[orgToken]/miembros/RemoveMemberButton.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -729,6 +1232,7 @@
     },
     "app/org/[orgToken]/miembros/RevokeButton.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -736,6 +1240,7 @@
     },
     "app/org/[orgToken]/miembros/invitar/InviteForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -743,6 +1248,7 @@
     },
     "app/org/[orgToken]/miembros/invitar/page.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -750,6 +1256,7 @@
     },
     "app/org/[orgToken]/mascotas/OrgMascotasBulkList.tsx": {
       "text": 16,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -757,6 +1264,7 @@
     },
     "app/org/[orgToken]/mascotas/OrgMascotasPipelineBoard.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -764,6 +1272,7 @@
     },
     "app/org/[orgToken]/mascotas/page.tsx": {
       "text": 7,
+      "deadTextVar": 2,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -771,6 +1280,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/OrgPetSheetMounter.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -778,6 +1288,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/OwnerReturnProposalCard.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -785,6 +1296,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/page.tsx": {
       "text": 9,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -792,6 +1304,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/transfer/page.tsx": {
       "text": 5,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -799,6 +1312,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/transfer/TransferCustodyForm.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -806,6 +1320,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/microchip/reemplazar/ReplaceMicrochipForm.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -813,6 +1328,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/foster-fin/EndFosterForm.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -820,6 +1336,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/foster/page.tsx": {
       "text": 7,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -827,6 +1344,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/eligibility/EligibilityForm.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -834,6 +1352,15 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/devolver-al-dueno/ProposeReturnForm.tsx": {
       "text": 7,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/org/[orgToken]/mascotas/[publicToken]/adoption/FinalizeAdoptionForm.tsx": {
+      "text": 0,
+      "deadTextVar": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -841,6 +1368,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/adoption/page.tsx": {
       "text": 7,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -848,6 +1376,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/adoptar/AdoptionListingForm.tsx": {
       "text": 17,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -855,6 +1384,7 @@
     },
     "app/org/[orgToken]/mascotas/[publicToken]/adoptar/page.tsx": {
       "text": 7,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -862,6 +1392,7 @@
     },
     "app/org/[orgToken]/maltrato/recibidos/InterventionActions.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -869,6 +1400,7 @@
     },
     "app/org/[orgToken]/maltrato/recibidos/page.tsx": {
       "text": 4,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -876,6 +1408,7 @@
     },
     "app/org/[orgToken]/maltrato/nuevo/page.tsx": {
       "text": 2,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -883,6 +1416,7 @@
     },
     "app/org/[orgToken]/intake/IntakeForm.tsx": {
       "text": 22,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -890,6 +1424,7 @@
     },
     "app/org/[orgToken]/intake/page.tsx": {
       "text": 7,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -897,6 +1432,7 @@
     },
     "app/org/[orgToken]/intake/match/[matchedPetToken]/MatchConfirmationCard.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -904,6 +1440,7 @@
     },
     "app/org/[orgToken]/intake/match/[matchedPetToken]/page.tsx": {
       "text": 4,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -911,6 +1448,7 @@
     },
     "app/org/[orgToken]/configuracion/EditOrgForm.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -918,6 +1456,7 @@
     },
     "app/org/[orgToken]/configuracion/page.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -925,6 +1464,7 @@
     },
     "app/org/[orgToken]/cobertura/CoverageEditor.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -932,6 +1472,7 @@
     },
     "app/org/[orgToken]/cobertura/page.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -939,6 +1480,7 @@
     },
     "app/org/[orgToken]/checkins/page.tsx": {
       "text": 14,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -946,6 +1488,7 @@
     },
     "app/org/[orgToken]/censo/page.tsx": {
       "text": 6,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -953,6 +1496,7 @@
     },
     "app/org/[orgToken]/casos/page.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -960,6 +1504,7 @@
     },
     "app/org/[orgToken]/atender/page.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -967,6 +1512,7 @@
     },
     "app/org/[orgToken]/atender/[publicToken]/page.tsx": {
       "text": 2,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -974,6 +1520,7 @@
     },
     "app/org/[orgToken]/agenda/page.tsx": {
       "text": 5,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -981,6 +1528,7 @@
     },
     "app/org/[orgToken]/agenda/turnos/[appointmentToken]/page.tsx": {
       "text": 2,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -988,6 +1536,7 @@
     },
     "app/org/[orgToken]/adopciones/page.tsx": {
       "text": 2,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -995,6 +1544,7 @@
     },
     "app/org/[orgToken]/adopciones/[appEventId]/page.tsx": {
       "text": 5,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1002,6 +1552,7 @@
     },
     "app/org/[orgToken]/adopciones/[appEventId]/ReviewButtons.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1009,6 +1560,7 @@
     },
     "app/org/[orgToken]/admin/layout.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1016,34 +1568,55 @@
     },
     "app/org/[orgToken]/admin/permisos/CapabilityMatrix.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 4,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/org/[orgToken]/admin/permisos/page.tsx": {
       "text": 7,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/libreta/compartir/[shareToken]/page.tsx": {
-      "text": 7,
+      "text": 6,
+      "deadTextVar": 0,
       "space": 2,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/layout.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/page.tsx": {
+      "text": 0,
+      "deadTextVar": 6,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/vigilancia/page.tsx": {
+      "text": 0,
+      "deadTextVar": 14,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/gob/vigilancia/_components/DiseaseSummaryTable.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1051,6 +1624,7 @@
     },
     "app/gob/vigilancia/_components/OutbreakSignalRow.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1058,6 +1632,7 @@
     },
     "app/gob/vigilancia/investigaciones/page.tsx": {
       "text": 4,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1065,6 +1640,7 @@
     },
     "app/gob/vigilancia/investigaciones/[caseCode]/InvestigationActions.tsx": {
       "text": 8,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1072,6 +1648,7 @@
     },
     "app/gob/vigilancia/investigaciones/[caseCode]/page.tsx": {
       "text": 11,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -1079,6 +1656,7 @@
     },
     "app/gob/vigilancia/investigaciones/nuevo/OpenInvestigationForm.tsx": {
       "text": 7,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1086,6 +1664,15 @@
     },
     "app/gob/vigilancia/investigaciones/nuevo/page.tsx": {
       "text": 1,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/vigilancia/brotes/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1093,6 +1680,15 @@
     },
     "app/gob/usuarios/UsuariosScreen.tsx": {
       "text": 1,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/suscripciones/page.tsx": {
+      "text": 0,
+      "deadTextVar": 12,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1100,6 +1696,7 @@
     },
     "app/gob/sistema/page.tsx": {
       "text": 6,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1107,6 +1704,7 @@
     },
     "app/gob/servicios/ServiciosScreen.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1114,6 +1712,23 @@
     },
     "app/gob/servicios/[offeringToken]/page.tsx": {
       "text": 9,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/rupga/CredencialesScreen.tsx": {
+      "text": 0,
+      "deadTextVar": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/AdminReglasLens.tsx": {
+      "text": 0,
+      "deadTextVar": 11,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1121,6 +1736,7 @@
     },
     "app/gob/reglas/LocalityRuleDrilldown.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1128,6 +1744,7 @@
     },
     "app/gob/reglas/page.tsx": {
       "text": 2,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1135,6 +1752,7 @@
     },
     "app/gob/reglas/[country]/[province]/[locality]/DeleteRuleButton.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1142,6 +1760,23 @@
     },
     "app/gob/reglas/[country]/[province]/[locality]/page.tsx": {
       "text": 6,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/MicrochipRequiredForm.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/MpfExportFormatForm.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1149,6 +1784,15 @@
     },
     "app/gob/reglas/[country]/[province]/[locality]/nueva/NumericWindowRuleForm.tsx": {
       "text": 3,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/[country]/[province]/[locality]/nueva/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1156,6 +1800,7 @@
     },
     "app/gob/reglas/[country]/[province]/[locality]/nueva/PhysicalCredentialChannelsForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1163,6 +1808,7 @@
     },
     "app/gob/reglas/[country]/[province]/[locality]/nueva/PppAttestationRegistriesForm.tsx": {
       "text": 8,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1170,6 +1816,7 @@
     },
     "app/gob/reglas/[country]/[province]/[locality]/nueva/PppBreedListForm.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1177,6 +1824,23 @@
     },
     "app/gob/reglas/[country]/[province]/[locality]/nueva/PppWeightThresholdForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/[country]/[province]/[locality]/editar/[ruleId]/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/reglas/nueva/RulesWizard.tsx": {
+      "text": 0,
+      "deadTextVar": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1184,6 +1848,7 @@
     },
     "app/gob/programa/page.tsx": {
       "text": 12,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1191,6 +1856,39 @@
     },
     "app/gob/poblacion/PoblacionScreen.tsx": {
       "text": 7,
+      "deadTextVar": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/perdidas/page.tsx": {
+      "text": 0,
+      "deadTextVar": 5,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/perdidas/_components/LostPetRow.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/padron/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/outreach/AlcanceScreen.tsx": {
+      "text": 0,
+      "deadTextVar": 16,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1198,6 +1896,15 @@
     },
     "app/gob/outbox/page.tsx": {
       "text": 1,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/operativos/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1205,6 +1912,31 @@
     },
     "app/gob/mortalidad/page.tsx": {
       "text": 5,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/moderacion/ModeracionQueueScreen.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/moderacion/[id]/GovtModerationActions.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/moderacion/[id]/page.tsx": {
+      "text": 0,
+      "deadTextVar": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1212,6 +1944,55 @@
     },
     "app/gob/maltrato/MaltratoQueueScreen.tsx": {
       "text": 1,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/maltrato/_inspector/InspectorPanel.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/maltrato/_inspector/MpfExportGate.tsx": {
+      "text": 0,
+      "deadTextVar": 6,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/maltrato/_inspector/PetSubView.tsx": {
+      "text": 0,
+      "deadTextVar": 6,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/maltrato/_inspector/WelfareInspectorContent.tsx": {
+      "text": 0,
+      "deadTextVar": 13,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/maltrato/_components/ActuarButton.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/maltrato/_components/TomarButton.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1219,6 +2000,7 @@
     },
     "app/gob/maltrato/_components/WelfareDenunciaRow.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1226,6 +2008,7 @@
     },
     "app/gob/maltrato/[id]/DerivationPanel.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1233,6 +2016,7 @@
     },
     "app/gob/maltrato/[id]/page.tsx": {
       "text": 13,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1240,6 +2024,7 @@
     },
     "app/gob/maltrato/[id]/Timeline.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1247,6 +2032,7 @@
     },
     "app/gob/maltrato/[id]/TriageActions.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1254,6 +2040,23 @@
     },
     "app/gob/historial/page.tsx": {
       "text": 1,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/disputas/DisputasScreen.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/disputas/[disputeToken]/AddPartyForm.tsx": {
+      "text": 0,
+      "deadTextVar": 6,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1261,6 +2064,7 @@
     },
     "app/gob/disputas/[disputeToken]/EscalateDisputeForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1268,6 +2072,7 @@
     },
     "app/gob/disputas/[disputeToken]/page.tsx": {
       "text": 8,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1275,6 +2080,7 @@
     },
     "app/gob/disputas/[disputeToken]/ResolveDisputeForm.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1282,6 +2088,23 @@
     },
     "app/gob/disputas/[disputeToken]/WithdrawDisputeButton.tsx": {
       "text": 3,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/directorio/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/denuncias/page.tsx": {
+      "text": 0,
+      "deadTextVar": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1289,6 +2112,7 @@
     },
     "app/gob/decomisos/page.tsx": {
       "text": 8,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1296,6 +2120,15 @@
     },
     "app/gob/decomisos/_components/ReasignarButton.tsx": {
       "text": 3,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/decomisos/nuevo/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1303,6 +2136,15 @@
     },
     "app/gob/decomisos/nuevo/_components/DecomisoForm.tsx": {
       "text": 28,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/cola/page.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1310,6 +2152,15 @@
     },
     "app/gob/cola/[publicToken]/page.tsx": {
       "text": 6,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/cola/[publicToken]/ReviewActions.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1317,6 +2168,23 @@
     },
     "app/gob/censo/CensoScreen.tsx": {
       "text": 8,
+      "deadTextVar": 3,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/casos/CasosScreen.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/casos/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1324,6 +2192,7 @@
     },
     "app/gob/campanas/CampanasScreen.tsx": {
       "text": 0,
+      "deadTextVar": 16,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -1331,6 +2200,15 @@
     },
     "app/gob/analytics/page.tsx": {
       "text": 4,
+      "deadTextVar": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/analytics/_components/CasesPerCapitaTable.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1338,6 +2216,15 @@
     },
     "app/gob/analytics/_components/OutbreakHistoryTable.tsx": {
       "text": 2,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/analytics/_components/RegionRankingTable.tsx": {
+      "text": 0,
+      "deadTextVar": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1345,6 +2232,23 @@
     },
     "app/gob/analytics/export/ExportFormClient.tsx": {
       "text": 10,
+      "deadTextVar": 0,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/analytics/export/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/gob/adopciones/page.tsx": {
+      "text": 0,
+      "deadTextVar": 22,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1352,13 +2256,23 @@
     },
     "app/admin/layout.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/page.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/admin/_components/MagicLinkResultPanel.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1366,6 +2280,7 @@
     },
     "app/admin/sistema/page.tsx": {
       "text": 4,
+      "deadTextVar": 5,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1373,6 +2288,7 @@
     },
     "app/admin/programa/page.tsx": {
       "text": 12,
+      "deadTextVar": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1380,6 +2296,15 @@
     },
     "app/admin/poblacion/AdminPoblacionScreen.tsx": {
       "text": 6,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/padron/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1387,6 +2312,23 @@
     },
     "app/admin/outbox/page.tsx": {
       "text": 1,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/outbox/[id]/page.tsx": {
+      "text": 0,
+      "deadTextVar": 24,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/outbox/[id]/RetryOutboxButton.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1394,6 +2336,7 @@
     },
     "app/admin/observaciones/page.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1401,6 +2344,15 @@
     },
     "app/admin/observaciones/[publicToken]/page.tsx": {
       "text": 8,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/observaciones/[publicToken]/microchip/reemplazar/page.tsx": {
+      "text": 0,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1408,6 +2360,7 @@
     },
     "app/admin/observaciones/[publicToken]/microchip/reemplazar/ReplaceMicrochipForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1415,6 +2368,7 @@
     },
     "app/admin/moderacion/[id]/ModerationActions.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1422,6 +2376,7 @@
     },
     "app/admin/moderacion/[id]/page.tsx": {
       "text": 6,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1429,6 +2384,7 @@
     },
     "app/admin/libro/EventLedgerRow.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -1436,6 +2392,15 @@
     },
     "app/admin/libro/page.tsx": {
       "text": 3,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/inteligencia/page.tsx": {
+      "text": 0,
+      "deadTextVar": 7,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1443,6 +2408,7 @@
     },
     "app/admin/historial/page.tsx": {
       "text": 5,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1450,6 +2416,7 @@
     },
     "app/admin/govts/page.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1457,6 +2424,7 @@
     },
     "app/admin/govts/[userId]/page.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1464,6 +2432,7 @@
     },
     "app/admin/govts/new/CreateGovtForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1471,6 +2440,23 @@
     },
     "app/admin/censo/AdminCensoScreen.tsx": {
       "text": 11,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/casos/page.tsx": {
+      "text": 0,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/admin/auditoria/page.tsx": {
+      "text": 0,
+      "deadTextVar": 4,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1478,6 +2464,7 @@
     },
     "app/admin/alertas/AlertRowActions.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1485,6 +2472,7 @@
     },
     "app/admin/alertas/page.tsx": {
       "text": 1,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1492,6 +2480,7 @@
     },
     "app/admin/adopciones/page.tsx": {
       "text": 13,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1499,6 +2488,7 @@
     },
     "app/admin/admins/page.tsx": {
       "text": 2,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1506,6 +2496,7 @@
     },
     "app/admin/admins/[userId]/page.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1513,6 +2504,7 @@
     },
     "app/admin/admins/new/CreateAdminForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1520,27 +2512,31 @@
     },
     "app/admin/acerca/integracion-miarg/page.tsx": {
       "text": 7,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(public)/terminos/page.tsx": {
-      "text": 1,
+    "app/(public)/transparencia/page.tsx": {
+      "text": 0,
+      "deadTextVar": 8,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/sugerencias/page.tsx": {
-      "text": 3,
+      "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/refugios/page.tsx": {
-      "text": 5,
+      "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1548,13 +2544,15 @@
     },
     "app/(public)/refugios/[orgToken]/AdoptionPanel.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/refugios/[orgToken]/OrgHero.tsx": {
-      "text": 5,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 6,
       "rounded": 3,
       "shadow": 0,
@@ -1562,6 +2560,7 @@
     },
     "app/(public)/refugios/[orgToken]/page.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1569,6 +2568,7 @@
     },
     "app/(public)/refugios/[orgToken]/ServicesPanel.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1576,13 +2576,7 @@
     },
     "app/(public)/refugios/[orgToken]/sheets/ContactarSheet.tsx": {
       "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(public)/privacidad/page.tsx": {
-      "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1590,13 +2584,15 @@
     },
     "app/(public)/perdidas/LostFiltersBar.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/perdidas/page.tsx": {
-      "text": 1,
+      "text": 0,
+      "deadTextVar": 5,
       "space": 1,
       "rounded": 3,
       "shadow": 0,
@@ -1604,6 +2600,7 @@
     },
     "app/(public)/p/[publicToken]/CredentialStreamedSections.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1611,6 +2608,7 @@
     },
     "app/(public)/p/[publicToken]/DegradedCredentialCard.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
@@ -1618,20 +2616,23 @@
     },
     "app/(public)/p/[publicToken]/opengraph-image.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 3
     },
     "app/(public)/p/[publicToken]/page.tsx": {
-      "text": 21,
+      "text": 19,
+      "deadTextVar": 3,
       "space": 11,
       "rounded": 0,
       "shadow": 2,
-      "hexStyle": 1
+      "hexStyle": 0
     },
     "app/(public)/p/[publicToken]/Tier2MedicalView.tsx": {
       "text": 8,
+      "deadTextVar": 1,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -1639,6 +2640,7 @@
     },
     "app/(public)/p/[publicToken]/sighting/PetSightingForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 4,
@@ -1646,13 +2648,31 @@
     },
     "app/(public)/p/[publicToken]/encontre/FinderInPossessionForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
+    "app/(public)/leyes/page.tsx": {
+      "text": 0,
+      "deadTextVar": 5,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(public)/funcionalidades/page.tsx": {
+      "text": 0,
+      "deadTextVar": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/(public)/denuncias/page.tsx": {
-      "text": 5,
+      "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1660,6 +2680,7 @@
     },
     "app/(public)/denuncias/nueva/DenunciaWizard.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 4,
       "rounded": 0,
       "shadow": 0,
@@ -1667,6 +2688,7 @@
     },
     "app/(public)/denuncias/nueva/_components/Step1Kind.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 2,
@@ -1674,6 +2696,7 @@
     },
     "app/(public)/denuncias/nueva/_components/Step2Severity.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 1,
       "shadow": 3,
@@ -1681,6 +2704,7 @@
     },
     "app/(public)/denuncias/nueva/_components/Step3Where.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
@@ -1688,6 +2712,7 @@
     },
     "app/(public)/denuncias/nueva/_components/Step4Subject.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 3,
@@ -1695,20 +2720,23 @@
     },
     "app/(public)/denuncias/nueva/_components/Step5Contact.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 3,
       "shadow": 4,
       "hexStyle": 0
     },
     "app/(public)/denuncias/codigo/[code]/page.tsx": {
-      "text": 5,
+      "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 3,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/denuncias/buscar/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1716,20 +2744,23 @@
     },
     "app/(public)/denuncias/buscar/SearchForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(public)/cookies/page.tsx": {
-      "text": 6,
+      "text": 5,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/ayuda/page.tsx": {
-      "text": 8,
+      "text": 7,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1737,13 +2768,15 @@
     },
     "app/(public)/adoptar/AdoptionFiltersBar.tsx": {
       "text": 8,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/adoptar/page.tsx": {
-      "text": 1,
+      "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 1,
       "shadow": 0,
@@ -1751,6 +2784,7 @@
     },
     "app/(public)/adoptar/[petToken]/AdoptionShareRow.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 2,
       "shadow": 0,
@@ -1758,13 +2792,15 @@
     },
     "app/(public)/adoptar/[petToken]/ApplyButton.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/adoptar/[petToken]/page.tsx": {
-      "text": 16,
+      "text": 13,
+      "deadTextVar": 0,
       "space": 13,
       "rounded": 2,
       "shadow": 0,
@@ -1772,34 +2808,31 @@
     },
     "app/(public)/adoptar/[petToken]/postular/ApplicationForm.tsx": {
       "text": 17,
+      "deadTextVar": 0,
       "space": 10,
       "rounded": 11,
       "shadow": 0,
       "hexStyle": 1
     },
     "app/(public)/adoptar/[petToken]/postular/page.tsx": {
-      "text": 10,
+      "text": 7,
+      "deadTextVar": 2,
       "space": 5,
       "rounded": 4,
       "shadow": 0,
       "hexStyle": 1
     },
     "app/(public)/acerca/page.tsx": {
-      "text": 6,
+      "text": 5,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(public)/accesibilidad/page.tsx": {
-      "text": 7,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(auth)/signup/page.tsx": {
-      "text": 1,
+      "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1807,13 +2840,7 @@
     },
     "app/(auth)/signup/SignupForm.tsx": {
       "text": 0,
-      "space": 0,
-      "rounded": 3,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(auth)/recuperar/page.tsx": {
-      "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1821,34 +2848,15 @@
     },
     "app/(auth)/recuperar/ResetRequestForm.tsx": {
       "text": 0,
-      "space": 0,
-      "rounded": 2,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(auth)/recuperar/actualizar/page.tsx": {
-      "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(auth)/recuperar/actualizar/UpdatePasswordForm.tsx": {
-      "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(auth)/login/page.tsx": {
-      "text": 1,
-      "space": 0,
-      "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/turnos/buscar/page.tsx": {
-      "text": 8,
+      "text": 6,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -1856,13 +2864,15 @@
     },
     "app/(app)/turnos/buscar/SearchFiltersForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 2,
       "hexStyle": 0
     },
     "app/(app)/turnos/buscar/[offeringToken]/page.tsx": {
       "text": 8,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -1870,20 +2880,23 @@
     },
     "app/(app)/turnos/buscar/[offeringToken]/reservar/[slotId]/BookingFormClient.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/turnos/buscar/[offeringToken]/reservar/[slotId]/page.tsx": {
-      "text": 4,
+      "text": 3,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/transferencias/page.tsx": {
-      "text": 16,
+      "text": 15,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -1891,48 +2904,47 @@
     },
     "app/(app)/transferencias/[transferToken]/AcceptTransferActions.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 7,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/transferencias/[transferToken]/page.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/notificaciones/page.tsx": {
-      "text": 5,
+      "text": 4,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-turnos/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/mis-turnos/[appointmentToken]/CancelButton.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/mis-turnos/[appointmentToken]/page.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -1940,69 +2952,39 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/page.tsx": {
       "text": 0,
+      "deadTextVar": 11,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/mis-mascotas/[publicToken]/_transfer/TransferSenderForm.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/mis-mascotas/[publicToken]/_tier2-public/Tier2PublicView.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 3,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/mis-mascotas/[publicToken]/_share-libreta/ShareLibretaSheet.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 2,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/mis-mascotas/[publicToken]/_components/ConvertFosterButton.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 3,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/mis-mascotas/[publicToken]/_components/PetReminders.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 2,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/mis-mascotas/[publicToken]/vacunas/programar/page.tsx": {
-      "text": 4,
+      "text": 3,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/mis-mascotas/[publicToken]/vacunas/programar/ScheduleVaccineForm.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/mis-mascotas/[publicToken]/perdida/MarkLostWizard.tsx": {
       "text": 5,
+      "deadTextVar": 1,
       "space": 7,
-      "rounded": 3,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/perdida/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 1,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/mis-mascotas/[publicToken]/perdida/UpdateLastSeenForm.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2010,13 +2992,15 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/mudanza/MoveForm.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 1,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/mudanza/page.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -2024,6 +3008,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 6,
       "rounded": 0,
       "shadow": 0,
@@ -2031,27 +3016,31 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/libreta/SharesManager.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 6,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/[eventId]/AmendEventButton.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/[eventId]/AmendEventForm.tsx": {
       "text": 7,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 4,
+      "rounded": 1,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/[eventId]/page.tsx": {
       "text": 10,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2059,6 +3048,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/AttachmentField.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 1,
       "shadow": 0,
@@ -2066,6 +3056,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/loading.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2073,6 +3064,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/vet/VetVisitForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2080,6 +3072,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/vacuna/VaccinationForm.tsx": {
       "text": 1,
+      "deadTextVar": 3,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2087,6 +3080,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/tatuaje/TattooForm.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 2,
       "shadow": 0,
@@ -2094,6 +3088,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/sintoma/SymptomForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2101,6 +3096,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/mordedura/BiteForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 1,
       "shadow": 0,
@@ -2108,6 +3104,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/mordedura/page.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2115,13 +3112,15 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/microchip-reemplazo/page.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/microchip-reemplazo/ReplaceMicrochipForm.tsx": {
       "text": 3,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2129,6 +3128,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/microchip/MicrochipForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2136,6 +3136,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/medicacion-inicio/MedicationStartForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2143,6 +3144,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/medicacion-fin/MedicationEndForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2150,6 +3152,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/medicacion-fin/page.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2157,6 +3160,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/fallecimiento/DeathRecordForm.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2164,6 +3168,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/esterilizacion/SterilizationForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2171,13 +3176,15 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/embarazo/page.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/embarazo/PregnancyEndedForm.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2185,6 +3192,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/embarazo/PregnancyStartedForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2192,6 +3200,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/clinico/ClinicalInfoForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2199,6 +3208,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/checkin/CheckinForm.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2206,6 +3216,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/checkin/page.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2213,6 +3224,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/antiparasitario/DewormingForm.tsx": {
       "text": 1,
+      "deadTextVar": 1,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2220,6 +3232,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/eventos/atestar-raza-peligrosa/DangerousBreedAttestationForm.tsx": {
       "text": 7,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2227,6 +3240,7 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/editar/page.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
@@ -2234,13 +3248,15 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/devolucion/OwnerInitiateReturnForm.tsx": {
       "text": 7,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 3,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/devolucion/page.tsx": {
-      "text": 9,
+      "text": 6,
+      "deadTextVar": 0,
       "space": 3,
       "rounded": 0,
       "shadow": 0,
@@ -2248,55 +3264,63 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/devolucion/ReturnAcceptanceCard.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 3,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/corregir-especie/CorrectSpeciesForm.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/corregir-especie/page.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 2,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/mis-mascotas/[publicToken]/chapita/ChapitaSheet.tsx": {
+      "text": 0,
+      "deadTextVar": 4,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
+    "app/(app)/mis-mascotas/[publicToken]/chapita/page.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/cartel/page.tsx": {
       "text": 2,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/mis-mascotas/[publicToken]/cartel/PosterPreview.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 2,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/buscar-hogar/page.tsx": {
-      "text": 4,
+      "text": 3,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/mis-mascotas/[publicToken]/buscar-hogar/RehomeRequestForm.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/mis-mascotas/[publicToken]/asistencia/page.tsx": {
-      "text": 11,
+      "text": 10,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2304,13 +3328,15 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/asistencia/ServiceDogForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 7,
+      "rounded": 0,
       "shadow": 7,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/asistencia/presentar/page.tsx": {
-      "text": 14,
+      "text": 13,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2318,20 +3344,31 @@
     },
     "app/(app)/mis-mascotas/[publicToken]/anotar/CaptureBox.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
+    "app/(app)/mis-mascotas/[publicToken]/anotar/CaptureOptionsList.tsx": {
+      "text": 0,
+      "deadTextVar": 2,
+      "space": 0,
+      "rounded": 0,
+      "shadow": 0,
+      "hexStyle": 0
+    },
     "app/(app)/mis-mascotas/[publicToken]/anotar/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/reclamar-dni/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2339,20 +3376,23 @@
     },
     "app/(app)/mis-mascotas/reclamar/ClaimWizard.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 12,
+      "rounded": 0,
       "shadow": 2,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/reclamar/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/postulaciones/page.tsx": {
-      "text": 13,
+      "text": 12,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2360,13 +3400,15 @@
     },
     "app/(app)/mis-mascotas/postulaciones/WithdrawApplicationButton.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 3,
-      "rounded": 3,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/nueva/MinimalNewPetForm.tsx": {
       "text": 3,
+      "deadTextVar": 9,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2374,41 +3416,31 @@
     },
     "app/(app)/mis-mascotas/nueva/[publicToken]/credencial/PetCreatedAha.tsx": {
       "text": 1,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 3,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/mis-mascotas/nueva/match/[matchedPetToken]/MatchConfirmationCardVecino.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 2,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/nueva/match/[matchedPetToken]/page.tsx": {
-      "text": 3,
+      "text": 2,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/denuncias/[id]/page.tsx": {
-      "text": 19,
+      "text": 18,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/denuncias/[id]/_components/ReporterCommentForm.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/denuncias/mias/page.tsx": {
-      "text": 5,
+      "text": 4,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2416,34 +3448,39 @@
     },
     "app/(app)/cuenta/loading.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 2,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/page.tsx": {
-      "text": 15,
+      "text": 14,
+      "deadTextVar": 1,
       "space": 7,
-      "rounded": 4,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/_components/DeactivateAccountDialog.tsx": {
       "text": 5,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
-    "app/(app)/cuenta/verificar-dni/DniVerifyForm.tsx": {
+    "app/(app)/cuenta/_components/PushNotificationsCard.tsx": {
       "text": 0,
+      "deadTextVar": 3,
       "space": 0,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/verificar-dni/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2451,13 +3488,15 @@
     },
     "app/(app)/cuenta/upgrade/OrgCreateForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 2,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/upgrade/page.tsx": {
-      "text": 9,
+      "text": 8,
+      "deadTextVar": 2,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2465,20 +3504,23 @@
     },
     "app/(app)/cuenta/upgrade/VetUpgradeForm.tsx": {
       "text": 4,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 2,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/transitos/propuestas/page.tsx": {
-      "text": 7,
+      "text": 6,
+      "deadTextVar": 0,
       "space": 1,
-      "rounded": 1,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/transitos/propuestas/[proposalToken]/page.tsx": {
-      "text": 6,
+      "text": 5,
+      "deadTextVar": 0,
       "space": 0,
       "rounded": 0,
       "shadow": 0,
@@ -2486,48 +3528,39 @@
     },
     "app/(app)/cuenta/transitos/propuestas/[proposalToken]/ProposalActions.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 6,
+      "rounded": 0,
       "shadow": 3,
       "hexStyle": 0
     },
     "app/(app)/cuenta/transitos/historial/page.tsx": {
-      "text": 9,
+      "text": 8,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/cuenta/transitos/activos/CoFosterToggle.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 2,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/cuenta/transitos/activos/page.tsx": {
-      "text": 5,
+      "text": 4,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/solicitudes/page.tsx": {
-      "text": 9,
+      "text": 8,
+      "deadTextVar": 0,
       "space": 6,
-      "rounded": 1,
-      "shadow": 0,
-      "hexStyle": 0
-    },
-    "app/(app)/cuenta/solicitudes/WithdrawButton.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 3,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/renunciar/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2535,13 +3568,15 @@
     },
     "app/(app)/cuenta/renunciar/VetSelfResignForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 2,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/cuenta/privacidad/page.tsx": {
-      "text": 3,
+      "text": 2,
+      "deadTextVar": 1,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2549,20 +3584,23 @@
     },
     "app/(app)/cuenta/privacidad/PrivacyActions.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 4,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/cuenta/ofrecerme-como-transito/FosterVolunteerWizard.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 9,
+      "rounded": 0,
       "shadow": 2,
       "hexStyle": 0
     },
     "app/(app)/cuenta/ofrecerme-como-transito/page.tsx": {
-      "text": 5,
+      "text": 4,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
@@ -2570,13 +3608,15 @@
     },
     "app/(app)/cuenta/memberships/LeaveMembershipButton.tsx": {
       "text": 6,
+      "deadTextVar": 0,
       "space": 4,
-      "rounded": 4,
+      "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
     "app/(app)/cuenta/memberships/page.tsx": {
-      "text": 8,
+      "text": 7,
+      "deadTextVar": 0,
       "space": 6,
       "rounded": 0,
       "shadow": 0,
@@ -2584,34 +3624,31 @@
     },
     "app/(app)/cuenta/editar/EditProfileForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 2,
+      "rounded": 0,
       "shadow": 2,
       "hexStyle": 0
     },
     "app/(app)/cuenta/desactivar/GovtSelfDeactivateForm.tsx": {
       "text": 0,
+      "deadTextVar": 0,
       "space": 0,
-      "rounded": 2,
+      "rounded": 0,
       "shadow": 1,
       "hexStyle": 0
     },
     "app/(app)/cuenta/desactivar/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 0,
       "space": 1,
       "rounded": 0,
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/(app)/cuenta/crear-consultorio/CrearConsultorioForm.tsx": {
-      "text": 0,
-      "space": 0,
-      "rounded": 4,
-      "shadow": 0,
-      "hexStyle": 0
-    },
     "app/(app)/cuenta/crear-consultorio/page.tsx": {
-      "text": 2,
+      "text": 1,
+      "deadTextVar": 3,
       "space": 1,
       "rounded": 0,
       "shadow": 0,

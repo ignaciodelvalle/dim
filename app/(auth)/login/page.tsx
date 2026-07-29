@@ -106,7 +106,7 @@ export default async function LoginPage({
           {/* 24.1 Intent-aware heading: contextual label when an intent is present. */}
           <h1
             id="auth-heading"
-            className="font-[var(--font-ln-serif)] text-[28px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]"
+            className="font-[var(--font-ln-serif)] text-3xl font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]"
           >
             {intentCopy ? intentCopy.headline : "Iniciar sesión"}
           </h1>

@@ -32,7 +32,7 @@ export default function RecuperarPage() {
       </div>
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="font-[var(--font-ln-serif)] text-[28px] font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="font-[var(--font-ln-serif)] text-3xl font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Recuperar contraseña
           </h1>
           <p className="text-sm text-[var(--color-ln-ink-2)]">

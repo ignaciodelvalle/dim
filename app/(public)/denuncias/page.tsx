@@ -23,7 +23,7 @@ export default function DenunciasPage() {
             Portal de bienestar animal
           </p>
           <h1
-            className="text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]"
+            className="text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             Denuncias

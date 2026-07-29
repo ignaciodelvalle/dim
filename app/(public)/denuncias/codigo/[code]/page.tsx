@@ -233,7 +233,7 @@ export default async function WelfareReportByCodePage({
         {/* Header */}
         <header className="space-y-3">
           <h1
-            className="text-[28px] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
+            className="text-3xl font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             {welfareReportKindLabel(report.kind)}

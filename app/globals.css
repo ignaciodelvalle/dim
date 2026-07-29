@@ -180,6 +180,24 @@
   --text-title: 22px;
   --text-2xl: 24px;
 
+  /* DISPLAY steps (D.1, 2026-07-29). The scale above stopped at 24px, so every
+   * heading larger than that was untokenized BY CONSTRUCTION — 67 hand-written
+   * sizes on serif headings across 57 files, in ten distinct values from 26 to
+   * 72. The design-token ratchet could only grandfather them; there was nothing
+   * to point them at.
+   *
+   * The steps come from what the app actually uses, measured rather than
+   * invented. 26/27/28/30 collapse into ONE step: 54 of those 57 files use a
+   * single display size, and in the only two files where 28 and 30 coexist they
+   * differ by 2px, which nobody perceives at that size. Three barely-different
+   * values doing one job is the definition of the drift this replaces — it was
+   * never a hierarchy. Real two-tier hierarchies survive (OrgHero's 38/26
+   * becomes 5xl/3xl). */
+  --text-3xl: 28px; /* page + card headings — the dominant display size */
+  --text-4xl: 34px; /* section heroes */
+  --text-5xl: 40px; /* landing / org heroes */
+  --text-hero: 72px; /* the single largest mark (adoption hero) */
+
   /* "Sin foto" diagonal-stripe motif. The same 135° pattern is hardcoded at
      ~8 call sites with THREE near-identical hex pairs (#f2efe6 / #f1eee5 /
      #f3f0e7) and five stripe widths — Chip.tsx, RegRow.tsx, Sheet.tsx,

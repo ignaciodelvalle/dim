@@ -93,7 +93,7 @@ export default async function ReservarTurnoPage({
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Confirmar reserva
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">

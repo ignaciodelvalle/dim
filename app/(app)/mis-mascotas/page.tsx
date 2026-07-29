@@ -201,7 +201,7 @@ export default async function MisMascotasPage({
       {/* ------------------------------------------------------------------ */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis mascotas
           </h1>
           <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">

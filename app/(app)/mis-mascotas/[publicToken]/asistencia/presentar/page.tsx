@@ -103,7 +103,7 @@ export default async function AsistenciaPresentarPage({
 
         {/* Pet name and service type */}
         <div className="text-center">
-          <h1 className="font-[var(--font-ln-serif)] text-[40px] font-semibold tracking-tight text-[var(--color-ln-ink)]">
+          <h1 className="font-[var(--font-ln-serif)] text-5xl font-semibold tracking-tight text-[var(--color-ln-ink)]">
             {pet.name}
           </h1>
           <p className="mt-1 text-lg text-[var(--color-ln-ok)]">{serviceTypeLabel}</p>

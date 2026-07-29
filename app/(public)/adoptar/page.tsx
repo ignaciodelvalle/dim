@@ -53,7 +53,7 @@ export default async function AdoptarPage({
       <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">
         {/* Hero heading */}
         <header className="space-y-2 max-w-[720px]">
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[42px] font-semibold leading-[1.05] tracking-[-0.025em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-[var(--font-ln-serif)] text-5xl font-semibold leading-[1.05] tracking-[-0.025em] text-[var(--color-ln-ink)]">
             Adoptar en <span className="text-[var(--color-ln-azul)]">miMAR</span>
           </h1>
           <p className="text-base leading-[1.55] text-[var(--color-ln-ink-2)]">

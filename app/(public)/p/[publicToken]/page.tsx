@@ -663,7 +663,7 @@ export default async function PublicCredentialPage({
           <div className="px-4 pt-[15px] pb-3">
             {/* h1: this is the most-scanned public page in the product (QR landing) —
                 it must expose a page-level heading (WCAG 1.3.1 / 2.4.6). */}
-            <h1 className="flex items-center gap-[9px] font-[var(--font-ln-serif)] text-[27px] font-semibold leading-none tracking-[-0.02em] text-ln-ink">
+            <h1 className="flex items-center gap-[9px] font-[var(--font-ln-serif)] text-3xl font-semibold leading-none tracking-[-0.02em] text-ln-ink">
               {pet.name}
               {/* Status dot — default green; .pc-cred[data-situation] retints
                   it (a green "all good" dot next to a lost pet's name would

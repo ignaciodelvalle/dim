@@ -13,6 +13,10 @@ const filtered = files.filter((f) => {
 });
 
 const textRe = /text-\[\d+\.?\d*px\]/g;
+// Rule 9 — kept in sync with DEAD_TEXT_VAR in check-design-tokens.ts.
+// `text-[var(--text-*)]` compiles to `color:var(--text-*)` in Tailwind v4, not
+// to a font-size, so every one of these is a dead declaration.
+const deadTextVarRe = /\btext-\[var\(--text-[a-z0-9-]+\)\]/g;
 // Kept in sync with ARBITRARY_SPACING_PX in check-design-tokens.ts (also matches
 // 2-4 value compound shorthand, e.g. p-[14px_16px]) — this generator has its own
 // copy of the regex rather than importing it, so both must be updated together.
@@ -30,13 +34,14 @@ for (const f of filtered) {
   const rel = f.replaceAll("\\", "/");
   const src = readFileSync(f, "utf8");
   const t = [...src.matchAll(textRe)].length;
+  const dtv = [...src.matchAll(deadTextVarRe)].length;
   const s = [...src.matchAll(spaceRe)].length;
   const r = [...src.matchAll(roundedRe)].length;
   const sh = [...src.matchAll(shadowRe)].length;
   const h = [...src.matchAll(hexStyleRe)].length;
-  const total = t + s + r + sh + h;
+  const total = t + dtv + s + r + sh + h;
   if (total > 0) {
-    baseline[rel] = { text: t, space: s, rounded: r, shadow: sh, hexStyle: h };
+    baseline[rel] = { text: t, deadTextVar: dtv, space: s, rounded: r, shadow: sh, hexStyle: h };
     grandTotal += total;
   }
 }
