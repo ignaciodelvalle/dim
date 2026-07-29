@@ -367,6 +367,32 @@ respuesta fue partir, no re-baselinear: salieron `no-data-pattern.ts` (el tile),
 `no-data-overlay.ts` (las capas) y `map-pattern-images.ts` (el registro
 compartido). `SituationalMap.tsx` terminó en **3398**, justo en su tope.
 
+## D.1 — lo que "una línea" tenía adentro
+
+`pnpm verify` exit 0. Suite: **1065/1065 + 1 arreglado, 12.533 verdes**.
+
+**El encuadre del plan estaba mal, y en las dos direcciones.** No eran "22
+archivos de UI": el radio vive en UNA línea de `LnButton`. Pero al girarla
+aparecieron **119 botones crudos que habían copiado su 3px a mano**, más 26
+anclas con look de botón — coincidían por accidente antes y habrían divergido
+de su propio primitivo después. Codemod consciente de llaves, acotado a tags de
+apertura y partido por la misma frontera de superficie que usa el fence.
+
+**El fence es el entregable, no el fix.** Sin él esto se re-hace en tres meses:
+la regla vivía solo en un comentario de CSS, y los comentarios no fallan builds.
+`lint:buttons` estaba mirando este archivo todo el tiempo, guardando otra cosa.
+
+**Lección de fence, aprendida en el intento fallido**: mi primera versión también
+escaneaba `<a>`/`<Link>` y reportó **310 violaciones, casi todas legítimas** —
+acá una ancla es muy seguido una CARD o un item de nav. Un fence que marca
+código correcto termina allowlisteado y después ignorado. Lo acoté a `<button>`,
+que es inequívoco.
+
+**Un test rojo, y del tipo correcto**: `Button.test.tsx` pinneaba
+`rounded-[3px]` literal y se puso rojo en el instante justo. Ahora pinnea la
+FORMA de la regla (un token `--radius-*`), no el valor — la regla vuelve a
+tener una sola casa.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -386,7 +412,8 @@ compartido). `SituationalMap.tsx` terminó en **3398**, justo en su tope.
 | #40 k-anon provincia | pendiente | |
 | D.3 | pendiente | |
 | D.4 | pendiente | |
-| D.1 | **reclasificada: NO es barata** — 22 archivos de UI + verificación visual. Va a la pasada de e2e | |
+| D.1 (radio) | **hecha** — canon de dos reglas (ciudadano `--radius-pill`, operador `--radius-op-btn`), codemod de 145 sitios, y `lint:buttons` extendido con ratchet de radio. + el "Buscar" rojo migrado a `LnButton` | `e23ebca1` |
+| D.1 (h1) | **pendiente, medida** — 14 tamaños serif artesanales (28px ×25, 30px ×11, 26px ×10, hasta 72px) contra una escala `--text-*` que corta en 24px. Hay que agregar pasos display ANTES de mover un solo call site | |
 | SC-6 | pendiente | |
 | C.1 | pendiente | |
 | C.2 | pendiente | |
