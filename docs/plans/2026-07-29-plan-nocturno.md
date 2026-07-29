@@ -326,6 +326,30 @@ hubiera sido la respuesta equivocada a un ratchet que existe para impedir eso.
 Se extrajo `ScopePillSummary.tsx` y el archivo quedó en **5079** — más chico que
 antes de tocarlo.
 
+## Los instrumentos (2026-07-29) — arreglados a medias, y el resto acotado
+
+| unidad | estado | commit |
+|---|---|---|
+| Pool de pg drenado por archivo | **hecha** — recuperó 5 tests perdidos; la aritmética cierra exacta por 1ª vez | `a6e5bb38` |
+| Guard de `qa-up.ps1` | **hecha** — falla duro con el PID; verifica DESPUÉS de arrancar | `38bff022` |
+| Runbook falsificado | **corregido** | `7b66c2d8` |
+| `pnpm test` sale 1 | **abierto, pero acotado** | |
+
+**Lo que se recuperó**: los pools quedaban abandonados esperando `idle_timeout`.
+`db/index.ts` ya decía "per-file pool recycling" — nadie reciclaba. Al drenarlos,
+**12521 → 12526 tests** y `12541 − 12526 − 4 − 11 = 0`. Se perdían tests con los
+sockets, en silencio.
+
+**Lo que quedó falsificado**: el runbook culpaba a postgres.js. Medido:
+`--project unit` exit 0 (485 archivos), `--project db` exit 0 (581 archivos),
+**cero errores de worker en cada uno**. El crash aparece SOLO con los dos juntos
+→ es interacción entre los workers paralelos de unit y el serial de db. La
+próxima sesión no tiene que volver a mirar el pool.
+
+**Trampa nueva y cara** (rompió 45 archivos en un intento): el proxy de mock de
+vitest tira al **LEER** la propiedad, no al llamarla. `mod.fn?.()` NO alcanza
+sobre un módulo mockeado; hay que envolver en try/catch.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
