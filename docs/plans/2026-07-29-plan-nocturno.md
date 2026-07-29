@@ -290,6 +290,24 @@ de strings. Pasaba verde con ΔE00 4,62, o sea con los dos rellenos indistinguib
 El patrón ya no admite lectura de accidente: cuando el test se escribe DESPUÉS del
 arreglo, describe lo que el código hace, no lo que promete.
 
+## Pasada de UI viva (2026-07-29) — el entorno mintió primero
+
+**El `:3000` estaba sirviendo un build zombi, y casi me come otra vez.** Primera
+medición del header a 390px dio números imposibles (el escudo de `w-[26px]`
+midiendo 374px). No era el fix: la página se había renderizado **sin CSS**.
+Chunks con 400 y MIME `text/html`, `window.next` undefined.
+
+Cómo se prueba, sin teoría: `.next/BUILD_ID` en disco pedía
+`webpack-d0e1d711…` y la página pedía `webpack-518daa31…`. Distinto build.
+
+`qa-up.ps1` **dijo** que reiniciaba el servidor viejo y no pudo: el proceso
+corre en otro contexto de seguridad y `taskkill` devuelve *Access is denied*.
+Workaround: `pnpm start -p 3001` y trabajar ahí.
+
+**Esto es una unidad nueva, no una anécdota**: el guard de `qa-up.ps1` reporta
+éxito sin verificar que el servidor viejo murió. Un guard que no puede fallar
+ruidosamente es peor que no tenerlo, porque compra confianza que no tiene.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -298,7 +316,7 @@ arreglo, describe lo que el código hace, no lo que promete.
 | #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
 | #31 crisis-seams (b) | **parcial** — bug del helper arreglado; queda un cuelgue real específico de Rocco@Recoleta | `1ea0a95e` |
 | C.3 | **hecha** — frame nacional usa el extent estático; el test que pinneaba el defecto, reescrito | `21495015` |
-| C.4 | **affordance verificada existente**; falta el test — el spec no localiza los selects que un script tsx sí ve. Detalle arriba | |
+| C.4 | **hecha** — el spec nunca falló por selectores: los selects viven en un `<details>` NATIVO cerrado (el locator resolvía y el elemento estaba hidden), y lo abre un `<summary>`, no un button. Hallazgo de producto abierto: en sesión fresca el operador nuevo no ve ningún control de drill | `fec3e9df` |
 | D.6 | **hecha** — las tres. Header: el bloque de marca se aplastaba a 2px (era `flex-1 min-w-0` contra chips que no ceden) → `basis-[7rem]` hace wrappear. Foto: `CredentialPhoto` cliente con `onError` + 4 tests. Mapa: **el plan decía "falta atribución OSM" y estaba mal** — `LocationMap` ya la declara; `PublicLostSections` la RECORTABA (`h-40 overflow-hidden` sobre un mapa `h-64`, se perdían los 96px donde MapLibre la dibuja). Era licencia ODbL, no cosmética | |
 | D.5 (c) | **hecha** — PO eligió (c)+(b). Rampa re-espaciada: clase-1 vs tierra 4,21 → **16,38**, pasos parejos. + `color-distance.ts` (ΔE00) y el 4º test que pinneaba su defecto, reescrito | `3aee0ccd` |
 | D.5 (b) | **pendiente, va a la pasada de UI viva** — textura propia para "sin datos". Es una capa `fill-pattern` + filtro × 3 superficies (SituationalMap, CabaInset, MapChoropleth), y una textura no se shipea sin mirarla | |
