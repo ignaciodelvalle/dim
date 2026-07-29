@@ -187,6 +187,45 @@ si los selects viven en un portal que aparece sólo tras una interacción que mi
 heurística de "click en el chip" no acierta. Volcar el HTML del panel en el
 contexto del SPEC (no del script) lo separa en una corrida.
 
+## D.5 — medido, y resulta SOBRE-RESTRINGIDO (necesita decisión de producto)
+
+Calculé ΔE00 sobre los cuatro colores que compiten en el mapa:
+
+| Par | ΔE00 | Lectura |
+|---|---|---|
+| sin-datos `#e7eaed` vs tierra `#eef1f4` | **1,48** | indistinguibles |
+| clase-1 `#eff3ff` vs tierra `#eef1f4` | **4,21** | **casi indistinguibles** |
+| sin-datos vs clase-1 | 4,62 | débil |
+| sin-datos vs suprimido `#d1d5db` | 4,93 | débil |
+| entre clases de datos adyacentes | 10,77 | esto sí separa |
+
+**El hallazgo que la review no nombró**: `clase-1 vs tierra = 4,21`. Una
+provincia CON datos en la clase más baja es casi indistinguible de una provincia
+sin nada. Eso es peor que el piso de sin-datos, porque el mapa sub-reporta
+cobertura que sí existe.
+
+**Por qué no lo arreglé solo moviendo un color**: barrí todos los grises
+achromáticos entre `#c8c8c8` y `#e6e6e6`. Para separarse de la tierra hay que
+oscurecer (≥`#cbcbcb` da 8,67), pero ahí se choca con **suprimido `#d1d5db`**,
+que ocupa esa misma banda de luminosidad (ΔE cae a 3-4). **Ningún gris supera 8
+contra los tres a la vez.** Cuatro estados sobre un solo eje achromático no
+entran.
+
+**Opciones para el PO (ninguna es obviamente correcta):**
+- **(a)** Re-espaciar los TRES: mover suprimido más oscuro y sin-datos al medio.
+  Toca el token de suprimido, que hoy tiene su rayado y sus tests.
+- **(b)** Dejar de pedirle todo al relleno: sin-datos con contorno/textura
+  propia, como suprimido ya hace con el hachurado. Separa por forma, no por
+  color, y saca la restricción del eje.
+- **(c)** Aceptar que sin-datos ≈ tierra está BIEN —"sin datos" y "fuera del
+  análisis" son conceptos vecinos— y gastar el presupuesto de contraste en
+  **clase-1 vs tierra**, que es el que miente. El más barato y el que ataca el
+  daño real.
+
+Mi recomendación es **(c) + (b)**: subir el piso de clase-1 para que un dato
+bajo se vea como dato, y darle a sin-datos una marca propia en vez de pelear el
+eje de luminosidad.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -197,7 +236,7 @@ contexto del SPEC (no del script) lo separa en una corrida.
 | C.3 | pendiente | |
 | C.4 | **affordance verificada existente**; falta el test — el spec no localiza los selects que un script tsx sí ve. Detalle arriba | |
 | D.6 | pendiente | |
-| D.5 | pendiente | |
+| D.5 | **medida, bloqueada en decisión** — sobre-restringido en un eje; opciones y recomendación arriba | |
 | H.1 restante | **hecha** — `grain` faltante TIRA (D6) + los 7 throw-paths con test (21 en total) | |
 | H.2 | pendiente | |
 | #38 recuperadas | pendiente | |
