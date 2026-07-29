@@ -66,16 +66,40 @@ pnpm test          # vitest run — the whole suite
 pnpm test:watch    # vitest — watch mode
 ```
 
-**Reality as of current `main` (2026-07-18):** the suite runs **serially**
-(`fileParallelism: false` in `vitest.config.ts`) because tests touch the shared
-local Postgres via Drizzle and would pollute each other in parallel. A full run
-is **~12 minutes**. `globalSetup` closes the postgres.js pool once at the end to
-avoid "Worker exited unexpectedly" socket-teardown noise.
+**Reality as of 2026-07-29 (measured, not estimated).** The project split landed,
+so `vitest.config.ts` runs two projects:
 
-> ⚠️ **Update pending:** a vitest project split (unit vs integration) is landing
-> today. Once it merges, unit tests should run in parallel and this timing +
-> the `fileParallelism` note will change. Re-verify this section against
-> `vitest.config.ts` after that change lands.
+| project | files | tests | wall clock | how it runs |
+|---|---|---|---|---|
+| `unit` | 485 | 6.796 | **~40 s** | parallel workers, no DB |
+| `db` | 581 | 5.730 | **~13 min** | `fileParallelism: false`, shared local Postgres |
+
+Run just the fast half while iterating — it is the whole suite's coverage of
+anything that does not touch the database:
+
+```sh
+pnpm exec vitest run --project unit
+```
+
+### `pnpm test` exits 1 even when nothing fails — known, being worked
+
+The run ends with `Worker exited unexpectedly` and a non-zero exit while
+reporting **zero failing tests**. Read the test counts, not the exit code, until
+this is closed.
+
+Two things this page used to claim, both now disproved by measurement:
+
+- ~~`globalSetup` closes the postgres.js pool at the end.~~ It never did — its
+  `teardown` was an explicit no-op, and it cannot reach the worker's pool from
+  the main process anyway. Pools are now drained per file by `closeDbPools()`
+  in `__tests__/setup.ts`. That change alone recovered 5 tests that were being
+  lost with the sockets (the reported total now reconciles exactly).
+- ~~The error is postgres.js socket teardown.~~ Run alone, **each project is
+  clean**: `--project unit` exits 0 and `--project db` exits 0, with no worker
+  error in either. The crash appears only when the two run **together**, so it
+  is an interaction between the parallel unit workers and the serial db worker.
+
+Do not spend time on the pool when chasing this; that ground is covered.
 
 Run a single file (e.g. a new fence) without the full 12-minute suite:
 
