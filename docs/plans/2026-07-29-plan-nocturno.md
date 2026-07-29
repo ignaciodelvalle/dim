@@ -130,6 +130,25 @@ Recoleta — probablemente la relación org↔mascota. Eso ya es señal de PRODU
 no de test. Próximo paso: reproducir a mano con esa combinación exacta y leer la
 respuesta del server action.
 
+## C.4 — arranque, sin conclusión todavía
+
+Buscado en `components/panorama/**` y `app/gob/panorama/**`: el ÚNICO `<select>`
+está en `OverlayDisclosure.tsx`, y no es de provincia/localidad. No aparece
+ningún componente de drill por dropdown en la superficie del panorama.
+
+Eso CONTRADICE lo que reportó el revisor de panorama ("real labelled
+`<select>`s", tras retractarse de su primer hallazgo). Dos lecturas posibles y
+no sé cuál es:
+- el control vive fuera de `components/panorama` (¿la barra de scope del shell
+  de /gob?), o
+- el revisor vio los `<select>` de OverlayDisclosure y los leyó como drill.
+
+**Próximo paso**: en vez de seguir grepeando, mirar la página viva —
+`e2e/demo/_capture-live.ts --role govt --routes "/gob/panorama"` y volcar TODOS
+los `<select>` con su accessible name. Eso zanja la pregunta en una corrida, y
+es el mismo error de método de crisis-seams: teorizar sobre código en vez de
+leer la evidencia que la app produce.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -138,7 +157,7 @@ respuesta del server action.
 | #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
 | #31 crisis-seams (b) | **parcial** — bug del helper arreglado; queda un cuelgue real específico de Rocco@Recoleta | `1ea0a95e` |
 | C.3 | pendiente | |
-| C.4 | pendiente | |
+| C.4 | **abierta** — no encuentro el dropdown de drill; contradice a la review. Próximo paso escrito arriba | |
 | D.6 | pendiente | |
 | D.5 | pendiente | |
 | H.1 restante | pendiente | |
