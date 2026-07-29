@@ -8,6 +8,8 @@
 //   3. paso 2 (foto y más) is only revealed after paso 1 is completed, and it
 //      surfaces the prominent photo field + the final "Crear mascota" submit.
 
+import { readFileSync } from "node:fs";
+
 import "@testing-library/jest-dom/vitest";
 
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -88,7 +90,7 @@ describe("MinimalNewPetForm — paso 1 gating", () => {
   it("starts on paso 1 (Continuar visible, no final submit yet)", () => {
     render(<MinimalNewPetForm action={noopAction} />);
     expect(screen.getByRole("button", { name: /continuar/i })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /crear mascota/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /registrar mascota/i })).not.toBeInTheDocument();
   });
 
   it("blocks advancing while required fields are missing", () => {
@@ -97,7 +99,7 @@ describe("MinimalNewPetForm — paso 1 gating", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(/nombre/i);
     // Still on paso 1 — the final submit never appeared.
-    expect(screen.queryByRole("button", { name: /crear mascota/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /registrar mascota/i })).not.toBeInTheDocument();
   });
 
   it("blocks advancing when a locality is TYPED but no suggestion is picked (Cowork B9)", async () => {
@@ -113,7 +115,7 @@ describe("MinimalNewPetForm — paso 1 gating", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(/localidad/i);
     // Still on paso 1 — the final submit never appeared.
-    expect(screen.queryByRole("button", { name: /crear mascota/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /registrar mascota/i })).not.toBeInTheDocument();
   });
 
   it("advances to paso 2 once nombre + especie + localidad are set", async () => {
@@ -124,7 +126,7 @@ describe("MinimalNewPetForm — paso 1 gating", () => {
 
     // Paso 2 revealed: prominent photo field + final submit.
     expect(screen.getByText(/tomar o elegir una foto/i)).toBeVisible();
-    expect(screen.getByRole("button", { name: /crear mascota/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /registrar mascota/i })).toBeInTheDocument();
   });
 });
 
@@ -187,7 +189,7 @@ describe("MinimalNewPetForm — data-quality gates", () => {
     render(<MinimalNewPetForm action={dupAction} />);
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     // Inline confirm surfaces with the existing pet + a link to open it.
     expect(await screen.findByText(/¿es la misma\?/i)).toBeInTheDocument();
@@ -239,7 +241,7 @@ function makeRecordingAction(script: NewPetFormState[]) {
 async function reachStalePromptWithChangedSpecies() {
   await completeStep1();
   fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-  fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+  fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
   await screen.findByText(/¿es la misma\?/i);
 
   fireEvent.click(screen.getByRole("button", { name: /paso anterior/i }));
@@ -256,7 +258,7 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
 
     // The stale banner must be gone and the plain submit must be back.
     expect(screen.queryByText(/¿es la misma\?/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /crear mascota/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /registrar mascota/i })).toBeInTheDocument();
     // And nothing auto-submitted without user intent.
     expect(calls).toHaveLength(1);
   });
@@ -266,7 +268,7 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
     render(<MinimalNewPetForm action={action} />);
 
     await reachStalePromptWithChangedSpecies();
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     await waitFor(() => expect(calls).toHaveLength(2));
     expect(calls[1].species).toBe("cat");
@@ -279,7 +281,7 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
 
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
     await screen.findByText(/¿es la misma\?/i);
 
     fireEvent.click(screen.getByRole("button", { name: /paso anterior/i }));
@@ -287,7 +289,7 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
 
     expect(screen.queryByText(/¿es la misma\?/i)).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /crear mascota/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /registrar mascota/i })).toBeInTheDocument();
     expect(calls).toHaveLength(1);
   });
 
@@ -305,7 +307,7 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
     render(<MinimalNewPetForm action={action} />);
 
     await reachStalePromptWithChangedSpecies();
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     await waitFor(() => expect(calls).toHaveLength(2));
     // The fresh prompt (cat) renders and gates again.
@@ -320,7 +322,7 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
 
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
     await screen.findByText(/¿es la misma\?/i);
 
     fireEvent.click(screen.getByRole("button", { name: /no, es otra/i }));
@@ -335,7 +337,7 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
 
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
     await screen.findByText(/¿es la misma\?/i);
 
     fireEvent.click(screen.getByRole("button", { name: /paso anterior/i }));
@@ -379,7 +381,7 @@ describe("MinimalNewPetForm — photo survives a duplicate-prompt round-trip", (
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
     attachPhoto(container);
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
     await screen.findByText(/¿es la misma\?/i);
 
     fireEvent.click(screen.getByRole("button", { name: /no, es otra/i }));
@@ -398,13 +400,13 @@ describe("MinimalNewPetForm — photo survives a duplicate-prompt round-trip", (
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
     attachPhoto(container);
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
     await screen.findByText(/¿es la misma\?/i);
 
     fireEvent.click(screen.getByRole("button", { name: /paso anterior/i }));
     fireEvent.click(screen.getByRole("button", { name: /gato\/a/i }));
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     await waitFor(() => expect(calls).toHaveLength(2));
     const posted = calls[1].photo;
@@ -423,7 +425,7 @@ describe("MinimalNewPetForm — photo survives a duplicate-prompt round-trip", (
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
     attachPhoto(container);
     fireEvent.click(screen.getByRole("button", { name: /quitar foto/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
     await screen.findByText(/¿es la misma\?/i);
 
     fireEvent.click(screen.getByRole("button", { name: /no, es otra/i }));
@@ -448,7 +450,7 @@ describe("MinimalNewPetForm — Enter key on paso 1", () => {
 
     expect(screen.getByRole("alert")).toHaveTextContent(/especie/i);
     expect(calls).toHaveLength(0);
-    expect(screen.queryByRole("button", { name: /crear mascota/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /registrar mascota/i })).not.toBeInTheDocument();
   });
 
   it("advances to paso 2 on Enter when paso 1 is complete — never a submit", async () => {
@@ -459,7 +461,7 @@ describe("MinimalNewPetForm — Enter key on paso 1", () => {
     fireEvent.keyDown(screen.getByLabelText(/^nombre/i), { key: "Enter" });
 
     // Paso 2 revealed via goToStep2 — the form itself never submitted.
-    expect(screen.getByRole("button", { name: /crear mascota/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /registrar mascota/i })).toBeInTheDocument();
     expect(calls).toHaveLength(0);
   });
 });
@@ -492,7 +494,7 @@ describe("MinimalNewPetForm — custody kind (P1 fix)", () => {
 
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].custodyKind).toBe("owner");
@@ -505,7 +507,7 @@ describe("MinimalNewPetForm — custody kind (P1 fix)", () => {
     fireEvent.click(screen.getByRole("button", { name: /la estoy cuidando/i }));
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].custodyKind).toBe("foster_in_transit");
@@ -526,7 +528,7 @@ describe("MinimalNewPetForm — acquisition method (V8 fix)", () => {
 
     await completeStep1();
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].acquisitionMethod).toBe("");
@@ -541,9 +543,37 @@ describe("MinimalNewPetForm — acquisition method (V8 fix)", () => {
     fireEvent.change(screen.getByLabelText(/cómo te encontraste con esta mascota/i), {
       target: { value: "adopted" },
     });
-    fireEvent.click(screen.getByRole("button", { name: /crear mascota/i }));
+    fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 
     await waitFor(() => expect(calls).toHaveLength(1));
     expect(calls[0].acquisitionMethod).toBe("adopted");
+  });
+});
+
+// D.8 — one act, one verb.
+//
+// This screen used to name the act three ways: the index CTA said "Inscribir
+// mascota", this form's H1 says "Registrar mascota", and its own submit button
+// said "Crear mascota" — two different verbs on the SAME screen, which makes a
+// user stop and wonder whether the button does what the heading promised.
+// "Registrar" wins because the domain already agreed: the event is
+// `pet_registered`.
+describe("D.8 — the heading and the submit button name the same act", () => {
+  it("uses the same verb in the H1 and the submit button", () => {
+    const source = readFileSync("app/(app)/mis-mascotas/nueva/MinimalNewPetForm.tsx", "utf8");
+    // Asserted on the source rather than the DOM because the submit button only
+    // renders in one branch of a multi-step wizard; the drift this guards
+    // against is textual, and this catches it wherever in the flow it sits.
+    expect(source).toContain('"Registrar mascota"');
+    // The banned synonyms, as user-visible strings. Comments mentioning them
+    // are fine — the quotes are what makes these labels.
+    expect(source).not.toContain('"Crear mascota"');
+    expect(source).not.toContain('"Inscribir mascota"');
+  });
+
+  it("the index CTA that opens this form uses that verb too", () => {
+    const index = readFileSync("app/(app)/mis-mascotas/page.tsx", "utf8");
+    expect(index).toContain("+ Registrar mascota");
+    expect(index).not.toContain("+ Inscribir mascota");
   });
 });

@@ -120,7 +120,7 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   // stuck, so the navigation below is the assertion that matters — and it is
   // the real contract regardless.
   void page
-    .getByRole("button", { name: /crear mascota/i })
+    .getByRole("button", { name: /registrar mascota/i })
     .click()
     .catch(() => {
       // Swallowed on purpose: this promise is expected never to settle, and a

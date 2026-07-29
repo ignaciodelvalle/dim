@@ -210,7 +210,12 @@ export default async function MisMascotasPage({
           </p>
         </div>
         <LnButton href="/mis-mascotas/nueva" variant="primary" size="md">
-          + Inscribir mascota
+          {/* "Registrar" — the ONE verb for this act (D.8). This said
+              "Inscribir", the form's H1 said "Registrar" and its submit button
+              said "Crear": three words for one thing, two of them on the same
+              screen. The domain agrees with "registrar" (the event is
+              pet_registered), so that is the one that stays. */}
+          + Registrar mascota
         </LnButton>
       </div>
 

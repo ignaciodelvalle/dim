@@ -56,7 +56,7 @@ test("segmento 02 — dueno", async ({ page }) => {
   ) {
     await createAnyway.click();
   } else {
-    await page.getByRole("button", { name: /crear mascota/i }).click();
+    await page.getByRole("button", { name: /registrar mascota/i }).click();
   }
   await page.waitForURL(/\/credencial/, { timeout: 30_000 });
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});

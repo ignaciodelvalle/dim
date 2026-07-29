@@ -533,7 +533,10 @@ export function MinimalNewPetForm({
                   Guardando...
                 </>
               ) : (
-                "Crear mascota"
+                // The same screen's H1 says "Registrar mascota" (D.8): a
+                // submit button that renames the act mid-form makes a user
+                // wonder whether it does the same thing.
+                "Registrar mascota"
               )}
             </button>
           )}
