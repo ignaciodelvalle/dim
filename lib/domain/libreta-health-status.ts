@@ -23,12 +23,17 @@ export type VaccineSnapshot = {
   nextDueAt: Date | null;
   /**
    * Lifecycle classification — what the dashboard chip needs:
-   *   active   — vaccine has a dose, next due is in the future
-   *   due_soon — next due within 30 days (still active but warn the owner)
-   *   expired  — last dose is older than intervalMonths
-   *   missing  — core vaccine for this species, never administered
+   *   active      — vaccine has a dose, next due is in the future
+   *   due_soon    — next due within 30 days (still active but warn the owner)
+   *   expired     — last dose is older than intervalMonths
+   *   missing     — core vaccine for this species, never administered, AND
+   *                 nothing on file could plausibly be it
+   *   unconfirmed — core vaccine with no MATCHED dose, while the animal carries
+   *                 one or more doses whose free-text name is not in the
+   *                 catalog. We cannot say it was applied. We must not say it
+   *                 was not. See the note on `unconfirmed` below.
    */
-  status: "active" | "due_soon" | "expired" | "missing";
+  status: "active" | "due_soon" | "expired" | "missing" | "unconfirmed";
 };
 
 export type VaccinationSummary = {
@@ -36,6 +41,14 @@ export type VaccinationSummary = {
   dueSoon: number;
   expired: number;
   missing: number;
+  /**
+   * Core vaccines with no MATCHED dose, on an animal that DOES carry doses the
+   * catalog could not resolve. Split out of `missing` (PO decision 2026-07-28)
+   * because the two make different claims: `missing` says "never given",
+   * `unconfirmed` says "we cannot tell". Surfacing them as one number is what
+   * let the libreta report a matrícula-signed dose as absent.
+   */
+  unconfirmed: number;
   /**
    * Count of DISTINCT vaccines administered whose name is NOT in the species
    * catalog (free-text names entered in the attendance/registro forms). These
@@ -165,17 +178,39 @@ export function computeVaccinationSummary(
     }
   }
 
+  // At least one dose on file whose name the catalog could not resolve. While
+  // this is true, an unmatched core vaccine cannot be reported as never given —
+  // one of these doses may BE it.
+  const hasUnidentifiedDoses = otherNames.size > 0;
+
   const perVaccine: VaccineSnapshot[] = [];
   for (const def of candidates.values()) {
     const latest = latestByVaccine.get(def.name) ?? null;
     if (!latest) {
-      // Reached only for core vaccines (non-cores without a dose were
-      // filtered out above), so "missing" is always the right call here.
+      // Reached only for core vaccines (non-cores without a dose were filtered
+      // out above). "missing" is an ASSERTION — it tells an owner their animal
+      // never got this vaccine — and it is only defensible when nothing on file
+      // could plausibly be it.
+      //
+      // The catalog entry is "Séxtuple (DHPPi-L)"; a vet signed a dose named
+      // "Séxtuple". findVaccineByName is exact equality, so the signed dose
+      // landed in `otherNames` and this core entry reported `missing` — the
+      // libreta told the owner "2 vacunas del calendario recomendado sin
+      // aplicar" roughly five centimetres above the matrícula-signed record of
+      // one of them (live review 2026-07-28).
+      //
+      // PO decision 2026-07-28: keep exact matching — fuzzy-matching a medical
+      // record risks asserting a vaccine nobody gave, which is the worse error
+      // — but never assert the ABSENCE while an unidentified dose is on file.
+      // `unconfirmed` says what is actually known: we cannot match it, so we
+      // are not going to claim either way. (The vet-facing gate does fuzzy-
+      // match at 0.85; there it is a SUGGESTION a professional confirms, here
+      // it would be an assertion to an owner who cannot.)
       perVaccine.push({
         vaccineName: def.name,
         lastDoseAt: null,
         nextDueAt: null,
-        status: "missing",
+        status: hasUnidentifiedDoses ? "unconfirmed" : "missing",
       });
       continue;
     }
@@ -206,14 +241,24 @@ export function computeVaccinationSummary(
   let dueSoon = 0;
   let expired = 0;
   let missing = 0;
+  let unconfirmed = 0;
   for (const v of perVaccine) {
     if (v.status === "active") active++;
     else if (v.status === "due_soon") dueSoon++;
     else if (v.status === "expired") expired++;
+    else if (v.status === "unconfirmed") unconfirmed++;
     else missing++;
   }
 
-  return { active, dueSoon, expired, missing, otherCount: otherNames.size, perVaccine };
+  return {
+    active,
+    dueSoon,
+    expired,
+    missing,
+    unconfirmed,
+    otherCount: otherNames.size,
+    perVaccine,
+  };
 }
 
 /**

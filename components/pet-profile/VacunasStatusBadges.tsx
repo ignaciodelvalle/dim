@@ -17,7 +17,7 @@ import { VACCINE_LENS } from "@/lib/domain/provenance";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import { useState } from "react";
 
-type BadgeKey = "vigente" | "por-vencer" | "vencida";
+type BadgeKey = "vigente" | "por-vencer" | "vencida" | "sin-confirmar";
 
 /**
  * Pure badge-count derivation (exported for unit tests — staging validation
@@ -31,13 +31,18 @@ export function deriveVacunasBadgeCounts(summary: VaccinationSummary): {
   porVencer: number;
   vencida: number;
   sinAplicar: number;
+  sinConfirmar: number;
   hasRecords: boolean;
 } {
   return {
     vigente: summary.active,
     porVencer: summary.dueSoon,
     vencida: summary.expired,
+    // `missing` only — `unconfirmed` is deliberately NOT counted here. A core
+    // vaccine we cannot match, on an animal carrying a dose we cannot identify,
+    // is not an animal we can tell its owner is unvaccinated (PO 2026-07-28).
     sinAplicar: summary.missing,
+    sinConfirmar: summary.unconfirmed,
     hasRecords: hasAnyVaccineRecord(summary),
   };
 }
@@ -58,6 +63,8 @@ function metaFor(v: VaccineSnapshot): string {
   switch (v.status) {
     case "missing":
       return "Nunca aplicada";
+    case "unconfirmed":
+      return "Sin confirmar — hay una dosis registrada que no pudimos identificar";
     case "active":
       return v.nextDueAt ? `Próxima ${fmtDate(v.nextDueAt)}` : "Al día";
     case "due_soon":
@@ -113,6 +120,19 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
       bg: "var(--color-ln-err-050)",
       border: "var(--color-ln-err-100)",
       text: "var(--color-ln-seal)",
+    },
+    {
+      // Neither a reassurance nor an alarm — an ASK. The animal has a dose on
+      // file whose name the catalog could not resolve, so this core vaccine
+      // can be neither confirmed nor denied. Neutral tone on purpose: telling
+      // an owner "vencida" would be as wrong as telling them "vigente".
+      key: "sin-confirmar",
+      label: "Sin confirmar",
+      count: counts.sinConfirmar,
+      items: summary.perVaccine.filter((v) => v.status === "unconfirmed"),
+      bg: "var(--color-ln-paper-2)",
+      border: "var(--color-ln-rule)",
+      text: "var(--color-ln-ink-2)",
     },
   ];
 

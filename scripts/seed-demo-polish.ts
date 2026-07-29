@@ -826,7 +826,22 @@ async function main(): Promise<void> {
         occurredAt: occurred,
         payload: {
           payload_version: 1,
-          vaccine_name: isCat ? "Triple felina" : "Séxtuple",
+          // CATALOG NAMES, verbatim. These used to read "Triple felina" /
+          // "Séxtuple" — close enough for a human, invisible to
+          // findVaccineByName, which is exact equality. The seed writes events
+          // DIRECTLY, so it bypasses the hard catalog gate the real vet action
+          // enforces (app/org/[orgToken]/atender/actions.ts: an uncatalogued
+          // name cannot commit unless explicitly flagged), and the demo ended up
+          // carrying doses no production path could have created.
+          //
+          // Cost, measured on the live demo 2026-07-28: a matrícula-signed dose
+          // filed as "1 vacuna fuera del calendario" while the core entry
+          // reported missing — the libreta told the owner "2 vacunas del
+          // calendario recomendado sin aplicar" centimetres above the signed
+          // record. The libreta no longer asserts that absence (see
+          // lib/domain/libreta-health-status.ts `unconfirmed`), but the demo
+          // should not have been manufacturing the ambiguity in the first place.
+          vaccine_name: isCat ? "Triple felina (FVRCP)" : "Séxtuple (DHPPi-L)",
           brand: isCat ? "Felocell" : "Vanguard Plus 5",
           batch: `${isCat ? "FC" : "VG"}-2026-${(h % 90) + 10}`,
           administered_by: VET_SIGNATURE,
