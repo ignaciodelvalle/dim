@@ -567,6 +567,11 @@ export const DIVISION_FADE_MS = 300;
 // the legend's fill / hatch / no-data trichotomy never silently collapses.
 export const HATCH_FILL_OPACITY = 0.85;
 export const SUPPRESS_SOLID_OPACITY = 0.5;
+// D.5(b) — the no-data stipple sits BELOW the suppression hatch's weight on
+// purpose. "Protected" is a stronger statement than "empty" and has to keep
+// reading as the louder mark; the tile itself is already faint (slate-500 at
+// 0.45), and this holds the ranking at the layer level too.
+export const NO_DATA_FILL_OPACITY = 0.55;
 
 // B1 (map plan) — ABANDONED, and deliberately not left wired.
 //
@@ -606,6 +611,8 @@ export const choroLayerId = (id: string) => `pano-choro-${id}`;
 // ar-provinces basemap source, colored by a per-layer data-join on the polygon
 // `code` property. Namespaced by layer id so two province-choropleths coexist.
 export const provinceFillLayerId = (id: string) => `pano-prov-fill-${id}`;
+// D.5(b) — the stipple overlay for provinces this layer has no value for.
+export const provinceNoDataLayerId = (id: string) => `pano-prov-nodata-${id}`;
 export const provinceLineLayerId = (id: string) => `pano-prov-line-${id}`;
 // Always-visible admin divisions for a scoped province. ONE shared source
 // (barrios or the active province's departamentos), a single always-on outline
@@ -619,6 +626,9 @@ export const DIVISION_HOVER_ID = "pano-div-hover";
 // are suppressed — a diagonal fill-pattern that is perceptually distinct from
 // both the colored data fill and the outline-only no-data cell.
 export const DIVISION_SUPPRESS_ID = (id: string) => `pano-div-suppress-${id}`;
+// D.5(b) — the stipple overlay for divisions with no data at all, so "empty"
+// separates from bare land by FORM (the two are only ΔE00 1.48 apart in fill).
+export const DIVISION_NO_DATA_ID = (id: string) => `pano-div-nodata-${id}`;
 export const divisionFillLayerId = (id: string) => `pano-div-fill-${id}`;
 // task #63: the bivariate k-anon hatch overlay over the SHARED ar-provinces
 // source (province cells are structurally never suppressed today, but suppression

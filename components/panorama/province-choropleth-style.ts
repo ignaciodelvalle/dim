@@ -10,7 +10,7 @@
 // `code` property — so it colors the ar-provinces basemap polygons, never an
 // external raster.
 
-import type { ExpressionSpecification } from "maplibre-gl";
+import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
 import {
   type ClassScale,
@@ -48,6 +48,31 @@ function provincePairs(features: FeatureCollection): Array<[string, number]> {
     pairs.push([p.provinceCode, p.value]);
   }
   return pairs;
+}
+
+/**
+ * D.5(b) — the MapLibre `filter` selecting the province polygons this layer has
+ * NO VALUE for, so the stipple overlay can mark them.
+ *
+ * It is the exact complement of the `match` inside the fill expressions above:
+ * every code those map to a real value is excluded, everything else — a province
+ * absent from the feature set, or present with a non-finite value — is stippled.
+ * Deriving it from the same `provincePairs()` the fill reads is the point: the
+ * overlay cannot disagree with the colour about which provinces have data.
+ *
+ * A layer with no pairs at all yields a constant-`true` filter, which is the
+ * honest render: the live review of 2026-07-28 found views where the ENTIRE
+ * mainland was no-data and read as plain land. On a light canvas that fill is
+ * only ΔE00 1.48 from the basemap, so "nobody reported anything" was
+ * indistinguishable from "this area is not in the analysis".
+ */
+export function provinceNoDataFilter(features: FeatureCollection): FilterSpecification {
+  const valued = new Set(provincePairs(features).map(([code]) => code));
+  if (valued.size === 0) return true as unknown as FilterSpecification;
+  return [
+    "!",
+    ["match", ["get", "code"], [...valued], true, false],
+  ] as unknown as FilterSpecification;
 }
 
 /**

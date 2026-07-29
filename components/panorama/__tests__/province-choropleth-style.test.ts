@@ -13,6 +13,7 @@ import {
   provinceColorExpr,
   provinceMetaClassScale,
   provinceMetaColorExpr,
+  provinceNoDataFilter,
   provinceSeqClassScale,
   provinceValueBounds,
 } from "../province-choropleth-style";
@@ -277,5 +278,45 @@ describe("provinceValueBounds", () => {
 
   it("returns null when there are no numeric values", () => {
     expect(provinceValueBounds(provinceFC([]))).toBeNull();
+  });
+});
+
+describe("provinceNoDataFilter (D.5(b) — the stipple overlay)", () => {
+  it("is a constant-TRUE filter when the layer has no values at all", () => {
+    // The case the 2026-07-28 live review actually hit: a vista whose whole
+    // mainland was COLOR_NO_DATA and read as bare basemap (the two are only
+    // ΔE00 1.48 apart). Every province carries the mark, which is the honest
+    // picture — "we know nothing here", not "this is background".
+    expect(provinceNoDataFilter(provinceFC([]))).toBe(true);
+  });
+
+  it("selects the COMPLEMENT of the provinces that carry a value", () => {
+    const filter = provinceNoDataFilter(
+      provinceFC([
+        { provinceCode: "AR-B", value: 12 },
+        { provinceCode: "AR-C", value: 40 },
+      ]),
+    ) as unknown[];
+    expect(filter[0]).toBe("!");
+    const match = filter[1] as unknown[];
+    expect(match[0]).toBe("match");
+    // Keyed on the POLYGON property, not the cell property — the overlay reads
+    // the basemap the fill paints.
+    expect(match[1]).toEqual(["get", "code"]);
+    expect(match[2]).toEqual(expect.arrayContaining(["AR-B", "AR-C"]));
+  });
+
+  it("stipples a province whose value is non-finite (absent, not zero)", () => {
+    // provincePairs drops NaN, so the fill would render it COLOR_NO_DATA. The
+    // overlay has to agree: fill and mark must never disagree about who has data.
+    const filter = provinceNoDataFilter(
+      provinceFC([
+        { provinceCode: "AR-B", value: Number.NaN },
+        { provinceCode: "AR-C", value: 7 },
+      ]),
+    ) as unknown[];
+    const known = (filter[1] as unknown[])[2] as string[];
+    expect(known).toEqual(["AR-C"]);
+    expect(known).not.toContain("AR-B");
   });
 });

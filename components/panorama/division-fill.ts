@@ -293,6 +293,33 @@ export function divisionSuppressedFilter(codes: ReadonlySet<string>): FilterSpec
   return ["match", ["get", "code"], [...codes], true, false] as unknown as FilterSpecification;
 }
 
+/**
+ * D.5(b) — build the MapLibre `filter` that selects the NO-DATA division
+ * polygons (for the stipple overlay): everything that is neither valued nor
+ * suppressed.
+ *
+ * Expressed as a COMPLEMENT on purpose. The no-data set is not computed
+ * anywhere — the join only knows what it matched — and enumerating it would
+ * mean walking the geojson and keeping a fourth set in sync with the other
+ * three. The complement needs no such bookkeeping: a division the join never
+ * accounted for is, by definition, one we have nothing to say about.
+ *
+ * When NOTHING is known (empty map, failed load) this returns a constant-`true`
+ * filter, so the whole grain is stippled. That is the honest reading: a map
+ * with no data anywhere should look like it, not like bare land.
+ */
+export function divisionNoDataFilter(
+  valued: ReadonlyMap<string, number>,
+  suppressed: ReadonlySet<string>,
+): FilterSpecification {
+  const known = new Set<string>([...valued.keys(), ...suppressed]);
+  if (known.size === 0) return true as unknown as FilterSpecification;
+  return [
+    "!",
+    ["match", ["get", "code"], [...known], true, false],
+  ] as unknown as FilterSpecification;
+}
+
 /** value min/max over a division values map (for the fill legend). null when empty. */
 export function divisionValueBounds(
   values: ReadonlyMap<string, number>,

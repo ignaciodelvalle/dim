@@ -34,13 +34,18 @@ import {
   buildGraduatedScale,
   graduatedMaxCount,
 } from "@/components/panorama/graduated-scale";
-import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
+import { HATCH_IMAGE_ID } from "@/components/panorama/hatch-pattern";
+import { registerChoroplethPatterns } from "@/components/panorama/map-pattern-images";
 import {
   type LayerReadout,
   buildLayerReadout,
   buildPinnedPopupHtml,
   divisionReadoutDataType,
 } from "@/components/panorama/map-popup";
+import {
+  mountDivisionNoDataLayer,
+  mountProvinceNoDataLayer,
+} from "@/components/panorama/no-data-overlay";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { resolveScrubDomain } from "@/components/panorama/scale-lock";
 import { useChoroplethMotion } from "@/components/panorama/use-choropleth-motion";
@@ -686,14 +691,7 @@ export function SituationalMap({
         if (cancelled) return;
         // cursor #2: register the diagonal-hatch tile ONCE as a map image so the
         // k-anon suppression overlay can reference it via `fill-pattern`.
-        try {
-          if (!map.hasImage(HATCH_IMAGE_ID)) {
-            const hatch = buildHatchImageData();
-            if (hatch) map.addImage(HATCH_IMAGE_ID, hatch, { pixelRatio: 2 });
-          }
-        } catch {
-          // No canvas / addImage unavailable — suppressed cells stay outline-only.
-        }
+        registerChoroplethPatterns(map); // k-anon hatch + no-data stipple
         // Regional context: neighbouring countries as a muted, non-interactive
         // backdrop. Added FIRST so it renders BELOW the Argentine provinces
         // (MapLibre draws layers in insertion order). No feature-state / hover
@@ -1474,10 +1472,10 @@ export function SituationalMap({
         } else {
           addDivisionFillLayer(map, layer, join.values, divLock.domain);
         }
-        // cursor #2: hatch the divisions whose only cells are k-anon suppressed —
-        // honest trichotomy (colored value / outline-only no-data / hatched
-        // suppressed). Presentation only; the join already dropped the numbers.
+        // The honest trichotomy: colored value / hatched suppressed / stippled
+        // no-data. Presentation only; the join already dropped the numbers.
         addDivisionSuppressionLayer(map, layer, join.suppressed);
+        mountDivisionNoDataLayer(map, layer.id, join.values, join.suppressed);
         mountedRef.current.add(layer.id);
         applyDim(map, layer);
         const bounds = divisionValueBounds(join.values);
@@ -2377,6 +2375,8 @@ export function SituationalMap({
         chromeAnchor,
       );
     }
+    // D.5(b): stipple the provinces with no value, under the province line.
+    mountProvinceNoDataLayer(map, layer.id, layer.features, chromeAnchor);
     if (!map.getLayer(lineId)) {
       // cursor #1: admin-neutral stroke (NOT COLOR_CANVAS) so province edges read
       // as boundaries over the fill, never as near-black cracks. Faded by

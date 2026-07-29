@@ -34,6 +34,7 @@ import {
 } from "@/components/panorama/class-scale";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
 import { HATCH_SWATCH_CSS } from "@/components/panorama/hatch-pattern";
+import { NO_DATA_SWATCH_CSS, NO_DATA_SWATCH_SIZE } from "@/components/panorama/no-data-pattern";
 import {
   type ScaleBounds,
   provinceValueBounds,
@@ -327,9 +328,19 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   divergent gradient bar. */}
               <ClassSwatchLegend scale={scale} unit={isMeta ? "%" : undefined} meta={isMeta} />
               <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
+                {/* The swatch carries the SAME stipple the map paints (D.5(b)).
+                    A key that shows a flat colour for a textured fill teaches
+                    the reader the wrong mark, and the texture is the whole
+                    reason "sin datos" is now separable from bare land — they
+                    are only ΔE00 1.48 apart as colours. Pattern values come
+                    from no-data-pattern.ts so key and map cannot drift. */}
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
-                  style={{ background: COLOR_NO_DATA }}
+                  style={{
+                    background: COLOR_NO_DATA,
+                    backgroundImage: NO_DATA_SWATCH_CSS,
+                    backgroundSize: NO_DATA_SWATCH_SIZE,
+                  }}
                   aria-hidden="true"
                 />
                 Sin datos

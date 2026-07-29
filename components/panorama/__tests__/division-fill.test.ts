@@ -7,6 +7,7 @@ import {
   __resetDivisionJoinCache,
   divisionCodeForCell,
   divisionFillColorExpr,
+  divisionNoDataFilter,
   divisionSuppressedFilter,
   divisionValueBounds,
   filterDepartmentsByPrefix,
@@ -269,6 +270,49 @@ describe("divisionSuppressedFilter (map-polish cursor #2)", () => {
     // labels → true, fallback → false (member vs non-member).
     expect(filter[3]).toBe(true);
     expect(filter[4]).toBe(false);
+  });
+});
+
+describe("divisionNoDataFilter (D.5(b) — the stipple overlay)", () => {
+  it("is a constant-TRUE filter when nothing is known (an empty map looks empty)", () => {
+    // The inverse of the suppression filter's empty case, and deliberately so.
+    // A grain with no values and no suppression has nothing to say about ANY of
+    // its divisions, so all of them carry the mark. Rendering nothing would put
+    // bare land on screen and let it pass for "outside the analysis" — the very
+    // confusion this overlay exists to break.
+    expect(divisionNoDataFilter(new Map(), new Set())).toBe(true);
+  });
+
+  it("selects the COMPLEMENT of the valued and suppressed codes", () => {
+    const filter = divisionNoDataFilter(
+      new Map([["palermo", 12]]),
+      new Set(["la boca"]),
+    ) as unknown[];
+    expect(filter[0]).toBe("!");
+    const match = filter[1] as unknown[];
+    expect(match[0]).toBe("match");
+    expect(match[1]).toEqual(["get", "code"]);
+    expect(match[2]).toEqual(expect.arrayContaining(["palermo", "la boca"]));
+    expect((match[2] as string[]).length).toBe(2);
+  });
+
+  it("never marks a SUPPRESSED division as no-data (the trichotomy holds)", () => {
+    // "Protected" and "empty" are different claims and carry different marks
+    // (45° hatch vs stipple). A suppressed division landing in both overlays
+    // would stack them and assert both at once.
+    const filter = divisionNoDataFilter(new Map(), new Set(["la boca"])) as unknown[];
+    const known = (filter[1] as unknown[])[2] as string[];
+    expect(known).toContain("la boca");
+  });
+
+  it("deduplicates a code that is both valued and suppressed", () => {
+    // A division can be partially suppressed: some constituent cells reported,
+    // others withheld. It is still ONE polygon, so it must appear once.
+    const filter = divisionNoDataFilter(
+      new Map([["palermo", 5]]),
+      new Set(["palermo"]),
+    ) as unknown[];
+    expect((filter[1] as unknown[])[2]).toEqual(["palermo"]);
   });
 });
 
