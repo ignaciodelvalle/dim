@@ -266,6 +266,30 @@ CAPTURED national bbox"). No es casualidad: cuando alguien arregla un síntoma y
 escribe el test DESPUÉS, el test describe lo que el código hace, no lo que
 debería hacer. Vale revisarlo como clase, no como tres accidentes.
 
+## Validación del batch 2 (2026-07-29)
+
+Tres unidades (D.5c, H.2, D.6) y UN gate: **`pnpm verify` exit 0** y
+**12.523 tests passed, 0 failed**.
+
+**Sobre el exit code del suite**: sale 1, y NO es un test rojo. Es el
+`Worker exited unexpectedly` que `docs/ops/local-dev-runbook.md:73` ya documenta
+como ruido de teardown de sockets de postgres.js — el `globalSetup` lo mitiga
+pero no lo elimina. Confirmado ajeno a este batch corriendo los 4 archivos
+nuevos/tocados solos: exit 0, 34 verdes. Vale dejarlo dicho porque un suite que
+sale 1 por diseño vuelve a la trampa del instrumento roto: si un día hay un rojo
+de verdad, el exit code no lo distingue. Candidato a unidad propia.
+
+**El ratchet de design-tokens funcionó como corresponde**: mover markup viejo a
+un archivo nuevo le sacó el grandfathering de `page.tsx` y falló el gate. La
+salida correcta no era re-baselinear sino tokenizar — y eso destapó que el
+rayado "sin foto" está hardcodeado en ~8 lugares con tres pares de hex distintos.
+
+**Cuarto test pinneando su propio defecto** (van 4 en la ola):
+`viz-scales.test.ts` aserraba `COLOR_NO_DATA !== SCALE_BLUE_SEQ[0]` — desigualdad
+de strings. Pasaba verde con ΔE00 4,62, o sea con los dos rellenos indistinguibles.
+El patrón ya no admite lectura de accidente: cuando el test se escribe DESPUÉS del
+arreglo, describe lo que el código hace, no lo que promete.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -275,10 +299,11 @@ debería hacer. Vale revisarlo como clase, no como tres accidentes.
 | #31 crisis-seams (b) | **parcial** — bug del helper arreglado; queda un cuelgue real específico de Rocco@Recoleta | `1ea0a95e` |
 | C.3 | **hecha** — frame nacional usa el extent estático; el test que pinneaba el defecto, reescrito | `21495015` |
 | C.4 | **affordance verificada existente**; falta el test — el spec no localiza los selects que un script tsx sí ve. Detalle arriba | |
-| D.6 | pendiente | |
-| D.5 | **medida, bloqueada en decisión** — sobre-restringido en un eje; opciones y recomendación arriba | |
+| D.6 | **hecha** — las tres. Header: el bloque de marca se aplastaba a 2px (era `flex-1 min-w-0` contra chips que no ceden) → `basis-[7rem]` hace wrappear. Foto: `CredentialPhoto` cliente con `onError` + 4 tests. Mapa: **el plan decía "falta atribución OSM" y estaba mal** — `LocationMap` ya la declara; `PublicLostSections` la RECORTABA (`h-40 overflow-hidden` sobre un mapa `h-64`, se perdían los 96px donde MapLibre la dibuja). Era licencia ODbL, no cosmética | |
+| D.5 (c) | **hecha** — PO eligió (c)+(b). Rampa re-espaciada: clase-1 vs tierra 4,21 → **16,38**, pasos parejos. + `color-distance.ts` (ΔE00) y el 4º test que pinneaba su defecto, reescrito | `3aee0ccd` |
+| D.5 (b) | **pendiente, va a la pasada de UI viva** — textura propia para "sin datos". Es una capa `fill-pattern` + filtro × 3 superficies (SituationalMap, CabaInset, MapChoropleth), y una textura no se shipea sin mirarla | |
 | H.1 restante | **hecha** — `grain` faltante TIRA (D6) + los 7 throw-paths con test (21 en total) | |
-| H.2 | **parcial** — herramienta de limpieza + fence que la nombra; el contrato de seed-demo-scenario sigue abierto | `c9a90f65` |
+| H.2 | **hecha** — fence de precondición de seed. Medido antes de escribirlo: de 15 archivos que nombran un token de demo, 13 lo usan como fixture de render y 1 crea sus propias mascotas; **solo `seed-demo-scenario.test.ts` depende del seed, y ya lo declara**. El contrato ya se cumplía; faltaba el fence que lo mantenga | |
 | #38 recuperadas | **hecha** — selector event-sourced + 3 tests | `17903555` |
 | #40 k-anon provincia | pendiente | |
 | D.3 | pendiente | |
