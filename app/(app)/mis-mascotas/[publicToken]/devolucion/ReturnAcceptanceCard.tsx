@@ -124,7 +124,7 @@ export function ReturnAcceptanceCard({
         <button
           type="submit"
           disabled={acceptPending}
-          className="w-full py-3 rounded-[3px] bg-[var(--color-ln-ok)] text-white hover:opacity-90 disabled:opacity-50 font-medium transition-colors"
+          className="w-full py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white hover:opacity-90 disabled:opacity-50 font-medium transition-colors"
         >
           {acceptPending ? "Confirmando…" : "Marcar como recibida"}
         </button>
@@ -172,14 +172,14 @@ export function ReturnAcceptanceCard({
             <button
               type="submit"
               disabled={rejectPending}
-              className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 text-sm"
+              className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 text-sm"
             >
               {rejectPending ? "Enviando…" : "Confirmar rechazo"}
             </button>
             <button
               type="button"
               onClick={() => setShowRejectForm(false)}
-              className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm"
+              className="px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] text-sm"
             >
               Cancelar
             </button>

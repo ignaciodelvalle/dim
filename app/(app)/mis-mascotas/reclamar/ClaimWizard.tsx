@@ -195,7 +195,7 @@ export function ClaimWizard() {
         <button
           type="submit"
           disabled={pending || state.value.trim().length === 0}
-          className="w-full rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+          className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
         >
           {pending ? "Buscando…" : "Buscar"}
         </button>
@@ -324,14 +324,14 @@ export function ClaimWizard() {
         <button
           type="button"
           onClick={() => setState(INITIAL)}
-          className="flex-1 rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
+          className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={pending || state.reason.trim().length < 20}
-          className="flex-1 rounded-[3px] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Enviando…" : "Enviar reclamo"}
         </button>
@@ -381,7 +381,7 @@ function ResultStep({
             type="button"
             onClick={onBack}
             disabled={pending}
-            className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] disabled:opacity-50"
+            className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] disabled:opacity-50"
           >
             Volver
           </button>
@@ -389,7 +389,7 @@ function ResultStep({
             type="button"
             onClick={() => onFreeClaim()}
             disabled={pending}
-            className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+            className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
           >
             {pending ? "Reclamando…" : "Reclamarla"}
           </button>
@@ -415,13 +415,13 @@ function ResultStep({
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)]"
+            className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)]"
           >
             Buscar otro identificador
           </button>
           <Link
             href="/mis-mascotas/nueva"
-            className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
+            className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
           >
             Registrar mascota
           </Link>
@@ -445,7 +445,7 @@ function ResultStep({
         <button
           type="button"
           onClick={onBack}
-          className="mt-2 rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)]"
+          className="mt-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)]"
         >
           Volver
         </button>
@@ -472,13 +472,13 @@ function ResultStep({
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-azul)]"
+            className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-azul)]"
           >
             Volver
           </button>
           <Link
             href={`/p/${lookup.petToken}/sighting`}
-            className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
+            className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
           >
             Reportar avistaje →
           </Link>
@@ -506,14 +506,14 @@ function ResultStep({
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
+          className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
         >
           Volver
         </button>
         <button
           type="button"
           onClick={() => onClaim(lookup.petToken, lookup.petName)}
-          className="flex-1 rounded-[3px] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+          className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
         >
           Iniciar disputa
         </button>

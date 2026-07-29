@@ -41,7 +41,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         </p>
         <a
           href={state.prereqUrl}
-          className="inline-block mt-1 px-4 py-2 rounded-[3px] bg-[var(--color-ln-warn)] hover:opacity-90 text-white text-sm font-medium transition-colors"
+          className="inline-block mt-1 px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-warn)] hover:opacity-90 text-white text-sm font-medium transition-colors"
         >
           Declarar DNI →
         </a>
@@ -91,7 +91,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Continuar
           </button>
@@ -114,7 +114,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Continuar
           </button>
@@ -145,7 +145,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="submit"
             disabled={pending}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {pending ? "Creando consultorio..." : "Crear consultorio"}
           </button>

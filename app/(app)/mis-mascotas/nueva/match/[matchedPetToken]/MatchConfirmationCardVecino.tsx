@@ -132,7 +132,7 @@ export function MatchConfirmationCardVecino({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("same")}
-          className="flex-1 px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+          className="flex-1 px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "Es la misma mascota"}
         </button>
@@ -140,7 +140,7 @@ export function MatchConfirmationCardVecino({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 px-4 py-3 rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] font-medium hover:opacity-80 disabled:opacity-50 transition-colors"
+          className="flex-1 px-4 py-3 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] font-medium hover:opacity-80 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "No es la misma"}
         </button>

@@ -104,13 +104,13 @@ export function VetSelfResignForm() {
         <button
           type="submit"
           disabled={!confirmed || loading}
-          className="px-5 py-2 text-sm bg-[var(--color-ln-seal)] text-white rounded-[3px] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2 text-sm bg-[var(--color-ln-seal)] text-white rounded-[var(--radius-pill)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "Procesando..." : "Renunciar"}
         </button>
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[3px] hover:bg-[var(--color-ln-stripe)] transition-colors"
+          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[var(--radius-pill)] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           Cancelar
         </a>

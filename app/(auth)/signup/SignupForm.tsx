@@ -156,7 +156,7 @@ export function SignupForm({
           <button
             type="submit"
             disabled={identityPending}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {identityPending ? "Creando cuenta..." : "Crear cuenta"}
           </button>
@@ -254,7 +254,7 @@ export function SignupForm({
           <button
             type="submit"
             disabled={authPending}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {authPending ? "Procesando..." : "Continuar"}
           </button>
@@ -272,7 +272,7 @@ export function SignupForm({
           disabled
           tabIndex={-1}
           title="Próximamente: integración con Mi Argentina"
-          className="w-full px-4 py-3 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
+          className="w-full px-4 py-3 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
         >
           Conectar con Mi Argentina (próximamente)
         </button>

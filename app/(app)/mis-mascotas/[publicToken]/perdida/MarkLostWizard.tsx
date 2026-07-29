@@ -494,7 +494,7 @@ export function MarkLostWizard({
           <button
             type="button"
             onClick={goBack}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
           >
             ← Atrás
           </button>
@@ -504,7 +504,7 @@ export function MarkLostWizard({
           <button
             type="button"
             onClick={goNext}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Continuar →
           </button>
@@ -514,7 +514,7 @@ export function MarkLostWizard({
             onClick={handleSubmit}
             disabled={isPending}
             aria-busy={isPending || undefined}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? (
               <>

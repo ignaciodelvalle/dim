@@ -51,7 +51,7 @@ export function DniVerifyForm({ next }: { next: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Guardando..." : "Declarar DNI"}
       </button>

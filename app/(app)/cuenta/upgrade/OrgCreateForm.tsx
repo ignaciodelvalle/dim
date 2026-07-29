@@ -92,7 +92,7 @@ export function OrgCreateForm({ dniVerified }: Props) {
           </p>
           <a
             href={state.prereqUrl ?? DNI_PREREQ_URL}
-            className="inline-block mt-1 px-4 py-2 rounded-[3px] bg-[var(--color-ln-warn)] text-white text-sm font-medium hover:opacity-90 transition-colors"
+            className="inline-block mt-1 px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-warn)] text-white text-sm font-medium hover:opacity-90 transition-colors"
           >
             Declarar DNI →
           </a>
@@ -271,7 +271,7 @@ export function OrgCreateForm({ dniVerified }: Props) {
         <button
           type="submit"
           disabled={pending}
-          className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {pending ? "Creando organización..." : "Crear organización"}
         </button>

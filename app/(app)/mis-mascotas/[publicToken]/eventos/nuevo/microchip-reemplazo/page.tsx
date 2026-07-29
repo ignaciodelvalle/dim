@@ -31,7 +31,7 @@ export default async function ReplaceMicrochipPage({
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}/eventos/nuevo/microchip`}
-              className="inline-block rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
+              className="inline-block rounded-[var(--radius-pill)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
             >
               Registrar microchip implantado
             </Link>

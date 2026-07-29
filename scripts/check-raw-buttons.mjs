@@ -100,15 +100,110 @@ const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
  *  disclosure bar that neither LnButton nor OpButton models (ghost's border
  *  would double-frame it inside the card); if a second consumer of that shape
  *  appears, extract an OpDisclosureRow primitive and fold this back.
+ *  2026-07-29 (D.1 button-radius canon): the surface had drifted DOWN to 323
+ *  on its own since the 325 above was set, and the fence had been reporting
+ *  the improvement without anyone locking it in. Lowered 325 → 323 to bank it;
+ *  no buttons were migrated in that change, only their radius retargeted.
  *  Target: 0, via migration to LnButton (components/ui/Button.tsx).
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const CITIZEN_BASELINE = 325;
+const CITIZEN_BASELINE = 323;
 const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
 const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
 
 const RAW_BUTTON = /<button\b/g;
+
+// ---------------------------------------------------------------------------
+// Button RADIUS rule (X2-S2, PO decision 2026-07-29)
+// ---------------------------------------------------------------------------
+//
+// WHY THIS WAS ADDED: for a long time globals.css declared the pill "canonical
+// … for buttons and badges" while LnButton shipped 3px, the landing 8px and the
+// operator 6px. Four surfaces, one compliant, and NOTHING in CI to notice —
+// because the only statement of the rule was a CSS comment, and comments do not
+// fail builds. This fence existed the whole time and guarded a different
+// property (raw <button> counts), which is exactly why the radius drifted
+// freely: a rule nobody can break is not the same as a rule nobody enforces.
+//
+// The rule now has two values and two homes, and this counts every violation:
+//   citizen  → --radius-pill    (components/ui/Button.tsx)
+//   operator → --radius-op-btn  (components/ui/dashboard/OpButton.tsx)
+//
+// SCOPE — `<button>` ONLY, and that boundary is deliberate. The first draft of
+// this rule also scanned `<a>` and `<Link>` and reported 310 violations, almost
+// all of them legitimate: in this app an anchor is very often a CARD (the org
+// pet cards carry --radius-md) or a nav item, not a button. A fence that flags
+// correct code gets an allowlist entry and then gets ignored, which is worse
+// than no fence. A `<button>`, in contrast, is unambiguously a button.
+//
+// Button-styled ANCHORS were still codemodded in the same change (26 of them)
+// and belong on LnLinkButton; they are pushed there by the raw-count ratchets
+// above rather than by a radius rule that cannot tell a CTA from a card.
+//
+// RATCHET, not a hard zero: some pre-existing values are numerically identical
+// to the tokens (`rounded-full` == pill) or carry a fallback
+// (`--radius-op-btn,6px`, which OpButton itself writes). Those are
+// harmless-but-untokenized. The count may only go DOWN — which stops NEW drift
+// the day it is written, the property that was missing all along.
+const RADIUS_TAGS = ["button"];
+const RADIUS_UTILITY =
+  /\brounded-(?!\[var\(--radius-(?:pill|op-btn)(?:,[a-z0-9]+)?\)\]|full\b)[a-z0-9[\]()\-.%,]+/g;
+
+/**
+ * Walk the opening tags of the interactive elements in `src` and return every
+ * radius utility that is not one of the two sanctioned tokens.
+ *
+ * Brace-aware: a tag ends at the first `>` at brace depth 0, so a `>` inside a
+ * className expression (a ternary, a template literal) does not truncate the
+ * span and hide the rest of the attributes.
+ */
+/** Index of the `>` that closes the tag opened at `from`, ignoring any `>` that
+ *  sits inside a braced expression (a ternary, a template literal). */
+function tagEnd(src, from) {
+  let depth = 0;
+  for (let j = from; j < src.length; j++) {
+    const c = src[j];
+    if (c === "{") depth++;
+    else if (c === "}") depth--;
+    else if (c === ">" && depth === 0) return j;
+  }
+  return src.length - 1;
+}
+
+/** True when `<tag` at this index is the whole tag name, so `<a` does not match
+ *  `<article` / `<aside`. */
+function isTagBoundary(ch) {
+  return ch === " " || ch === "\n" || ch === "\t" || ch === ">";
+}
+
+/** The `[start, end)` spans of every `<tag …>` opening tag in `src`. */
+function openingTagSpans(src, tag) {
+  const open = `<${tag}`;
+  const spans = [];
+  let i = 0;
+  while (true) {
+    const at = src.indexOf(open, i);
+    if (at === -1) return spans;
+    if (isTagBoundary(src[at + open.length])) {
+      const end = tagEnd(src, at + open.length);
+      spans.push([at, end + 1]);
+      i = end + 1;
+    } else {
+      i = at + open.length;
+    }
+  }
+}
+
+export function findUntokenizedButtonRadii(src) {
+  const found = [];
+  for (const tag of RADIUS_TAGS) {
+    for (const [start, end] of openingTagSpans(src, tag)) {
+      for (const m of src.slice(start, end).matchAll(RADIUS_UTILITY)) found.push(m[0]);
+    }
+  }
+  return found;
+}
 
 // ---------------------------------------------------------------------------
 // Core logic (exported for unit tests)
@@ -171,6 +266,56 @@ function scanSurface({ label, glob, baseline, scriptName }) {
   return true;
 }
 
+/** Untokenized radii on raw `<button>`s, measured 2026-07-29 right after the
+ *  codemod that retargeted 119 hand-copied `rounded-[3px]` onto the two tokens.
+ *  These survivors carry a CARD or SMALL radius on a button (--radius-md,
+ *  --radius-sm, a raw 5px), which is the same drift in a different costume.
+ *  Target 0, by migrating the button to LnButton / OpButton — which also clears
+ *  it from the raw-count ratchets above, so the two fences pull the same way.
+ *  Lower these as files migrate; never raise them. */
+const OPERATOR_RADIUS_BASELINE = 18;
+// 2026-07-29: citizen lowered 105 → 104 in the same change — LostFiltersBars
+// raw "Buscar" (danger red, --radius-sm) migrated to LnButton primary, and its
+// "Limpiar" Link to LnButton anchor mode.
+const CITIZEN_RADIUS_BASELINE = 104;
+
+function scanRadii({ label, glob, baseline, scriptName }) {
+  const files = globSync(glob, { exclude: (p) => /\.test\.tsx$/.test(p) });
+  const perFile = [];
+  let total = 0;
+  for (const file of files) {
+    const hits = findUntokenizedButtonRadii(readFileSync(file, "utf8"));
+    if (hits.length > 0) {
+      perFile.push({ file, count: hits.length, utils: [...new Set(hits)].join(" ") });
+      total += hits.length;
+    }
+  }
+
+  if (total > baseline) {
+    perFile
+      .sort((a, b) => b.count - a.count)
+      .forEach(({ file, count, utils }) => {
+        console.error(`${file}: ${count} untokenized button radius (${utils})`);
+      });
+    console.error(
+      `\n✗ ${total} untokenized button radius on raw <button> across ${label} — baseline allows ${baseline}. A button's radius comes from ONE of two tokens: --radius-pill (citizen, components/ui/Button.tsx) or --radius-op-btn (operator, components/ui/dashboard/OpButton.tsx). Prefer migrating the button to LnButton/OpButton over hand-writing either.`,
+    );
+    return false;
+  }
+
+  if (total < baseline) {
+    console.log(
+      `✓ [${label}] button-radius drift improved: ${total} (baseline ${baseline}). Lower ${scriptName} in scripts/check-raw-buttons.mjs to ${total} to lock in the gain.`,
+    );
+    return true;
+  }
+
+  console.log(
+    `✓ [${label}] button radius clean — ${total} untokenized on raw <button>, at baseline (${baseline}).`,
+  );
+  return true;
+}
+
 function runScan() {
   const operatorOk = scanSurface({
     label: OPERATOR_LABEL,
@@ -186,7 +331,21 @@ function runScan() {
     scriptName: "CITIZEN_BASELINE",
   });
 
-  if (!operatorOk || !citizenOk) {
+  const operatorRadiusOk = scanRadii({
+    label: OPERATOR_LABEL,
+    glob: OPERATOR_SCAN_GLOB,
+    baseline: OPERATOR_RADIUS_BASELINE,
+    scriptName: "OPERATOR_RADIUS_BASELINE",
+  });
+
+  const citizenRadiusOk = scanRadii({
+    label: CITIZEN_LABEL,
+    glob: CITIZEN_SCAN_GLOB,
+    baseline: CITIZEN_RADIUS_BASELINE,
+    scriptName: "CITIZEN_RADIUS_BASELINE",
+  });
+
+  if (!operatorOk || !citizenOk || !operatorRadiusOk || !citizenRadiusOk) {
     process.exit(1);
   }
 }

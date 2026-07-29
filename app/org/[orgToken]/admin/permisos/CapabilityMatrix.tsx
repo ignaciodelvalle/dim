@@ -65,7 +65,7 @@ function RevokeCell({ grantId }: { grantId: string }) {
             title="Confirmar revocación"
             aria-label="Confirmar revocación"
             onClick={() => setConfirming(false)}
-            className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
+            className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
           >
             <Icon name="check" size={14} decorative />
           </button>
@@ -91,7 +91,7 @@ function RevokeCell({ grantId }: { grantId: string }) {
         title="Revocar este permiso"
         aria-label="Revocar"
         onClick={() => setConfirming(true)}
-        className="group flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
+        className="group flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
       >
         <Icon name="check" size={14} decorative />
       </button>
@@ -178,7 +178,7 @@ function GrantCell({
           title={`Confirmar: ${capabilityLabel}`}
           aria-label="Confirmar concesión"
           onClick={handleGrant}
-          className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
+          className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
           <Icon name="check" size={14} decorative />
         </button>
@@ -203,7 +203,7 @@ function GrantCell({
         title={`Conceder: ${capabilityLabel}`}
         aria-label="Conceder"
         onClick={() => setConfirming(true)}
-        className="flex h-6 w-6 items-center justify-center rounded-[3px] text-ln-op-faint transition-colors hover:bg-ln-op-ok-bg hover:text-ln-op-ok disabled:opacity-50"
+        className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] text-ln-op-faint transition-colors hover:bg-ln-op-ok-bg hover:text-ln-op-ok disabled:opacity-50"
       >
         <span aria-hidden className="text-md leading-none">
           +

@@ -129,7 +129,7 @@ export default async function InviteAcceptPage({
             <>
               <a
                 href={`/refugios/${orgPublicToken}`}
-                className="inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+                className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
               >
                 Contactar a {orgDisplayName}
               </a>
@@ -140,7 +140,7 @@ export default async function InviteAcceptPage({
           ) : (
             <a
               href="/"
-              className="inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+              className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
             >
               Ir al inicio
             </a>
@@ -180,13 +180,13 @@ export default async function InviteAcceptPage({
           </p>
           <a
             href={loginHref}
-            className="block w-full rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="block w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Iniciar sesión
           </a>
           <a
             href={`/signup?returnTo=${encodeURIComponent(`/r/invite/${token}`)}`}
-            className="block w-full rounded-[3px] border border-[var(--color-ln-line-strong)] px-5 py-2.5 text-center text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+            className="block w-full rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-5 py-2.5 text-center text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Crear cuenta
           </a>
@@ -236,7 +236,7 @@ export default async function InviteAcceptPage({
           </p>
           <a
             href={loginHref}
-            className="inline-block rounded-[3px] border border-[var(--color-ln-line-strong)] px-5 py-2 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+            className="inline-block rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-5 py-2 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Cambiar cuenta
           </a>

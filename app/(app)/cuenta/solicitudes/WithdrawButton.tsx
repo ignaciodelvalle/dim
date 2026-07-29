@@ -34,7 +34,7 @@ export function WithdrawButton({ requestId }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="inline-flex items-center px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line-strong)] text-xs font-medium text-[var(--color-ln-ink-2)] bg-[var(--color-ln-card)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+        className="inline-flex items-center px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] text-xs font-medium text-[var(--color-ln-ink-2)] bg-[var(--color-ln-card)] hover:bg-[var(--color-ln-stripe)] transition-colors"
       >
         Retirar solicitud
       </button>
@@ -56,7 +56,7 @@ export function WithdrawButton({ requestId }: Props) {
           type="button"
           onClick={handleConfirm}
           disabled={pending}
-          className="rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Retirando…" : "Confirmar"}
         </button>
@@ -67,7 +67,7 @@ export function WithdrawButton({ requestId }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[3px] border border-[var(--color-ln-line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
         >
           Cancelar
         </button>

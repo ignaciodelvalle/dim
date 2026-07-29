@@ -120,7 +120,7 @@ export function TransferSenderForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+        className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
       >
         {pending ? "Enviando…" : "Enviar propuesta"}
       </button>

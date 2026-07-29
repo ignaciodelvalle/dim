@@ -178,7 +178,7 @@ export default async function SolicitudesPage({
                     </div>
                     <Link
                       href={`/r/invite/${inv.invitationToken}`}
-                      className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-[var(--font-ln-sans)] text-sm font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+                      className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-[var(--font-ln-sans)] text-sm font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
                     >
                       Ver invitación
                     </Link>

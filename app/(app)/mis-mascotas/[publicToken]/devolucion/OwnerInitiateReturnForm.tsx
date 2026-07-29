@@ -157,7 +157,7 @@ export function OwnerInitiateReturnForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-[3px] bg-[var(--color-ln-seal)] px-4 py-2.5 font-[var(--font-ln-sans)] text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-4 py-2.5 font-[var(--font-ln-sans)] text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {isPending ? "Enviando…" : `Confirmar devolución de ${petName}`}
       </button>

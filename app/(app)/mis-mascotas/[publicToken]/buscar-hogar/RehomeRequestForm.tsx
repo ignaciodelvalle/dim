@@ -50,7 +50,7 @@ export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName 
         type="button"
         onClick={handleSend}
         disabled={isPending}
-        className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+        className="px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
       >
         {isPending ? "Enviando…" : "Enviar solicitud"}
       </button>

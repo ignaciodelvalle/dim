@@ -300,7 +300,7 @@ export function LnSheetFooter({
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] active:scale-[0.98] active:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] active:scale-[0.98] active:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Cancelar
         </button>
@@ -313,7 +313,7 @@ export function LnSheetFooter({
           disabled={isPending}
           aria-busy={isPending || undefined}
           className={[
-            "inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-4 py-[9px] text-[13px] font-semibold text-white transition-colors",
+            "inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-[9px] text-[13px] font-semibold text-white transition-colors",
             "active:scale-[0.98] active:opacity-90",
             "disabled:cursor-not-allowed disabled:opacity-60",
             toneCtaClass[tone],

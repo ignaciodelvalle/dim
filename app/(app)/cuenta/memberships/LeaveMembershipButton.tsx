@@ -40,7 +40,7 @@ export function LeaveMembershipButton({ organizationId, isLastAdmin }: Props) {
         type="button"
         disabled
         title="Sos el único administrador. Asigná otro administrador antes de salir."
-        className="cursor-not-allowed rounded-[3px] border border-[var(--color-ln-line-strong)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-mute)] opacity-50"
+        className="cursor-not-allowed rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-mute)] opacity-50"
       >
         Renunciar
       </button>
@@ -52,7 +52,7 @@ export function LeaveMembershipButton({ organizationId, isLastAdmin }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+        className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
       >
         Renunciar
       </button>
@@ -74,7 +74,7 @@ export function LeaveMembershipButton({ organizationId, isLastAdmin }: Props) {
           type="button"
           onClick={handleLeave}
           disabled={pending}
-          className="rounded-[3px] bg-[var(--color-ln-err)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-semibold text-white transition-colors disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] bg-[var(--color-ln-err)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-semibold text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Saliendo..." : "Confirmar"}
         </button>
@@ -85,7 +85,7 @@ export function LeaveMembershipButton({ organizationId, isLastAdmin }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[3px] border border-[var(--color-ln-line-strong)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
         >
           Cancelar
         </button>

@@ -89,7 +89,7 @@ export function PosterPreview({
         <button
           type="button"
           onClick={() => setGrayscale((v) => !v)}
-          className="px-3 py-1.5 text-sm rounded-[3px] border border-[var(--color-ln-line)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+          className="px-3 py-1.5 text-sm rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           {grayscale ? "Versión color" : "Versión blanco y negro"}
         </button>
@@ -99,7 +99,7 @@ export function PosterPreview({
           onClick={() => window.print()}
           className={
             photoUrl
-              ? "px-4 py-2 text-sm font-medium rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              ? "px-4 py-2 text-sm font-medium rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
               : // Demoted (secondary) when there is no photo — the warning below
                 // is the primary message. Printing is still possible.
                 "px-4 py-2 text-sm font-medium rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)] transition-colors"

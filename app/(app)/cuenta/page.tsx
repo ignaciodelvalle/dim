@@ -138,7 +138,7 @@ export default async function CuentaPage() {
             </p>
             <Link
               href="/cuenta"
-              className="mt-4 inline-flex items-center justify-center rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-ln-ink)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+              className="mt-4 inline-flex items-center justify-center rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-ln-ink)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
             >
               Reintentar
             </Link>
@@ -253,7 +253,7 @@ export default async function CuentaPage() {
                 <span className="text-[13px] text-[var(--color-ln-mute)]">DNI no declarado</span>
                 <Link
                   href="?sheet=verificar-dni"
-                  className="inline-flex items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-1.5 text-sm font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
+                  className="inline-flex items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-1.5 text-sm font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
                 >
                   Declarar ahora
                 </Link>
@@ -301,7 +301,7 @@ export default async function CuentaPage() {
             </div>
             <Link
               href="/cuenta/crear-consultorio"
-              className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+              className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
             >
               Crear consultorio →
             </Link>
@@ -445,7 +445,7 @@ export default async function CuentaPage() {
       <form action={logoutAction} className="mt-1 mb-7">
         <button
           type="submit"
-          className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
         >
           Cerrar sesión
         </button>

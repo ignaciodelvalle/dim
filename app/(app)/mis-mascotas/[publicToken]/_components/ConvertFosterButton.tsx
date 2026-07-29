@@ -48,7 +48,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
-            className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isPending ? "Procesando…" : "Sí, adoptar"}
           </button>
@@ -56,7 +56,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
             type="button"
             onClick={() => setConfirming(false)}
             disabled={isPending}
-            className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors disabled:opacity-60"
+            className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors disabled:opacity-60"
           >
             Cancelar
           </button>
@@ -70,7 +70,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors"
+      className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors"
     >
       Convertir en mi mascota
     </button>

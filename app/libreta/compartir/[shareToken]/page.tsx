@@ -319,7 +319,7 @@ function TerminalShell({
         {/* Primary CTA — keyboard-operable Link with visible focus ring. */}
         <Link
           href={`/p/${context.publicToken}`}
-          className="inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-3 text-[13px] font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+          className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-3 text-[13px] font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
         >
           Ver el perfil público de {context.name}
         </Link>

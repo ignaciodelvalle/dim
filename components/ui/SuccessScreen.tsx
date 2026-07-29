@@ -120,7 +120,7 @@ export function LnSuccessScreen({
               type="button"
               onClick={handleCopy}
               aria-label={copied ? "Código copiado" : "Tocar para copiar el código"}
-              className="block w-full focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] rounded-[3px]"
+              className="block w-full focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] rounded-[var(--radius-pill)]"
             >
               <span className="block font-[var(--font-ln-mono)] text-3xl font-bold tracking-widest tabular-nums text-[var(--color-ln-ink)] break-all">
                 {code}

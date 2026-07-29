@@ -172,7 +172,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                     type="button"
                     onClick={withdraw}
                     disabled={pending}
-                    className="px-3 py-1.5 rounded-[3px] text-xs bg-[var(--color-ln-seal)] text-white hover:opacity-90 disabled:opacity-60 transition-colors"
+                    className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs bg-[var(--color-ln-seal)] text-white hover:opacity-90 disabled:opacity-60 transition-colors"
                   >
                     {pending ? "Saliendo…" : "Confirmar salida"}
                   </button>
@@ -180,7 +180,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                     type="button"
                     onClick={() => setConfirmWithdraw(false)}
                     disabled={pending}
-                    className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
+                    className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
                   >
                     Cancelar
                   </button>
@@ -192,7 +192,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                   type="button"
                   onClick={() => submit("update_preferences_only", "paused")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   Pausar
                 </button>
@@ -200,7 +200,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                   type="button"
                   onClick={() => setConfirmWithdraw(true)}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors"
                 >
                   Salir del pool
                 </button>
@@ -218,7 +218,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             type="button"
             onClick={() => submit("update_preferences_only", "active")}
             disabled={pending}
-            className="px-3 py-1.5 rounded-[3px] text-xs bg-[var(--color-ln-ok)] text-white hover:opacity-90 transition-colors"
+            className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs bg-[var(--color-ln-ok)] text-white hover:opacity-90 transition-colors"
           >
             Reactivar
           </button>
@@ -302,7 +302,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar
             </button>
@@ -387,7 +387,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar
             </button>
@@ -440,7 +440,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="submit"
               disabled={pending}
-              className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+              className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {pending
                 ? "Guardando..."
@@ -498,7 +498,7 @@ function TriStateRow({
             key={opt.l}
             type="button"
             onClick={() => onChange(opt.v)}
-            className={`px-2 py-1 rounded-[3px] border text-xs transition-colors ${
+            className={`px-2 py-1 rounded-[var(--radius-pill)] border text-xs transition-colors ${
               value === opt.v
                 ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] text-white"
                 : "border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"

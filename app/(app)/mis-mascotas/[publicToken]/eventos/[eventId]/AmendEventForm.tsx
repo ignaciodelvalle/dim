@@ -172,7 +172,7 @@ export function AmendEventForm({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-[3px] p-1.5 text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]"
+            className="rounded-[var(--radius-pill)] p-1.5 text-[var(--color-ln-mute)] hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]"
             aria-label="Cerrar"
           >
             <Icon name="close" size="sm" decorative />
@@ -271,7 +271,7 @@ export function AmendEventForm({
             type="button"
             onClick={onClose}
             className={[
-              "rounded-[3px] border border-[var(--color-ln-line-strong)]",
+              "rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)]",
               "bg-[var(--color-ln-card)] px-4 py-2 text-[13px] font-medium text-[var(--color-ln-ink)]",
               "hover:bg-[var(--color-ln-stripe)] transition-colors min-h-[44px]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]",
@@ -284,7 +284,7 @@ export function AmendEventForm({
             onClick={handleSubmitClick}
             disabled={isPending || editableFields.length === 0}
             className={[
-              "rounded-[3px] px-4 py-2 text-[13px] font-semibold text-white",
+              "rounded-[var(--radius-pill)] px-4 py-2 text-[13px] font-semibold text-white",
               "bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700,var(--color-ln-azul))]",
               "disabled:opacity-50 transition-opacity min-h-[44px]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--color-ln-azul)]",

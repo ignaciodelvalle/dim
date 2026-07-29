@@ -105,7 +105,7 @@ export function SearchFiltersForm({
 
         <button
           type="submit"
-          className="text-sm px-4 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+          className="text-sm px-4 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
         >
           Buscar
         </button>

@@ -50,7 +50,7 @@ export function CoFosterToggle({
           type="button"
           onClick={() => toggle(true)}
           disabled={pending || current}
-          className={`px-3 py-1 rounded-[3px] text-xs transition-colors ${
+          className={`px-3 py-1 rounded-[var(--radius-pill)] text-xs transition-colors ${
             current
               ? "bg-[var(--color-ln-ok)] text-white"
               : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
@@ -62,7 +62,7 @@ export function CoFosterToggle({
           type="button"
           onClick={() => toggle(false)}
           disabled={pending || !current}
-          className={`px-3 py-1 rounded-[3px] text-xs transition-colors ${
+          className={`px-3 py-1 rounded-[var(--radius-pill)] text-xs transition-colors ${
             !current
               ? "bg-[var(--color-ln-azul)] text-white"
               : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"

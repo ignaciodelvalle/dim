@@ -140,7 +140,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
               setCreating(true);
               setCopiedToken(null);
             }}
-            className="text-xs px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Nuevo enlace
           </button>
@@ -215,7 +215,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
                 <button
                   type="button"
                   onClick={() => copyToClipboard(newShareToken)}
-                  className="text-xs px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   {copiedToken === newShareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -227,7 +227,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
             <button
               type="submit"
               disabled={createPending || (expiresInDays === null && !noExpiryConfirmed)}
-              className="text-xs px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-50"
             >
               {createPending ? "Creando..." : "Crear enlace"}
             </button>
@@ -239,7 +239,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
                 setExpiresInDays(30);
                 setNoExpiryConfirmed(false);
               }}
-              className="text-xs px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+              className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
             >
               Cancelar
             </button>
@@ -275,7 +275,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
                 <button
                   type="button"
                   onClick={() => copyToClipboard(share.shareToken)}
-                  className="text-xs px-2 py-1 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="text-xs px-2 py-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   {copiedToken === share.shareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -287,7 +287,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
                     setRevokeError(null);
                     setConfirmingShare(share);
                   }}
-                  className="text-xs px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
+                  className="text-xs px-2 py-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
                 >
                   Revocar
                 </button>

@@ -50,9 +50,23 @@ type LnButtonAsAnchorProps = CommonProps &
 
 export type LnButtonProps = LnButtonAsButtonProps | LnButtonAsAnchorProps;
 
+// THE citizen button radius. This is one of exactly TWO places in the app where
+// a button radius may be written — the other is OpButton's --radius-op-btn.
+// Enforced by scripts/check-raw-buttons.mjs, so a third one fails the build.
+//
+// Pill, not a fixed px value, and the reason is maintenance rather than taste
+// (X2-S2, PO decision 2026-07-29): 9999px is SCALE-INVARIANT. A fixed radius is
+// coupled to button height — 3px read right on a small button and undersized on
+// a tall CTA — and that coupling is how this codebase grew FOUR button radii,
+// each one added by someone who needed the previous value to look right at a new
+// size. A pill is correct at every size, so the question never comes back.
+//
+// The operator tier deliberately keeps its 6px institutional rect for dense
+// admin tables. Two rules with a stated reason is a system; the four
+// undocumented values this replaces were drift wearing a system's clothes.
 const base =
   "inline-flex items-center justify-center gap-[7px] font-semibold " +
-  "rounded-[3px] border transition-colors cursor-pointer select-none " +
+  "rounded-[var(--radius-pill)] border transition-colors cursor-pointer select-none " +
   // Pressed feedback (native-mobile audit §3): touch users get an immediate
   // tactile response instead of hover-only styling that never fires on touch.
   "active:scale-[0.98] active:opacity-90 " +

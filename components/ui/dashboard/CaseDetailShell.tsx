@@ -317,7 +317,7 @@ export function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
         {subject.petHref ? (
           <Link
             href={subject.petHref}
-            className="inline-flex flex-shrink-0 items-center rounded-[3px] bg-ln-op-azul px-4 py-2 text-sm font-semibold text-white no-underline transition-colors hover:opacity-90"
+            className="inline-flex flex-shrink-0 items-center rounded-[var(--radius-pill)] bg-ln-op-azul px-4 py-2 text-sm font-semibold text-white no-underline transition-colors hover:opacity-90"
           >
             Ver mascota →
           </Link>

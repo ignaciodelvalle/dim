@@ -658,7 +658,7 @@ export function PetForm({
                 ref={sensitiveButtonRef}
                 type="button"
                 onClick={() => setSensitiveDialogOpen(true)}
-                className="self-start rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+                className="self-start rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)]"
               >
                 Editar condiciones sensibles
               </button>
@@ -707,7 +707,7 @@ export function PetForm({
         type="submit"
         disabled={isPending}
         className={[
-          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-4 py-2.5 text-[13px] font-semibold text-white transition-colors",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-2.5 text-[13px] font-semibold text-white transition-colors",
           "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
           "disabled:cursor-not-allowed disabled:opacity-60",
         ]

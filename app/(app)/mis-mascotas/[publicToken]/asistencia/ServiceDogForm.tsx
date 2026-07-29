@@ -147,7 +147,7 @@ export function ServiceDogForm({
               type="button"
               onClick={() => toggleVisibility("full_banner")}
               disabled={pending || initial.publicVisibility === "full_banner"}
-              className={`px-3 py-1 rounded-[3px] text-sm ${
+              className={`px-3 py-1 rounded-[var(--radius-pill)] text-sm ${
                 initial.publicVisibility === "full_banner"
                   ? "bg-[var(--color-ln-ok)] text-white"
                   : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
@@ -159,7 +159,7 @@ export function ServiceDogForm({
               type="button"
               onClick={() => toggleVisibility("private_only")}
               disabled={pending || initial.publicVisibility === "private_only"}
-              className={`px-3 py-1 rounded-[3px] text-sm ${
+              className={`px-3 py-1 rounded-[var(--radius-pill)] text-sm ${
                 initial.publicVisibility === "private_only"
                   ? "bg-[var(--color-ln-azul)] text-white"
                   : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
@@ -319,7 +319,7 @@ export function ServiceDogForm({
           <button
             type="submit"
             disabled={pending || isRevoked}
-            className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+            className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar datos"}
           </button>
@@ -328,7 +328,7 @@ export function ServiceDogForm({
               type="button"
               onClick={submitForVerification}
               disabled={pending}
-              className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
               Solicitar verificación
             </button>
@@ -338,7 +338,7 @@ export function ServiceDogForm({
               type="button"
               onClick={() => setConfirmRetire(true)}
               disabled={pending}
-              className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] text-sm hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
+              className="px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] text-sm hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
             >
               Retirar del servicio
             </button>
@@ -354,7 +354,7 @@ export function ServiceDogForm({
                   type="button"
                   onClick={retire}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-seal)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-colors"
                 >
                   {pending ? "Retirando…" : "Confirmar retiro"}
                 </button>
@@ -362,7 +362,7 @@ export function ServiceDogForm({
                   type="button"
                   onClick={() => setConfirmRetire(false)}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
                 >
                   Cancelar
                 </button>

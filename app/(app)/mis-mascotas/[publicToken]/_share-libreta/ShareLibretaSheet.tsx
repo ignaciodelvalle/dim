@@ -84,7 +84,7 @@ export function ShareLibretaSheet({
           <button
             type="button"
             onClick={() => navigator.clipboard.writeText(shareUrl)}
-            className="w-full px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] hover:opacity-90 text-white text-sm font-medium"
+            className="w-full px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] hover:opacity-90 text-white text-sm font-medium"
           >
             Copiar link
           </button>
@@ -148,7 +148,7 @@ export function ShareLibretaSheet({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] hover:opacity-90 disabled:opacity-60 text-white font-medium"
+        className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] hover:opacity-90 disabled:opacity-60 text-white font-medium"
       >
         {isPending ? "Generando…" : "Generar link"}
       </button>

@@ -2,10 +2,9 @@
 
 import { useState } from "react";
 
-import Link from "next/link";
-
 import { searchLocalitiesPublicAction } from "@/app/actions/localities";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox } from "@/components/ui/Field";
 import { LOST_TIME_BUCKETS, type LostListingFilters } from "@/lib/infra/lost-listing";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
@@ -168,19 +167,22 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
 
       <div className="flex justify-end gap-2 pt-1">
         {hasActiveFilters && (
-          <Link
-            href="/perdidas"
-            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]"
-          >
+          // LnButton in anchor mode (it renders a next/link when given `href`),
+          // so the reset sits in the same family as the submit beside it. As a
+          // hand-styled Link it kept a square corner next to a pill button —
+          // two shapes for two halves of one control pair.
+          <LnButton href="/perdidas" variant="ghost" size="sm">
             Limpiar
-          </Link>
+          </LnButton>
         )}
-        <button
-          type="submit"
-          className="rounded-[var(--radius-sm)] bg-[var(--color-ln-err)] px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90"
-        >
+        {/* Was a raw <button> painted with --color-ln-err — the DANGER red — for
+            a search. Nothing about filtering a public list is destructive, and
+            err is reserved for states that are (X2-S2, review 2026-07-27). It
+            was also the only square button left on this page once the citizen
+            radius became the pill, which is what made it obvious. */}
+        <LnButton type="submit" variant="primary" size="sm">
           Buscar
-        </button>
+        </LnButton>
       </div>
     </form>
   );

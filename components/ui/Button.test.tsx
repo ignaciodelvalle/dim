@@ -30,7 +30,13 @@ describe("<LnButton>", () => {
     // Same primary-variant + base classes LnButton (button mode) would apply.
     expect(link).toHaveClass("bg-[var(--color-ln-azul)]");
     expect(link).toHaveClass("text-white");
-    expect(link).toHaveClass("rounded-[3px]");
+    // The radius comes from the token, not a literal. This assertion used to
+    // read `rounded-[3px]` and it did its job: it went red the moment the
+    // citizen radius moved to the pill (D.1). But pinning the VALUE here made
+    // this test a second, redundant home for a rule that has exactly one — so
+    // it now pins the SHAPE OF THE RULE (a --radius-* token) and leaves the
+    // value to Button.tsx, which is where the fence expects to find it.
+    expect(link.className).toMatch(/rounded-\[var\(--radius-[a-z-]+\)\]/);
   });
 
   it("keeps an existing button-mode prop combo (variant + disabled) rendering a <button>", () => {

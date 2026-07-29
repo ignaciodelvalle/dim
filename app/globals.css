@@ -116,11 +116,27 @@
   --focus-ring-width: 3px;
   --focus-ring-offset: 2px;
 
-  /* Radius scale (Poncho PR-F). Three levels aligned with Poncho _forms.scss
-   * (10px for inputs / framed fieldsets), _buttons.scss + DIM cards (16px
-   * for panels/sheets/modals), and the canonical pill (9999px for buttons
-   * and badges). Existing rounded-* utilities continue to work; use these
-   * tokens for new code so themes can resize the scale globally. */
+  /* Radius scale (Poncho PR-F). Aligned with Poncho _forms.scss (10px for
+   * inputs / framed fieldsets) and _buttons.scss + DIM cards (16px for
+   * panels/sheets/modals). Existing rounded-* utilities continue to work; use
+   * these tokens for new code so themes can resize the scale globally.
+   *
+   * BUTTON RADIUS — two rules, and only two (X2-S2, PO decision 2026-07-29).
+   * This comment used to claim the pill was canonical "for buttons and badges"
+   * while LnButton shipped 3px, the landing 8px and the operator 6px: four
+   * surfaces, one of which complied, and nothing in CI to notice. A rule that
+   * lives only in a comment is not a rule, so both of these are now written in
+   * exactly one place each and fenced by scripts/check-raw-buttons.mjs.
+   *
+   *   citizen  → --radius-pill    (components/ui/Button.tsx)
+   *   operator → --radius-op-btn  (components/ui/dashboard/OpButton.tsx)
+   *
+   * Pill for the citizen tier is a MAINTENANCE choice: 9999px is
+   * scale-invariant, so it stays correct at every button height. A fixed px
+   * radius is coupled to size, and that coupling is precisely how four values
+   * accumulated — each added by someone whose new button size made the old
+   * value look wrong. The operator tier keeps its 6px institutional rect for
+   * dense admin tables. */
   --radius-input: 10px;
   --radius-card: 16px;
   --radius-pill: 9999px;

@@ -88,7 +88,7 @@ export function AcceptTransferActions({
               <button
                 type="button"
                 onClick={() => setShowRejectReason(false)}
-                className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs font-medium text-[var(--color-ln-ink)]"
+                className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-1.5 text-xs font-medium text-[var(--color-ln-ink)]"
               >
                 Atrás
               </button>
@@ -111,7 +111,7 @@ export function AcceptTransferActions({
                     navigateAfterActionSuccess(window.location.href);
                   });
                 }}
-                className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {busy ? "Enviando…" : "Confirmar rechazo"}
               </button>
@@ -123,7 +123,7 @@ export function AcceptTransferActions({
               type="button"
               disabled={busy}
               onClick={() => setShowRejectReason(true)}
-              className="flex-1 rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
+              className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
             >
               Rechazar
             </button>
@@ -132,7 +132,7 @@ export function AcceptTransferActions({
               type="button"
               disabled={busy}
               onClick={() => setConfirmAccept(true)}
-              className="flex-1 rounded-[3px] bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+              className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
             >
               Aceptar
             </button>
@@ -185,7 +185,7 @@ export function AcceptTransferActions({
                     navigateAfterActionSuccess(window.location.href);
                   });
                 }}
-                className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+                className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
               >
                 {pending ? "Cancelando…" : "Confirmar cancelación"}
               </button>
@@ -193,7 +193,7 @@ export function AcceptTransferActions({
                 type="button"
                 disabled={busy}
                 onClick={() => setConfirmCancel(false)}
-                className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
+                className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
               >
                 Atrás
               </button>
@@ -204,7 +204,7 @@ export function AcceptTransferActions({
             type="button"
             disabled={pending}
             onClick={() => setConfirmCancel(true)}
-            className="w-full rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
+            className="w-full rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50"
           >
             Cancelar transferencia
           </button>

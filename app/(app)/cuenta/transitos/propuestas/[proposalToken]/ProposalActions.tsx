@@ -131,7 +131,7 @@ export function ProposalActions({
             type="button"
             onClick={accept}
             disabled={pending}
-            className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
           >
             {pending ? "Aceptando..." : "Confirmar aceptación"}
           </button>
@@ -139,7 +139,7 @@ export function ProposalActions({
             type="button"
             onClick={() => setMode("none")}
             disabled={pending}
-            className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Cancelar
           </button>
@@ -185,7 +185,7 @@ export function ProposalActions({
             type="button"
             onClick={reject}
             disabled={pending}
-            className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
           >
             {pending ? "Enviando..." : "Confirmar rechazo"}
           </button>
@@ -193,7 +193,7 @@ export function ProposalActions({
             type="button"
             onClick={() => setMode("none")}
             disabled={pending}
-            className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+            className="px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Cancelar
           </button>
@@ -207,14 +207,14 @@ export function ProposalActions({
       <button
         type="button"
         onClick={() => setMode("accept")}
-        className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 transition-colors"
+        className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 transition-colors"
       >
         Aceptar propuesta
       </button>
       <button
         type="button"
         onClick={() => setMode("reject")}
-        className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+        className="px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
       >
         Rechazar
       </button>

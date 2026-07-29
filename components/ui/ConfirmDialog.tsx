@@ -194,7 +194,7 @@ export function ConfirmDialog({
           onClick={onClose}
           disabled={pending}
           className={[
-            "rounded-[3px] border border-[var(--color-ln-line-strong)]",
+            "rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)]",
             "bg-[var(--color-ln-card)] px-4 py-2 text-sm font-medium",
             "text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)]",
             "disabled:opacity-50 transition-colors",
@@ -210,7 +210,7 @@ export function ConfirmDialog({
           onClick={onConfirm}
           disabled={pending}
           className={[
-            "rounded-[3px] px-4 py-2 text-sm font-semibold text-white",
+            "rounded-[var(--radius-pill)] px-4 py-2 text-sm font-semibold text-white",
             "disabled:opacity-50 transition-opacity",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1",
             confirmBtnClass[tone],

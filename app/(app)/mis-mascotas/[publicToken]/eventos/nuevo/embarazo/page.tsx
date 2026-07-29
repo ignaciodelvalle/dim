@@ -103,7 +103,7 @@ function BlockedShell({
           {showEndedLink && (
             <Link
               href={`/mis-mascotas/${publicToken}/eventos/nuevo/embarazo?phase=ended`}
-              className="inline-block rounded-[3px] border border-[var(--color-ln-rosa)] bg-[var(--color-ln-rosa)] px-3.5 py-2 font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
+              className="inline-block rounded-[var(--radius-pill)] border border-[var(--color-ln-rosa)] bg-[var(--color-ln-rosa)] px-3.5 py-2 font-[var(--font-ln-mono)] text-[11.5px] font-semibold text-white"
             >
               Registrar cierre del embarazo
             </Link>

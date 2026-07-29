@@ -312,13 +312,13 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2 text-sm bg-[var(--color-ln-azul)] text-white rounded-[3px] hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2 text-sm bg-[var(--color-ln-azul)] text-white rounded-[var(--radius-pill)] hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "Guardando..." : "Guardar cambios"}
         </button>
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[3px] hover:bg-[var(--color-ln-stripe)] transition-colors"
+          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[var(--radius-pill)] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           Cancelar
         </a>

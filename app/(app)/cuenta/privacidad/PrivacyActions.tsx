@@ -78,7 +78,7 @@ export function PrivacyActions() {
           type="button"
           onClick={handleExport}
           disabled={pending}
-          className="rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
+          className="rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
         >
           {pending ? "Generando…" : "Descargar JSON"}
         </button>
@@ -119,7 +119,7 @@ export function PrivacyActions() {
               <button
                 type="button"
                 onClick={() => setShowErase(false)}
-                className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 Cancelar
               </button>
@@ -127,7 +127,7 @@ export function PrivacyActions() {
                 type="button"
                 onClick={handleErase}
                 disabled={pending || eraseReason.trim().length < 5}
-                className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 {pending ? "Procesando…" : "Confirmar borrado"}
               </button>
@@ -137,7 +137,7 @@ export function PrivacyActions() {
           <button
             type="button"
             onClick={() => setShowErase(true)}
-            className="rounded-[3px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-card)] px-4 py-2.5 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)]/50 transition-colors"
+            className="rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-card)] px-4 py-2.5 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)]/50 transition-colors"
           >
             Quiero eliminar mi cuenta
           </button>

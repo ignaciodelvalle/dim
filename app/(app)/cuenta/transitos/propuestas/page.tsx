@@ -47,7 +47,7 @@ export default async function PropuestasInboxPage() {
         </div>
         <Link
           href="/cuenta/ofrecerme-como-transito"
-          className="mt-1 flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+          className="mt-1 flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
         >
           Ofrecerme como tránsito
         </Link>

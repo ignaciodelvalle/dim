@@ -145,7 +145,7 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
           <button
             type="button"
             onClick={handleShare}
-            className="block w-full px-4 py-3.5 rounded-[3px] font-semibold text-sm text-center transition-colors bg-[var(--color-ln-azul)] text-white border border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+            className="block w-full px-4 py-3.5 rounded-[var(--radius-pill)] font-semibold text-sm text-center transition-colors bg-[var(--color-ln-azul)] text-white border border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
           >
             {shareLabel}
           </button>
@@ -153,7 +153,7 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
           {/* Secondary: view pet profile */}
           <Link
             href={`/mis-mascotas/${publicToken}`}
-            className="block w-full px-4 py-3.5 rounded-[3px] font-semibold text-sm text-center transition-colors border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+            className="block w-full px-4 py-3.5 rounded-[var(--radius-pill)] font-semibold text-sm text-center transition-colors border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
           >
             Ver perfil
           </Link>
@@ -163,7 +163,7 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
             href={`/p/${publicToken}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="block w-full px-4 py-3.5 rounded-[3px] font-medium text-sm text-center text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+            className="block w-full px-4 py-3.5 rounded-[var(--radius-pill)] font-medium text-sm text-center text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
           >
             Ver credencial pública
           </Link>

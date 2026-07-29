@@ -165,7 +165,7 @@ function EnableForm({ enableAction }: { enableAction: (formData: FormData) => Pr
 
       <button
         type="submit"
-        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] hover:opacity-90 text-white font-medium"
+        className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] hover:opacity-90 text-white font-medium"
       >
         Habilitar Tier 2
       </button>
@@ -223,14 +223,14 @@ function ActiveStatusCard({
           href={`/p/${petPublicToken}`}
           target="_blank"
           rel="noreferrer"
-          className="flex-1 text-center px-4 py-2 rounded-[3px] border border-[var(--color-ln-ok)] text-[var(--color-ln-ok)] text-sm font-medium hover:bg-[var(--color-ln-ok-050)]"
+          className="flex-1 text-center px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-ok)] text-[var(--color-ln-ok)] text-sm font-medium hover:bg-[var(--color-ln-ok-050)]"
         >
           Ver la credencial pública →
         </Link>
         <form action={revokeAction} className="flex-1">
           <button
             type="submit"
-            className="w-full px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)]"
+            className="w-full px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)]"
           >
             Revocar ahora
           </button>
