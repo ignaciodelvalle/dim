@@ -425,6 +425,76 @@ arreglado en masa a propósito — destrabar 703 declaraciones significa 703
 elementos pasando de golpe a su tamaño real, o sea un cambio visible en toda la
 app. Eso es una pasada deliberada con el PO, no un codemod silencioso.
 
+## #40 k-anon por provincia — investigación completa, listo para ejecutar
+
+**NO implementada, y a propósito.** Cambié el tipo, dejé que el compilador
+enumerara la superficie (**21 errores en 13 archivos**), leí los 9 sitios, y
+revertí para dejar el árbol verde. Código de privacidad a medias es peor que
+ninguno. Esto es el mapa para hacerlo de una sentada.
+
+### La premisa vieja está mal, y ya sé por qué
+
+`build-features.ts:579` dice *"Province cells are large, so there is NO k-anon
+suppression here"*, y `ProvinceChoroplethProps.suppressed` está **hardcodeado en
+`false`**. Eso es cierto de la POBLACIÓN de una provincia y falso de su
+DENOMINADOR — que es de lo que trata k-anonimato.
+
+### La trampa, confirmada
+
+En capas de TASA el umbral va sobre el **denominador**, nunca sobre `value`.
+Santa Cruz publica 100% sobre 11 perros: su `value` es **100**, no 11. Un chequeo
+sobre el valor ve un número grande y publica.
+
+### Los denominadores EXISTEN todos (menos uno)
+
+| loader | línea | value | denominador |
+|---|---|---|---|
+| densidad (pets) | 480 | `r.count` | `r.count` |
+| rabia | 692 | `r.ratePct` | `r.total` |
+| esterilización | 719 | `r.ratePct` | `r.total` |
+| microchip | 743 | `r.ratePct` | `r.active` |
+| PPP | 767 | `r.ratePct` | `r.flaggedCount` |
+| tendencia | 886 | `c.delta` | ya trae `c.suppressed` — hoy DESAPARECE la celda; debe rayarla |
+| desierto veterinario | 1045 | `pct` | `r.count` |
+| desparasitación | 1070 | `r.ratePct` | `r.total` |
+| **índice territorial** | **1099** | `r.score` | **NINGUNO** |
+
+El índice es un **compuesto de attainments**: `JurisdictionIndexRow` no carga los
+denominadores de sus componentes. Ahí no se puede decidir supresión sin adivinar,
+y adivinar un denominador es peor que declarar la brecha. Va excluido y anotado.
+
+### Forma de la solución
+
+Un helper con el denominador **obligatorio en la firma**, para que sea imposible
+invocarlo sin nombrarlo — así la trampa no se puede repetir:
+
+```ts
+const PROVINCE_K = 5; // el mismo k del grano de localidad
+function provinceCell(code, label, value, denominator): ProvinceChoroplethCell {
+  const suppressed = denominator < PROVINCE_K;
+  return { provinceCode: code, label, value: suppressed ? null : value, suppressed };
+}
+```
+
+Ya existe `suppressSmallCells` en `lib/metrics/anonymity.ts` (k=5, accessor
+`count(row)`) — el helper debe apoyarse en ese umbral, no inventar otro.
+
+### Lo que NO está en el plan y hay que hacer igual
+
+1. **`ProvinceChoroplethCell.value` pasa a `number | null`** → 21 errores de tipo
+   en 13 archivos (7 son fixtures de test, mecánicos).
+2. **`lib/open-data/datasets.ts:354` consume esto** — o sea que la supresión pega
+   en el dataset **PÚBLICO**. Eso sube la prioridad de la unidad: hoy el open
+   data publica tasas sobre denominadores chicos.
+3. **`get-panorama-kpis.ts:628` asume `c.value` no-null.**
+4. **Render**: una provincia suprimida no tiene valor, así que **el filtro de
+   "sin datos" que agregué en D.5(b) la puntillaría** — leería "sin datos" en vez
+   de "protegido". Hay que excluirla del complemento Y darle la capa de hachurado.
+   Precedente ya escrito al lado: `applyProvinceBivariateSuppression`
+   (`SituationalMap`, task #63) hace exactamente eso para el caso bivariado.
+5. **Leyenda**: `MapLegends` omite la fila de k-anon en provincias A PROPÓSITO,
+   con un comentario que dice "provinces are never suppressed". Deja de ser cierto.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -441,7 +511,7 @@ app. Eso es una pasada deliberada con el PO, no un codemod silencioso.
 | H.1 restante | **hecha** — `grain` faltante TIRA (D6) + los 7 throw-paths con test (21 en total) | |
 | H.2 | **hecha** — fence de precondición de seed. Medido antes de escribirlo: de 15 archivos que nombran un token de demo, 13 lo usan como fixture de render y 1 crea sus propias mascotas; **solo `seed-demo-scenario.test.ts` depende del seed, y ya lo declara**. El contrato ya se cumplía; faltaba el fence que lo mantenga | |
 | #38 recuperadas | **hecha** — selector event-sourced + 3 tests | `17903555` |
-| #40 k-anon provincia | pendiente | |
+| #40 k-anon provincia | **investigada y desriesgada, NO implementada** — es más grande de lo que dice el plan. Detalle abajo | |
 | D.3 | pendiente | |
 | D.4 | pendiente | |
 | D.1 (radio) | **hecha** — canon de dos reglas (ciudadano `--radius-pill`, operador `--radius-op-btn`), codemod de 145 sitios, y `lint:buttons` extendido con ratchet de radio. + el "Buscar" rojo migrado a `LnButton` | `e23ebca1` |
