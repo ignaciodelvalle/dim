@@ -93,12 +93,24 @@ un bug de la función. Empezar por reproducir con una mascota concreta.
 6. **Al terminar cada unidad, actualizar la tabla de estado de abajo.** Ese es el
    punto de retome en frío.
 
+## Hallazgo sistémico abierto — fixtures que dejan mascotas sin spine
+
+`lint:spine` atrapó TRES veces en una sesión mascotas sin `pet_registered`
+creadas por fixtures de test: `TRNS-TEST-0001`, `DDXTEST-RABIES-…` y las de
+`create-pet`. No son tres accidentes: son fixtures que insertan mascotas
+directo, salteando el circuito de alta, y no limpian. Cada una obliga a un
+borrado manual con el GUC antes de poder commitear.
+
+El arreglo sistémico va en **H.2** (contrato de seed/fixture): o pasan por el
+circuito real, o llevan `seed_tag` (que la fence exime por diseño), o limpian
+en su `afterAll`. Elegir una y aplicarla a todas.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
 |---|---|---|
-| SC-5 | pendiente | |
-| #32 create-pet | pendiente | |
+| SC-5 | **hecha** — suite verde de punta a punta por primera vez | `88dce3ba` |
+| #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
 | #31 crisis-seams (b) | pendiente | |
 | C.3 | pendiente | |
 | C.4 | pendiente | |
