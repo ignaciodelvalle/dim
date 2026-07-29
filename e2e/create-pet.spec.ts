@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+import { deletePetsByNamePrefix } from "./demo/_db-cleanup";
+import { loginAs } from "./demo/_helpers";
+
 /**
  * Create-pet happy-path e2e.
  *
@@ -27,14 +30,34 @@ import { expect, test } from "@playwright/test";
  */
 
 const OWNER_EMAIL = "owner@dim.test";
-const OWNER_PASSWORD = "Test1234!";
 
 // Unique name to assert in the list afterwards (also keeps the soft same-owner
 // dedupe gate P2 from firing on repeated runs).
-const PET_NAME = `E2EPet-${Date.now()}`;
+const PET_NAME_PREFIX = "E2EPet-";
+const PET_NAME = `${PET_NAME_PREFIX}${Date.now()}`;
 
 // Palermo is a CABA barrio; the cascade needs its province picked first.
 const PROVINCE_CODE = "AR-C"; // Ciudad Autónoma de Buenos Aires (CABA)
+
+// Registration is append-only and there is no "delete my pet" flow — nor should
+// there be — so this spec could not clean up through the app, and left one pet
+// behind on EVERY run. The pile was not merely untidy: crisis-owner-lost-flow
+// picks an arbitrary active pet of this same owner and marks it lost, so an
+// interrupted run stranded a test pet publicly LOST. Live review 2026-07-28
+// found ProbeAlta-… and E2EPet-… as the TOP TWO rows of the public /perdidas
+// list, above real records, on the demo an official is shown — and the owner
+// account's "first pet" had become an E2E leftover.
+//
+// Cleanup runs BEFORE as well as after: a previous crash must not poison this
+// run either. Local database only; a no-op anywhere else.
+test.beforeAll(async () => {
+  const removed = await deletePetsByNamePrefix(PET_NAME_PREFIX);
+  if (removed > 0) console.log(`[create-pet] cleared ${removed} leftover pet(s) from earlier runs`);
+});
+
+test.afterAll(async () => {
+  await deletePetsByNamePrefix(PET_NAME_PREFIX);
+});
 
 test("owner creates a pet with location and it appears in /mis-mascotas", async ({ page }) => {
   // Alta is a multi-step flow (login → wizard → dual-write → list); with the
@@ -42,11 +65,13 @@ test("owner creates a pet with location and it appears in /mis-mascotas", async 
   test.setTimeout(90_000);
 
   // -- Log in -----------------------------------------------------------
-  await page.goto("/login");
-  await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
-  await page.getByLabel(/contraseña/i).fill(OWNER_PASSWORD);
-  await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL(/\/inicio/, { timeout: 15_000 });
+  // Through the SHARED helper, not a private copy. Login is rate-limited per
+  // client IP and the middleware trusts x-real-ip; loginAs hands every login a
+  // distinct TEST-NET-3 address so each looks like a fresh visitor. This spec
+  // had its own inline login without that, so repeated runs drained the bucket
+  // and it failed at the login step — 15s waitForURL timeout — long before it
+  // reached anything it was written to test.
+  await loginAs(page, OWNER_EMAIL);
 
   // -- Navigate to new-pet form -----------------------------------------
   await page.goto("/mis-mascotas/nueva");
