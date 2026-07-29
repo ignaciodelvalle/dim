@@ -42,28 +42,65 @@ if ($headTime -gt $buildTime) {
 # on :3000" is NOT enough; the served build must MATCH the disk build. We probe
 # a page and look for the on-disk BUILD_ID in its /_next/static asset URLs; on
 # mismatch the stale server is killed and a fresh one started.
+$diskBuildId = (Get-Content $buildIdPath -Raw).Trim()
+
+# Does whatever is on the port serve the build that is ON DISK RIGHT NOW?
+# App-router HTML does not embed the buildId in its asset URLs, so grepping a
+# page proves nothing — ask for THIS build's manifest instead. Only a server
+# booted on the on-disk build can return it; a stale one 400s, which is exactly
+# the dead-chunk symptom this guard exists to catch.
+function Test-ServesDiskBuild {
+    param([int]$Port, [string]$BuildId)
+    try {
+        $probe = Invoke-WebRequest -Uri "http://localhost:$Port/_next/static/$BuildId/_buildManifest.js" -UseBasicParsing -TimeoutSec 10
+        return $probe.StatusCode -eq 200
+    } catch {
+        return $false
+    }
+}
+
 $listening = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
 if ($listening) {
-    $diskBuildId = (Get-Content $buildIdPath -Raw).Trim()
-    $servedFresh = $false
-    try {
-        # App-router HTML does not embed the buildId in asset URLs, so grepping
-        # a page is useless — instead ask the server for THIS build's manifest:
-        # only a server booted on the on-disk build can serve it (a stale one
-        # 400s, exactly the dead-chunk symptom this guard exists to catch).
-        $probe = Invoke-WebRequest -Uri "http://localhost:$Port/_next/static/$diskBuildId/_buildManifest.js" -UseBasicParsing -TimeoutSec 10
-        if ($probe.StatusCode -eq 200) { $servedFresh = $true }
-    } catch {
-        Write-Warning "Running server cannot serve the on-disk build's manifest - treating it as stale."
-    }
-    if ($servedFresh) {
+    if (Test-ServesDiskBuild -Port $Port -BuildId $diskBuildId) {
         Write-Host "Port $Port already listening and serving the on-disk build ($diskBuildId) - reusing."
     } else {
         Write-Warning "Server on port $Port serves a DIFFERENT build than .next on disk - restarting it."
-        $listening | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object {
-            Stop-Process -Id $_ -Force -ErrorAction SilentlyContinue
+        $stalePids = $listening | Select-Object -ExpandProperty OwningProcess -Unique
+        foreach ($stalePid in $stalePids) {
+            Stop-Process -Id $stalePid -Force -ErrorAction SilentlyContinue
         }
-        Start-Sleep -Seconds 2
+        Start-Sleep -Seconds 3
+
+        # THE KILL IS NOT ASSUMED TO HAVE WORKED (incident 2026-07-29). It used
+        # to be fired with -ErrorAction SilentlyContinue and the script moved on
+        # as if the port were free. When the stale process belongs to another
+        # security context, Stop-Process fails with "Access is denied", the new
+        # server cannot bind the port and dies, and the ZOMBIE keeps answering.
+        # The smoke test below then passes -- a stale server still returns 200
+        # for server-rendered HTML; only its chunks 400 -- and the script printed
+        # "QA environment ready" over an app whose every page was unusable. Hours
+        # were spent measuring a page that had loaded with no CSS at all.
+        #
+        # A guard that cannot fail loudly is worse than no guard: it sells
+        # confidence it has not earned.
+        $stillThere = Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue
+        if ($stillThere) {
+            $blockingPid = ($stillThere | Select-Object -ExpandProperty OwningProcess -Unique) -join ", "
+            Write-Error @"
+Could not free port $Port - PID $blockingPid is still listening after Stop-Process.
+
+This usually means the process runs in a different security context (a
+different user, or elevated). Nothing downstream can be trusted while it is
+up: it will keep serving a dead build, HTML routes will still answer 200, and
+every page will fail on 400'd chunks.
+
+Fix it one of these ways, then re-run:
+  * Close whatever owns it (an IDE task, another terminal, a service).
+  * Kill it from an ELEVATED shell:  taskkill /PID $blockingPid /T /F
+  * Or aim QA at a free port:        pwsh scripts/qa-up.ps1 -Port 3001
+"@
+            exit 1
+        }
         $listening = $null
     }
 }
@@ -75,7 +112,36 @@ if ($listening) {
     Start-Process -FilePath "cmd" -ArgumentList "/c", "pnpm", "start" -WorkingDirectory $repo -WindowStyle Hidden
 }
 
-# 4. Smoke-test key routes
+# 4a. THE AUTHORITATIVE CHECK: the server now answering must serve the build on
+# disk. This runs AFTER the start, not only before it -- the old script probed
+# the build once, decided to restart, and never re-verified the outcome, so a
+# restart that silently failed still reported success.
+#
+# It also has to come before the route smoke test, because the route check
+# CANNOT catch this: a stale server server-renders HTML fine and returns 200 for
+# every route below. Only its /_next chunks 400. Status codes on HTML routes are
+# not evidence that the app works.
+$buildOk = $false
+for ($i = 0; $i -lt 45; $i++) {
+    if (Test-ServesDiskBuild -Port $Port -BuildId $diskBuildId) { $buildOk = $true; break }
+    Start-Sleep -Seconds 2
+}
+if (-not $buildOk) {
+    Write-Error @"
+Server on port $Port is NOT serving the on-disk build ($diskBuildId).
+
+Pages will load their HTML and then fail: chunks 400 with MIME text/html, the
+app never hydrates, and stylesheets never apply -- so anything measured against
+it is measuring an unstyled, dead page.
+
+Check for a leftover process on the port, then re-run:
+  Get-NetTCPConnection -LocalPort $Port -State Listen
+"@
+    exit 1
+}
+Write-Host "Serving the on-disk build ($diskBuildId) - verified after start."
+
+# 4b. Smoke-test key routes
 $routes = @("/", "/login", "/perdidas")
 foreach ($route in $routes) {
     $ok = $false
