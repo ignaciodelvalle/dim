@@ -180,15 +180,37 @@ export async function submitAndWait(
   timeoutMs = 30_000,
 ): Promise<void> {
   await expect(button, "submit button").toBeEnabled();
+
+  // Resolve the element BEFORE clicking. The #39 fallback below re-submits the
+  // owning form, and it used to do that through the same by-name locator — but
+  // a submit in flight RENAMES its button ("Registrar vacuna" → "Registrando…"),
+  // so the locator stopped matching and `.evaluate` timed out on an element
+  // that had merely changed its label. The click had worked; the fallback was
+  // what failed. A handle survives the rename.
+  const handle = await button.elementHandle();
+
   await button.click();
   try {
     await page.waitForURL(urlPredicate, { timeout: 10_000 });
     return;
   } catch {
-    // Dropped click — submit the owning form directly (#39 workaround).
-    await button.evaluate((el) => {
-      (el as HTMLButtonElement).form?.requestSubmit();
-    });
+    // A slow-but-working submit and a dropped click look identical from here,
+    // so distinguish them: if the button is now DISABLED or renamed to a
+    // pending label, the form is already submitting — re-submitting would fire
+    // the action twice. Just keep waiting.
+    const pending = await handle
+      ?.evaluate((el) => {
+        const b = el as HTMLButtonElement;
+        return b.disabled || /ando…|ando\.\.\.|Guardando|Registrando/i.test(b.textContent ?? "");
+      })
+      .catch(() => false);
+
+    if (!pending) {
+      // Genuinely dropped click — submit the owning form directly (#39).
+      await handle?.evaluate((el) => {
+        (el as HTMLButtonElement).form?.requestSubmit();
+      });
+    }
     await page.waitForURL(urlPredicate, { timeout: timeoutMs });
   }
 }
