@@ -732,6 +732,15 @@ body {
 .lp .lp-btn--nav {
   font-size: 14px;
   padding: 9px 16px;
+  /* 9px + 9px + a 14px line box rendered 42px tall — two pixels under the 44px
+     touch target, at every width, on the two controls that carry the whole
+     landing's conversion and re-entry (live review 2026-07-28 measured several
+     sub-44px controls on this page; these were the ones that mattered most).
+     min-height rather than more padding so the visual weight is unchanged. */
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 .lp .lp-maxw-sec {
   max-width: 760px;
@@ -866,12 +875,51 @@ body {
     display: none;
   }
 }
-/* Phones: the brand + two CTAs overflow the no-wrap nav row. Drop the secondary
-   "Ingresar" ghost so the primary "Crear mi miMAR" conversion CTA never clips;
-   sign-in stays reachable from the footer and the hero. */
+/* Phones: the brand + two CTAs overflow the no-wrap nav row.
+ *
+ * This used to read `display: none` on the secondary, with a comment promising
+ * "sign-in stays reachable from the footer and the hero". The footer half was
+ * true. The hero half was not: measured on the live landing at 375px, the
+ * nearest /login sat at y = 12.260px — about fifteen screenfuls down — and
+ * LandingNav has no hamburger at ANY width, so the nav did not collapse, it
+ * lost its entry point (live review 2026-07-28, D.7). A returning user on a
+ * phone had no way in.
+ *
+ * The row overflowed because of the button's CHROME — padding, border,
+ * background — not because of the word "Ingresar". So the chrome goes and the
+ * entry point stays: a compact text link, still a full 44px tall to touch. */
 @media (max-width: 560px) {
+  .lp-nav .lp-nav-in {
+    gap: 12px;
+  }
+  /* At 320px (SE-class devices) brand + both CTAs still exceed the line even
+     stripped of chrome, and the row was pushing the document into horizontal
+     scroll. Let it wrap onto a second line: two rows is a layout, a sideways
+     scrollbar on a landing page is a defect. The spacer collapses so the CTAs
+     stay together rather than being flung apart across the wrap. */
+  .lp-nav .lp-nav-in {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+  .lp .lp-spacer {
+    flex-basis: 0;
+  }
   .lp-nav .lp-btn--nav-secondary {
-    display: none;
+    padding-inline: 2px;
+    border-color: transparent;
+    background: transparent;
+    font-size: var(--text-sm);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    /* One line. Wrapped to "Iniciar / sesión" it rendered 43px wide and 58px
+       tall — a two-line link inside a nav row reads as breakage, which is its
+       own reason not to be found. */
+    white-space: nowrap;
+    /* Visually slimmer, NOT smaller to hit: the same review measured several
+       sub-44px controls on this page. Shedding chrome must not create another. */
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
   }
 }
 
