@@ -491,10 +491,28 @@ export function resolveDataLevel(params: {
  */
 export function computePresetFrameViewport(
   framing: PresetFraming | null | undefined,
-  nationalBbox: [[number, number], [number, number]] | null,
+  // Underscore-prefixed: kept in the signature on purpose (callers still pass
+  // it, and a future framing kind may want the data extent) but NO LONGER read
+  // for "national" — see the note below.
+  _nationalBbox: [[number, number], [number, number]] | null,
   fallbackBbox: [[number, number], [number, number]],
 ): ViewportDescriptor | null {
   if (framing == null) return null;
   if (framing.kind === "bbox") return { kind: "fitBounds", bbox: framing.bounds };
-  return { kind: "fitBounds", bbox: nationalBbox ?? fallbackBbox };
+  // A "national" frame uses the STATIC extent, never `nationalBbox`.
+  //
+  // `nationalBbox` is the DATA-EXTENT snapshot captured at map load. On a
+  // camera-restored session it equals the restored REGIONAL view, so a preset
+  // promising the national picture re-framed to the region the operator was
+  // already looking at — a visible no-op ("cambié de vista y no pasó nada").
+  //
+  // This is the same defect v2C fixed on the «← Volver a Nacional» path, whose
+  // comment states the rule outright (SituationalMap.tsx, the nationalBbox
+  // assignment): "The reset promises the national picture; only the static
+  // extent delivers it." The preset path kept the old preference and drifted
+  // from it (plan unit C.3).
+  //
+  // What changed: "national" no longer means "whatever we happened to be
+  // looking at".
+  return { kind: "fitBounds", bbox: fallbackBbox };
 }
