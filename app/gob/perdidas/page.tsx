@@ -50,9 +50,19 @@ function parseStatusFilter(raw: string | undefined): PetStatusFilter {
   return (VALID_STATUSES as string[]).includes(raw) ? (raw as PetStatusFilter) : "lost";
 }
 
+// `active` is the pet's LIFECYCLE status — every living, non-lost animal in the
+// padrón. It was labelled "Recuperadas", so the tab headline read "Mascotas
+// recuperadas (260)" while the KPI on the same page read "RECUPERADOS (30D) 2".
+// Two orders of magnitude apart, as a list headline (live review 2026-07-28).
+//
+// A pet that RECOVERED is one that went from 'lost' back to 'active' — a
+// transition in the spine, which is exactly how `recoveredMonth` is computed
+// (lib/analytics/dashboards/perdidas.ts:217). A status cannot express it: a pet
+// that was never lost is `active` too. The label now names what the list holds;
+// an event-sourced "recuperadas" LIST is separate work, tracked apart.
 const STATUS_TABS: UrlTabItem[] = [
   { value: "lost", label: "Perdidas" },
-  { value: "active", label: "Recuperadas" },
+  { value: "active", label: "Activas" },
   { value: "deceased", label: "Fallecidas" },
   { value: "all", label: "Todas" },
 ];
@@ -447,7 +457,7 @@ export default async function GobPerdidasPage({
                     title={
                       <span id={panelListId}>
                         {tab.value === "lost" && "Mascotas perdidas"}
-                        {tab.value === "active" && "Mascotas recuperadas"}
+                        {tab.value === "active" && "Mascotas activas (no perdidas)"}
                         {tab.value === "deceased" && "Mascotas fallecidas"}
                         {tab.value === "all" && "Todas las mascotas"} (
                         {/* When the list hits its 500 cap and the stock KPI is

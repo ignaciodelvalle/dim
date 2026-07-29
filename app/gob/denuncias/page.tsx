@@ -38,6 +38,7 @@ import { fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, countCasesForGovt } from "@/lib/infra/case-queries";
 import { buildProjectionContext, windows } from "@/lib/metrics";
+import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
 
 import { MaltratoQueueScreen } from "@/app/gob/maltrato/MaltratoQueueScreen";
 import { ModeracionQueueScreen } from "@/app/gob/moderacion/ModeracionQueueScreen";
@@ -50,6 +51,13 @@ const DEFAULT_ETAPA: Etapa = "triage";
 function parseEtapa(raw: string | undefined): Etapa {
   return raw === "moderacion" ? "moderacion" : DEFAULT_ETAPA;
 }
+
+/**
+ * The case kind this hub's third stage is ABOUT. Named rather than inlined so
+ * the count, the copy and any future list on this page cannot drift apart —
+ * they drifted once already (see the count below).
+ */
+const ESCALATED_DENUNCIA_KIND: CaseKind = "welfare_denuncia";
 
 // A stage-tab switch invalidates state that only makes sense under the
 // PREVIOUS stage — the pagination cursor (moderación's and triage's cursor
@@ -92,9 +100,19 @@ export default async function GobDenunciasPage({
   const [moderationRows, triage, casosCount] = await Promise.all([
     db.select({ n: count() }).from(welfareReports).where(moderationWhere),
     fetchOpenWelfareReportsCount(ctx),
+    // KIND-FILTERED. This stage is titled "Denuncias escaladas a un caso
+    // regulatorio" (below), but the count carried no `kind`, so it returned
+    // EVERY open case in scope — bite incidents, lost-pet episodes, adoption
+    // paperwork and, dominantly, custody disputes. Live review 2026-07-28 read
+    // "ABIERTOS 28" on this stage while `kind=welfare_denuncia` returned zero
+    // rows at every status: the 28 were custody files, and an official
+    // following the hub's own three-step story was sent to look at them.
+    //
+    // Both query helpers already accept `kind` (ListCasesFor{Govt,Admin}Filters)
+    // — nothing here needed building, only passing.
     profile.role === "admin"
-      ? countCasesForAdmin({ status: "open" })
-      : countCasesForGovt(jurisdictions, { status: "open" }),
+      ? countCasesForAdmin({ status: "open", kind: ESCALATED_DENUNCIA_KIND })
+      : countCasesForGovt(jurisdictions, { status: "open", kind: ESCALATED_DENUNCIA_KIND }),
   ]);
 
   const moderationCount = moderationRows[0]?.n ?? 0;

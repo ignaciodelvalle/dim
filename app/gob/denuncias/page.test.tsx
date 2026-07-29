@@ -89,6 +89,26 @@ describe("/gob/denuncias — the hub (F1 fusion: Moderación + Maltrato as tabbe
     expect(html).toContain("7"); // casosCount mock
   });
 
+  // The mock above returns 7 for ANY arguments, so the test that reads "7" off
+  // the page cannot tell a kind-filtered count from an unfiltered one. That gap
+  // is what shipped: the stage titled "Denuncias escaladas a un caso
+  // regulatorio" counted EVERY open case in scope, and live review 2026-07-28
+  // read "ABIERTOS 28" while `kind=welfare_denuncia` had zero rows at every
+  // status — the 28 were custody disputes.
+  //
+  // Assert the ARGUMENTS, not just the rendered number.
+  it("counts only escalated denuncias — the kind the stage is titled after", async () => {
+    const { countCasesForGovt } = await import("@/lib/infra/case-queries");
+    vi.mocked(countCasesForGovt).mockClear();
+
+    await renderHub();
+
+    expect(countCasesForGovt).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ status: "open", kind: "welfare_denuncia" }),
+    );
+  });
+
   it("renders both etapa tab labels with their live queue-depth badges", async () => {
     const node = await renderHub();
     const html = renderToStaticMarkup(node);
