@@ -393,6 +393,38 @@ que es inequívoco.
 FORMA de la regla (un token `--radius-*`), no el valor — la regla vuelve a
 tener una sola casa.
 
+## 🔴 HALLAZGO SISTÉMICO — 703 font-size muertos, y el fence los recomendaba
+
+**`text-[var(--text-*)]` NO define un tamaño.** Tailwind v4 no puede saber si un
+`text-[…]` arbitrario es tamaño o color, y con una CSS var pelada elige **color**.
+Del CSS compilado, textual:
+
+```css
+.text-\[var\(--text-sm\)\]{color:var(--text-sm)}
+```
+
+El elemento recibe `color: 12px`, inválido, se descarta, y **se queda con el
+tamaño que heredó**. La forma que funciona es la utilidad NOMBRADA de Tailwind
+(`text-sm`, `text-3xl`), que compila a `font-size:var(--text-sm)` porque
+`--text-*` ES su namespace de font-size.
+
+**Alcance: 703 usos en 207 archivos.** `--text-sm` ×234, `--text-md` ×199,
+`--text-xs` ×147, `--text-title` ×95.
+
+**Por qué hay tantos**: `lint:tokens` lo documentaba como *"the correct token
+form"*, lo eximía explícitamente de matchear, y su mensaje de error lo
+recomendaba. El fence venía enseñando el patrón roto. Yo escribí mis 67 así por
+ese mismo mensaje.
+
+**Cómo apareció**: NO por el gate. `verify` exit 0 y 12.533 tests verdes sobre
+67 headings rotos. Apareció midiendo un h1 en el navegador y viendo 16px donde
+debía haber 28. **Ninguna aserción del suite mira un tamaño computado.**
+
+**Estado**: cercado (regla 9, 703 ratcheteados) y los mensajes corregidos. NO
+arreglado en masa a propósito — destrabar 703 declaraciones significa 703
+elementos pasando de golpe a su tamaño real, o sea un cambio visible en toda la
+app. Eso es una pasada deliberada con el PO, no un codemod silencioso.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -413,7 +445,7 @@ tener una sola casa.
 | D.3 | pendiente | |
 | D.4 | pendiente | |
 | D.1 (radio) | **hecha** — canon de dos reglas (ciudadano `--radius-pill`, operador `--radius-op-btn`), codemod de 145 sitios, y `lint:buttons` extendido con ratchet de radio. + el "Buscar" rojo migrado a `LnButton` | `e23ebca1` |
-| D.1 (h1) | **pendiente, medida** — 14 tamaños serif artesanales (28px ×25, 30px ×11, 26px ×10, hasta 72px) contra una escala `--text-*` que corta en 24px. Hay que agregar pasos display ANTES de mover un solo call site | |
+| D.1 (h1) | **hecha** — 4 pasos display nuevos + 67 headings tokenizados. Y destapó un defecto sistémico: `text-[var(--text-*)]` compila a `color`, no a `font-size` — **703 usos muertos** en 207 archivos, cercados en la regla 9 | `73c33104` |
 | SC-6 | pendiente | |
 | C.1 | pendiente | |
 | C.2 | pendiente | |
