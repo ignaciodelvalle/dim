@@ -11,11 +11,11 @@ import {
   inArray,
   isNotNull,
   isNull,
-  lt,
   not,
   sql,
 } from "drizzle-orm";
 
+import { WELFARE_SLA_DAYS } from "@/app/gob/maltrato/_lib/welfare-sla";
 import { caseEvents, cases, analyticsDb as db, petEvents, profiles, welfareReports } from "@/db";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
@@ -144,7 +144,29 @@ export type MaltratoListFilters = {
   currentUserId: string;
 };
 
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+/**
+ * SQL form of `isSlaBreached` (app/gob/maltrato/_lib/welfare-sla.ts): a report
+ * is overdue when its age exceeds the window ITS OWN severity earns.
+ *
+ * Built FROM the shared WELFARE_SLA_DAYS map rather than repeating the numbers,
+ * so a tier change moves the badge, the ORDER BY and this filter together. An
+ * unknown/legacy severity falls back to the loosest tier — the same direction
+ * the pure predicate takes, so a bad value can never manufacture a breach.
+ *
+ * Terminal statuses are excluded by the caller (nothing left to escalate).
+ */
+function slaBreachedClause(): SQL {
+  // Every parameter carries an explicit cast. Without them Postgres cannot infer
+  // a type for a bare `$n` inside CASE, nor multiply the result by an INTERVAL,
+  // and the query fails at execution rather than at build — the SQL LOOKS right
+  // in the condition tree, which is why the unit test alone did not catch it.
+  const branches = Object.entries(WELFARE_SLA_DAYS).map(
+    ([severity, days]) => sql`WHEN ${severity}::text THEN ${days}::int`,
+  );
+  const loosest = Math.max(...Object.values(WELFARE_SLA_DAYS));
+  const window = sql`(CASE ${welfareReports.severity}::text ${sql.join(branches, sql` `)} ELSE ${loosest}::int END)`;
+  return sql`${welfareReports.createdAt} < now() - (${window} * INTERVAL '1 day')`;
+}
 
 /**
  * Returns a Drizzle SQL condition that encodes every filter for the maltrato
@@ -237,9 +259,23 @@ export function buildMaltratoListConditions(filters: MaltratoListFilters) {
       conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
       break;
     case "overdue":
-      // Status still open AND created more than 7 days ago without triage.
-      conditions.push(eq(welfareReports.status, "open"));
-      conditions.push(lt(welfareReports.createdAt, new Date(Date.now() - SEVEN_DAYS_MS)));
+      // THE SAME RULE THE ROW BADGE USES — not a second one.
+      //
+      // This filter used to be `status = 'open' AND createdAt < now() - 7d`, a
+      // flat window that predates the severity tiers. app/gob/maltrato/_lib/
+      // welfare-sla.ts introduced 1/3/7/14 days by severity and says in its own
+      // header that it exists "so the row badge, the ORDER BY rank and the
+      // keyset cursor can never disagree on what breached means" — the tab was
+      // the one caller nobody migrated, and it kept the 7-day number the module
+      // had merely ADOPTED as its medium tier.
+      //
+      // Live review 2026-07-28 measured the cost: the tab said 5 while SEVEN
+      // rows carried a VENCIDO badge, hiding a *crítica* report three days past
+      // its 1-day SLA. It also went the other way — a row inside the tab
+      // displayed "SIN SLA ACTIVO", because `open` is not the only non-terminal
+      // status.
+      conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
+      conditions.push(slaBreachedClause());
       break;
     default:
       // "all" — no extra filter.

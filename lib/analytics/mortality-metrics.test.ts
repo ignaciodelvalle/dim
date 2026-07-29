@@ -7,7 +7,49 @@
 
 import { describe, expect, it } from "vitest";
 
-import { sortLocalityCellsRollupLast } from "./mortality-metrics";
+import { K_ANON_MIN } from "@/lib/metrics";
+import type { Cell } from "@/lib/metrics/types";
+import { rollupSuppressedLocalities, sortLocalityCellsRollupLast } from "./mortality-metrics";
+
+// The k-anon rollup is itself a published cell. Live review 2026-07-28 found
+// /gob/mortalidad rendering "Tierra del Fuego (otras localidades) — 2" under an
+// accessible description that promises sub-5 localities are hidden: the fold of
+// ONE suppressed locality is that locality, relabelled.
+describe("rollupSuppressedLocalities — the fold obeys k, or it does not publish", () => {
+  const cell = (key: string, count: number): Cell =>
+    ({ key, count, province: "Tierra del Fuego" }) as Cell;
+
+  it("publishes nothing when the folded total is below k", () => {
+    expect(rollupSuppressedLocalities([cell("Tolhuin", 2)])).toBeNull();
+  });
+
+  it("publishes nothing when several sub-k localities still sum below k", () => {
+    expect(
+      rollupSuppressedLocalities([cell("Tolhuin", 2), cell("Laguna Escondida", 2)]),
+    ).toBeNull();
+  });
+
+  it("publishes the fold once it reaches k, flagged as a rollup", () => {
+    const out = rollupSuppressedLocalities([cell("Tolhuin", 3), cell("Laguna Escondida", 2)]);
+    expect(out).not.toBeNull();
+    expect(out?.count).toBe(5);
+    expect(out?.key).toBe("Tierra del Fuego (otras localidades)");
+    expect((out as Cell & { isRollup?: boolean })?.isRollup).toBe(true);
+  });
+
+  it("is exactly at the k boundary — k−1 hides, k publishes", () => {
+    // Pinned against the shared constant, not a literal 5, so a policy change
+    // moves both the fence and this test together.
+    expect(rollupSuppressedLocalities([cell("A", K_ANON_MIN - 1)])).toBeNull();
+    expect(rollupSuppressedLocalities([cell("A", K_ANON_MIN)])?.count).toBe(K_ANON_MIN);
+  });
+
+  it("never leaks a member locality's own name into the published label", () => {
+    const out = rollupSuppressedLocalities([cell("Tolhuin", 4), cell("Laguna Escondida", 4)]);
+    expect(out?.key).not.toContain("Tolhuin");
+    expect(out?.key).not.toContain("Laguna Escondida");
+  });
+});
 
 describe("sortLocalityCellsRollupLast", () => {
   it("moves a large rollup cell to the end, even though it has the highest count", () => {

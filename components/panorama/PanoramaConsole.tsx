@@ -4247,7 +4247,11 @@ export function PanoramaConsole({
         liftedBreaks: captionLayer ? (provinceSeqLegend[captionLayer.id]?.breaks ?? null) : null,
         divisionLegend,
         provinceExtent: captionLayer ? (provinceSeqLegend[captionLayer.id]?.extent ?? null) : null,
-        higherIsBetter: captionLayer?.higherIsBetter === true,
+        // TRI-STATE — never coerce. undefined means "this layer has a meta, not
+        // a polarity", and polarityMarks() prints no words for it. `=== true`
+        // collapsed that into false and the five coverage vistas labelled their
+        // PALEST swatch "mejor". Guarded in panorama-labels.test.ts.
+        higherIsBetter: captionLayer?.higherIsBetter,
       }),
     [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive],
   );

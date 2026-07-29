@@ -12,6 +12,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
+import { WELFARE_SLA_DAYS } from "@/app/gob/maltrato/_lib/welfare-sla";
 import { db, welfareReports } from "@/db";
 import {
   type MaltratoListFilters,
@@ -20,6 +21,7 @@ import {
   buildModerationQueueConditions,
   fetchWelfareMetrics,
 } from "@/lib/analytics/govt-dashboards";
+import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 import { assertKpiListParity } from "./helpers/kpi-list-parity";
 
@@ -107,12 +109,35 @@ describe("buildMaltratoListConditions — unit", () => {
     expect(extractLiterals(result)).toContain(userId);
   });
 
-  it("includes status=open and createdAt column reference for overdue queue", () => {
+  // The overdue queue used to be `status = 'open' AND createdAt < now() - 7d`,
+  // and this test pinned that literal "open". Live review 2026-07-28 measured
+  // what the flat rule cost: the tab said 5 while seven rows carried a VENCIDO
+  // badge, hiding a *crítica* report three days past its 1-day SLA — because the
+  // badge uses the severity tiers from app/gob/maltrato/_lib/welfare-sla.ts and
+  // the tab never migrated. It also went the other way: `open` is not the only
+  // non-terminal status, so a row inside the tab could read "SIN SLA ACTIVO".
+  it("the overdue queue applies the SEVERITY-TIERED SLA, not a flat 7-day window", () => {
     const result = buildMaltratoListConditions({ ...BASE, queue: "overdue" });
     const literals = extractLiterals(result);
-    expect(literals).toContain("open");
-    // The created_at column name must appear in the condition tree.
+
+    // Every tier's day count reaches the SQL, sourced from the shared map so a
+    // tier change cannot move the badge and leave the tab behind.
+    for (const days of Object.values(WELFARE_SLA_DAYS)) {
+      expect(literals, `SLA tier of ${days} day(s) missing from the clause`).toContain(days);
+    }
+    // …and each severity is named as a CASE branch.
+    for (const severity of Object.keys(WELFARE_SLA_DAYS)) {
+      expect(literals).toContain(severity);
+    }
     expect(literals).toContain("created_at");
+  });
+
+  it("the overdue queue excludes TERMINAL statuses, not just non-open ones", () => {
+    const literals = extractLiterals(buildMaltratoListConditions({ ...BASE, queue: "overdue" }));
+    // A closed report has nothing left to escalate and must never be "atrasada".
+    for (const terminal of TERMINAL_STATUSES) {
+      expect(literals, `terminal status ${terminal} must be excluded`).toContain(terminal);
+    }
   });
 
   it("includes kind value when kind filter is set", () => {
@@ -538,8 +563,10 @@ describe("buildMaltratoListConditions — queue: unassigned (integration)", () =
 });
 
 describe("buildMaltratoListConditions — queue: overdue (integration)", () => {
-  it("returns open reports older than 7 days", async () => {
+  it("returns every NON-TERMINAL report past its own severity's SLA", async () => {
     const eightDaysAgo = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000);
+    const twoDaysAgo = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000);
+
     const overdueId = await insertReport({
       province: "Córdoba",
       locality: "Villa María",
@@ -550,20 +577,57 @@ describe("buildMaltratoListConditions — queue: overdue (integration)", () => {
       province: "Córdoba",
       locality: "Villa María",
       status: "open",
-      // Default createdAt = now (not overdue).
+      // Default createdAt = now (not overdue under any tier).
     });
+    // BEHAVIOUR CHANGE, deliberate. This row used to be asserted ABSENT, on the
+    // reasoning "overdue only applies to status=open". But `triaged` is not a
+    // TERMINAL status, and the SLA predicate the row badge uses
+    // (app/gob/maltrato/_lib/welfare-sla.ts) breaches on "still in a non-terminal
+    // status and older than its tier". A report that was triaged and then sat for
+    // eight days IS overdue — hiding it from the tab while badging its row
+    // VENCIDO is the divergence live review 2026-07-28 measured.
     const oldButTriagedId = await insertReport({
       province: "Córdoba",
       locality: "Villa María",
       status: "triaged",
       createdAt: eightDaysAgo,
     });
+    // A terminal report never breaches — there is nothing left to escalate.
+    const oldButClosedId = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      status: "closed",
+      createdAt: eightDaysAgo,
+    });
 
     const ids = await queryIds({ ...GOVT_CORDOBA, queue: "overdue" });
     expect(ids).toContain(overdueId);
+    expect(ids).toContain(oldButTriagedId);
     expect(ids).not.toContain(recentId);
-    // Overdue only applies to status=open; triaged should be excluded.
-    expect(ids).not.toContain(oldButTriagedId);
+    expect(ids).not.toContain(oldButClosedId);
+
+    // THE TIERS THEMSELVES: two reports of the SAME age, two severities. At two
+    // days a `critical` report is a day past its 1-day SLA; a `medium` one has
+    // five days left. Under the old flat 7-day window NEITHER appeared — which
+    // is precisely how a crítica three days late stayed out of the tab.
+    const criticalLate = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      status: "open",
+      severity: "critical",
+      createdAt: twoDaysAgo,
+    });
+    const mediumOnTime = await insertReport({
+      province: "Córdoba",
+      locality: "Villa María",
+      status: "open",
+      severity: "medium",
+      createdAt: twoDaysAgo,
+    });
+
+    const tiered = await queryIds({ ...GOVT_CORDOBA, queue: "overdue" });
+    expect(tiered).toContain(criticalLate);
+    expect(tiered).not.toContain(mediumOnTime);
   });
 });
 

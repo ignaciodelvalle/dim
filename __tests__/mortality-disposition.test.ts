@@ -16,7 +16,10 @@ import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
-import { fetchMortalityDisposition } from "@/lib/analytics/mortality-metrics";
+import {
+  fetchMortalityDisposition,
+  rollupSuppressedLocalities,
+} from "@/lib/analytics/mortality-metrics";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -253,14 +256,38 @@ describe("fetchMortalityDisposition — k-anonymity (mandatory)", () => {
     const localities = r.byLocality.value.map((c) => c.key);
     expect(localities).toContain(locVisible);
     expect(localities).not.toContain(locSuppressed);
-    // The suppressed small cell is reported via the count, and (since rollup is
-    // enabled) folded into a province-level rollup row.
+    // The suppressed cell is still REPORTED — as a count of hidden localities,
+    // which discloses nothing about how many deaths they hold.
     expect(r.byLocality.suppressedCount).toBe(1);
     const visible = r.byLocality.value.find((c) => c.key === locVisible);
     expect(visible?.count).toBe(5);
-    // Rolled-up province row carries the 3 suppressed deaths.
+
+    // THIS ASSERTION USED TO READ `expect(rolled?.count).toBe(3)`, and it was
+    // pinning the leak. One suppressed locality of 3 folded into a row labelled
+    // "Buenos Aires (otras localidades) — 3" is that locality's exact count,
+    // relabelled — on a page whose accessible description promises localities
+    // under 5 are hidden. Live review 2026-07-28 read it off /gob/mortalidad as
+    // "Tierra del Fuego (otras localidades) — 2".
+    //
+    // The rollup is a published cell, so k applies to it too: below k there is
+    // no row at all.
     const rolled = r.byLocality.value.find((c) => c.key.includes(provincia));
-    expect(rolled?.count).toBe(3);
+    expect(rolled).toBeUndefined();
+  });
+
+  it("publishes the rollup once the FOLD itself reaches k", () => {
+    // The counterpart the suite lacked: suppression must not become blanket
+    // deletion. Three sub-k localities (2+2+2) sum to 6, and a fold of six
+    // deaths across three places identifies nobody — it is exactly what the
+    // rollup exists to preserve. Asserted through the pure builder so the case
+    // does not depend on the seed happening to contain three sparse localities.
+    const rolled = rollupSuppressedLocalities([
+      { key: "a", count: 2, province: "Buenos Aires" } as never,
+      { key: "b", count: 2, province: "Buenos Aires" } as never,
+      { key: "c", count: 2, province: "Buenos Aires" } as never,
+    ]);
+    expect(rolled?.count).toBe(6);
+    expect(rolled?.key).toBe("Buenos Aires (otras localidades)");
   });
 });
 

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -11,7 +13,7 @@ import {
   shortLayerLabel,
 } from "@/components/panorama/panorama-labels";
 import { PANORAMA_DEFAULT_PRESET } from "@/lib/analytics/analytics-period";
-import { getLayer } from "@/src/modules/panorama/domain/layers";
+import { PANORAMA_LAYERS, getLayer } from "@/src/modules/panorama/domain/layers";
 import { PANORAMA_PRESETS, presetLayerIds } from "@/src/modules/panorama/domain/presets";
 import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
 
@@ -552,6 +554,82 @@ describe("legendRampEndpointLabels — the endpoints say which end is the alarm"
       provinceExtent: { min: 1, max: 9 },
     });
     expect(out).toEqual({ min: "1", max: "9" });
+  });
+
+  // The three cases above are exercised with a SYNTHETIC layer (`{ dataType:
+  // "density" }`), so they proved the function's behaviour and nothing about
+  // what the real registry declares — or about what the console passes it.
+  //
+  // Live review 2026-07-28 (P1-1) found the gap between them: every
+  // compliance layer leaves `higherIsBetter` undefined (it declares a
+  // `complianceTarget` instead, and on the meta path "dark = meta cumplida" is
+  // the reading — class-scale.ts:70), but PanoramaConsole passed
+  // `captionLayer?.higherIsBetter === true`, collapsing undefined into false.
+  // Six vistas printed "40% · mejor" with the PALEST swatch on the "mejor" side.
+  //
+  // Driving the REAL layers through the real function is what neither the unit
+  // tests nor the console tests were doing.
+  // Writing this pinned a distinction the review had not drawn: having a meta
+  // and having a polarity are INDEPENDENT. The five legal-coverage layers carry
+  // a meta and no polarity; `indice-territorial` — the composite scorecard —
+  // carries BOTH, and for it "more is better" is genuinely true. Passing the
+  // tri-state through is what lets one function serve both; the `=== true`
+  // coercion served neither.
+  const complianceLayers = () => PANORAMA_LAYERS.filter((l) => l.complianceTarget !== undefined);
+  const rampFor = (l: (typeof PANORAMA_LAYERS)[number]) =>
+    legendRampEndpointLabels({
+      bivariateActive: false,
+      captionLayer: l,
+      liftedBreaks: [50, 60, 70],
+      divisionLegend: null,
+      provinceExtent: { min: 40, max: 80 },
+      // Exactly what the console forwards now: the field itself, never a
+      // boolean coercion of it.
+      higherIsBetter: l.higherIsBetter,
+    });
+
+  it("the legal-coverage layers declare NO polarity — their meta is the reference", () => {
+    const withoutPolarity = complianceLayers().filter((l) => l.higherIsBetter === undefined);
+    expect(withoutPolarity.map((l) => l.id).sort()).toEqual([
+      "antiparasitario",
+      "cobertura",
+      "esterilizacion",
+      "microchip",
+      "ppp",
+    ]);
+    for (const l of withoutPolarity) {
+      const out = rampFor(l);
+      // Asserted, not `!`-asserted: a layer that produced NO ramp would satisfy
+      // "carries no polarity word" for the wrong reason.
+      expect(out, `${l.id} produced no ramp at all`).not.toBeNull();
+      expect(`${out?.min} ${out?.max}`, `${l.id} leaked a polarity word`).not.toMatch(/mejor|peor/);
+    }
+  });
+
+  // Everything above tests the FUNCTION. The bug was never in the function —
+  // it was in the one call site, and every test in this file would have stayed
+  // green through it. Re-adding `=== true` in PanoramaConsole.tsx today still
+  // passes all 32 assertions above. So the call site gets its own guard, in the
+  // repo's established source-fence idiom (scripts/check-action-redirect.ts,
+  // check-scope-discipline.ts). A boolean coercion here is not a style
+  // preference: it is the deletion of a third state the ramp depends on.
+  it("PanoramaConsole forwards the tri-state and never coerces it", () => {
+    const source = readFileSync("components/panorama/PanoramaConsole.tsx", "utf8");
+    const forwards = /higherIsBetter:\s*captionLayer\?\.higherIsBetter\s*,/.test(source);
+    const coerces = /higherIsBetter:\s*captionLayer\?\.higherIsBetter\s*===\s*true/.test(source);
+    expect(forwards, "the console must pass higherIsBetter through untouched").toBe(true);
+    expect(coerces, "`=== true` collapses undefined into false — the P1-1 regression").toBe(false);
+  });
+
+  it("a meta layer that DOES declare higher-is-better keeps its marks", () => {
+    const withPolarity = complianceLayers().filter((l) => l.higherIsBetter !== undefined);
+    // Exactly one today: the composite territorial index.
+    expect(withPolarity.map((l) => l.id)).toEqual(["indice-territorial"]);
+    const out = rampFor(withPolarity[0]);
+    expect(out).not.toBeNull();
+    // On the HIGH end, which is the whole point of declaring it.
+    expect(out?.max).toContain("mejor");
+    expect(out?.min).toContain("peor");
   });
 
   // On a meta layer the MAX endpoint is the target, not the best observed value

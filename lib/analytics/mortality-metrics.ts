@@ -33,7 +33,7 @@ import { and, count, desc, eq, gte, lte, sql } from "drizzle-orm";
 // serves it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
 import { analyticsDb as db, petEvents, pets } from "@/db";
 import { type DispositionBucket, bucketOf } from "@/lib/domain/disposition";
-import { type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
+import { K_ANON_MIN, type ProjectionContext, suppressSmallCells } from "@/lib/metrics";
 import { petsScopeClause } from "@/lib/metrics/scope";
 import type { Cell, SuppressedCells } from "@/lib/metrics/types";
 
@@ -56,6 +56,47 @@ export function sortLocalityCellsRollupLast<T extends Cell & { isRollup?: boolea
     if (aRollup === bRollup) return 0;
     return aRollup ? 1 : -1;
   });
+}
+
+/**
+ * Fold the k-anon-suppressed localities into ONE province-level row, or into
+ * nothing when even the fold stays below k.
+ *
+ * THE ROLLUP IS A CELL TOO, and k applies to it exactly as it applies to the
+ * rows it replaces. Folding a single suppressed locality of 2 into a row
+ * labelled "(otras localidades) — 2" anonymises nothing: it republishes that
+ * locality's exact count under a different name, on a page whose own accessible
+ * description promises "Localidades con menos de 5 fallecimientos están ocultas
+ * por privacidad (k-anonimato)". Found live 2026-07-28: /gob/mortalidad
+ * rendered "Tierra del Fuego (otras localidades) — 2".
+ *
+ * Below k the honest output is NO ROW. Nothing is lost to the reader:
+ * suppressSmallCells still returns `suppressedCount`, so the page can say how
+ * many localities were hidden without saying how many deaths they hold.
+ *
+ * Extracted from the fetcher's inline closure so the privacy rule can be tested
+ * without a database — a rule that can only be exercised when the seed happens
+ * to contain the right shape is a rule nobody checks.
+ *
+ * `isRollup` (qa-triage-2026-07-23, finding #14): this cell AGGREGATES many
+ * sub-threshold localities, so its count can legitimately be the largest in the
+ * chart (Santiago del Estero's rollup hit 1.965 in live seed data) purely from
+ * summing small places. The page sorts it last and styles it apart rather than
+ * letting it compete for the "biggest bar" spot.
+ */
+export function rollupSuppressedLocalities(rows: readonly Cell[]): Cell | null {
+  const totalSuppressed = rows.reduce((sum, r) => sum + r.count, 0);
+  if (totalSuppressed < K_ANON_MIN) return null;
+  // Group label: the province of the first suppressed row (all rows in a
+  // single-province scope share it; mixed-province scopes still produce a valid
+  // coarse rollup label).
+  const province = (rows[0] as Cell & { province?: string })?.province ?? "—";
+  return {
+    key: `${province} (otras localidades)`,
+    count: totalSuppressed,
+    province,
+    isRollup: true,
+  } as Cell;
 }
 
 const DISPOSITION = sql`(${petEvents.payload}->>'disposition_method')`;
@@ -265,31 +306,8 @@ export async function fetchMortalityDisposition(
   const suppressed = suppressSmallCells<Cell>(cells, {
     count: (c) => c.count,
     key: (c) => c.key,
-    k: 5,
-    // Fold suppressed small cells into a single province-level rollup row so the
-    // count is preserved without exposing the sub-threshold locality.
-    rollup: (rows) => {
-      const totalSuppressed = rows.reduce((sum, r) => sum + r.count, 0);
-      // Group label: the province of the first suppressed row (all rows in a
-      // single-province scope share it; mixed-province scopes still produce a
-      // valid coarse rollup label).
-      const province = (rows[0]?.province as string) ?? "—";
-      // `isRollup` (qa-triage-2026-07-23, finding #14): this cell is a k-anon
-      // AGGREGATE of many sub-threshold localities folded together — its count
-      // can legitimately be the largest in the chart (Santiago del Estero's
-      // rollup hit 1.965 in live seed data) purely because it sums many small
-      // places, not because one locality has that much mortality. Rendered
-      // next to real single-locality bars with no distinction, it reads as "one
-      // place dominates" — a false signal. The page (app/gob/mortalidad/page.tsx)
-      // uses this flag to sort the rollup last and render it with distinct,
-      // muted styling instead of competing for the "biggest bar" spot by count.
-      return {
-        key: `${province} (otras localidades)`,
-        count: totalSuppressed,
-        province,
-        isRollup: true,
-      };
-    },
+    k: K_ANON_MIN,
+    rollup: rollupSuppressedLocalities,
   });
 
   return {
