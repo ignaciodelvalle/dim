@@ -253,6 +253,19 @@ defectuoso de la sesión (el otro: buscar `/Crear mascota` contra selectores
 `/crear mascota/i`). Cuando un grep dice "no existe" sobre algo que el plan
 afirma que existe, desconfiar del grep antes que del plan.
 
+## Validación del batch (2026-07-29)
+
+Cuatro unidades commiteadas (H.1, herramienta de limpieza, #38, C.3) y UN solo
+gate completo, según el acuerdo: **`pnpm verify` exit 0 y 12.502 tests verdes,
+cero rojos**. El batching funcionó — cuatro unidades por el precio de un suite.
+
+**Tres tests encontrados pinneando su propio defecto** en lo que va de la ola:
+el rollup de k-anonimato (`expect(rolled?.count).toBe(3)`), el `status='open'`
+de las denuncias atrasadas, y el frame nacional de presets ("→ fitBounds to the
+CAPTURED national bbox"). No es casualidad: cuando alguien arregla un síntoma y
+escribe el test DESPUÉS, el test describe lo que el código hace, no lo que
+debería hacer. Vale revisarlo como clase, no como tres accidentes.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -260,7 +273,7 @@ afirma que existe, desconfiar del grep antes que del plan.
 | SC-5 | **hecha** — suite verde de punta a punta por primera vez | `88dce3ba` |
 | #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
 | #31 crisis-seams (b) | **parcial** — bug del helper arreglado; queda un cuelgue real específico de Rocco@Recoleta | `1ea0a95e` |
-| C.3 | **casi** — URL determinística y framing cableado ya verificados; falta 1 salto (¿AR_BBOX o el ref?) | |
+| C.3 | **hecha** — frame nacional usa el extent estático; el test que pinneaba el defecto, reescrito | `21495015` |
 | C.4 | **affordance verificada existente**; falta el test — el spec no localiza los selects que un script tsx sí ve. Detalle arriba | |
 | D.6 | pendiente | |
 | D.5 | **medida, bloqueada en decisión** — sobre-restringido en un eje; opciones y recomendación arriba | |
