@@ -108,47 +108,27 @@ El arreglo sistémico va en **H.2** (contrato de seed/fixture): o pasan por el
 circuito real, o llevan `seed_tag` (que la fence exime por diseño), o limpian
 en su `afterAll`. Elegir una y aplicarla a todas.
 
-## #31 crisis-seams (b) — RETRACTACIÓN + estado real
+## #31 crisis-seams (b) — resuelto a medias, con el resto acotado
 
-**Retracto el diagnóstico anterior de este archivo.** Lo escribí contra un
-servidor `:3000` con `.next` clobbereado: los chunks devolvían 400 con MIME
-`text/html`, la página nunca hidrataba y ningún handler de submit se enganchaba.
-Cualquier conclusión sacada ahí no valía. **Cuarta vez que esta trampa muerde en
-la sesión** — ver la regla 3, que ahora incluye correr e2e locales.
+**Causa encontrada y arreglada** (`1ea0a95e`): no era el producto, era
+`submitAndWait`. Su fallback #39 re-resolvía el botón por nombre DESPUÉS del
+click, y un submit en vuelo lo renombra ("Registrar vacuna" → "Registrando…"),
+así que el locator dejaba de matchear y reportaba "no encuentra su botón" sobre
+un formulario que había aceptado el click. Ahora toma el handle antes del click
+y, si el botón está deshabilitado o en estado pendiente, NO re-envía —
+re-enviar sobre un spine append-only duplica un registro firmado.
 
-**Verificado contra un servidor FRESCO** (build + `qa-up.ps1` antes de medir):
-el flujo de firma de vacuna **funciona**. Guionado a mano sobre
-`DIM-PAMP-0001` en la clínica del primer org: el botón está visible y
-habilitado, el submit navega a `?firmado=1`, cero errores de consola, cero
-mensajes de validación. No hay defecto de producto en la firma.
+**La captura estaba en disco desde el primer fallo** (`test-results/…/
+test-failed-1.png`) y mostraba el botón diciendo "Registrando…". Teoricé dos
+hipótesis equivocadas antes de mirarla. Método: leer la evidencia que ya existe
+antes de generar hipótesis.
 
-**Lo que sigue fallando** es el spec, y ahora falla en otro lugar:
-`locator.evaluate` agota 20s esperando
-`getByRole('button', { name: /registrar vacuna/i })` — dentro de `submitAndWait`.
-El input `vaccineName` YA pasó su propia aserción de visibilidad, así que el
-formulario renderiza y el botón no está adjunto cuando se lo evalúa. Es la clase
-de hidratación/clickthrough que el repo ya documentó (#39), no la lógica de
-firma.
-
-**Dos hipótesis más, ambas DESCARTADAS con evidencia:**
-- *"Es estado que deja el test (a)"* — NO. Aislado con `--grep "clinic signs"`
-  falla igual.
-- *"Es que Rocco (`DIM-DEMO-0001`) quedó `lost` de una corrida previa"* — NO.
-  Restaurado a `active` por SQL, falla igual.
-
-**Lo que queda por probar** (el próximo intento, en este orden):
-1. La diferencia que SIGUE en pie: mi corrida a mano usó el PRIMER org
-   (`DIM-4H5R-4P4S`) y `DIM-PAMP-0001`; el spec resuelve
-   `/Clínica Veterinaria Recoleta/i` y usa `DIM-DEMO-0001`. Reproducir a mano
-   con ESA combinación exacta: si falla, es la relación org↔mascota (¿Rocco no
-   pertenece a Recoleta y la página muestra otra cosa?); si pasa, es el spec.
-2. Mirar `test-results/…crisis-seams…/test-failed-1.png`, que ya está en disco y
-   muestra la pantalla exacta en el momento del timeout. Es lo más barato y
-   debería haberlo hecho antes que las dos hipótesis descartadas.
-
-**Nota de método**: dos hipótesis seguidas descartadas por medición. La captura
-de pantalla estaba disponible desde el primer fallo y la ignoré en favor de
-teorizar — leer la evidencia que ya existe antes de generar hipótesis nuevas.
+**Lo que queda**: el spec sigue rojo, ahora en `waitForURL` agotando los 45s
+completos. A mano, el MISMO flujo sobre `DIM-PAMP-0001` firma y redirige en
+segundos. Algo es específico de Rocco (`DIM-DEMO-0001`) en Clínica Veterinaria
+Recoleta — probablemente la relación org↔mascota. Eso ya es señal de PRODUCTO,
+no de test. Próximo paso: reproducir a mano con esa combinación exacta y leer la
+respuesta del server action.
 
 ## Estado (se actualiza durante la corrida)
 
@@ -156,7 +136,7 @@ teorizar — leer la evidencia que ya existe antes de generar hipótesis nuevas.
 |---|---|---|
 | SC-5 | **hecha** — suite verde de punta a punta por primera vez | `88dce3ba` |
 | #32 create-pet | **hecha** — fuga cerrada + login por helper compartido. El spec sigue ROJO por un 3er problema aparte (cascada provincia→localidad), ya rojo antes | `05f4d43d` |
-| #31 crisis-seams (b) | **en curso** — diagnóstico abajo, sin arreglo aún | |
+| #31 crisis-seams (b) | **parcial** — bug del helper arreglado; queda un cuelgue real específico de Rocco@Recoleta | `1ea0a95e` |
 | C.3 | pendiente | |
 | C.4 | pendiente | |
 | D.6 | pendiente | |
