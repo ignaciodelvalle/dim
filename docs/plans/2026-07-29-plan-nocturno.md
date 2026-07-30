@@ -96,11 +96,11 @@ un bug de la función. Empezar por reproducir con una mascota concreta.
 
 | Qué | Por qué |
 |---|---|
-| **D1 — remediación RLS en staging** | Requiere correr contra staging. Ignacio-gated por CLAUDE.md. |
+| **D1 — remediación RLS en staging** | Ignacio-gated, y **LISTA PARA EJECUTAR (verificado 2026-07-30)**: `scripts/ops/staging-rls-remediation.sql` (481 líneas, sección 1 = diagnóstico read-only ANTES de tocar nada) + runbook `staging-rls-remediation.md`. Drift chequeado: ninguna migración 0158-0161 crea tablas, el script sigue cubriendo las 54. Parte de Ignacio: Fase 0-4 del readiness doc, ~30-45 min. |
 | **D7 — fecha de cutover** | Decisión de negocio. |
 | **Aplicar migraciones a una DB remota** | Escribir el archivo es trabajo mío; aplicarlo es Ignacio-gated. |
 | **`"Inscripto/a"` → `"Registrado/a"` en la credencial** | Copy de la credencial pública insignia. El acto ya dice "Registrar"; si el estado debe seguirlo es decisión del PO. |
-| **E2E rojo en CI** | `failed to start docker container "supabase_db_DIM"` — colisión de puertos en el runner de GitHub. Infra, no código. No lo persigo. |
+| **E2E rojo en CI** | **RE-DIAGNOSTICADO 2026-07-30: no es infra, es código, y es NUESTRO.** El job que falla es **vitest** (12.487 verdes, 0 fallos, "1 error"); el e2e sale `cancelled` en cascada. El error, con ANSI destripado del log de gh: `ReferenceError: window is not defined` en `react-dom-client` vía `scheduler performWorkUntilDeadline` (un Immediate) — trabajo de React disparando DESPUÉS del teardown de jsdom. Muy probablemente la MISMA causa raíz del exit 1 local: en el fork esa excepción mata al worker y el padre solo ve "Worker exited unexpectedly". El "docker container" del plan era de una corrida vieja. La unidad exit-1 ahora tiene identidad concreta: cazar el test que deja trabajo de scheduler pendiente al terminar su archivo. |
 
 ## Reglas de la corrida
 
