@@ -460,10 +460,10 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
     // ownerships(owner_organization_id, 'shelter_custody'). Discovered at
     // runtime — bootstrap's tokens are random (this was DIM-ARGO-DEMO).
     const orgToken = await resolveOrgToken(page, /Refugio Test/i);
-    await page.goto(`/org/${orgToken}/animales`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
     const petLink = page
-      .locator('a[href*="/mis-mascotas/DIM-"], a[href*="/animales/DIM-"]')
+      .locator(`a[href^="/org/${orgToken}/mascotas/DIM-"]`)
       .first();
     await expect(petLink, "org portal lists a held animal").toBeVisible({ timeout: 20_000 });
     const heldToken =
