@@ -6,7 +6,9 @@
 //     uses to decide whether to render the island at all.
 //   - typing a recognized phrase surfaces the CaptureConfidenceCard preview
 //     BEFORE any navigation happens (mandatory-preview contract).
-//   - "Confirmar" navigates with reminderId + autoconfirm=1; "Editar en el
+//   - the confirm button ("Asentar <tipo de evento>" — the verb of the act,
+//     never "Confirmar"; D.3, 2026-07-30) navigates with reminderId +
+//     autoconfirm=1; "Editar en el
 //     formulario" navigates with reminderId but WITHOUT autoconfirm.
 
 import "@testing-library/jest-dom/vitest";
@@ -57,10 +59,10 @@ describe("isQuickReplyEligible — NotificationCard's mount gate", () => {
 describe("<NotificationQuickReply> — preview before commit", () => {
   it("shows no CaptureConfidenceCard before the owner submits any text", () => {
     render(<NotificationQuickReply petPublicToken="DIM-TEST-0001" reminderId="reminder-1" />);
-    expect(screen.queryByText("Confirmar")).toBeNull();
+    expect(screen.queryByText("Asentar vacuna administrada")).toBeNull();
   });
 
-  it("typing a recognized phrase and submitting surfaces the preview with Confirmar/Editar", () => {
+  it("typing a recognized phrase and submitting surfaces the preview with Asentar/Editar", () => {
     render(<NotificationQuickReply petPublicToken="DIM-TEST-0001" reminderId="reminder-1" />);
 
     fireEvent.change(screen.getByLabelText("Respuesta rápida"), {
@@ -69,7 +71,7 @@ describe("<NotificationQuickReply> — preview before commit", () => {
     fireEvent.click(screen.getByText("Identificar →"));
 
     expect(screen.getByText("Vacuna administrada")).toBeInTheDocument();
-    expect(screen.getByText("Confirmar")).toBeInTheDocument();
+    expect(screen.getByText("Asentar vacuna administrada")).toBeInTheDocument();
     expect(screen.getByText("Editar en el formulario")).toBeInTheDocument();
     // No navigation happened just from showing the preview.
     expect(push).not.toHaveBeenCalled();
@@ -83,18 +85,18 @@ describe("<NotificationQuickReply> — preview before commit", () => {
     });
     fireEvent.click(screen.getByText("Identificar →"));
 
-    expect(screen.queryByText("Confirmar")).toBeNull();
+    expect(screen.queryByText("Asentar vacuna administrada")).toBeNull();
     expect(screen.getByText(/No reconocimos eso/)).toBeInTheDocument();
   });
 
-  it("Confirmar navigates with reminderId + autoconfirm=1", () => {
+  it("the Asentar button navigates with reminderId + autoconfirm=1", () => {
     render(<NotificationQuickReply petPublicToken="DIM-TEST-0001" reminderId="reminder-1" />);
 
     fireEvent.change(screen.getByLabelText("Respuesta rápida"), {
       target: { value: "le di la antirrábica hoy" },
     });
     fireEvent.click(screen.getByText("Identificar →"));
-    fireEvent.click(screen.getByText("Confirmar"));
+    fireEvent.click(screen.getByText("Asentar vacuna administrada"));
 
     expect(push).toHaveBeenCalledTimes(1);
     const url = push.mock.calls[0][0] as string;
@@ -125,11 +127,11 @@ describe("<NotificationQuickReply> — preview before commit", () => {
     const textarea = screen.getByLabelText("Respuesta rápida");
     fireEvent.change(textarea, { target: { value: "le di la antirrábica hoy" } });
     // Submitting the identify <form> (Enter's native effect) must never call
-    // the router directly — only the explicit Confirmar button (rendered
+    // the router directly — only the explicit Asentar button (rendered
     // inside CaptureConfidenceCard, after the preview) does that.
     fireEvent.submit(textarea.closest("form")!);
 
     expect(push).not.toHaveBeenCalled();
-    expect(screen.getByText("Confirmar")).toBeInTheDocument();
+    expect(screen.getByText("Asentar vacuna administrada")).toBeInTheDocument();
   });
 });

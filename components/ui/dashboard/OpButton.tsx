@@ -1,6 +1,6 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 
 /**
  * Operator-tier (op) button primitive.
@@ -35,6 +35,16 @@ type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
   block?: boolean;
   loading?: boolean;
   children?: ReactNode;
+  /**
+   * Forwarded to the underlying button element (React 19 ref-as-prop — no
+   * forwardRef needed). Added 2026-07-30: ConfirmDialog needs a focus-restore
+   * target, and every caller that wanted one had been dropping to a raw
+   * element hand-styled to look like this component (IncomingTransferActions,
+   * ReasignarButton, DevolverAlDuenoButton, RemoveMemberButton — see the note
+   * in scripts/check-raw-buttons.mjs). Declaring the prop removes the reason
+   * to fork the styling.
+   */
+  ref?: Ref<HTMLButtonElement>;
 };
 
 const base =

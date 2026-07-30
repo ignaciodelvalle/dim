@@ -20,6 +20,7 @@ describe("<CaptureConfidenceCard>", () => {
         confidence="high"
         onConfirm={() => {}}
         onEdit={() => {}}
+        confirmLabel="Asentar vacuna"
       />,
     );
 
@@ -38,6 +39,7 @@ describe("<CaptureConfidenceCard>", () => {
         confidence="high"
         onConfirm={() => {}}
         onEdit={() => {}}
+        confirmLabel="Asentar vacuna"
       />,
     );
 
@@ -55,10 +57,11 @@ describe("<CaptureConfidenceCard>", () => {
         confidence="high"
         onConfirm={onConfirm}
         onEdit={onEdit}
+        confirmLabel="Asentar vacuna"
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Confirmar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Asentar vacuna" }));
     expect(onConfirm).toHaveBeenCalledTimes(1);
     expect(onEdit).not.toHaveBeenCalled();
   });
@@ -73,6 +76,7 @@ describe("<CaptureConfidenceCard>", () => {
         confidence="high"
         onConfirm={onConfirm}
         onEdit={onEdit}
+        confirmLabel="Asentar vacuna"
       />,
     );
 
@@ -113,6 +117,7 @@ describe("<CaptureConfidenceCard>", () => {
           confidence={level}
           onConfirm={() => {}}
           onEdit={() => {}}
+          confirmLabel="Asentar vacuna"
         />,
       );
       expect(screen.getByText(text)).toBeTruthy();
@@ -127,6 +132,7 @@ describe("<CaptureConfidenceCard>", () => {
         confidence="medium"
         onConfirm={() => {}}
         onEdit={() => {}}
+        confirmLabel="Asentar vacuna"
       />,
     );
     const html = container.innerHTML;

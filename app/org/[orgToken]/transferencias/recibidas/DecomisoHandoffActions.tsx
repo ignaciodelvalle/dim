@@ -10,10 +10,22 @@
 // the row's status flips immediately (custody episodes change hands here —
 // SSR custody state must match the DB, and router.refresh() is banned; see
 // lib/ui/full-page-action-nav.ts).
+//
+// CONFIRMATION (D.3, 2026-07-30): both acts gate behind ConfirmDialog, exactly
+// like the sibling IncomingTransferActions. That file's own header documents
+// the audit-3-feedback §C2 asymmetry #3 fix — an inline mode-switch panel is
+// lighter confirmation weight than the citizen-facing equivalent for a custody
+// change at least as consequential — but the fix never propagated HERE, where
+// the custody at stake is STATE custody under Ley 14.346, i.e. strictly graver
+// than the cross-org transfer that motivated the original fix. The buttons
+// carry the verb of the act ("Aceptar custodia" / "Rechazar custodia"), never
+// "Confirmar". Reject keeps its optional reason field, rendered inside the
+// dialog via ConfirmDialog's `children` slot.
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { acceptDecomisoHandoffAction, rejectDecomisoHandoffAction } from "@/app/actions/decomiso";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
@@ -28,7 +40,13 @@ export function DecomisoHandoffActions({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [mode, setMode] = useState<"accept" | "reject" | null>(null);
+  // Which ConfirmDialog is open, or null when neither is. The trigger refs are
+  // ConfirmDialog's focus-restore targets (OpButton takes a ref as of
+  // 2026-07-30, so these stay OpButtons instead of the hand-styled raw buttons
+  // the sibling files still use).
+  const [confirming, setConfirming] = useState<"accept" | "reject" | null>(null);
+  const acceptTriggerRef = useRef<HTMLButtonElement>(null);
+  const rejectTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Reject-only field — optional reason recorded on the rejection note.
   const [rejectReason, setRejectReason] = useState("");
@@ -42,6 +60,7 @@ export function DecomisoHandoffActions({
       });
       if ("error" in result) {
         setError(result.error);
+        setConfirming(null);
         return;
       }
       navigateAfterActionSuccess(window.location.href);
@@ -58,88 +77,72 @@ export function DecomisoHandoffActions({
       });
       if ("error" in result) {
         setError(result.error);
+        setConfirming(null);
         return;
       }
       navigateAfterActionSuccess(window.location.href);
     });
   }
 
-  if (mode === "accept") {
-    return (
-      <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
-        <p className="text-[13px] font-medium text-ln-op-ink">
-          Aceptar la custodia estatal de {petName}.
-        </p>
-        <p className="text-sm text-ln-op-mute">
-          Tu organización asume la custodia bajo Ley 14.346. Esta acción no se puede deshacer.
-        </p>
-        {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
-        <div className="flex gap-2">
-          <OpButton type="button" variant="ok" onClick={handleAccept} disabled={pending}>
-            {pending ? "Procesando..." : "Confirmar custodia"}
-          </OpButton>
-          <OpButton
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setMode(null);
-              setError(null);
-            }}
-            disabled={pending}
-          >
-            Cancelar
-          </OpButton>
-        </div>
-      </div>
-    );
-  }
-
-  if (mode === "reject") {
-    return (
-      <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
-        <p className="text-[13px] font-medium text-ln-op-ink">
-          Rechazar la custodia estatal de {petName}.
-        </p>
-        <p className="text-sm text-ln-op-mute">
-          La autoridad sanitaria mantiene la custodia transitoria del animal.
-        </p>
-        <textarea
-          value={rejectReason}
-          onChange={(e) => setRejectReason(e.target.value)}
-          rows={2}
-          placeholder="Motivo del rechazo (opcional)"
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
-        />
-        {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
-        <div className="flex gap-2">
-          <OpButton type="button" variant="danger" onClick={handleReject} disabled={pending}>
-            {pending ? "Procesando..." : "Confirmar rechazo"}
-          </OpButton>
-          <OpButton
-            type="button"
-            variant="ghost"
-            onClick={() => {
-              setMode(null);
-              setError(null);
-              setRejectReason("");
-            }}
-            disabled={pending}
-          >
-            Cancelar
-          </OpButton>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="flex flex-wrap gap-2 pt-1">
-      <OpButton type="button" size="sm" variant="ok" onClick={() => setMode("accept")}>
+      {error && <output className="block w-full text-sm text-ln-op-danger">{error}</output>}
+      <OpButton
+        ref={acceptTriggerRef}
+        type="button"
+        size="sm"
+        variant="ok"
+        onClick={() => setConfirming("accept")}
+      >
         Aceptar custodia
       </OpButton>
-      <OpButton type="button" size="sm" variant="danger" onClick={() => setMode("reject")}>
+      <OpButton
+        ref={rejectTriggerRef}
+        type="button"
+        size="sm"
+        variant="danger"
+        onClick={() => setConfirming("reject")}
+      >
         Rechazar
       </OpButton>
+
+      <ConfirmDialog
+        open={confirming === "accept"}
+        onClose={() => !pending && setConfirming(null)}
+        onConfirm={handleAccept}
+        title="Aceptar la custodia estatal"
+        description={`Tu organización asume la custodia de ${petName} bajo Ley 14.346 y pasa a ser responsable del animal. Esta acción no se puede deshacer.`}
+        confirmLabel="Aceptar custodia"
+        tone="warn"
+        pending={pending}
+        triggerRef={acceptTriggerRef}
+      />
+
+      <ConfirmDialog
+        open={confirming === "reject"}
+        onClose={() => {
+          if (pending) return;
+          setConfirming(null);
+          setRejectReason("");
+        }}
+        onConfirm={handleReject}
+        title="Rechazar la custodia estatal"
+        description={`Esto devuelve el decomiso de ${petName} al organismo derivante, que mantiene la custodia transitoria del animal.`}
+        confirmLabel="Rechazar custodia"
+        tone="danger"
+        pending={pending}
+        triggerRef={rejectTriggerRef}
+      >
+        <div className="space-y-2 px-5 pb-1">
+          <textarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={2}
+            placeholder="Motivo del rechazo (opcional)"
+            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          />
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

@@ -1,11 +1,37 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { lookupTransferTargetAction, resolveDisputeAction } from "@/app/actions/custody-disputes";
 import { Icon } from "@/components/Icon";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+
+// The consequence of an ownership_transferred resolution, stated once and used
+// twice: as the inline hint under the destination field, and as the confirm
+// dialog's description. Two copies would drift; one constant cannot.
+const TRANSFER_CONSEQUENCE =
+  "La transferencia cierra todas las ownerships activas y abre una nueva al destino.";
+
+// Every resolution closes the dispute and lands an immutable event; only the
+// ownership_transferred branch also moves custody, which is why that branch
+// leads with TRANSFER_CONSEQUENCE.
+const RESOLUTION_IS_FINAL =
+  "La resolución se asienta como evento inmutable en el historial y no se puede deshacer.";
+
+function resolveConsequence(outcome: Outcome): string {
+  switch (outcome) {
+    case "ownership_transferred":
+      return `${TRANSFER_CONSEQUENCE} ${RESOLUTION_IS_FINAL}`;
+    case "ownership_confirmed":
+      return `Esto confirma al dueño actual y cierra la disputa. ${RESOLUTION_IS_FINAL}`;
+    case "case_dismissed":
+      return `Esto desestima el caso y cierra la disputa sin cambiar la titularidad. ${RESOLUTION_IS_FINAL}`;
+    default:
+      return `Esto cierra la disputa con la resolución que redactaste. ${RESOLUTION_IS_FINAL}`;
+  }
+}
 
 const OUTCOMES = [
   { value: "ownership_confirmed", label: "Confirma al dueño actual" },
@@ -33,6 +59,8 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const resolveTriggerRef = useRef<HTMLButtonElement>(null);
 
   const currentTargetId = transferKind === "user" ? transferToUserId : transferToOrgId;
 
@@ -65,7 +93,12 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
     });
   }
 
-  function submit() {
+  // Step 1 of the resolve act: validate, then OPEN THE DIALOG. Resolving a
+  // custody dispute is the gravest single click a government official makes in
+  // this system — it closes every active ownership and opens a new one — and
+  // until 2026-07-30 it fired straight off the button with no confirmation at
+  // all (D.3, clase 1). The action itself only runs from `runResolve` below.
+  function requestResolve() {
     setError(null);
     setOkMessage(null);
     if (resolutionSummary.trim().length < 100) {
@@ -82,6 +115,13 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
         return;
       }
     }
+    setConfirming(true);
+  }
+
+  // Step 2: the user confirmed in the dialog. This is the only caller of
+  // resolveDisputeAction.
+  function runResolve() {
+    setError(null);
     startTransition(async () => {
       const result = await resolveDisputeAction({
         disputeToken,
@@ -99,6 +139,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
       });
       if ("error" in result) {
         setError(result.error);
+        setConfirming(false);
         return;
       }
       setOkMessage("Disputa resuelta.");
@@ -195,9 +236,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
               <p className="text-sm text-ln-op-danger mt-1">{verifyState.message}</p>
             )}
 
-            <p className="text-sm text-ln-op-mute mt-1">
-              La transferencia cierra todas las ownerships activas y abre una nueva al destino.
-            </p>
+            <p className="text-sm text-ln-op-mute mt-1">{TRANSFER_CONSEQUENCE}</p>
           </div>
         </div>
       )}
@@ -238,8 +277,9 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
 
       <div className="flex gap-2">
         <OpButton
+          ref={resolveTriggerRef}
           type="button"
-          onClick={submit}
+          onClick={requestResolve}
           disabled={pending}
           variant="primary"
           className="px-4 py-2"
@@ -247,6 +287,18 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           {pending ? "Resolviendo..." : "Resolver disputa"}
         </OpButton>
       </div>
+
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => !pending && setConfirming(false)}
+        onConfirm={runResolve}
+        title="Resolver la disputa de custodia"
+        description={resolveConsequence(outcome)}
+        confirmLabel="Resolver disputa"
+        tone="danger"
+        pending={pending}
+        triggerRef={resolveTriggerRef}
+      />
     </div>
   );
 }

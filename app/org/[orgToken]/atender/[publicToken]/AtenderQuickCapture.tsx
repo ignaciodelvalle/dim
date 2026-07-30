@@ -115,6 +115,7 @@ export function AtenderQuickCapture({
           confidence={match.confidence}
           onConfirm={confirm}
           onEdit={editInstead}
+          confirmLabel={`Asentar ${eventoLabel(match.evento).toLocaleLowerCase("es-AR")}`}
         />
       )}
     </div>

@@ -40,6 +40,7 @@ describe("OpBulkBar — action gating", () => {
             key: "approve",
             label: "Aprobar seleccionadas",
             requireConfirm: true,
+            confirmLabel: "Aprobar postulaciones",
             confirmTitle: "Aprobar postulaciones",
             onRun,
           },

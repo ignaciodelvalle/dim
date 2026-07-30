@@ -50,7 +50,8 @@ function RowWithConfirm({ label }: { label: string }) {
         open={open}
         onClose={() => setOpen(false)}
         onConfirm={() => setOpen(false)}
-        title={`Confirmar — ${label}`}
+        title={`Eliminar — ${label}`}
+        confirmLabel="Eliminar"
         triggerRef={triggerRef}
       />
     </>

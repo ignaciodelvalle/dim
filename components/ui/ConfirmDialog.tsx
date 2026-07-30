@@ -39,6 +39,21 @@
 // with no stated outcome forces the user to already know what happens,
 // which defeats the point of a confirm step.
 //
+// THE GRAMMAR OF CONFIRMATION (PO decision D.3, 2026-07-30) — the confirm
+// button carries the VERB OF THE ACT ("Revocar", "Aceptar custodia",
+// "Resolver disputa"), NEVER "Confirmar": not bare, and not as the leading
+// verb of "Confirmar + noun" ("Confirmar reasignación" → "Reasignar"). A
+// button that says "Confirmar" describes the user's click, not the outcome;
+// the person reading it still has to reconstruct what they are about to do.
+// Friction scales with CONSEQUENCE, not with the wording: irreversible or
+// legally weighty acts get a modal that STATES the consequence; reversible
+// ones stay inline with the verb on the button.
+//
+// `confirmLabel` therefore has NO DEFAULT — omitting it is a compile error, so
+// no future call site can silently fall back into the generic label. The
+// regression fence is __tests__/confirm-label-grammar.guard.test.ts, which
+// fails on any confirm-style label that is exactly "Confirmar".
+//
 // Usage:
 //   const [open, setOpen] = useState(false);
 //   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -72,7 +87,14 @@ export type ConfirmDialogProps = {
   onConfirm: () => void;
   title: string;
   description?: string;
-  confirmLabel?: string;
+  /**
+   * REQUIRED — the label carries the VERB OF THE ACT ("Revocar", "Aceptar
+   * custodia"), never the generic "Confirmar" (PO decision D.3, 2026-07-30).
+   * There is deliberately NO default: the compiler must force every call site
+   * to name its act, so no future caller can fall back into the generic label
+   * by omission. See the "grammar of confirmation" rule below.
+   */
+  confirmLabel: string;
   cancelLabel?: string;
   tone?: ConfirmDialogTone;
   pending?: boolean;
@@ -92,7 +114,7 @@ export function ConfirmDialog({
   onConfirm,
   title,
   description,
-  confirmLabel = "Confirmar",
+  confirmLabel,
   cancelLabel = "Cancelar",
   tone = "danger",
   pending = false,

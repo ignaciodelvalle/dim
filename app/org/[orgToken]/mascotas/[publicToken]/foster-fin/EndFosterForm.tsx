@@ -1,8 +1,19 @@
 "use client";
 
+// Ending a foster stay closes a custody arrangement and lands an append-only
+// event — irreversible, so it gates behind a ConfirmDialog that states the
+// consequence (D.3 clase 1, 2026-07-30: until then this fired straight off the
+// submit button). The button keeps the verb of the act, "Cerrar tránsito".
+//
+// The dialog gates the SUBMIT, not the action: the real <form action> +
+// useActionState wiring is untouched, and confirming calls requestSubmit() on
+// it. Keeping the form as the single submission path means the server action,
+// its pending state and its error rendering behave exactly as before.
+
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton } from "@/components/ui/dashboard";
 import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
-import { useActionState } from "react";
+import { useActionState, useRef, useState } from "react";
 
 const initialState: EndFosterFormState = { error: null };
 
@@ -23,9 +34,12 @@ export function EndFosterForm({
 }) {
   const action = endFosterAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  const [confirming, setConfirming] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   return (
-    <form action={formAction} className="space-y-4">
+    <form ref={formRef} action={formAction} className="space-y-4">
       <p className="text-[13px] text-ln-op-ink-2">
         Vas a cerrar el tránsito{fosterName ? ` de ${fosterName}` : ""}. El animal vuelve a figurar
         solo en custodia del refugio. Esta acción queda en el historial como evento inmutable.
@@ -65,9 +79,30 @@ export function EndFosterForm({
         </p>
       )}
 
-      <OpButton type="submit" disabled={isPending} variant="danger">
+      <OpButton
+        ref={triggerRef}
+        type="button"
+        disabled={isPending}
+        variant="danger"
+        onClick={() => setConfirming(true)}
+      >
         {isPending ? "Cerrando…" : "Cerrar tránsito"}
       </OpButton>
+
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => !isPending && setConfirming(false)}
+        onConfirm={() => {
+          setConfirming(false);
+          formRef.current?.requestSubmit();
+        }}
+        title="Cerrar el tránsito"
+        description={`Esto cierra el tránsito${fosterName ? ` de ${fosterName}` : ""}: el animal vuelve a figurar solo en custodia del refugio y el cierre queda en el historial como evento inmutable.`}
+        confirmLabel="Cerrar tránsito"
+        tone="danger"
+        pending={isPending}
+        triggerRef={triggerRef}
+      />
     </form>
   );
 }

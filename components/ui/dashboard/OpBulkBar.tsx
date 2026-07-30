@@ -8,6 +8,11 @@
 // length configurable — defaults to 5 chars, matching bulkRejectRequestsAction;
 // the revoke flow passes 30 to match bulkRevokeAction).
 //
+// The bar used to hardcode `confirmLabel="Confirmar"` on that dialog — the
+// generic label the D.3 canon bans (2026-07-30). `OpBulkAction` is now a union
+// (see below) so the compiler requires a per-action verb on any gated action
+// and rejects one on an ungated action, which has no dialog to label.
+//
 // This is a presentation primitive: it does NOT own selection state (the queue
 // owns the Set of selected ids and passes `count`) and it does NOT call server
 // actions itself — each action's `onRun` is supplied by the caller, which knows
@@ -25,37 +30,68 @@ import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { isReasonValid, selectionSummary } from "@/lib/domain/bulk-select";
 
-export type OpBulkAction = {
+type OpBulkActionBase = {
   /** Stable key for React + the action button id. */
   key: string;
   /** Button label, e.g. "Revocar seleccionados". */
   label: string;
   /** Visual tone. "danger" renders a red button; non-destructive default to neutral. */
   tone?: "danger" | "neutral";
-  /**
-   * When true, clicking opens a ConfirmDialog requiring a reason before `onRun`
-   * is called. `onRun` receives the trimmed reason. When false/omitted, `onRun`
-   * is called immediately with an empty string.
-   */
-  requireReason?: boolean;
-  /**
-   * When true, clicking opens a ConfirmDialog with NO reason field — a plain
-   * "are you sure?" gate before `onRun("")`. Use for consequential-but-not-
-   * destructive bulk actions that shouldn't fire on a single misclick (e.g. a
-   * bulk approval that notifies applicants). Implied by `requireReason`.
-   */
-  requireConfirm?: boolean;
-  /** Minimum reason length in chars. Defaults to 5. Ignored unless requireReason. */
-  minReasonLength?: number;
-  /** Confirm dialog title (defaults to the action label). */
-  confirmTitle?: string;
-  /** Confirm dialog description. */
-  confirmDescription?: string;
   /** Runs the bulk action. May be async; the bar shows a pending state. */
   onRun: (reason: string) => void | Promise<void>;
   /** Disables this action's button (e.g. nothing eligible in selection). */
   disabled?: boolean;
 };
+
+/**
+ * A gated action — clicking opens a ConfirmDialog before `onRun` fires.
+ *
+ * `confirmLabel` is REQUIRED here and nowhere else: a dialog exists, so a
+ * caller must name the verb of the act on its confirm button (PO decision D.3,
+ * 2026-07-30 — never the generic "Confirmar"). An action with no dialog has no
+ * confirm button to label, which is why the union below splits: the compiler
+ * asks for the label exactly when there is a button to put it on, and refuses
+ * it when there is not.
+ */
+export type OpBulkGatedAction = OpBulkActionBase & {
+  /**
+   * When true, clicking opens a ConfirmDialog requiring a reason before `onRun`
+   * is called. `onRun` receives the trimmed reason.
+   */
+  requireReason?: boolean;
+  /**
+   * When true, clicking opens a ConfirmDialog with NO reason field — a plain
+   * gate naming the consequence before `onRun("")`. Use for consequential-but-
+   * not-destructive bulk actions that shouldn't fire on a single misclick (e.g.
+   * a bulk approval that notifies applicants). Implied by `requireReason`.
+   */
+  requireConfirm?: boolean;
+  /** Verb of the act on the dialog's confirm button, e.g. "Revocar permisos". */
+  confirmLabel: string;
+  /** Minimum reason length in chars. Defaults to 5. Ignored unless requireReason. */
+  minReasonLength?: number;
+  /** Confirm dialog title (defaults to the action label). */
+  confirmTitle?: string;
+  /** Confirm dialog description — must state the CONSEQUENCE. */
+  confirmDescription?: string;
+};
+
+/** An ungated action — fires on click, so it carries no confirm-dialog copy. */
+export type OpBulkImmediateAction = OpBulkActionBase & {
+  requireReason?: false;
+  requireConfirm?: false;
+  confirmLabel?: never;
+  minReasonLength?: never;
+  confirmTitle?: never;
+  confirmDescription?: never;
+};
+
+export type OpBulkAction = OpBulkGatedAction | OpBulkImmediateAction;
+
+/** An action is gated iff it declares a reason field or a plain confirm step. */
+function isGated(action: OpBulkAction): action is OpBulkGatedAction {
+  return Boolean(action.requireReason || action.requireConfirm);
+}
 
 type Props = {
   /** Number of selected rows. The bar is hidden when count === 0. */
@@ -69,7 +105,7 @@ type Props = {
 const DEFAULT_MIN_REASON = 5;
 
 export function OpBulkBar({ count, actions, onClear }: Props) {
-  const [activeAction, setActiveAction] = useState<OpBulkAction | null>(null);
+  const [activeAction, setActiveAction] = useState<OpBulkGatedAction | null>(null);
   const [reason, setReason] = useState("");
   const [pending, setPending] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -93,7 +129,7 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
   function handleClick(action: OpBulkAction, e: React.MouseEvent<HTMLButtonElement>) {
     // A reason OR a plain confirm both gate the action behind the dialog; only
     // an action that declares neither fires immediately.
-    if (action.requireReason || action.requireConfirm) {
+    if (isGated(action)) {
       triggerRef.current = e.currentTarget;
       setActiveAction(action);
       setReason("");
@@ -155,7 +191,7 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
           }}
           title={activeAction.confirmTitle ?? activeAction.label}
           description={activeAction.confirmDescription}
-          confirmLabel="Confirmar"
+          confirmLabel={activeAction.confirmLabel}
           tone={activeAction.tone === "danger" ? "danger" : "neutral"}
           pending={pending}
           triggerRef={triggerRef}

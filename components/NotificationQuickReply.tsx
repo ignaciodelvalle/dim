@@ -118,6 +118,7 @@ export function NotificationQuickReply({
           confidence={match.confidence}
           onConfirm={() => navigate(true)}
           onEdit={() => navigate(false)}
+          confirmLabel={`Asentar ${eventTypeLabel(match.eventType).toLocaleLowerCase("es-AR")}`}
         />
       )}
     </div>

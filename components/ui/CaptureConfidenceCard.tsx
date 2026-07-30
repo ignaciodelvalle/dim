@@ -46,7 +46,14 @@ export type CaptureConfidenceCardProps = {
   onConfirm: () => void;
   /** "No es esto" → open the full form. */
   onEdit: () => void;
-  confirmLabel?: string;
+  /**
+   * REQUIRED — the verb of the act the card is about to perform ("Asentar la
+   * vacuna"), never the generic "Confirmar" (PO decision D.3, 2026-07-30; see
+   * the grammar note in components/ui/ConfirmDialog.tsx). There is deliberately
+   * no default: this card's whole job is to say "we read X — is that right?",
+   * and a button labelled "Confirmar" answers a question the card never asked.
+   */
+  confirmLabel: string;
   editLabel?: string;
   className?: string;
 };
@@ -83,7 +90,7 @@ export function CaptureConfidenceCard({
   confidence,
   onConfirm,
   onEdit,
-  confirmLabel = "Confirmar",
+  confirmLabel,
   editLabel = "Editar en el formulario",
   className = "",
 }: CaptureConfidenceCardProps) {

@@ -203,6 +203,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
       // Approving notifies the applicants — gate it behind a confirm so it can't
       // fire on a single misclick (parity with the Rechazar confirm).
       requireConfirm: true,
+      confirmLabel: "Aprobar postulaciones",
       confirmTitle: "Aprobar postulaciones seleccionadas",
       confirmDescription:
         "Las postulantes seleccionadas recibirán una notificación de aprobación. Confirmá que querés aprobar estas adopciones.",
@@ -224,6 +225,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
       tone: "danger",
       requireReason: true,
       minReasonLength: 5,
+      confirmLabel: "Rechazar postulaciones",
       confirmTitle: "Rechazar postulaciones seleccionadas",
       confirmDescription:
         "Las postulantes seleccionadas recibirán una notificación con el motivo. Esta acción no se puede deshacer.",
