@@ -146,6 +146,35 @@ export const LIBRETA_FILTER_CHIPS: ReadonlyArray<{ type: EventType; label: strin
   { type: "death_recorded", label: "Fallecimiento" },
 ];
 
+export type LibretaChipCount = { type: string; label: string; count: number };
+
+/**
+ * Chip descriptors that have AT LEAST ONE matching row, in the order declared
+ * by `chips` (LIBRETA_FILTER_CHIPS by default). A chip that would filter to
+ * nothing is a dead control, so it is dropped here rather than rendered
+ * disabled — and because the chips are derived from the very rows they will
+ * filter, no selection can ever resolve to an empty feed.
+ *
+ * Pure: no query, no fetch. Every libreta/historial row already carries
+ * `eventType` (HistorialEventRow), so the counts come free with the page load.
+ */
+export function libretaChipCounts(
+  rows: ReadonlyArray<{ eventType: string }>,
+  chips: ReadonlyArray<{ type: string; label: string }> = LIBRETA_FILTER_CHIPS,
+): LibretaChipCount[] {
+  const countsByType = new Map<string, number>();
+  for (const row of rows) {
+    countsByType.set(row.eventType, (countsByType.get(row.eventType) ?? 0) + 1);
+  }
+  return chips
+    .map((chip) => ({
+      type: chip.type,
+      label: chip.label,
+      count: countsByType.get(chip.type) ?? 0,
+    }))
+    .filter((chip) => chip.count > 0);
+}
+
 // Logical groups that the libreta is presented as in the /libreta view. The
 // order here is the display order.
 //

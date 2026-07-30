@@ -16,12 +16,14 @@ import { Icon } from "@/components/Icon";
 import { AsientoCard } from "@/components/pet-profile/AsientoCard";
 import { ExportLibretaButton } from "@/components/pet-profile/ExportLibretaButton";
 import { FutureLedgerList } from "@/components/pet-profile/FutureLedgerList";
+import { LibretaFilterChips } from "@/components/pet-profile/LibretaFilterChips";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { VacunasStatusBadges } from "@/components/pet-profile/VacunasStatusBadges";
 import type {
   ResolvedEmergencyContacts,
   ResolvedEmergencyPair,
 } from "@/lib/domain/emergency-contacts";
+import { libretaChipCounts } from "@/lib/infra/libreta-sanitaria";
 import { speciesLabel } from "@/lib/utils/format";
 import type { LibretaFaceData } from "@/src/modules/pets/application/tab-data/types";
 import { useState } from "react";
@@ -58,6 +60,26 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
   // "vacunas" lens filtered future items).
   const future = data.future;
   const past = data.past.filter((row) => pastEventMatchesAudience(row.eventType, audience));
+
+  // Per-type narrowing of the ONE consolidated timeline (B3 redefined). The
+  // chips are derived from `past` AFTER the audience filter, so an org viewer
+  // never sees a chip for a category the lens already removed, and a selection
+  // can never resolve to zero rows. See LibretaFilterChips for the full
+  // rationale (why not all 14, why the count is on the chip, why no empty
+  // state). No new query: every row already carries `eventType`.
+  const [selectedTypes, setSelectedTypes] = useState<ReadonlySet<string>>(() => new Set<string>());
+  const chipCounts = libretaChipCounts(past);
+  const visiblePast =
+    selectedTypes.size === 0 ? past : past.filter((row) => selectedTypes.has(row.eventType));
+
+  function toggleType(type: string) {
+    setSelectedTypes((prev) => {
+      const next = new Set(prev);
+      if (next.has(type)) next.delete(type);
+      else next.add(type);
+      return next;
+    });
+  }
 
   const isEmpty = future.length === 0 && past.length === 0;
   // Compute `now` ONCE at mount and thread the SAME value into every relative
@@ -113,10 +135,18 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
           {past.length > 0 && (
             <>
               <div className="ln-ledlbl">
-                Asientos · {past.length} {past.length === 1 ? "registro" : "registros"}
+                Asientos · {visiblePast.length}{" "}
+                {visiblePast.length === 1 ? "registro" : "registros"}
               </div>
+              <LibretaFilterChips
+                counts={chipCounts}
+                totalCount={past.length}
+                selected={selectedTypes}
+                onToggle={toggleType}
+                onClear={() => setSelectedTypes(new Set<string>())}
+              />
               <div className="ln-asientos">
-                {past.map((row) => (
+                {visiblePast.map((row) => (
                   <AsientoCard
                     key={row.id}
                     view={toAsientoView(row, petPublicToken, now)}

@@ -6,7 +6,7 @@ import { AmendedBadge } from "@/components/ui/AmendedBadge";
 import { LnBadge } from "@/components/ui/Badge";
 import type { EventType } from "@/db/schema";
 import { eventPayloadDetails, eventPayloadSummary } from "@/lib/events/events";
-import { libretaConfidenceTier } from "@/lib/infra/libreta-sanitaria";
+import { libretaChipCounts, libretaConfidenceTier } from "@/lib/infra/libreta-sanitaria";
 import { ownerConfidenceDisplay } from "@/lib/projections/owner-confidence-display";
 import { eventTypeLabel, formatDateTime } from "@/lib/utils/format";
 import Link from "next/link";
@@ -266,12 +266,10 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
 
   // Per-type counts drive the chip badges and hide chips with no events.
   // Layout follows the mockup: a leading "Todos N" pill + only the chip
-  // types that have at least one event in this pet's history.
-  const countsByType = new Map<string, number>();
-  for (const e of events) {
-    countsByType.set(e.eventType, (countsByType.get(e.eventType) ?? 0) + 1);
-  }
-  const visibleChips = effectiveChips.filter((c) => (countsByType.get(c.type) ?? 0) > 0);
+  // types that have at least one event in this pet's history. The derivation
+  // is shared with the libreta chip bar (libretaChipCounts) so "hide the dead
+  // chip, show the count" is one rule, not two copies of one.
+  const visibleChips = libretaChipCounts(events, effectiveChips);
   const allSelected = selectedTypes.size === 0;
   const chipClass = (selected: boolean) =>
     selected
@@ -295,7 +293,7 @@ export function EventTimeline({ events, publicToken, chips }: Props) {
         </button>
         {visibleChips.map((chip) => {
           const isSelected = selectedTypes.has(chip.type);
-          const count = countsByType.get(chip.type) ?? 0;
+          const count = chip.count;
           return (
             <button
               key={chip.type}
