@@ -29,7 +29,7 @@
 
 import { cache } from "react";
 
-import { and, count, eq, isNull } from "drizzle-orm";
+import { and, count, eq, isNull, ne } from "drizzle-orm";
 
 import {
   db,
@@ -38,6 +38,7 @@ import {
   organizationMemberships,
   organizations,
   ownerships,
+  pets,
   profiles,
 } from "@/db";
 import type { Organization, OrganizationMembership } from "@/db";
@@ -212,7 +213,8 @@ export const getUnreadCountCached = cache(async (userId: string): Promise<number
 // ---------------------------------------------------------------------------
 
 /**
- * Cached count of the pets a user currently owns (active ownerships only).
+ * Cached count of the LIVE pets a user currently owns (active ownership AND the
+ * pet not deceased).
  *
  * Why the layout pays for this (D.8, 2026-07-30): the citizen tab bar's centre
  * slot said "Asentar" and pointed at `/inicio?sheet=anotar`. With ZERO pets
@@ -235,13 +237,40 @@ export const getUnreadCountCached = cache(async (userId: string): Promise<number
  * Deliberately NOT the same query as the `/mis-mascotas` index count
  * (`page.tsx`), which joins `pets` and applies the name-search filter: that one
  * answers "how many match the search", this one answers "does this user own any
- * pet at all". Same index, different question.
+ * LIVE pet at all". Same index, different question.
+ *
+ * WHY THE `pets` JOIN, added in the pre-push review of D.8 (2026-07-30): DEATH
+ * DOES NOT END AN OWNERSHIP. No code path sets `ownerships.ended_at` when a pet
+ * dies — `ended_at` marks transfers and relinquishments, and In memoriam is
+ * deliberately still YOUR pet. So an active-ownerships-only count returned >= 1
+ * for an owner whose only pet had died, the tab bar rendered "Asentar", and
+ * `/inicio?sheet=anotar` redirected to `/mis-mascotas` with an inert sheet —
+ * the exact silent no-op D.8 exists to remove, landing on a grieving owner.
+ *
+ * THE PREDICATE IS `/inicio`'s, not a third variant: `fetchLivePetsForCarouselRanking`
+ * (lib/analytics/owner-dashboard.ts) selects active ownership + `ne(pets.status,
+ * 'deceased')`, and `/inicio` redirects to `/mis-mascotas` exactly when that
+ * returns []. This is the COUNT of the same set, so the tab-bar slot and the
+ * destination it points at can never disagree. Coherent with `/mis-mascotas`,
+ * which already branches on `hasAnyOwned`: an owner with only deceased pets gets
+ * no "no pets" box (the In memoriam section carries them) and now also gets the
+ * "Cargar mascota" slot instead of a dead-end capture link.
+ *
+ * Still ONE indexed count: the join is on `pets.id` (primary key) from the same
+ * `ownerships_owner_user_id_idx` scan.
  */
 export const getOwnedPetsCountCached = cache(async (userId: string): Promise<number> => {
   const [row] = await db
     .select({ n: count() })
     .from(ownerships)
-    .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)));
+    .innerJoin(pets, eq(pets.id, ownerships.petId))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        isNull(ownerships.endedAt),
+        ne(pets.status, "deceased"),
+      ),
+    );
   return Number(row?.n ?? 0);
 });
 

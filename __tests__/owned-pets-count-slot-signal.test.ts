@@ -41,10 +41,43 @@ describe("getOwnedPetsCountCached — the helper", () => {
     const body = helper.slice(0, helper.indexOf("\n});"));
     expect(body).toContain(".from(ownerships)");
     expect(body).toContain("eq(ownerships.ownerUserId, userId)");
-    // Ended ownerships are transfers/deaths — they must not keep a pets-less
-    // owner on the capture slot.
+    // Ended ownerships are transfers/relinquishments — they must not keep a
+    // pets-less owner on the capture slot.
     expect(body).toContain("isNull(ownerships.endedAt)");
     expect(body).toContain("count()");
+  });
+
+  // PRE-PUSH REVIEW 2026-07-30 — the fix did not fire for the owner it matters
+  // most to. DEATH DOES NOT END AN OWNERSHIP (no code path sets `ended_at` on
+  // death; In memoriam is deliberately still your pet), so an owner whose only
+  // pet had died still counted >= 1 → "Asentar" → /inicio?sheet=anotar →
+  // redirect to /mis-mascotas with an inert sheet. The silent no-op D.8 exists
+  // to remove, landing on a grieving owner.
+  it("excludes DECEASED pets — the count is LIVE pets, not live ownerships", () => {
+    const helper = cacheSrc.slice(cacheSrc.indexOf("export const getOwnedPetsCountCached"));
+    const body = helper.slice(0, helper.indexOf("\n});"));
+    expect(body).toContain("innerJoin(pets");
+    expect(body).toContain('ne(pets.status, "deceased")');
+  });
+
+  // ONE definition, not a third variant. `/inicio` decides "does this owner have
+  // anywhere to land" with fetchLivePetsForCarouselRanking, whose predicate is
+  // active ownership + not deceased. The tab-bar slot must be a COUNT of exactly
+  // that set, or the slot and the destination it points at disagree again.
+  it("reuses the SAME live-pets predicate /inicio redirects on", () => {
+    const canonical = read("lib", "analytics", "owner-dashboard.ts");
+    const fn = canonical.slice(
+      canonical.indexOf("export async function fetchLivePetsForCarouselRanking"),
+    );
+    const body = fn.slice(0, fn.indexOf("\n}"));
+    for (const clause of [
+      "eq(ownerships.ownerUserId, userId)",
+      "isNull(ownerships.endedAt)",
+      'ne(pets.status, "deceased")',
+    ]) {
+      expect(body, `/inicio's own predicate must contain ${clause}`).toContain(clause);
+      expect(cacheSrc, `the cached count must reuse ${clause}`).toContain(clause);
+    }
   });
 
   // THE CACHE-KEY TRAP (precedent: getOrgQueueCountsCached, whose array arg had
