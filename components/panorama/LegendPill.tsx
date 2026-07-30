@@ -2,8 +2,8 @@
 
 // LegendPill — the v2C single-line legend overlay (bottom-left, above the
 // dock bar): one pill with the base-metric label, the 5-cell classed ramp,
-// one dot per active point layer, and the ALWAYS-VISIBLE k-anon pill
-// («⊘ k<5 protegido» — privacy visible, spec no-negociable #1). Clicking
+// one dot per active point layer, and — WHEN THE FRAME ACTUALLY PAINTS ONE —
+// the k-anon pill («⊘ k<5 protegido»). Clicking
 // expands the FULL reading (the real MapLegends blocks + captions + honesty
 // notices) in a panel that opens upward — plan note: the compact strip is the
 // overlay; the full legend is one click away.
@@ -42,6 +42,31 @@ type Props = {
     small: { r: number; label: string };
     large: { r: number; label: string };
   } | null;
+  /**
+   * Whether the CURRENT FRAME paints at least one k-anon hatch — the gate for
+   * the «⊘ k<5 protegido» pill.
+   *
+   * LIVE PIXEL VERIFICATION 2026-07-30. The pill used to be unconditional
+   * ("privacy visible, spec no-negociable #1"), so it announced a 113×25 px
+   * mark with a Ley 25.326 tooltip over frames with ZERO hatched units, while
+   * MapLegends — same frame, same data — correctly omitted its k-anon row and
+   * said "Por ahora no hay escalas que decodificar". The spec asks that
+   * suppression never be HIDDEN; it does not ask that it be CLAIMED. A legend
+   * that names a mark the canvas does not paint is what teaches an operator to
+   * stop reading the legend, and the notice they stop reading is the privacy
+   * one.
+   *
+   * REQUIRED, not defaulted: a default would let a future call site silently
+   * pick a branch, and the wrong branch here is the false claim this removes.
+   * Callers pass `frameHasSuppressedMark(...)` (hatch-pattern.ts) — the SAME
+   * atoms that gate MapLegends' «Protegido por privacidad (k<5)» rows, so the
+   * collapsed strip and the expanded panel cannot disagree.
+   *
+   * Deliberately NOT `suppressedCount > 0`: that number describes the response
+   * (possibly at a grain the frame is not painting), and a legend must describe
+   * the canvas.
+   */
+  suppressedInFrame: boolean;
   /** The expanded full reading (MapLegends + captions + notices). */
   children: ReactNode;
 };
@@ -80,6 +105,7 @@ export function LegendPill({
   layerDots,
   rampEndpoints = null,
   graduatedHint = null,
+  suppressedInFrame,
   children,
 }: Props) {
   // Visual review 2026-07-23 (#2): when the pill title already names a point
@@ -206,18 +232,22 @@ export function LegendPill({
               <span className="text-[var(--text-xs)]">{dot.label}</span>
             </span>
           ))}
-          {/* k-anon pill — NEVER hidden (suppression stays visible on the
-              collapsed strip; the expanded panel carries the full notice). */}
-          <span
-            className="shrink-0 rounded-full border border-ln-op-line px-2 py-0.5 text-[var(--text-xs)] text-ln-op-mute"
-            style={{
-              backgroundImage:
-                "repeating-linear-gradient(45deg, var(--color-ln-op-stripe) 0 3px, var(--color-ln-op-line-2) 3px 6px)",
-            }}
-            title="Unidades con menos de 5 casos: valor suprimido por k-anonimato (Ley 25.326)"
-          >
-            ⊘ k&lt;5 protegido
-          </span>
+          {/* k-anon pill — shown whenever the frame paints a hatch, and ONLY
+              then. Suppression is never hidden (the expanded panel carries the
+              full per-layer notice); it is also never claimed over a canvas
+              with nothing hatched on it. See `suppressedInFrame` above. */}
+          {suppressedInFrame && (
+            <span
+              className="shrink-0 rounded-full border border-ln-op-line px-2 py-0.5 text-[var(--text-xs)] text-ln-op-mute"
+              style={{
+                backgroundImage:
+                  "repeating-linear-gradient(45deg, var(--color-ln-op-stripe) 0 3px, var(--color-ln-op-line-2) 3px 6px)",
+              }}
+              title="Unidades con menos de 5 casos: valor suprimido por k-anonimato (Ley 25.326)"
+            >
+              ⊘ k&lt;5 protegido
+            </span>
+          )}
           <span aria-hidden="true" className="shrink-0 text-[var(--text-xs)] text-ln-op-faint">
             ▴
           </span>

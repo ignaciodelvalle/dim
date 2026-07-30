@@ -1027,8 +1027,18 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(
       screen.getByText("Sin variación destacable frente al período anterior."),
     ).toBeInTheDocument();
-    // The legend pill's k-anon marker is ALWAYS visible on the collapsed strip.
-    expect(screen.getByText(/k<5 protegido/)).toBeInTheDocument();
+    // LIVE PIXEL VERIFICATION 2026-07-30 — this assertion used to read "the
+    // legend pill's k-anon marker is ALWAYS visible on the collapsed strip",
+    // and THIS FIXTURE is the finding in miniature: the envelope reports
+    // suppressedCount 3 over EMPTY_FC, i.e. a count that describes the RESPONSE
+    // while the canvas paints nothing. The pill names a canvas MARK, so it must
+    // stay silent here...
+    expect(screen.queryByText(/k<5 protegido/)).not.toBeInTheDocument();
+    // ...while the count-based disclosure in the expanded panel still reports
+    // the withheld cells (asserted above). Two different honesty jobs: the
+    // notice discloses what the DATA withheld, the pill decodes what the MAP
+    // painted. Conflating them is what produced a Ley 25.326 tooltip over a
+    // frame with zero hatched units.
     // The floating dock closes the stack.
     expect(screen.getByTestId("panorama-dock")).toBeInTheDocument();
   });

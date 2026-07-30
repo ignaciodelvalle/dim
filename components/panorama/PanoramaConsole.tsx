@@ -67,6 +67,7 @@ import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { buildAllSuppressedNotice } from "@/components/panorama/all-suppressed-notice";
 import { coalescedGet } from "@/components/panorama/coalesced-get";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
+import { frameHasSuppressedMark } from "@/components/panorama/hatch-pattern";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import {
   activeVistaName,
@@ -4995,6 +4996,10 @@ export function PanoramaConsole({
             bivariate={bivariateActive}
             graduatedHint={legendGraduatedHint}
             layerDots={legendLayerDots}
+            // Same atoms + same inputs MapLegends gets (mapLayers + the lifted
+            // divisionLegend), so the strip and the Referencias tab can never
+            // disagree about the hatch. Not `suppressedCount` — see LegendPill.
+            suppressedInFrame={frameHasSuppressedMark(mapLayers, divisionLegend)}
           >
             <div className="space-y-2.5">
               {/* k-anon disclosure — the full per-layer suppression counts. */}

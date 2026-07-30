@@ -22,6 +22,7 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
         rampColors={["#eee", "#ccc", "#999", "#666", "#333"]}
         rampEndpoints={{ min: "0%", max: "70% meta" }}
         layerDots={[]}
+        suppressedInFrame={false}
       >
         <div>panel</div>
       </LegendPill>,
@@ -39,6 +40,7 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
         rampEndpoints={null}
         bivariate
         layerDots={[]}
+        suppressedInFrame={false}
       >
         <div>panel</div>
       </LegendPill>,
@@ -54,6 +56,7 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
         rampColors={null}
         layerDots={[{ color: "#f00", label: "Pérdidas activas" }]}
         graduatedHint={{ small: { r: 5, label: "1" }, large: { r: 30, label: "42" } }}
+        suppressedInFrame={false}
       >
         <div>panel</div>
       </LegendPill>,
@@ -63,14 +66,44 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
     expect(screen.getByText("42")).toBeInTheDocument();
   });
 
-  it("keeps the k-anon pill visible regardless of the other collapsed hints", () => {
+  // LIVE PIXEL VERIFICATION 2026-07-30. This case used to read "keeps the k-anon
+  // pill visible regardless of the other collapsed hints" and rendered the pill
+  // with NO suppression in the frame — it pinned the defect as if it were the
+  // contract. Measured on the live console: a 113x25 px "k<5 protegido" chip with
+  // a Ley 25.326 tooltip over a canvas with zero hatched units, while MapLegends
+  // (same frame) correctly said "Por ahora no hay escalas que decodificar".
+  it("shows the k-anon pill when the frame paints a hatch, whatever else is collapsed", () => {
     render(
-      <LegendPill baseLabel="Cobertura" rampColors={null} layerDots={[]}>
+      <LegendPill baseLabel="Cobertura" rampColors={null} layerDots={[]} suppressedInFrame={true}>
         <div>panel</div>
       </LegendPill>,
     );
 
     expect(screen.getByText("⊘ k<5 protegido")).toBeInTheDocument();
+  });
+
+  it("renders NO k-anon pill when the frame paints no hatch", () => {
+    render(
+      <LegendPill
+        baseLabel="Cobertura"
+        rampColors={["#eee", "#333"]}
+        layerDots={[{ color: "#f00", label: "Zoonosis / señales" }]}
+        suppressedInFrame={false}
+      >
+        <div>panel</div>
+      </LegendPill>,
+    );
+
+    expect(screen.queryByText("⊘ k<5 protegido")).not.toBeInTheDocument();
+    // And the claim is gone in every form: no orphan Ley 25.326 tooltip left
+    // announcing a mark the canvas does not paint.
+    expect(
+      screen.queryByTitle(
+        "Unidades con menos de 5 casos: valor suprimido por k-anonimato (Ley 25.326)",
+      ),
+    ).not.toBeInTheDocument();
+    // The rest of the strip is untouched.
+    expect(screen.getByText("Cobertura")).toBeInTheDocument();
   });
 
   it("suppresses a layer dot whose label duplicates the pill title (visual review 2026-07-23 #2)", () => {
@@ -86,6 +119,7 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
           { color: "#f00", label: "Denuncias de bienestar" },
           { color: "#0f0", label: "Zoonosis / señales" },
         ]}
+        suppressedInFrame={false}
       >
         <div>panel</div>
       </LegendPill>,

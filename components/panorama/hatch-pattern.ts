@@ -9,6 +9,11 @@
 // Kept framework-light (only the DOM canvas API) so the SituationalMap and the
 // CABA inset share ONE pattern — the same suppression mark on every surface.
 
+import { bivariateSuppressedCodes } from "@/components/panorama/bivariate-fill";
+import { hasSuppressedProvince } from "@/components/panorama/province-choropleth-style";
+import type { BivariateCell } from "@/src/modules/panorama/domain/bivariate";
+import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
+
 /** The map-image id both maps register the hatch tile under. */
 export const HATCH_IMAGE_ID = "pano-hatch-suppressed";
 
@@ -35,6 +40,69 @@ export const HATCH_STROKE_RGBA = "rgba(71,85,105,0.85)"; // slate-600, reads on 
  * map hatch are defined ONCE, together.
  */
 export const HATCH_SWATCH_CSS = `repeating-linear-gradient(45deg, ${HATCH_STROKE_RGBA} 0, ${HATCH_STROKE_RGBA} 1px, transparent 1px, transparent 3px)`;
+
+// ---------------------------------------------------------------------------
+// "Does THIS FRAME actually paint a hatch?" — the gate every legend surface
+// that names the mark must pass.
+//
+// LIVE PIXEL VERIFICATION 2026-07-30. LegendPill rendered «⊘ k<5 protegido»
+// UNCONDITIONALLY (its own comment said "NEVER hidden"), tooltip citing Ley
+// 25.326, in frames with ZERO hatched marks on the canvas. MapLegends had
+// already learned the discipline for two of its three rows (`divisionLegend
+// .suppressed`, `hasSuppressedProvince`) — but not for the bivariate row, and
+// the pill had never learned it at all.
+//
+// A legend that announces a mark the map does not paint is the exact mirror of
+// a map that hatches without announcing it: both teach the operator that the
+// legend and the canvas are not describing the same thing, and the second one
+// they stop believing is the privacy notice. Defined HERE, beside the mark
+// itself, so the question is answered ONCE — the pill and the Referencias tab
+// read the same booleans and cannot drift.
+// ---------------------------------------------------------------------------
+
+/** Structural subset of an ActiveLayer — kept structural (not the imported
+ *  `ActiveLayer`) so this module stays a leaf of the situational-map graph. */
+export type HatchableLayer = {
+  features: FeatureCollection;
+  /** Present only on a bivariate province layer; its cells carry the k-anon
+   *  propagation, NOT `features` (see bivariate.ts). */
+  bivariateCells?: readonly BivariateCell[] | null;
+};
+
+/**
+ * Whether ONE layer paints at least one hatched unit in the current frame.
+ *
+ * Delegates per surface to the helper that already owns that surface's rule —
+ * `bivariateSuppressedCodes` for the 3×3 matrix (whose suppression lives on the
+ * cells) and `hasSuppressedProvince` for an ordinary province choropleth
+ * (whose suppression lives on the feature flag). No third rule is invented
+ * here; a locality/point layer has no province cell to hatch and correctly
+ * answers false — its hatch, if any, is the division fill, reported separately
+ * by the lifted `divisionLegend.suppressed`.
+ */
+export function layerPaintsHatch(layer: HatchableLayer): boolean {
+  if (layer.bivariateCells) return bivariateSuppressedCodes(layer.bivariateCells).length > 0;
+  return hasSuppressedProvince(layer.features);
+}
+
+/**
+ * Whether ANY surface in the current frame paints a hatch — the condition for
+ * naming the k-anon mark in a legend. This is exactly "MapLegends would render
+ * at least one «Protegido por privacidad (k<5)» row", by construction: it ORs
+ * the same per-surface atoms that gate those rows.
+ *
+ * Deliberately NOT `suppressedCount > 0`. That number describes the RESPONSE —
+ * it can count cells at a grain the frame is not painting (a province-grain
+ * count while the canvas shows departments, a stale layer still in state), and
+ * a legend must describe the CANVAS.
+ */
+export function frameHasSuppressedMark(
+  layers: readonly HatchableLayer[],
+  divisionLegend: { suppressed: boolean } | null,
+): boolean {
+  if (divisionLegend?.suppressed === true) return true;
+  return layers.some(layerPaintsHatch);
+}
 
 /**
  * Build the diagonal-hatch tile as ImageData. Transparent background + mid-slate

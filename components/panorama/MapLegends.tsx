@@ -33,11 +33,10 @@ import {
   computeClassScale,
 } from "@/components/panorama/class-scale";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
-import { HATCH_SWATCH_CSS } from "@/components/panorama/hatch-pattern";
+import { HATCH_SWATCH_CSS, layerPaintsHatch } from "@/components/panorama/hatch-pattern";
 import { NO_DATA_SWATCH_CSS, NO_DATA_SWATCH_SIZE } from "@/components/panorama/no-data-pattern";
 import {
   type ScaleBounds,
-  hasSuppressedProvince,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
@@ -234,16 +233,24 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                 </div>
               </div>
             </div>
-            <div className="mt-1.5 flex items-center gap-1.5 text-ln-op-mute">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
-                // Shared hatch color (hatch-pattern.ts) so the legend key matches
-                // the on-map mark exactly — no light-skin drift.
-                style={{ backgroundImage: HATCH_SWATCH_CSS }}
-                aria-hidden="true"
-              />
-              Protegido por privacidad (k&lt;5)
-            </div>
+            {/* Live pixel verification 2026-07-30: this row was the ONE k-anon
+                key in this file still rendered unconditionally — the bivariate
+                block named the hatch whether or not any cell was suppressed,
+                the same defect the LegendPill fix closes. Gated on the layer's
+                own cells (bivariate suppression lives on `bivariateCells`, not
+                on `features`), via the shared `layerPaintsHatch`. */}
+            {layerPaintsHatch(bivariateLayer) && (
+              <div className="mt-1.5 flex items-center gap-1.5 text-ln-op-mute">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
+                  // Shared hatch color (hatch-pattern.ts) so the legend key matches
+                  // the on-map mark exactly — no light-skin drift.
+                  style={{ backgroundImage: HATCH_SWATCH_CSS }}
+                  aria-hidden="true"
+                />
+                Protegido por privacidad (k&lt;5)
+              </div>
+            )}
           </div>
         )}
         {/* Division-fill legend: sequential ramp for the active locality choropleth
@@ -358,8 +365,11 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   because the reader's only available guess is "sin datos".
                   Rendered ONLY when this layer actually has a suppressed province,
                   so the row never announces a state the current frame lacks — the
-                  same conditional discipline as divisionLegend.suppressed above. */}
-              {hasSuppressedProvince(layer.features) && (
+                  same conditional discipline as divisionLegend.suppressed above.
+                  Reads the shared `layerPaintsHatch` (hatch-pattern.ts), the SAME
+                  atom LegendPill's k-anon pill is gated on, so the collapsed strip
+                  and this panel can never disagree about the mark. */}
+              {layerPaintsHatch(layer) && (
                 <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
                   <span
                     className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
