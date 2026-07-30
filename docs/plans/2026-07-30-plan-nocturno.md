@@ -213,6 +213,41 @@ Secuencia de entrada: matar `:3001` → build → qa-up → guard verde.
   descargar/imprimir el QR. Reusar el generador de QR existente de la
   credencial. Capturar.
 
+#### B2 — hallazgos de la investigación (2026-07-30), corrigen el plan
+
+1. **No hay ninguna carga gratis en el layout.** `app/(app)/layout.tsx` no toca
+   `ownerships`/`pets` (solo perfil, no-leídos, membresías). El único candidato
+   con `count()` indexado listo — `fetchPetsForOwner` (`lib/analytics/owner-dashboard.ts:114`)
+   — está **muerto en producción** desde el fold P5 de `/inicio`: solo lo llaman
+   sus propios tests. Así que se paga el compromiso documentado: UN
+   `getOwnedPetsCountCached` nuevo en `lib/infra/request-cache.ts`, mismo patrón
+   `cache()` que los otros cinco helpers, sobre `ownerships_owner_user_id_idx`.
+2. **El slot con 0 mascotas no es solo un label malo: es un no-op silencioso.**
+   `CitizenTabBar.tsx:168` dice "Asentar" y apunta a `/inicio?sheet=anotar`
+   (`:128-131`); con 0 mascotas `/inicio` redirige a `/mis-mascotas`, donde
+   `?sheet=anotar` es INERTE (`app/(app)/inicio/page.tsx:82-90`). El botón no
+   hace nada. Eso sube la prioridad del arreglo.
+3. **El QR de la pantalla post-alta YA EXISTE** — `PetCreatedAha.tsx:110-120`,
+   SVG 240×240 server-side. Lo que falta es el afford: sus 3 CTAs son
+   Compartir / Ver perfil / Ver credencial pública. Y **ya existe la superficie
+   de impresión**: `/mis-mascotas/[publicToken]/chapita` (`ChapitaSheet.tsx`,
+   tres layouts imprimibles + `window.print()`).
+   **Decisión (corrige el plan)**: la pantalla post-alta LINKEA a `/chapita`, no
+   reimplementa impresión. Razón dura: `/chapita` está gateada por
+   `resolvePhysicalCredentialChannels` (`chapita/page.tsx:28-38`) y el canal
+   `printable_qr` puede estar deshabilitado por jurisdicción — un botón de
+   imprimir embebido en la post-alta SALTEARÍA ese gate.
+4. **Tests que pinnean literales y van a romper**: `owner-process-clarity-19.test.ts:33-34`
+   y `e2e/owner-ia-p6.spec.ts:353-354` (copy del vacío);
+   `CitizenTabBar.test.tsx`, `CitizenTabBar.interaction.test.tsx` y
+   `a11y-touch-targets.test.tsx:127-151` (este último keyea el target de 44px
+   sobre el literal "Asentar").
+5. **Deuda anotada, no arreglada acá**: la URL del QR se concatena a mano en 3
+   lugares (`credencial/page.tsx:36-37`, `cartel/page.tsx:96-97`,
+   `chapita/page.tsx:58-59`) en vez de llamar a `credentialQrUrl()`
+   (`lib/infra/site-url.ts:58-60`). El guard contra `NEXT_PUBLIC_SITE_URL` vacío
+   está intacto en los tres hoy — es riesgo de drift, no bug vivo.
+
 ### B3. C.1 — libreta del dueño
 Lectura recomendada (implementar, ratificar al final): las 3 rutas byte-idénticas
 se DIFERENCIAN — `/libreta` = todo, `/vacunas` = pre-filtrada a vacunas,
