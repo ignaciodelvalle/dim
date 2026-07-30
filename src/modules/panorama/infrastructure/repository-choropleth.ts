@@ -438,9 +438,11 @@ type ProvinceRollupRow = {
 };
 
 // Build the per-PROVINCE rollup. NO ar_localities join (provinces need no
-// centroid — the basemap polygon is the geometry), NO locality requirement, and
-// NO k-anon. Same metric predicate + scope as the locality rollup, grouped by
-// province only — so the province total equals the sum of its localities.
+// centroid — the basemap polygon is the geometry) and NO locality requirement.
+// This returns RAW counts by design: k-anon is applied downstream by
+// `provinceCell`, which needs the raw count as the denominator to decide with.
+// Same metric predicate + scope as the locality rollup, grouped by province only
+// — so the province total equals the sum of its localities.
 async function rollupPetsPerProvince(
   whereExtra: SQL[],
   scopeClause: SQL | null,
@@ -1262,7 +1264,9 @@ export async function loadTerritorialIndexByProvince(
  * U5 single entry point: rollup a choropleth metric at the requested LEVEL.
  * Reused by the Panorama use-case AND available to the dashboard distribution
  * widgets so both share ONE source of numbers (spec §U5.4). Province returns
- * filled-polygon cells (no k-anon); locality returns centroid cells (k-anon).
+ * filled-polygon cells; locality returns centroid cells. BOTH apply k-anon k=5 —
+ * province via `provinceCell` (denominator-driven, task #40), locality via
+ * `suppressSmallCells`.
  *
  * RATE vs DENSITY routing:
  *  - RATE metrics (rabies-coverage, sterilization-coverage): province level emits

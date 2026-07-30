@@ -254,9 +254,10 @@ export type TrendBucket = {
 /** The full result of a unit-history query. */
 export type UnitHistoryResult = {
   /**
-   * True when the locality's total event count is below the k-anon threshold
-   * (k=5). The client must not render counts or event lists when this is true.
-   * Always false at province level (no suppression for coarse cells).
+   * True when the unit's total event count is below the k-anon threshold (k=5).
+   * The client must not render counts or event lists when this is true.
+   * Applies at BOTH grains since #40b — a province is not exempt (a province's
+   * POPULATION is large; the handful of events this panel would list is not).
    */
   suppressed?: boolean;
   /** Most recent events for this unit (newest first), up to 20 entries. */
@@ -368,6 +369,11 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   // `if (locality)`, where the label is non-null.
   // ---------------------------------------------------------------------------
   function unitLocalityFilter(localityCol: SQL): SQL {
+    // PROVINCE-grain request (#40b): there is no locality to narrow to, so the
+    // unit IS the province and the filter is a no-op. This is what lets the k-anon
+    // guard below run the SAME per-layer counts at either grain instead of
+    // duplicating eleven query branches.
+    if (!locality) return sql`TRUE`;
     // Department drill (code present): match EXACTLY the member localities the fold
     // counted — pets whose (province, locality) join ar_localities under this
     // department CODE (the fold's MIN(department_code) group key). NO direct-label
@@ -402,15 +408,30 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
   }
 
   // ---------------------------------------------------------------------------
-  // W1 — k-anon guard for locality-level history.
+  // W1 — k-anon guard for unit history, at EITHER grain.
   //
-  // When the caller is drilling into a LOCALITY (locality is set), we count the
-  // total events for this unit over [since, until] before returning any detail.
-  // If the count is < K_ANON we return a suppressed result — the same cell that
-  // was suppressed on the map must not be re-identified via the history panel.
-  // Province-level requests are exempt (no suppression, matching the loaders).
+  // We count the total events for the requested unit over [since, until] before
+  // returning any detail. If the count is < K_ANON we return a suppressed result —
+  // the same cell that was suppressed on the map must not be re-identified via the
+  // history panel.
+  //
+  // #40b — PROVINCE IS NO LONGER EXEMPT. This guard used to run only `if
+  // (locality)`, on the retired "province cells are large" premise. That premise
+  // was already false for the choropleths after task #40, and it is now false for
+  // the aggregated point layers too (repository-by-unit applies k=5 at province
+  // grain): a province whose bubble the map HATCHES would still hand this panel
+  // its full event list — dates and all — through a plain
+  // `/api/panorama/unit-history?province=X` with no `locality`. A client-side
+  // check would not have closed that; the API is directly callable.
+  //
+  // The guard's population is THE THING IT PUBLISHES (the event list, the trend,
+  // the byType tally) — not the map cell's denominator. So it can legitimately
+  // protect a unit whose map cell is visible (a province with 2.000 dogs but 3
+  // rabies doses in the window publishes a rate, but must not list three
+  // identifiable animals). That asymmetry is the same one the locality grain has
+  // always had (WARNING 2), now applied consistently.
   // ---------------------------------------------------------------------------
-  if (locality) {
+  {
     // Each layer stores its events in a different table / column. We mirror the
     // predicates from queryEvents() below (same WHERE clause, just COUNT(*)).
     let totalCount = 0;
@@ -511,7 +532,10 @@ export async function loadUnitHistory(params: LoadUnitHistoryParams): Promise<Un
           gte(cases.openedAt, since),
           lte(cases.openedAt, until),
           sql`${cases.jurisdictionProvince} = ${province}`,
-          sql`${cases.jurisdictionLocality} = ${locality}`,
+          // Kept as an exact-label match (not unitLocalityFilter) so the existing
+          // locality-grain semantics are byte-identical; omitted entirely at
+          // province grain, where the province clause above IS the unit.
+          ...(locality ? [sql`${cases.jurisdictionLocality} = ${locality}`] : []),
         ];
         if (scope) conditions.push(sql`(${scope})`);
         const [row] = await db

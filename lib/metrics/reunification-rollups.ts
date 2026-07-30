@@ -14,15 +14,22 @@ import "server-only";
 //                   event is to_status='active'. Deceased excluded (not counted
 //                   as recovered, same as the national fetcher).
 //
-// PRIVACY (k-anonymity): at the LOCALITY level, a unit's ratePct is a signal
-// over a population as small as ONE pet — suppression MUST key off the
-// DENOMINATOR (lostEpisodes), never off ratePct itself. A unit with 2 lost
-// episodes and a 100% reunification rate is exactly as re-identifiable as one
-// with 2 lost episodes and a 0% rate; a unit with 500 lost episodes and a 3%
-// rate is not re-identifiable at all. Suppressing on ratePct (a stash bug this
-// module deliberately does NOT reproduce) would get both of those backwards.
-// PROVINCE level cells are large enough that no suppression applies (mirrors
-// every other U5 province rollup in src/modules/panorama/infrastructure/repository.ts).
+// PRIVACY (k-anonymity): a unit's ratePct is a signal over a population as small
+// as ONE pet — suppression MUST key off the DENOMINATOR (lostEpisodes), never off
+// ratePct itself. A unit with 2 lost episodes and a 100% reunification rate is
+// exactly as re-identifiable as one with 2 lost episodes and a 0% rate; a unit
+// with 500 lost episodes and a 3% rate is not re-identifiable at all. Suppressing
+// on ratePct (a stash bug this module deliberately does NOT reproduce) would get
+// both of those backwards.
+//
+// BOTH GRAINS SUPPRESS (task #40b). This module used to exempt the PROVINCE level
+// under the "province cells are large" premise. Task #40 retired that premise for
+// the choropleth loaders and this module kept citing it: it was true of a
+// province's POPULATION and false of its DENOMINATOR, which is what k-anonymity is
+// about. On a RATE layer THE RATE REVEALS THE DENOMINATOR — a province with one
+// lost episode and one recovery published "100%", describing a single identifiable
+// animal. See src/modules/panorama/application/build-features.ts `provinceCell`
+// for the same correction at the choropleth grain.
 
 import { and, eq, gte, inArray, isNotNull, isNull, lte, sql } from "drizzle-orm";
 import type { SQL } from "drizzle-orm";
@@ -76,8 +83,12 @@ export type ReunificationByUnitRow = {
    * departamento/partido name (barrio in CABA) after the Option-A fold, NOT a
    * bare locality. */
   locality: string | null;
-  /** % of lost episodes in this unit that returned to active. */
-  ratePct: number;
+  /** % of lost episodes in this unit that returned to active. NULL when the unit
+   * is k-anon suppressed — a protected cell has NO value, not a hidden one and
+   * never a zero (a false zero reads as real data AND leaks a sub-k denominator).
+   * Typed nullable on purpose: the compiler, not a reviewer, forces every consumer
+   * to answer "what do I render for a protected unit?". */
+  ratePct: number | null;
   /** LOCALITY level only: INDEC department code of the folded unit (null for CABA
    * barrios and localities that resolved no department). Threaded to the map's
    * departmentCode so a unit-history drill matches member localities by CODE. */
@@ -86,22 +97,25 @@ export type ReunificationByUnitRow = {
    * locality centroids). Null when no member locality had a centroid. */
   centroidLat?: string | null;
   centroidLng?: string | null;
-  /** LOCALITY level only: true for k-anon-suppressed department cells (KA6). The
-   * real value never leaves this module — `ratePct` is a 0 placeholder the loader
-   * MUST NOT read for a suppressed cell; it emits a null-valued hatch cell instead.
-   * Emitting the suppressed unit (rather than dropping it) keeps the "suppressed is
-   * always a distinct, visible category" contract every other layer honors. */
+  /** True for a k-anon-suppressed cell, at EITHER grain (KA6 + #40b). The real
+   * value never leaves this module — `ratePct` is null for these rows and the
+   * loader emits a null-valued hatch cell. Emitting the suppressed unit (rather
+   * than dropping it) keeps the "suppressed is always a distinct, visible
+   * category" contract every other layer honors: a cell that VANISHES when it
+   * crosses k makes absence itself the disclosure channel. */
   suppressed?: boolean;
 };
 
 export type ReunificationByUnitKpi = {
-  /** Visible units PLUS k-anon-suppressed department cells flagged `suppressed:true`
-   * (KA6) — the suppressed rows carry a 0-placeholder ratePct (never read) so the
-   * loader can render them as the honest hatch category instead of dropping them
-   * to plain no-data. The real value never leaves this module. */
+  /** Visible units PLUS k-anon-suppressed cells flagged `suppressed:true` (KA6) —
+   * the suppressed rows carry `ratePct: null` so the loader can render them as the
+   * honest hatch category instead of dropping them to plain no-data. The real value
+   * never leaves this module. */
   byUnit: ReunificationByUnitRow[];
-  /** Count of locality units suppressed below k=5 lostEpisodes. Always 0 at
-   * province level (no suppression — province cells are large). */
+  /** Count of units suppressed below k=5 lostEpisodes, at EITHER grain (#40b).
+   * THE DISCLOSURE: this is what the console's "N unidades suprimidas por
+   * k-anonimato" line reports — suppressing cells while reporting 0 here would
+   * hide data and tell nobody (#40's own follow-up finding). */
   suppressedCount: number;
 };
 
@@ -198,16 +212,32 @@ export async function fetchReunificationByUnit(
   const units = [...unitByKey.values()];
 
   if (level === "province") {
-    // No k-anon — province cells are large (U5 asymmetry, matches every other
-    // choropleth/aggregated-point province loader).
-    return {
-      byUnit: units.map((u) => ({
+    // k-anon on the PROVINCE-grain DENOMINATOR (lostEpisodes), never on ratePct —
+    // the same rule, the same k, the same primitive as the locality branch below.
+    // No complementary suppression here (unlike the COUNT rollups in
+    // repository-by-unit.ts): counts sum, so a lone hidden count is recoverable
+    // from a published group total by subtraction — RATES do not sum, and this
+    // layer publishes no denominators, so there is no differencing channel to
+    // close. Adding it would suppress a second province for nothing.
+    const kanon = suppressSmallCells(units, {
+      count: (u) => u.lostEpisodes,
+      key: (u) => u.province,
+      k: 5,
+    });
+    const byUnit: ReunificationByUnitRow[] = (kanon.visible as unknown as UnitAgg[]).map((u) => ({
+      province: u.province,
+      locality: u.locality,
+      ratePct: pct(u.recovered, u.lostEpisodes),
+    }));
+    for (const u of kanon.suppressed) {
+      byUnit.push({
         province: u.province,
         locality: u.locality,
-        ratePct: pct(u.recovered, u.lostEpisodes),
-      })),
-      suppressedCount: 0,
-    };
+        ratePct: null,
+        suppressed: true,
+      });
+    }
+    return { byUnit, suppressedCount: kanon.suppressedCount };
   }
 
   // Locality level — FOLD the per-locality num/den up to the departamento/partido
@@ -339,14 +369,15 @@ export async function fetchReunificationByUnit(
     departmentCode: u.departmentCode,
     ...centroid(u),
   }));
-  // KA6: emit suppressed department cells as `suppressed:true` (ratePct nulled to a
-  // 0 placeholder the loader never reads) so they render as the honest hatch
-  // category every other layer uses — not silently dropped to plain no-data.
+  // KA6: emit suppressed department cells as `suppressed:true` with a NULL ratePct
+  // (never a 0 placeholder — a false zero asserts "0% recuperadas", which is both a
+  // lie and indistinguishable from real data) so they render as the honest hatch
+  // category every other layer uses, not silently dropped to plain no-data.
   for (const u of suppressed) {
     byUnit.push({
       province: u.province,
       locality: u.label,
-      ratePct: 0,
+      ratePct: null,
       departmentCode: u.departmentCode,
       ...centroid(u),
       suppressed: true,

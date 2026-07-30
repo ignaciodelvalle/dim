@@ -453,7 +453,13 @@ export async function fetchCrossJurisdictionOutliers(
  * DENOMINATOR: n/a — top-N ranked counts, not a ratio.
  * SOURCE:      audit_log, govt_assignments (for govt scope actor filtering).
  * CADENCE:     since ctx.period.since (no upper bound — "since X" not "in window").
- * SUPPRESSION: top PII_OVERSIGHT_TOP_N (20) rows only; no k-anon suppression.
+ * SUPPRESSION: top PII_OVERSIGHT_TOP_N (20) rows only; no k-anon — and this one
+ *              genuinely is exempt, unlike the province rollups #40b re-triaged.
+ *              k-anonymity protects DATA SUBJECTS grouped into a jurisdiction
+ *              cell. These rows group by (actor_user_id, action, surface): the
+ *              unit is a named STAFF ACTOR whose identifiability is the entire
+ *              point of an oversight ledger, and the govt filter above already
+ *              restricts it to actors assigned to the viewer's jurisdictions.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */

@@ -642,7 +642,7 @@ export async function identificationFunnel(
 }
 
 // ---------------------------------------------------------------------------
-// Province-level choropleth (no suppression — province aggregates are never small)
+// Province-level choropleth — RAW counts, see the KNOWN GAP on registryByProvince
 // ---------------------------------------------------------------------------
 
 export type ProvinceRegistryRow = {
@@ -653,15 +653,26 @@ export type ProvinceRegistryRow = {
 };
 
 /**
- * Count distinct active/lost pets grouped by province (no k-anon suppression at
- * province level — cell sizes are always large enough to be non-identifying).
+ * Count distinct active/lost pets grouped by province — RAW, no k-anon.
  *
- * Used for the cross-jurisdiction choropleth and ranked table in /admin/censo.
+ * ⚠️ KNOWN GAP (#40b triage). The old wording ("cell sizes are always large enough
+ * to be non-identifying") is the premise task #40 retired. Here it is at its most
+ * direct: this is a DENSITY projection, so the published count IS the protected
+ * population — "Tierra del Fuego: 3 mascotas registradas" is a group of three
+ * identifiable animals, exactly what `provinceCell` suppresses on the Panorama
+ * density layers. Consumers — /admin/censo and /gob/censo (choropleth + ranked
+ * table) and /gob/censo/export — publish the count verbatim.
+ *
+ * NOT fixed here on purpose: suppression has to null the value at those render
+ * sites too (data + render + disclosure together), so suppressing at the source
+ * alone would produce the "hid the data, told nobody" outcome #40's own follow-up
+ * flagged. Tracked as a follow-up unit.
+ *
  * Does NOT extend Panorama's ChoroplethMetric — it's a standalone projection.
  *
  * KPI tags: NUMERATOR = COUNT DISTINCT active/lost pets per province.
  * DENOMINATOR = n/a (absolute count per province). SOURCE = pets. CADENCE =
- * point-in-time. SUPPRESSION = none (province cells are never small).
+ * point-in-time. SUPPRESSION = none — see the KNOWN GAP above.
  */
 export async function registryByProvince(
   ctx: ProjectionContext,

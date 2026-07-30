@@ -185,7 +185,9 @@ describe("fetchReunificationByUnit — locality level", () => {
     const unit = result.byUnit.find((u) => u.locality === LOC_B);
     expect(unit).toBeDefined();
     expect(unit?.suppressed).toBe(true);
-    expect(unit?.ratePct).toBe(0);
+    // NULL, never 0 (#40b). A 0 placeholder asserts "0% recuperadas" — a lie that
+    // is also indistinguishable from a real measurement.
+    expect(unit?.ratePct).toBeNull();
     expect(result.suppressedCount).toBeGreaterThanOrEqual(1);
   });
 
@@ -227,20 +229,116 @@ describe("fetchReunificationByUnit — locality level", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// PROVINCE LEVEL — task #40b.
+//
+// This block used to contain ONE test asserting the opposite of everything below:
+// "never suppresses at province level, even for a small lostEpisodes count". It
+// did not pin a behaviour, it DEFENDED a leak — the Santa Cruz case task #40 was
+// named after. THE RATE REVEALS THE DENOMINATOR: one lost episode plus one
+// recovery published "100%", a public statement about one identifiable animal.
+// ---------------------------------------------------------------------------
 describe("fetchReunificationByUnit — province level", () => {
-  it("never suppresses at province level, even for a small lostEpisodes count", async () => {
-    const a = await insertPet({ province: PROV, locality: LOC_B });
-    await emitStatusChange(a, "lost", new Date(Date.now() - 5 * DAY_MS));
+  /** Seed `lostEpisodes` lost episodes in PROV, of which `recovered` return to active. */
+  async function seedProvince(lostEpisodes: number, recovered: number) {
+    for (let i = 0; i < lostEpisodes; i++) {
+      const p = await insertPet({ province: PROV, locality: LOC_B });
+      await emitStatusChange(p, "lost", new Date(Date.now() - (20 + i) * DAY_MS));
+      if (i < recovered)
+        await emitStatusChange(p, "active", new Date(Date.now() - (5 + i) * DAY_MS));
+    }
+    return fetchReunificationByUnit(govtCtx([{ province: PROV, locality: LOC_B }]), "province");
+  }
 
-    const result = await fetchReunificationByUnit(
-      govtCtx([{ province: PROV, locality: LOC_B }]),
-      "province",
-    );
+  it("suppresses a province BELOW k — and publishes null, never a rate or a zero", async () => {
+    // 1 lost episode, 1 recovery: the leak verbatim. ratePct would be 100.
+    const result = await seedProvince(1, 1);
 
     const unit = result.byUnit.find((u) => u.province === PROV);
     expect(unit).toBeDefined();
+    expect(unit?.suppressed).toBe(true);
+    // The whole point: no rate escapes. Not 100, and not a 0 stand-in either.
+    expect(unit?.ratePct).toBeNull();
+    // Emitted, NOT dropped — a cell that vanishes makes absence the disclosure.
     expect(unit?.locality).toBeNull();
+  });
+
+  it("suppresses at k-1 = 4 lost episodes (the last protected denominator)", async () => {
+    const result = await seedProvince(4, 2);
+
+    const unit = result.byUnit.find((u) => u.province === PROV);
+    expect(unit?.suppressed).toBe(true);
+    expect(unit?.ratePct).toBeNull();
+  });
+
+  it("does NOT suppress at EXACTLY k = 5 — the boundary is `>= k`, not `> k`", async () => {
+    // 5 lost episodes, 2 recovered → 40%. One episode fewer and this is protected;
+    // an off-by-one in the comparison would silently withhold every k-sized cell.
+    const result = await seedProvince(5, 2);
+
+    const unit = result.byUnit.find((u) => u.province === PROV);
+    expect(unit).toBeDefined();
+    expect(unit?.suppressed).toBeUndefined();
+    expect(unit?.ratePct).toBe(40);
     expect(result.suppressedCount).toBe(0);
+  });
+
+  it("reports suppressedCount — suppressing without disclosing is the #40 follow-up bug", async () => {
+    // Hiding the cell is only half the job: the console's "N unidades suprimidas
+    // por k-anonimato" line reads this number. A suppressed cell alongside
+    // suppressedCount: 0 hides data and tells nobody.
+    const result = await seedProvince(3, 3);
+
+    expect(result.suppressedCount).toBe(1);
+    expect(result.byUnit.filter((u) => u.suppressed)).toHaveLength(result.suppressedCount);
+  });
+
+  it("keys suppression off the DENOMINATOR, never the rate — a 0% sub-k province is protected too", async () => {
+    // The mirror of the 100% case. Suppressing on `ratePct` would leave this one
+    // visible (0 is not a suspicious-looking number) while hiding the 100% twin —
+    // exactly backwards: both describe the same 2 identifiable animals.
+    const result = await seedProvince(2, 0);
+
+    const unit = result.byUnit.find((u) => u.province === PROV);
+    expect(unit?.suppressed).toBe(true);
+    expect(unit?.ratePct).toBeNull();
+  });
+
+  it("never publishes a ratePct over a sub-k denominator, across a mixed scope", async () => {
+    // PROV clears k (5 episodes); a second province carries 2. The invariant is
+    // global: every row that carries a number must have had >= k episodes behind it.
+    const OTHER = "La Rioja";
+    for (let i = 0; i < 5; i++) {
+      const p = await insertPet({ province: PROV, locality: LOC_B });
+      await emitStatusChange(p, "lost", new Date(Date.now() - (20 + i) * DAY_MS));
+      if (i < 3) await emitStatusChange(p, "active", new Date(Date.now() - (5 + i) * DAY_MS));
+    }
+    for (let i = 0; i < 2; i++) {
+      const p = await insertPet({ province: OTHER, locality: LOC_A });
+      await emitStatusChange(p, "lost", new Date(Date.now() - (20 + i) * DAY_MS));
+      await emitStatusChange(p, "active", new Date(Date.now() - (5 + i) * DAY_MS));
+    }
+
+    const result = await fetchReunificationByUnit(
+      govtCtx([
+        { province: PROV, locality: LOC_B },
+        { province: OTHER, locality: LOC_A },
+      ]),
+      "province",
+    );
+
+    const big = result.byUnit.find((u) => u.province === PROV);
+    const small = result.byUnit.find((u) => u.province === OTHER);
+    expect(big?.ratePct).toBe(60);
+    expect(big?.suppressed).toBeUndefined();
+    // OTHER would have published 100% over two animals.
+    expect(small?.suppressed).toBe(true);
+    expect(small?.ratePct).toBeNull();
+    expect(result.suppressedCount).toBe(1);
+    // The invariant, stated directly: a published number implies a cleared cell.
+    for (const u of result.byUnit) {
+      if (u.ratePct !== null) expect(u.suppressed).not.toBe(true);
+    }
   });
 });
 

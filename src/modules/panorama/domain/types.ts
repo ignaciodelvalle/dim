@@ -41,7 +41,9 @@ export type GeomType = "point" | "choropleth";
  *  - `locality` — per (province, locality) rollup → centroid graduated symbols
  *                 (k-anon k=5 suppression on small cells).
  *  - `province` — per provinceCode rollup → filled choropleth over the local
- *                 ar-provinces polygons (no k-anon: province cells are large).
+ *                 ar-provinces polygons. ALSO k-anon k=5 (tasks #40 / #40b): the
+ *                 "province cells are large" exemption was retired — it described
+ *                 a province's POPULATION, not the DENOMINATOR k protects.
  * Point layers ignore the level entirely.
  */
 export type AggregationLevel = "locality" | "province";

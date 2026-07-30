@@ -521,8 +521,11 @@ export function FeatureBody({
     case "mortalidad":
     case "microchip":
     case "ppp": {
-      // Choropleth cell. U5: province mode carries no locality + no suppression
-      // (province cells are large); locality mode may be suppressed (k-anon).
+      // Choropleth cell. U5: province mode carries no locality. EITHER grain can
+      // be k-anon suppressed — task #40 retired the "province cells are large"
+      // exemption for the choropleth loaders (they build cells through
+      // `provinceCell`, whose denominator decides suppression) and #40b did the
+      // same for the aggregated point loaders.
       const isProvince = str(properties, "level") === "province";
       const suppressed = properties.suppressed === true;
       const value = properties.value;
@@ -547,7 +550,12 @@ export function FeatureBody({
             <Row
               label={valueLabel}
               value={
-                !isProvince && suppressed ? (
+                // #40b: the `!isProvince &&` that used to guard this was the last
+                // live consumer of the retired premise — it made the drawer print
+                // `String(value ?? 0)` for a k-anon-protected PROVINCE, i.e. a
+                // confident "0" for a cell the map was hatching. The flag decides,
+                // at any grain.
+                suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
                 ) : (
                   String(value ?? 0)

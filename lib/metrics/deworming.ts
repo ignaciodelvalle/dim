@@ -52,7 +52,13 @@ export type DewormingCoverageResult = {
   dewormed: number;
   /** Count of active/lost pets in scope (denominator). */
   total: number;
-  /** Per-province breakdown for the choropleth. No k-anon at province level. */
+  /** Per-province breakdown. RAW — `total` (the denominator) and `ratePct` with no
+   * k-anon applied. Its ONLY consumer today is the Panorama desparasitacion
+   * province layer, which routes these rows through `provinceCell(…, total)` and
+   * suppresses on the denominator — so nothing publishes them raw. That is a
+   * property of the consumer, NOT an exemption: any new reader of these rows must
+   * suppress. See the KNOWN GAP note on SterilizationCoverageResult.byProvince,
+   * whose dashboard consumers do not. */
   byProvince: ProvinceDewormingRow[];
 };
 
@@ -67,7 +73,9 @@ export type DewormingCoverageResult = {
  * CADENCE:     FIXED trailing 12 months ending at ctx.period.until — the window
  *              is intrinsic to "currently covered" (periodic antiparasitic
  *              protection), NOT the caller's display period.
- * SUPPRESSION: none (province rows are never small enough to require k-anon).
+ * SUPPRESSION: none at this layer — byProvince is RAW and its consumer suppresses
+ *              on the denominator via `provinceCell`. ("Province rows are never
+ *              small enough" was the premise task #40 retired; do not restore it.)
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */

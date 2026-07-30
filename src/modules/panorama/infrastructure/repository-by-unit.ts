@@ -51,10 +51,16 @@ import {
 // locality level (same privacy invariant as the choropleth loaders).
 //
 // Result shape: AggregatedPointCell[] — consumed by buildAggregatedPointFeatures.
-// Province level: no k-anon (matching choropleth asymmetry); no centroid join
-// (the province centroid is approximated from ar_localities as a MIN across
-// localities within that province to avoid embedding a separate centroids table).
-// Locality level: left-join ar_localities for centroid; k-anon k=5.
+// BOTH LEVELS APPLY k-anon k=5 (#40b). Province level used to be exempt under the
+// "province cells are large" premise, which task #40 retired for the choropleth
+// loaders: it is true of a province's POPULATION and false of the DENOMINATOR
+// k-anonymity actually protects. On a DENSITY/SIGNAL point layer the plotted count
+// IS that denominator, so a province with two bite events published "2" — a group
+// of two identifiable animals — while the very same rollup, folded for the
+// bivariate axis by toProvinceSignalCells, had been hatching it since the
+// bivariate work. Both now take one code path.
+// Province level: no centroid join (the province marker is a precomputed
+// point-on-surface). Locality level: left-join ar_localities for the centroid.
 //
 // These loaders are NOT unit-testable without a DB (they depend on @/db). The
 // pure build-features transform (buildAggregatedPointFeatures) is fully unit-
@@ -92,15 +98,37 @@ export type AggregatedPointRows = {
 };
 
 /**
- * Convert a raw event-count rollup to AggregatedPointCell[] applying k-anon
- * suppression at k=5 (locality level only — `applyKAnon` controls this).
+ * How a rollup's cells decide k-anon suppression.
+ *
+ * A DISCRIMINATED UNION, not a boolean, and REQUIRED at every call site on
+ * purpose — the `provinceCell(…, denominator)` precedent (build-features.ts):
+ * make the compiler, not a reviewer, enumerate the places where the privacy
+ * question must be answered. The boolean this replaced spelled the answer
+ * `false` at every PROVINCE call site under the retired "province cells are
+ * large" premise, and nine loaders published raw sub-k province counts.
+ *
+ *  · `count`       — the plotted value IS the protected population, so k-anon
+ *                    keys off it directly. `grain` only picks the complementary
+ *                    suppression group (see below).
+ *  · `pre-decided` — an upstream module already applied the rule against a
+ *                    denominator this rollup does not carry (the reunificacion
+ *                    rate loader). These cells pass through untouched and the
+ *                    caller appends its own null-valued suppressed cells.
+ */
+type CellKAnon = { rule: "count"; grain: AggregationLevel } | { rule: "pre-decided" };
+
+/**
+ * Convert a raw event-count rollup to AggregatedPointCell[], applying the k=5
+ * k-anon rule per `kanon`.
  */
 function toAggregatedCells(
   rollup: RollupRow[],
-  applyKAnon: boolean,
+  kanon: CellKAnon,
 ): { cells: AggregatedPointCell[]; suppressedCount: number } {
-  if (!applyKAnon) {
-    // Province level — no suppression, carry the real count.
+  if (kanon.rule === "pre-decided") {
+    // Suppression already decided upstream against a denominator this rollup does
+    // not carry — pass the visible cells through. NOT an exemption: the caller is
+    // contractually required to append the suppressed cells (count: null) itself.
     return {
       cells: rollup.map((r) => ({
         key: r.key,
@@ -115,19 +143,21 @@ function toAggregatedCells(
       suppressedCount: 0,
     };
   }
-  // Locality level — route through suppressSmallCells (k=5).
   const primary = suppressSmallCells(rollup, {
     count: (r) => r.count,
     key: (r) => r.key,
     k: 5,
   });
-  // Complementary suppression: same differencing-attack defense as the
-  // choropleth path — a province with a lone suppressed folded cell also
-  // suppresses its next-smallest visible sibling (grouped by province).
+  // Complementary suppression: the differencing-attack defense. A group with a
+  // LONE suppressed cell leaks it by subtraction from the published group total,
+  // so its smallest visible sibling goes too. The group is the tier ABOVE the
+  // cell: a department's siblings are its province's other departments; a
+  // PROVINCE's siblings are the other provinces of the scope-wide total (the same
+  // "national" group `toProvinceSignalCells` has always used at this grain).
   const { visible, suppressed } = complementarySuppress(
     primary.visible as unknown as readonly RollupRow[],
     primary.suppressed,
-    { group: (r) => r.province, count: (r) => r.count },
+    { group: (r) => (kanon.grain === "province" ? "national" : r.province), count: (r) => r.count },
   );
   const suppressedCount = suppressed.length;
   const cells: AggregatedPointCell[] = [];
@@ -209,7 +239,10 @@ export async function loadPerdidasByUnit(
         ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
-    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    const { cells, suppressedCount } = toAggregatedCells(rollup, {
+      rule: "count",
+      grain: "province",
+    });
     // Province level counts every event in the province — nothing is invisible.
     return {
       cells,
@@ -269,7 +302,10 @@ export async function loadPerdidasByUnit(
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
-  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), {
+    rule: "count",
+    grain: "locality",
+  });
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -420,7 +456,10 @@ export async function loadMordedurassByUnit(
         ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
-    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    const { cells, suppressedCount } = toAggregatedCells(rollup, {
+      rule: "count",
+      grain: "province",
+    });
     // Province level counts every event in the province — nothing is invisible.
     return {
       cells,
@@ -479,7 +518,10 @@ export async function loadMordedurassByUnit(
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
-  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), {
+    rule: "count",
+    grain: "locality",
+  });
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -537,7 +579,10 @@ export async function loadDenunciasByUnit(
         ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
-    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    const { cells, suppressedCount } = toAggregatedCells(rollup, {
+      rule: "count",
+      grain: "province",
+    });
     // Province level counts every event in the province — nothing is invisible.
     return {
       cells,
@@ -594,7 +639,10 @@ export async function loadDenunciasByUnit(
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
-  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), {
+    rule: "count",
+    grain: "locality",
+  });
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -632,61 +680,26 @@ export async function loadDenunciasByUnit(
  * Never lowers k, never fabricates a count: a suppressed province still
  * carries `count: null` — its exact value is as unrecoverable here as at
  * department grain, just aggregated over a coarser (larger, safer) unit.
+ *
+ * #40b: the rule itself now lives in `toAggregatedCells({rule:"count",
+ * grain:"province"})` — the SAME code path every province point loader takes,
+ * so the bivariate fallback and the standalone layers can no longer disagree
+ * about whether a province is protected. This function only does the fold.
  */
 function toProvinceSignalCells(rollup: readonly RollupRow[]): AggregatedPointCell[] {
   const byProvince = new Map<string, number>();
   for (const r of rollup) {
     byProvince.set(r.province, (byProvince.get(r.province) ?? 0) + r.count);
   }
-  type ProvinceRow = {
-    key: string;
-    province: string;
-    centroidLat: string | null;
-    centroidLng: string | null;
-    count: number;
-  };
-  const provinceRows: ProvinceRow[] = Array.from(byProvince, ([province, n]) => ({
+  const provinceRows: RollupRow[] = Array.from(byProvince, ([province, n]) => ({
     key: province,
     province,
+    locality: "",
+    departmentCode: null,
     ...provinceRepresentativeCentroid(province),
     count: n,
   }));
-  const primary = suppressSmallCells(provinceRows, {
-    count: (r) => r.count,
-    key: (r) => r.key,
-    k: 5,
-  });
-  const { visible, suppressed } = complementarySuppress(
-    primary.visible as unknown as readonly ProvinceRow[],
-    primary.suppressed,
-    { group: () => "national", count: (r) => r.count },
-  );
-  const cells: AggregatedPointCell[] = [];
-  for (const r of visible) {
-    cells.push({
-      key: r.key,
-      province: r.province,
-      locality: null,
-      departmentCode: null,
-      centroidLat: r.centroidLat,
-      centroidLng: r.centroidLng,
-      count: r.count,
-      suppressed: false,
-    });
-  }
-  for (const r of suppressed) {
-    cells.push({
-      key: r.key,
-      province: r.province,
-      locality: null,
-      departmentCode: null,
-      centroidLat: r.centroidLat,
-      centroidLng: r.centroidLng,
-      count: null,
-      suppressed: true,
-    });
-  }
-  return cells;
+  return toAggregatedCells(provinceRows, { rule: "count", grain: "province" }).cells;
 }
 
 export async function loadZoonosisByUnit(
@@ -738,7 +751,10 @@ export async function loadZoonosisByUnit(
         ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
-    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    const { cells, suppressedCount } = toAggregatedCells(rollup, {
+      rule: "count",
+      grain: "province",
+    });
     // Province level counts every event in the province — nothing is invisible.
     return {
       cells,
@@ -801,7 +817,10 @@ export async function loadZoonosisByUnit(
   // the privacy floor — coarser-than-locality is strictly more anonymising, so a lone
   // department signal (count < 5) is suppressed, never rendered raw. `truncated` still
   // reflects the LOCALITY query cap (the fold only shrinks).
-  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), {
+    rule: "count",
+    grain: "locality",
+  });
   // Bivariate province-grain fallback (task panorama-bivariate-2026-07-21): ONLY
   // at the national overview (level="province" — the console's resolveDataLevel
   // never requests this once a jurisdiction is drilled in, so this IS the national
@@ -905,7 +924,10 @@ export async function loadSintomasByUnit(
         ...provinceRepresentativeCentroid(r.province),
         count: r.n,
       }));
-    const { cells, suppressedCount } = toAggregatedCells(rollup, false);
+    const { cells, suppressedCount } = toAggregatedCells(rollup, {
+      rule: "count",
+      grain: "province",
+    });
     // Province level counts every event in the province — nothing is invisible.
     return {
       cells,
@@ -963,7 +985,10 @@ export async function loadSintomasByUnit(
   // Detail tier (PO "Option A"): fold the per-locality rollup up to the department
   // (barrio for CABA) BEFORE k-anon, so the DATA + k=5 unit matches the division the
   // map draws. `truncated` still reflects the LOCALITY query cap (the fold only shrinks).
-  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), true);
+  const { cells, suppressedCount } = toAggregatedCells(aggregateCellsToDepartment(rollup), {
+    rule: "count",
+    grain: "locality",
+  });
   return { cells, suppressedCount, noLocalityCount, truncated: rollup.length >= PER_LAYER_CAP };
 }
 
@@ -1001,10 +1026,19 @@ export async function loadReunificacionByUnit(
     return { cells: [], suppressedCount, noLocalityCount: 0, truncated: false };
   }
 
-  // KA6: k-anon-suppressed department cells arrive flagged (suppressed:true) so we
-  // can render them as the honest hatch category — split them out from the visible
-  // units, which alone carry a real ratePct into the graduated-symbol rollup.
-  const visibleUnits = byUnit.filter((u) => !u.suppressed);
+  // KA6 + #40b: k-anon-suppressed cells arrive flagged (suppressed:true) at BOTH
+  // grains, so we can render them as the honest hatch category — split them out
+  // from the visible units, which alone carry a real ratePct into the
+  // graduated-symbol rollup.
+  //
+  // The `ratePct !== null` guard is the compiler-forced half of that split, and it
+  // DROPS rather than coerces: `?? 0` here would publish a confident "0% de
+  // reunificación" for a protected unit — a false zero that both asserts something
+  // untrue and leaks that the unit crossed k. A null on a row not flagged
+  // `suppressed` would mean the split above missed it; no cell is better than a lie.
+  const visibleUnits = byUnit.filter(
+    (u): u is typeof u & { ratePct: number } => !u.suppressed && u.ratePct !== null,
+  );
   const suppressedUnits = byUnit.filter((u) => u.suppressed);
 
   const rollup: RollupRow[] = visibleUnits.map((u) => {
@@ -1037,7 +1071,11 @@ export async function loadReunificacionByUnit(
     };
   });
 
-  const { cells } = toAggregatedCells(rollup, false);
+  // `pre-decided`: fetchReunificationByUnit already ran the k=5 rule against the
+  // lostEpisodes DENOMINATOR (the plotted value here is a ratePct, which is NOT a
+  // population and must never be fed to a count-based threshold). The suppressed
+  // units it flagged are appended below as null-valued hatch cells.
+  const { cells } = toAggregatedCells(rollup, { rule: "pre-decided" });
   // KA6: append the suppressed department cells as null-valued hatch cells (the real
   // ratePct never leaves fetchReunificationByUnit), so a suppressed reunificacion
   // unit renders as the distinct "suprimido" category, not vanish as plain no-data.

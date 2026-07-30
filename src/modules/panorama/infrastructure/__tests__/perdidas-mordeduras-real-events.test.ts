@@ -15,6 +15,13 @@
 // same call every writer uses) with NO 'kind'/'province' payload keys, and
 // asserts the loaders now attribute + count them via the JOIN to pets.
 //
+// #40b: the fixture seeds ABOVE k=5 per layer. It used to seed 2 perdidas events
+// and 1 bite, and assert the province cell published "2" and "1" — written when
+// province grain was exempt from k-anon. That exemption is retired (the count on a
+// density layer IS the protected population), so those assertions were pinning a
+// sub-k disclosure. The regression under test — real-shaped events are ATTRIBUTED
+// and COUNTED — is unchanged; only the fixture clears the threshold.
+//
 // Integration test — local Supabase + Postgres. Govt scope to a SYNTHETIC
 // locality so only this test's pet is in scope (the national seed fills every
 // real province).
@@ -76,17 +83,23 @@ beforeAll(async () => {
     .returning({ id: pets.id });
   petId = row.id;
 
-  // REAL lost marking — status_changed, to_status='lost', NO payload kind/province.
-  await insertEvent("status_changed", { from_status: "active", to_status: "lost" });
-  // REAL sighting — note_added, kind='sighting'.
-  await insertEvent("note_added", { category: "otro", text: "avistaje", kind: "sighting" });
-  // REAL bite — incident_reported, incident_type='bite_inflicted'.
-  await insertEvent("incident_reported", {
-    incident_type: "bite_inflicted",
-    severity: "moderate",
-    injuries_summary: "mordedura test",
-    vet_involved: true,
-  });
+  // REAL lost markings — status_changed, to_status='lost', NO payload kind/province.
+  // REAL sightings — note_added, kind='sighting'.
+  // 3 of each = 6 perdidas events, clearing the k=5 province guard.
+  for (let i = 0; i < 3; i++) {
+    await insertEvent("status_changed", { from_status: "active", to_status: "lost" });
+    await insertEvent("note_added", { category: "otro", text: `avistaje ${i}`, kind: "sighting" });
+  }
+  // REAL bites — incident_reported, incident_type='bite_inflicted'. 5 of them so
+  // the mordeduras cell clears k=5 too (the guard counts DISTINCT events).
+  for (let i = 0; i < 5; i++) {
+    await insertEvent("incident_reported", {
+      incident_type: "bite_inflicted",
+      severity: "moderate",
+      injuries_summary: `mordedura test ${i}`,
+      vet_involved: true,
+    });
+  }
   // Distractor — a recovery (to_status='active') must NOT count as perdidas.
   await insertEvent("status_changed", { from_status: "lost", to_status: "active" });
 });
@@ -94,12 +107,15 @@ beforeAll(async () => {
 afterAll(cleanup);
 
 describe("perdidas loader counts REAL lost + sighting events (schema-drift regression)", () => {
-  it("loadPerdidasByUnit attributes them to the pet's province and counts 2", async () => {
+  it("loadPerdidasByUnit attributes them to the pet's province and counts 6", async () => {
     const res = await loadPerdidasByUnit("province", GOVT, JURS, SINCE);
     const cell = res.cells.find((c) => c.province === PROVINCE);
     expect(cell).toBeDefined();
-    // lost + sighting = 2. The recovery (to_status='active') is excluded.
-    expect(cell?.count).toBe(2);
+    // 3 lost + 3 sightings = 6. The recovery (to_status='active') is excluded.
+    expect(cell?.count).toBe(6);
+    // Above k, so the cell publishes its real count rather than a hatch.
+    expect(cell?.suppressed).toBe(false);
+    expect(res.suppressedCount).toBe(0);
   }, 30_000);
 
   it("loadUnitHistory('perdidas') returns both the lost marking and the sighting", async () => {
@@ -121,11 +137,13 @@ describe("perdidas loader counts REAL lost + sighting events (schema-drift regre
 });
 
 describe("mordeduras loader counts REAL bite events (schema-drift regression)", () => {
-  it("loadMordedurassByUnit attributes the bite to the pet's province and counts 1", async () => {
+  it("loadMordedurassByUnit attributes the bites to the pet's province and counts 5", async () => {
     const res = await loadMordedurassByUnit("province", GOVT, JURS, SINCE);
     const cell = res.cells.find((c) => c.province === PROVINCE);
     expect(cell).toBeDefined();
-    expect(cell?.count).toBe(1);
+    expect(cell?.count).toBe(5);
+    expect(cell?.suppressed).toBe(false);
+    expect(res.suppressedCount).toBe(0);
   }, 30_000);
 
   it("loadUnitHistory('mordeduras') returns the bite incident", async () => {

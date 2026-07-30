@@ -2933,10 +2933,10 @@ export function SituationalMap({
   let insetScopeLabel: string | null = null;
   // Honesty fix: a suppressed CABA-level value is a DISTINCT state from no color
   // — the inset must hatch it (below, via CabaInset's uniformSuppressed prop),
-  // never silently vanish. See CabaInset's syncFill for why this is reachable: a
-  // province rate is structurally never suppressed, but a bivariate cell
-  // propagates suppression from its SIGNAL axis (a low-count mordeduras/zoonosis
-  // province), so CABA's risk read can genuinely be k-anon protected.
+  // never silently vanish. Two independent ways CABA reaches this state: its own
+  // province cell can be k-anon protected (task #40 — `provinceCell` suppresses on
+  // the DENOMINATOR, so "province rates are never suppressed" is retired), and a
+  // bivariate cell propagates suppression from its SIGNAL axis.
   let insetUniformSuppressed = false;
   if (insetBivariateLayer) {
     // CABA's bivariate cell → the SAME palette color the main map paints for AR-C.
@@ -2959,8 +2959,8 @@ export function SituationalMap({
     );
     const cabaProps = cabaFeature?.properties as { value?: number; suppressed?: boolean } | null;
     if (cabaProps?.suppressed === true) {
-      // Defensive: province choropleth cells are structurally never suppressed
-      // today, but honor the flag if that ever changes rather than assuming.
+      // Province choropleth cells ARE suppressible since task #40 (the cell's
+      // denominator decides) — this branch is load-bearing, not defensive.
       insetUniformSuppressed = true;
       insetScopeLabel = "valor provincial";
     } else if (typeof cabaProps?.value === "number") {

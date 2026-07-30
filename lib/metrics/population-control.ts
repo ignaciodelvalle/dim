@@ -128,9 +128,22 @@ export type SterilizationCoverageResult = {
   /** Count of active/lost pets in scope (denominator). */
   total: number;
   /**
-   * Per-province breakdown for the choropleth.
-   * No k-anonymity suppression at province level — cell sizes are always
-   * large enough to be non-identifying.
+   * Per-province breakdown. RAW — carries `total` (the denominator), `sterilized`
+   * and `ratePct` with NO k-anon applied.
+   *
+   * ⚠️ KNOWN GAP (#40b triage), do NOT read the absence of suppression here as a
+   * policy exemption. The old wording ("cell sizes are always large enough to be
+   * non-identifying") is the premise task #40 retired: it is true of a province's
+   * POPULATION and false of its DENOMINATOR.
+   *
+   * Suppression state of each consumer:
+   *   · Panorama esterilizacion province layer — SAFE. repository-choropleth.ts
+   *     routes these rows through `provinceCell(code, label, ratePct, total)`,
+   *     which suppresses on `total`.
+   *   · /admin/poblacion ranked table + /gob/poblacion/export CSV — UNSUPPRESSED.
+   *     They print `total` and `ratePct` per province verbatim.
+   * Closing the second group means nulling values at those render sites, which is
+   * why the raw rows survive here rather than being suppressed at the source.
    */
   byProvince: ProvinceSterlizationRow[];
 };
@@ -143,8 +156,9 @@ export type SterilizationCoverageResult = {
  * Uses the same EXISTS subquery pattern as fetchMicrochipPenetration in
  * lib/compliance-metrics.ts — guaranteed same denominator, no fan-out.
  *
- * byProvince: per-province coverage for the choropleth. No k-anonymity
- * suppression at province level.
+ * byProvince: RAW per-province coverage — no k-anon here; see the KNOWN GAP note
+ * on SterilizationCoverageResult.byProvince for which consumers suppress and
+ * which do not.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
