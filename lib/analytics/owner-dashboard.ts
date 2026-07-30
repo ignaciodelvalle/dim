@@ -1999,6 +1999,24 @@ export async function countPendingApplications(userId: string): Promise<number> 
  * The dual OR mirrors the inbox query in /transferencias and the guard in
  * acceptPetTransferAction / rejectPetTransferAction.
  */
+/**
+ * Count of pending transfers this user SENT (C.2).
+ *
+ * Exists because the only entry point to /transferencias was gated on the
+ * INCOMING count with `hideWhenZero`, and the page has had an "Enviadas"
+ * section since UX 3.1 that queries fromOwnerId. So a user who sent a transfer
+ * and has no incoming ones lost the route entirely — the page kept a live,
+ * pending outgoing proposal and the IA had no link to it. Someone built that
+ * section and left it unreachable for exactly the user it was built for.
+ */
+export async function countOutgoingPendingTransfers(userId: string): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(petTransfers)
+    .where(and(eq(petTransfers.status, "pending"), eq(petTransfers.fromOwnerId, userId)));
+  return row?.n ?? 0;
+}
+
 export async function countPendingTransfers(userId: string, email: string): Promise<number> {
   const normalizedEmail = email.toLowerCase();
   // Include the email branch only when the caller has a non-empty email

@@ -36,6 +36,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
 import { attachments, db, ownerships, pets } from "@/db";
 import {
+  countOutgoingPendingTransfers,
   countPendingApplications,
   countPendingTransfers,
   fetchActiveReminders,
@@ -112,6 +113,7 @@ export default async function MisMascotasPage({
     matchingTotal,
     pendingApplicationsCount,
     pendingTransfersCount,
+    outgoingTransfersCount,
     openWorkflows,
     previousWorkflows,
     reminders,
@@ -143,6 +145,7 @@ export default async function MisMascotasPage({
       .then((r) => Number(r[0]?.n ?? 0)),
     countPendingApplications(user.id),
     countPendingTransfers(user.id, userEmail),
+    countOutgoingPendingTransfers(user.id),
     fetchOpenWorkflows(user.id),
     fetchPreviousWorkflows(user.id),
     fetchActiveReminders(user.id),
@@ -374,13 +377,23 @@ export default async function MisMascotasPage({
               description="Adopciones a las que te postulaste"
               badge={pendingApplicationsCount > 0 ? pendingApplicationsCount : null}
             />
+            {/* C.2 — the card hides only when there is nothing in EITHER
+                direction. It used to hide on the incoming count alone, which
+                orphaned the route for a user who had SENT a transfer and had no
+                incoming ones: /transferencias has carried an "Enviadas" section
+                since UX 3.1, so the page had a live pending proposal on it and
+                the IA had no way to reach it.
+                The badge still counts INCOMING only — that is what needs the
+                user to act. An outgoing proposal is waiting on someone else, so
+                it earns the link but not a call to action. The description now
+                names both directions so the card does not promise only one. */}
             <ActionLinkCard
               href="/transferencias"
               icon="transferencia"
               title="Transferencias pendientes"
-              description="Mascotas que alguien quiere transferirte"
+              description="Mascotas que alguien quiere transferirte, y las que enviaste"
               badge={pendingTransfersCount > 0 ? pendingTransfersCount : null}
-              hideWhenZero
+              hideWhenZero={pendingTransfersCount === 0 && outgoingTransfersCount === 0}
             />
           </div>
 
