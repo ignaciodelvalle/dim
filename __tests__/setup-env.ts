@@ -16,9 +16,39 @@
 // can only ever hit 127.0.0.1. Values/logic mirror __tests__/setup.ts.
 
 import { config as loadEnv } from "dotenv";
+import { afterEach } from "vitest";
 
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
+
+// GLOBAL RTL AUTO-CLEANUP — unmount every React tree between tests.
+//
+// React Testing Library installs its own auto-cleanup only when a GLOBAL
+// `afterEach` exists (it probes for one at import time). This repo does not set
+// `globals: true`, so RTL's probe fails and NOTHING ever unmounts on its own:
+// every `render()` / `renderHook()` leaves its container and its React root
+// attached to the jsdom document for the rest of the file. ~115 test files use
+// RTL; only two thirds call `cleanup()` by hand.
+//
+// The failure mode is not cosmetic. A left-mounted root keeps effects, timers
+// and pending state updates alive past the test that created them; when the
+// worker is torn down they run against a dead environment. That is exactly how
+// an async `renderHook` put CI red with "1 error / 0 tests failing" (e730e4e2).
+//
+// Registered here rather than in setup.ts because setup-env.ts is the "unit"
+// project's setup file AND is imported by the "db" project's setup.ts — one
+// registration covers BOTH projects.
+//
+// GUARDED on `document` because the default test environment is node: most
+// files in both projects have no DOM at all, and RTL's `cleanup()` throws
+// without one. The import is DYNAMIC for the same reason — a static import
+// would pull react-dom into every pure-Node test file. Module resolution is
+// cached after the first DOM file, so the cost is paid once per worker.
+afterEach(async () => {
+  if (typeof document === "undefined") return;
+  const { cleanup } = await import("@testing-library/react");
+  cleanup();
+});
 
 // Local Supabase defaults (supabase start) — keep custom local hosts if set.
 const LOCAL_SUPABASE_URL = "http://127.0.0.1:54321";
