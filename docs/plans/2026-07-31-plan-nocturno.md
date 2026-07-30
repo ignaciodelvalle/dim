@@ -37,7 +37,13 @@
 - DB scripts: `node --conditions=react-server --import tsx scripts/<x>.ts`.
 - cursor-agent: `C:\Users\ignac\AppData\Local\cursor-agent\cursor-agent.cmd -p --output-format text`.
 - Cuentas semilla: `scripts/seed-test-users.ts` — password compartida `Test1234!`.
-  `govt@dim.test` (operador), `alejo@dim.test` (**0 mascotas**), `owner@dim.test` (2).
+  `govt@dim.test` (operador), `alejo@dim.test` (**0 mascotas propias, pero 4
+  membresías de organización** → aterriza en la ruta de org, NO en el empty
+  state), `owner@dim.test` (2).
+- **Empty state de dueño**: usar `ZERO_PET_OWNER_EMAIL` de
+  `scripts/seed-reserved-accounts.ts` — la ÚNICA cuenta garantizada con 0
+  mascotas y 0 membresías. `pnpm test` falla si alguna corrida se la come. No
+  usar personas con nombre (carla, noeli…): esas son mobiliario de demo.
 - El mapa expone `window.__PANORAMA_MAP__`. Para medir píxeles reales:
   `readPixels` DENTRO de un handler `map.once('render')`.
 - **`ppp-compliance` es la FUENTE de métricas; el id de capa es `ppp`.**
@@ -577,8 +583,8 @@ que habría que hacer y que hacerlo sería un error.
 | A0b pool de vitest (la muerte del worker) | en curso | |
 | A1 bug estado por defecto panorama | **CERRADA** — dos causas: `levelRef` desincronizado en `onLevelChange` + el `isScoped` del server discrepaba con `resolveDataLevel` para operadores multi-provincia | `f20cdc9d` |
 | A4 E2E de CI muere por timeout (PO 31/07) | pendiente | |
-| A5 semilla sin dueño de cero mascotas (PO 31/07) | pendiente | |
-| A6 puerto hardcodeado en config de Playwright (PO 31/07) | pendiente | |
+| A5 semilla sin dueño de cero mascotas (PO 31/07) | **CERRADA** — cuenta reservada `ZERO_PET_OWNER_EMAIL` creada por `db:bootstrap`, excluida de `REASSIGN_EMAILS`, y vigilada por `pnpm test` (guard de DB + fence del literal). El e2e queda SIN VERIFICAR: pide servidor | `17c306f6` |
+| A6 puerto hardcodeado en config de Playwright (PO 31/07) | **CERRADA** — `QA_PORT` (default 3000) en los dos configs sin `webServer` + el fallback de `e2e/_base-url.ts`; trampa del 3333 documentada | `6ec0a159` |
 | A2c aviso de capa desconocida enterrado (hallazgo de A1) | pendiente — necesita partir `PanoramaConsole.tsx` (en el fence) | |
 | A2 B3 chips en timeline único | **CERRADA** — chips derivados del mismo array que filtran; solo se renderizan los que tienen eventos | `14326aa8` |
 | A3 caza de tests que pinnean el defecto | pendiente | |
