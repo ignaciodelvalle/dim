@@ -449,19 +449,102 @@ autorización es para ESTA corrida, no permanente.
 | R5 | **A3: dos desvíos de la tabla acto→clase→gramática** — (a) `ReviewButtons`/rechazo dice **"No avanzar"**, no "Rechazar postulación" (la pantalla ya eligió el verbo suave y renombrarlo a mitad de flujo lo vuelve otro acto); (b) `CancelTransferAction` gana `cancelLabel="Volver"` (único diálogo donde "Cancelar" es homógrafo del acto) | Commits `f50e2064` / `acd08f43`; 182 tests verdes en 25 archivos dirigidos | Sólo copy: se vuelve al label de la tabla con un string |
 | R6 | **A3: la tabla tenía 3 sitios incompletos y 5 fuera de inventario.** `InvestigationActions` son 5 modos (no 3), `GovtModerationActions` 3 (no 1), `TriageActions` 5 — todos pasan a mapa label-por-modo. Fuera de tabla, mismo defecto: `EndFosterButton`, `LeaveMembershipButton`, `WithdrawButton`, `BlockSlotButton`, `SheetMounter`, y el default de `CaptureConfidenceCard` | `__tests__/confirm-label-grammar.guard.test.ts` en cero; mutación verificada (label revuelto → el guard lo nombra con archivo:línea) | Sin los 5 fuera de tabla el guard de regresión no puede quedar en cero, así que revertirlos implica borrar el fence |
 
+## Lo que la review pre-push encontró, y el patrón detrás (2026-07-30)
+
+Cursor dio **ESCALATED — 0 CRITICAL, 2 WARNING reales**. Las dos verificadas a mano
+antes de actuar. Un tercer hallazgo salió de la verificación visual de B4. Los
+tres arreglados: `091ae383`, `d351f2ff`, `ee2f6192`.
+
+1. **Un mapa provincial enteramente hachurado podía no avisar nada.** Los diez
+   loaders de provincia no contaban las celdas que suprimían, así que
+   `buildAllSuppressedNotice` cortaba en `suppressedCount === 0`. Los valores
+   protegidos, el operador no informado. `suppressedCount` pasó a ser
+   OBLIGATORIO. Efecto lateral que importa: **`cube-parity` afirmaba
+   `cube.suppressedCount === live.suppressedCount` y esa aserción era VACUA a
+   grano provincial** (ambos lados 0) — ahora es un fence real.
+2. **La muerte no cierra la tenencia.** El conteo de D.8 contaba ownerships
+   abiertas, así que un dueño cuya única mascota murió recibía "Asentar" → el
+   mismo no-op silencioso que D.8 existía para matar, sobre la persona en peor
+   momento para encontrárselo. Ahora reusa el predicado canónico de
+   `fetchLivePetsForCarouselRanking` — literalmente la query sobre la que
+   `/inicio` decide su redirect, así que el slot y el destino no pueden
+   discrepar.
+3. **La leyenda anunciaba una trama que el mapa no pintaba.** `LegendPill`
+   renderizaba "⊘ k<5 protegido" con tooltip de Ley 25.326 sobre un canvas sin
+   una sola marca. No era un descuido: el chip estaba hardcodeado con el
+   comentario `k-anon pill — NEVER hidden`, una regla deliberada. La distinción
+   que faltaba: **el spec pide que la supresión nunca se OCULTE; no pide que se
+   AFIRME.** `MapLegends` tampoco estaba limpio — su fila bivariada era
+   incondicional. Ambas superficies ahora comparten un solo predicado,
+   `frameHasSuppressedMark`, en el módulo que es dueño de la marca.
+
+### El patrón, que vale más que los tres bugs
+
+**Nadie testeó la divulgación misma.** `all-suppressed-notice.tsx` no tenía
+un solo archivo de test. El chip k-anon de la píldora tenía un test que
+**afirmaba el defecto** (`PanoramaConsole.test.tsx` sembraba `suppressedCount: 3`
+sobre `EMPTY_FC` — tres celdas retenidas y cero features — y exigía que el
+marcador fuera "SIEMPRE visible"). Las marcas de privacidad se construyeron con
+cuidado y después se dejaron sin guardia.
+
+Y el hallazgo 3 solo era cazable por un test que **cruza dos superficies sobre un
+mismo frame**: cada componente era internamente consistente; el bug vivía en el
+hueco. Ese test ahora existe
+(`components/panorama/__tests__/legend-suppression-parity.test.tsx`, 9 casos).
+
+Van **seis** tests encontrados en este proyecto pinneando el defecto que debían
+cazar. Ya no es una anécdota: es una clase de falla que merece su propia caza.
+
+## Hallazgos de B4 que NO son de este rango (no bloquean el push)
+
+1. **En el estado por defecto, el panorama miente.** En `/gob/panorama?layers=ppp`
+   sin `level`, el cliente pide provincia, **aborta el request** y refetchea sin
+   parámetros; el servidor cae a `level=locality`. El mapa queda en modo
+   provincia (chip "Provincias", `pano-prov-fill-ppp` montado) pero recibe
+   features de localidad → **el país entero se pinta "sin datos"**, incluida CABA
+   que reporta 40% a grano provincial, y TdF que está protegida. Determinístico,
+   reproducido en dos logins limpios. Sospechoso: `fetchLayersInto` / el estado
+   `level` en `PanoramaConsole.tsx` (~L1734 y ~L393). Evidencia:
+   `docs/reviews/results/2026-07-30-b4-visual/a2-04-*.png`.
+   **Consecuencia práctica: todo el trabajo de k-anon es inalcanzable en la
+   pantalla donde el funcionario aterriza.** Prioridad alta para la próxima.
+2. `ppp-compliance` es la FUENTE de métricas, no el id de capa. El id es `ppp`, y
+   un `layers=` desconocido resetea a vacío en silencio — otra forma de "no hay
+   datos" que en realidad es "escribiste mal el parámetro".
+
+## Gate final (2026-07-30) — y una trampa de medición nueva
+
+```
+pnpm verify   exit 0  (~45 fences + build)
+pnpm test     1076 files passed | 1 skipped · 12646 passed | 4 skipped | 11 todo
+              SIN línea "Errors" · exit 0
+```
+
+**Trampa que costó una corrida entera y va al libro**: la primera corrida del
+gate final dio `exit 1` con **1 unhandled error** — `Worker exited unexpectedly`,
+sin causa visible y sin nombrar archivo. NO era el bug de A1 (cero ocurrencias de
+`window is not defined`). La diferencia con el gate limpio anterior era que
+**esta corrió con el servidor de producción vivo en :3001** y aquella no.
+Bajando el servidor y repitiendo: limpio, exit 0, y aparecen el archivo y los
+once tests que el worker muerto se había llevado (1075→1076, 12635→12646).
+
+Regla nueva: **la suite completa se mide con el servidor de QA APAGADO.** Un
+worker muerto por contención se lee igual que una regresión, y el conteo de
+tests baja de forma silenciosa y plausible.
+
 ## Estado (actualizar al cerrar cada unidad)
 
 | Unidad | Estado | Commit |
 |---|---|---|
 | A1 exit-1 (timebox 60') | **CERRADA** (causa sistémica anotada, no arreglada) | `e730e4e2` |
-| A2 #40 k-anon provincia | **CERRADA** (falta verif. visual → B4) | `4b8284f2` |
+| A2 #40 k-anon provincia | **CERRADA y verificada en píxeles** (+2 fixes de review) | `4b8284f2`, `091ae383`, `ee2f6192` |
 | A3 D.3 gramática | **CERRADA** | `f50e2064` (clases 2-3) + `acd08f43` (fence + clase 1) |
 | A4 copy Registrado/a | **CERRADA** | `ac2af21f` |
 | A5 D.4 chips | **CERRADA** (4 colas alineadas a los átomos de `CaseQueue`) | `aaca925e` |
 | B1 pasada 703 | pendiente | |
-| B2 D.8 completo | **CERRADA** (falta captura → B4) | `33d341d5` |
+| B2 D.8 completo | **CERRADA y capturada** (+1 fix de review) | `33d341d5`, `d351f2ff` |
 | B3 C.1 libreta | **redefinida** (ver §B3), implementación pendiente | |
-| B4 verificación visual A | pendiente | |
+| B4 verificación visual A | **CERRADA — todo PASS, 2 hallazgos nuevos** | `014e38f3` (evidencia) |
 | S1 SC-6 | stretch | |
 | S2 #41 | stretch | |
 | S3 D.5(b) inset | stretch | |
