@@ -471,6 +471,51 @@ rojo.
 Primero MEDIR dónde se va el tiempo (¿son todos los specs, o hay uno patológico?)
 antes de tocar el número. Subir el timeout sin medir es apagar el detector.
 
+**CERRADA (A4, 31/07) — `dfeb3a79`. Medido, y el diagnóstico intuitivo era
+equivocado en los dos sentidos: ni es lento parejo ni está colgado.**
+
+Reparto real del run 30521116031 (idéntico en los otros dos):
+
+| Tramo | Tiempo |
+|---|---|
+| checkout → extract env (de los cuales `supabase start` = 1m41s) | 2m58s |
+| `pnpm build` | 2m59s |
+| **`pnpm e2e`** | **24m11s → CANCELLED** |
+
+Y adentro de esos 24m11s: colección a los +10s, **14 archivos de regresión
+terminan en 4m24s**, `demo/01-publico` falla dos veces en 2m26s, y después el
+log queda **MUDO 17m11s** hasta que el reloj del job lo mata (18m25s y 17m33s
+en las otras dos corridas). No estaba colgado: estaba adentro de un presupuesto
+declarado. `e2e/demo/*.spec.ts` llama `test.setTimeout()` por
+15+18+25+15+18+25 = **116 minutos para SEIS tests**, ×2 por `retries: 1`.
+**7 de 163 tests (demo + perf) se comían ~81% del paso**, y toda la cola de la
+suite (de `executive-smoke` en adelante) no corría NUNCA.
+
+El arreglo es lo que el repo ya decía en todos lados menos acá: `e2e/README.md`
+dice textual "do not run these as part of a normal e2e pass",
+`playwright.staging.config.ts` ya traía `testIgnore: ["demo/**","perf/**"]`, y
+`playwright.demo.config.ts` es dueño de las grabaciones (testDir propio, tope de
+20'). El único config desalineado era `playwright.config.ts`. `perf/` se excluye
+por mérito propio: apunta a staging desplegado y no afirma nada (imprime una
+tabla de latencias).
+
+**Segunda mitad del bug, la que explica por qué nadie lo vio**: un job que
+revienta `timeout-minutes` queda `cancelled`, y `failure()` es falso para un job
+cancelado — así que el paso de subir el reporte HTML **nunca corrió** y las tres
+corridas muertas no dejaron ni un artefacto para diagnosticar. Ahora
+`globalTimeout` (22', solo CI) hace que la alarma sea Playwright (falla de
+verdad, con reporte), `timeout-minutes` pasa a 35 como RESPALDO con lugar para
+que esa alarma alcance a dispararse, y el artefacto sube con `always()`.
+
+**`workers: 1` NO se tocó**: varias suites son travesías multi-actor que mutan
+filas de semilla compartidas; es una restricción de corrección, no un botón de
+tuning. Con 9,3 min medidos no hay nada que comprar.
+
+**Esperar que la barrera restaurada dé ROJO — ese es el punto.** Los logs ya
+imprimían 7 fallas propias de CI (a11y-regression flip, admin-case-detail-shell,
+authz-ab-isolation ×3, crisis-seams (a), cuenta-hang-verify) y **las 7 pasan en
+local**, así que son drift de entorno/timing y piden unidad propia.
+
 ### A5. La semilla no garantiza un dueño con cero mascotas
 `carla@dim.test` está documentada en el spec como dueña sin mascotas y tiene 4
 (dos `QA7-*` del 2026-07-17, DIM-DEMO-0002/0008 del 2026-07-26). Un barrido
@@ -582,7 +627,7 @@ que habría que hacer y que hacerlo sería un error.
 | A0 RTL cleanup (timebox 45') | **CERRADA** — arregla un defecto latente, NO la muerte del worker | `ec4aafde` |
 | A0b pool de vitest (la muerte del worker) | en curso | |
 | A1 bug estado por defecto panorama | **CERRADA** — dos causas: `levelRef` desincronizado en `onLevelChange` + el `isScoped` del server discrepaba con `resolveDataLevel` para operadores multi-provincia | `f20cdc9d` |
-| A4 E2E de CI muere por timeout (PO 31/07) | pendiente | |
+| A4 E2E de CI muere por timeout (PO 31/07) | **CERRADA** — no estaba colgado: `e2e/demo/*` declara 116 min de `test.setTimeout` para SEIS tests (×2 por `retries: 1`) sobre un job de 30. `testIgnore: ["demo/**","perf/**"]` (lo que el README y el config de staging ya decían), + `globalTimeout` 22' para que la alarma sea Playwright y no el reloj del job, + artefacto en `always()`. Quedan 156 tests / **9,3 min** medidos local | `dfeb3a79` |
 | A5 semilla sin dueño de cero mascotas (PO 31/07) | **CERRADA** — cuenta reservada `ZERO_PET_OWNER_EMAIL` creada por `db:bootstrap`, excluida de `REASSIGN_EMAILS`, y vigilada por `pnpm test` (guard de DB + fence del literal). El e2e queda SIN VERIFICAR: pide servidor | `17c306f6` |
 | A6 puerto hardcodeado en config de Playwright (PO 31/07) | **CERRADA** — `QA_PORT` (default 3000) en los dos configs sin `webServer` + el fallback de `e2e/_base-url.ts`; trampa del 3333 documentada | `6ec0a159` |
 | A2c aviso de capa desconocida enterrado (hallazgo de A1) | pendiente — necesita partir `PanoramaConsole.tsx` (en el fence) | |
