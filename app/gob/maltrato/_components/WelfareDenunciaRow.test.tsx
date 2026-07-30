@@ -35,6 +35,9 @@ vi.mock("@/lib/ui/full-page-action-nav", () => ({
   navigateAfterActionSuccess: vi.fn(),
 }));
 
+import { OpCodeBadge } from "@/components/ui/dashboard";
+import { formatDate } from "@/lib/utils/format";
+
 import { WelfareDenunciaRow } from "./WelfareDenunciaRow";
 
 afterEach(cleanup);
@@ -92,5 +95,61 @@ describe("WelfareDenunciaRow — severity vs SLA reconciliation (finding #4)", (
     expect(screen.getByText("Histórico · sin SLA activo")).toBeInTheDocument();
     expect(screen.queryByText("Baja — preocupante, no urgente")).not.toBeInTheDocument();
     expect(screen.getByText("Baja (histórica)")).toBeInTheDocument();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Operator-queue anatomy alignment (A5, 2026-07-30)
+//
+// The measurement of the six operator queues found this row on its own private
+// anatomy: a bare mono <p> for the reference code, and a private relative
+// formatter ("hace N días") for the date. The dominant anatomy —
+// components/ui/dashboard/CaseQueue.tsx, used by 4 operator surfaces — renders
+// identifiers through the shared OpCodeBadge atom and dates through the shared
+// absolute formatDate.
+//
+// The expected badge className is READ FROM OpCodeBadge itself rather than
+// hardcoded, so the test pins "goes through the shared atom", not a class list
+// that would drift the moment the atom is restyled.
+// ---------------------------------------------------------------------------
+
+describe("WelfareDenunciaRow — operator-queue anatomy alignment (A5)", () => {
+  const CREATED_AT = new Date("2026-07-01T15:00:00Z");
+
+  function renderAligned() {
+    return render(
+      <WelfareDenunciaRow
+        report={{ ...baseReport, severity: "medium", createdAt: CREATED_AT }}
+        assignedToName={null}
+        currentUserId="user-1"
+      />,
+    );
+  }
+
+  function opCodeBadgeClassName(): string {
+    const { container, unmount } = render(<OpCodeBadge tone="blue">REF</OpCodeBadge>);
+    const className = (container.firstElementChild as HTMLElement).className;
+    unmount();
+    return className;
+  }
+
+  it("renders the reference code through the shared OpCodeBadge atom", () => {
+    const expectedClassName = opCodeBadgeClassName();
+    renderAligned();
+    const code = screen.getByText("DEN-VHCX-GRC9");
+    expect(code.tagName).toBe("SPAN");
+    expect(code.className).toBe(expectedClassName);
+  });
+
+  it("renders the filing date as an absolute formatDate value inside a <time>, not a relative label", () => {
+    const { container } = renderAligned();
+    const time = container.querySelector("time");
+    expect(time).not.toBeNull();
+    expect(time?.getAttribute("datetime")).toBe(CREATED_AT.toISOString());
+    expect(time?.textContent).toBe(formatDate(CREATED_AT));
+    // The retired private formatter. Scoped to the <time> element on purpose:
+    // SlaBadge legitimately says "vencido hace N días" elsewhere on the card,
+    // and that pill is the row's ONE urgency voice now.
+    expect(time?.textContent).not.toMatch(/hace/);
   });
 });

@@ -33,17 +33,20 @@ import {
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBulkResultPanel } from "@/components/ui/dashboard/OpBulkResultPanel";
 import { OpButton, type OpButtonVariant } from "@/components/ui/dashboard/OpButton";
+import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import { OpCheckbox } from "@/components/ui/dashboard/OpField";
+import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { ApprovalRequestType } from "@/db";
 import {
   RUPGA_APPROVAL_WARNING,
   VET_MATRICULA_BULK_APPROVE_BLOCKED,
+  VET_MATRICULA_TYPE,
   computeApprovalTypeBreakdown,
   selectionHasRupga,
   selectionHasVetMatricula,
 } from "@/lib/infra/approval-queue-breakdown";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
-import { pluralizeEs } from "@/lib/utils/format";
+import { formatDate, pluralizeEs } from "@/lib/utils/format";
 
 export type QueueItem = {
   publicToken: string;
@@ -52,8 +55,46 @@ export type QueueItem = {
   typeLabel: string;
   applicantName: string;
   jurisdiction: string;
+  /**
+   * ISO-8601 timestamp of the request. RAW, not pre-formatted (queue-anatomy
+   * alignment, 2026-07-30): the row formats it itself with the shared
+   * `formatDate`, the same absolute vocabulary the dominant queue anatomy
+   * (components/ui/dashboard/CaseQueue.tsx) uses, so the queue can no longer
+   * drift to a per-caller date format. `formatDate` is AR-timezone-pinned, so
+   * formatting it client-side is hydration-safe.
+   */
   createdAt: string;
 };
+
+// ---------------------------------------------------------------------------
+// Row state indicator (queue-anatomy alignment, 2026-07-30)
+//
+// This was the only operator queue with NO state indicator at all. The obvious
+// fix — a literal "Pendiente" badge — would have been a constant, not
+// information: the queue fetches `status = 'pending'` exclusively
+// (fetchVisiblePendingRequests, lib/infra/approval-scope.ts), so every row would
+// carry the identical pill.
+//
+// The state that DOES vary per row is the DECISION PATH, and today the operator
+// discovers it only by selecting a row and finding "Aprobar" disabled: vet
+// matrículas are excluded from bulk approve (VET_MATRICULA_BULK_APPROVE_BLOCKED,
+// mirrored server-side by approveRequestForAuthority). The row now declares that
+// up front.
+//
+// Vocabulary is the approvals domain's own (pending + the bulk-approve gate) —
+// deliberately NOT mapped onto CaseStatus, which has no meaning here. Only the
+// PRIMITIVE is shared: OpPill → OpStatusPill, the same primitive every other
+// operator queue routes through.
+// ---------------------------------------------------------------------------
+
+function rowStateDisplay(type: ApprovalRequestType): {
+  tone: "open" | "triaged";
+  label: string;
+} {
+  return type === VET_MATRICULA_TYPE
+    ? { tone: "triaged", label: "Verificación individual" }
+    : { tone: "open", label: "Pendiente" };
+}
 
 export function BulkApprovalQueueList({
   items,
@@ -172,6 +213,7 @@ export function BulkApprovalQueueList({
       <ul className="space-y-2">
         {items.map((item) => {
           const isSelected = selected.has(item.publicToken);
+          const rowState = rowStateDisplay(item.type);
           return (
             <li
               key={item.publicToken}
@@ -197,15 +239,21 @@ export function BulkApprovalQueueList({
               />
               <Link
                 href={`${detailUrlPrefix}/${item.publicToken}`}
-                className="flex-1 min-w-0 space-y-0.5"
+                className="flex-1 min-w-0 space-y-1 no-underline"
               >
-                <p className="text-sm font-medium text-ln-op-ink">{item.typeLabel}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-ln-op-ink">{item.typeLabel}</p>
+                  <OpPill tone={rowState.tone}>{rowState.label}</OpPill>
+                </div>
                 <p className="text-xs text-ln-op-mute">
                   {item.applicantName} · {item.jurisdiction}
                 </p>
-                <p className="text-xs text-ln-op-mute font-mono">
-                  {item.publicToken} · {item.createdAt}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <OpCodeBadge tone="blue">{item.publicToken}</OpCodeBadge>
+                  <time dateTime={item.createdAt} className="text-xs text-ln-op-mute">
+                    {formatDate(item.createdAt)}
+                  </time>
+                </div>
               </Link>
             </li>
           );

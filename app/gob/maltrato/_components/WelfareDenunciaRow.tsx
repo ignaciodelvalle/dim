@@ -1,4 +1,4 @@
-import { OpPill, SlaBadge } from "@/components/ui/dashboard";
+import { OpCodeBadge, OpPill, SlaBadge } from "@/components/ui/dashboard";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -10,7 +10,7 @@ import type {
 } from "@/src/modules/welfare/domain/types";
 import { primaryWelfareAction } from "@/src/modules/welfare/domain/welfare-status-rules";
 
-import { calendarDaysAgoInAr } from "@/lib/utils/format";
+import { formatDate } from "@/lib/utils/format";
 
 import { isHistoricalBacklog } from "../_lib/welfare-sla";
 import { ActuarButton } from "./ActuarButton";
@@ -71,19 +71,15 @@ const PRIMARY_ACTION_LABEL: Record<"triage" | "start" | "close", string> = {
   close: "Cerrar con resolución",
 };
 
-/** Compact time-ago label for a past date, in Spanish. AR-calendar days —
- * a report from yesterday evening reads "hace 1 día" this morning, never
- * "hoy" (calendarDaysAgoInAr rationale). */
-function timeAgo(date: Date): string {
-  const diffDays = calendarDaysAgoInAr(date);
-  if (diffDays <= 0) return "hoy";
-  if (diffDays === 1) return "hace 1 día";
-  if (diffDays < 30) return `hace ${diffDays} días`;
-  const diffMonths = Math.floor(diffDays / 30);
-  if (diffMonths === 1) return "hace 1 mes";
-  return `hace ${diffMonths} meses`;
-}
-
+// Date vocabulary (queue-anatomy alignment, 2026-07-30): the row used to print
+// a RELATIVE "hace N días" built by a private formatter. The dominant operator
+// queue anatomy (components/ui/dashboard/CaseQueue.tsx) prints the ABSOLUTE
+// record date via formatDate and moves the urgency signal into a pill. This row
+// already carries TWO urgency pills — the severity pill and SlaBadge, which
+// owns the breached/historical/in-plazo semantic — so the relative label was the
+// third, weakest opinion about the same axis, and the one thing no pill said was
+// WHEN the denuncia was filed. Converting to formatDate adds that and loses
+// nothing.
 export type WelfareDenunciaRowProps = {
   report: {
     id: string;
@@ -175,10 +171,10 @@ export function WelfareDenunciaRow({
                   ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`
                   : "Sin jurisdicción declarada"}
                 {" · "}
-                {timeAgo(new Date(report.createdAt))}
+                <time dateTime={createdAt.toISOString()}>{formatDate(createdAt)}</time>
               </p>
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-xs text-ln-op-mute font-mono">{report.referenceCode}</p>
+                <OpCodeBadge tone="blue">{report.referenceCode}</OpCodeBadge>
                 <OpPill tone={assignmentTone}>{assignmentLabel}</OpPill>
               </div>
             </div>

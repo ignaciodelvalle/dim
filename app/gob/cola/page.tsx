@@ -8,7 +8,7 @@ import { APPROVAL_REQUEST_TYPES, type ApprovalRequestType, db, profiles } from "
 import { fetchVisiblePendingRequests } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { portalBase } from "@/lib/ui/portal-base";
-import { formatDateShort, pluralizeEs } from "@/lib/utils/format";
+import { pluralizeEs } from "@/lib/utils/format";
 
 const TYPE_LABELS: Record<ApprovalRequestType, string> = {
   role_upgrade_vet: "Matrículas veterinarias",
@@ -149,7 +149,10 @@ export default async function ColaPage({
           typeLabel: TYPE_LABELS[req.type] ?? req.type,
           applicantName: namesById.get(req.applicantUserId) ?? "Usuario",
           jurisdiction: `${req.jurisdictionLocality}, ${req.jurisdictionProvince}`,
-          createdAt: formatDateShort(req.createdAt),
+          // RAW ISO timestamp — the row formats it with the shared `formatDate`
+          // (queue-anatomy alignment, 2026-07-30). Pre-formatting here is what
+          // let this queue drift to its own `formatDateShort` vocabulary.
+          createdAt: req.createdAt.toISOString(),
         }))}
       />
 

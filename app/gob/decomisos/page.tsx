@@ -17,6 +17,7 @@ import {
   OpCard,
   OpCardBody,
   OpCardHead,
+  OpCodeBadge,
   OpFilterBar,
   OpKpi,
   OpPill,
@@ -302,13 +303,20 @@ export default async function DecomisosDashboardPage({
                     <OpCardBody>
                       <div className="flex items-start justify-between gap-3">
                         <div className="space-y-1 min-w-0">
-                          {/* Case code + pet */}
+                          {/* Case code + pet. Both identifiers go through the
+                              shared OpCodeBadge atom (queue-anatomy alignment,
+                              2026-07-30) instead of bare mono text: blue for the
+                              row's own case code (the linked identifier, same
+                              tone CaseQueue gives it), neutral for the pet token,
+                              which is a reference to another record, not this
+                              row's key. */}
                           <div className="flex items-center gap-2 flex-wrap">
                             <Link
                               href={`/gob/casos/${c.publicCode}`}
-                              className="text-[13px] font-semibold text-ln-op-azul hover:underline font-mono no-underline"
+                              className="no-underline"
+                              aria-label={`Ver caso ${c.publicCode}`}
                             >
-                              {c.publicCode}
+                              <OpCodeBadge tone="blue">{c.publicCode}</OpCodeBadge>
                             </Link>
                             {petName && (
                               <span className="text-[13px] text-ln-op-ink">
@@ -319,11 +327,7 @@ export default async function DecomisosDashboardPage({
                                 </span>
                               </span>
                             )}
-                            {petToken && (
-                              <span className="text-[11px] font-mono text-ln-op-mute">
-                                {petToken}
-                              </span>
-                            )}
+                            {petToken && <OpCodeBadge tone="neutral">{petToken}</OpCodeBadge>}
                           </div>
 
                           {/* Phase pill */}
