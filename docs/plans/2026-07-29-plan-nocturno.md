@@ -575,8 +575,27 @@ Cinco decisiones tomadas en batch para que las próximas sesiones no bloqueen:
     Rocco@Recoleta · exit 1 intermitente (acotado: interacción unit×db) ·
     cascada provincia→localidad (#32).
 
-Sigue Ignacio-gated: D1 (RLS staging), D7 (fecha cutover), migraciones remotas,
-e2e rojo en CI (infra del runner).
+Sigue Ignacio-gated: D1 (RLS staging), migraciones remotas.
+
+### D7 — la fecha de cutover ahora tiene BARRA, no fecha (PO 2026-07-30)
+
+**El PO definió el gate: TODO el backlog de la Ola I bloquea el cutover** — no
+solo los tres de privacidad/CI que recomendé. En sus palabras: "todo el backlog
+realmente". Es decir, cutover cuando la tabla de estado de este plan quede
+entera en **hecha**, más:
+
+- **D1 ejecutada** — en SESIÓN SUPERVISADA (PO 2026-07-30): la corremos juntos,
+  el agente interpreta la salida de la sección 1 (diagnóstico read-only) y el
+  PO aplica la sección 2 con contexto. ~30 min del PO. Agendar cuando quiera.
+- **CI verde estable** — la unidad exit-1, ahora con identidad concreta
+  (scheduler de react-dom post-teardown).
+
+**Consecuencia operativa**: D7 dejó de ser una decisión pendiente y pasó a ser
+una PROYECCIÓN. Con el ritmo medido (~8-11 unidades por sesión nocturna con
+gate en batch) y el backlog restante (#40, D.3, #41, pasada 703, SC-6, C.1,
+D.4, D.8, copy, 4 colas), la barra se alcanza en **~2-3 sesiones nocturnas
+más + la sesión D1 de 30 min**. Cuando la tabla esté entera, el agente propone
+fecha concreta en vez de preguntar.
 
 ## Estado (se actualiza durante la corrida)
 
