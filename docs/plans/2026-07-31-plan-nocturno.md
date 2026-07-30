@@ -237,12 +237,25 @@ era correcta. 9 pasan / 3 fallan, y los 3 son **preexistentes y rastreados**:
    2026-07-26). Un barrido encontró que **no queda ningún dueño personal con cero
    mascotas** (lucas tiene 0 pero es `govt`). Arreglarlo exige que la semilla
    garantice uno.
+   **CERRADA (A5, 31/07)** — con dos correcciones al diagnóstico de arriba:
+   (a) las dos DIM-DEMO no fueron "una corrida de semilla" genérica: fue el
+   round-robin `REASSIGN_EMAILS` de `scripts/seed-demo-polish.ts`, que tiene a
+   carla en la lista literal; (b) `alejo@` y `orgadmin@` TAMBIÉN son `personal`
+   con cero mascotas — lo que los descalifica no es el `account_type` sino que
+   tienen membresías de organización, así que no aterrizan en el empty state.
+   El reemplazo es `ZERO_PET_OWNER_EMAIL` (`scripts/seed-reserved-accounts.ts`),
+   creado por `pnpm db:bootstrap` y vigilado por `pnpm test`.
 
 **Trampa de config para la próxima**: `playwright.config.ts` apunta a **3333** y
 trae su propio `webServer` que buildea y arranca — habría clobbereado el servidor
 vivo. `playwright.local3000.config.ts` es el de reusar servidor pero **hardcodea
 3000** y esta versión de Playwright no soporta `PLAYWRIGHT_TEST_BASE_URL`.
 Arreglo de una línea pendiente: `process.env.QA_PORT ?? 3000`.
+**CERRADA (A6, 31/07)**: `QA_PORT` (default 3000) manda en
+`playwright.local3000.config.ts`, `playwright.localhost.config.ts` y el fallback
+local de `e2e/_base-url.ts`; se aparea con `qa-up.ps1 -Port`. La trampa del 3333
+quedó documentada en el encabezado de `playwright.config.ts`, y su puerto **debe
+seguir siendo distinto** — la separación ES la guarda.
 
 ### Números de referencia (para quien lo retome)
 - Proyecto `db` limpio: **588 archivos / 5786 tests**. Roto: pierde un archivo
@@ -551,7 +564,10 @@ que habría que hacer y que hacerlo sería un error.
 
 | # | Qué | Evidencia | Riesgo si se revierte |
 |---|---|---|---|
-| (vacío al inicio) | | | |
+| N1 | **Los chips de la libreta muestran SOLO los tipos con ≥1 evento, con el conteo adentro** (no los 14 siempre). Con menos de 2 tipos presentes no hay barra | `14326aa8`; 77 tests, 3 mutaciones verificadas con comentarios strippeados | Un chip que filtra a cero es un control muerto, y 14 chips fijos son más cromo que el feed que encabezan. Así la barra además funciona como ÍNDICE: "Vacunas 3 · Visitas 1 · Peso 2" contesta la pregunta antes de tocar nada |
+| N2 | **No hay estado vacío de "ningún resultado", y es a propósito** | Los chips se derivan del MISMO array que filtran, después de la lente de audiencia → una selección vacía es imposible por construcción; el test cicla todos los chips y exige que el feed nunca quede vacío | Escribir "Sin eventos de este tipo" sería mentir sobre lo que la pantalla puede hacer. Se hizo estructural en vez de copy inalcanzable |
+| N3 | **El rótulo "Asientos · N registros" ahora reporta el conteo FILTRADO**, no el total | `14326aa8` | Un total viejo al lado de una lista angostada es la opción deshonesta |
+| N4 | **PENDIENTE DE DECISIÓN TUYA**: los tipos de evento fuera de `LIBRETA_FILTER_CHIPS` (p.ej. `note_added`) siguen visibles bajo "Todos" pero no tienen chip propio | — | Agregar un chip "Otros" ensancharía el vocabulario de la constante: es decisión de producto, no de cableado. Hoy no se pierde nada, solo no se puede filtrar por ellos |
 
 ## Estado
 
@@ -564,7 +580,7 @@ que habría que hacer y que hacerlo sería un error.
 | A5 semilla sin dueño de cero mascotas (PO 31/07) | pendiente | |
 | A6 puerto hardcodeado en config de Playwright (PO 31/07) | pendiente | |
 | A2c aviso de capa desconocida enterrado (hallazgo de A1) | pendiente — necesita partir `PanoramaConsole.tsx` (en el fence) | |
-| A2 B3 chips en timeline único | pendiente | |
+| A2 B3 chips en timeline único | **CERRADA** — chips derivados del mismo array que filtran; solo se renderizan los que tienen eventos | `14326aa8` |
 | A3 caza de tests que pinnean el defecto | pendiente | |
 | B1 verificación en vivo de A1 | **CERRADA junto con A1** — píxeles leídos con `readPixels`, capturas en `docs/reviews/results/2026-07-31-a1-panorama/` | `f20cdc9d` |
 | B2 pasada 703 | pendiente | |
