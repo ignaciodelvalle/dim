@@ -1,5 +1,7 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
+import { uniqueIp } from "./demo/_helpers";
+
 /**
  * Authorization A/B isolation — LIVE validation (launchworthy Domain 3, the last
  * provisional manual check). Proves, against the running :3000 QA server, that:
@@ -13,26 +15,41 @@ import { type Browser, type BrowserContext, type Page, expect, test } from "@pla
  * one localhost IP trips them — we are not testing throttling, so each context
  * gets a distinct RFC-5737 documentation IP and each account logs in once).
  *
- * Seed reality (verified live 2026-07-15, all password "Test1234!"):
- *   ignacio@dim.test — owns active pet DIM-SNPY-0004 (Owner A).
- *   noeli@dim.test   — owns DIM-S005-PLRM only; NOT owner of SNPY (Owner B).
- *   lilian@dim.test  — member of Clínica Recoleta (DIM-R5GX-838G) ONLY.
- *   DIM-8M5Z-5G4C    — Refugio Patitas del Norte; lilian is NOT a member.
+ * ─── FIXTURE TIER (why these accounts and not the demo cast) ───────────────
+ * This spec used to run on ignacio/noeli/lilian@dim.test and the hardcoded
+ * tokens DIM-SNPY-0004 / DIM-8M5Z-5G4C. Those exist ONLY after the demo seed
+ * chain (scripts/seed-demo.ts + the storyline modules), which CI does not run:
+ * `pnpm db:bootstrap` seeds reference data and scripts/seed-test-users.ts, and
+ * nothing else. So the first CI run that actually reported a verdict answered
+ * "Correo o contraseña incorrectos." for all three tests — the accounts simply
+ * were not there. It looked green locally only because this machine had the
+ * demo seed applied by hand months ago.
+ *
+ * Everything below now uses the tier that `pnpm db:bootstrap` GUARANTEES, and
+ * discovers tokens at runtime instead of hardcoding them, so the spec runs in
+ * CI and locally alike (same approach as e2e/cross-tenant-isolation.spec.ts,
+ * which is why that one has always passed in CI):
+ *   owner@dim.test    — Owner A, has pets (token read from /mis-mascotas).
+ *   owner2@dim.test   — Owner B: a separate personal tenant, and a member of
+ *                       NO organization, so it doubles as the non-member.
+ *   orgadmin@dim.test — admin of "Refugio Test (Seed)"; used only to resolve
+ *                       that org's token, which is then the FOREIGN org for B.
  */
 
 const PASSWORD = "Test1234!";
 
-const OWNER_A = "ignacio@dim.test";
-const OWNER_A_PET = "DIM-SNPY-0004";
-const OWNER_B = "noeli@dim.test";
-const NON_MEMBER = "lilian@dim.test";
-const FOREIGN_ORG = "DIM-8M5Z-5G4C"; // Refugio Patitas del Norte — lilian is not a member
+const OWNER_A = "owner@dim.test";
+const OWNER_B = "owner2@dim.test";
+// owner2 belongs to no organization, so "Owner B" and "non-member" are the same
+// account. Keeping the alias makes each test read as the property it proves.
+const NON_MEMBER = OWNER_B;
+const ORG_ADMIN = "orgadmin@dim.test";
 
-let ipCounter = 0;
-function uniqueIp(): string {
-  ipCounter += 1;
-  return `203.0.113.${(ipCounter % 250) + 1}`;
-}
+// uniqueIp is imported, not redeclared. This file used to keep a private copy
+// with its own counter starting at 203.0.113.1 — the same first address the
+// shared helper hands out — so the two generators collided on every value and
+// the per-IP budget they exist to spread was shared after all. One counter per
+// worker is the whole point.
 
 type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 const stateCache = new Map<string, StorageState>();
@@ -91,8 +108,62 @@ async function openAs(
   return { context, page };
 }
 
+/**
+ * Owner A's first pet token, read from their own registry.
+ *
+ * Hardcoding a token is what broke this spec: a literal is a bet that one row
+ * survives every re-seed, and it silently turns into a 404 the day it does not
+ * — at which point "B cannot see A's pet" passes for the wrong reason, because
+ * NOBODY can see it. Reading the token from A's own /mis-mascotas makes the
+ * fixture true by construction and keeps the negative test meaningful.
+ */
+async function ownerAPetToken(browser: Browser): Promise<string> {
+  const a = await openAs(browser, OWNER_A);
+  try {
+    await a.page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
+    await a.page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+    // `/mis-mascotas/` alone also matches the sibling routes the registry links
+    // to — /nueva, /reclamar, /postulaciones. Anchoring on the `DIM-` prefix
+    // keeps this to real credentials: the token shape is invariant #1 and lives
+    // in lib/domain/dim-token.ts. (Without it this resolved to "nueva", and the
+    // isolation test then proved only that both owners can open the add-a-pet
+    // form — a green that asserts nothing.)
+    const link = a.page.locator('a[href^="/mis-mascotas/DIM-"]').first();
+    await expect(link, "Owner A must own at least one pet").toBeVisible();
+    const token = ((await link.getAttribute("href")) ?? "").split("/mis-mascotas/")[1] ?? "";
+    expect(token, "pet token parsed from Owner A's registry link").toBeTruthy();
+    return token.split(/[?#]/)[0];
+  } finally {
+    await a.context.close();
+  }
+}
+
+/** The token of "Refugio Test (Seed)", resolved from its own admin's portal. */
+async function foreignOrgToken(browser: Browser): Promise<string> {
+  const o = await openAs(browser, ORG_ADMIN);
+  try {
+    await o.page.goto("/org", { waitUntil: "domcontentloaded" });
+    await o.page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+    let match = o.page.url().match(/\/org\/([^/?#]+)/);
+    if (!match) {
+      const card = o.page.locator('a[href^="/org/"]').first();
+      await expect(card, "org picker card for the seeded refugio").toBeVisible();
+      await card.click();
+      await o.page.waitForURL(/\/org\/[^/?#]+/, { timeout: 15_000 });
+      match = o.page.url().match(/\/org\/([^/?#]+)/);
+    }
+    const token = match?.[1] ?? "";
+    expect(token, "org token resolved from the org-admin's portal").toBeTruthy();
+    return token;
+  } finally {
+    await o.context.close();
+  }
+}
+
 test.describe("Authorization A/B isolation (live)", () => {
   test("Owner B cannot open Owner A's private pet surface", async ({ browser }) => {
+    const OWNER_A_PET = await ownerAPetToken(browser);
+
     // Sanity: Owner A can open their own pet.
     const a = await openAs(browser, OWNER_A);
     try {
@@ -124,10 +195,14 @@ test.describe("Authorization A/B isolation (live)", () => {
   });
 
   test("Non-member cannot open a foreign org portal", async ({ browser }) => {
+    // Resolved from the org's OWN admin, which also proves the portal exists —
+    // so a 404 for the non-member is a denial, not a missing row.
+    const FOREIGN_ORG = await foreignOrgToken(browser);
+
     const m = await openAs(browser, NON_MEMBER);
     try {
-      // lilian is a member of Clínica Recoleta only; the foreign refugio must
-      // answer notFound (no existence leak — decision D4), never its dashboard.
+      // owner2 belongs to no organization; this refugio must answer notFound
+      // (no existence leak — decision D4), never its dashboard.
       const res = await m.page.goto(`/org/${FOREIGN_ORG}`);
       expect(res?.status(), "non-member opening foreign org must be 404").toBe(404);
     } finally {

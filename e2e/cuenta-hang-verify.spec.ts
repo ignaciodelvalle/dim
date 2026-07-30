@@ -20,8 +20,15 @@ test("owner /cuenta renders content, not the Cargando… skeleton", async ({ pag
   await expect(page.locator('output[aria-label="Cargando…"]')).toHaveCount(0);
 });
 
-test("vet org-admin (alejo) /cuenta renders after the org-selector path", async ({ page }) => {
-  await loginAs(page, ACCOUNTS.vetOrgAdmin);
+// Was pinned to ACCOUNTS.vetOrgAdmin (alejo@dim.test). That account exists only
+// after the demo seed chain, which CI never runs — `pnpm db:bootstrap` stops at
+// scripts/seed-test-users.ts — so in CI the login simply never succeeded and the
+// test died on the 30s hook timeout with no hint as to why. What this test
+// actually needs is "an account whose /org entry point resolves through the
+// org surface", and orgadmin@dim.test (admin of "Refugio Test (Seed)") is that,
+// on the fixture tier bootstrap guarantees.
+test("org-admin /cuenta renders after the org-selector path", async ({ page }) => {
+  await loginAs(page, ACCOUNTS.orgAdmin);
   // Reproduce the reported recovery path: enter via /org then land on /cuenta.
   await page.goto("/org").catch(() => {});
   await page.goto("/cuenta");

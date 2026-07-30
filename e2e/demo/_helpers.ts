@@ -38,9 +38,35 @@ export function uniqueIp(): string {
   return `203.0.113.${(ipCounter % 250) + 1}`;
 }
 
+/**
+ * Read the login form's error alert, if the server put one there.
+ *
+ * The login action answers with a rendered message and NO navigation for every
+ * refusal — bad credentials, and both rate-limit budgets (per-IP 10/min·100/hr,
+ * per-email 5/min·20/hr; see src/modules/auth/application/login.ts). A helper
+ * that only waits for the URL to change cannot tell those apart from a slow
+ * server, so it burns its whole budget and reports "Test timeout of 30000ms
+ * exceeded while running beforeEach hook" — which names the hook and not one
+ * thing about the cause. That is precisely how the a11y-regression CI failure
+ * of 2026-07-30 read, and it cost a full triage cycle to identify.
+ */
+async function loginErrorText(page: Page): Promise<string> {
+  const alert = page.getByRole("alert").filter({ hasText: /intento|contraseñ|inválid|incorrect/i });
+  if ((await alert.count().catch(() => 0)) === 0) return "";
+  return (
+    await alert
+      .first()
+      .innerText()
+      .catch(() => "")
+  ).trim();
+}
+
 /** Log in through the real UI at /login and wait until we leave the login page. */
 export async function loginAs(page: Page, email: string): Promise<void> {
-  // Fresh apparent origin per login — see uniqueIp above.
+  // Fresh apparent origin per login — see uniqueIp above. Note this defeats the
+  // per-IP budget ONLY: the per-email budget is keyed on the address, so a spec
+  // that logs in as the same account more than 5 times a minute (or 20 an hour)
+  // is rate-limited no matter what address it presents.
   await page.setExtraHTTPHeaders({ "x-real-ip": uniqueIp() });
   await page.goto("/login");
   // Let hydration finish before interacting — clicks dispatched before React
@@ -51,12 +77,21 @@ export async function loginAs(page: Page, email: string): Promise<void> {
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByLabel(/contraseña/i).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
+  const leftLogin = (url: URL) => !url.pathname.startsWith("/login");
   try {
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 10_000 });
+    await page.waitForURL(leftLogin, { timeout: 10_000 });
   } catch {
-    // Click was swallowed — submit via keyboard (the #39 workaround).
+    // Either the click was swallowed before hydration (the #39 workaround), or
+    // the server refused. Check for a refusal first so it is reported as one.
+    const refusal = await loginErrorText(page);
+    if (refusal) throw new Error(`login refused for ${email}: "${refusal}"`);
     await page.getByLabel(/contraseña/i).press("Enter");
-    await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
+    try {
+      await page.waitForURL(leftLogin, { timeout: 20_000 });
+    } catch (err) {
+      const late = await loginErrorText(page);
+      throw late ? new Error(`login refused for ${email}: "${late}"`) : err;
+    }
   }
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
 }

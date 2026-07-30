@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { ACCOUNTS, loginAs } from "./demo/_helpers";
+import { ACCOUNTS, loginAs, walkDenunciaWizard } from "./demo/_helpers";
 
 // Admin half of the task #47 shell-loss class (sibling of
 // e2e/gob-case-detail-shell.spec.ts). Only the govt half was fixed then: admin
@@ -22,12 +22,51 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
 //
 // Taking the first row of the operator's own queue also makes the case in-scope
 // by construction, which is stronger than trusting a literal to stay in scope.
-test("admin case detail keeps the operator shell", async ({ page }) => {
-  await loginAs(page, ACCOUNTS.admin);
+//
+// ─── WHY THIS SPEC NOW CREATES ITS OWN CASE ────────────────────────────────
+// Reading from the queue fixed the stale-literal problem and introduced a
+// quieter one: it assumes the queue is not empty. On this machine it never is
+// (thousands of accumulated cases), and on a freshly bootstrapped CI database
+// it always is — `pnpm db:bootstrap` seeds reference data and test users, and
+// no case anywhere. So the first CI run that reported a verdict failed here
+// with "at least one case in the admin queue", and the fixture the spec needs
+// had simply never existed outside a developer's laptop.
+//
+// A denuncia is the real origin of a case: create-welfare-report.ts opens a
+// `welfare_denuncia` case in the same transaction as the report. So the spec
+// walks the public citizen wizard when the queue is empty — the same path a
+// real first case takes — rather than skipping, or asking CI to carry the
+// demo seed.
+const ADMIN_CASE_LINK = 'a[href^="/admin/casos/"]';
+
+/** Guarantee at least one case exists, creating one the way citizens do. */
+async function ensureAtLeastOneCase(page: Page): Promise<void> {
+  await page.goto("/admin/casos");
+  await page.waitForLoadState("networkidle").catch(() => {});
+  if ((await page.locator(ADMIN_CASE_LINK).count()) > 0) return;
+
+  // Anonymous denuncia → welfare_denuncia case. Not flagged: a flagged report
+  // is held for moderation, and this spec is about the case shell, not triage.
+  const context = await page.context().browser()?.newContext();
+  if (!context) throw new Error("no browser context available to file a denuncia");
+  try {
+    const anon = await context.newPage();
+    const code = await walkDenunciaWizard(anon);
+    expect(code, "denuncia filed to seed the admin case queue").toBeTruthy();
+  } finally {
+    await context.close();
+  }
 
   await page.goto("/admin/casos");
   await page.waitForLoadState("networkidle").catch(() => {});
-  const queueLink = page.locator('a[href^="/admin/casos/"]').first();
+}
+
+test("admin case detail keeps the operator shell", async ({ page }) => {
+  test.setTimeout(120_000);
+  await loginAs(page, ACCOUNTS.admin);
+  await ensureAtLeastOneCase(page);
+
+  const queueLink = page.locator(ADMIN_CASE_LINK).first();
   await expect(queueLink, "at least one case in the admin queue").toBeVisible();
   const CASE_CODE = ((await queueLink.getAttribute("href")) ?? "").split("/").pop() ?? "";
   expect(CASE_CODE, "case code read from the queue").not.toBe("");

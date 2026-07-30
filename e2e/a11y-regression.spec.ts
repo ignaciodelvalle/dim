@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { type Page, expect, test } from "@playwright/test";
+import { type Browser, type Page, expect, test } from "@playwright/test";
 
 import { ACCOUNTS, loginAs } from "./demo/_helpers";
 
@@ -23,12 +23,61 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
  * Arrow keys rove + activate, and Enter on a tab flips the credential face.
  */
 
-// Seeded by scripts/seed-demo.ts. DIM-DEMO-0001 (Rocco) is owner@dim.test's
-// first pet — active, so the profile renders the Credencial/Libreta flip; its
-// public credential lives at /p/<token>. (The prior token DIM-B4KS-KWZA no
-// longer exists in the demo seed, so every assertion below silently ran against
-// a 404 page — clickthrough review 2026-07-09.)
-const PET_TOKEN = "DIM-DEMO-0001";
+// The pet under test is READ FROM owner@dim.test's OWN REGISTRY, never
+// hardcoded.
+//
+// This is the third time a literal token has rotted here. DIM-B4KS-KWZA went
+// first (clickthrough review 2026-07-09); its replacement DIM-DEMO-0001 comes
+// from scripts/seed-owner-demo.ts, which CI does not run — `pnpm db:bootstrap`
+// stops at scripts/seed-test-users.ts — so on a freshly bootstrapped database
+// the token resolves to nothing.
+//
+// The failure mode is worse than a red test: a not-found page is a SMALL, CLEAN
+// page, so axe finds zero violations on it and the two scans below reported
+// "critical=0 serious=0" while scanning nothing at all. CI printed exactly that
+// for /p/DIM-DEMO-0001 and /mis-mascotas/DIM-DEMO-0001 on 2026-07-30 — a green
+// a11y gate over a 404. Only the keyboard test failed, because it is the one
+// that reaches for a real control.
+//
+// Hence both changes here: resolve the token at runtime AND assert the page is
+// not the not-found boundary before handing it to axe.
+let cachedPetToken: string | null = null;
+
+async function petToken(browser: Browser): Promise<string> {
+  if (cachedPetToken) return cachedPetToken;
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    await loginAs(page, ACCOUNTS.owner);
+    await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+    // Anchored on the `DIM-` prefix so this cannot pick up the registry's
+    // sibling routes (/nueva, /reclamar, /postulaciones). The token shape is
+    // invariant #1 — see lib/domain/dim-token.ts.
+    const link = page.locator('a[href^="/mis-mascotas/DIM-"]').first();
+    await expect(link, "owner@dim.test must own at least one pet").toBeVisible();
+    const token = ((await link.getAttribute("href")) ?? "").split("/mis-mascotas/")[1] ?? "";
+    expect(token, "pet token parsed from the owner registry link").toBeTruthy();
+    cachedPetToken = token.split(/[?#]/)[0];
+    return cachedPetToken;
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * Refuse to scan a page that is not the page under test.
+ *
+ * axe on a not-found (or crashed) route returns a clean bill of health, so
+ * without this every token drift downgrades an assertion into a decoration.
+ */
+async function assertRealPage(page: Page, route: string): Promise<void> {
+  await expect(page.getByText(/application error/i), `${route}: app crashed`).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: /no encontramos esta página/i }),
+    `${route}: rendered the not-found boundary — axe would scan a 404 and pass vacuously`,
+  ).toHaveCount(0);
+}
 
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"] as const;
 
@@ -78,11 +127,12 @@ test.describe("a11y regression — public surfaces (axe, WCAG 2.1 AA)", () => {
     assertAxeClean("/", await analyze(page));
   });
 
-  test(`public credential /p/${PET_TOKEN} — no serious/critical`, async ({ page }) => {
-    await page.goto(`/p/${PET_TOKEN}`);
+  test("public credential /p/[token] — no serious/critical", async ({ page, browser }) => {
+    const token = await petToken(browser);
+    await page.goto(`/p/${token}`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
-    assertAxeClean(`/p/${PET_TOKEN}`, await analyze(page));
+    await assertRealPage(page, `/p/${token}`);
+    assertAxeClean(`/p/${token}`, await analyze(page));
   });
 });
 
@@ -98,15 +148,16 @@ test.describe("a11y regression — authenticated owner surfaces (axe, WCAG 2.1 A
   test("/inicio — no serious/critical", async ({ page }) => {
     await page.goto("/inicio");
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
+    await assertRealPage(page, "/inicio");
     assertAxeClean("/inicio", await analyze(page));
   });
 
-  test(`pet profile /mis-mascotas/${PET_TOKEN} — no serious/critical`, async ({ page }) => {
-    await page.goto(`/mis-mascotas/${PET_TOKEN}`);
+  test("pet profile /mis-mascotas/[token] — no serious/critical", async ({ page, browser }) => {
+    const token = await petToken(browser);
+    await page.goto(`/mis-mascotas/${token}`);
     await page.waitForLoadState("networkidle");
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
-    assertAxeClean(`/mis-mascotas/${PET_TOKEN}`, await analyze(page));
+    await assertRealPage(page, `/mis-mascotas/${token}`);
+    assertAxeClean(`/mis-mascotas/${token}`, await analyze(page));
   });
 });
 
@@ -123,9 +174,12 @@ test.describe("a11y regression — pet-profile flip keyboard nav", () => {
 
   test("the band Girar button is keyboard-operable, toggles aria-pressed, and moves focus to the shown face", async ({
     page,
+    browser,
   }) => {
-    await page.goto(`/mis-mascotas/${PET_TOKEN}`);
+    const token = await petToken(browser);
+    await page.goto(`/mis-mascotas/${token}`);
     await page.waitForLoadState("networkidle");
+    await assertRealPage(page, `/mis-mascotas/${token}`);
 
     // No tablist remains — the band button is the single switcher (history:
     // removed by decision #645, restored by the July redesign, removed again).
