@@ -186,6 +186,90 @@ es el dato (Pérdidas) se agrega la píldora de tiempo transcurrido — el mismo
 patrón que `CaseQueue` ya usa con su píldora de ≥14 días y que Decomisos usa con
 su contador de días. Así no se pierde información de urgencia al unificar.
 
+## B1 — spec del codemod (análisis 2026-07-30, compilado contra el CSS real)
+
+Inventario exacto, sin drift contra el baseline: **703 usos / 207 archivos**,
+idéntico a `scripts/design-tokens-baseline.json` (`deadTextVar`, cortado
+2026-07-05). Reparto: `--text-sm` 234, `--text-md` 199, `--text-xs` 147,
+`--text-title` 95, `--text-xl` 9, `--text-2xl` 8, `--text-base` 7, `--text-lg` 4.
+
+**Población que NO se toca**: `text-[var(--color-*)]` — **1.881 usos / 265
+archivos**, casi 3× la población muerta, y funciona bien (el nombre de la var
+lleva `color-`, que es justo lo que deja a Tailwind inferir el tipo). El regex
+debe matchear `--text-[a-z0-9-]+` y JAMÁS `--color-`.
+
+### El hallazgo que cambia cómo se leen las capturas
+
+Compilando el CSS real: todas las utilidades `text-[...]` caen en UN bloque
+ordenado alfabéticamente, y **`"color"` ordena antes que `"text"`**. Con igual
+especificidad gana la última regla del archivo — o sea, **la regla muerta le
+gana hoy a la regla de color correcta**, sin importar el orden en el `className`.
+Y como `color: var(--text-sm)` es un `<color>` inválido, el elemento cae a
+color HEREDADO.
+
+Medido parseando cada `className`: de los 703, **85 elementos comparten elemento
+con un `text-[var(--color-X)]`** y por lo tanto **hoy están mostrando un color
+que su autor nunca eligió**. Al sacar la clase muerta, esos 85 van a cambiar de
+color — **es una corrección, no una regresión**, y hay representantes en las 5
+superficies a capturar. Quien lea las capturas tiene que saber esto de antemano
+o va a reportar un bug donde hay un arreglo.
+
+Los otros: 568 conviven con una utilidad de color NOMBRADA (que ya gana el
+cascade hoy → solo suman font-size, bajo riesgo), 36 están solos, ~14 viven
+fuera de un `className=` literal.
+
+### Consecuencias para la implementación
+
+- **Substitución literal por texto crudo, NO walk de AST sobre `className`**:
+  ~14 usos viven en mapas de variantes (`OpButton.tsx:65-66`), constantes de
+  módulo (`AlcanceScreen.tsx:234`) y defaults de parámetro (`ResultCount.tsx:50`).
+  Un codemod que solo recorra atributos JSX los saltea en silencio.
+- **Efecto secundario del rename**: `text-xs`/`text-sm`/`text-base`/`text-lg`/
+  `text-xl`/`text-2xl` traen line-height de Tailwind que hoy no se aplica.
+  `text-md` y `text-title` no tienen companion de line-height → limpios.
+- `--text-xs` (10px) y `--text-sm` (12px) **overridean** la escala de Tailwind
+  (12/14). No es un problema, pero explica por qué se ven más chicos que en
+  cualquier otro proyecto.
+- `text-title` no existe hoy como literal en ningún lado: este codemod es lo
+  primero que va a hacer que Tailwind lo emita.
+- **Nada pinnea el string roto**: cero matches en tests, specs y e2e. Ningún
+  test va a fallar por el rename.
+- `@apply`: cero usos. Sin riesgo.
+
+**Riesgo: medio.** Mecánicamente es trivial; la carga real está en la revisión
+visual de los 85.
+
+## SC-7 (NUEVA) — el gemelo del bug 703: `font-[var(--font-ln-*)]`
+
+Descubierto compilando el CSS de B1, **fuera del alcance de la decisión del PO**
+(que nombra solo `text-`). No se folda en B1 en silencio.
+
+`font-` es igual de ambiguo que `text-` (familia vs peso vs estilo) y con una
+var pelada Tailwind elige **font-weight**. Verificado en el build:
+
+```
+.font-\[var\(--font-ln-mono\)\]{--tw-font-weight:var(--font-ln-mono);font-weight:var(--font-ln-mono)}
+```
+
+Como `--font-ln-mono` resuelve a un stack de fuentes, no a un `<font-weight>`,
+la declaración es inválida y cae a heredado: **font-family muerta**, mismo bug.
+
+**521 usos / 144 archivos**: mono 349, serif 135, sans 37. El arreglo ya existe
+y compila bien: `font-ln-mono` / `font-ln-serif` / `font-ln-sans`.
+
+**El guard de la regla 9 NO lo cubre** — `DEAD_TEXT_VAR`
+(`scripts/check-design-tokens.ts:191`) matchea solo el prefijo `text-`. Esta
+población no tiene fence ni baseline.
+
+**Por qué NO va adentro de B1**: el delta visual es de otra naturaleza. B1 suma
+tamaños de fuente (sutil). SC-7 haría que 349 elementos que hoy se ven en la
+sans heredada pasen a **monoespaciada** de golpe — es el diseño original, pero
+es un cambio dramático que necesita sus propias capturas y su propia ratificación.
+Meterlo en el mismo commit haría ilegible la revisión de los dos.
+
+**Acción**: unidad propia, con guard nuevo + baseline, capturas propias. A la
+lista de ratificación como hallazgo.
+
 ## BLOQUE B — servidor UNA vez (reconstruir al entrar al bloque)
 
 Secuencia de entrada: matar `:3001` → build → qa-up → guard verde.
@@ -319,6 +403,8 @@ autorización es para ESTA corrida, no permanente.
 | R2 | **A5: gana la anatomía de `CaseQueue`**, y se adoptan sus ÁTOMOS en las otras 4 colas en vez de forzarlas a `<table>` | Medición en este archivo (§A5): 4 superficies vs 1 de cada una de las otras | Las colas quedan como están hoy: 5 gramáticas visuales distintas para el mismo trabajo |
 | R3 | **B3 redefinida: NO se diferencian las 3 rutas de la libreta** | §B3 de este archivo: ADR-10, handoff "Una sola libreta", matriz de tests `pet-face-nav.test.ts:42-123` | Si el PO igual quiere 3 destinos distintos, hay que revertir ADR-10 — decisión de producto, no de implementación |
 | R4 | **B2: la post-alta LINKEA a `/chapita` en vez de imprimir el QR ahí mismo** | §B2 punto 3: `/chapita` está gateada por `printable_qr`, que puede estar deshabilitado por jurisdicción | Un botón de imprimir embebido saltearía el gate de canal de la jurisdicción |
+| R7 | **HALLAZGO NUEVO — hay un segundo bug idéntico al de los 703, sin fence: `font-[var(--font-ln-*)]`, 521 usos / 144 archivos, font-family MUERTA** | §SC-7: verificado en el CSS compilado, `font-weight:var(--font-ln-mono)` es inválido y cae a heredado | Hoy 349 elementos que el diseño quiere monoespaciados se ven en la sans heredada. Arreglarlo es un cambio visual grande — por eso va como unidad propia con capturas propias, NO adentro de B1 |
+| R8 | **Al arreglar los 703, 85 elementos van a CAMBIAR DE COLOR** | §B1: el cascade alfabético (`color` < `text`) hace que hoy la regla muerta le gane a la regla de color correcta | Es una corrección, no una regresión. Se anota para que nadie lea las capturas al revés |
 | R5 | **A3: dos desvíos de la tabla acto→clase→gramática** — (a) `ReviewButtons`/rechazo dice **"No avanzar"**, no "Rechazar postulación" (la pantalla ya eligió el verbo suave y renombrarlo a mitad de flujo lo vuelve otro acto); (b) `CancelTransferAction` gana `cancelLabel="Volver"` (único diálogo donde "Cancelar" es homógrafo del acto) | Commits `f50e2064` / `acd08f43`; 182 tests verdes en 25 archivos dirigidos | Sólo copy: se vuelve al label de la tabla con un string |
 | R6 | **A3: la tabla tenía 3 sitios incompletos y 5 fuera de inventario.** `InvestigationActions` son 5 modos (no 3), `GovtModerationActions` 3 (no 1), `TriageActions` 5 — todos pasan a mapa label-por-modo. Fuera de tabla, mismo defecto: `EndFosterButton`, `LeaveMembershipButton`, `WithdrawButton`, `BlockSlotButton`, `SheetMounter`, y el default de `CaptureConfidenceCard` | `__tests__/confirm-label-grammar.guard.test.ts` en cero; mutación verificada (label revuelto → el guard lo nombra con archivo:línea) | Sin los 5 fuera de tabla el guard de regresión no puede quedar en cero, así que revertirlos implica borrar el fence |
 
