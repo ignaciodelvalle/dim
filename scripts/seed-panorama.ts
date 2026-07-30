@@ -180,6 +180,14 @@ const { PROVINCES } = await import("@/lib/reference/ar-provincias");
 const { generateReferenceCode } = await import("../src/modules/welfare/domain/reference-code");
 const { generatePrefixedToken } = await import("@/lib/infra/publicToken");
 
+// ─── Open-case guards ───────────────────────────────────────────────────────
+// Deferred like everything else in this block because the module statically
+// imports ../db. See scripts/seed-case-guards.ts for why a seed step that OPENS
+// a case must not pick its pet with an unordered LIMIT.
+const { findOpenCasesOfKind, selectPetsWithoutOpenCase, selectSeedPetsOrdered } = await import(
+  "./seed-case-guards"
+);
+
 // ─── The real intake circuit ────────────────────────────────────────────────
 // Panorama pets are created through the SAME use-case the alta wizard drives
 // (registerPet), not through a direct db.insert(pets). See registerSeedPet
@@ -2685,30 +2693,49 @@ async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: nu
 
   // Attach to existing PANO pets (primary_pet_id ON DELETE CASCADE → auto-clean)
   // so the cases_subject_pet_consistency CHECK holds for registered_pet.
-  const panoPets = await db
-    .select({
-      id: pets.id,
-      province: pets.jurisdictionProvince,
-      locality: pets.jurisdictionLocality,
-    })
-    .from(pets)
-    .where(like(pets.publicToken, `${PANO_TAG}%`))
-    .limit(40);
+  //
+  // Both pools are drawn through selectPetsWithoutOpenCase: token-ordered (an
+  // unordered LIMIT returns physical heap order, which shifts under the seed's
+  // own UPDATEs on pets) and NOT EXISTS-guarded against an already-open case of
+  // the kind about to be opened, so `cases_open_per_pet_kind_idx` cannot fire.
+  const decomisoPool = await selectPetsWithoutOpenCase({
+    tokenPrefix: PANO_TAG,
+    caseKind: "custody_episode",
+    limit: 40,
+  });
+  const decomisoTargets = decomisoPool.slice(0, 6);
+  const decomisoIds = new Set(decomisoTargets.map((p) => p.id));
 
-  if (panoPets.length === 0) {
-    log("WARN", "  No PANO pets found for enforcement cases — skipping");
+  // custody_episode and custody_dispute are DIFFERENT kinds, so the index would
+  // tolerate both open on one pet — the disjointness below is a realism choice
+  // (a seizure and a custody fight are separate stories), not a constraint.
+  const disputePool = await selectPetsWithoutOpenCase({
+    tokenPrefix: PANO_TAG,
+    caseKind: "custody_dispute",
+    limit: 40,
+  });
+  const disputeTargets = disputePool.filter((p) => !decomisoIds.has(p.id)).slice(0, 5);
+
+  if (decomisoTargets.length === 0 && disputeTargets.length === 0) {
+    log("WARN", "  No eligible PANO pets found for enforcement cases — skipping");
     return { decomisos: 0, disputes: 0 };
+  }
+  if (decomisoTargets.length < 6 || disputeTargets.length < 5) {
+    log(
+      "WARN",
+      `  Enforcement pool short: ${decomisoTargets.length}/6 decomiso pets, ` +
+        `${disputeTargets.length}/5 dispute pets without an open case of that kind`,
+    );
   }
 
   const SEIZURE_MOTIVES = ["maltrato", "abandono", "tenencia_ilegal", "orden_judicial"] as const;
 
   let decomisos = 0;
   let disputes = 0;
-  let cursor = 0;
 
   // 6 decomisos (custody_episode, from_decomiso=true) spread across provinces.
-  for (let k = 0; k < 6 && cursor < panoPets.length; k++, cursor++) {
-    const pet = panoPets[cursor];
+  for (let k = 0; k < decomisoTargets.length; k++) {
+    const pet = decomisoTargets[k];
     const prov = pet.province ?? "Buenos Aires";
     const motive = pick(SEIZURE_MOTIVES);
     await db.insert(cases).values({
@@ -2745,8 +2772,8 @@ async function seedEnforcementCases(): Promise<{ decomisos: number; disputes: nu
   // links back to via custody_dispute_id. /gob/analytics counts the open
   // `cases`; /gob/disputas lists the `custody_disputes` table — seeding only the
   // case half left the disputas list empty for everyone while analytics showed 5.
-  for (let k = 0; k < 5 && cursor < panoPets.length; k++, cursor++) {
-    const pet = panoPets[cursor];
+  for (let k = 0; k < disputeTargets.length; k++) {
+    const pet = disputeTargets[k];
     const prov = pet.province ?? "Buenos Aires";
     // custody_disputes.jurisdiction_locality is NOT NULL; coalesce so a pet
     // without a locality still yields a valid dispute row.
@@ -4385,15 +4412,16 @@ async function seedHistoryCampaigns(
 async function seedFeedVarietyTail(ownerUserId: string, shelterOrgs: PanoOrg[]): Promise<number> {
   log("STEP", "Seeding novedades-feed variety tail (5 feed types, distinct localities)…");
 
-  const candidates = await db
-    .select({
-      id: pets.id,
-      province: pets.jurisdictionProvince,
-      locality: pets.jurisdictionLocality,
-    })
-    .from(pets)
-    .where(like(pets.publicToken, `${PANO_TAG}%`))
-    .limit(60);
+  // ORDER BY public_token, not "whatever the heap hands back": an unordered
+  // LIMIT returns physical order, and by the time this step runs the seed has
+  // UPDATEd pets rows repeatedly (status='lost', cache columns,
+  // in_custody_dispute), so the same script produced a DIFFERENT slice on
+  // different runs. That variance is what made the custody_dispute insert below
+  // collide with seedEnforcementCases's disputes only *sometimes*.
+  //
+  // Four of the five feed types write pet_events only, so the pool itself needs
+  // no case guard — the dispute target gets its own guarded pool below.
+  const candidates = await selectSeedPetsOrdered({ tokenPrefix: PANO_TAG, limit: 60 });
 
   if (candidates.length === 0) {
     log("WARN", "  No PANO pets found — skipping feed variety tail");
@@ -4504,7 +4532,62 @@ async function seedFeedVarietyTail(ownerUserId: string, shelterOrgs: PanoOrg[]):
 
   // 5) custody_dispute_raised — needs its case + custody_disputes rows,
   // mirroring seedEnforcementCases's lockstep (case ↔ pet_event ↔ dispute).
-  const disputeTarget = targets[3] ?? targets[0];
+  //
+  // This is the only one of the five that OPENS a case, so it is the only one
+  // `cases_open_per_pet_kind_idx` can reject. targets[3] came from the ordered
+  // pool above with no regard for existing cases, and seedEnforcementCases has
+  // already opened five custody_dispute cases on PANO pets by the time this
+  // runs — pick from a NOT EXISTS-guarded pool instead, keeping targets[3]
+  // whenever it is legal so the locality spread is unchanged in the common case.
+  const disputeCandidates = await selectPetsWithoutOpenCase({
+    tokenPrefix: PANO_TAG,
+    caseKind: "custody_dispute",
+    limit: 200,
+  });
+  const intendedDisputeTarget = targets[3] ?? targets[0];
+  // Localities already spoken for by the four event-only items (targets[0..2];
+  // targets[4] is the spare the de-dup loop collects but nothing writes to).
+  const localityKey = (t: { province: string | null; locality: string | null }): string =>
+    `${t.province ?? ""}|${t.locality ?? ""}`;
+  const otherLocalities = new Set(targets.slice(0, 3).map(localityKey));
+  const disputeTarget =
+    disputeCandidates.find((c) => c.id === intendedDisputeTarget.id) ??
+    disputeCandidates.find((c) => !otherLocalities.has(localityKey(c))) ??
+    disputeCandidates[0];
+
+  if (!disputeTarget) {
+    const localities = new Set(targets.slice(0, 3).map(localityKey)).size;
+    log(
+      "WARN",
+      "  Every PANO pet already has an open custody_dispute — skipping the " +
+        "custody_dispute_raised item. The feed tail carries 4 of its 5 types this run.",
+    );
+    log(
+      "OK",
+      `  Feed variety tail: incident_reported, rabies_observation_started, outbreak_signal, disease_reported (${inserted} events, ${localities} distinct localities)`,
+    );
+    void shelterOrgs;
+    return inserted;
+  }
+
+  if (disputeTarget.id !== intendedDisputeTarget.id) {
+    log(
+      "INFO",
+      `  Dispute target moved to ${disputeTarget.publicToken} — the locality-spread pick already had an open custody_dispute (one open case per pet per kind).`,
+    );
+  }
+
+  // Unreachable by construction — the pool above is NOT EXISTS-guarded on the
+  // same predicate as the index. Kept as a tripwire: if someone later swaps the
+  // guarded pool for a plain LIMIT, this fails with the reason instead of with
+  // a bare `duplicate key value violates unique constraint` from Postgres.
+  const conflicting = await findOpenCasesOfKind(disputeTarget.id, "custody_dispute");
+  if (conflicting.length > 0) {
+    throw new Error(
+      `seedFeedVarietyTail: pet ${disputeTarget.publicToken} already has an open custody_dispute (${conflicting.map((c) => c.publicCode).join(", ")}). The open-case guard was bypassed — see scripts/seed-case-guards.ts.`,
+    );
+  }
+
   const disputeProv = disputeTarget.province ?? "Buenos Aires";
   const disputeLocality = disputeTarget.locality ?? "Sin especificar";
 
@@ -4560,9 +4643,14 @@ async function seedFeedVarietyTail(ownerUserId: string, shelterOrgs: PanoOrg[]):
     .where(eq(cases.id, disputeCase.id));
   await db.update(pets).set({ inCustodyDispute: true }).where(eq(pets.id, disputeTarget.id));
 
+  // `inserted` is the true pet_events count — the old log said `inserted + 1`
+  // and reported 6 events for the 5 this step writes. The locality count is
+  // likewise the localities actually WRITTEN TO, not the size of the candidate
+  // shortlist (targets[4] is collected by the de-dup loop and never used).
+  const localitiesTouched = new Set([...targets.slice(0, 3), disputeTarget].map(localityKey)).size;
   log(
     "OK",
-    `  Feed variety tail: incident_reported, rabies_observation_started, outbreak_signal, disease_reported, custody_dispute_raised (${inserted + 1} events, ${targets.length} distinct localities)`,
+    `  Feed variety tail: incident_reported, rabies_observation_started, outbreak_signal, disease_reported, custody_dispute_raised (${inserted} events, ${localitiesTouched} distinct localities)`,
   );
 
   // Note: intentionally NOT using shelterOrgs here — the variety tail's
@@ -4570,7 +4658,7 @@ async function seedFeedVarietyTail(ownerUserId: string, shelterOrgs: PanoOrg[]):
   // set-piece style above rather than org attribution.
   void shelterOrgs;
 
-  return inserted + 1;
+  return inserted;
 }
 
 // ---------------------------------------------------------------------------
