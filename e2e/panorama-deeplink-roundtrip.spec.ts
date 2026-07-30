@@ -115,8 +115,20 @@ test.describe("panorama — deep-link fidelity", () => {
     await loginAs(page, ACCOUNTS.admin);
     // Province scope travels as an ISO code through `provinceByCode`
     // (lib/reference/ar-provincias.ts) — NOT as a slug.
+    //
+    // THE LAYER SET IS LEDGER, NOT DECORATION. This deep-link used to ask for
+    // `preset=cumplimiento&layers=cobertura,microchip`, and then demanded the
+    // summary read "3 años". Both of those layers are `temporal: false`
+    // (src/modules/panorama/domain/layers.ts), and `buildViewMeta` deliberately
+    // renders "estado actual" instead of a window when EVERY active layer is
+    // current-state — a documented rule (commit 6c39a264, F-4 of the panorama
+    // semantics critique: never stamp a period over a number that does not move
+    // with it). So the assertion was demanding a label the product is designed
+    // not to print, and the period restore it meant to protect was never
+    // actually observable on that board. `denuncias` is a `temporal: true`
+    // layer, so here the window is real and "3 años" is the honest rendering.
     const url =
-      "/admin/panorama?preset=cumplimiento&layers=cobertura%2Cmicrochip&period=3y&province=AR-B";
+      "/admin/panorama?preset=cumplimiento&layers=denuncias%2Cmicrochip&period=3y&province=AR-B";
 
     await page.goto(url, { waitUntil: "domcontentloaded" });
     await clearSavedBoard(page);
@@ -126,5 +138,8 @@ test.describe("panorama — deep-link fidelity", () => {
     expect(board.summary, "reopens scoped to Buenos Aires").toContain("Buenos Aires");
     expect(board.summary, "reopens with both requested layers").toContain("2 capas");
     expect(board.summary, "reopens on the requested window").toContain("3 años");
+    // The period COORDINATE must survive the round trip too, independently of
+    // how the dock chooses to label it.
+    expect(page.url(), "period survives the deep-link round trip").toContain("period=3y");
   });
 });

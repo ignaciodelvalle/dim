@@ -1,6 +1,7 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
 import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
+import { ACCOUNTS, discoverPetToken, resolveOrgToken } from "./demo/_helpers";
 
 /**
  * Owner IA redesign — P6 LIVE validation pass.
@@ -21,12 +22,29 @@ import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
  * ONCE per run; its storageState (auth cookies) is cached and reused by every
  * test that needs it. This is also the Playwright-recommended pattern.
  *
- * Seed accounts (all password "Test1234!", verified live before writing):
- *   ignacio@dim.test — 9 live pets (carousel owner; fresh login budget)
- *   noeli@dim.test   — owns DIM-S005-PLRM "Luna" (LOST)
- *   lilian@dim.test  — vet, single-org member (Clínica Recoleta) → /org/ landing
- *   alejo@dim.test   — admin of Refugio Patitas del Norte → org-path viewer of
- *                      DIM-ARGO-DEMO (held pet), 0 personally-owned pets
+ * ─── FIXTURE TIER (rewritten 2026-07-31) ───────────────────────────────────
+ * This spec was written against the DEMO dataset — ignacio / noeli / lilian /
+ * alejo, and the literal tokens DIM-SNPY-0004, DIM-PAMP-0001, DIM-S005-PLRM,
+ * DIM-ARGO-DEMO. None of them exist on a database built by `pnpm db:bootstrap`,
+ * which is what CI runs, so SEVEN of this file's tests were among the 21
+ * failures of the first e2e run that ever reported a verdict: three answered
+ * "Correo o contraseña incorrectos", two more "Demasiados intentos" (the
+ * per-email limiter counts FAILED attempts too, so the missing accounts burned
+ * their own budget), and two asserted content against a not-found boundary.
+ * "Passes locally" was measuring accumulated laptop state, not the code.
+ *
+ * Everything now runs on the bootstrap tier, and every token is discovered at
+ * RUNTIME — bootstrap generates pet tokens with `generatePublicToken()`, so a
+ * literal cannot name a pet that exists on a fresh database.
+ *
+ * Seed accounts (all password "Test1234!"):
+ *   owner@dim.test    — 3 live pets (carousel owner: >1 pet is what tests 1-5
+ *                       need, and 3 is guaranteed by seedOwnerPets)
+ *   vet@dim.test      — role=vet, single active membership in "Refugio Test
+ *                       (Seed)" → /mis-mascotas redirects to that /org portal
+ *   orgadmin@dim.test — admin of "Refugio Test (Seed)", which HOLDS three pets
+ *                       via ownerships(owner_organization_id, shelter_custody),
+ *                       and owns none personally → the org-viewer POV
  *   ZERO_PET_OWNER   — owner, 0 pets, no org memberships (zero-pet landing).
  *                      Imported from scripts/seed-reserved-accounts.ts, NOT
  *                      hardcoded: this used to name carla@dim.test, who by
@@ -41,20 +59,13 @@ import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
  *                      __tests__/seed-hygiene.test.ts, which fails `pnpm test`
  *                      the moment it acquires a pet.
  *   admin@dim.test   — admin (cockpit)
- * Flagship public pet: DIM-PAMP-0001. Owner-owned deterministic pet for the
- * keyboard test: DIM-SNPY-0004 (Snoopy, owned by ignacio).
  */
 
 const PASSWORD = "Test1234!";
 
-const CAROUSEL_OWNER = "ignacio@dim.test";
-const OWNER_PET = "DIM-SNPY-0004"; // active, owned by ignacio
-const FLAGSHIP = "DIM-PAMP-0001"; // flagship, public
-const LOST_OWNER = "noeli@dim.test";
-const LOST_TOKEN = "DIM-S005-PLRM";
-const VET = "lilian@dim.test";
-const ORG_VIEWER = "alejo@dim.test";
-const ORG_HELD_TOKEN = "DIM-ARGO-DEMO";
+const CAROUSEL_OWNER = ACCOUNTS.owner; // 3 seeded pets — >1 is what tests 1-5 need
+const VET = ACCOUNTS.vet; // single-org member → /mis-mascotas lands on /org/<token>
+const ORG_VIEWER = ACCOUNTS.orgAdmin; // holds pets through the org, owns none
 // NOT a literal, and not a general-purpose persona. See the header note above.
 const ZERO_PET_OWNER = ZERO_PET_OWNER_EMAIL;
 const ADMIN = "admin@dim.test";
@@ -331,12 +342,15 @@ test("5 — ArrowRight does not navigate pets while the anotar sheet is open", a
 }) => {
   const { context, page } = await openAs(browser, CAROUSEL_OWNER);
   try {
-    await page.goto(`/mis-mascotas/${OWNER_PET}?sheet=anotar`);
+    // Token discovered from the owner's own registry — bootstrap generates it
+    // randomly, so no literal can name it (this was DIM-SNPY-0004).
+    const ownerPet = await discoverPetToken(page);
+    await page.goto(`/mis-mascotas/${ownerPet}?sheet=anotar`);
     const dialog = page.getByRole("dialog");
     await expect(dialog, "anotar sheet open on the owned pet").toBeVisible({ timeout: 15_000 });
 
     const before = tokenFromUrl(page.url());
-    expect(before).toBe(OWNER_PET);
+    expect(before).toBe(ownerPet);
 
     // The carousel's window ArrowRight handler must be inert while a dialog is
     // open (PetCredentialCarousel guards on [role=dialog]/[data-vaul-drawer]).
@@ -441,11 +455,26 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
 }) => {
   const { context, page } = await openAs(browser, ORG_VIEWER);
   try {
-    await page.goto(`/mis-mascotas/${ORG_HELD_TOKEN}`);
+    // The held pet comes from the ORG portal, not /mis-mascotas: orgadmin owns
+    // nothing personally, and the org's three seeded pets are held through
+    // ownerships(owner_organization_id, 'shelter_custody'). Discovered at
+    // runtime — bootstrap's tokens are random (this was DIM-ARGO-DEMO).
+    const orgToken = await resolveOrgToken(page, /Refugio Test/i);
+    await page.goto(`/org/${orgToken}/animales`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+    const petLink = page
+      .locator('a[href*="/mis-mascotas/DIM-"], a[href*="/animales/DIM-"]')
+      .first();
+    await expect(petLink, "org portal lists a held animal").toBeVisible({ timeout: 20_000 });
+    const heldToken =
+      ((await petLink.getAttribute("href")) ?? "").match(/DIM-[A-Z0-9-]+/)?.[0] ?? "";
+    expect(heldToken, "org-held pet token resolved at runtime").toMatch(/^DIM-/);
+
+    await page.goto(`/mis-mascotas/${heldToken}`);
     await page.waitForLoadState("domcontentloaded");
 
     expect(new URL(page.url()).pathname, "org viewer stays on the pet route").toBe(
-      `/mis-mascotas/${ORG_HELD_TOKEN}`,
+      `/mis-mascotas/${heldToken}`,
     );
 
     await expect(page.getByText(/como miembro de/i), "org access notice present").toBeVisible();
@@ -469,15 +498,30 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
 // ---------------------------------------------------------------------------
 // 9. Share/public path: /p/{flagship} renders unauthenticated, no chrome, no PII.
 // ---------------------------------------------------------------------------
-test("9 — public /p/{flagship} renders with no auth, no carousel chrome, no contact PII", async ({
+test("9 — public /p/{pet} renders with no auth, no carousel chrome, no contact PII", async ({
   browser,
 }) => {
+  // The token is discovered from the owner's registry and then fetched by a
+  // context that never authenticated. It used to be the literal DIM-PAMP-0001
+  // (the demo flagship), which on a bootstrapped database is a not-found
+  // boundary — and a not-found page has no carousel dots, no lost strip and no
+  // phone number either, so three of the four assertions below "passed" on a
+  // page that was never the credential. Only the "Credencial pública" check
+  // failed, and that is the sole reason anyone noticed.
+  const owner = await openAs(browser, CAROUSEL_OWNER);
+  let publicToken: string;
+  try {
+    publicToken = await discoverPetToken(owner.page);
+  } finally {
+    await owner.context.close();
+  }
+
   const { context, page } = await openPublic(browser);
   try {
-    await gotoPublicResilient(page, `/p/${FLAGSHIP}`);
+    await gotoPublicResilient(page, `/p/${publicToken}`);
 
     expect(new URL(page.url()).pathname, "stayed on the public credential route").toBe(
-      `/p/${FLAGSHIP}`,
+      `/p/${publicToken}`,
     );
     await expect(page.getByText("Credencial pública", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -503,29 +547,66 @@ test("9 — public /p/{flagship} renders with no auth, no carousel chrome, no co
 test("10 — lost pet: public page shows the lost banner; owner profile shows LostCaseBlock", async ({
   browser,
 }) => {
-  // Public lost credential (unauthenticated, fresh-IP context).
-  const { context: pubContext, page } = await openPublic(browser);
+  test.setTimeout(150_000);
+  // BOOTSTRAP SEEDS NO LOST PET. Every pet seed-test-users.ts writes is
+  // status:"active" and it opens no lost_case, so the old literal
+  // DIM-S005-PLRM (noeli's "Luna", demo tier) resolved to a not-found page in
+  // CI and the banner assertion failed on a page that never had a banner.
+  //
+  // So the test MAKES the state it is about, through the real owner wizard,
+  // and hands it back. The revert is in a finally: leaving owner@dim.test with
+  // a pet stuck in lost would silently change what every later spec sees.
+  const { context, page } = await openAs(browser, CAROUSEL_OWNER);
+  let token = "";
   try {
-    await gotoPublicResilient(page, `/p/${LOST_TOKEN}`);
-    await expect(
-      page.locator("[data-section='lost-urgent-strip']"),
-      "public lost banner rendered",
-    ).toBeVisible();
-  } finally {
-    await pubContext.close();
-  }
+    token = await discoverPetToken(page);
 
-  // Owner profile — LostCaseBlock with the owner "marcar encontrada" action.
-  const { context, page: ownerPage } = await openAs(browser, LOST_OWNER);
-  try {
-    await ownerPage.goto(`/mis-mascotas/${LOST_TOKEN}`);
-    await ownerPage.waitForLoadState("domcontentloaded");
+    // Mark lost — same wizard e2e/crisis-owner-lost-flow.spec.ts drives.
+    await page.goto(`/mis-mascotas/${token}/perdida`, { waitUntil: "domcontentloaded" });
     await expect(
-      ownerPage.locator("[data-section='lost-case-block']"),
+      // Sex-flexed since the ciclo-perdido sweep — tolerate all forms.
+      page.getByRole("heading", { name: /^Marcar como perdid(?:o|a|o\/a)$/ }),
+      "mark-lost wizard opened",
+    ).toBeVisible({ timeout: 20_000 });
+    await page.getByRole("button", { name: /^marcar como perdid(?:o|a|o\/a)$/i }).click();
+    await page.waitForURL(/\/mis-mascotas\/DIM-/, { timeout: 30_000 });
+
+    // (a) Owner profile — LostCaseBlock with the "marcar encontrada" action.
+    await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" });
+    await expect(
+      page.locator("[data-section='lost-case-block']"),
       "owner LostCaseBlock rendered on the profile",
-    ).toBeVisible();
-    await expect(ownerPage.getByText(/marcar como/i).first()).toBeVisible();
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByText(/marcar como/i).first()).toBeVisible();
+
+    // (b) Public credential — the lost banner is visible to a stranger.
+    const pub = await openPublic(browser);
+    try {
+      await gotoPublicResilient(pub.page, `/p/${token}`);
+      await expect(
+        pub.page.locator("[data-section='lost-urgent-strip']"),
+        "public lost banner rendered for a stranger",
+      ).toBeVisible({ timeout: 20_000 });
+    } finally {
+      await pub.context.close();
+    }
   } finally {
+    // Restore: hand the pet back to active so the shared fixture is unchanged.
+    // Same control e2e/crisis-owner-lost-flow.spec.ts uses — a bare
+    // /^confirmar$/ button on the marcar-encontrada sheet. Getting this regex
+    // wrong is not a cosmetic slip: the revert silently no-ops and the owner is
+    // left holding a LOST pet, which changes what every later spec sees (it
+    // stranded the carousel tests in this very file on the first run).
+    if (token) {
+      await page
+        .goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
+        .catch(() => {});
+      const confirmBtn = page.getByRole("button", { name: /^confirmar$/i });
+      if (await confirmBtn.count().catch(() => 0)) {
+        await confirmBtn.click().catch(() => {});
+        await page.waitForLoadState("networkidle", { timeout: 10_000 }).catch(() => {});
+      }
+    }
     await context.close();
   }
 });

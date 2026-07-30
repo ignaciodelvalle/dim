@@ -32,15 +32,22 @@ const LAYERS = [
 
 const AR_BUENOS_AIRES = "AR-B";
 
-// Where per-console screenshots land for the human report.
-const SHOT_DIR =
-  "C:/Users/ignac/AppData/Local/Temp/claude/C--dev-dim/80419464-4773-42d5-8c9c-57f62b1d9aa2/scratchpad/staging_rerun";
+// Where per-console screenshots land for the human report. This used to be an
+// absolute path into ONE session's Windows scratchpad, which on a Linux CI
+// runner is not a path at all — Playwright happily creates a literal
+// "C:/Users/..." directory tree under the repo. Opt in with PANORAMA_SHOT_DIR;
+// with it unset the spec asserts exactly the same things and writes nothing.
+const SHOT_DIR = process.env.PANORAMA_SHOT_DIR?.trim() || "";
+async function shot(page: import("@playwright/test").Page, name: string): Promise<void> {
+  if (!SHOT_DIR) return;
+  await page.screenshot({ path: `${SHOT_DIR}/${name}`, fullPage: true });
+}
 
 test.describe("panorama — live staging verification", () => {
   // -------------------------------------------------------------------------
   // (1) GOVT console renders, jurisdiction-scoped to CABA.
   // -------------------------------------------------------------------------
-  test("(1) govt /gob/panorama renders — map + KPIs + CABA scope + demo disclosure", async ({
+  test("(1) govt /gob/panorama renders — map + KPIs + own-jurisdiction scope + demo disclosure", async ({
     page,
   }) => {
     test.setTimeout(120_000);
@@ -50,7 +57,12 @@ test.describe("panorama — live staging verification", () => {
     });
     page.on("pageerror", (e) => consoleErrors.push(`pageerror: ${e.message}`));
 
-    await loginAs(page, ACCOUNTS.govt);
+    // govt-local, NOT govt: the scope assertion below is about CABA, and
+    // ACCOUNTS.govt is seeded onto Ushuaia + El Calafate. Pointed at it, this
+    // test demanded "CABA" from a console correctly reading "Centro de
+    // Situación · Santa Cruz, Tierra del Fuego" — it was asserting the wrong
+    // account's jurisdiction, not catching a scope bug.
+    await loginAs(page, ACCOUNTS.govtLocal);
     await page.goto("/gob/panorama", { waitUntil: "domcontentloaded" });
 
     // Console loaded signal (jurisdiction-scoped eyebrow).
@@ -69,15 +81,20 @@ test.describe("panorama — live staging verification", () => {
     await expect(kpiRegion, "KPI indicator strip").toBeVisible({ timeout: 20_000 });
     await expect(kpiRegion, "at least one numeric KPI value").toContainText(/[0-9]/);
 
-    // Scope is jurisdiction-scoped to CABA (NOT national) — the whole point of
-    // jurisdiction-compliance for a CABA-assigned govt account. The scope rides
-    // in the VISIBLE console heading ("Centro de Situación · CABA · …"); the
+    // Scope is BOUNDED to this operator's own jurisdictions (NOT national) —
+    // the whole point of jurisdiction-compliance. The scope rides in the
+    // VISIBLE console heading ("Centro de Situación · CABA · …"); the
     // panorama-scope-live testid is an sr-only aria-live announcer that is
     // empty between announcements, so it is NOT a reliable anchor.
-    await expect(
-      page.getByText(/Centro de Situación/i).first(),
-      "console heading reflects CABA jurisdiction scope",
-    ).toContainText(/CABA/i);
+    // govt-local@dim.test covers Palermo (CABA) + La Plata (Buenos Aires), so
+    // the heading must name one of those and must NOT read "Nacional".
+    const heading = page.getByText(/Centro de Situación/i).first();
+    await expect(heading, "console heading names an assigned jurisdiction").toContainText(
+      /CABA|Buenos Aires/i,
+    );
+    await expect(heading, "a bounded operator never gets the national console").not.toContainText(
+      /Nacional/i,
+    );
 
     // Demo-data disclosure present (staging runs on demo data).
     await expect(
@@ -88,7 +105,7 @@ test.describe("panorama — live staging verification", () => {
     // No error boundary.
     await expect(page.getByText(/application error|algo salió mal/i)).not.toBeVisible();
 
-    await page.screenshot({ path: `${SHOT_DIR}/panorama-govt.png`, fullPage: true });
+    await shot(page, "panorama-govt.png");
 
     // Surface (don't hard-crash on) noisy client errors — MapLibre tiles can
     // log benign AbortErrors; fail only on app-level errors.
@@ -117,7 +134,7 @@ test.describe("panorama — live staging verification", () => {
     await expect(kpiRegion, "admin KPI strip").toBeVisible({ timeout: 20_000 });
     await expect(page.getByText(/application error|algo salió mal/i)).not.toBeVisible();
 
-    await page.screenshot({ path: `${SHOT_DIR}/panorama-admin.png`, fullPage: true });
+    await shot(page, "panorama-admin.png");
   });
 
   // -------------------------------------------------------------------------

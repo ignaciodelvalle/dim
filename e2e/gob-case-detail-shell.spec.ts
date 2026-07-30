@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { ACCOUNTS, loginAs } from "./demo/_helpers";
+import { ACCOUNTS, USHUAIA_POINT, expectQueueRow, fileDenunciaAt, loginAs } from "./demo/_helpers";
 
 // Task #47 regression: a government operator opening a case from /gob must
 // STAY inside the operator shell (rail + topbar), not be dropped into the
@@ -15,14 +15,37 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
 //
 // A row from govt@dim.test's own queue is in-scope by construction, which is a
 // stronger guarantee than a literal that has to stay in scope forever.
-test("govt case detail keeps the operator shell", async ({ page }) => {
+// ─── WHY THIS SPEC NOW CREATES ITS OWN CASE ────────────────────────────────
+// Reading from the queue fixed the stale-literal problem and left a quieter
+// one: it assumes the queue is not empty. On the PO's machine it never is
+// (thousands accumulated); on a freshly bootstrapped CI database it always is —
+// `pnpm db:bootstrap` seeds reference data and test users and NOT ONE case. So
+// the first CI run that reported a verdict failed on "at least one case in the
+// govt queue", and the fixture had simply never existed outside a laptop.
+// Its admin sibling (admin-case-detail-shell) already files a denuncia for the
+// same reason; this is that, plus the jurisdiction the admin half can ignore.
+//
+// ⚠ A govt queue is jurisdiction-fenced (listCasesForGovt ANDs an exact
+// province/locality pair), so the denuncia must be filed INSIDE this
+// operator's coverage — ACCOUNTS.govt is seeded on Ushuaia + El Calafate,
+// hence USHUAIA_POINT. See fileDenunciaAt for the Nominatim caveat.
+test("govt case detail keeps the operator shell", async ({ browser, page }) => {
+  test.setTimeout(120_000);
   await loginAs(page, ACCOUNTS.govt);
 
   await page.goto("/gob/casos");
   await page.waitForLoadState("networkidle").catch(() => {});
-  const queueLink = page.locator('a[href^="/gob/casos/"]').first();
-  await expect(queueLink, "at least one case in the govt queue").toBeVisible();
-  const IN_SCOPE_CASE = ((await queueLink.getAttribute("href")) ?? "").split("/").pop() ?? "";
+  if ((await page.locator('a[href^="/gob/casos/"]').count()) === 0) {
+    await fileDenunciaAt(browser, USHUAIA_POINT);
+    await page.goto("/gob/casos");
+    await page.waitForLoadState("networkidle").catch(() => {});
+  }
+  const href = await expectQueueRow(
+    page,
+    'a[href^="/gob/casos/"]',
+    "at least one case in the govt queue",
+  );
+  const IN_SCOPE_CASE = href.split("/").pop() ?? "";
   expect(IN_SCOPE_CASE, "case code read from the queue").not.toBe("");
 
   // 1. Direct navigation to the gob-scoped case detail must NOT redirect away
