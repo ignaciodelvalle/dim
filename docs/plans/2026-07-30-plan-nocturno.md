@@ -248,12 +248,41 @@ Secuencia de entrada: matar `:3001` → build → qa-up → guard verde.
    (`lib/infra/site-url.ts:58-60`). El guard contra `NEXT_PUBLIC_SITE_URL` vacío
    está intacto en los tres hoy — es riesgo de drift, no bug vivo.
 
-### B3. C.1 — libreta del dueño
-Lectura recomendada (implementar, ratificar al final): las 3 rutas byte-idénticas
-se DIFERENCIAN — `/libreta` = todo, `/vacunas` = pre-filtrada a vacunas,
-`/historial` = eventos; los 2 tiles deshabilitados se habilitan como chips de
-filtro reales. Si al abrir el código la intención original documentada
-contradice esta lectura, seguir la intención documentada y anotarlo.
+### B3. C.1 — libreta del dueño — **REVERTIDA POR LA INTENCIÓN DOCUMENTADA**
+
+La lectura recomendada del plan era diferenciar las 3 rutas. **Se descarta**: se
+activó el escape hatch que el propio plan dejó escrito ("si la intención
+original documentada contradice esta lectura, seguir la intención documentada y
+anotarlo"). La evidencia (2026-07-30):
+
+1. **Las 3 rutas no son vistas duplicadas: son stubs de redirect 308** a la
+   MISMA página (`?tab=libreta|vacunas|historial`), y `resolvePetFace`
+   (`lib/domain/pet-face-nav.ts:35-52`) colapsa los tres a `face:"libreta"` a
+   propósito. Existen solo para no romper bookmarks viejos.
+2. **La consolidación es una decisión de producto vigente, no una migración a
+   medias**: ADR-10 (2026-07-02, commit `febf1ae7`) sacó los lens-chips
+   Todo/Vacunas/Oficial, y el handoff más nuevo y más explícito se llama
+   literalmente "Una sola libreta"
+   (`docs/design/handoffs/perfil-mascota-una-libreta/README.md:138`). Hay una
+   matriz de tests defendiendo el colapso (`pet-face-nav.test.ts:42-123`).
+   Diferenciarlas sería deshacer una decisión ratificada.
+3. **Los "2 tiles deshabilitados" no son la feature frenada.** Son los botones
+   de drill-down de `VacunasStatusBadges.tsx:189`, deshabilitados con
+   `count === 0` — comportamiento correcto (no hay nada que desplegar), y
+   decisión del PO de 2026-07-05. Convertirlos en chips de filtro rompería un
+   acordeón que funciona.
+4. **La brecha REAL sí existe, y es otra**: el dueño no puede contestar "¿cuándo
+   fue la última X?" en un feed único de hasta 250 eventos mezclados
+   (`critique-libreta.md` hallazgos #3/#8). Y existe el artefacto huérfano para
+   arreglarla: `LIBRETA_FILTER_CHIPS` (`lib/infra/libreta-sanitaria.ts:132-147`),
+   14 chips por tipo de evento, exportado y **sin ningún consumidor** salvo su
+   propio test. `EventTimeline.tsx:96` ya acepta un subconjunto de chips por prop.
+
+**B3 redefinida**: reintroducir `LIBRETA_FILTER_CHIPS` como chips de filtro
+DENTRO del timeline consolidado de `LibretaFace` — sin tocar las rutas, sin
+tocar `VacunasStatusBadges`. Los datos ya están en `past` (cada fila trae
+`eventType`): **no hace falta ninguna query nueva**. Va a la lista de
+ratificación como corrección de alcance, no como decisión pendiente.
 
 ### B4. Verificación visual pendiente del Bloque A
 - #40: hachurado de provincia suprimida + leyenda, en vivo (preset cumplimiento).
@@ -286,20 +315,23 @@ autorización es para ESTA corrida, no permanente.
 
 | # | Qué | Evidencia | Riesgo si se revierte |
 |---|---|---|---|
-| (vacío al inicio) | | | |
+| R1 | **Copy de la credencial: "Inscripto/a" → "Registrado/a"** | Commit `ac2af21f`; 48 tests verdes; mutación verificada (4 fallos con el lexema viejo) | Ninguno técnico. Es la palabra que el ciudadano ve al lado del nombre de su mascota — si al PO no le cierra, se revierte con un solo cambio en `registeredAdjective()` |
+| R2 | **A5: gana la anatomía de `CaseQueue`**, y se adoptan sus ÁTOMOS en las otras 4 colas en vez de forzarlas a `<table>` | Medición en este archivo (§A5): 4 superficies vs 1 de cada una de las otras | Las colas quedan como están hoy: 5 gramáticas visuales distintas para el mismo trabajo |
+| R3 | **B3 redefinida: NO se diferencian las 3 rutas de la libreta** | §B3 de este archivo: ADR-10, handoff "Una sola libreta", matriz de tests `pet-face-nav.test.ts:42-123` | Si el PO igual quiere 3 destinos distintos, hay que revertir ADR-10 — decisión de producto, no de implementación |
+| R4 | **B2: la post-alta LINKEA a `/chapita` en vez de imprimir el QR ahí mismo** | §B2 punto 3: `/chapita` está gateada por `printable_qr`, que puede estar deshabilitado por jurisdicción | Un botón de imprimir embebido saltearía el gate de canal de la jurisdicción |
 
 ## Estado (actualizar al cerrar cada unidad)
 
 | Unidad | Estado | Commit |
 |---|---|---|
-| A1 exit-1 (timebox 60') | pendiente | |
-| A2 #40 k-anon provincia | pendiente | |
-| A3 D.3 gramática | pendiente | |
-| A4 copy Registrado/a | pendiente | |
-| A5 D.4 chips | pendiente | |
+| A1 exit-1 (timebox 60') | en curso | |
+| A2 #40 k-anon provincia | en curso | |
+| A3 D.3 gramática | en curso | |
+| A4 copy Registrado/a | **CERRADA** | `ac2af21f` |
+| A5 D.4 chips | medida, implementación pendiente | |
 | B1 pasada 703 | pendiente | |
-| B2 D.8 completo | pendiente | |
-| B3 C.1 libreta | pendiente | |
+| B2 D.8 completo | investigada, implementación pendiente | |
+| B3 C.1 libreta | **redefinida** (ver §B3), implementación pendiente | |
 | B4 verificación visual A | pendiente | |
 | S1 SC-6 | stretch | |
 | S2 #41 | stretch | |
