@@ -184,34 +184,35 @@ describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {
 
 // QA histórico 2026-07-08 item 2 (round 2): "Rocco Inscripta" — the
 // registration badge disagreed with a male pet's sex. It must now render
-// "Inscripto" for male, "Inscripta" for female, and the neutral "Inscripto/a"
-// when sex is unrecorded — and the same word must agree in BOTH render
-// paths (the prominent badge next to the name, and the quiet marker used
+// "Registrado" for male, "Registrada" for female, and the neutral
+// "Registrado/a" when sex is unrecorded — and the same word must agree in BOTH
+// render paths (the prominent badge next to the name, and the quiet marker used
 // when a situation skin is active).
-describe("CredentialFace — Inscripto/a gender agreement", () => {
-  it("renders Inscripto for a male pet", () => {
+// The word itself moved from "Inscripto/a" to "Registrado/a" (PO 2026-07-30).
+describe("CredentialFace — Registrado/a gender agreement", () => {
+  it("renders Registrado for a male pet", () => {
     const state = deriveComplianceState(complianceInput());
     const html = renderToStaticMarkup(
       <CredentialFace {...baseProps} complianceState={state} petSex="male" />,
     );
-    expect(html).toContain("Inscripto");
-    expect(html).not.toContain("Inscripta");
+    expect(html).toContain("Registrado");
+    expect(html).not.toContain("Registrada");
   });
 
-  it("renders Inscripta for a female pet", () => {
+  it("renders Registrada for a female pet", () => {
     const state = deriveComplianceState(complianceInput());
     const html = renderToStaticMarkup(
       <CredentialFace {...baseProps} complianceState={state} petSex="female" />,
     );
-    expect(html).toContain("Inscripta");
+    expect(html).toContain("Registrada");
   });
 
-  it("renders the neutral Inscripto/a when sex is unrecorded", () => {
+  it("renders the neutral Registrado/a when sex is unrecorded", () => {
     const state = deriveComplianceState(complianceInput());
     const html = renderToStaticMarkup(
       <CredentialFace {...baseProps} complianceState={state} petSex={null} />,
     );
-    expect(html).toContain("Inscripto/a");
+    expect(html).toContain("Registrado/a");
   });
 
   it("genders the quiet marker too, when a situation skin demotes the badge", () => {
@@ -230,8 +231,8 @@ describe("CredentialFace — Inscripto/a gender agreement", () => {
         }}
       />,
     );
-    expect(html).toContain("Inscripto");
-    expect(html).not.toContain("Inscripta");
+    expect(html).toContain("Registrado");
+    expect(html).not.toContain("Registrada");
     // Pet-state standardization (PO 2026-07-16): the situation LABEL must NOT
     // render here — the masthead band chip (DocumentChrome) is the single
     // textual carrier of the state. The face keeps only its data-situation

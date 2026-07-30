@@ -654,20 +654,25 @@ export function markLostFirstPrompt(sex: string | null | undefined): string {
 }
 
 /**
- * Registration badge word on the pet credential, e.g. "Rocco **Inscripto**"
- * / "Michi **Inscripta**". QA histórico 2026-07-08 #2: the badge was
+ * Registration badge word on the pet credential, e.g. "Rocco **Registrado**"
+ * / "Michi **Registrada**". QA histórico 2026-07-08 #2: the badge was
  * hardcoded feminine ("Inscripta"), disagreeing with a male pet's name
  * ("Rocco Inscripta"). Neutral "/a" (matching the existing roleLabel
  * "Dueño/a" convention) covers pets with no recorded sex.
+ *
+ * PO 2026-07-30: the word moved from "Inscripto/a" to "Registrado/a". The
+ * credential's own vocabulary already says "registrada" everywhere else
+ * (`pet_registered`, the `registered` status flag, "Registro Nacional"), and
+ * "inscripto" read as a second, competing act.
  */
 export function registeredAdjective(sex: string | null | undefined): string {
   switch (normalizeSex(sex)) {
     case "male":
-      return "Inscripto";
+      return "Registrado";
     case "female":
-      return "Inscripta";
+      return "Registrada";
     default:
-      return "Inscripto/a";
+      return "Registrado/a";
   }
 }
 

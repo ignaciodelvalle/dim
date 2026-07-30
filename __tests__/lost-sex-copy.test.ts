@@ -118,17 +118,24 @@ describe("foundReportPrompt", () => {
 // QA histórico 2026-07-08 item 2 (round 2): the pet credential's registration
 // badge showed "Rocco Inscripta" — feminine on a male pet, because
 // CredentialFace hardcoded "Inscripta" instead of routing through a
-// sex-aware helper.
+// sex-aware helper. The word moved to "Registrado/a" (PO 2026-07-30) — the
+// gender agreement contract is unchanged, only the lexeme.
 describe("registeredAdjective", () => {
   it("genders by sex", () => {
-    expect(registeredAdjective("male")).toBe("Inscripto");
-    expect(registeredAdjective("female")).toBe("Inscripta");
+    expect(registeredAdjective("male")).toBe("Registrado");
+    expect(registeredAdjective("female")).toBe("Registrada");
   });
   it("neutral for unknown/null/garbage", () => {
-    expect(registeredAdjective("unknown")).toBe("Inscripto/a");
-    expect(registeredAdjective(null)).toBe("Inscripto/a");
-    expect(registeredAdjective(undefined)).toBe("Inscripto/a");
-    expect(registeredAdjective("nonsense")).toBe("Inscripto/a");
+    expect(registeredAdjective("unknown")).toBe("Registrado/a");
+    expect(registeredAdjective(null)).toBe("Registrado/a");
+    expect(registeredAdjective(undefined)).toBe("Registrado/a");
+    expect(registeredAdjective("nonsense")).toBe("Registrado/a");
+  });
+  // The credential must never resurrect the old lexeme.
+  it("never returns the retired 'Inscripto/a' wording", () => {
+    for (const sex of ["male", "female", "unknown", null, undefined]) {
+      expect(registeredAdjective(sex)).not.toMatch(/Inscript/i);
+    }
   });
 });
 

@@ -3102,7 +3102,7 @@ body {
 /* A pet's SITUATION (perdida, observación antirrábica, en tratamiento, preñada,
    en adopción / tránsito) is a separate axis from compliance. When active, the
    credential ADOPTS the situation skin: the band gets a bottom accent + the face
-   border tints, ONE status line carries it, and "Inscripta" is demoted to a
+   border tints, ONE status line carries it, and "Registrada" is demoted to a
    quiet mono marker. Each tone pairs color with the ribbon's icon + label, so
    the state never rests on color alone (WCAG). */
 .ln-cred {
@@ -3366,7 +3366,7 @@ body {
    `data-situation` tint. */
 
 /* Demoted registration marker — quiet mono footnote when a situation is active,
-   replacing the prominent "Inscripta" badge next to the name. */
+   replacing the prominent "Registrada" badge next to the name. */
 .ln-reg-quiet {
   display: inline-flex;
   align-items: center;
@@ -4009,7 +4009,7 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   .ln-idrow {
     flex-wrap: wrap;
   }
-  /* A touch smaller so the name + "Inscripta" badge breathe beside the photo
+  /* A touch smaller so the name + "Registrada" badge breathe beside the photo
      on a narrow screen. */
   .ln-idname {
     font-size: 26px;

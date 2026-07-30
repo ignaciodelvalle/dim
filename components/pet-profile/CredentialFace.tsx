@@ -65,7 +65,7 @@ export type CredentialFaceProps = {
   publicHref: string;
   /**
    * Pet's recorded sex ("male" | "female" | "unknown"/null) — drives gender
-   * agreement on the "Inscripto/a" badge and the situation skin's adjective
+   * agreement on the "Registrado/a" badge and the situation skin's adjective
    * labels (Perdido/a, Fallecido/a). QA histórico 2026-07-08 #2.
    */
   petSex?: string | null;
@@ -79,7 +79,7 @@ export type CredentialFaceProps = {
    * Pet SITUATION skin (state-language, #42). When the pet is in a non-default
    * situation (perdida, observación antirrábica, en tratamiento, preñada, en
    * adopción / tránsito), the credential ADOPTS that situation's skin: the face
-   * gets its tint (`data-situation` CSS variants) and the passive "Inscripta"
+   * gets its tint (`data-situation` CSS variants) and the passive "Registrada"
    * registration badge is DEMOTED to a quiet secondary marker. The situation's
    * TEXT lives exclusively in the masthead band chip (DocumentChrome) — the
    * single state authority (PO 2026-07-16); this face never repeats the label.
@@ -140,7 +140,7 @@ export function CredentialFace({
   // stray al-dia never tints the credential green as if it were an alert).
   const activeSituation = situation && !situation.isDefault ? situation : null;
 
-  // Gender-agree the "Inscripto/a" registration adjective with the pet's
+  // Gender-agree the "Registrado/a" registration adjective with the pet's
   // recorded sex. QA histórico 2026-07-08 #2.
   const registeredWord = registeredAdjective(petSex);
 
@@ -246,7 +246,7 @@ export function CredentialFace({
           <div className="ln-idmeta">
             <h1 className="ln-idname">
               {heroProps.name}
-              {/* Default state: "Inscripta" is the prominent badge next to the
+              {/* Default state: "Registrada" is the prominent badge next to the
                   name. When a situation skin is active it is DEMOTED to the
                   quiet secondary marker below — the situation is the headline,
                   registration is the footnote (no two competing badges). */}
