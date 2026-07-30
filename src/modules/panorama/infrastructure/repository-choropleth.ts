@@ -156,18 +156,35 @@ export type ChoroplethRows = {
   truncated: boolean;
 };
 
-/** Result envelope for a PROVINCE choropleth loader (filled polygons; U5). No
- * k-anon (province cells are large), so there is USUALLY no suppressedCount —
- * the optional field exists for the province-grain loaders whose UNIT can still
- * be small (vet-desert: a scoped province universe under k pets gets no cell;
- * tendencia: a sub-k delta window suppresses the cell). Absent = 0. */
+/** Result envelope for a PROVINCE choropleth loader (filled polygons; U5).
+ *
+ * PROVINCE CELLS **ARE** SUPPRESSIBLE — this comment used to say the opposite
+ * ("province cells are large, so there is USUALLY no suppressedCount"). Task #40
+ * invalidated that premise: k-anonymity protects the cell's DENOMINATOR, not its
+ * population, so a RATE province over 11 dogs is suppressed exactly like a
+ * sub-k department (see `provinceCell` in build-features.ts, whose obligatory
+ * `denominator` parameter is the enforcement). Every province loader can emit
+ * `suppressed: true` cells, and the count is therefore REQUIRED: a fully-hatched
+ * province map that reported 0 left the AllSuppressedNotice card and the
+ * LayerPanel footer silent — the values were protected, the operator was not
+ * told. Required, not optional, so the compiler enumerates the sites. */
 export type ProvinceChoroplethRows = {
   cells: ProvinceChoroplethCell[];
   truncated: boolean;
-  /** Cells withheld by the k-anon primitives (suppressSmallCells / suppressDelta).
-   * The use-case envelope surfaces it so the LayerPanel can disclose the count. */
-  suppressedCount?: number;
+  /** Cells withheld by the k-anon primitives (provinceCell / suppressSmallCells /
+   * suppressDelta). The use-case envelope surfaces it so the LayerPanel and the
+   * all-suppressed notice can disclose the count. */
+  suppressedCount: number;
 };
+
+/** Count the k-anon-withheld cells in a province rollup. The cells already carry
+ * the decision (`provinceCell` / `provinceCellPreDecided` made it); this only
+ * reports it, so the count can never disagree with what the map paints. */
+function countSuppressed(cells: readonly ProvinceChoroplethCell[]): number {
+  let n = 0;
+  for (const c of cells) if (c.suppressed) n++;
+  return n;
+}
 
 // ---------------------------------------------------------------------------
 // U5 — ONE rollup, parametrized by aggregation LEVEL (province | locality).
@@ -704,7 +721,11 @@ export async function loadRabiesCoverageByProvince(
     // with 3 dogs publishes 100% and the value alone looks large.
     cells.push(provinceCell(code, r.province, r.ratePct, r.total));
   }
-  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+  return {
+    cells,
+    truncated: byProvince.length >= PER_LAYER_CAP,
+    suppressedCount: countSuppressed(cells),
+  };
 }
 
 // metrics:sterilization-coverage (esterilizacion) — per-province sterilization rate
@@ -732,7 +753,11 @@ export async function loadSterilizationCoverageByProvince(
     // k-anon denominator = `total` (ACTIVE pets in scope), never `ratePct`.
     cells.push(provinceCell(code, r.province, r.ratePct, r.total));
   }
-  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+  return {
+    cells,
+    truncated: byProvince.length >= PER_LAYER_CAP,
+    suppressedCount: countSuppressed(cells),
+  };
 }
 
 // metrics:microchip-penetration (microchip) — per-province microchip rate via
@@ -757,7 +782,11 @@ export async function loadMicrochipCoverageByProvince(
     // k-anon denominator = `active` (ACTIVE pets in scope), never `ratePct`.
     cells.push(provinceCell(code, r.province, r.ratePct, r.active));
   }
-  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+  return {
+    cells,
+    truncated: byProvince.length >= PER_LAYER_CAP,
+    suppressedCount: countSuppressed(cells),
+  };
 }
 
 // metrics:ppp-compliance (ppp) — per-province PPP registry compliance via the
@@ -785,7 +814,11 @@ export async function loadPppComplianceByProvince(
     // about a handful of identifiable owners of a dangerous-breed dog.
     cells.push(provinceCell(code, r.province, r.ratePct, r.flaggedCount));
   }
-  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+  return {
+    cells,
+    truncated: byProvince.length >= PER_LAYER_CAP,
+    suppressedCount: countSuppressed(cells),
+  };
 }
 
 export async function loadMortalityByProvince(
@@ -796,7 +829,12 @@ export async function loadMortalityByProvince(
 ): Promise<ProvinceChoroplethRows> {
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const rollup = await rollupPetsPerProvince([metricPredicate("mortality")], scope);
-  return { cells: toProvinceChoroplethCells(rollup), truncated: rollup.length >= PER_LAYER_CAP };
+  const cells = toProvinceChoroplethCells(rollup);
+  return {
+    cells,
+    truncated: rollup.length >= PER_LAYER_CAP,
+    suppressedCount: countSuppressed(cells),
+  };
 }
 
 /**
@@ -870,7 +908,7 @@ export async function loadVetAccessByProvince(
       provinceCell(code, province, perThousand(agg.visits, agg.activePets), agg.activePets),
     );
   }
-  return { cells, truncated: false };
+  return { cells, truncated: false, suppressedCount: countSuppressed(cells) };
 }
 
 // metrics:tendencia — per-PROVINCE two-window event delta.
@@ -927,12 +965,10 @@ export async function loadTendenciaByProvince(
   const prior = await countWindow(priorSince, since, true);
 
   const cells: ProvinceChoroplethCell[] = [];
-  let suppressedCount = 0;
   for (const c of deltaCells(current, prior, { key: (r) => r.province, count: (r) => r.n })) {
     const code = PROVINCE_ISO[c.key];
     if (!code) continue;
     const suppressed = c.suppressed || c.delta === null;
-    if (suppressed) suppressedCount++;
     // #40: a suppressed delta used to `continue` — the cell VANISHED. That is
     // itself a disclosure channel (a province that drops out between two frames
     // announces that one of its windows crossed k) and it made the map stipple
@@ -941,7 +977,9 @@ export async function loadTendenciaByProvince(
     // The cell is now EMITTED with a null value so the render hatches it.
     cells.push(provinceCellPreDecided(code, c.key, c.delta, suppressed));
   }
-  return { cells, truncated: false, suppressedCount };
+  // Counted off the EMITTED cells, not off the delta rows: a province with no ISO
+  // code paints nothing, so counting it would disclose a cell that is not there.
+  return { cells, truncated: false, suppressedCount: countSuppressed(cells) };
 }
 
 /** Active/lost pets — the live population every coverage share is taken over.
@@ -1052,7 +1090,7 @@ export async function loadVetDesertByProvince(
   // would inflate every province by its mortality history.
   // The denominator travels with the numerator when a cut is requested (D3).
   const universe = await rollupPetsPerProvince([asOf ? activePetsAsOf(until) : ACTIVE_PETS], scope);
-  const { visible, suppressed, suppressedCount } = suppressSmallCells(universe, {
+  const { visible, suppressed } = suppressSmallCells(universe, {
     count: (r) => r.count,
     key: (r) => r.province,
     k: PROVINCE_K,
@@ -1115,7 +1153,11 @@ export async function loadVetDesertByProvince(
     if (r.count <= 0) continue;
     cells.push(provinceCellPreDecided(code, r.province, null, true));
   }
-  return { cells, truncated: false, suppressedCount };
+  // Counted off the EMITTED cells rather than off `suppressSmallCells` directly:
+  // an empty-padrón province (count 0) is skipped above as a genuine data gap, and
+  // the primitive would still have it in its suppressed bucket — reporting it would
+  // dress a coverage hole as a privacy withholding.
+  return { cells, truncated: false, suppressedCount: countSuppressed(cells) };
 }
 
 // metrics:deworming (antiparasitario) — per-PROVINCE deworming coverage RATE via
@@ -1141,7 +1183,11 @@ export async function loadDewormingCoverageByProvince(
     // k-anon denominator = `total` (ACTIVE pets in scope), never `ratePct`.
     cells.push(provinceCell(code, r.province, r.ratePct, r.total));
   }
-  return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
+  return {
+    cells,
+    truncated: byProvince.length >= PER_LAYER_CAP,
+    suppressedCount: countSuppressed(cells),
+  };
 }
 
 // metrics:territorial-index (indice-territorial) — per-PROVINCE composite index
@@ -1201,7 +1247,15 @@ export async function loadTerritorialIndexByProvince(
     // statement of fact about these rows, not a claim that the layer is exempt.
     cells.push(provinceCellPreDecided(code, r.province, r.score, false));
   }
-  return { cells, truncated: indexRows.length >= PER_LAYER_CAP };
+  // Structurally 0 — every cell above is built `suppressed: false` (the upstream
+  // fetcher DROPS its sub-k provinces rather than marking them; that residual gap
+  // is the block above, not something a count here can disclose). Derived from the
+  // cells anyway so it can never drift from what the map paints.
+  return {
+    cells,
+    truncated: indexRows.length >= PER_LAYER_CAP,
+    suppressedCount: countSuppressed(cells),
+  };
 }
 
 /**

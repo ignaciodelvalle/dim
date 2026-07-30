@@ -208,10 +208,12 @@ function provinceChoroplethResult(rows: ProvinceChoroplethRows): LayerFeaturesRe
   return {
     features: buildProvinceChoroplethFeatures(rows.cells),
     truncated: rows.truncated,
-    // Almost always 0 at province grain — the exceptions are the loaders whose
-    // unit can still be k-anon-small (vet-desert universe / tendencia deltas),
-    // which report their withheld-cell count so the LayerPanel can disclose it.
-    suppressedCount: rows.suppressedCount ?? 0,
+    // NOT "almost always 0" — every province loader can suppress (k-anon protects
+    // the cell's DENOMINATOR, so a rate over 11 dogs hatches exactly like a sub-k
+    // department). The field is REQUIRED upstream, so there is no `?? 0` fallback
+    // to silently paper over a loader that forgot to count: a fully-hatched map
+    // must never report 0 and leave the notice + footer silent.
+    suppressedCount: rows.suppressedCount,
     // Province level counts every pet in the province — nothing is invisible.
     noLocalityCount: 0,
     level: "province",

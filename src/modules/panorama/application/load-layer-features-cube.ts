@@ -217,7 +217,11 @@ export function assembleCubeLayerResult(
     return {
       features: buildProvinceChoroplethFeatures(cells),
       truncated: false,
-      suppressedCount: 0,
+      // Counted from the SAME flags the cells were built from — this used to be
+      // hardcoded 0 under the retired "provinces are never suppressed" premise,
+      // which (a) broke parity with the live province loaders and (b) left a
+      // fully-hatched cube-served map with no privacy disclosure at all.
+      suppressedCount: cells.reduce((n, c) => n + (c.suppressed ? 1 : 0), 0),
       noLocalityCount: 0,
       level: "province",
     };

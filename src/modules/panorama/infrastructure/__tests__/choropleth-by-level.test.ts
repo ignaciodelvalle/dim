@@ -248,9 +248,14 @@ describe("U5 k-anon at both grains", () => {
 });
 
 describe("U5 loadChoroplethByLevel overload routing", () => {
-  it("level='province' yields ProvinceChoroplethRows (no suppressedCount, code cells)", async () => {
+  // PRE-PUSH REVIEW 2026-07-30: this used to assert the province envelope had NO
+  // suppressedCount. Province cells ARE suppressible (#40 — k protects the
+  // DENOMINATOR), so an absent count meant a hatched province map disclosed
+  // nothing. The field is now REQUIRED and must agree with the cells.
+  it("level='province' yields ProvinceChoroplethRows (suppressedCount agrees with the cells, code cells)", async () => {
     const rows = await loadChoroplethByLevel("mortality", "province", ADMIN, []);
-    expect(rows).not.toHaveProperty("suppressedCount");
+    expect(rows).toHaveProperty("suppressedCount");
+    expect(rows.suppressedCount).toBe(rows.cells.filter((c) => c.suppressed).length);
     expect(rows.cells.every((c) => "provinceCode" in c)).toBe(true);
   }, 30_000);
 
@@ -283,10 +288,13 @@ describe("U5 loadChoroplethByLevel overload routing", () => {
 
 describe("U5 metric enumeration — microchip-penetration + ppp-compliance", () => {
   it.each(["microchip-penetration", "ppp-compliance"] as const)(
-    "%s: province level returns ProvinceChoroplethRows (no suppressedCount, valid codes)",
+    "%s: province level returns ProvinceChoroplethRows (suppressedCount, valid codes)",
     async (metric) => {
       const rows = await loadChoroplethByLevel(metric, "province", ADMIN, []);
-      expect(rows).not.toHaveProperty("suppressedCount");
+      // The withheld-cell count is REQUIRED at province grain and must equal what
+      // the map hatches — a fully-suppressed layer that reported 0 left the
+      // all-suppressed notice and the LayerPanel footer silent.
+      expect(rows.suppressedCount).toBe(rows.cells.filter((x) => x.suppressed).length);
       for (const c of rows.cells) {
         expect(VALID_CODES.has(c.provinceCode)).toBe(true);
         // #40: ppp-compliance carries the SMALLEST denominator on the board

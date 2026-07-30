@@ -843,6 +843,7 @@ describe("getLayerFeatures — cobertura (PROVINCE choropleth)", () => {
         { provinceCode: "AR-X", label: "Córdoba", value: 9 },
       ],
       truncated: false,
+      suppressedCount: 0,
     } as unknown as ChoroplethRows);
 
     const result = await getLayerFeatures(
@@ -871,6 +872,64 @@ describe("getLayerFeatures — cobertura (PROVINCE choropleth)", () => {
       suppressed: false,
     });
     expect(result.suppressedCount).toBe(0);
+  });
+
+  // PRE-PUSH REVIEW 2026-07-30 — the province envelope used to hardcode/default
+  // `suppressedCount` to 0, so a province map where EVERY cell was k-anon
+  // hatched disclosed nothing: AllSuppressedNoticeCard bails on
+  // `suppressedCount === 0` and the LayerPanel footer stayed silent. The values
+  // were protected; the operator was not told. Province cells ARE suppressible
+  // (k protects the DENOMINATOR — see provinceCell), so the count is real data,
+  // not a locality-grain-only field.
+  it("reports the k-anon count when SOME province cells are suppressed", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 61, suppressed: false },
+        { provinceCode: "AR-Z", label: "Santa Cruz", value: null, suppressed: true },
+      ],
+      truncated: false,
+      suppressedCount: 1,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "cobertura",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    expect(result.level).toBe("province");
+    expect(result.suppressedCount).toBe(1);
+  });
+
+  it("reports EVERY cell when the whole province map is suppressed (the notice trigger)", async () => {
+    mockLoadChoropleth.mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-Z", label: "Santa Cruz", value: null, suppressed: true },
+        { provinceCode: "AR-V", label: "Tierra del Fuego", value: null, suppressed: true },
+      ],
+      truncated: false,
+      suppressedCount: 2,
+    } as unknown as ChoroplethRows);
+
+    const result = await getLayerFeatures(
+      "cobertura",
+      { role: "admin" },
+      [],
+      { since: new Date("2026-06-01T00:00:00.000Z") },
+      "province",
+    );
+
+    // Every painted feature hatched AND a non-zero count — both halves are what
+    // buildAllSuppressedNotice needs to render the card.
+    expect(result.features.features.length).toBeGreaterThan(0);
+    expect(
+      result.features.features.every(
+        (f) => (f.properties as { suppressed?: boolean }).suppressed === true,
+      ),
+    ).toBe(true);
+    expect(result.suppressedCount).toBe(2);
   });
 });
 
@@ -1174,6 +1233,7 @@ describe("getLayerFeatures — indice-territorial (province-only composite index
         { provinceCode: "AR-C", label: "CABA", value: 91 },
       ],
       truncated: false,
+      suppressedCount: 0,
     } as ProvinceChoroplethRows);
 
     const result = await getLayerFeatures("indice-territorial", { role: "admin" }, [], {
@@ -1202,6 +1262,7 @@ describe("getLayerFeatures — indice-territorial (province-only composite index
     mockLoadTerritorialIndex.mockResolvedValue({
       cells: [{ provinceCode: "AR-X", label: "Córdoba", value: 64 }],
       truncated: false,
+      suppressedCount: 0,
     } as ProvinceChoroplethRows);
 
     const result = await getLayerFeatures(

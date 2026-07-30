@@ -204,6 +204,61 @@ describe("assembleCubeLayerResult — truncation threads through to the envelope
     expect(result.truncated).toBe(false);
     expect(result.level).toBe("province");
   });
+
+  // PRE-PUSH REVIEW 2026-07-30 — the province branch HARDCODED `suppressedCount: 0`
+  // (last survivor of the "provinces are never suppressed" premise #40 retired).
+  // Two consequences: the cube disagreed with the live province loaders, breaking
+  // the parity contract this suite's integration sibling asserts; and a
+  // cube-served, fully-hatched province map disclosed nothing (the notice card
+  // bails on 0). The count is now derived from the SAME `suppressed` flags the
+  // cells are built from, so it cannot drift from what the map paints.
+  const suppressedProvince = (code: string, name: string) =>
+    provinceRow({ unitCode: code, province: name, label: name, value: null, suppressed: true });
+
+  it("province grain: counts the suppressed cells instead of reporting a flat 0", () => {
+    const result = assembleCubeLayerResult(
+      [provinceRow(), suppressedProvince("AR-Z", "Santa Cruz")],
+      "province",
+    );
+    expect(result.suppressedCount).toBe(1);
+  });
+
+  it("province grain: an ALL-suppressed map reports every cell (the notice trigger)", () => {
+    const result = assembleCubeLayerResult(
+      [suppressedProvince("AR-Z", "Santa Cruz"), suppressedProvince("AR-V", "Tierra del Fuego")],
+      "province",
+    );
+    expect(result.suppressedCount).toBe(2);
+    expect(
+      result.features.features.every(
+        (f) => (f.properties as { suppressed?: boolean }).suppressed === true,
+      ),
+    ).toBe(true);
+  });
+
+  it("province grain: still 0 when nothing is suppressed (no false disclosure)", () => {
+    expect(
+      assembleCubeLayerResult([provinceRow(), provinceRow({ unitCode: "AR-L" })], "province")
+        .suppressedCount,
+    ).toBe(0);
+  });
+
+  // The parity contract in miniature: the cube reader's province count must be
+  // the count of hatched cells, which is exactly what the live loaders' shared
+  // `countSuppressed` returns for the same cell set. The full DB-backed
+  // cube-vs-live assertion lives in cube-parity.test.ts.
+  it("province grain: the count equals the hatched-feature count (cube↔live invariant)", () => {
+    const rows = [
+      provinceRow(),
+      suppressedProvince("AR-Z", "Santa Cruz"),
+      suppressedProvince("AR-V", "Tierra del Fuego"),
+    ];
+    const result = assembleCubeLayerResult(rows, "province");
+    const hatched = result.features.features.filter(
+      (f) => (f.properties as { suppressed?: boolean }).suppressed === true,
+    ).length;
+    expect(result.suppressedCount).toBe(hatched);
+  });
 });
 
 describe("cubeBuilderStatementTimeoutMs — the builder read client's long ceiling", () => {

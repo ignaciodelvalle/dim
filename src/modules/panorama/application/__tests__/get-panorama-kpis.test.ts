@@ -154,6 +154,7 @@ function seedDefaults() {
       { provinceCode: "AR-C", label: "CABA", value: 6, suppressed: false },
     ],
     truncated: false,
+    suppressedCount: 0,
   });
   vi.mocked(fetchRabiesVaccinationTrend).mockResolvedValue({
     granularity: "month",
@@ -388,6 +389,7 @@ describe("getPanoramaKpis", () => {
         { provinceCode: "AR-Z", label: "Santa Cruz", value: null, suppressed: true },
       ],
       truncated: false,
+      suppressedCount: 1,
     });
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     expect(kpis.find((k) => k.id === "mortalidad")?.value).toBe("8");
