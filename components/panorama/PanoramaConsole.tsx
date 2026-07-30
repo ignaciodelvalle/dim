@@ -88,7 +88,11 @@ import {
   binTimestamps,
   dailyCountsFromTimestamps,
 } from "@/components/panorama/signal-histogram";
-import { Z_LOCALITY, resolveDataLevel } from "@/components/panorama/situational-map-utils";
+import {
+  Z_LOCALITY,
+  mountPlaceholderZoom,
+  resolveDataLevel,
+} from "@/components/panorama/situational-map-utils";
 import { useAsOfFrame } from "@/components/panorama/use-asof-frame";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
 import { screenViewExplanation } from "@/components/panorama/view-explanation-screen";
@@ -437,16 +441,10 @@ export function PanoramaConsole({
   // preferring the finer precision whenever it renders (PO decision #1). The
   // live camera zoom flows up from SituationalMap via `onZoom`.
   //
-  // P4b: the placeholder (pre-map-load) zoom is SCOPE-AWARE. A scoped view
-  // (initialLevel="locality") seeds its layers in the LOCALITY cache and its
-  // camera will land inside the province (zoom ≥ Z_LOCALITY); starting the
-  // placeholder below Z_LOCALITY would resolve the LOD band to NATIONAL on the
-  // very first render and route the read to the (empty) province cache — a
-  // blank first paint. Start inside the drilled band instead; the first
-  // moveend/zoomend corrects to the real camera.
-  const [mapZoom, setMapZoom] = useState<number>(
-    initialLevel === "locality" ? Z_LOCALITY + 1 : Z_LOCALITY - 1,
-  );
+  // P4b: the placeholder (pre-map-load) zoom is SCOPE-AWARE — see
+  // mountPlaceholderZoom for why, and for the landing-state grain contract it
+  // now participates in. The first moveend/zoomend corrects to the real camera.
+  const [mapZoom, setMapZoom] = useState<number>(mountPlaceholderZoom(initialLevel));
   const onMapZoom = useCallback((zoom: number) => setMapZoom(zoom), []);
 
   // panorama-event-points — near-zoom REAL event-location DOTS (design D1/D2).
@@ -1929,6 +1927,13 @@ export function PanoramaConsole({
     (next: AggregationLevel) => {
       if (next === levelRef.current) return;
       setLevel(next);
+      // A1 (2026-07-31) — sync the ref EAGERLY (the board restore already does).
+      // `levelRef.current` is otherwise only assigned during RENDER, so effects
+      // declared BELOW the scope-derived level effect read the OLD axis in the
+      // SAME commit: the mount fetch then asked for the wrong grain and, sharing
+      // the per-layer abort key, killed the right request — the whole country
+      // painted "sin datos". Pinned by panorama-landing-level.test.ts.
+      levelRef.current = next;
 
       // Layers affected by the axis change: choropleth + aggregated point layers.
       const affectedLayers = [...CHOROPLETH_LAYERS, ...AGGREGATED_POINT_LAYERS].filter(

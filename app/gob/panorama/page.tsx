@@ -10,6 +10,7 @@ import { NoticeToast } from "@/components/gob/NoticeToast";
 import { PanoramaBoardSkeleton } from "@/components/panorama/PanoramaBoardSkeleton";
 import type { SeededLayer } from "@/components/panorama/PanoramaConsole";
 import { PanoramaShell } from "@/components/panorama/PanoramaShell";
+import { resolveSeedLevel } from "@/components/panorama/situational-map-utils";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import { GOB_ALL_PROVINCES } from "@/lib/analytics/govt-dashboards";
 import { narrowGovtScope } from "@/lib/domain/jurisdiction-canonical";
@@ -257,6 +258,28 @@ async function GobPanoramaBoard({
   // alias-form province name can never empty it and drop the operator to national.
   const initialDivisionProvince = widest.provinceCode ?? undefined;
 
+  // A1 (2026-07-31) — the SEED axis, from the SAME predicate the console derives
+  // its own axis from. Both seed paths below (preset seed and the perdidas seed)
+  // read this: the C2 invariant is that `initialLevel` matches the cache the
+  // seeded features are placed in AND the axis the console resolves on mount.
+  //
+  // The old predicate here was `jurisdictions.length > 0` — "has ANY assignment".
+  // The console's `resolveDataLevel` reads "has a SINGLE committed province"
+  // (derivedProvince = effectiveScopeProvince ?? initialDivisionProvince, which
+  // deriveWidestJurisdiction empties for a MULTI-province operator). For an
+  // operator whose assignments span two provinces the two disagreed on every
+  // load: the server seeded "locality", the console immediately derived
+  // "province" and flipped — the level drift this comment block has always
+  // claimed the seed avoids. Both seed accounts are multi-province
+  // (govt@dim.test: Tierra del Fuego + Santa Cruz), so the drift fired on every
+  // QA login. Reading the SAME value the console reads makes the mount quiet
+  // again. Single-province and explicit-?province operators are unaffected —
+  // initialDivisionProvince is set for them, exactly as before.
+  const seedLevel = resolveSeedLevel({
+    hasProvinceScope: provinceObj !== null || initialDivisionProvince !== undefined,
+    hasLocalityScope: initialDivisionLocality !== undefined,
+  });
+
   // Role-aware default vista (audit-ratified 2026-07-09): the first-visit preset
   // follows the operator's urgent question. A jurisdiction (govt) operator opens
   // on local syndromic surveillance ("sintomas" — base síntomas density + señal
@@ -313,13 +336,13 @@ async function GobPanoramaBoard({
     // from the cache keyed by that level — a mismatch blanks the map.
     //
     // PO-ratified 2026-07-09: the seed level follows the SCOPE, not the preset.
-    // A govt operator (always jurisdiction-scoped) or an explicit province opens
-    // at LOCALITY (scope-wins); only the unscoped national (admin viewing /gob)
-    // seeds at PROVINCE — matching the console's zoomed-out hysteresis derivation
-    // so the mount produces no level drift/refetch. The preset's own `level` is
-    // only a preference now.
-    const isScoped = provinceObj !== null || (profile.role !== "admin" && jurisdictions.length > 0);
-    const seedLevel = isScoped ? ("locality" as const) : ("province" as const);
+    // An operator with a SINGLE province in scope (explicit ?province, or a
+    // single-province jurisdiction) opens at LOCALITY (scope-wins); the national
+    // view — unscoped admin, or a govt operator whose assignments span several
+    // provinces — seeds at PROVINCE, matching the console's own derivation so the
+    // mount produces no level drift/refetch. The preset's own `level` is only a
+    // preference now. `seedLevel` is derived once above (A1), from the same
+    // `initialDivisionProvince` the console reads.
     // The preset's OWN window (90d/30d) — not the 3y default. This also scopes
     // the KPI fan-out to that window, killing the wasted 3-year compute. A
     // `?preset=X&period=Y` deep-link honors its explicit window (`period`, already
@@ -419,13 +442,14 @@ async function GobPanoramaBoard({
 
   // Non-first visit — keep today's behavior (perdidas seed, now cache-warmed).
   //
-  // Seed level follows the scope (QA 2026-07-03): a govt actor (always
-  // jurisdiction-scoped) or an explicit province selection opens at LOCALITY
-  // granularity — the finest the data supports; only the unscoped national
-  // (admin) view stays at PROVINCE. The level MUST match PanoramaShell's
-  // initialLevel or the console's seeded cache is the wrong one (C2).
-  const isScoped = provinceObj !== null || (profile.role !== "admin" && jurisdictions.length > 0);
-  const initialLevel = isScoped ? ("locality" as const) : ("province" as const);
+  // Seed level follows the scope (QA 2026-07-03): a SINGLE province in scope —
+  // an explicit ?province selection, or a single-province jurisdiction — opens at
+  // LOCALITY granularity, the finest the data supports; the national view (admin,
+  // or a govt operator spanning several provinces) stays at PROVINCE. The level
+  // MUST match PanoramaShell's initialLevel or the console's seeded cache is the
+  // wrong one (C2) — and it must match the console's own resolveDataLevel or the
+  // mount drifts (A1, see `seedLevel` above).
+  const initialLevel = seedLevel;
   // KPIs go through the SHARED cached loader (staging QA 2026-07-08 #1): a
   // browser reload hits the warm 60s per-lambda cache instead of re-running the
   // ~12-query fan-out. perf plan 1.3: the promise is streamed UN-awaited so a

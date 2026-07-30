@@ -470,6 +470,42 @@ export function resolveDataLevel(params: {
   return "province";
 }
 
+/**
+ * The SSR seed axis for a panorama page, from the scope alone (no camera — the
+ * server has none).
+ *
+ * A1 (2026-07-31). This exists so the two derivations that MUST agree are two
+ * named functions in one file instead of a boolean inlined in a page and a
+ * different boolean inlined in the console. They disagreed: the page asked "does
+ * this operator have ANY jurisdiction assignment?" while the console asks "is
+ * there a SINGLE committed province?" — so a govt operator whose assignments
+ * span two provinces was seeded at "locality" and immediately re-derived
+ * "province" on mount. That flip raced the mount fetch and painted the whole
+ * country "sin datos".
+ *
+ * The contract is a FIXED POINT, pinned in panorama-landing-level.test.ts: the
+ * level this returns must survive `resolveDataLevel` at the placeholder camera
+ * that level implies (`mountPlaceholderZoom`). Anything else is level drift on
+ * the landing state.
+ */
+export function resolveSeedLevel(params: {
+  hasProvinceScope: boolean;
+  hasLocalityScope: boolean;
+}): AggregationLevel {
+  return params.hasProvinceScope || params.hasLocalityScope ? "locality" : "province";
+}
+
+/**
+ * The console's PRE-MAP-LOAD placeholder zoom for a seeded axis (P4b): a scoped
+ * view's camera lands inside its province, so starting below Z_LOCALITY would
+ * resolve the LOD band to NATIONAL on the very first render and read the wrong
+ * (empty) cache — a blank first paint. Extracted from PanoramaConsole so the
+ * seed/derivation fixed point can be tested against the REAL placeholder.
+ */
+export function mountPlaceholderZoom(seedLevel: AggregationLevel): number {
+  return seedLevel === "locality" ? Z_LOCALITY + 1 : Z_LOCALITY - 1;
+}
+
 // ---------------------------------------------------------------------------
 // panorama-redesign Fase 1 — preset frame viewport helper
 // ---------------------------------------------------------------------------
