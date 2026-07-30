@@ -153,12 +153,57 @@ Consecuencias, las dos importantes:
    unexpectedly` → `ChildProcess.emitUnexpectedExit`. Es una **carrera en el
    teardown del pool de forks de vitest**, no un test malo.
 
-**El camino corregido**: apuntar al POOL, no a un archivo — `pool: "threads"`,
-`poolOptions.forks.singleFork`, `teardownTimeout`. Nota: `__tests__/setup.ts` ya
-tiene un `afterAll` de drenaje de pool escrito para este mismo síntoma, y
-evidentemente no alcanza. El proyecto `db` ya corre con `fileParallelism: false`,
-así que `singleFork: true` es semánticamente casi idéntico pero deja de crear y
-matar un fork por archivo — es el candidato más barato y de menor riesgo.
+### ACTUALIZACIÓN A0b — el fork MUERE NATIVAMENTE. Es Windows, y CI es Linux.
+
+A0b parcheó temporalmente `node_modules/vitest/.../cli-api.js` (con backup, y
+**restaurado** — árbol limpio) porque **vitest tira a la basura el `code` y el
+`signal` del hijo**: por eso el error no tiene causa. Los logueó.
+
+```
+[A0B-DIAG] emitUnexpectedExit code=3221226505 signal=null state=started poolId=1 project=db
+[A0B-DIAG] runner error for files: __tests__/admin-proposals.test.ts | isRejected=false
+```
+
+**`3221226505` = `0xC0000409` = `STATUS_STACK_BUFFER_OVERRUN`**, el código de
+fail-fast de Windows. Controles medidos en la misma máquina: `process.abort()`
+→ 134, OOM de V8 → 134, `child.kill()` → `signal=SIGTERM`. **Ninguno da
+0xC0000409.** El stderr del hijo SÍ se propaga (llegan los "Not implemented" de
+jsdom) y no hay ningún `FATAL ERROR`: **el fork muere nativa y silenciosamente.**
+
+**DOS COSAS QUE YO HABÍA ESCRITO ACÁ QUEDAN FALSIFICADAS:**
+1. **NO es una carrera de teardown.** `state=started` y el resolver del archivo
+   sin settlear (`testfileFinished` nunca llegó): el fork muere **mientras corre
+   el archivo**, no cerrándolo. Yo lo había inferido de los conteos del reporter
+   JSON; la instrumentación directa gana sobre mi inferencia.
+2. **No es el pool de postgres.js.** El `afterAll` de drenaje de `setup.ts` corre
+   estrictamente DESPUÉS del punto donde el proceso ya no existe.
+
+**Y una propuesta mía que era directamente inejecutable**: `poolOptions.forks.singleFork`
+**no existe en Vitest 4.1.6** — `poolOptions` fue removido (cero ocurrencias en
+`dist/`). Su traducción a v4 es `isolate: false`, y ahora es mala idea: no ataca
+un crash nativo y mete los 588 archivos en un proceso donde el crash se lleva el
+proyecto entero en vez de un archivo.
+
+**Lo más importante, y que nadie se había preguntado**: `0xC0000409` es un status
+de Windows NT. **CI corre en `ubuntu-latest`** (`.github/workflows/ci.yml:17`).
+Ese crash **no puede ocurrir en Linux**. Fuerte sospecha de que esto es un
+artefacto LOCAL de Windows y no un riesgo de envío — pero se confirma con una
+corrida verde de CI, no razonándolo.
+
+### Números de referencia (para quien lo retome)
+- Proyecto `db` limpio: **588 archivos / 5786 tests**. Roto: pierde un archivo
+  entero y sus tests.
+- Proyecto `unit`: **6 de 6 corridas limpias** → descartado (a tasa base ~60%,
+  p ≈ 0,4%). El fork muere en `db`.
+- ~13 min por corrida de `db`; reproduce ~1 de 2.
+
+### Siguiente candidato, ya razonado
+`pool: "threads"` — si la muerte está en la capa `child_process` (Node 24 +
+Windows + IPC `serialization: "advanced"`) o en código nativo dentro del fork,
+worker_threads cambia el mecanismo entero. **Antes de gastar corridas**:
+re-aplicar el parche de stderr-tail que dejó A0b (bufferea el stderr crudo del
+hijo y lo vuelca en `emitUnexpectedExit`) — debería nombrar el error fatal
+directamente. Logs en `scratchpad/a0b/`.
 
 **Presupuesto medido**: **~12 min por corrida de suite completa** (730 s, de los
 cuales 698 s son el proyecto `db` serial). Con una tasa base de 3 de 5, distinguir
