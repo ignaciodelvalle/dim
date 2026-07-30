@@ -190,6 +190,55 @@ Ese crash **no puede ocurrir en Linux**. Fuerte sospecha de que esto es un
 artefacto LOCAL de Windows y no un riesgo de envío — pero se confirma con una
 corrida verde de CI, no razonándolo.
 
+### RESUELTO 2026-07-31 — CI en Linux dice verde. El crash es local de Windows.
+
+Re-lancé el CI del head pusheado (`6575d0f6`, run 30521116031) porque **los dos
+runs originales habían quedado `cancelled`** — nunca hubo veredicto de Linux para
+lo que ya está en `origin`.
+
+**`Tests (vitest)` → SUCCESS en `ubuntu-latest`.** También verdes: migraciones,
+drift de schema, lint/typecheck/build, auditoría de dependencias.
+**El `0xC0000409` no reproduce en Linux. Es un artefacto local de Windows y NO
+es riesgo de envío.** Medido, no razonado.
+
+### HALLAZGO NUEVO (preexistente) — E2E en CI se muere por timeout
+
+El job `E2E (Playwright)` tiene `timeout-minutes: 30` (`ci.yml:488`) y **lleva al
+menos 3 corridas consecutivas agotándolo** (30521116031, 30521111221,
+30513536370): el paso "Run Playwright e2e suite" sale `cancelled`, no `failure`.
+**Este proyecto no tiene veredicto de e2e en CI**, y no lo tiene desde antes de
+la corrida del 30. Va al backlog como unidad propia.
+
+### Verificación local del e2e de D.9 — los locators FUNCIONAN
+
+Como CI no puede dar el veredicto, se corrió local (build `NvrNivLPpe_Sh51u8wSx9`,
+guard verde). Sonda sobre el DOM vivo:
+
+```
+mainContent:1  tabBar:1  tabBarInsideMain:0
+altaLinksWholePage:2  altaLinksInBody:1  altaLinksInTabBar:1
+```
+
+Partición por contención **exacta**. La validación estática contra `AppShell.tsx`
+era correcta. 9 pasan / 3 fallan, y los 3 son **preexistentes y rastreados**:
+
+1. **Tests 1 y 2 — `pet-carousel-dots` ya no existe.** Eliminado en `73e4d955`
+   (2026-07-24, "replace PetSwitcherDots with an avatar group"), **seis días
+   antes de D.9**. El testid aparece en exactamente UN archivo: el spec.
+   **Y acá está el séptimo caso del patrón**: los tests 8 y 9 afirman
+   `pet-carousel-dots` `toHaveCount(0)` → **pasan vacuamente y no guardan nada.**
+2. **Test 6 — drift de semilla.** El spec documenta `carla@dim.test` como dueña
+   sin mascotas; tiene 4 (dos `QA7-*` del 2026-07-17, DIM-DEMO-0002/0008 del
+   2026-07-26). Un barrido encontró que **no queda ningún dueño personal con cero
+   mascotas** (lucas tiene 0 pero es `govt`). Arreglarlo exige que la semilla
+   garantice uno.
+
+**Trampa de config para la próxima**: `playwright.config.ts` apunta a **3333** y
+trae su propio `webServer` que buildea y arranca — habría clobbereado el servidor
+vivo. `playwright.local3000.config.ts` es el de reusar servidor pero **hardcodea
+3000** y esta versión de Playwright no soporta `PLAYWRIGHT_TEST_BASE_URL`.
+Arreglo de una línea pendiente: `process.env.QA_PORT ?? 3000`.
+
 ### Números de referencia (para quien lo retome)
 - Proyecto `db` limpio: **588 archivos / 5786 tests**. Roto: pierde un archivo
   entero y sus tests.
