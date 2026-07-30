@@ -11,7 +11,7 @@
 // Same idiom as lib/ui/use-layer-features.test.ts: renderHook against a stubbed
 // global fetch.
 
-import { renderHook, waitFor } from "@testing-library/react";
+import { cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { useAsOfFrame } from "@/components/panorama/use-asof-frame";
@@ -23,6 +23,9 @@ const ISO = "2026-07-01T00:00:00.000Z";
 function setup(fetchImpl: typeof fetch, onFrameSettled = () => {}) {
   vi.stubGlobal("fetch", fetchImpl);
   const asOfData = new Map<LayerId, FeatureCollection>();
+  // The hook's own completion signal, always observable. Every test awaits it
+  // before finishing — see the drain rationale on afterEach below.
+  const settled = vi.fn(onFrameSettled);
   const result = renderHook(() =>
     useAsOfFrame({
       asOfIso: ISO,
@@ -35,13 +38,32 @@ function setup(fetchImpl: typeof fetch, onFrameSettled = () => {}) {
       asOfData,
       signalFor: () => new AbortController().signal,
       dropCubeStamp: () => {},
-      onFrameSettled,
+      onFrameSettled: settled,
     }),
   );
-  return { result, asOfData };
+  return { result, asOfData, settled };
 }
 
+// Wait for the hook's fan-out to finish. Without this, a test can assert on an
+// intermediate observable (a fetch call recorded, or `current` still null) and
+// return while `Promise.all(...).then(setStaleFrame)` is still in flight.
+const drain = (settled: ReturnType<typeof vi.fn>) =>
+  waitFor(() => expect(settled).toHaveBeenCalled());
+
+// UNMOUNT, don't just unstub.
+//
+// This project runs Vitest with `globals: false`, so @testing-library/react's
+// auto-cleanup (which it installs only when a global `afterEach` exists) never
+// registers. A hook left mounted keeps its React root alive; a state update
+// landing after the test commits, and React schedules the PASSIVE-EFFECT flush
+// through the scheduler's `setImmediate`. In the "db" project (fileParallelism
+// false, one worker for every file) that Immediate can fire after this file's
+// jsdom environment was torn down, and the flush callback's first statement is
+// `schedulerEvent = window.event` — so it throws
+// `ReferenceError: window is not defined` from react-dom-client, attributed to
+// this file, with zero failing tests. That is the CI "1 error / exit 1".
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
 });
@@ -49,7 +71,7 @@ afterEach(() => {
 describe("useAsOfFrame", () => {
   it("requests only the TEMPORAL layers, once each, at the given instant", async () => {
     const calls: string[] = [];
-    const { asOfData } = setup(async (url) => {
+    const { asOfData, settled } = setup(async (url) => {
       calls.push(String(url));
       return new Response(JSON.stringify({ features: EMPTY }), { status: 200 });
     });
@@ -61,10 +83,11 @@ describe("useAsOfFrame", () => {
     // cobertura is a current-state rollup — asking for it as-of would be a lie.
     expect(calls.join(" ")).not.toContain("/api/panorama/cobertura");
     await waitFor(() => expect(asOfData.has("zoonosis" as LayerId)).toBe(true));
+    await drain(settled);
   });
 
   it("reports a rate-limited frame instead of silently keeping stale features", async () => {
-    const { result, asOfData } = setup(async () => new Response("", { status: 429 }));
+    const { result, asOfData, settled } = setup(async () => new Response("", { status: 429 }));
 
     await waitFor(() => expect(result.result.current).not.toBeNull());
     expect(result.result.current?.rateLimited).toBe(true);
@@ -72,25 +95,29 @@ describe("useAsOfFrame", () => {
     // The cache is deliberately NOT cleared — a blank map is worse than a stale
     // one. The honesty comes from the report, not from wiping the frame.
     expect(asOfData.has("zoonosis" as LayerId)).toBe(false);
+    await drain(settled);
   });
 
   it("reports a failed frame that is not a rate limit", async () => {
-    const { result } = setup(async () => new Response("", { status: 500 }));
+    const { result, settled } = setup(async () => new Response("", { status: 500 }));
 
     await waitFor(() => expect(result.result.current).not.toBeNull());
     expect(result.result.current?.rateLimited).toBe(false);
+    await drain(settled);
   });
 
   it("settles the frame even when every layer fails, so the map still repaints", async () => {
-    const settled = vi.fn();
-    setup(async () => new Response("", { status: 500 }), settled);
-    await waitFor(() => expect(settled).toHaveBeenCalled());
+    const onSettled = vi.fn();
+    const { settled } = setup(async () => new Response("", { status: 500 }), onSettled);
+    await drain(settled);
+    expect(onSettled).toHaveBeenCalled();
   });
 
   it("reports nothing when the frame lands cleanly", async () => {
-    const { result } = setup(
+    const { result, settled } = setup(
       async () => new Response(JSON.stringify({ features: EMPTY }), { status: 200 }),
     );
-    await waitFor(() => expect(result.result.current).toBeNull());
+    await drain(settled);
+    expect(result.result.current).toBeNull();
   });
 });
