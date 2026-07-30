@@ -1,6 +1,12 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { type Locator, type Page, expect } from "@playwright/test";
+import {
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+  expect,
+} from "@playwright/test";
 
 export const SHARED_PASSWORD = "Test1234!";
 
@@ -24,7 +30,13 @@ export const ACCOUNTS = {
   // authorRole "vet" / authorVerified true, so the asiento lands as
   // professional_verified provenance, not a bare org record.
   vet: "vet@dim.test",
+  // Jurisdiction matters and these two are NOT interchangeable — a spec that
+  // asserts on scope must pick the one whose coverage it means:
+  //   govt      → Ushuaia (Tierra del Fuego) + El Calafate (Santa Cruz)
+  //   govtLocal → La Plata (Buenos Aires) + Palermo (CABA)
+  // (scripts/seed-test-users.ts GOVT_REMOTE_LOCALITIES / GOVT_LOCAL_LOCALITIES.)
   govt: "govt@dim.test",
+  govtLocal: "govt-local@dim.test",
   admin: "admin@dim.test",
   // ---- demo tier: seed-demo.ts only — ABSENT in CI, do not add new uses ----
   vetOrgAdmin: "alejo@dim.test", // admin of Clínica Veterinaria Recoleta (clinic org)
@@ -77,8 +89,69 @@ async function loginErrorText(page: Page): Promise<string> {
   ).trim();
 }
 
-/** Log in through the real UI at /login and wait until we leave the login page. */
-export async function loginAs(page: Page, email: string): Promise<void> {
+/**
+ * Auth cookies + landing path captured from the ONE real sign-in per account,
+ * replayed by every later `loginAs` for that account in the same worker.
+ *
+ * WHY THIS EXISTS — the suite was rate-limiting itself. `auth_login_email` is
+ * 5/min AND 20/hour keyed on the EMAIL ADDRESS (src/modules/auth/application/
+ * login.ts), and it is enforced BEFORE GoTrue is touched, so it counts failed
+ * attempts too. `uniqueIp()` spreads the per-IP budget and does exactly nothing
+ * to this one. Static count at the time of writing: 17 `ACCOUNTS.owner` call
+ * sites plus owner-shell.spec.ts's own literal login in a 3-test `beforeEach` —
+ * comfortably past 20 sign-ins as owner@dim.test per run, and `retries: 1`
+ * re-runs the failures on top. Until CI's e2e job was fixed (unit A4) the suite
+ * was killed by the job clock at ~24 min and never made enough logins to reach
+ * the hourly cap; the first run that COMPLETED hit it, and three tests died on
+ * "Demasiados intentos. Esperá un momento y volvé a probar."
+ *
+ * The limiter is a real security control (it is what stops a distributed
+ * brute-force against one account) and is NOT to be weakened for tests. Session
+ * reuse is the Playwright-recommended answer and the one e2e/owner-ia-p6.spec.ts
+ * already implements privately; this hoists it into the shared helper so every
+ * spec gets it without a rewrite.
+ *
+ * WHAT IS STILL COVERED: the first sign-in per account per worker is a REAL
+ * trip through the form, so "login works" is asserted once per role every run.
+ * e2e/auth.spec.ts covers the form itself (bad password, empty fields) and does
+ * not go through this helper. A spec whose SUBJECT is the sign-in must opt out
+ * with `{ fresh: true }` rather than rely on being scheduled first.
+ */
+type CachedSession = { cookies: Awaited<ReturnType<BrowserContext["cookies"]>>; landing: string };
+const sessionCache = new Map<string, CachedSession>();
+
+/** Replay a cached session into `page`'s context. Returns false if unusable. */
+async function restoreSession(page: Page, cached: CachedSession): Promise<boolean> {
+  const context = page.context();
+  await context.clearCookies();
+  await context.addCookies(cached.cookies);
+  await page.goto(cached.landing, { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+  // A session that no longer authenticates bounces to /login. Report that
+  // rather than letting the caller assert against a sign-in page.
+  return !new URL(page.url()).pathname.startsWith("/login");
+}
+
+/**
+ * Log in through the real UI at /login and wait until we leave the login page.
+ *
+ * Reuses a cached session for accounts already signed in during this worker —
+ * see sessionCache above. Pass `{ fresh: true }` to force a real form sign-in
+ * (for specs that are testing the sign-in itself).
+ */
+export async function loginAs(
+  page: Page,
+  email: string,
+  opts: { fresh?: boolean } = {},
+): Promise<void> {
+  if (!opts.fresh) {
+    const cached = sessionCache.get(email);
+    if (cached && (await restoreSession(page, cached))) return;
+    // Fall through to a real sign-in when the cached session no longer works
+    // (expired, signed out by another spec) — never silently continue anonymous.
+    if (cached) sessionCache.delete(email);
+  }
+
   // Fresh apparent origin per login — see uniqueIp above. Note this defeats the
   // per-IP budget ONLY: the per-email budget is keyed on the address, so a spec
   // that logs in as the same account more than 5 times a minute (or 20 an hour)
@@ -110,6 +183,127 @@ export async function loginAs(page: Page, email: string): Promise<void> {
     }
   }
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+
+  // Cache the session so the next `loginAs` for this account costs no login
+  // budget. The landing path is recorded too, so a replayed session leaves the
+  // page exactly where a real sign-in would have (callers assert on it).
+  const landed = new URL(page.url());
+  sessionCache.set(email, {
+    cookies: await page.context().cookies(),
+    landing: `${landed.pathname}${landed.search}`,
+  });
+}
+
+/**
+ * Discover a REAL public DIM token from the signed-in owner's own registry.
+ *
+ * Bootstrap generates every pet token with `generatePublicToken()` — random by
+ * construction (lib/infra/publicToken.ts), so no literal can name a pet that
+ * exists on a fresh database. Specs that pinned `DIM-DEMO-0001` / `DIM-PAMP-0001`
+ * were asserting against a not-found boundary in CI. Anchor on the `DIM-` prefix
+ * so "/mis-mascotas/nueva" (the create-pet CTA) can never be mistaken for a pet.
+ *
+ * `page` must already be authenticated as the owner whose pet you want.
+ *
+ * ACTIVE BY DEFAULT. Almost every caller wants a live credential — a lost or
+ * deceased pet renders a different surface (lost strip, no band dots), so a
+ * bare "first link" pick makes the caller's assertions depend on whatever state
+ * a previous suite happened to leave behind. Measured: after one run of the
+ * mark-lost journeys, owner@dim.test's first card was a LOST pet and the
+ * carousel tests failed on a page that was behaving correctly. The
+ * `hasText: /registrada/i` filter is the status flag on the card, the same
+ * anchor e2e/crisis-owner-lost-flow.spec.ts uses to find a non-lost pet.
+ */
+export async function discoverPetToken(
+  page: Page,
+  opts: { index?: number; activeOnly?: boolean } = {},
+): Promise<string> {
+  const index = opts.index ?? 0;
+  const activeOnly = opts.activeOnly ?? true;
+  await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+  const links = activeOnly
+    ? page.locator('a[href^="/mis-mascotas/DIM-"]', { hasText: /registrada/i })
+    : page.locator('a[href^="/mis-mascotas/DIM-"]');
+  await expect(
+    links.nth(index),
+    `owner registry has ${activeOnly ? "an ACTIVE" : "a"} pet at index ${index}`,
+  ).toBeVisible({ timeout: 20_000 });
+  const href = (await links.nth(index).getAttribute("href")) ?? "";
+  const token = href.split("/mis-mascotas/")[1]?.split(/[?#]/)[0] ?? "";
+  expect(token, "pet token parsed from the registry link").toMatch(/^DIM-/);
+  return token;
+}
+
+/**
+ * The signed-in account's display name, read from /cuenta at runtime.
+ *
+ * For privacy assertions ("this public surface must not leak the owner's
+ * name"). A HARDCODED persona name makes that assertion VACUOUS the moment the
+ * fixture changes: e2e/synthetic-monitor.spec.ts checked the public credential
+ * for "Ignacio del Valle" — a demo-tier persona — while CI's owner@dim.test is
+ * seeded as "Lucía Tester", so the check could not fail no matter what the page
+ * leaked. Reading the name from the account under test keeps it honest.
+ */
+export async function discoverDisplayName(page: Page, email: string): Promise<string> {
+  await page.goto("/cuenta", { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+  // The profile card renders the display name in the first <p> of the same
+  // block that carries the account email; anchoring on the email makes the
+  // innermost matching div unambiguous.
+  const block = page.locator("div").filter({ hasText: email }).last();
+  const name = (await block.locator("p").first().innerText()).trim();
+  expect(name, `display name read from /cuenta for ${email}`).not.toBe("");
+  expect(name, "display name is not the email itself").not.toContain("@");
+  return name;
+}
+
+/**
+ * File an anonymous denuncia at `coords` in a throwaway context, so an operator
+ * queue that `pnpm db:bootstrap` leaves EMPTY has something real in it.
+ *
+ * Bootstrap creates zero `cases` rows — reference data and test users, nothing
+ * else. A denuncia is the honest origin of a first case (create-welfare-report
+ * opens a `welfare_denuncia` case in the same transaction), so operator specs
+ * manufacture one the way a citizen does rather than skipping or asking CI to
+ * carry the demo seed.
+ *
+ * ⚠ JURISDICTION ROUTING IS NOT LOCAL. Which operator sees the case is decided
+ * by `cases.jurisdiction_province/locality`, and those are filled from a
+ * SERVER-SIDE fetch to https://nominatim.openstreetmap.org (lib/infra/
+ * geocoding.ts) fired when the pin drops — the app never derives jurisdiction
+ * from the coordinates itself. If that call fails the report still submits, but
+ * the case lands with a NULL jurisdiction and `listCasesForGovt` (which ANDs an
+ * exact province/locality pair and falls back to `sql\`false\``) shows it to
+ * nobody. Callers that need a govt queue must use `expectCaseInGovtQueue`,
+ * which names that cause instead of reporting an empty queue.
+ */
+export async function fileDenunciaAt(
+  browser: Browser,
+  coords: { latitude: number; longitude: number },
+): Promise<string> {
+  const context = await browser.newContext();
+  try {
+    const page = await context.newPage();
+    return await walkDenunciaWizard(page, { coords });
+  } finally {
+    await context.close();
+  }
+}
+
+/**
+ * Assert an operator queue is non-empty, and when it is empty say WHY in terms
+ * a reader can act on. Returns the first queue row's href.
+ */
+export async function expectQueueRow(page: Page, selector: string, what: string): Promise<string> {
+  const row = page.locator(selector).first();
+  if ((await row.count()) === 0) {
+    throw new Error(
+      `${what}: the queue is empty. A denuncia was filed for this run, so either it did not open a case, or its jurisdiction did not resolve — jurisdiction comes from a server-side reverse-geocode against nominatim.openstreetmap.org, and a govt queue matches on an EXACT province/locality pair, so a null jurisdiction is invisible to every govt operator. Check cases.jurisdiction_province.`,
+    );
+  }
+  await expect(row, what).toBeVisible({ timeout: 20_000 });
+  return (await row.getAttribute("href")) ?? "";
 }
 
 /** Navigate to a path, tolerate 308 redirects, settle, then pause briefly for the recording. */
@@ -285,11 +479,36 @@ export async function pickCard(page: Page, name: string, value: string): Promise
   await page.waitForTimeout(400);
 }
 
-/** Click the wizard "Continuar" button and give the next step time to render. */
-export async function clickContinuar(page: Page): Promise<void> {
+/**
+ * Click the wizard "Continuar" button and give the next step time to render.
+ *
+ * Pass `expectStep` to ASSERT the wizard actually advanced. Without it a gated
+ * step is silently tolerated: `validateAndAdvance` renders a role=alert reason
+ * and stays put, the helper walks on, and the run dies several steps later
+ * somewhere that names nothing. That is exactly how the CI failure of
+ * admin-case-detail-shell read — "page.waitForURL: Timeout 30000ms exceeded" at
+ * the submit, when the truth (visible in the trace's DOM snapshot) was that the
+ * wizard never left Paso 3. Report the gate where the gate is.
+ */
+export async function clickContinuar(page: Page, expectStep?: number): Promise<void> {
   const btn = page.getByRole("button", { name: /continuar/i }).first();
   await expect(btn, "wizard Continuar button").toBeVisible();
   await btn.click();
+  if (expectStep != null) {
+    const bar = page.getByRole("progressbar").first();
+    try {
+      await expect(bar).toHaveAttribute("aria-valuenow", String(expectStep), { timeout: 8_000 });
+    } catch (err) {
+      const reason = await page
+        .getByRole("alert")
+        .first()
+        .innerText()
+        .catch(() => "");
+      throw reason.trim()
+        ? new Error(`wizard refused to advance to step ${expectStep}: "${reason.trim()}"`)
+        : err;
+    }
+  }
   await page.waitForTimeout(500);
 }
 
@@ -355,10 +574,25 @@ export async function pickLocality(
  *   4 subject (optional) → Continuar
  *   5 "Enviar anónima" + evidence file → "Enviar denuncia →" (server redirect)
  */
+/**
+ * Coordinates whose canonical locality is CABA/Palermo — a coverage zone of the
+ * bootstrap-tier `govt-local@dim.test`, so a denuncia filed here lands in that
+ * operator's queue. `govt@dim.test` covers Ushuaia + El Calafate instead; use
+ * USHUAIA_POINT for that one. Both accounts come from scripts/seed-test-users.ts
+ * and exist on any freshly bootstrapped database.
+ */
+export const PALERMO_POINT = { latitude: -34.578, longitude: -58.424 };
+export const USHUAIA_POINT = { latitude: -54.8019, longitude: -68.303 };
+
 export async function walkDenunciaWizard(
   page: Page,
-  opts?: { triggerModerationFlag?: boolean },
+  opts?: {
+    triggerModerationFlag?: boolean;
+    /** Where the reported animal is — decides which authority receives it. */
+    coords?: { latitude: number; longitude: number };
+  },
 ): Promise<string> {
+  const coords = opts?.coords ?? PALERMO_POINT;
   await visit(page, "/denuncias/nueva");
 
   const description = opts?.triggerModerationFlag
@@ -368,21 +602,40 @@ export async function walkDenunciaWizard(
   // Step 1 — Qué pasó
   await fullScroll(page);
   await pickCard(page, "kindCard", "neglect");
-  await clickContinuar(page);
+  await clickContinuar(page, 2);
 
   // Step 2 — Gravedad
   await fullScroll(page);
   await pickCard(page, "severityCard", "moderado");
-  await clickContinuar(page);
+  await clickContinuar(page, 3);
 
   // Step 3 — Dónde y cuándo
   await page.locator("textarea#description").fill(description);
   await pickCard(page, "occurredAtOption", "today_yesterday");
-  // Location is optional but great on camera — LocationFields L2 address input.
-  await page.locator('input[name="locationAddress"]').fill("Av. Corrientes 1234, CABA");
-  await page.waitForTimeout(500);
+  // A PRECISE POINT IS MANDATORY, and a typed address is not one.
+  //
+  // jurisdiction-compliance (2026-07-03) made the map pin a hard gate:
+  // DenunciaWizard.validateAndAdvance() refuses step 3 without
+  // `hasLocationPoint` ("Marcá el lugar exacto en el mapa para continuar"),
+  // because the canonical locality — and therefore WHICH AUTHORITY receives the
+  // denuncia — is inferred server-side from lat/lng. This helper kept filling
+  // only the L2 address text, which sets no point, so every caller was walking
+  // a wizard that had stopped at Paso 3. e2e/synthetic-monitor.spec.ts's inline
+  // copy of this flow was updated at the time; the shared helper was not, and
+  // the divergence stayed invisible until the e2e job started reporting.
+  //
+  // Geolocation is granted+faked rather than clicking the map: it needs no tile
+  // server, so it works in a headless CI browser with no reachable map host.
+  await page.context().grantPermissions(["geolocation"]);
+  await page.context().setGeolocation(coords);
+  await page.getByRole("button", { name: /usar mi ubicación actual/i }).click();
+  // The hidden inputs are what the action reads; wait on them, not on a timer.
+  await expect(
+    page.locator('input[name="locationLat"]'),
+    "geolocation dropped a precise point",
+  ).not.toHaveValue("", { timeout: 15_000 });
   await fullScroll(page);
-  await clickContinuar(page);
+  await clickContinuar(page, 4);
 
   // Step 4 — Quién (optional): describe an unowned animal
   await pickCard(page, "subjectKindCard", "unowned_animal");
@@ -391,7 +644,7 @@ export async function walkDenunciaWizard(
     .first()
     .fill("Perro mestizo mediano, marrón claro, collar de soga gastada.");
   await fullScroll(page);
-  await clickContinuar(page);
+  await clickContinuar(page, 5);
 
   // Step 5 — Cerrar: anonymous + evidence photo + submit
   await page.getByRole("button", { name: /enviar an[oó]nima/i }).click();

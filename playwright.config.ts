@@ -56,7 +56,10 @@ export default defineConfig({
   //
   // playwright.staging.config.ts already carried this exact exclusion and
   // e2e/README.md already said "do not run these as part of a normal e2e
-  // pass" — this config was the one place out of step. Keep the three in sync.
+  // pass" — this config was the one place out of step. FOUR configs now carry
+  // it (here, staging, local3000, and demo by virtue of its own testDir);
+  // playwright.local3000.config.ts was the one missed in that pass, so a local
+  // full-suite run still inherited demo/'s 116 minutes. Keep them in sync.
   testIgnore: ["demo/**", "perf/**"],
   fullyParallel: true,
   forbidOnly: isCI,

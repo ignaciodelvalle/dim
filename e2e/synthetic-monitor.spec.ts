@@ -1,17 +1,33 @@
 import { expect, test } from "@playwright/test";
 
-import { resolveBaseUrl } from "./_base-url";
-import { ACCOUNTS, DEMO_PHOTOS, loginAs, pickCard } from "./demo/_helpers";
+import { resolveStagingUrl } from "./_base-url";
+import {
+  ACCOUNTS,
+  DEMO_PHOTOS,
+  USHUAIA_POINT,
+  discoverDisplayName,
+  discoverPetToken,
+  fileDenunciaAt,
+  loginAs,
+  pickCard,
+} from "./demo/_helpers";
 
 /**
- * Synthetic monitor — the 4 critical flows, FAST, aimed at the DEPLOYED staging
- * origin (resolveBaseUrl(): STAGING_URL env wins, else the staging_url file,
- * else localhost:3000). Designed to run every N minutes overnight via
- * scripts/qa-monitor.ps1 and go LOUD the instant a critical path breaks.
+ * Synthetic monitor — the 4 critical flows, FAST. Designed to run every N
+ * minutes overnight via scripts/qa-monitor.ps1 against the DEPLOYED staging
+ * origin and go LOUD the instant a critical path breaks.
+ *
+ * ORIGIN: `STAGING_URL` (or the staging_url file) pins it to a deploy. With
+ * neither set it stays on whatever baseURL the active config provides — :3333
+ * under playwright.config.ts in CI, `QA_PORT` under local3000 — so it doubles
+ * as a regression suite over the CI build. It used to fall back to a
+ * hardcoded localhost:3000 instead, which in CI is a port nothing serves: all
+ * four flows died on ERR_CONNECTION_REFUSED without asserting a thing. See the
+ * header of e2e/_base-url.ts.
  *
  * The four flows (target: < 2 min total on a warm deploy):
  *   (a) owner login + credential surface renders
- *   (b) anon public credential /p/DIM-DEMO-0001 → 200, NO owner PII,
+ *   (b) anon public credential /p/<runtime token> → 200, NO owner PII,
  *       Cache-Control: no-store (the revoke/lost-cache privacy invariant)
  *   (c) govt login → /gob/maltrato has actionable rows → /gob/panorama paints
  *   (d) anon denuncia wizard reaches the reference-code screen (submits a real
@@ -25,27 +41,54 @@ import { ACCOUNTS, DEMO_PHOTOS, loginAs, pickCard } from "./demo/_helpers";
  * Each flow is its own test so a single broken path is pinpointed, not masked.
  */
 
-const BASE = resolveBaseUrl();
-
-test.use({ baseURL: BASE });
+const STAGING = resolveStagingUrl();
+// Only override the config's baseURL when a deploy was actually named.
+if (STAGING) test.use({ baseURL: STAGING });
 
 // Remote serverless cold starts (~10s) — give each flow headroom but keep the
 // whole battery under ~2 min on a warm deploy.
 test.describe.configure({ mode: "parallel", timeout: 90_000 });
 
-const ROCCO_TOKEN = "DIM-DEMO-0001"; // stable demo hero pet (seed-demo).
+/**
+ * The pet token and the owner display name are BOTH resolved at runtime from
+ * the owner's own account, memoized for the file.
+ *
+ * The token used to be the literal `DIM-DEMO-0001` (seed-demo's hero pet) and
+ * the name the literal "Ignacio del Valle". Neither exists on a bootstrapped
+ * database: CI's owner@dim.test is "Lucía Tester" with randomly-generated pet
+ * tokens. That made flow (b) worse than red — a 404 boundary would have
+ * answered 200-with-no-PII, and `not.toContain("Ignacio del Valle")` CANNOT
+ * FAIL against a page that never had that name on it. A privacy assertion that
+ * cannot fail is not a privacy assertion.
+ */
+let fixture: Promise<{ token: string; ownerName: string }> | null = null;
+function ownerFixture(browser: import("@playwright/test").Browser): Promise<{
+  token: string;
+  ownerName: string;
+}> {
+  fixture ??= (async () => {
+    const context = await browser.newContext();
+    try {
+      const page = await context.newPage();
+      await loginAs(page, ACCOUNTS.owner);
+      const token = await discoverPetToken(page);
+      const ownerName = await discoverDisplayName(page, ACCOUNTS.owner);
+      return { token, ownerName };
+    } finally {
+      await context.close();
+    }
+  })();
+  return fixture;
+}
 
-// Owner PII that must NEVER surface on the public credential of an ACTIVE pet
-// (name is never disclosed even when lost; email/DNI never; see
-// lib/infra/public-cache-policy.ts + the /p page privacy posture).
-const OWNER_DISPLAY_NAME = "Ignacio del Valle";
-
-test.describe(`synthetic monitor @ ${BASE}`, () => {
+test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
   // ------------------------------------------------------------------------
   // (a) Owner login + credential renders.
   // ------------------------------------------------------------------------
   test("(a) owner login + credential surface renders", async ({ page }) => {
-    await loginAs(page, ACCOUNTS.owner);
+    // fresh: this flow's SUBJECT is the sign-in, so it must not be handed a
+    // replayed session by the shared helper's cache.
+    await loginAs(page, ACCOUNTS.owner, { fresh: true });
     // Landed inside the app (not stranded on /login).
     expect(page.url(), "owner left /login after sign-in").not.toContain("/login");
 
@@ -65,24 +108,26 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
   // ------------------------------------------------------------------------
   // (b) Anon public credential — 200, no PII, no-store.
   // ------------------------------------------------------------------------
-  test("(b) anon /p credential: 200 + no PII + no-store", async ({ page }) => {
-    // Header + status via a raw request (no cookies — a true anon fetch).
-    const res = await page.request.get(`${BASE}/p/${ROCCO_TOKEN}`);
-    expect(res.status(), `/p/${ROCCO_TOKEN} responded ${res.status()}`).toBe(200);
+  test("(b) anon /p credential: 200 + no PII + no-store", async ({ browser, page }) => {
+    const { token, ownerName } = await ownerFixture(browser);
+    // Header + status via a raw request on a context that never authenticated —
+    // a true anon fetch. Only the token DISCOVERY above was authenticated.
+    const res = await page.request.get(`/p/${token}`);
+    expect(res.status(), `/p/${token} responded ${res.status()}`).toBe(200);
 
     const cacheControl = res.headers()["cache-control"] ?? "";
     expect(
       cacheControl,
-      `/p/${ROCCO_TOKEN} Cache-Control must forbid shared caching (no-store) — got "${cacheControl}". A stale CDN copy would keep serving a found pet as SE BUSCA + phone, or a revoked share. This is the privacy-class fix in middleware.ts + lib/infra/public-cache-policy.ts.`,
+      `/p/${token} Cache-Control must forbid shared caching (no-store) — got "${cacheControl}". A stale CDN copy would keep serving a found pet as SE BUSCA + phone, or a revoked share. This is the privacy-class fix in middleware.ts + lib/infra/public-cache-policy.ts.`,
     ).toMatch(/no-store/i);
 
     // Body must carry NO owner PII.
     const body = await res.text();
-    expect(body, "public credential leaks owner display name").not.toContain(OWNER_DISPLAY_NAME);
+    expect(body, "public credential leaks owner display name").not.toContain(ownerName);
     expect(body, "public credential leaks an @dim.test email").not.toMatch(/@dim\.test/i);
 
     // Render sanity: the page is the credential, not an error/404 boundary.
-    await page.goto(`/p/${ROCCO_TOKEN}`, { waitUntil: "domcontentloaded" });
+    await page.goto(`/p/${token}`, { waitUntil: "domcontentloaded" });
     await expect(page.getByText(/no encontramos esta página|application error/i)).not.toBeVisible();
     await expect(page.locator("main, h1").first()).toBeVisible({ timeout: 20_000 });
   });
@@ -90,11 +135,20 @@ test.describe(`synthetic monitor @ ${BASE}`, () => {
   // ------------------------------------------------------------------------
   // (c) Govt login → maltrato actionable → panorama paints.
   // ------------------------------------------------------------------------
-  test("(c) govt maltrato rows + panorama canvas paints", async ({ page }) => {
+  test("(c) govt maltrato rows + panorama canvas paints", async ({ browser, page }) => {
     await loginAs(page, ACCOUNTS.govt);
 
     // Maltrato queue (all cases) must render actionable rows.
     await page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
+    // `pnpm db:bootstrap` creates no cases at all, so on a fresh CI database
+    // this queue is legitimately empty and the row assertion below has nothing
+    // to find. File one the way a citizen does — inside THIS operator's
+    // coverage (ACCOUNTS.govt is seeded on Ushuaia + El Calafate), because a
+    // govt queue matches jurisdiction on an exact province/locality pair.
+    if ((await page.locator('a[href^="/gob/maltrato/"]:visible').count()) === 0) {
+      await fileDenunciaAt(browser, USHUAIA_POINT);
+      await page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
+    }
     await expect(
       page.getByRole("heading", { name: /denuncias de maltrato/i }),
       "maltrato console heading",

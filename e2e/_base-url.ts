@@ -13,17 +13,28 @@ import { readFileSync } from "node:fs";
  *      the current staging origin (the per-deploy scratchpad file).
  *   3. the known local scratchpad staging_url file, if present (PO's Windows
  *      box) — best-effort, never fatal.
- *   4. http://localhost:${QA_PORT ?? 3000} — the local QA server fallback so
- *      the specs still run under playwright.local3000.config.ts with no env
- *      set. QA_PORT is that config's port override (same var as
- *      `qa-up.ps1 -Port`); honoring it here keeps these two specs on the same
- *      origin as the rest of the suite when the QA server is not on :3000.
+ *
+ * ─── WHY THERE IS NO LONGER A `localhost:3000` FALLBACK ────────────────────
+ * There used to be a fourth step: `http://localhost:${QA_PORT ?? 3000}`. It
+ * reads like a harmless convenience and it cost the project FIVE of the 21
+ * failures in the first e2e run that ever reported a verdict (run
+ * 30582117433). In GitHub Actions none of steps 1-3 resolve, QA_PORT is unset,
+ * and the suite's own server is on :3333 — so both QA-night specs pinned
+ * themselves with `test.use({ baseURL })` to a port nothing was listening on
+ * and died with `net::ERR_CONNECTION_REFUSED at http://localhost:3000/login`
+ * before asserting anything. The fallback did not point the specs at the
+ * running app; it pointed them AWAY from it, and it overrode the one value
+ * that was already correct.
+ *
+ * So: when no staging origin is configured, resolve to NOTHING and let the
+ * spec inherit the Playwright config's own `baseURL` — :3333 under
+ * playwright.config.ts, `QA_PORT` under playwright.local3000.config.ts. The
+ * config already knows where the server is. Callers use the `baseURL` fixture
+ * (which reflects file-level `test.use` overrides) when they need the value.
  *
  * The returned value never carries a trailing slash so callers can safely do
  * `base + "/login"`.
  */
-
-const DEFAULT_LOCAL = `http://localhost:${Number(process.env.QA_PORT?.trim() || 3000)}`;
 
 // Best-effort default location of the per-deploy staging_url file on the PO's
 // machine. Never hardcode this into an assertion — it is only a convenience
@@ -48,7 +59,19 @@ function stripTrailingSlash(url: string): string {
   return url.replace(/\/+$/, "");
 }
 
-export function resolveBaseUrl(): string {
+/**
+ * The explicitly-configured deployed staging origin, or `null` when none is
+ * configured and the spec should therefore stay on the suite's own baseURL.
+ *
+ * A spec pins itself to a staging deploy like this, and ONLY like this:
+ *
+ *   const STAGING = resolveStagingUrl();
+ *   if (STAGING) test.use({ baseURL: STAGING });
+ *
+ * Never `test.use({ baseURL: STAGING ?? something })` — inventing a fallback
+ * origin is the bug documented at the top of this file.
+ */
+export function resolveStagingUrl(): string | null {
   const envUrl = process.env.STAGING_URL?.trim();
   if (envUrl) return stripTrailingSlash(envUrl);
 
@@ -61,7 +84,24 @@ export function resolveBaseUrl(): string {
   const fromDefaultFile = readFirstLine(DEFAULT_STAGING_URL_FILE);
   if (fromDefaultFile) return stripTrailingSlash(fromDefaultFile);
 
-  return DEFAULT_LOCAL;
+  return null;
+}
+
+/**
+ * Staging origin for specs that are MEANINGLESS anywhere else — currently only
+ * e2e/perf/staging-panorama-perf.spec.ts, which measures deployed latency and
+ * is excluded from playwright.config.ts for exactly that reason. Such a spec
+ * must fail loudly rather than silently measure a localhost build.
+ */
+export function requireStagingUrl(): string {
+  const url = resolveStagingUrl();
+  if (!url) {
+    throw new Error(
+      "No staging origin configured. Set STAGING_URL (or STAGING_URL_FILE) — " +
+        "this spec only means anything against a deployed origin.",
+    );
+  }
+  return url;
 }
 
 /**

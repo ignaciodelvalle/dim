@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { resolveBaseUrl } from "../_base-url";
+import { resolveStagingUrl } from "../_base-url";
 import { ACCOUNTS, loginAs } from "../demo/_helpers";
 
 /**
@@ -30,8 +30,12 @@ import { ACCOUNTS, loginAs } from "../demo/_helpers";
  * comparison is self-contained in the run output.
  */
 
-const BASE = resolveBaseUrl();
-test.use({ baseURL: BASE });
+// Staging-only by construction: this spec PRINTS deployed latency against a
+// recorded baseline and asserts nothing, so pointed at a localhost build it
+// measures nothing. resolveStagingUrl() returns null when no deployed origin is
+// configured — do NOT substitute a localhost fallback here (see _base-url.ts).
+const BASE = resolveStagingUrl() ?? "";
+if (BASE) test.use({ baseURL: BASE });
 test.describe.configure({ mode: "serial", timeout: 180_000 });
 
 // Measured 2026-07-10, pre-gru1 (functions iad1, DB sa-east-1). See
@@ -67,7 +71,7 @@ async function timeFetch(
 }
 
 test("panorama perf — staging re-measure (gru1)", async ({ page }) => {
-  test.skip(BASE.includes("localhost"), "Set STAGING_URL to a deployed origin.");
+  test.skip(!BASE, "Set STAGING_URL to a deployed origin.");
 
   await loginAs(page, ACCOUNTS.govt);
   await page.goto("/gob/panorama");

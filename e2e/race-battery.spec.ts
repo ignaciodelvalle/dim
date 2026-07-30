@@ -1,6 +1,6 @@
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
 
-import { resolveBaseUrl } from "./_base-url";
+import { resolveStagingUrl } from "./_base-url";
 import { ACCOUNTS, loginAs } from "./demo/_helpers";
 
 /**
@@ -11,10 +11,15 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
  * SOFT on which contender wins — the invariant is "exactly one winner, the
  * loser fails cleanly", never "govt beats admin".
  *
- * Aimed at the deployed staging origin (resolveBaseUrl(): STAGING_URL env wins,
- * else the staging_url file, else localhost:3000). Staging runs a throwaway DB,
- * so the data-mutating races are safe there. Tests self-SKIP (not fail) when a
- * precondition fixture is absent, and restore demo state where they mutate it.
+ * ORIGIN: `STAGING_URL` (or the staging_url file) pins it to a deploy, whose
+ * throwaway DB makes the data-mutating races safe. With neither set it stays on
+ * the active config's baseURL — :3333 in CI, `QA_PORT` under local3000. It used
+ * to fall back to a hardcoded localhost:3000, a port nothing serves in CI, so
+ * (a) died on ERR_CONNECTION_REFUSED and took (b)-(d) with it (serial mode).
+ * See the header of e2e/_base-url.ts.
+ *
+ * Tests self-SKIP (not fail) when a precondition fixture is absent, and restore
+ * demo state where they mutate it.
  *
  * Run:
  *   STAGING_URL=https://<deploy>.vercel.app \
@@ -22,9 +27,9 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
  *     --config=playwright.local3000.config.ts
  */
 
-const BASE = resolveBaseUrl();
-
-test.use({ baseURL: BASE });
+const STAGING = resolveStagingUrl();
+// Only override the config's baseURL when a deploy was actually named.
+if (STAGING) test.use({ baseURL: STAGING });
 
 // Multi-actor journeys that relogin / mutate shared rows — run serially.
 test.describe.configure({ mode: "serial", timeout: 150_000 });
@@ -35,8 +40,9 @@ const HERO_TOKEN = "DIM-DEMO-0001"; // never mutate the demo hero pet.
 async function openAs(
   browser: import("@playwright/test").Browser,
   email: string,
+  baseURL: string | undefined,
 ): Promise<{ ctx: BrowserContext; page: Page }> {
-  const ctx = await browser.newContext({ baseURL: BASE });
+  const ctx = await browser.newContext({ baseURL });
   const page = await ctx.newPage();
   await loginAs(page, email);
   return { ctx, page };
@@ -47,14 +53,17 @@ async function countActiveShareLinks(page: Page): Promise<number> {
   return page.getByRole("button", { name: /^revocar$/i }).count();
 }
 
-test.describe(`race battery @ ${BASE}`, () => {
+test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
   // ========================================================================
   // (a) Double-submit share-link generation → exactly ONE new active link.
   //     Fires the generate action TWICE in the same tick (bypassing the
   //     client disabled-on-pending guard) to probe SERVER-side idempotency.
   // ========================================================================
-  test("(a) double-submit share generation creates exactly one link", async ({ browser }) => {
-    const { ctx, page } = await openAs(browser, ACCOUNTS.owner);
+  test("(a) double-submit share generation creates exactly one link", async ({
+    browser,
+    baseURL,
+  }) => {
+    const { ctx, page } = await openAs(browser, ACCOUNTS.owner, baseURL);
     try {
       // Discover an owner pet (any is fine — share links are non-destructive).
       // Anchor on the DIM- token prefix: a bare /mis-mascotas/ prefix match
@@ -152,9 +161,9 @@ test.describe(`race battery @ ${BASE}`, () => {
   // (b) Two operators (govt + admin) assign the SAME denuncia at once →
   //     exactly one wins, the other gets a clean conflict, ownership singular.
   // ========================================================================
-  test("(b) concurrent denuncia assignment yields a single owner", async ({ browser }) => {
-    const govt = await openAs(browser, ACCOUNTS.govt);
-    const admin = await openAs(browser, ACCOUNTS.admin);
+  test("(b) concurrent denuncia assignment yields a single owner", async ({ browser, baseURL }) => {
+    const govt = await openAs(browser, ACCOUNTS.govt, baseURL);
+    const admin = await openAs(browser, ACCOUNTS.admin, baseURL);
     let caseId = "";
     try {
       // Find an UNASSIGNED, assignable case from the govt queue. Only VISIBLE
@@ -272,8 +281,11 @@ test.describe(`race battery @ ${BASE}`, () => {
   // (c) Two sessions accept the SAME pending transfer at once → one accepted,
   //     one clean rejection, ownership singular. Transfer is created in-test.
   // ========================================================================
-  test("(c) concurrent transfer accept transfers ownership exactly once", async ({ browser }) => {
-    const owner = await openAs(browser, ACCOUNTS.owner);
+  test("(c) concurrent transfer accept transfers ownership exactly once", async ({
+    browser,
+    baseURL,
+  }) => {
+    const owner = await openAs(browser, ACCOUNTS.owner, baseURL);
     let transferToken = "";
     let petToken = "";
     try {
@@ -307,8 +319,8 @@ test.describe(`race battery @ ${BASE}`, () => {
       expect(transferToken, "fresh transfer token").toBeTruthy();
 
       // Two owner2 sessions race the accept.
-      const r1 = await openAs(browser, ACCOUNTS.owner2);
-      const r2 = await openAs(browser, ACCOUNTS.owner2);
+      const r1 = await openAs(browser, ACCOUNTS.owner2, baseURL);
+      const r2 = await openAs(browser, ACCOUNTS.owner2, baseURL);
       try {
         await Promise.all([
           r1.page.goto(`/transferencias/${transferToken}`, { waitUntil: "domcontentloaded" }),
@@ -384,8 +396,11 @@ test.describe(`race battery @ ${BASE}`, () => {
   //     other a clean already-withdrawn state, no crash. Skips when no pending
   //     application exists.
   // ========================================================================
-  test("(d) concurrent withdraw of one application resolves cleanly", async ({ browser }) => {
-    const a1 = await openAs(browser, ACCOUNTS.owner2);
+  test("(d) concurrent withdraw of one application resolves cleanly", async ({
+    browser,
+    baseURL,
+  }) => {
+    const a1 = await openAs(browser, ACCOUNTS.owner2, baseURL);
     try {
       await a1.page.goto("/mis-mascotas/postulaciones", { waitUntil: "domcontentloaded" });
       const withdraw = a1.page.getByRole("button", { name: /retirar postulación/i });
@@ -398,7 +413,7 @@ test.describe(`race battery @ ${BASE}`, () => {
         "owner2 has no pending adoption application — skipping withdraw race.",
       );
 
-      const a2 = await openAs(browser, ACCOUNTS.owner2);
+      const a2 = await openAs(browser, ACCOUNTS.owner2, baseURL);
       try {
         await a2.page.goto("/mis-mascotas/postulaciones", { waitUntil: "domcontentloaded" });
         // Let both pages hydrate so the confirm clicks aren't silently dropped.

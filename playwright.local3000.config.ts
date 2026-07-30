@@ -36,15 +36,26 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const QA_PORT = Number(process.env.QA_PORT?.trim() || 3000);
 
+// CI=true reproduces the CI job's TIMING against a local server, so a spec that
+// only passes because local budgets are twice as generous is caught here rather
+// than in the gate. Everything else (origin, no webServer) stays local.
+const asCI = !!process.env.CI;
+
 export default defineConfig({
   testDir: "./e2e",
-  timeout: 120_000,
+  // Same exclusions as playwright.config.ts and playwright.staging.config.ts —
+  // this was the FOURTH config and the one out of step. demo/*.spec.ts declare
+  // 116 minutes of test.setTimeout() between six recordings and perf/ measures
+  // a deployed origin, so a local full-suite run through this config inherited
+  // both. Keep the four in sync.
+  testIgnore: ["demo/**", "perf/**"],
+  timeout: asCI ? 30_000 : 120_000,
   expect: {
-    timeout: 15_000,
+    timeout: asCI ? 8_000 : 15_000,
   },
   fullyParallel: false,
   workers: 1,
-  retries: 0,
+  retries: asCI ? 1 : 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: `http://localhost:${QA_PORT}`,
