@@ -518,6 +518,6 @@ Ya existe `suppressSmallCells` en `lib/metrics/anonymity.ts` (k=5, accessor
 | D.1 (h1) | **hecha** — 4 pasos display nuevos + 67 headings tokenizados. Y destapó un defecto sistémico: `text-[var(--text-*)]` compila a `color`, no a `font-size` — **703 usos muertos** en 207 archivos, cercados en la regla 9 | `73c33104` |
 | SC-6 | pendiente | |
 | C.1 | pendiente | |
-| C.2 | pendiente | |
+| C.2 | **hecha** — ruta des-huerfanada (visibilidad sobre AMBAS direcciones, badge sigue sólo entrantes) + la promesa falsa "podés cancelarla" corregida. **Decisión de producto pendiente**: si el ciudadano debe poder cancelar una saliente (hoy `CancelTransferAction` existe sólo en `app/org/`) | `6d716356` |
 | #41 detalle de caso | pendiente | |
 | D.8 (resto) | pendiente | |
