@@ -90,9 +90,14 @@ async function resolveProfileIds(): Promise<{ adminId: string; govtId: string }>
   const adminRow = rows.find((r) => r.role === "admin");
   const govtRow = rows.find((r) => r.role === "govt");
 
+  // Both accounts come from seed-test-users (which db:bootstrap runs), NOT from
+  // the demo seed: `rg -o '[a-z]+@dim\.test' scripts/seed-test-users.ts` lists
+  // govt@ among its eight. This message used to send the reader to
+  // `seed:demo:scenario`, which creates the govt ASSIGNMENT to CABA, not the
+  // account — so a missing profile pointed at the one command that cannot fix
+  // it. Diagnostics that name the wrong command cost more than no diagnostics.
   if (!adminRow) throw new Error("admin@dim.test profile not found — run pnpm seed:test first");
-  if (!govtRow)
-    throw new Error("govt@dim.test profile not found — run pnpm seed:demo:scenario first");
+  if (!govtRow) throw new Error("govt@dim.test profile not found — run pnpm seed:test first");
 
   return { adminId: adminRow.id, govtId: govtRow.id };
 }
