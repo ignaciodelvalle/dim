@@ -1,12 +1,19 @@
 // Unit tests: declared-by-owner chip/esterilización sign-off surface (#3).
 //
-// Strategy — pure mock-based, no DB (mirrors ./atender-access.test.ts).
+// Strategy — pure mock-based, no DB (mirrors ./atender-access.test.ts). These
+// cover PROJECTION shape (summary/prefill strings, latest-per-type, error
+// copy). The signing RULE itself — "does a professional record of this act
+// exist?" — is exercised against the real spine in
+// ./atender-declared-events.db.test.ts, because that rule is a statement about
+// how append-only rows relate to each other and a mock can assert it either
+// way. The pre-fix version of this file "proved" the bug fixed by feeding an
+// owner-filtered query a vet row it could never have returned.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// Chainable @/db mock. Each terminal call (.orderBy() for the list query,
-// .limit() for the single-row guard query) shifts one result array off
-// dbState.results (FIFO).
+// Chainable @/db mock. Each terminal call (.orderBy() — both consumers now run
+// the same pet-scoped list query) shifts one result array off dbState.results
+// (FIFO).
 const { chain, dbState } = vi.hoisted(() => {
   const dbState = { results: [] as unknown[][] };
   const terminal = () => Promise.resolve(dbState.results.shift() ?? []);
@@ -27,6 +34,7 @@ vi.mock("@/db", () => ({
     petId: "pet_id",
     eventType: "event_type",
     occurredAt: "occurred_at",
+    recordedAt: "recorded_at",
     payload: "payload",
     authorRole: "author_role",
     authorVerified: "author_verified",
@@ -90,10 +98,45 @@ describe("fetchPendingDeclaredEvents", () => {
     ]);
   });
 
-  it("excludes an already professional_verified event (authorRole=vet, verified)", async () => {
-    queue([ownerRow({ authorRole: "vet", authorVerified: true })]);
+  it("excludes a declaration once a SEPARATE vet row signs the same chip", async () => {
+    // The shape the real spine produces: the owner row is untouched (invariant
+    // #2) and the signature is an additional row.
+    queue([
+      ownerRow({ id: "vet-signature", authorRole: "vet", authorVerified: true }),
+      ownerRow({ id: "owner-declaration" }),
+    ]);
     const pending = await fetchPendingDeclaredEvents("pet-1");
     expect(pending).toEqual([]);
+  });
+
+  it("ignores a vet row for a DIFFERENT chip (repeatable act, occurrence-scoped)", async () => {
+    queue([
+      ownerRow({ id: "owner-new-chip", payload: { chip_number: "985141009999999" } }),
+      ownerRow({
+        id: "vet-old-chip",
+        authorRole: "vet",
+        authorVerified: true,
+        occurredAt: new Date("2024-01-01T12:00:00Z"),
+      }),
+    ]);
+    const pending = await fetchPendingDeclaredEvents("pet-1");
+    expect(pending).toHaveLength(1);
+    expect(pending[0].id).toBe("owner-new-chip");
+  });
+
+  it("does not treat org_registered (no matrícula) as a professional signature", async () => {
+    queue([
+      ownerRow({
+        id: "org-record",
+        authorRole: "shelter",
+        authorVerified: false,
+        authorOrganizationId: "org-1",
+      }),
+      ownerRow({ id: "owner-declaration" }),
+    ]);
+    const pending = await fetchPendingDeclaredEvents("pet-1");
+    expect(pending).toHaveLength(1);
+    expect(pending[0].id).toBe("owner-declaration");
   });
 
   it("ignores event types outside the signable set", async () => {
@@ -126,6 +169,29 @@ describe("rejectIfAlreadySigned — append-only sign-off guard", () => {
     queue([ownerRow({ authorRole: "vet", authorVerified: true })]);
     const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
     expect(result?.error).toMatch(/ya fue firmado/i);
+  });
+
+  it("rejects when a SEPARATE vet row already signed the same chip", async () => {
+    queue([
+      ownerRow({ id: "vet-signature", authorRole: "vet", authorVerified: true }),
+      ownerRow({ id: "evt-1" }),
+    ]);
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    expect(result?.error).toMatch(/ya fue firmado/i);
+  });
+
+  it("still allows signing a DIFFERENT chip while an older chip is signed", async () => {
+    queue([
+      ownerRow({ id: "evt-1", payload: { chip_number: "985141009999999" } }),
+      ownerRow({
+        id: "vet-old-chip",
+        authorRole: "vet",
+        authorVerified: true,
+        occurredAt: new Date("2024-01-01T12:00:00Z"),
+      }),
+    ]);
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    expect(result).toBeNull();
   });
 
   it("rejects when the target event belongs to a different pet", async () => {
