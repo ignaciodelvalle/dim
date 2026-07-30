@@ -305,9 +305,43 @@ Evidencia: `docs/reviews/results/2026-07-30-b4-visual/a2-04-*.png`.
 **Diagnosticar desde el código PRIMERO** (barato). La verificación en vivo va al
 Bloque B. Ojo con la regla 2 si aparece un e2e.
 
+**CERRADA 2026-07-31 (`f20cdc9d`).** Ni los params perdidos ni el abort eran el
+bug: el que GANA pedía el grano equivocado. (1) `onLevelChange` hacía `setLevel`
+sin sincronizar `levelRef.current` — el efecto de montaje, declarado DEBAJO del
+efecto de nivel derivado, corre en el MISMO commit y leía el ref viejo; su fetch
+compartía la clave de abort y mataba al correcto. (2) El `isScoped` del server
+(`jurisdictions.length > 0`) discrepaba con el `resolveDataLevel` del cliente
+(«UNA sola provincia»), así que TODO operador multi-provincia —las dos cuentas
+semilla lo son— driftea de eje en cada montaje. Ahora: **un solo request**,
+`?level=province`, 200. Píxeles: CABA `#75b3d9`, TdF con hachurado (96 colores
+distintos vs 33 de una provincia sin datos), `pano-prov-suppress-ppp` montado.
+
+**Hermano NO arreglado, es unidad aparte** (ver "El aviso de capa desconocida").
+
 **Por qué es #1**: hace INALCANZABLE todo el k-anon de la corrida anterior en la
 primera pantalla que ve el operador. Un mapa que miente al abrirlo invalida todo
 lo que se construya encima.
+
+### A2c. El aviso de capa desconocida existe y es correcto — está ENTERRADO
+
+Hallazgo de A1 (2026-07-31), **no arreglado a propósito**. El guard que el plan
+pedía YA EXISTE y funciona: `unknownLayerIds` → `droppedLayerIds` →
+`PanoramaBoardNotices` renderiza «Este enlace pedía una capa que ya no existe
+(ppp-compliance). La vista que estás viendo no es completa.» — con el id
+correcto adentro.
+
+El defecto es la UBICACIÓN. `PanoramaBoardNotices` vive dentro de `scrubberDock`,
+que es el prop `timeline` de `PanoramaDock`: **la pestaña "Línea de tiempo" de un
+dock colapsado**. En el estado de aterrizaje con `?layers=ppp-compliance` el
+operador ve «Sin datos para esta capa en tu cobertura» y «0 capas», y la
+confesión queda a dos clics. Verificado en píxeles: `a1-04-*.png` (aterrizaje,
+sin aviso) vs `a1-05-*.png` (mismo estado, tras abrir la pestaña).
+
+**Por qué queda aparte**: el arreglo es mover el aviso a una franja siempre
+visible del board — un cambio de layout en `PanoramaConsole.tsx`, que quedó
+**exactamente en su fence de 5089 líneas**. Cualquier línea agregada ahí obliga a
+partir el archivo (regla 5: partir, NUNCA re-baselinear). Eso es una unidad
+propia, no un apéndice de A1.
 
 ### A2. B3 redefinida — los chips de filtro adentro del timeline único
 
@@ -520,13 +554,14 @@ que habría que hacer y que hacerlo sería un error.
 |---|---|---|
 | A0 RTL cleanup (timebox 45') | **CERRADA** — arregla un defecto latente, NO la muerte del worker | `ec4aafde` |
 | A0b pool de vitest (la muerte del worker) | en curso | |
-| A1 bug estado por defecto panorama | pendiente | |
+| A1 bug estado por defecto panorama | **CERRADA** — dos causas: `levelRef` desincronizado en `onLevelChange` + el `isScoped` del server discrepaba con `resolveDataLevel` para operadores multi-provincia | `f20cdc9d` |
 | A4 E2E de CI muere por timeout (PO 31/07) | pendiente | |
 | A5 semilla sin dueño de cero mascotas (PO 31/07) | pendiente | |
 | A6 puerto hardcodeado en config de Playwright (PO 31/07) | pendiente | |
+| A2c aviso de capa desconocida enterrado (hallazgo de A1) | pendiente — necesita partir `PanoramaConsole.tsx` (en el fence) | |
 | A2 B3 chips en timeline único | pendiente | |
 | A3 caza de tests que pinnean el defecto | pendiente | |
-| B1 verificación en vivo de A1 | pendiente | |
+| B1 verificación en vivo de A1 | **CERRADA junto con A1** — píxeles leídos con `readPixels`, capturas en `docs/reviews/results/2026-07-31-a1-panorama/` | `f20cdc9d` |
 | B2 pasada 703 | pendiente | |
 | B3 SC-7 | pendiente | |
 | S1 SC-6 | stretch | |
