@@ -36,7 +36,13 @@ const DEFAULT_LOCAL_URL = "postgresql://postgres:postgres@localhost:54322/postgr
  */
 export const TEST_PET_PREFIXES = {
   byName: ["E2EPet-", "ProbeAlta-", "DdxPet", "Transit Compliance Test"],
-  byToken: ["TRNS-TEST-", "DDXTEST-", "MORT-TEST-", "SQLQ-TEST-"],
+  // MC-DUP- added 2026-07-30: `__tests__/microchip-replaced.test.ts` HAS a
+  // correct afterAll, but a worker killed mid-file never runs it, and the row
+  // then fails check-spine-integrity on the next verify. Leaked exactly that
+  // way when the suite was run with the QA server up (CPU contention → dead
+  // worker). Tokens are `MC-DUP-${Date.now()}`, so they cannot collide with a
+  // real `DIM-XXXX-XXXX`.
+  byToken: ["TRNS-TEST-", "DDXTEST-", "MORT-TEST-", "SQLQ-TEST-", "MC-DUP-"],
 } as const;
 
 export function isLocalDatabase(url: string): boolean {
