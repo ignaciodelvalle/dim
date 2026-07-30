@@ -632,7 +632,10 @@ que habría que hacer y que hacerlo sería un error.
 | A6 puerto hardcodeado en config de Playwright (PO 31/07) | **CERRADA** — `QA_PORT` (default 3000) en los dos configs sin `webServer` + el fallback de `e2e/_base-url.ts`; trampa del 3333 documentada | `6ec0a159` |
 | A2c aviso de capa desconocida enterrado (hallazgo de A1) | pendiente — necesita partir `PanoramaConsole.tsx` (en el fence) | |
 | A2 B3 chips en timeline único | **CERRADA** — chips derivados del mismo array que filtran; solo se renderizan los que tienen eventos | `14326aa8` |
-| A3 caza de tests que pinnean el defecto | pendiente | |
+| A3 caza de tests que pinnean el defecto | **CERRADA** — 8 hallazgos; el grande: un test defendía una fuga VIVA (`reunification-rollups.test.ts:231`), que disparó #40b | `8de82491` |
+| **#40b k-anon en las otras familias de métricas** (nacida de A3) | **CERRADA** — 4 fugas vivas: tasa por unidad, conteo por unidad en 5 capas de puntos, la lista completa de eventos en el drill de provincia, y un `?? 0` que publicaba cero confiado | `19b4b2c6` |
+| **#40c — censo y control de población** (nace de #40b) | **PENDIENTE, brecha declarada**: `census.ts:645,656` y `population-control.ts:132,146` publican conteo y tasa crudos por provincia. NO se arreglaron a propósito: los renders viven en `app/` y suprimir solo en la fuente repetiría el fallo de #40 ("escondió los datos y no se lo dijo a nadie"). Consumidores: `/admin/censo`, `/gob/censo`, `/gob/censo/export`, `/admin/poblacion`, `/gob/poblacion/export` | |
+| **A7 — los 7 fallos de e2e que solo aparecen en CI** (nace de A4) | **PENDIENTE**: `a11y-regression`, `admin-case-detail-shell`, `authz-ab-isolation` ×3, `crisis-seams (a)`, `cuenta-hang-verify`. **Los 7 pasan localmente** → deriva de entorno/timing (`expect.timeout` 8s en CI vs 15s local, servidor frío). Estaban tapados por el `cancelled`; ahora que hay veredicto, la rama se va a ver ROJA hasta cerrarlos | |
 | B1 verificación en vivo de A1 | **CERRADA junto con A1** — píxeles leídos con `readPixels`, capturas en `docs/reviews/results/2026-07-31-a1-panorama/` | `f20cdc9d` |
 | B2 pasada 703 | pendiente | |
 | B3 SC-7 | pendiente | |
