@@ -138,10 +138,26 @@ describe("buildAggregatedPointFeatures — province level", () => {
     expect(props.suppressed).toBe(false);
   });
 
-  it("province cells are never suppressed (no k-anon at province level)", () => {
-    // Even a count of 1 must be shown at province level (large cell, no suppression).
-    const fc = buildAggregatedPointFeatures([provinceCell({ count: 1, suppressed: false })]);
-    expect(fc.features[0].properties.count).toBe(1);
+  // ⚠️ REWRITTEN (A3, 2026-07-31). This read "province cells are never
+  // suppressed (no k-anon at province level)" and fed the builder a cell with
+  // `suppressed: false` — so it asserted the FIXTURE back and could not fail.
+  // Worse, its title restated the premise task #40 retired as a leak (see the
+  // `ProvinceChoroplethCell` doc comment in build-features.ts: "That was true of
+  // a province's POPULATION and false of its DENOMINATOR"). The builder does not
+  // and must not exempt a grain: `count: c.suppressed ? null : c.count` is level-
+  // blind, and THAT is the contract worth pinning at province grain.
+  it("a SUPPRESSED province cell publishes count=null — the grain grants no k-anon exemption", () => {
+    const fc = buildAggregatedPointFeatures([provinceCell({ count: 1, suppressed: true })]);
+    expect(fc.features[0].properties.level).toBe("province");
+    expect(fc.features[0].properties.suppressed).toBe(true);
+    // Never the raw count, and never a zero — a false zero reads as real data.
+    expect(fc.features[0].properties.count).toBeNull();
+    expect(fc.features[0].properties.count).not.toBe(1);
+  });
+
+  it("a VISIBLE province cell still carries its real count (no over-suppression)", () => {
+    const fc = buildAggregatedPointFeatures([provinceCell({ count: 7, suppressed: false })]);
+    expect(fc.features[0].properties.count).toBe(7);
     expect(fc.features[0].properties.suppressed).toBe(false);
   });
 

@@ -26,6 +26,33 @@ const PUBLIC_RECEIPT = join(
 );
 const GOB_DETAIL = join(process.cwd(), "app", "gob", "maltrato", "[id]", "page.tsx");
 const ADMIN_DETAIL = join(process.cwd(), "app", "admin", "moderacion", "[id]", "page.tsx");
+// A3 (2026-07-31): the queue INSPECTOR is a third exact-coordinate surface and
+// had no precision/audit test of its own. Unlike the two routes above, its
+// render and its audit live in DIFFERENT files — the panel prints
+// `toFixed(6)` while `logWelfareLocationViewed` fires in the detail LOADER. A
+// coupling across a file boundary is exactly the kind that drifts silently, so
+// both ends are pinned below.
+const INSPECTOR_CONTENT = join(
+  process.cwd(),
+  "app",
+  "gob",
+  "maltrato",
+  "_inspector",
+  "WelfareInspectorContent.tsx",
+);
+const INSPECTOR_LOADER = join(process.cwd(), "lib", "infra", "welfare-inspector-detail.ts");
+
+/** Read a source file with comments blanked out.
+ *
+ *  A source-scan assertion over RAW text is satisfied by prose: the loader below
+ *  names `logWelfareLocationViewed` in a header comment, so a `toContain` on the
+ *  raw file would stay green after the actual call was deleted. Blanking
+ *  comments (line offsets preserved) makes the assertion about CODE. */
+function readCode(path: string): string {
+  return readFileSync(path, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, " "))
+    .replace(/(^|[^:])\/\/[^\n]*/g, (m, before) => before + " ".repeat(m.length - before.length));
+}
 
 describe("public comprobante — approximate location only (Ley 25.326)", () => {
   const src = readFileSync(PUBLIC_RECEIPT, "utf8");
@@ -63,5 +90,27 @@ describe("authority surfaces — exact location, labelled, and logged (Ley 14.34
     expect(src).not.toMatch(/coarsenPoint/);
     expect(src).toContain("uso oficial (Ley 14.346)");
     expect(src).toContain("logWelfareLocationViewed");
+  });
+
+  it("the queue inspector shows the EXACT point and labels it official use", () => {
+    const src = readCode(INSPECTOR_CONTENT);
+    // Same investigative precision as the detail route — and never coarsened.
+    expect(src).toMatch(/locationPoint\.lat\.toFixed\(6\)/);
+    expect(src).toMatch(/locationPoint\.lng\.toFixed\(6\)/);
+    expect(src).not.toMatch(/coarsenPoint/);
+    expect(src).toContain("uso oficial (Ley 14.346)");
+  });
+
+  it("the inspector's exact-coordinate view is audited by its loader", () => {
+    // The accountability half of the same disclosure. The inspector panel does
+    // NOT log the view itself (grep it: no logWelfareLocationViewed there) —
+    // the loader that feeds it does, on fetch. If that call is ever dropped, an
+    // operator reads exact victim coordinates with no access trail, and the
+    // render-side test above would still be green.
+    const render = readCode(INSPECTOR_CONTENT);
+    const loader = readCode(INSPECTOR_LOADER);
+    expect(render).not.toContain("logWelfareLocationViewed");
+    // The CALL, not the import and not the header comment that names it.
+    expect(loader).toMatch(/await\s+logWelfareLocationViewed\(/);
   });
 });
