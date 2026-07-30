@@ -17,7 +17,8 @@
 |---|---|
 | D.3 canon | Verbo del acto en el botón, NUNCA "Confirmar". Fricción por CONSECUENCIA: irreversible/peso legal → modal con consecuencia explicitada; reversible → inline con verbo |
 | Pasada 703 | UNA pasada completa: codemod a utilidades nombradas + capturas antes/después POR superficie + suite. Un commit |
-| D.8 slot 0 mascotas | Reetiquetar a "Cargar mascota" → `/mis-mascotas/nueva`; con ≥1 vuelve a "Asentar". Señal de conteo SIN query nueva por página |
+| D.8 slot 0 mascotas | Reetiquetar → `/mis-mascotas/nueva`; con ≥1 vuelve a "Asentar". Señal de conteo SIN query nueva por página. **El label es "Registrar mascota" — corregido por el PO 2026-07-30, ver D.9** |
+| **D.9 verbo del acto** (PO 2026-07-30) | **"Registrar" es EL verbo, en todas las superficies.** SUPERSEDE el "Cargar mascota" que D.8 había elegido para el slot. Razón: es el verbo del DOMINIO, no de la UI — el evento es `pet_registered`, el producto es el Registro Nacional, y la credencial ahora dice "Registrado/a" (A4). El comentario de `mis-mascotas/page.tsx:216` que ya lo afirmaba queda vigente |
 | Copy credencial | "Inscripto/a" → "Registrado/a" (helpers sex-correct de `StatusFlag.tsx`) |
 | D.4 anatomía | El agente elige POR MEDICIÓN (la dominante de las 5) y aplica. Ratificación al final |
 | Cancelar-saliente | YA EXISTE (`AcceptTransferActions.tsx:156`). NO tocar. La decisión de "construirlo" fue anulada por premisa falsa |
