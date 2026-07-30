@@ -527,6 +527,51 @@ C.2: ofrecer una capacidad que no está disponible.
 Las otras dos partes de D.8 (el vacío que vende la credencial, y el éxito con
 descarga/impresión del QR) siguen sin investigar.
 
+## DECISIONES DEL PO (2026-07-30) — el backlog queda autónomo
+
+Cinco decisiones tomadas en batch para que las próximas sesiones no bloqueen:
+
+1. **D.3 — canon de confirmación**: el botón lleva SIEMPRE el verbo del acto
+   ("Cerrar denuncia", nunca "Confirmar"), y la fricción se gradúa por
+   CONSECUENCIA, no por pantalla: acto irreversible o con peso legal (cerrar
+   denuncia 14.346, decomisos, custodia) → modal con la consecuencia
+   explicitada; acto reversible → inline con verbo.
+2. **703 font-size muertos**: UNA pasada completa. Codemod a las utilidades
+   nombradas + captura antes/después POR SUPERFICIE (credencial, panorama,
+   colas gob, cuenta) + suite completo. Un solo commit, ratchet de la regla 9
+   a 0.
+3. **Cancelar-saliente del ciudadano: NO se construye.** El PO decidió contra
+   la recomendación: la caducidad de 7 días alcanza. Costo declarado y
+   aceptado: un dueño que se equivocó de email queda 7 días con la propuesta
+   viva y el receptor equivocado puede aceptarla en ese lapso. La copy actual
+   (honesta) queda como está. NO volver a proponer salvo evidencia nueva.
+4. **D.8 slot "Asentar" con 0 mascotas**: se REETIQUETA a "Cargar mascota"
+   apuntando a `/mis-mascotas/nueva`; con ≥1 mascota vuelve a "Asentar".
+   Restricción técnica: la señal de conteo NO puede agregar una query por
+   página — sale de algo que el layout ya consulte.
+5. **Copy credencial**: "Inscripto/a" → **"Registrado/a"**, con los helpers
+   sex-correct existentes (`StatusFlag.tsx`). El estado sigue al verbo del acto.
+
+### Orden de ejecución autónoma (próximas sesiones)
+
+1. **#40 k-anon provincia** — handover completo arriba. Prioridad: open data.
+2. **D.3** — canon decidido (arriba). Inventariar las 6 gramáticas, clasificar
+   cada acto por consecuencia, aplicar.
+3. **#41 detalle de caso** — sobre la gramática D.3, decisión PO ya tomada.
+4. **Pasada de los 703** — decidida, con verificación visual por superficie.
+5. **SC-6** — cursor keyset por urgencia.
+6. **C.1** — libreta owner (chips de filtro + diferenciar las 3 rutas idénticas).
+7. **D.4** — anatomía de chips POR MEDICIÓN (la dominante gana; sin preguntar).
+8. **D.8** — reetiquetar slot (decidido) + vacío que vende credencial + éxito
+   con descarga/impresión del QR.
+9. **Copy "Registrado/a"** — chico; puede colarse en cualquier batch.
+10. **Colas**: D.5(b) en CabaInset/MapChoropleth · crisis-seams(b)
+    Rocco@Recoleta · exit 1 intermitente (acotado: interacción unit×db) ·
+    cascada provincia→localidad (#32).
+
+Sigue Ignacio-gated: D1 (RLS staging), D7 (fecha cutover), migraciones remotas,
+e2e rojo en CI (infra del runner).
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
