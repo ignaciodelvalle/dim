@@ -105,6 +105,87 @@ Inventariar las 5 anatomías en las 6 colas (ubicación de conteo, formato de
 fecha, tratamiento de estado, código). La dominante por frecuencia GANA.
 Aplicar a las otras. Tabla de medición en este archivo. Ratificación al final.
 
+## A3 — tabla acto → clase → gramática (registro, decidida 2026-07-30)
+
+Canon aplicado: **el botón lleva el VERBO DEL ACTO, nunca "Confirmar"** (ni
+pelado ni como verbo líder de "Confirmar + sustantivo"). Fricción por
+CONSECUENCIA: irreversible o con peso legal → modal que EXPLICITA la
+consecuencia; reversible → inline con el verbo. El tier 2 existente
+(motivo + evidencia + checkbox) es MÁS fricción que un modal: donde ya existe se
+conserva y solo se revisa el label.
+
+**Fence estructural**: `confirmLabel` deja de tener default `"Confirmar"` en
+`ConfirmDialog` y pasa a ser OBLIGATORIO — el compilador enumera la superficie y
+ningún call site futuro puede caer en el label genérico por omisión.
+
+### Clase 1 — irreversible/legal SIN ninguna confirmación → agregar modal
+
+| Acto | Trigger | Consecuencia a explicitar | Label nuevo |
+|---|---|---|---|
+| Resolver disputa de custodia | `app/gob/disputas/[disputeToken]/ResolveDisputeForm.tsx:240` | Cierra TODAS las ownerships activas y abre una nueva al destino | `Resolver disputa` |
+| Cerrar tránsito (foster) | `.../foster-fin/EndFosterForm.tsx:68` | Queda como evento inmutable en el historial | `Cerrar tránsito` |
+| Aceptar handoff de decomiso (14.346) | `.../recibidas/DecomisoHandoffActions.tsx:78` | Asume la custodia estatal; no se puede deshacer | `Aceptar custodia` |
+| Rechazar handoff de decomiso (14.346) | `.../recibidas/DecomisoHandoffActions.tsx:115` | Devuelve el decomiso al organismo derivante | `Rechazar custodia` |
+
+### Clase 2 — "Confirmar" pelado → verbo del acto (fricción actual correcta)
+
+| Sitio | Label viejo | Label nuevo |
+|---|---|---|
+| `app/gob/moderacion/[id]/GovtModerationActions.tsx` | `Confirmar` | `Rechazar como abuso` |
+| `app/admin/moderacion/[id]/ModerationActions.tsx` | `Confirmar` | por modo: `Marcar como spam` / `Marcar como válida` |
+| `app/gob/maltrato/[id]/TriageActions.tsx` | `Confirmar` (5 modos) | verbo por modo (`Cerrar con resolución`, `Cerrar sin sustento`, …) |
+| `.../vigilancia/investigaciones/[caseCode]/InvestigationActions.tsx` | `Confirmar` | por modo (`Agregar nota`, `Escalar`, `Cerrar investigación`) |
+| `app/gob/suscripciones/DeleteAlertSubscriptionButton.tsx` | `Confirmar` | `Eliminar suscripción` |
+| `.../adopciones/[appEventId]/ReviewButtons.tsx` | `Confirmar` (rechazo) | `Rechazar postulación` |
+| `components/ui/dashboard/OpBulkBar.tsx` | `Confirmar` (fijo) | `confirmLabel` por acción, obligatorio |
+| `.../admin/permisos/DecideForm.tsx` | `Confirmar aprobar/denegar/revocar` | `Aprobar` / `Denegar` / `Revocar` |
+| `.../admin/permisos/CapabilityMatrix.tsx` | aria-label `Confirmar revocación` | `Revocar permiso` |
+
+### Clase 3 — "Confirmar + sustantivo" → verbo del acto (fricción ya correcta)
+
+| Sitio | Label viejo | Label nuevo |
+|---|---|---|
+| `ReasignarButton.tsx` | `Confirmar reasignación` | `Reasignar` |
+| `DevolverAlDuenoButton.tsx` | `Confirmar devolución` | `Devolver al dueño` |
+| `CancelTransferAction.tsx` | `Confirmar cancelación` | `Cancelar transferencia` |
+| `ReverseAdoptionAction.tsx` | `Confirmar reversión` | `Revertir adopción` |
+| `OwnerReturnProposalCard.tsx` | `Confirmar aceptación` / `Confirmar rechazo` | `Aceptar devolución` / `Rechazar devolución` |
+| `WithdrawDisputeButton.tsx` | `Confirmar retiro` | `Retirar disputa` |
+| `DerivationPanel.tsx` | `Confirmar derivación` | `Derivar` |
+| `BulkRevokeList.tsx` (modal bespoke) | `Confirmar revocación` | `Revocar seleccionados` |
+| `AttendanceFormDispatcher.tsx` | `Confirmar cancelación` | `Cancelar turno` |
+| `app/gob/cola/[publicToken]/ReviewActions.tsx` | `Confirmar aprobación` / `Confirmar rechazo` | `Aprobar solicitud` / `Rechazar solicitud` |
+
+### Clase 4 — ya conformes (no tocar)
+
+`Revocar`, `Desactivar`, `Quitar`, `Salir`, `Eliminar`, `Devolver`,
+`Generar PDF`, `Cerrar observación`, `Aceptar transferencia`,
+`Rechazar transferencia`. Todos verbo + fricción proporcional.
+
+## A5 — medición de anatomías de chips (2026-07-30)
+
+Gana **la anatomía de `components/ui/dashboard/CaseQueue.tsx`** por frecuencia:
+2 de las 6 colas de la muestra (Casos, Disputas) más `admin/casos` y
+`org/[orgToken]/casos` = **4 superficies operativas**, contra 1 cada una para las
+otras cuatro anatomías. Es además la única que ya vive en componente compartido.
+
+| Cola | Conteo | Fecha | Estado | Código | Anatomía |
+|---|---|---|---|---|---|
+| Denuncias·Triage (`WelfareDenunciaRow.tsx`) | card-head `(N en total)` | `timeAgo()` relativo | `OpPill` esquina sup. der. | mono plano | A |
+| Casos (`CaseQueue.tsx`) | línea sobre la tabla | `formatDate()` mes completo | `CaseStatusBadge` col. propia | `OpCodeBadge` 1ª col. | **B** |
+| Disputas (`CaseQueue.tsx`) | ídem | ídem | ídem | ídem | **B** |
+| Decomisos (`decomisos/page.tsx`) | sin conteo | `formatDate()` en prosa + días | `OpPill` de fase | `<Link>` mono | C |
+| Pérdidas (`LostPetRow.tsx`) | card-head `(N)` | `lostTimeLabel()` relativo | 2 `OpPill` a la izq. | `<Link>` mono | D |
+| Aprobaciones (`BulkApprovalQueueList.tsx`) | prosa en header | `formatDateShort()` abreviado | **ninguno** | mono plano, trailing | E |
+
+**Aplicación decidida**: adoptar los ÁTOMOS de B (`OpCodeBadge`, `OpStatusPill`,
+`formatDate`) dentro de cada card existente — NO forzar cada cola a `<table>`
+(Denuncias/Pérdidas/Aprobaciones son cards con acciones inline y bulk, la tabla
+las rompería). Fecha: absoluta con `formatDate()` en todas, y donde la urgencia
+es el dato (Pérdidas) se agrega la píldora de tiempo transcurrido — el mismo
+patrón que `CaseQueue` ya usa con su píldora de ≥14 días y que Decomisos usa con
+su contador de días. Así no se pierde información de urgencia al unificar.
+
 ## BLOQUE B — servidor UNA vez (reconstruir al entrar al bloque)
 
 Secuencia de entrada: matar `:3001` → build → qa-up → guard verde.
