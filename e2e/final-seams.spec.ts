@@ -27,7 +27,34 @@ type SeamResult = {
   notes: string[];
 };
 
+/**
+ * ⚠ THIS SPEC COULD NOT FAIL. Every journey below wraps its whole body in a
+ * try/catch that sets `pass = false`, appends the error to `notes`, and pushes
+ * the record into `results` — and NOTHING ever asserted `pass`. So a journey
+ * that died on step one still reported ✓ to Playwright while writing
+ * `"pass": false` into a JSON file under docs/reviews/results/ that no gate
+ * reads.
+ *
+ * That is not theory. Measured on 2026-07-31 against a bootstrapped-tier
+ * database: all four journeys recorded `pass: false` — (a) never found the
+ * "Marcar como perdida" heading, (b) timed out on a 45s waitForURL, (c) never
+ * reached "Moderación de denuncias", (d) timed out filling the motivation
+ * textarea — and the reporter printed four green checks. The tokens this file
+ * pins (DIM-DEMO-0001 / DIM-DEMO-0010) are seed-demo.ts fixtures that CI never
+ * creates, so it has been green-while-dead in every CI run it has ever had.
+ *
+ * The assertion below makes the recorded verdict the TEST's verdict. It does
+ * not repair the journeys — they still need repointing onto the bootstrap tier
+ * (crisis-seams.spec.ts already covers the same four seams there, so retiring
+ * this file is a live option). Until then it fails LOUDLY and names why, which
+ * is the only honest state for it.
+ */
 const results: SeamResult[] = [];
+
+/** Make the journey's own recorded verdict the test's verdict. See the note above. */
+function assertSeam(r: SeamResult): void {
+  expect(r.pass, `seam ${r.id} recorded FAILED:\n${r.notes.join("\n")}`).toBe(true);
+}
 
 async function ensurePetActive(page: import("@playwright/test").Page, petToken: string) {
   await page.goto(`/mis-mascotas/${petToken}`, { waitUntil: "domcontentloaded" });
@@ -211,7 +238,9 @@ test.describe("Final seams cross-POV", () => {
       }
     }
 
-    results.push({ id: "a-perdida", pass, entityCodes: codes, notes });
+    const result = { id: "a-perdida", pass, entityCodes: codes, notes };
+    results.push(result);
+    assertSeam(result);
   });
 
   test("(b) Vacuna Atender alejo → owner libreta MP → gob KPI", async ({ page }) => {
@@ -291,7 +320,9 @@ test.describe("Final seams cross-POV", () => {
       await snap(page, "b-error").catch(() => {});
     }
 
-    results.push({ id: "b-vacuna-atender", pass, entityCodes: codes, notes });
+    const result = { id: "b-vacuna-atender", pass, entityCodes: codes, notes };
+    results.push(result);
+    assertSeam(result);
   });
 
   test("(c) Denuncia anon → admin moderación → gob maltrato", async ({ page }) => {
@@ -338,7 +369,9 @@ test.describe("Final seams cross-POV", () => {
       await snap(page, "c-error").catch(() => {});
     }
 
-    results.push({ id: "c-denuncia", pass, entityCodes: codes, notes });
+    const result = { id: "c-denuncia", pass, entityCodes: codes, notes };
+    results.push(result);
+    assertSeam(result);
   });
 
   test("(d) Adopción orgadmin → owner2 → finaliza", async ({ page }) => {
@@ -417,7 +450,9 @@ test.describe("Final seams cross-POV", () => {
       await snap(page, "d-error").catch(() => {});
     }
 
-    results.push({ id: "d-adopcion", pass, entityCodes: codes, notes });
+    const result = { id: "d-adopcion", pass, entityCodes: codes, notes };
+    results.push(result);
+    assertSeam(result);
   });
 
   test.afterAll(() => {
