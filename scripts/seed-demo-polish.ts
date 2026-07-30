@@ -38,6 +38,9 @@
 // ---------------------------------------------------------------------------
 
 import { config as loadEnv } from "dotenv";
+
+import { rejectReservedAccounts } from "./seed-reserved-accounts";
+
 loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
@@ -94,7 +97,16 @@ const OWNER_KEEP_TOKENS = [
   "DIM-DEMO-0001", // Rocco (renamed in Step 2; amended-event beat pet)
 ] as const;
 
-/** Round-robin recipients for owner@'s surplus ownerships. */
+/**
+ * Round-robin recipients for owner@'s surplus ownerships.
+ *
+ * This list is how carla@dim.test — documented in e2e/owner-ia-p6.spec.ts as
+ * the ZERO-PET owner — silently acquired DIM-DEMO-0002 and DIM-DEMO-0008 on
+ * 2026-07-26 and broke the owner empty-state test. Anything added here WILL be
+ * given pets, so never add an account whose value is being empty. Reserved
+ * accounts are filtered out below regardless (scripts/seed-reserved-accounts.ts)
+ * — that filter is the fence, this comment is only the warning sign.
+ */
 const REASSIGN_EMAILS = [
   "carla@dim.test",
   "lucas@dim.test",
@@ -385,7 +397,10 @@ async function main(): Promise<void> {
   // enforce_institutional_no_pets() rejects the reassignment (first run
   // aborted here: lucas@dim.test is seeded as govt). Filter by profile role.
   const candidateIds: string[] = [];
-  for (const email of REASSIGN_EMAILS) {
+  // Reserved accounts exist to stay empty — drop them before anything can hand
+  // them a pet. Applied to the LIST, not to a hardcoded email, so widening
+  // REASSIGN_EMAILS can never reach one.
+  for (const email of rejectReservedAccounts(REASSIGN_EMAILS, "seed-demo-polish reassignment")) {
     const id = usersByEmail.get(email);
     if (id) {
       candidateIds.push(id);

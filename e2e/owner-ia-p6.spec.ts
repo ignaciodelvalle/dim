@@ -1,5 +1,7 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
+import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
+
 /**
  * Owner IA redesign — P6 LIVE validation pass.
  *
@@ -25,7 +27,19 @@ import { type Browser, type BrowserContext, type Page, expect, test } from "@pla
  *   lilian@dim.test  — vet, single-org member (Clínica Recoleta) → /org/ landing
  *   alejo@dim.test   — admin of Refugio Patitas del Norte → org-path viewer of
  *                      DIM-ARGO-DEMO (held pet), 0 personally-owned pets
- *   carla@dim.test   — owner, 0 pets, no org memberships (zero-pet landing)
+ *   ZERO_PET_OWNER   — owner, 0 pets, no org memberships (zero-pet landing).
+ *                      Imported from scripts/seed-reserved-accounts.ts, NOT
+ *                      hardcoded: this used to name carla@dim.test, who by
+ *                      2026-07-30 owned four pets (two from a QA wizard run,
+ *                      two handed to her by scripts/seed-demo-polish.ts's
+ *                      round-robin reassignment). Test 6 went red looking like
+ *                      a product regression, and no personal owner in the
+ *                      database was empty any more, so the owner empty state
+ *                      could not be verified by anybody. The replacement is a
+ *                      RESERVED account: created by `pnpm db:bootstrap`,
+ *                      excluded from every reassignment list, and watched by
+ *                      __tests__/seed-hygiene.test.ts, which fails `pnpm test`
+ *                      the moment it acquires a pet.
  *   admin@dim.test   — admin (cockpit)
  * Flagship public pet: DIM-PAMP-0001. Owner-owned deterministic pet for the
  * keyboard test: DIM-SNPY-0004 (Snoopy, owned by ignacio).
@@ -41,7 +55,8 @@ const LOST_TOKEN = "DIM-S005-PLRM";
 const VET = "lilian@dim.test";
 const ORG_VIEWER = "alejo@dim.test";
 const ORG_HELD_TOKEN = "DIM-ARGO-DEMO";
-const ZERO_PET_OWNER = "carla@dim.test";
+// NOT a literal, and not a general-purpose persona. See the header note above.
+const ZERO_PET_OWNER = ZERO_PET_OWNER_EMAIL;
 const ADMIN = "admin@dim.test";
 
 const PROFILE_RE = /\/mis-mascotas\/DIM-[A-Z0-9-]+/;

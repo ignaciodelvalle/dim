@@ -16,9 +16,11 @@ import { afterAll, describe, expect, it } from "vitest";
 
 import {
   findNotificationHygieneOffenders,
+  findReservedAccountOffenders,
   findSeedHygieneOffenders,
 } from "../scripts/check-seed-hygiene";
 import { RENDERABLE_TEXT_COLUMNS } from "../scripts/hygiene-rules";
+import { RESERVED_ACCOUNT_EMAILS, ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
 
 const DATABASE_URL =
   process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:54322/postgres";
@@ -62,5 +64,63 @@ describe("notification hygiene — brand casing + welcome category (migration 01
     }
 
     expect(offenders).toEqual([]);
+  });
+});
+
+// A5 — the owner empty state must be verifiable by anyone, at any time.
+//
+// carla@dim.test was the documented zero-pet owner in e2e/owner-ia-p6.spec.ts
+// and ended up with four pets: two from a QA wizard run (2026-07-17), two from
+// scripts/seed-demo-polish.ts's round-robin reassignment (2026-07-26). Nothing
+// in the repo noticed. This is the thing that notices — and it runs in
+// `pnpm test`, so the next account to be eaten is named on the spot instead of
+// surfacing as a mystery e2e failure weeks later.
+describe("reserved seed accounts — the zero-pet owner is still empty", () => {
+  it(`keeps ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) with 0 pets and 0 org memberships`, async () => {
+    const offenders = await findReservedAccountOffenders(sql);
+
+    if (offenders.length > 0) {
+      const summary = offenders.map((o) => `  ${o.email}: ${o.issue} — ${o.detail}`).join("\n");
+      throw new Error(
+        [
+          `${offenders.length} reserved-account offender(s) found.`,
+          summary,
+          "",
+          "A reserved account exists to stay EMPTY — see scripts/seed-reserved-accounts.ts.",
+          '"missing" means the seed never ran here: `pnpm seed:test`.',
+          '"owns_pets" / "has_org_membership" means something assigned to it. Fix the',
+          "assigner. Do NOT clear the account's rows to make this green unless the",
+          "assignment itself was the mistake — deleting data to satisfy a test is how",
+          "the previous zero-pet owner was lost in the first place.",
+        ].join("\n"),
+      );
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("is not vacuous — the same predicate reports pets when an account has them", async () => {
+    // The guard above passes trivially if the query never matches anybody. Run
+    // the SAME count predicate against an account KNOWN to own pets and require
+    // a non-zero answer, so a broken join or a typo'd email cannot masquerade
+    // as clean.
+    const [populated] = await sql<Array<{ email: string; pet_count: string }>>`
+      SELECT u.email,
+             (SELECT count(*) FROM ownerships o
+               WHERE o.owner_user_id = u.id AND o.ended_at IS NULL)::text AS pet_count
+        FROM auth.users u
+       WHERE lower(u.email) <> lower(${ZERO_PET_OWNER_EMAIL})
+         AND (SELECT count(*) FROM ownerships o
+               WHERE o.owner_user_id = u.id AND o.ended_at IS NULL) > 0
+       LIMIT 1
+    `;
+
+    if (!populated) {
+      throw new Error(
+        "No account in this database owns a pet, so the reserved-account guard cannot be proven non-vacuous. Seed the data (`pnpm seed:test`) and re-run.",
+      );
+    }
+
+    expect(Number(populated.pet_count)).toBeGreaterThan(0);
   });
 });

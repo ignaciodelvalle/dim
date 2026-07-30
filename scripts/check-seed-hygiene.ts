@@ -24,6 +24,7 @@ import postgres from "postgres";
 
 import { WRONG_CASE_BRAND } from "./check-brand-casing";
 import { RENDERABLE_TEXT_COLUMNS, findSeedMarker } from "./hygiene-rules";
+import { RESERVED_ACCOUNT_EMAILS } from "./seed-reserved-accounts";
 
 export type SeedHygieneOffender = {
   table: string;
@@ -125,6 +126,81 @@ export async function findNotificationHygieneOffenders(
   return offenders;
 }
 
+/**
+ * Reserved-account hygiene — the DETECTOR behind the zero-pet owner contract.
+ *
+ * scripts/seed-reserved-accounts.ts guarantees an owner with no pets so the
+ * owner empty state is verifiable (e2e/owner-ia-p6.spec.ts test 6). The seed
+ * can guarantee creation; it cannot guarantee that nobody ever gives the
+ * account a pet afterwards. That is exactly how the previous stand-in was lost:
+ * a QA wizard run on 2026-07-17 registered two pets while logged in as
+ * carla@dim.test, and a demo seed handed her two more on 2026-07-26. Nothing
+ * went red. The e2e assertion just started failing weeks later, looking like a
+ * product regression.
+ *
+ * This check makes that drift LOUD and NAMED. It runs from the CLI and, more
+ * importantly, from __tests__/seed-hygiene.test.ts inside `pnpm test`.
+ *
+ * "missing" is an offender too: an account the seed promises and the database
+ * does not have is the same broken contract from the other direction.
+ */
+export type ReservedAccountOffender = {
+  email: string;
+  issue: "missing" | "owns_pets" | "has_org_membership";
+  detail: string;
+};
+
+export async function findReservedAccountOffenders(
+  sql: postgres.Sql,
+): Promise<ReservedAccountOffender[]> {
+  const offenders: ReservedAccountOffender[] = [];
+
+  for (const email of RESERVED_ACCOUNT_EMAILS) {
+    const rows = await sql.unsafe<
+      Array<{ id: string; pet_count: string; membership_count: string }>
+    >(
+      `SELECT u.id::text AS id,
+              (SELECT count(*) FROM ownerships o
+                WHERE o.owner_user_id = u.id AND o.ended_at IS NULL)::text AS pet_count,
+              (SELECT count(*) FROM organization_memberships m
+                WHERE m.user_id = u.id)::text AS membership_count
+         FROM auth.users u
+        WHERE lower(u.email) = lower($1)`,
+      [email],
+    );
+
+    const row = rows[0];
+    if (!row) {
+      offenders.push({
+        email,
+        issue: "missing",
+        detail: "no auth user — run `pnpm seed:test` (or `pnpm db:bootstrap`)",
+      });
+      continue;
+    }
+
+    const petCount = Number(row.pet_count);
+    if (petCount > 0) {
+      offenders.push({
+        email,
+        issue: "owns_pets",
+        detail: `${petCount} active ownership(s) — this account must own none`,
+      });
+    }
+
+    const membershipCount = Number(row.membership_count);
+    if (membershipCount > 0) {
+      offenders.push({
+        email,
+        issue: "has_org_membership",
+        detail: `${membershipCount} organization membership(s) — an org member does not land on the owner empty state`,
+      });
+    }
+  }
+
+  return offenders;
+}
+
 async function runCheck(): Promise<void> {
   const dbUrl =
     process.env.DATABASE_URL ?? "postgresql://postgres:postgres@localhost:54322/postgres";
@@ -133,9 +209,11 @@ async function runCheck(): Promise<void> {
 
   let offenders: SeedHygieneOffender[];
   let notificationOffenders: NotificationHygieneOffender[];
+  let reservedOffenders: ReservedAccountOffender[];
   try {
     offenders = await findSeedHygieneOffenders(sql);
     notificationOffenders = await findNotificationHygieneOffenders(sql);
+    reservedOffenders = await findReservedAccountOffenders(sql);
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     console.warn(
@@ -171,12 +249,22 @@ async function runCheck(): Promise<void> {
     );
   }
 
+  if (reservedOffenders.length > 0) {
+    failed = true;
+    for (const o of reservedOffenders) {
+      console.error(`✗ reserved account ${o.email}: ${o.issue} — ${o.detail}`);
+    }
+    console.error(
+      `\n✗ ${reservedOffenders.length} reserved-account offender(s) — an account that exists to stay EMPTY no longer is. Do NOT delete its pets to make this pass unless they were created by mistake; read scripts/seed-reserved-accounts.ts and fix whatever assigned them.`,
+    );
+  }
+
   if (failed) {
     process.exit(1);
   }
 
   console.log(
-    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s), 0 notification-hygiene offenders.`,
+    `✓ Seed hygiene clean — 0 seed-marker hits across ${RENDERABLE_TEXT_COLUMNS.length} renderable column(s), 0 notification-hygiene offenders, ${RESERVED_ACCOUNT_EMAILS.length} reserved account(s) still empty.`,
   );
 }
 

@@ -21,6 +21,11 @@
  *   orgadmin@dim.test    → admin de "Refugio Test (Seed)" (verified via flow)
  *   govt@dim.test        → role=govt, Ushuaia + El Calafate (remote)
  *   govt-local@dim.test  → role=govt, La Plata + CABA/Palermo (local)
+ *   ZERO_PET_OWNER_EMAIL → role=owner, GUARANTEED 0 mascotas, 0 org
+ *                          memberships. The owner empty state depends on it.
+ *                          The address lives in exactly one place on purpose —
+ *                          scripts/seed-reserved-accounts.ts. Read that file
+ *                          before giving this account anything.
  *
  * Idempotent — safe to re-run.
  *
@@ -30,6 +35,8 @@
 
 import { type SupabaseClient, createClient as createSdkClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
+
+import { ZERO_PET_OWNER_DISPLAY_NAME, ZERO_PET_OWNER_EMAIL } from "./seed-reserved-accounts";
 
 // IMPORTANT: load env BEFORE importing anything that reads process.env at
 // module load time (db/index.ts throws if DATABASE_URL is missing). ESM
@@ -997,6 +1004,34 @@ async function ensureOwnerB(): Promise<string> {
   return id;
 }
 
+// ---------------------------------------------------------------------------
+// Zero-pet owner — the GUARANTEED owner empty state.
+//
+// Same minimal shape as owner B (auth user + DNI-verified profile) and then
+// NOTHING ELSE, forever. No pet step follows it, and no seed script may add
+// one: scripts/seed-reserved-accounts.ts holds the contract, and
+// scripts/check-seed-hygiene.ts fails `pnpm test` the moment this account owns
+// a pet or joins an organization.
+//
+// It lives here rather than in a demo seed on purpose. This script is what
+// `pnpm db:bootstrap` runs, so a fresh CI database has the account — the empty
+// state is baseline, not demo furniture (see
+// __tests__/seed-precondition-contract.test.ts on that distinction).
+// ---------------------------------------------------------------------------
+
+async function ensureZeroPetOwner(): Promise<string> {
+  log("STEP", `2c/9 — zero-pet owner (${ZERO_PET_OWNER_EMAIL}, owner empty state)`);
+  const { id, created } = await ensureAuthUser(
+    ZERO_PET_OWNER_EMAIL,
+    ZERO_PET_OWNER_DISPLAY_NAME,
+    "owner",
+  );
+  log(created ? "OK" : "SKIP", `auth.users ${ZERO_PET_OWNER_EMAIL} (owner)`);
+  await setPassword(id, SHARED_PASSWORD);
+  await syncDniVerified(id);
+  return id;
+}
+
 // Owner B's pet — a minimal real pet (no microchip, so no unique-chip clash
 // with Owner A's seeded identifications) giving the cross-tenant e2e a real
 // pet_id + pet_registered event to probe. Idempotent.
@@ -1051,6 +1086,7 @@ async function main() {
   const adminId = await bootstrapAdmin();
   const ownerId = await signupOwner();
   const ownerBId = await ensureOwnerB();
+  await ensureZeroPetOwner();
   const vetId = await provisionVet(adminId);
   const { orgAdminUserId, orgId, orgToken } = await provisionOrg(adminId);
   await seedOrgCoverage(orgId);
@@ -1082,6 +1118,9 @@ async function main() {
   console.log(`  ${EMAILS.orgAdmin.padEnd(24)}  role=owner   → /org/${orgToken}`);
   console.log(`  ${EMAILS.govt.padEnd(24)}  role=govt    → /gob (Ushuaia + El Calafate)`);
   console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA/Palermo)`);
+  console.log(
+    `  ${ZERO_PET_OWNER_EMAIL.padEnd(24)}  role=owner   → /mis-mascotas (RESERVED: 0 mascotas, never give it any)`,
+  );
   console.log(`\n  Refugio portal:   /org/${orgToken}`);
   console.log("  Administración miMAR:  /admin");
   console.log("  Gobierno:         /gob");
