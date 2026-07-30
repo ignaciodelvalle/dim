@@ -462,9 +462,7 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
     const orgToken = await resolveOrgToken(page, /Refugio Test/i);
     await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
-    const petLink = page
-      .locator(`a[href^="/org/${orgToken}/mascotas/DIM-"]`)
-      .first();
+    const petLink = page.locator(`a[href^="/org/${orgToken}/mascotas/DIM-"]`).first();
     await expect(petLink, "org portal lists a held animal").toBeVisible({ timeout: 20_000 });
     const heldToken =
       ((await petLink.getAttribute("href")) ?? "").match(/DIM-[A-Z0-9-]+/)?.[0] ?? "";
