@@ -105,6 +105,43 @@ Inventariar las 5 anatomías en las 6 colas (ubicación de conteo, formato de
 fecha, tratamiento de estado, código). La dominante por frecuencia GANA.
 Aplicar a las otras. Tabla de medición en este archivo. Ratificación al final.
 
+## A1 — cerrada: el exit-1 era `use-asof-frame.test.tsx` (commit `e730e4e2`)
+
+**La lección de método, antes que el bug**: no hizo falta instrumentar nada.
+`gh run view 30456376263 --log-failed` **nombra el archivo** en la sección
+"Unhandled Errors". Solo esa corrida lo trae (30511306621, 30453540123 y
+30451219894 no). Próxima caza de un uncaught en CI: leer el log fallado PRIMERO.
+
+**Mecanismo** (leído de react-dom, no adivinado): `react-dom-client.development.js:17920`
+es literalmente `schedulerEvent = window.event;`, la primera sentencia del
+callback que React encola para flushear **passive effects** tras un commit. El
+test montaba con `renderHook` y nunca desmontaba; dos tests afirmaban sobre
+observables INTERMEDIOS y volvían con el fan-out en vuelo. El `.then()` corría
+post-test sobre un root vivo → commit → flush encolado en `setImmediate`. Con
+`fileParallelism:false` ese Immediate cae después del teardown de jsdom del
+archivo. Local mata el worker ("Worker exited unexpectedly"); en CI sale como
+"1 error", exit 1 y **cero tests fallando** — por eso costaba tanto verlo.
+
+### La causa sistémica — MÁS GRANDE que este archivo, NO arreglada
+
+`vitest.config.ts` **no setea `globals: true`**, y RTL instala su auto-cleanup
+solo si existe un `afterEach` global. Por lo tanto **ningún test con RTL en este
+repo limpia automáticamente**. Medido: 114 archivos usan RTL; en el proyecto
+`db` son 45, de los cuales 33 llaman `cleanup()` a mano y **12 no**.
+`use-asof-frame` era el único `renderHook` ASÍNCRONO del proyecto db — por eso
+fue el único que detonó. Los otros 11 son síncronos y hoy no muerden.
+
+Los 12 sin cleanup: `login-form-field-state`, `signup-form-field-state`,
+`MergedShareSheet`, `ContactarSheet`, `SerVoluntarioSheet`, `CasesPerCapitaTable`,
+`RegionRankingTable`, `WelfareDenunciaRow`, `OutbreakSignalRow`, `KpiChips`,
+`panorama-metrics-column`.
+
+**Arreglo estructural pendiente**: `afterEach(cleanup)` guardado por
+`typeof document !== "undefined"` en `__tests__/setup-env.ts`, o `globals: true`.
+Cierra la clase entera de bug. NO se aplicó en caliente por riesgo cruzado con
+los otros agentes: hay que correrlo en árbol limpio, porque puede destapar
+tests que hoy dependen de DOM filtrado.
+
 ## A3 — tabla acto → clase → gramática (registro, decidida 2026-07-30)
 
 Canon aplicado: **el botón lleva el VERBO DEL ACTO, nunca "Confirmar"** (ni
@@ -412,8 +449,8 @@ autorización es para ESTA corrida, no permanente.
 
 | Unidad | Estado | Commit |
 |---|---|---|
-| A1 exit-1 (timebox 60') | en curso | |
-| A2 #40 k-anon provincia | en curso | |
+| A1 exit-1 (timebox 60') | **CERRADA** (causa sistémica anotada, no arreglada) | `e730e4e2` |
+| A2 #40 k-anon provincia | **CERRADA** (falta verif. visual → B4) | `4b8284f2` |
 | A3 D.3 gramática | **CERRADA** | `f50e2064` (clases 2-3) + `acd08f43` (fence + clase 1) |
 | A4 copy Registrado/a | **CERRADA** | `ac2af21f` |
 | A5 D.4 chips | medida, implementación pendiente | |
