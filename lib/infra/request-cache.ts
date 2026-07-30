@@ -37,6 +37,7 @@ import {
   notifications,
   organizationMemberships,
   organizations,
+  ownerships,
   profiles,
 } from "@/db";
 import type { Organization, OrganizationMembership } from "@/db";
@@ -204,6 +205,44 @@ export const getUnreadCountCached = cache(async (userId: string): Promise<number
       ),
     );
   return unreadCount;
+});
+
+// ---------------------------------------------------------------------------
+// Owned-pets count — (app)/layout needs it to pick the tab-bar capture slot
+// ---------------------------------------------------------------------------
+
+/**
+ * Cached count of the pets a user currently owns (active ownerships only).
+ *
+ * Why the layout pays for this (D.8, 2026-07-30): the citizen tab bar's centre
+ * slot said "Asentar" and pointed at `/inicio?sheet=anotar`. With ZERO pets
+ * `/inicio` redirects to `/mis-mascotas`, where `?sheet=anotar` is inert — so
+ * the owner's primary action was a SILENT NO-OP for exactly the first-run user
+ * who most needs it. Picking the right slot needs a has-pets signal, and the
+ * layout had none: it reads profile, unread notifications and org memberships,
+ * none of which touch `ownerships`/`pets`. The one existing indexed count that
+ * would have served (`fetchPetsForOwner`) is dead in production since the
+ * `/inicio` P5 fold. So this is the documented, PO-accepted cost: ONE indexed
+ * count per request, on `ownerships_owner_user_id_idx`.
+ *
+ * CACHE KEY CONTRACT — `userId` ONLY. `React.cache()` keys on argument
+ * identity/value (see `getOrgQueueCountsCached` above for the array-arg trap),
+ * so a future caller that passes anything extra — an options object, a filter,
+ * a "includeDeceased" flag — creates a SECOND cache entry and a second
+ * round-trip in the same render pass. Any variant that needs different
+ * filtering gets its OWN helper; do not widen this signature.
+ *
+ * Deliberately NOT the same query as the `/mis-mascotas` index count
+ * (`page.tsx`), which joins `pets` and applies the name-search filter: that one
+ * answers "how many match the search", this one answers "does this user own any
+ * pet at all". Same index, different question.
+ */
+export const getOwnedPetsCountCached = cache(async (userId: string): Promise<number> => {
+  const [row] = await db
+    .select({ n: count() })
+    .from(ownerships)
+    .where(and(eq(ownerships.ownerUserId, userId), isNull(ownerships.endedAt)));
+  return Number(row?.n ?? 0);
 });
 
 // ---------------------------------------------------------------------------

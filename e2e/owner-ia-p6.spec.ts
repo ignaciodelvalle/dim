@@ -350,8 +350,21 @@ test("6 — zero-pet owner /inicio lands on /mis-mascotas with the first-run CTA
     expect(url.pathname, "redirected to the index, not a pet profile").toBe("/mis-mascotas");
     expect(PROFILE_RE.test(url.pathname), "no pet token — the owner has none").toBe(false);
 
-    await expect(page.getByText(/No tenés mascotas registradas/i)).toBeVisible();
+    // D.8: the empty state now names the credential before asking for the act.
+    await expect(page.getByText(/Todavía no registraste ninguna mascota/i)).toBeVisible();
+    await expect(page.getByText(/credencial digital/i).first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Cargar una mascota/i })).toBeVisible();
+
+    // D.8: with zero pets the tab-bar centre slot is the alta, not the capture
+    // no-op ("Asentar" → /inicio?sheet=anotar, which for a pets-less owner
+    // bounces back here with an inert sheet param). The bar is md:hidden, so
+    // assert on the DOM rather than on visibility. "Cargar mascota" does not
+    // substring-match the empty state's own "Cargar una mascota" button.
+    await expect(page.locator("a", { hasText: "Cargar mascota" })).toHaveAttribute(
+      "href",
+      "/mis-mascotas/nueva",
+    );
+    await expect(page.locator("a", { hasText: "Asentar" })).toHaveCount(0);
   } finally {
     await context.close();
   }

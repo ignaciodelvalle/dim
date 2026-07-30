@@ -9,6 +9,19 @@
 //   2. "Ver perfil" — navigates to the pet profile page.
 //   3. "Ver credencial pública" — opens the public-facing credential page.
 //
+// Plus ONE affordance that is not part of that cluster: "Imprimir la chapita",
+// rendered with the QR block itself (D.8, 2026-07-30). The copy above the QR
+// has always said "Guardalo en el collar" and offered no way to do it; the
+// print surface already exists at /mis-mascotas/[token]/chapita
+// (ChapitaSheet, three printable layouts + window.print). This screen LINKS
+// there — it does NOT reimplement printing — because /chapita is gated by
+// resolvePhysicalCredentialChannels and the `printable_qr` channel can be
+// disabled per jurisdiction; an embedded print button would bypass that gate.
+// The server parent resolves the same channel and passes printableQrEnabled,
+// so a jurisdiction with the channel off never sees the link at all.
+// It sits with the QR, not with the actions, so the max-3-CTA action cluster
+// is intact and the affordance lands where "guardalo en el collar" is read.
+//
 // A11y:
 //   - Focus moves to the h1 heading on mount.
 //   - QR wrapper has role="img" + aria-label describing the linked URL.
@@ -23,9 +36,19 @@ interface Props {
   credentialUrl: string;
   /** Inline SVG string — generated server-side with QRCode.toString. */
   qrSvg: string;
+  /** Whether the pet's jurisdiction has the `printable_qr` channel enabled.
+   *  Resolved server-side by the parent page from the SAME resolver /chapita
+   *  itself uses, so the link is never offered into a closed channel. */
+  printableQrEnabled: boolean;
 }
 
-export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Props) {
+export function PetCreatedAha({
+  petName,
+  publicToken,
+  credentialUrl,
+  qrSvg,
+  printableQrEnabled,
+}: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const [shareState, setShareState] = useState<"idle" | "copied" | "error">("idle");
 
@@ -127,6 +150,36 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
           {credentialUrl}
         </p>
 
+        {/* The "guardalo en el collar" affordance. Belongs to the QR, not to
+            the action cluster below. Hidden entirely when the jurisdiction has
+            printable_qr off — /chapita would only show its own "no habilitado"
+            notice, so offering the link would be a dead end. */}
+        {printableQrEnabled && (
+          <p className="-mt-4">
+            <Link
+              href={`/mis-mascotas/${publicToken}/chapita`}
+              data-section="aha-print-chapita"
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] px-2 py-1 text-sm font-medium text-[var(--color-ln-azul)] no-underline hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+            >
+              <svg
+                aria-hidden="true"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                className="h-4 w-4"
+              >
+                <path d="M6 9V2h12v7" />
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+                <path d="M6 14h12v8H6z" />
+              </svg>
+              Imprimir la chapita
+            </Link>
+          </p>
+        )}
+
         {/* Self-scan privacy lesson — the moment the landing deliberately does
             NOT teach (the flagship-pet demo stays curiosity-only). Alta is
             when it's actionable: the owner can still adjust what a stranger
@@ -139,8 +192,9 @@ export function PetCreatedAha({ petName, publicToken, credentialUrl, qrSvg }: Pr
           abajo y, si {petName} alguna vez se pierde, elegir qué se comparte desde su perfil.
         </p>
 
-        {/* Actions — max 3 per spec */}
-        <div className="space-y-3">
+        {/* Actions — max 3 per spec. The chapita link above is deliberately
+            NOT one of them; the guard test counts inside this container. */}
+        <div className="space-y-3" data-section="aha-actions">
           {/* Primary: share */}
           <button
             type="button"

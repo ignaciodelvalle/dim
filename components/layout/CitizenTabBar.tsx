@@ -80,7 +80,16 @@ function TabIcon({ href }: { href: string }) {
   );
 }
 
-export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
+export function CitizenTabBar({
+  nav,
+  ownedPetsCount,
+}: {
+  nav: NavItem[];
+  /** Active ownerships for the signed-in user (getOwnedPetsCountCached). Zero
+   *  swaps the capture slot for the alta slot — see the block below. Required
+   *  on purpose: a default would silently pick a branch for future callers. */
+  ownedPetsCount: number;
+}) {
   const pathname = usePathname();
 
   if (nav.length === 0) return null;
@@ -125,10 +134,26 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
   // most-urgent pet's credential AND forwards the sheet param, so the anotar
   // sheet opens on arrival in a SINGLE navigation. A bare /inicio would redirect
   // to the profile WITHOUT opening anotar — breaking the one-tap capture flow.
+  //
+  // D.8 (2026-07-30): with ZERO owned pets that fallback is a SILENT NO-OP.
+  // /inicio redirects a pets-less owner to /mis-mascotas, and ?sheet=anotar is
+  // inert there (app/(app)/inicio/page.tsx) — so the most emphasised control in
+  // the whole citizen shell did nothing for exactly the first-run owner who
+  // most needs a way in. With no pets the slot becomes the alta: "Cargar
+  // mascota" → /mis-mascotas/nueva. With ≥1 pet the behaviour is unchanged.
+  //
+  // A pet token in the pathname still WINS over the zero-count branch: an org
+  // or foster user can legitimately be on a pet profile inside the citizen
+  // shell while owning nothing themselves, and for them "Asentar" on THAT pet
+  // is the correct action.
   const currentPetToken = petTokenFromPathname(pathname);
+  const showAlta = !currentPetToken && ownedPetsCount === 0;
   const asentarHref = currentPetToken
     ? `/mis-mascotas/${currentPetToken}?sheet=anotar`
-    : "/inicio?sheet=anotar";
+    : showAlta
+      ? "/mis-mascotas/nueva"
+      : "/inicio?sheet=anotar";
+  const asentarLabel = showAlta ? "Cargar mascota" : "Asentar";
   // SAME-ROUTE opens go through SheetTriggerLink, CROSS-route stays a real
   // navigation (X1-F4).
   //
@@ -165,7 +190,7 @@ export function CitizenTabBar({ nav }: { nav: NavItem[] }) {
             <path d="M12 5v14M5 12h14" />
           </svg>
         </span>
-        <span className="w-full truncate text-center text-xs font-semibold">Asentar</span>
+        <span className="w-full truncate text-center text-xs font-semibold">{asentarLabel}</span>
       </AsentarLink>
     </li>
   );

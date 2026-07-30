@@ -8,6 +8,7 @@ import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import {
   getOrgMembershipsCached,
+  getOwnedPetsCountCached,
   getProfileCached,
   getUnreadCountCached,
 } from "@/lib/infra/request-cache";
@@ -59,10 +60,17 @@ export default async function PublicLayout({ children }: { children: React.React
 
   let unreadCount = 0;
   let orgMemberships: { token: string; name: string }[] = [];
+  // The bottom tabs follow the logged-in citizen here too, so this layout needs
+  // the same D.8 signal as app/(app)/layout.tsx — otherwise the centre slot
+  // would fall back to the inert /inicio?sheet=anotar for a pets-less owner on
+  // /adoptar, /refugios, /denuncias. Anonymous visitors pay nothing: the whole
+  // block is inside the `user` guard, and the tabs don't render for them.
+  let ownedPetsCount = 0;
   if (user) {
-    [unreadCount, orgMemberships] = await Promise.all([
+    [unreadCount, orgMemberships, ownedPetsCount] = await Promise.all([
       getUnreadCountCached(user.id),
       getOrgMembershipsCached(user.id),
+      getOwnedPetsCountCached(user.id),
     ]);
   }
 
@@ -114,7 +122,9 @@ export default async function PublicLayout({ children }: { children: React.React
           primaryNavInTabBar={showTabBar}
         />
       }
-      tabBar={showTabBar ? <CitizenTabBar nav={mastheadNav} /> : undefined}
+      tabBar={
+        showTabBar ? <CitizenTabBar nav={mastheadNav} ownedPetsCount={ownedPetsCount} /> : undefined
+      }
     >
       {children}
     </AppShell>

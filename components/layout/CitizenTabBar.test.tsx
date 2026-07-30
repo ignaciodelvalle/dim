@@ -23,9 +23,20 @@ vi.mock("next/navigation", () => ({
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { OWNER_NAV } from "@/components/layout/nav-presets";
 
-function renderAt(pathname: string | null): string {
+function renderAt(pathname: string | null, ownedPetsCount = 3): string {
   pathnameRef.current = pathname;
-  return renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
+  return renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={ownedPetsCount} />);
+}
+
+/** The href of the capture/alta slot — the anchor labelled `label`. */
+function slotHref(html: string, label: string): string | null {
+  for (const seg of html.split(/<a /).slice(1)) {
+    if (new RegExp(`>${label}<`).test(seg)) {
+      const m = seg.match(/href="([^"]*)"/);
+      return m ? m[1] : null;
+    }
+  }
+  return null;
 }
 
 /** The href of the capture button — the anchor whose label text is "Asentar".
@@ -65,5 +76,56 @@ describe("CitizenTabBar — Asentar retarget on pet-profile routes", () => {
   it("falls back to /inicio?sheet=anotar elsewhere and when the pathname is unavailable", () => {
     expect(asentarHref(renderAt("/inicio"))).toBe("/inicio?sheet=anotar");
     expect(asentarHref(renderAt(null))).toBe("/inicio?sheet=anotar");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D.8 (2026-07-30) — the zero-pet slot.
+//
+// "Asentar" → /inicio?sheet=anotar was a SILENT NO-OP for a pets-less owner:
+// /inicio redirects them to /mis-mascotas, where ?sheet=anotar is inert. The
+// most emphasised control in the citizen shell did nothing for exactly the
+// first-run user. With zero owned pets the slot becomes the alta instead.
+// ---------------------------------------------------------------------------
+
+describe("CitizenTabBar — zero-pet slot becomes the alta (D.8)", () => {
+  it("with 0 owned pets the slot reads 'Cargar mascota' and points at /mis-mascotas/nueva", () => {
+    const html = renderAt("/mis-mascotas", 0);
+    expect(slotHref(html, "Cargar mascota")).toBe("/mis-mascotas/nueva");
+    // And the no-op is gone: no "Asentar" label, no /inicio?sheet=anotar href.
+    expect(html).not.toContain(">Asentar<");
+    expect(html).not.toContain("/inicio?sheet=anotar");
+  });
+
+  it("with 0 pets the alta slot holds on every non-profile route, pathname or not", () => {
+    for (const path of ["/mis-mascotas", "/mis-mascotas/reclamar", "/notificaciones", null]) {
+      expect(slotHref(renderAt(path, 0), "Cargar mascota")).toBe("/mis-mascotas/nueva");
+    }
+  });
+
+  it("with ≥1 owned pet nothing changes — the capture slot is exactly as before", () => {
+    expect(asentarHref(renderAt("/mis-mascotas", 1))).toBe("/inicio?sheet=anotar");
+    expect(asentarHref(renderAt("/inicio", 1))).toBe("/inicio?sheet=anotar");
+    expect(asentarHref(renderAt("/mis-mascotas/DIM-PAMP-0001", 1))).toBe(
+      "/mis-mascotas/DIM-PAMP-0001?sheet=anotar",
+    );
+    expect(renderAt("/mis-mascotas", 1)).not.toContain("Cargar mascota");
+  });
+
+  it("a pet token in the path WINS over a zero count — org/foster viewers keep Asentar", () => {
+    // An org or foster user can sit on a pet profile inside the citizen shell
+    // while owning nothing themselves; for them the capture action on THAT pet
+    // is correct and the alta would be wrong.
+    const html = renderAt("/mis-mascotas/DIM-PAMP-0001", 0);
+    expect(asentarHref(html)).toBe("/mis-mascotas/DIM-PAMP-0001?sheet=anotar");
+    expect(html).not.toContain("Cargar mascota");
+  });
+
+  it("the reserved index child /mis-mascotas/nueva is NOT read as a pet token", () => {
+    // petTokenFromPathname requires a DIM- prefix; without that guard the alta
+    // slot would self-target and hand a zero-pet owner a ?sheet=anotar no-op.
+    expect(slotHref(renderAt("/mis-mascotas/nueva", 0), "Cargar mascota")).toBe(
+      "/mis-mascotas/nueva",
+    );
   });
 });

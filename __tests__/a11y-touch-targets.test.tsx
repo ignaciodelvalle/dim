@@ -131,10 +131,16 @@ import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { OWNER_NAV } from "@/components/layout/nav-presets";
 
 describe("CitizenTabBar — 44px tab targets", () => {
-  it("all owner tabs plus the Asentar action render as links with min-h-12", () => {
-    const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
+  // D.8: the centre slot's label depends on the owned-pet count ("Asentar"
+  // with pets, "Cargar mascota" without), so the target check runs on BOTH
+  // branches — the 44px floor is not allowed to depend on which one renders.
+  it.each([
+    ["with pets (Asentar)", 3],
+    ["with zero pets (Cargar mascota)", 0],
+  ])("all owner tabs plus the centre slot render as links with min-h-12 — %s", (_label, count) => {
+    const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={count} />);
     const anchors = html.match(/<a [^>]*>/g) ?? [];
-    // OWNER_NAV tabs + the injected "Asentar un hecho" capture action (task #9).
+    // OWNER_NAV tabs + the injected centre capture/alta action (task #9).
     expect(anchors.length).toBe(OWNER_NAV.length + 1);
     for (const anchor of anchors) {
       expect(anchor).toContain("min-h-12");
@@ -142,7 +148,7 @@ describe("CitizenTabBar — 44px tab targets", () => {
   });
 
   it("includes the Asentar capture action pointing at /inicio?sheet=anotar (P5 review fix)", () => {
-    const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} />);
+    const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={3} />);
     // Off any pet-profile route (usePathname is unmocked → null here), the
     // capture action falls back to /inicio?sheet=anotar — /inicio's redirect
     // forwards the query string, so the most-urgent pet's profile opens WITH
@@ -150,5 +156,11 @@ describe("CitizenTabBar — 44px tab targets", () => {
     // /inicio landed on the profile without the sheet).
     const asentarSeg = html.split(/<a /).find((s) => />Asentar</.test(s));
     expect(asentarSeg?.match(/href="([^"]*)"/)?.[1]).toBe("/inicio?sheet=anotar");
+  });
+
+  it("with zero pets the centre slot is the alta, not the inert capture (D.8)", () => {
+    const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={0} />);
+    const altaSeg = html.split(/<a /).find((s) => />Cargar mascota</.test(s));
+    expect(altaSeg?.match(/href="([^"]*)"/)?.[1]).toBe("/mis-mascotas/nueva");
   });
 });

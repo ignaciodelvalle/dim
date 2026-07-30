@@ -21,7 +21,16 @@ const defaultProps = {
   publicToken: "abc-123-def",
   credentialUrl: "https://mimar.ar/p/abc-123-def",
   qrSvg: SAMPLE_SVG,
+  printableQrEnabled: true,
 };
+
+/** The markup of the max-3 action cluster only (the chapita affordance rides
+ *  the QR block above it and is deliberately not one of the three). */
+function actionsCluster(html: string): string {
+  const parts = html.split('data-section="aha-actions"');
+  expect(parts.length, "the actions cluster must be tagged").toBe(2);
+  return parts[1];
+}
 
 describe("<PetCreatedAha>", () => {
   it("renders the pet name in the heading", () => {
@@ -63,12 +72,56 @@ describe("<PetCreatedAha>", () => {
     expect(html).toContain("Esto es lo que ve un extraño que escanea a Luna");
   });
 
-  it("has at most 3 interactive CTAs", () => {
-    const html = render(<PetCreatedAha {...defaultProps} />);
-    // Count buttons + anchor tags that are CTAs (exclude the QR wrapper which is a div)
-    const buttonMatches = (html.match(/<button[^>]*type="button"/g) ?? []).length;
-    const anchorMatches = (html.match(/<a[^>]*href="[^"]+"/g) ?? []).length;
+  it("has at most 3 interactive CTAs in the action cluster", () => {
+    // The spec's "máx 3, regla de 4 verbos" applies to the ACTION CLUSTER. The
+    // chapita link added in D.8 is not one of the three: it is an affordance
+    // attached to the QR block, where "Guardalo en el collar" is read. The
+    // count is scoped to the cluster so the contract stays enforceable instead
+    // of being re-baselined to 4.
+    const cluster = actionsCluster(render(<PetCreatedAha {...defaultProps} />));
+    const buttonMatches = (cluster.match(/<button[^>]*type="button"/g) ?? []).length;
+    const anchorMatches = (cluster.match(/<a[^>]*href="[^"]+"/g) ?? []).length;
     expect(buttonMatches + anchorMatches).toBeLessThanOrEqual(3);
+    // Belt and braces: the whole screen stays at 3 CTAs + 1 QR affordance.
+    const html = render(<PetCreatedAha {...defaultProps} />);
+    const allButtons = (html.match(/<button[^>]*type="button"/g) ?? []).length;
+    const allAnchors = (html.match(/<a[^>]*href="[^"]+"/g) ?? []).length;
+    expect(allButtons + allAnchors).toBeLessThanOrEqual(4);
+  });
+
+  // -------------------------------------------------------------------------
+  // D.8 (2026-07-30) — the print affordance.
+  //
+  // The screen has always rendered the QR and always told the owner to "guardalo
+  // en el collar", with no way to do it: its three CTAs were Compartir / Ver
+  // perfil / Ver credencial pública. The print surface already exists at
+  // /mis-mascotas/[token]/chapita. This screen LINKS there instead of
+  // reimplementing window.print, because /chapita is gated by
+  // resolvePhysicalCredentialChannels and printable_qr can be off per
+  // jurisdiction — an embedded print button would bypass that gate.
+  // -------------------------------------------------------------------------
+  it("offers the chapita print surface as a link, not an embedded print button", () => {
+    const html = render(<PetCreatedAha {...defaultProps} />);
+    expect(html).toContain("Imprimir la chapita");
+    expect(html).toContain('href="/mis-mascotas/abc-123-def/chapita"');
+    // No embedded print: the jurisdiction gate lives on /chapita and must not
+    // be bypassed from here.
+    expect(html).not.toMatch(/window\.print|onclick/i);
+  });
+
+  it("keeps the chapita link OUT of the max-3 action cluster", () => {
+    const cluster = actionsCluster(render(<PetCreatedAha {...defaultProps} />));
+    expect(cluster).not.toContain("/chapita");
+    expect(cluster).not.toContain("Imprimir la chapita");
+  });
+
+  it("hides the chapita link entirely when the jurisdiction has printable_qr off", () => {
+    const html = render(<PetCreatedAha {...defaultProps} printableQrEnabled={false} />);
+    expect(html).not.toContain("/chapita");
+    expect(html).not.toContain("Imprimir la chapita");
+    // The rest of the screen is untouched.
+    expect(html).toContain("Luna ya tiene su credencial");
+    expect(html).toContain("Ver credencial pública");
   });
 
   it("uses ln-* design tokens only (no arbitrary hex, no gob-* tokens)", () => {

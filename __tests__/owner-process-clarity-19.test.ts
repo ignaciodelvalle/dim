@@ -30,8 +30,25 @@ const lostCaseBlockSrc = read("components", "pet-profile", "LostCaseBlock.tsx");
 
 describe("index — first-run empty state (task #19, Lens 1)", () => {
   it("leads a zero-pet owner with the real first action, not a reassurance", () => {
-    expect(indexSrc).toContain("No tenés mascotas registradas");
+    expect(indexSrc).toContain("Todavía no registraste ninguna mascota");
     expect(indexSrc).toContain("Cargar una mascota");
+  });
+
+  // D.8 (2026-07-30): the old copy ("No tenés mascotas registradas." / "Cargá
+  // una mascota para verla acá.") was circular — it restated the absence and
+  // then asked for the act without ever saying what the act GIVES you. The
+  // credential is the product, and this is the first screen a pets-less owner
+  // sees, so it has to name it. Guarded so a future copy pass can't quietly
+  // fall back to a description that only points at the button.
+  it("names what the owner gets — the QR-verifiable public credential", () => {
+    const emptyStateBlock = indexSrc.slice(
+      indexSrc.indexOf("Todavía no registraste ninguna mascota"),
+    );
+    expect(emptyStateBlock).toContain("credencial digital");
+    expect(emptyStateBlock).toMatch(/código QR/);
+    expect(emptyStateBlock).toContain("página pública");
+    // And it must NOT go back to the circular description.
+    expect(indexSrc).not.toContain("Cargá una mascota para verla acá");
   });
 
   it("keeps the reclamar path reachable for a first-run owner", () => {

@@ -285,10 +285,17 @@ export default async function MisMascotasPage({
         ) : hasAnyOwned ? // Owner has only deceased pets — the In memoriam section below carries
         // them; don't show a "no pets" box that contradicts it.
         null : (
+          /* D.8 (2026-07-30): this box used to restate the absence and then ask
+             for the act ("…para verla acá") without ever saying what the act
+             GIVES you — circular. The credential is the product, and the first
+             screen a pets-less owner sees is where it has to be named. Sober
+             and literal on purpose: only what the pet actually gets, no
+             promise of the physical chapita (that channel is gated per
+             jurisdiction). Guarded by owner-process-clarity-19.test.ts. */
           <LnEmptyState
             variant="dashed"
-            title="No tenés mascotas registradas."
-            description="Cargá una mascota para verla acá."
+            title="Todavía no registraste ninguna mascota."
+            description="Al registrarla obtiene su credencial digital: una página pública con código QR que cualquiera puede verificar desde el celular. Es lo que ve quien la encuentre si alguna vez se pierde."
             action={
               <LnButton href="/mis-mascotas/nueva" variant="primary" size="sm">
                 Cargar una mascota

@@ -30,9 +30,9 @@ vi.mock("next/navigation", () => ({ usePathname: () => pathnameRef.current }));
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { OWNER_NAV } from "@/components/layout/nav-presets";
 
-function clickAsentar(pathname: string | null) {
+function clickAsentar(pathname: string | null, ownedPetsCount = 3) {
   pathnameRef.current = pathname;
-  render(<CitizenTabBar nav={OWNER_NAV} />);
+  render(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={ownedPetsCount} />);
   const link = screen.getByText("Asentar").closest("a");
   if (!link) throw new Error("no Asentar anchor rendered");
   const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
@@ -61,6 +61,20 @@ describe("CitizenTabBar — Asentar opens the sheet off the router hot path", ()
     // Not a same-route sheet open: /inicio server-redirects to the most urgent
     // pet AND carries ?sheet=anotar, which is one navigation and correct.
     const event = clickAsentar("/mis-mascotas");
+    expect(pushSheetUrl).not.toHaveBeenCalled();
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  // D.8: with zero owned pets the slot is the alta, so there is no sheet to
+  // open at all — it must stay a plain cross-route navigation.
+  it("with zero pets the slot is the alta and never touches the sheet router", () => {
+    pathnameRef.current = "/mis-mascotas";
+    render(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={0} />);
+    const link = screen.getByText("Cargar mascota").closest("a");
+    if (!link) throw new Error("no alta anchor rendered");
+    expect(link.getAttribute("href")).toBe("/mis-mascotas/nueva");
+    const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });
+    fireEvent(link, event);
     expect(pushSheetUrl).not.toHaveBeenCalled();
     expect(event.defaultPrevented).toBe(false);
   });

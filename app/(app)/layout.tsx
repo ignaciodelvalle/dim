@@ -28,6 +28,7 @@ import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
   getOrgMembershipsCached,
+  getOwnedPetsCountCached,
   getProfileCached,
   getUnreadCountCached,
 } from "@/lib/infra/request-cache";
@@ -52,9 +53,14 @@ export default async function AuthenticatedLayout({
   if (profile?.role === "admin") redirect("/admin");
   if (profile?.role === "govt") redirect("/gob");
 
-  const [unreadCount, orgMemberships] = await Promise.all([
+  // ownedPetsCount drives the tab bar's centre slot (D.8): with zero pets the
+  // capture action is a no-op, so the slot becomes "Cargar mascota" instead.
+  // One indexed count per request — the documented cost (see
+  // getOwnedPetsCountCached); nothing else in this layout touches ownerships.
+  const [unreadCount, orgMemberships, ownedPetsCount] = await Promise.all([
     getUnreadCountCached(user.id),
     getOrgMembershipsCached(user.id),
+    getOwnedPetsCountCached(user.id),
   ]);
 
   // displayName is NOT NULL in the DB, but an empty string would render a
@@ -109,7 +115,7 @@ export default async function AuthenticatedLayout({
       // Mobile bottom tabs own primary nav for the logged-in citizen
       // (native-mobile audit §1); the masthead drawer keeps only
       // secondary/overflow content.
-      tabBar={<CitizenTabBar nav={shell.nav} />}
+      tabBar={<CitizenTabBar nav={shell.nav} ownedPetsCount={ownedPetsCount} />}
     >
       {/* Web Push v1: registers /sw.js for the owner portal only. No-op unless
           NEXT_PUBLIC_PUSH_ENABLED is set and the browser supports push. */}
