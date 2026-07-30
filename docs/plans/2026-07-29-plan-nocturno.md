@@ -495,6 +495,38 @@ Ya existe `suppressSmallCells` en `lib/metrics/anonymity.ts` (k=5, accessor
 5. **Leyenda**: `MapLegends` omite la fila de k-anon en provincias A PROPÓSITO,
    con un comentario que dice "provinces are never suppressed". Deja de ser cierto.
 
+## D.8 primera parte — "loop de Asentar con 0 mascotas": el plan la describe mal
+
+**NO es un loop de redirects.** Ese camino está bien y ya está documentado con
+honestidad en `app/(app)/inicio/page.tsx:80-90`: con 0 mascotas
+`/inicio?sheet=anotar` redirige a `/mis-mascotas`, y el comentario dice
+explícitamente que `?sheet=anotar` queda **inerte** porque no hay mascota contra
+la que capturar. Un solo hop, sin ciclo.
+
+**El defecto real es otro, y es peor de explicar que de arreglar**: en
+`/mis-mascotas` con 0 mascotas la tab bar sigue ofreciendo **"Asentar" como la
+acción primaria destacada** (está en el slot central justo para eso, PO
+2026-07-12 #4). El usuario la toca → vuelve a la misma página → **no pasa nada y
+nada le explica por qué**. Es un no-op silencioso en el botón más prominente de
+la pantalla, que es una forma de mentir distinta pero de la misma familia que
+C.2: ofrecer una capacidad que no está disponible.
+
+**Por qué no se arregla en tres líneas**:
+- `CitizenTabBar({ nav })` **no recibe ninguna señal de cuántas mascotas hay** —
+  solo `nav`. Hay que enhebrarla.
+- La renderiza `app/(app)/layout.tsx`, que es server component y **corre en cada
+  página de la app**. Meter un `count()` ahí lo paga toda la navegación; hay que
+  sacar la señal de algo que ya se consulte, no agregar una query.
+- **Y hay decisión de producto**: con 0 mascotas, ¿el slot se oculta, se
+  reetiqueta a "Cargar mascota" apuntando a `/mis-mascotas/nueva`, o queda
+  deshabilitado con explicación? Reetiquetar es lo que yo recomendaría —el
+  prerequisito real es tener una mascota, así que el botón primario debería
+  nombrar ESE acto— pero cambia la tab bar para un estado de onboarding y eso es
+  tu llamada.
+
+Las otras dos partes de D.8 (el vacío que vende la credencial, y el éxito con
+descarga/impresión del QR) siguen sin investigar.
+
 ## Estado (se actualiza durante la corrida)
 
 | Unidad | Estado | Commit |
@@ -520,4 +552,4 @@ Ya existe `suppressSmallCells` en `lib/metrics/anonymity.ts` (k=5, accessor
 | C.1 | pendiente | |
 | C.2 | **hecha** — ruta des-huerfanada (visibilidad sobre AMBAS direcciones, badge sigue sólo entrantes) + la promesa falsa "podés cancelarla" corregida. **Decisión de producto pendiente**: si el ciudadano debe poder cancelar una saliente (hoy `CancelTransferAction` existe sólo en `app/org/`) | `6d716356` |
 | #41 detalle de caso | pendiente | |
-| D.8 (resto) | pendiente | |
+| D.8 (resto) | **investigada la 1ª parte; el plan la describe mal.** NO es un loop de redirects — ese camino está bien y documentado. Detalle abajo | |
