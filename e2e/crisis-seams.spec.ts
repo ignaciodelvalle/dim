@@ -19,14 +19,20 @@
  *   (d) Adopción: refugio publishes → owner2 postula → refugio aprueba +
  *       finaliza → ownership transfers to owner2.
  *
- * Run against the ALREADY-RUNNING :3000 QA server:
+ * Run against the ALREADY-RUNNING QA server (QA_PORT pairs with qa-up.ps1 -Port):
  *   pnpm exec playwright test e2e/crisis-seams.spec.ts --config=playwright.local3000.config.ts
  *
- * Fixtures: seed-test-users.ts + seed-demo.ts. Tests self-skip (not fail) when
- * an optional demo fixture is absent, so a bare test seed still runs clean.
+ * FIXTURE TIER — seams (a)-(c) run entirely on what `pnpm db:bootstrap`
+ * guarantees (reference data + scripts/seed-test-users.ts) and discover every
+ * token at RUNTIME. Nothing here may hardcode a `DIM-…` literal or reach for a
+ * seed-demo.ts persona: CI never runs that chain, so such a spec measures
+ * accumulated laptop state rather than the code (commit 51b2eff1). Seam (d) is
+ * the remaining exception and is documented as such at its own definition.
  */
 
-import { type Page, expect, test } from "@playwright/test";
+import { type Locator, type Page, expect, test } from "@playwright/test";
+
+import { provinceByName } from "@/lib/reference/ar-provincias";
 
 import {
   ACCOUNTS,
@@ -36,9 +42,11 @@ import {
   walkDenunciaWizard,
 } from "./demo/_helpers";
 
-// Demo-seed tokens (seed-demo.ts). ROCCO is owner@dim.test's demo dog with a
-// clinical history; the atender walk-in surface resolves it for the clinic org.
-const ROCCO_TOKEN = "DIM-DEMO-0001";
+/** The org seed-test-users.ts provisions — "Refugio Test", legal "Refugio Test (Seed)". */
+const SEEDED_ORG_NAME = /Refugio Test/i;
+
+/** Core vaccine, catalogued for both dog and cat (lib/reference/lookups.ts). */
+const ANTIRRABICA = /antirr[aá]bica/i;
 
 /** Clear the session and log in as another role on the shared page. */
 async function relogin(page: Page, email: string): Promise<void> {
@@ -55,6 +63,45 @@ async function relogin(page: Page, email: string): Promise<void> {
 // (its `count() > 0` guard turns a drifted locator into a no-op, so every run
 // left the pet marked lost).
 const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
+
+/**
+ * owner@dim.test's first pet, READ FROM THEIR OWN REGISTRY — never hardcoded.
+ *
+ * Anchored on the `DIM-` prefix so it cannot pick up the registry's sibling
+ * routes (/nueva, /reclamar, /postulaciones); the token shape is invariant #1
+ * (lib/domain/dim-token.ts). Same pattern as a11y-regression.spec.ts, and for
+ * the same reason: a literal token is a bet that one row survives every
+ * re-seed, and the day it doesn't the assertion goes green for the wrong reason.
+ */
+async function firstOwnerPetToken(page: Page): Promise<string> {
+  await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle").catch(() => {});
+  const link = page.locator('a[href^="/mis-mascotas/DIM-"]').first();
+  await expect(link, "owner@dim.test must own at least one pet").toBeVisible();
+  const token = ((await link.getAttribute("href")) ?? "").split("/mis-mascotas/")[1] ?? "";
+  expect(token, "pet token parsed from the owner registry link").toBeTruthy();
+  return token.split(/[?#]/)[0];
+}
+
+/**
+ * Open the owner's libreta and return the asiento (ledger-row) locator.
+ *
+ * The libreta is the FlipCard's back face (`#pet-face-libreta`); the legacy
+ * /libreta URL 308-redirects to ?tab=libreta. BOTH faces mount, and the
+ * inactive credencial face keeps its own "Vacuna antirrábica" copy in the DOM
+ * as display:none — so a page-wide getByText resolves to that HIDDEN front-face
+ * node and fails despite the visible libreta rows. Everything is scoped to the
+ * libreta panel, and to `[data-section="asiento"]` (AsientoCard's root) so a
+ * match is one ledger ROW rather than an arbitrary nested element.
+ */
+async function libretaAsientos(page: Page, token: string): Promise<Locator> {
+  const res = await page.goto(`/mis-mascotas/${token}/libreta`, { waitUntil: "domcontentloaded" });
+  expect(res?.status(), "owner libreta responds 2xx").toBeLessThan(400);
+  await page.waitForLoadState("networkidle").catch(() => {});
+  await page.waitForTimeout(1_500); // Suspense boundary + flip settle
+  await expect(page.getByText(/application error/i)).not.toBeVisible();
+  return page.locator("#pet-face-libreta").locator('[data-section="asiento"]');
+}
 
 /** Force a pet back to the active state (idempotent mark-found cleanup). */
 async function ensurePetFound(page: Page, token: string): Promise<void> {
@@ -221,19 +268,48 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
   }) => {
     test.setTimeout(120_000);
 
-    await relogin(page, ACCOUNTS.vetOrgAdmin);
-    const orgToken = await resolveOrgToken(page, /Clínica Veterinaria Recoleta/i);
+    // ─── FIXTURE TIER ──────────────────────────────────────────────────────
+    // Was alejo@dim.test + "Clínica Veterinaria Recoleta" + the literal
+    // DIM-DEMO-0001. All three are seed-demo.ts, which CI does not run, so in
+    // CI the login failed outright — and the spec's own `test.skip` on "no se
+    // encontró" meant that on any half-seeded box it declared itself skipped
+    // instead of red. Both legs now sit on the bootstrap tier:
+    //   · signer — vet@dim.test, a MATRICULATED `vet_individual` member of
+    //     "Refugio Test (Seed)". Atender gates on the `event.write` capability
+    //     and a known DIM code, NOT on org type or custody
+    //     (atender-access.ts), so the seeded refugio is a valid walk-in
+    //     signer; and because the matrícula is verified, the asiento lands as
+    //     professional_verified — which is what "a clinic signed this" means.
+    //   · pet — owner@dim.test's first, read from their own registry.
+    // The skip is gone: with both fixtures guaranteed, an Atender refusal is a
+    // real failure and must say so.
 
-    await page.goto(`/org/${orgToken}/atender/${ROCCO_TOKEN}?evento=vacuna`, {
+    // Owner POV #1 — discover the pet AND take the "before" reading in the SAME
+    // session. Done together deliberately: auth_login_email is 5/min·20/hour
+    // keyed on the ADDRESS and no header evades it, so an extra owner login
+    // here would spend budget the rest of the file needs.
+    await relogin(page, ACCOUNTS.owner);
+    const petToken = await firstOwnerPetToken(page);
+    const before = await (await libretaAsientos(page, petToken))
+      .filter({ hasText: ANTIRRABICA })
+      .count();
+
+    // --- Clinic POV: sign the vaccine on the walk-in surface ----------------
+    await relogin(page, ACCOUNTS.vet);
+    const orgToken = await resolveOrgToken(page, SEEDED_ORG_NAME);
+    await page.goto(`/org/${orgToken}/atender/${petToken}?evento=vacuna`, {
       waitUntil: "domcontentloaded",
     });
-    const body = await page.locator("body").innerText();
-    test.skip(
-      /formato del código|no se encontró|no pertenecés/i.test(body),
-      `Atender could not resolve ${ROCCO_TOKEN} — demo seed missing, skipping vet seam.`,
-    );
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const surface = (await page.locator("body").innerText()).replace(/\s+/g, " ");
+    expect(
+      /formato del código|no se encontró|no pertenecés|Necesitás el permiso/i.test(surface),
+      `Atender refused ${petToken} for ${ACCOUNTS.vet} — both fixtures are bootstrap-tier, so this is a real failure, not a missing seed: ${surface.slice(0, 300)}`,
+    ).toBe(false);
 
-    // Fill and sign the vaccine (VaccinationForm reused on the walk-in surface).
+    // Fill and sign the vaccine (VaccinationForm reused on the walk-in surface,
+    // wrapped by AtenderVaccinationGate — "Antirrábica" is an exact catalog hit
+    // for both dog and cat, so the gate autoselects and never blocks).
     const vaccineInput = page.locator('input[name="vaccineName"]').first();
     await expect(vaccineInput).toBeVisible({ timeout: 20_000 });
     await vaccineInput.fill("Antirrábica");
@@ -243,31 +319,32 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       .fill(new Date().toISOString().slice(0, 10));
 
     const submitBtn = page.getByRole("button", { name: /registrar vacuna/i }).first();
-    // Server signs the event and redirects back with ?firmado=1 (N3 contract).
+    // Server signs the event and hands back ?firmado=1 for the client to
+    // navigate to (N3 contract — the action returns `redirectTo`, it does not
+    // redirect itself; see lib/ui/use-action-redirect.ts).
     await submitAndWait(page, submitBtn, (url) => url.searchParams.get("firmado") === "1", 45_000);
 
-    // --- Owner POV: the signed vaccine is now in the pet's libreta ----------
-    // The libreta is the FlipCard's back face (`#pet-face-libreta`); the legacy
-    // /libreta URL 308-redirects to ?tab=libreta. BOTH faces mount, but the
-    // inactive credencial face keeps its own "Vacuna antirrábica" copy in the
-    // DOM as display:none — so a bare getByText(...).first() resolves to that
-    // HIDDEN front-face node and fails despite the visible libreta rows. Scope
-    // the assertion to the libreta panel. Its data now streams in server-side
-    // (PF3 perf fix, no more client mount-effect fetch) but still give it a
-    // generous settle + timeout for the Suspense boundary to resolve.
+    // --- Owner POV #2: the signed vaccine is now in the pet's libreta -------
+    // TWO assertions, because either alone can pass vacuously:
+    //   · the row COUNT must rise. seed-test-users.ts already gives Firulais an
+    //     owner-recorded "Antirrábica", so "an Antirrábica is visible" is true
+    //     before this test does anything at all.
+    //   · and the new row must carry PROFESSIONAL provenance. The seeded one is
+    //     self-declared (`data-k="self"`); a matriculated vet's signature
+    //     resolves to tier professional_verified → `data-k="verified"`
+    //     (asiento-fields.ts deriveProvenance). That is the part of the seam
+    //     that is actually about a CLINIC signing rather than the owner.
     await relogin(page, ACCOUNTS.owner);
-    const libretaRes = await page.goto(`/mis-mascotas/${ROCCO_TOKEN}/libreta`, {
-      waitUntil: "domcontentloaded",
-    });
-    expect(libretaRes?.status(), "owner libreta responds 2xx").toBeLessThan(400);
-    await page.waitForLoadState("networkidle").catch(() => {});
-    await page.waitForTimeout(1_500); // client-side libreta fetch + flip settle
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
-    const libretaPanel = page.locator("#pet-face-libreta");
+    const asientos = await libretaAsientos(page, petToken);
+    const antirrabicas = asientos.filter({ hasText: ANTIRRABICA });
     await expect(
-      libretaPanel.getByText(/antirr[aá]bica/i).first(),
-      "vet-signed Antirrábica vaccine appears in the owner libreta",
+      antirrabicas.locator('.ln-prov[data-k="verified"]').first(),
+      "the vet-signed Antirrábica carries professional_verified provenance in the owner libreta",
     ).toBeVisible({ timeout: 20_000 });
+    expect(
+      await antirrabicas.count(),
+      `owner libreta gained the vet-signed Antirrábica (had ${before} before signing)`,
+    ).toBeGreaterThan(before);
   });
 
   // ------------------------------------------------------------------------
@@ -281,63 +358,160 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     expect(denCode, "denuncia reference code returned from comprobante").toBeTruthy();
 
     // --- Admin POV: the flagged report is in the moderation queue -----------
+    // ─── ROUTE DRIFT (F1 fusion, 2026-07-22) ───────────────────────────────
+    // This seam used to walk /admin/moderacion → /admin/moderacion/[id]. That
+    // journey no longer exists. The Denuncias hub ABSORBED Moderación and
+    // Maltrato as tabbed STAGES, and /admin/moderacion + /gob/moderacion +
+    // /gob/maltrato are now param-preserving redirects into
+    // /gob/denuncias?etapa=… (lib/ui/denuncias-hub-redirect.ts). Three
+    // consequences the old spec walked straight into:
+    //   1. the stage screen renders with `underHub`, and ScreenHeader SUPPRESSES
+    //      the screen's own eyebrow + h1 there — "Moderación de denuncias" is
+    //      simply not a heading on this page any more; the hub's h1 is.
+    //   2. the queue rows link to /gob/moderacion/{referenceCode}, so the old
+    //      wait for /admin/moderacion/[id] could never resolve.
+    //   3. that detail route mounts GovtModerationActions, whose buttons read
+    //      "Aprobar (pasar a triage)" / "Aprobar y pasar a triage" — NOT the
+    //      admin twin's "Pasar a triage". Same use case underneath
+    //      (approveDenunciaModerationAction reuses passWelfareToTriage), so the
+    //      post-condition below is unchanged.
+    // The legacy entry point is asserted rather than bypassed: it is a real
+    // contract (bookmarks, shared links) and pinning it here is what stops this
+    // drift from going quiet a second time.
     await relogin(page, ACCOUNTS.admin);
     await page.goto("/admin/moderacion", { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: /moderación de denuncias/i })).toBeVisible({
-      timeout: 15_000,
-    });
+    await expect(page, "legacy /admin/moderacion redirects into the Denuncias hub").toHaveURL(
+      /\/gob\/denuncias\?.*etapa=moderacion/,
+      { timeout: 15_000 },
+    );
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await expect(
+      page.getByRole("heading", { name: /el recorrido de una denuncia/i }),
+      "the Denuncias hub rendered",
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByRole("tab", { name: /moderación/i }),
+      "the Moderación stage is the active tab",
+    ).toHaveAttribute("aria-selected", "true");
+
     const row = page.getByText(denCode).first();
     await expect(row, `denuncia ${denCode} present in the admin moderation queue`).toBeVisible({
       timeout: 15_000,
     });
     await row.click();
-    await page.waitForURL(/\/admin\/moderacion\/[^/?#]+/, { timeout: 15_000 });
+    await page.waitForURL(/\/gob\/moderacion\/[^/?#]+/, { timeout: 15_000 });
     await page.waitForLoadState("networkidle").catch(() => {});
 
-    // Pass it to triage (legitimate report, not spam). ModerationActions swaps
-    // the two trigger buttons for the notes form, so after this click the only
-    // "Pasar a triage" left on the page is the commit button — which carries the
-    // verb of the act since D.3 (f50e2064), not the old bare "Confirmar".
-    await page.getByRole("button", { name: /^pasar a triage$/i }).click();
+    // Read the report's own jurisdiction off the detail header — the triage
+    // assertion at the end FILTERS the queue by it. The header's mono line is
+    // "{referenceCode} · {locality}, {province} · creada … · flagged …".
+    const metaLine = await page
+      .locator("p")
+      .filter({ hasText: denCode })
+      .filter({ hasText: /creada/ })
+      .first()
+      .innerText();
+    const [locality, provinceName] = (metaLine.match(/·\s*([^·]+?)\s*·\s*creada/)?.[1] ?? "")
+      .split(",")
+      .map((s) => s.trim());
+    // The queue's `province` param is an ISO 3166-2:AR CODE, not a display name
+    // (resolveJurisdictionScope → provinceByCode), and `locality` is the SLUG.
+    // Both matter: the scope resolver is lenient (localityByName slugifies what
+    // it is given, so a display name still narrows the query) but OpFilterBar's
+    // chip is strict (`l.slug === locality`), and a param that narrows without
+    // producing a chip is exactly what it labels "Filtro no reconocido —
+    // mostrando tu cobertura completa". Send the slug and both agree.
+    const provinceCode = provinceByName(provinceName)?.code ?? "";
+    const localitySlug = (locality ?? "")
+      .normalize("NFD")
+      .replace(/\p{M}/gu, "")
+      .toLowerCase()
+      .replace(/\./g, "")
+      .trim()
+      .replace(/\s+/g, "-");
+    expect(
+      Boolean(localitySlug && provinceCode),
+      `denuncia jurisdiction parsed from the moderation detail header: ${metaLine}`,
+    ).toBe(true);
+
+    // Pass it to triage (legitimate report, not spam). GovtModerationActions
+    // swaps the three trigger buttons for the notes form, so the trigger and the
+    // commit button are distinct strings — both carrying the verb of the act
+    // since D.3 (f50e2064), never a bare "Confirmar". Notes have a 10-char floor.
+    await page.getByRole("button", { name: /^aprobar \(pasar a triage\)$/i }).click();
     await page
       .locator("textarea")
       .first()
       .fill("Denuncia verificada en la batería de costuras — contenido coherente con abandono.");
-    await page.getByRole("button", { name: /^pasar a triage$/i }).click();
-    await page.waitForURL(/\/admin\/moderacion(?![/\w])/, { timeout: 20_000 });
+    await page.getByRole("button", { name: /^aprobar y pasar a triage$/i }).click();
+    await page.waitForURL(/\/gob\/denuncias\b/, { timeout: 20_000 });
 
-    // --- Operator POV: the triaged report is visible at /gob/maltrato -------
-    // Use admin (universal scope) so the assertion doesn't depend on the demo
+    // --- Operator POV: the triaged report is visible in the triage stage ----
+    // Still admin (universal scope) so the assertion doesn't depend on the demo
     // denuncia's locality (Av. Corrientes 1234, CABA) matching a specific
     // govt's jurisdiction — govt@dim.test is scoped to Ushuaia + El Calafate
     // and would CORRECTLY never see a CABA denuncia (same reasoning as seam a).
+    // No re-login: this page is already the admin session, and every avoidable
+    // login spends the per-address auth budget the rest of the file shares.
     // The maltrato queue hides flagged rows until moderationResolvedAt is set;
-    // "pasar a triage" above sets it, so the row now surfaces universally.
+    // approving above sets it, so the row now surfaces universally.
     // WelfareDenunciaRow renders referenceCode as mono text — assert on it.
     // The queue tabs (urgent/mine/all/overdue) each render the SAME server rows
     // into their own UrlTabsContent panel; only the active one lacks the [hidden]
     // attribute. A bare getByText(...).first() resolves to the FIRST panel
     // ("urgent", hidden) and fails despite the visible "all" row — scope to the
     // active #tabpanel-all (default queue) panel.
-    await relogin(page, ACCOUNTS.admin);
-    await page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
+    // Addressed as the hub's triage stage; /gob/maltrato?queue=all still
+    // redirects here, but there is no reason to pay the hop from inside a spec.
+    //
+    // SCOPED TO THE REPORT'S OWN LOCALITY, and that is load-bearing, not tidying.
+    // The triage list is ordered `severityRank DESC, createdAt ASC` — OLDEST
+    // FIRST — and paged at 50. An unfiltered queue therefore shows the row only
+    // while the database is nearly empty: on a fresh CI seed it is on page 1, on
+    // any box with a real backlog (948 open denuncias here) a just-created report
+    // sorts to the END of its severity band and the assertion fails for a reason
+    // that has nothing to do with the seam. Filtering by the report's own
+    // locality (`locality` is a first-class param of this screen) makes "did it
+    // enter the operator's triage queue" answerable in ONE page in both
+    // environments — the population, not the pagination, is what the seam is about.
+    await page.goto(
+      `/gob/denuncias?etapa=triage&queue=all&province=${provinceCode}&locality=${encodeURIComponent(localitySlug)}`,
+      { waitUntil: "domcontentloaded" },
+    );
     await page.waitForLoadState("networkidle").catch(() => {});
+    // Fail loud if the jurisdiction filter was rejected: OpFilterBar falls back
+    // to the operator's FULL coverage in that case, which would silently restore
+    // the 50-row pagination problem this filter exists to remove.
+    await expect(
+      page.getByText(/filtro no reconocido/i),
+      "the triage queue accepted the jurisdiction filter",
+    ).toHaveCount(0);
     await expect(
       page.locator("#tabpanel-all").getByText(denCode).first(),
-      `denuncia ${denCode} visible to the operator maltrato queue after triage`,
+      `denuncia ${denCode} visible to the operator maltrato queue (${locality}, ${provinceName}) after triage`,
     ).toBeVisible({ timeout: 20_000 });
   });
 
   // ------------------------------------------------------------------------
-  // (d) Adopción: refugio (Patitas del Norte) → owner2 postula → refugio
-  //     aprueba + finaliza → la mascota egresa de la custodia del refugio.
+  // (d) Adopción: refugio publica → owner2 postula → refugio aprueba +
+  //     finaliza → la mascota egresa de la custodia del refugio.
   // ------------------------------------------------------------------------
   //
   // Design notes (why this seam looks the way it does):
-  //  - It runs against **Refugio Patitas del Norte**, administered by alejo,
-  //    because seed-demo.ts publishes THREE adoption-eligible pets under that
-  //    shelter server-side. "Refugio Test" (orgadmin) has only ineligible pets
-  //    and its publish path is a separate 2-step wizard — not this seam's focus.
+  //  - FIXTURE TIER. This used to run as alejo@dim.test against "Refugio
+  //    Patitas del Norte", because seed-demo.ts publishes three
+  //    adoption-eligible pets there server-side. Neither exists in CI, so once
+  //    seams (b)/(c) stopped failing — and stopped masking this one behind
+  //    serial-mode skips — the account simply could not log in. It now runs as
+  //    orgadmin@dim.test against "Refugio Test (Seed)", whose three
+  //    shelter-custody pets `pnpm db:bootstrap` guarantees.
+  //  - Those pets are seeded WITHOUT `adoptionEligible`, so nothing is
+  //    published up front and the old spec's "find an already-published pet"
+  //    loop would have found nothing and self-skipped — a green that runs no
+  //    journey, which is the exact hole this suite exists to close. So the seam
+  //    now performs the publication itself: mark apta on the Elegibilidad tab,
+  //    then drive the 2-step listing wizard. That is a fuller reading of its own
+  //    title ("refugio publishes") than inheriting a server-side fixture was.
   //  - The final assertion is the TRUTHFUL post-condition: the pet LEAVES the
   //    refugio's shelter custody (adoption finalized). Finalization resolves the
   //    adopter by DNI and creates a stub profile when no user matches — ownership
@@ -346,16 +520,16 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
   //    cross-POV thing this seam really proves is: owner2's application reaches
   //    the refugio queue, the refugio approves, and the custody transfer commits.
   //  - Non-idempotent: each pass adopts one pet out of the shelter. Re-runs pick
-  //    the next still-published pet and self-skip once all are adopted.
+  //    the next still-in-custody pet and publish that one.
   test("(d) refugio publishes → owner2 applies → refugio approves + finalizes → pet transfers out", async ({
     page,
   }) => {
     test.setTimeout(180_000);
     const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-    // --- Refugio (alejo): find a published, still-in-custody pet -----------
-    await relogin(page, ACCOUNTS.vetOrgAdmin);
-    const orgToken = await resolveOrgToken(page, /Patitas del Norte/i);
+    // --- Refugio (orgadmin): find an in-custody pet and PUBLISH it ----------
+    await relogin(page, ACCOUNTS.orgAdmin);
+    const orgToken = await resolveOrgToken(page, SEEDED_ORG_NAME);
     await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle").catch(() => {});
 
@@ -371,10 +545,13 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
           .filter((t) => t.startsWith("DIM")),
       ),
     );
-    test.skip(candidates.length === 0, "Patitas del Norte has no pets — skipping adoption seam.");
+    expect(
+      candidates.length,
+      `${orgToken} holds no pets — seed-test-users.ts seeds three under shelter custody, so an empty list is a real failure`,
+    ).toBeGreaterThan(0);
 
-    // A pet already adopted by a prior run 404s on its org /adoptar surface
-    // (no active shelter_custody), so the loop naturally skips it.
+    // A pet adopted out by a PRIOR run 404s on its org /adoptar surface (no
+    // active shelter_custody), so the loop naturally moves past it.
     let petToken = "";
     let petName = "";
     for (const candidate of candidates) {
@@ -383,53 +560,115 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       });
       if ((res?.status() ?? 500) >= 400) continue;
       await page.waitForLoadState("networkidle").catch(() => {});
-      if (
+      // h1 = "Publicar en adopción · {name}" — strip the prefix for the name.
+      const heading = (
         await page
-          .getByText(/Publicada y visible/i)
-          .isVisible()
-          .catch(() => false)
-      ) {
-        petToken = candidate;
-        // h1 = "Publicar en adopción · {name}" — strip the prefix for the name.
-        petName = (
-          await page
-            .getByRole("heading", { level: 1 })
-            .first()
-            .innerText()
-            .catch(() => "")
-        )
-          .replace(/^publicar en adopci[oó]n\s*·\s*/i, "")
-          .trim();
-        break;
-      }
+          .getByRole("heading", { level: 1 })
+          .first()
+          .innerText()
+          .catch(() => "")
+      )
+        .replace(/^publicar en adopci[oó]n\s*·\s*/i, "")
+        .trim();
+
+      // SKIP a pet that is ALREADY published rather than adopting it out.
+      //
+      // The seam is named "refugio PUBLISHES", so inheriting somebody else's
+      // listing skips the very step under test. It also made the test
+      // un-rerunnable: a pass that stops halfway leaves its pet published WITH a
+      // live application from owner2, and the next run picks that same pet, finds
+      // "Ya postulaste" instead of the wizard, and fails on inherited state
+      // rather than on anything the code did. Publishing a fresh pet each run
+      // keeps every pass self-contained. A pet already adopted out by an earlier
+      // pass 404s above and never reaches here.
+      const alreadyPublished = await page
+        .getByText(/Publicada y visible/i)
+        .isVisible()
+        .catch(() => false);
+      if (alreadyPublished) continue;
+
+      // Not published. The only blocker a seeded shelter pet legitimately has is
+      // eligibility (the page lists lost / deceased / dispute / rabies-observation
+      // as the others); clear it on its own tab, which is exactly where the
+      // page's blocking copy tells the operator to go.
+      await page.goto(`/org/${orgToken}/mascotas/${candidate}/eligibility`, {
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.getByRole("button", { name: /^apta para adopci[oó]n$/i }).click();
+      await page.getByRole("button", { name: /^confirmar elegibilidad$/i }).click();
+      // Assert the PERSISTED state, not the transient confirmation: the form
+      // commits and then does a full document reload onto the same URL
+      // (navigateAfterActionSuccess), which wipes its own "Marcada como apta…"
+      // output before it can be observed. "Estado actual" is SSR'd from the DB
+      // and survives — and "No apta" cannot satisfy this pattern.
+      await expect(
+        page.getByText(/estado actual:\s*apta/i).first(),
+        `${candidate} is recorded as apta para adopción after the decision`,
+      ).toBeVisible({ timeout: 20_000 });
+
+      // Back to the listing wizard: step 1 content → step 2 publish.
+      await page.goto(`/org/${orgToken}/mascotas/${candidate}/adoptar`, {
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await page
+        .locator("#story")
+        .fill("Llegó al refugio como callejero y busca una familia tranquila y responsable.");
+      await page.getByRole("button", { name: /^guardar y continuar$/i }).click();
+      const publishBtn = page.getByRole("button", { name: /^publicar adopci[oó]n$/i });
+      await expect(publishBtn, "step 2 of the listing wizard").toBeVisible({ timeout: 20_000 });
+      await expect(
+        publishBtn,
+        `"Publicar adopción" is enabled for ${candidate} once it is apta — a disabled button here means an unresolved blocker the seed should not have`,
+      ).toBeEnabled();
+      await publishBtn.click();
+      await expect(
+        page.getByText(/Publicada y visible/i).first(),
+        `${candidate} is published and publicly visible`,
+      ).toBeVisible({ timeout: 20_000 });
+      petToken = candidate;
+      petName = heading;
+      break;
     }
-    test.skip(
-      petToken === "",
-      "No published in-custody pet in Patitas del Norte (all adopted) — skipping adoption seam.",
-    );
+    expect(
+      petToken,
+      "this run published an in-custody pet of the seeded refugio for adoption — an empty result means every seeded pet is already listed or already adopted out, i.e. the fixture is exhausted and the database needs re-seeding",
+    ).toBeTruthy();
 
     // --- owner2 postula (5-step application wizard) ------------------------
     await relogin(page, ACCOUNTS.owner2);
     const applyRes = await page.goto(`/adoptar/${petToken}`, { waitUntil: "domcontentloaded" });
     expect(applyRes?.status(), "public adoption page responds 2xx").toBeLessThan(400);
     await page.waitForLoadState("networkidle").catch(() => {});
-    // Drive the application only when the form actually mounts. On a re-run
-    // (non-idempotent DB) owner2 may already have applied to this pet — the
-    // "Postular" button still renders but /postular redirects away, leaving no
-    // form. In that case the pending application already sits in the queue, so
-    // skip straight to the refugio review below.
-    let formLoaded = false;
-    const applyBtn = page.getByRole("button", { name: /postular/i }).first();
-    if (await applyBtn.isVisible({ timeout: 10_000 }).catch(() => false)) {
-      await applyBtn.click();
-      await page.waitForURL(/\/adoptar\/[^/]+\/postular/, { timeout: 20_000 }).catch(() => {});
-      // The application form mounts lazily (dynamic import).
-      formLoaded = await page
-        .locator("#motivation")
-        .isVisible({ timeout: 8_000 })
-        .catch(() => false);
-    }
-    if (formLoaded) {
+    // The public listing must offer the CTA — that is what "published" means to
+    // a citizen, and it is the one thing only this page can prove.
+    await expect(
+      page.getByRole("button", { name: /postular/i }).first(),
+      `the published listing for ${petName} offers owner2 the "Postular" CTA`,
+    ).toBeVisible({ timeout: 15_000 });
+
+    // ...but ENTER the wizard by URL, not by clicking that CTA.
+    //
+    // This block used to click it, swallow the resulting waitForURL with a
+    // `.catch(() => {})`, probe `#motivation`, and run the whole application
+    // only `if (formLoaded)`. A click dispatched before React attaches is
+    // silently dropped (the #39 hydration race this repo has fought since the
+    // 2026-07-03 clickthrough audit) — so on a slow hydrate the wizard never
+    // opened, `formLoaded` stayed false, EVERY assertion below was jumped, and
+    // the seam reported success having applied for nothing. That is exactly
+    // what happened on the first run after seams (b)/(c) stopped masking this
+    // test behind serial-mode skips: the refugio queue was empty because no
+    // application had ever been submitted. A direct navigation cannot be
+    // dropped, and the form is now a hard assertion rather than a condition.
+    await page.goto(`/adoptar/${petToken}/postular`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    const wizardMounted = await page
+      .locator("#motivation")
+      .isVisible({ timeout: 20_000 })
+      .catch(() => false);
+
+    if (wizardMounted) {
       // Drive all 5 steps scoping every action to the ACTIVE wizard step
       // (inactive steps stay in the DOM as sr-only / aria-hidden).
       const activeStep = () => page.locator('section[aria-hidden="false"]');
@@ -466,15 +705,44 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       await activeStep()
         .getByRole("button", { name: /enviar postulaci/i })
         .click();
-      // Success screen renders in place: h1 "Tu postulación a {name} fue enviada".
+      // Terminal state, either shape. The happy path is ApplicationForm's own
+      // in-place success screen ("Tu postulación a {name} fue enviada"), rendered
+      // from client state after the action resolves. But the final submit
+      // intermittently completes as a FULL DOCUMENT navigation instead (the #39
+      // hydration race), and the server then re-renders /postular — which, now
+      // that the application exists, is the "Ya postulaste para {name}" screen.
+      // Both mean the application committed (verified against
+      // `adoption_application_submitted` in pet_events), and accepting only the
+      // first made this a coin flip. What the application actually DID is proven
+      // unconditionally by the refugio-queue assertion below, not here.
       await expect(
-        page.getByRole("heading", { name: /fue enviada/i }).first(),
-        "owner2's application was submitted",
+        page.getByRole("heading", { name: /fue enviada|ya postulaste/i }).first(),
+        "owner2's application reached a terminal confirmation state",
       ).toBeVisible({ timeout: 20_000 });
+    } else {
+      // owner2 ALREADY has a live application on this pet — the documented
+      // non-idempotency (a previous pass published and applied but did not finish
+      // adopting the pet out, so the loop above picks the same pet again). On a
+      // freshly bootstrapped database this branch never runs; CI always drives
+      // the wizard.
+      //
+      // /postular does NOT "redirect away, leaving no form" as this spec used to
+      // claim — it renders an explicit "Ya postulaste para {name}" screen. That
+      // named state is what gets asserted, so "the wizard did not mount" can only
+      // be excused by the ONE product state that legitimately excuses it, never
+      // by a blank page, an error boundary, or a slow hydrate.
+      //
+      // This is NOT the old self-skip: nothing downstream is conditional. The
+      // refugio-queue assertion, the approval, the finalize and the custody
+      // post-condition all still execute and must pass.
+      await expect(
+        page.getByRole("heading", { name: /ya postulaste/i }),
+        "no wizard is only acceptable because owner2 already applied to this pet",
+      ).toBeVisible({ timeout: 15_000 });
     }
 
-    // --- Refugio (alejo): owner2's application reached the queue → approve --
-    await relogin(page, ACCOUNTS.vetOrgAdmin);
+    // --- Refugio (orgadmin): owner2's application reached the queue → approve
+    await relogin(page, ACCOUNTS.orgAdmin);
     await page.goto(`/org/${orgToken}/adopciones`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle").catch(() => {});
     // Each queue row is a link to the application detail and shows "→ {petName}".
@@ -483,47 +751,69 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
         hasText: new RegExp(escapeRe(petName), "i"),
       })
       .first();
-    // owner2's application submitted above ("fue enviada" — the citizen-side seam
-    // is proven). The refugio approve → finalize → custody-transfer downstream is
-    // independently covered by the Deep Pass C bulk-approve validation. If the
-    // just-submitted application hasn't surfaced in the queue here (revalidation
-    // timing / the DNI-driven adopter model with owner2's NULL dni), self-skip the
-    // downstream rather than fail — a documented state dependency, not a regression.
-    const appReached = await appRow.isVisible({ timeout: 20_000 }).catch(() => false);
-    test.skip(
-      !appReached,
-      `owner2's application for ${petName} did not surface in the refugio queue in time — submission verified; refugio approve/finalize/transfer covered by Deep Pass C.`,
-    );
+    // HARD, not a self-skip. This used to `test.skip` when the row was missing,
+    // on the theory that the downstream was "covered by Deep Pass C" — which
+    // means the cross-POV half of the seam, the entire reason this test exists,
+    // could evaporate silently on any run. The application was submitted a few
+    // lines above against a pet THIS test just published; if it does not reach
+    // the refugio's own queue, that is the seam breaking and it must say so.
+    await expect(
+      appRow,
+      `owner2's application for ${petName} reached the refugio adoption queue`,
+    ).toBeVisible({ timeout: 20_000 });
     await appRow.click();
     await page.waitForURL(/\/org\/[^/]+\/adopciones\/[0-9a-f-]{36}/, { timeout: 15_000 });
     await page.waitForLoadState("networkidle").catch(() => {});
-    // ReviewButtons: "Aprobar postulación" reveals the confirm step.
-    await page.getByRole("button", { name: /aprobar postulaci/i }).click();
-    await page.getByRole("button", { name: /confirmar aprobaci/i }).click();
+    // ReviewButtons: the trigger "Aprobar postulación" REPLACES the three-button
+    // row with the confirm step, whose commit button carries the verb of the act
+    // — and since D.3 (f50e2064) that verb is the SAME string, "Aprobar
+    // postulación", not the old "Confirmar aprobación" this spec waited for.
+    // So the same locator is clicked twice: the first click resolves to the
+    // trigger, and after the swap the only match left is the commit button.
+    // Notes are optional on the approve path.
+    const approveBtn = page.getByRole("button", { name: /^aprobar postulaci[oó]n$/i });
+    await approveBtn.click();
+    await expect(approveBtn, "the approval confirm step replaced the trigger row").toHaveCount(1);
+    await approveBtn.click();
     await page.waitForURL(/\/org\/[^/]+\/adopciones(?![/\w])/, { timeout: 20_000 });
 
-    // --- Refugio finalizes the adoption on the pet ficha (DNI path) --------
-    // Finalization is a standalone org action (it does not require the approval
-    // above and auto-rejects any other pending applications). It resolves the
-    // adopter by DNI, creating a stub profile when none matches.
+    // --- Refugio finalizes the adoption to the APPROVED APPLICANT -----------
+    // This used to type a DNI (30123456 / "Adoptante Demo Costuras") because the
+    // seam believed finalization could only resolve an adopter by document,
+    // creating a stub profile — hence its old note that "ownership does NOT
+    // transfer to the applicant user". That is no longer what the screen does:
+    // with an approved application on file, FinalizeAdoptionForm preselects the
+    // POSTULANTE APROBADO (owner2) and states the outcome plainly — "la mascota
+    // queda registrada en la cuenta de la persona que se postuló online". The
+    // DNI fields are the off-platform fallback behind "¿Adopción por fuera de
+    // las postulaciones?", not this path. Typing a DNI here adopted the pet out
+    // to a stranger and then asserted a weaker post-condition than the seam's
+    // own title promises.
     await page.goto(`/org/${orgToken}/mascotas/${petToken}/adoption`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForLoadState("networkidle").catch(() => {});
-    await page.locator('input[name="adopterDni"]').fill("30123456");
-    await page.locator('input[name="adopterDisplayName"]').fill("Adoptante Demo Costuras");
-    // The finalize form is a native <form action> (useActionState) — vulnerable
-    // to the #39 hydration race (a click dispatched before React attaches does a
-    // bare native submit that never runs the server action). submitAndWait falls
-    // back to requestSubmit(). Success redirects to /mascotas?adopcion={token}.
-    await submitAndWait(
-      page,
-      page.getByRole("button", { name: /finalizar adopci/i }),
-      (url) => url.pathname.endsWith("/mascotas") && url.searchParams.get("adopcion") === petToken,
-      30_000,
-    );
+    await expect(
+      page.locator('input[name="__appChoice"]:checked'),
+      "the approved applicant is preselected as the adopter",
+    ).toHaveCount(1);
+    // Submit, then assert the OUTCOME rather than the navigation.
+    //
+    // finalizeAdoption's contract is `redirectTo: /org/{org}/mascotas?adopcion=
+    // {token}`, and this spec used to wait for exactly that URL. It commits — the
+    // pet demonstrably leaves custody — but the browser frequently never gets
+    // there: the client half of the N3 contract (useActionRedirect →
+    // window.location.assign) does not always fire, so the document stays put
+    // while the RSC re-render swaps the page to "Animal no disponible". That is
+    // the Next 15.5.x post-action navigation drop this repo documents in
+    // lib/ui/full-page-action-nav.ts, and it is NOT this seam's subject —
+    // reported separately. Waiting on the URL made a passing mutation look like a
+    // 30s timeout. The two post-conditions below prove the transfer itself, which
+    // is what "the pet transfers out" means.
+    await page.getByRole("button", { name: /finalizar adopci/i }).click();
+    await page.waitForLoadState("networkidle").catch(() => {});
 
-    // --- Cross-POV post-condition: the pet left the refugio's custody -------
+    // --- Cross-POV post-condition #1: the pet left the refugio's custody ----
     // The /adoption surface only resolves pets still under the org's active
     // shelter custody, so after a successful finalize it reports the pet as
     // unavailable — proving the custody transfer committed. Reload fresh.
@@ -534,6 +824,19 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     await expect(
       page.getByText(/animal no disponible|no figura bajo custodia/i).first(),
       "pet transferred out of the refugio's custody after the adoption was finalized",
+    ).toBeVisible({ timeout: 20_000 });
+
+    // --- Cross-POV post-condition #2: owner2 now OWNS the pet ---------------
+    // The other half of the transfer, and the one this test is named for. Custody
+    // leaving the refugio and ownership arriving at the adopter are two different
+    // facts; asserting only the first would pass just as well if the pet had
+    // fallen out of the system entirely.
+    await relogin(page, ACCOUNTS.owner2);
+    await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle").catch(() => {});
+    await expect(
+      page.locator(`a[href^="/mis-mascotas/${petToken}"]`).first(),
+      `${petName} is registered to owner2 after the adoption was finalized`,
     ).toBeVisible({ timeout: 20_000 });
   });
 });

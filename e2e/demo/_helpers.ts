@@ -4,14 +4,30 @@ import { type Locator, type Page, expect } from "@playwright/test";
 
 export const SHARED_PASSWORD = "Test1234!";
 
-// Demo accounts (all password Test1234!) — see scripts/seed-test-users.ts + seed-demo.ts.
+// Demo accounts (all password Test1234!).
+//
+// TIERS MATTER — read this before pointing a spec at one of these.
+// `pnpm db:bootstrap` (what CI runs) seeds reference data and
+// scripts/seed-test-users.ts, and STOPS. Everything below marked "demo tier"
+// comes from scripts/seed-demo.ts + the storyline/owner-demo scripts, which CI
+// never executes, so a spec that reaches for one is green only on a laptop
+// where those were run by hand (see commit 51b2eff1 — six specs, one cause).
 export const ACCOUNTS = {
+  // ---- bootstrap tier: guaranteed to exist on any freshly seeded database ----
   owner: "owner@dim.test",
   owner2: "owner2@dim.test", // Owner B — cross-tenant target + adoption applicant (seed-test-users.ts ensureOwnerB)
-  orgAdmin: "orgadmin@dim.test",
-  vetOrgAdmin: "alejo@dim.test", // admin of Clínica Veterinaria Recoleta (clinic org)
+  orgAdmin: "orgadmin@dim.test", // admin of "Refugio Test (Seed)"
+  // Matriculated vet (matriculaVerified=true) AND an active `vet_individual`
+  // member of "Refugio Test (Seed)" — VET_INDIVIDUAL_IMPLICIT_CAPS grants
+  // `event.write`, which is exactly what the Atender walk-in surface gates on.
+  // This is the bootstrap-tier stand-in for a clinic signer: it signs as
+  // authorRole "vet" / authorVerified true, so the asiento lands as
+  // professional_verified provenance, not a bare org record.
+  vet: "vet@dim.test",
   govt: "govt@dim.test",
   admin: "admin@dim.test",
+  // ---- demo tier: seed-demo.ts only — ABSENT in CI, do not add new uses ----
+  vetOrgAdmin: "alejo@dim.test", // admin of Clínica Veterinaria Recoleta (clinic org)
 } as const;
 
 // Real animal photos shipped in the repo, reused for live upload flows.
