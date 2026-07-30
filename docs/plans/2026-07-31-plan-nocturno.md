@@ -402,6 +402,32 @@ en el CSS compilado. Arreglo: `font-ln-mono` / `font-ln-serif` / `font-ln-sans`.
 Capturas propias: 349 elementos pasan a monoespaciada de golpe. Es el diseño
 original, pero es un cambio grande.
 
+## A4/A5/A6 — las tres roturas preexistentes que el PO metió al plan (31/07)
+
+### A4. El E2E de CI muere por timeout — **el más grave de los tres**
+`timeout-minutes: 30` (`ci.yml:488`) y al menos 3 corridas consecutivas lo agotan:
+el paso sale `cancelled`, no `failure`. **Este proyecto no tiene veredicto de
+e2e en CI.** Consecuencia para D7: ningún cambio de UI está cubierto end-to-end
+en la barra del cutover, y nadie lo sabía porque un `cancelled` no se lee como
+rojo.
+Primero MEDIR dónde se va el tiempo (¿son todos los specs, o hay uno patológico?)
+antes de tocar el número. Subir el timeout sin medir es apagar el detector.
+
+### A5. La semilla no garantiza un dueño con cero mascotas
+`carla@dim.test` está documentada en el spec como dueña sin mascotas y tiene 4
+(dos `QA7-*` del 2026-07-17, DIM-DEMO-0002/0008 del 2026-07-26). Un barrido
+confirmó que **no queda ningún dueño personal con cero mascotas** (lucas tiene 0
+pero es `govt`). Rompe el test 6 de `owner-ia-p6` y hace imposible verificar
+cualquier empty state de dueño sin fabricar un usuario a mano.
+La semilla debe GARANTIZAR uno, con un tag que impida que una corrida de QA se lo
+coma.
+
+### A6. El config de Playwright hardcodea el puerto (una línea)
+`playwright.local3000.config.ts` fija 3000 sin override por env, y 3000 tiene el
+zombi inmatable. Además `playwright.config.ts` apunta a 3333 y trae su propio
+`webServer` que buildea y arranca — usarlo por error **clobberea el servidor
+vivo**. Arreglo: `process.env.QA_PORT ?? 3000`.
+
 ## STRETCH (solo si sobra reloj, en este orden)
 - SC-6 (cursor keyset por urgencia — rework contenido, sin decisión).
 - D.5(b) en `CabaInset`/`MapChoropleth` (calcar `no-data-overlay.ts`).
@@ -495,6 +521,9 @@ que habría que hacer y que hacerlo sería un error.
 | A0 RTL cleanup (timebox 45') | **CERRADA** — arregla un defecto latente, NO la muerte del worker | `ec4aafde` |
 | A0b pool de vitest (la muerte del worker) | en curso | |
 | A1 bug estado por defecto panorama | pendiente | |
+| A4 E2E de CI muere por timeout (PO 31/07) | pendiente | |
+| A5 semilla sin dueño de cero mascotas (PO 31/07) | pendiente | |
+| A6 puerto hardcodeado en config de Playwright (PO 31/07) | pendiente | |
 | A2 B3 chips en timeline único | pendiente | |
 | A3 caza de tests que pinnean el defecto | pendiente | |
 | B1 verificación en vivo de A1 | pendiente | |
