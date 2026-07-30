@@ -455,7 +455,7 @@ autorización es para ESTA corrida, no permanente.
 | A2 #40 k-anon provincia | **CERRADA** (falta verif. visual → B4) | `4b8284f2` |
 | A3 D.3 gramática | **CERRADA** | `f50e2064` (clases 2-3) + `acd08f43` (fence + clase 1) |
 | A4 copy Registrado/a | **CERRADA** | `ac2af21f` |
-| A5 D.4 chips | **CERRADA** (4 colas alineadas a los átomos de `CaseQueue`) | `PENDING_SHA` |
+| A5 D.4 chips | **CERRADA** (4 colas alineadas a los átomos de `CaseQueue`) | `aaca925e` |
 | B1 pasada 703 | pendiente | |
 | B2 D.8 completo | investigada, implementación pendiente | |
 | B3 C.1 libreta | **redefinida** (ver §B3), implementación pendiente | |
