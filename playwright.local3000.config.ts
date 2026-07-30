@@ -14,11 +14,28 @@ import { defineConfig, devices } from "@playwright/test";
  * Reuse the existing server — start it once with qa-up.ps1, then:
  *   pnpm exec playwright test --config=playwright.local3000.config.ts
  *
+ * PORT — `QA_PORT` (default 3000). It pairs with `qa-up.ps1 -Port`, the script
+ * that starts the very server this config attaches to; run the two with the
+ * same number:
+ *   pwsh scripts/qa-up.ps1 -Port 3001
+ *   QA_PORT=3001 pnpm exec playwright test --config=playwright.local3000.config.ts
+ * The override is not cosmetic: :3000 on the PO's box can be held by a zombie
+ * listener owned by another security context (qa-up.ps1 documents it — the PID
+ * survives Stop-Process), and before this was configurable the only way to run
+ * a spec elsewhere was to fabricate a throwaway config.
+ *
+ * Deliberately NOT the bare `PORT` variable: that one is Next's own server port
+ * (qa-up.ps1 sets `$env:PORT`, and playwright.config.ts injects it into its
+ * webServer), so a client-side config reading it would silently follow whatever
+ * a server-side tool left in the shell.
+ *
  * Runs serially (workers: 1). The crisis seams are multi-actor journeys that
  * relogin the shared `page` across roles and mutate shared demo fixtures
  * (mark-lost, adoption custody), so parallel workers would collide on the
  * same seed rows.
  */
+const QA_PORT = Number(process.env.QA_PORT?.trim() || 3000);
+
 export default defineConfig({
   testDir: "./e2e",
   timeout: 120_000,
@@ -30,7 +47,7 @@ export default defineConfig({
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
-    baseURL: "http://localhost:3000",
+    baseURL: `http://localhost:${QA_PORT}`,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     // Bound individual actions so a selector that drifted from the current UI

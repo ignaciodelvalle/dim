@@ -12,6 +12,21 @@ import { defineConfig, devices } from "@playwright/test";
  *
  * Local usage when the stack is up:
  *   pnpm e2e
+ *
+ * ─── ⚠ DO NOT USE THIS CONFIG AGAINST A LIVE QA SERVER ────────────────────
+ * This is the DEFAULT config (`pnpm e2e` / a bare `playwright test` picks it
+ * up), and it owns a `webServer` block that runs `pnpm build && pnpm start`.
+ * Running it while `scripts/qa-up.ps1` has a server up REWRITES `.next` under
+ * that live process — the served JS chunks 404 and the QA session dies
+ * mid-run. It has burned this project more than once.
+ *
+ * To drive an already-running QA server, use the no-webServer configs:
+ *   pnpm exec playwright test --config=playwright.local3000.config.ts
+ *   (port via QA_PORT, matching `qa-up.ps1 -Port`)
+ *
+ * The 3333 below is deliberate: it must never collide with the QA server's
+ * port so a mistake here cannot bind over a live one. Do not "unify" it with
+ * QA_PORT — the separation IS the guard.
  */
 
 const PORT = 3333;

@@ -13,14 +13,17 @@ import { readFileSync } from "node:fs";
  *      the current staging origin (the per-deploy scratchpad file).
  *   3. the known local scratchpad staging_url file, if present (PO's Windows
  *      box) — best-effort, never fatal.
- *   4. http://localhost:3000           — the local QA server fallback so the
- *      specs still run under playwright.local3000.config.ts with no env set.
+ *   4. http://localhost:${QA_PORT ?? 3000} — the local QA server fallback so
+ *      the specs still run under playwright.local3000.config.ts with no env
+ *      set. QA_PORT is that config's port override (same var as
+ *      `qa-up.ps1 -Port`); honoring it here keeps these two specs on the same
+ *      origin as the rest of the suite when the QA server is not on :3000.
  *
  * The returned value never carries a trailing slash so callers can safely do
  * `base + "/login"`.
  */
 
-const DEFAULT_LOCAL = "http://localhost:3000";
+const DEFAULT_LOCAL = `http://localhost:${Number(process.env.QA_PORT?.trim() || 3000)}`;
 
 // Best-effort default location of the per-deploy staging_url file on the PO's
 // machine. Never hardcode this into an assertion — it is only a convenience
