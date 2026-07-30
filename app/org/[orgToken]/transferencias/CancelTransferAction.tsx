@@ -70,7 +70,11 @@ export function CancelTransferAction({
         onConfirm={handleCancel}
         title="Cancelar propuesta de transferencia"
         description={`Esto cancela la propuesta de transferir la custodia de ${petName} y notifica a la organización receptora. Esta acción no se puede deshacer.`}
-        confirmLabel="Confirmar cancelación"
+        confirmLabel="Cancelar transferencia"
+        // "Cancelar" would sit next to "Cancelar transferencia" and mean the
+        // opposite of it — the one dialog in the app where the default dismiss
+        // label is a homograph of the act. "Volver" keeps the two apart.
+        cancelLabel="Volver"
         tone="danger"
         pending={pending}
         triggerRef={triggerRef}

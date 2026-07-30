@@ -62,8 +62,8 @@ function RevokeCell({ grantId }: { grantId: string }) {
           <button
             type="submit"
             disabled={isSubmitting}
-            title="Confirmar revocación"
-            aria-label="Confirmar revocación"
+            title="Revocar permiso"
+            aria-label="Revocar permiso"
             onClick={() => setConfirming(false)}
             className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
           >
@@ -175,8 +175,8 @@ function GrantCell({
         <button
           type="button"
           disabled={isPending}
-          title={`Confirmar: ${capabilityLabel}`}
-          aria-label="Confirmar concesión"
+          title={`Conceder: ${capabilityLabel}`}
+          aria-label="Conceder permiso"
           onClick={handleGrant}
           className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >

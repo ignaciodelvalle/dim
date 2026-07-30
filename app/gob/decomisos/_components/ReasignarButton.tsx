@@ -94,7 +94,7 @@ export function ReasignarButton({
         onConfirm={handleSubmit}
         title={`Reasignar decomiso — ${casePublicCode}`}
         description={`Esto transfiere la custodia del caso a otro refugio/red de rescate verificado. ${currentReceiverName} deja de ser responsable del caso.`}
-        confirmLabel="Confirmar reasignación"
+        confirmLabel="Reasignar"
         tone="neutral"
         pending={isPending}
         triggerRef={triggerRef}

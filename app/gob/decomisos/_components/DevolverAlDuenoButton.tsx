@@ -59,7 +59,7 @@ export function DevolverAlDuenoButton({ casePublicCode }: DevolverAlDuenoButtonP
         onConfirm={handleConfirm}
         title={`Devolver al dueño — ${casePublicCode}`}
         description="Esto cierra el episodio de custodia y le restituye al dueño anterior el acceso completo sobre la mascota — una transferencia real de responsabilidad legal. Esta acción no se puede deshacer."
-        confirmLabel="Confirmar devolución"
+        confirmLabel="Devolver al dueño"
         tone="neutral"
         pending={isPending}
         triggerRef={triggerRef}

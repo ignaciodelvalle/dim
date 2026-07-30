@@ -39,7 +39,7 @@ export function DeleteAlertSubscriptionButton({ subscriptionId }: { subscription
       <form action={deleteAlertSubscriptionAction}>
         <input type="hidden" name="id" value={subscriptionId} />
         <OpButton type="submit" variant="danger" size="sm" className="h-11 px-3">
-          Confirmar
+          Eliminar suscripción
         </OpButton>
       </form>
       <OpButton

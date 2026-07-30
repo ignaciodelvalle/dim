@@ -147,7 +147,7 @@ export function ReviewActions({
             variant="ok"
             size="sm"
           >
-            {pending ? "Aprobando..." : "Confirmar aprobación"}
+            {pending ? "Aprobando..." : "Aprobar solicitud"}
           </OpButton>
           <OpButton type="button" onClick={() => resetTo("idle")} variant="ghost" size="sm">
             Cancelar
@@ -177,7 +177,7 @@ export function ReviewActions({
             variant="danger"
             size="sm"
           >
-            {pending ? "Rechazando..." : "Confirmar rechazo"}
+            {pending ? "Rechazando..." : "Rechazar solicitud"}
           </OpButton>
           <OpButton type="button" onClick={() => resetTo("idle")} variant="ghost" size="sm">
             Cancelar

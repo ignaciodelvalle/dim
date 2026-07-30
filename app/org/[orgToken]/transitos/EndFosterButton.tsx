@@ -100,7 +100,7 @@ export function EndFosterButton({
           </p>
           <div className="flex gap-2">
             <OpButton variant="danger" size="sm" onClick={submit} disabled={pending}>
-              {pending ? "Cerrando..." : "Confirmar finalización"}
+              {pending ? "Cerrando..." : "Finalizar tránsito"}
             </OpButton>
             <OpButton
               variant="ghost"
@@ -120,7 +120,7 @@ export function EndFosterButton({
             onClick={() => setConfirming(true)}
             disabled={pending}
           >
-            Confirmar
+            Finalizar tránsito
           </OpButton>
           <OpButton
             variant="ghost"

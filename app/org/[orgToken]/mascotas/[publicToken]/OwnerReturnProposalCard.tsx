@@ -104,7 +104,7 @@ export function OwnerReturnProposalCard({
   if (mode === "accept") {
     return (
       <OpCard accent="warn">
-        <OpCardHead title="Confirmar aceptación de devolución" />
+        <OpCardHead title="Aceptar la devolución" />
         <OpCardBody>
           <p className="text-[13px] text-ln-op-ink mb-3">
             Aceptar la devolución de <strong>{petName}</strong> del adoptante{" "}
@@ -117,7 +117,7 @@ export function OwnerReturnProposalCard({
           {error && <output className="block text-sm text-ln-op-danger mb-3">{error}</output>}
           <div className="flex gap-2">
             <OpButton type="button" variant="ok" onClick={handleAccept} disabled={pending}>
-              {pending ? "Procesando..." : "Confirmar aceptación"}
+              {pending ? "Procesando..." : "Aceptar devolución"}
             </OpButton>
             <OpButton
               type="button"
@@ -154,7 +154,7 @@ export function OwnerReturnProposalCard({
           {error && <output className="block text-sm text-ln-op-danger mb-3">{error}</output>}
           <div className="flex gap-2">
             <OpButton type="button" variant="danger" onClick={handleReject} disabled={pending}>
-              {pending ? "Procesando..." : "Confirmar rechazo"}
+              {pending ? "Procesando..." : "Rechazar devolución"}
             </OpButton>
             <OpButton
               type="button"

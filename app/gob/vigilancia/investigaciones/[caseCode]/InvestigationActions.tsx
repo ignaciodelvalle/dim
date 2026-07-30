@@ -163,6 +163,16 @@ export function InvestigationActions({
     close_dismissed: "Cerrar como desestimada",
   };
 
+  // Verb of the act per mode, never "Confirmar" (D.3, 2026-07-30). Shorter than
+  // the panel titles above because these sit on a button next to "Cancelar".
+  const submitLabels: Record<Exclude<Mode, "none">, string> = {
+    add_note: "Registrar nota",
+    external_notification: "Registrar notificación",
+    escalate: "Escalar investigación",
+    close_resolved: "Cerrar como resuelta",
+    close_dismissed: "Cerrar como desestimada",
+  };
+
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
       <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
@@ -286,7 +296,7 @@ export function InvestigationActions({
           variant="primary"
           className="px-4 py-2"
         >
-          {pending ? "Procesando..." : "Confirmar"}
+          {pending ? "Procesando..." : submitLabels[mode]}
         </OpButton>
         <OpButton
           type="button"

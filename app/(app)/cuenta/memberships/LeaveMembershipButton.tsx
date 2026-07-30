@@ -76,7 +76,7 @@ export function LeaveMembershipButton({ organizationId, isLastAdmin }: Props) {
           disabled={pending}
           className="rounded-[var(--radius-pill)] bg-[var(--color-ln-err)] px-2.5 py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-semibold text-white transition-colors disabled:opacity-60"
         >
-          {pending ? "Saliendo..." : "Confirmar"}
+          {pending ? "Saliendo..." : "Renunciar"}
         </button>
         <button
           type="button"

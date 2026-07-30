@@ -72,7 +72,7 @@ export function ReverseAdoptionAction({
         onConfirm={handleReverse}
         title="Revertir adopción"
         description={`Esto devuelve la custodia de ${petName} a la organización y lo saca del listado; para volver a darlo en adopción hay que re-publicarlo.`}
-        confirmLabel="Confirmar reversión"
+        confirmLabel="Revertir adopción"
         tone="danger"
         pending={pending}
         triggerRef={triggerRef}

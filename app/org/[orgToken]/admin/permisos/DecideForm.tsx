@@ -48,7 +48,10 @@ export function DecideForm({
         />
         <div className="flex items-center gap-2">
           <OpButton type="submit" variant={variant} size="sm" disabled={isSubmitting}>
-            {isSubmitting ? "Enviando…" : `Confirmar ${label.toLowerCase()}`}
+            {/* Verb of the act, never "Confirmar <acto>" (D.3, 2026-07-30) —
+                the commit button repeats the trigger's own verb: Aprobar /
+                Denegar / Revocar. */}
+            {isSubmitting ? "Enviando…" : label}
           </OpButton>
           <button
             type="button"

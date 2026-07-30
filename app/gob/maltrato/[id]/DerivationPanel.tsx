@@ -104,7 +104,7 @@ export function DerivationPanel({
           variant="primary"
           className="px-4 py-2"
         >
-          {pending ? "Procesando..." : "Confirmar derivación"}
+          {pending ? "Procesando..." : "Derivar"}
         </OpButton>
         <OpButton
           type="button"

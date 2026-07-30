@@ -58,7 +58,7 @@ export function WithdrawButton({ requestId }: Props) {
           disabled={pending}
           className="rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60"
         >
-          {pending ? "Retirando…" : "Confirmar"}
+          {pending ? "Retirando…" : "Retirar solicitud"}
         </button>
         <button
           type="button"

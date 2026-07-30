@@ -365,7 +365,7 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
                 disabled={!canSubmit}
                 className="rounded-md bg-ln-op-danger px-4 py-2 text-sm font-medium text-white hover:bg-ln-op-danger disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {pending ? "Revocando…" : "Confirmar revocación"}
+                {pending ? "Revocando…" : "Revocar seleccionados"}
               </button>
             </div>
           </div>

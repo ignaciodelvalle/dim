@@ -172,7 +172,7 @@ export function AttendanceFormDispatcher({
             />
             <div className="flex gap-2">
               <OpButton variant="primary" size="sm" onClick={submitNoShow} disabled={pending}>
-                {pending ? "Guardando…" : "Confirmar ausencia"}
+                {pending ? "Guardando…" : "Registrar ausencia"}
               </OpButton>
               <OpButton variant="ghost" size="sm" onClick={resetAction} disabled={pending}>
                 Cancelar
@@ -196,7 +196,7 @@ export function AttendanceFormDispatcher({
             />
             <div className="flex gap-2">
               <OpButton variant="danger" size="sm" onClick={submitCancel} disabled={pending}>
-                {pending ? "Cancelando…" : "Confirmar cancelación"}
+                {pending ? "Cancelando…" : "Cancelar turno"}
               </OpButton>
               <OpButton variant="ghost" size="sm" onClick={resetAction} disabled={pending}>
                 Volver

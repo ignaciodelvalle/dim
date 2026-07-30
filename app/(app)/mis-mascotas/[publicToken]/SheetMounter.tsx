@@ -545,7 +545,7 @@ function MarkFoundConfirmation({
       )}
       <form action={formAction} className="flex gap-2">
         <LnButton type="submit" variant="ok" disabled={isPending}>
-          {isPending ? "Guardando…" : "Confirmar"}
+          {isPending ? "Guardando…" : "Marcar como encontrada"}
         </LnButton>
         <LnButton type="button" variant="ghost" onClick={onCancel} disabled={isPending}>
           Cancelar

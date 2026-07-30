@@ -87,6 +87,16 @@ export function GovtModerationActions({ welfareReportId }: { welfareReportId: st
         ? "Por qué confirmás que es abuso o spam — patrón observado, frecuencia, etc. (mínimo 10)."
         : "Por qué la escalás a la administración nacional — jurisdicción ambigua, cruce de jurisdicciones, etc. (mínimo 10).";
 
+  // Verb of the act per mode, never "Confirmar" (D.3, 2026-07-30). The three
+  // modes are three different outcomes for a denuncia; a single generic word on
+  // the commit button erased the difference at the exact moment it mattered.
+  const submitLabel =
+    mode === "approve"
+      ? "Aprobar y pasar a triage"
+      : mode === "reject"
+        ? "Rechazar como abuso"
+        : "Escalar a la administración";
+
   const notesOk = notes.trim().length >= MIN_NOTES;
   const canSubmit = mode === "reject" ? notesOk && acknowledged : notesOk;
 
@@ -134,7 +144,7 @@ export function GovtModerationActions({ welfareReportId }: { welfareReportId: st
           disabled={pending || !canSubmit}
           variant={submitVariant}
         >
-          {pending ? "Procesando..." : "Confirmar"}
+          {pending ? "Procesando..." : submitLabel}
         </OpButton>
         <OpButton type="button" onClick={reset} disabled={pending} variant="ghost">
           Cancelar

@@ -73,7 +73,7 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
           variant="danger"
           className="px-4 py-2"
         >
-          {pending ? "Retirando..." : "Confirmar retiro"}
+          {pending ? "Retirando..." : "Retirar disputa"}
         </OpButton>
         <OpButton
           type="button"

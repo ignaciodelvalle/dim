@@ -55,7 +55,7 @@ describe("CancelTransferAction", () => {
       within(dialog).getByText(/cancela la propuesta de transferir la custodia de Firulais/),
     ).toBeInTheDocument();
 
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar cancelación" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar transferencia" }));
 
     await waitFor(() => {
       expect(cancelCrossOrgTransferAction).toHaveBeenCalledWith({
@@ -72,7 +72,7 @@ describe("CancelTransferAction", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cancelar transferencia" }));
     const dialog = screen.getByRole("dialog", { name: "Cancelar propuesta de transferencia" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Volver" }));
 
     expect(cancelCrossOrgTransferAction).not.toHaveBeenCalled();
   });
@@ -83,7 +83,7 @@ describe("CancelTransferAction", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Cancelar transferencia" }));
     const dialog = screen.getByRole("dialog", { name: "Cancelar propuesta de transferencia" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Confirmar cancelación" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancelar transferencia" }));
 
     await waitFor(() => {
       expect(screen.getByText("Este caso ya no está abierto.")).toBeInTheDocument();

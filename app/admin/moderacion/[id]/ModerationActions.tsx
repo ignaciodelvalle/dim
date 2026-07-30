@@ -54,13 +54,17 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
           Pasar a triage
         </OpButton>
         <OpButton type="button" onClick={() => setMode("spam")} variant="danger" size="sm">
-          Confirmar como spam
+          Marcar como spam
         </OpButton>
       </div>
     );
   }
 
-  const title = mode === "pass" ? "Pasar a triage" : "Confirmar como spam";
+  // Verb of the act on the commit button, never "Confirmar" (D.3, 2026-07-30).
+  // "Confirmar como spam" was banned too: the leading verb described the click,
+  // not the outcome — the act is MARKING the denuncia as spam.
+  const title = mode === "pass" ? "Pasar a triage" : "Marcar como spam";
+  const submitLabel = mode === "pass" ? "Pasar a triage" : "Marcar como spam";
   const placeholder =
     mode === "pass"
       ? "Por qué considerás que es legítima a pesar del flag (mínimo 10 caracteres)."
@@ -77,7 +81,7 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
         <div className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
           <p className="text-sm font-semibold text-ln-op-danger">
             {
-              "Confirmar como spam marca la denuncia como inválida de forma permanente. No se puede deshacer."
+              "Marcar como spam deja la denuncia como inválida de forma permanente. No se puede deshacer."
             }
           </p>
           <LnCheckbox
@@ -108,7 +112,7 @@ export function ModerationActions({ welfareReportId }: { welfareReportId: string
           disabled={pending || !canSubmit}
           variant={mode === "pass" ? "ok" : "danger"}
         >
-          {pending ? "Procesando..." : "Confirmar"}
+          {pending ? "Procesando..." : submitLabel}
         </OpButton>
         <OpButton type="button" onClick={reset} disabled={pending} variant="ghost">
           Cancelar

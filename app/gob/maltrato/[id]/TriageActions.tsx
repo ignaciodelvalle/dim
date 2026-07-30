@@ -108,6 +108,18 @@ export function TriageActions({
     duplicate: "Marcar como duplicada",
   };
 
+  // The confirm button carries the verb of the act, never "Confirmar" (D.3,
+  // 2026-07-30). One label per mode — the five modes are five different acts
+  // and a single generic word made them indistinguishable at the moment of
+  // committing.
+  const submitLabels: Record<Exclude<Mode, "none">, string> = {
+    triage: "Marcar revisada",
+    start: "Iniciar seguimiento",
+    close: "Cerrar con resolución",
+    invalid: "Cerrar sin sustento",
+    duplicate: "Marcar duplicada",
+  };
+
   const placeholders: Record<Exclude<Mode, "none">, string> = {
     triage: "Notas internas del triage (mínimo 10 caracteres)",
     start: "Notas del inicio del seguimiento (mínimo 10 caracteres)",
@@ -138,7 +150,7 @@ export function TriageActions({
           variant="primary"
           className="px-4 py-2"
         >
-          {pending ? "Procesando..." : "Confirmar"}
+          {pending ? "Procesando..." : submitLabels[mode]}
         </OpButton>
         <OpButton
           type="button"

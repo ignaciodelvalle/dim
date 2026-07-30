@@ -72,7 +72,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
       )}
       <div className="flex gap-2">
         <OpButton variant="danger" size="sm" onClick={handleBlock} disabled={pending}>
-          {pending ? "Bloqueando..." : "Confirmar"}
+          {pending ? "Bloqueando..." : "Bloquear cupo"}
         </OpButton>
         <OpButton
           variant="ghost"

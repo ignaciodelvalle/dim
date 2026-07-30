@@ -119,9 +119,13 @@ export function ReviewButtons({
     request_info: "Escribí qué información necesitás...",
   } as const;
 
+  // Verb of the act, never "Confirmar" (D.3, 2026-07-30). `reject` deliberately
+  // repeats the trigger's wording ("No avanzar") instead of the harsher
+  // "Rechazar postulación": this screen already chose the softer verb for the
+  // act, and a commit button that renames the act mid-flow is a second act.
   const confirmLabelMap = {
-    approve: "Confirmar aprobación",
-    reject: "Confirmar",
+    approve: "Aprobar postulación",
+    reject: "No avanzar",
     request_info: "Enviar mensaje",
   } as const;
 
