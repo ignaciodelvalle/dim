@@ -40,9 +40,14 @@
   `govt@dim.test` (operador), `alejo@dim.test` (**0 mascotas**), `owner@dim.test` (2).
 - El mapa expone `window.__PANORAMA_MAP__`. Para medir píxeles reales:
   `readPixels` DENTRO de un handler `map.once('render')`.
-- **`ppp-compliance` es la FUENTE de métricas; el id de capa es `ppp`.** Un
-  `layers=` desconocido resetea a vacío EN SILENCIO — otra forma de "no hay
-  datos" que en realidad es "escribiste mal el parámetro".
+- **`ppp-compliance` es la FUENTE de métricas; el id de capa es `ppp`.**
+  **CORRECCIÓN (A1, 31/07)**: yo había escrito acá que un `layers=` desconocido
+  "resetea a vacío EN SILENCIO". **Falso.** Sí hay aviso, y nombra bien el id:
+  `unknownLayerIds` → `droppedLayerIds` → `PanoramaBoardNotices` renderiza *"Este
+  enlace pedía una capa que ya no existe (ppp-compliance)…"*. El defecto es de
+  UBICACIÓN: vive en la pestaña "Línea de tiempo" de un dock COLAPSADO, así que
+  en el aterrizaje no se ve. Probado en las dos direcciones (`a1-04` sin aviso,
+  `a1-05` misma pantalla con la pestaña abierta). Queda como unidad **A2c**.
 
 ## Reglas de la corrida (todas pagadas con sangre)
 
