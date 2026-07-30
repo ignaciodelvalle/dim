@@ -36,12 +36,47 @@ const isCI = !!process.env.CI;
 
 export default defineConfig({
   testDir: "./e2e",
+  // demo/ and perf/ are NOT regression tests, and leaving them in this config
+  // is what cost the project its e2e verdict in CI (measured 2026-07-31 over
+  // runs 30513536370 / 30521111221 / 30521116031).
+  //
+  //   - demo/*.spec.ts are narrated recording scripts that declare their own
+  //     per-test budgets via test.setTimeout(): 15 + 18 + 25 + 15 + 18 + 25 =
+  //     116 minutes for SIX tests, doubled to ~232 by `retries: 1` below. On a
+  //     job capped at 30 minutes that is unpayable by construction. In all
+  //     three runs the suite reached demo/02-dueno at ~minute 7 of the step and
+  //     then sat inside its 18-minute budget until the JOB timeout killed it —
+  //     which reports as `cancelled`, not `failure`, so nobody read it as red.
+  //     They are recordings, not assertions; playwright.demo.config.ts owns
+  //     them (its own testDir, webServer and 20-minute cap), so excluding them
+  //     here costs no coverage.
+  //   - perf/staging-panorama-perf.spec.ts targets the DEPLOYED staging origin
+  //     and asserts nothing (it prints a labeled latency table). Pointed at a
+  //     localhost build it measures nothing and burns its 180s budget.
+  //
+  // playwright.staging.config.ts already carried this exact exclusion and
+  // e2e/README.md already said "do not run these as part of a normal e2e
+  // pass" — this config was the one place out of step. Keep the three in sync.
+  testIgnore: ["demo/**", "perf/**"],
   fullyParallel: true,
   forbidOnly: isCI,
   retries: isCI ? 1 : 0,
+  // Serial in CI ON PURPOSE — do not "optimise" this to workers > 1. Several
+  // suites are multi-actor journeys that relogin and mutate shared seed rows
+  // (mark-lost, adoption custody, vaccine signing); parallel workers collide on
+  // the same fixtures. The remaining 156 tests run in ~9 min serially against a
+  // warm server (measured locally 2026-07-31), so there is nothing to buy here.
   workers: isCI ? 1 : undefined,
   reporter: isCI ? [["html", { open: "never" }], ["github"]] : [["html", { open: "never" }]],
   timeout: 30_000,
+  // Playwright — not the GitHub job clock — is the run-length detector. A job
+  // that blows `timeout-minutes` is `cancelled`: no verdict, no HTML report,
+  // and the `if: failure()` artifact step never fires, which is precisely how
+  // three consecutive dead e2e runs went unnoticed. globalTimeout makes an
+  // overrun a real FAILURE with a report attached. It covers the whole run
+  // including the webServer boot below, and the ci.yml `timeout-minutes` sits
+  // above it as a backstop for runner pathology, not as the primary alarm.
+  globalTimeout: isCI ? 22 * 60_000 : undefined,
   expect: {
     timeout: 8_000,
   },

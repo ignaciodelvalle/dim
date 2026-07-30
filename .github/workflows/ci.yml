@@ -485,7 +485,22 @@ jobs:
   e2e:
     name: E2E (Playwright)
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # BACKSTOP, not the alarm. The alarm is `globalTimeout` in
+    # playwright.config.ts (22 min), which fails LOUD with an HTML report; this
+    # ceiling only catches runner pathology that Playwright itself can't see.
+    #
+    # Why it moved from 30 → 35 (measured 2026-07-31, runs 30513536370 /
+    # 30521111221 / 30521116031 — all three `cancelled` at the old ceiling):
+    #   setup (checkout → build)  5m30s – 6m00s   measured, worst of three
+    #   playwright globalTimeout        22m00s    hard cap on the suite itself
+    #   supabase stop + artifact  ~1m30s
+    #                             --------------
+    #                             ~29m30s worst case → 35 leaves real margin.
+    # At 30 the cap and the worst case were the same number, so globalTimeout
+    # could never fire and produce its report — the job would die first, which
+    # is the failure mode being fixed. Do not lower this without also lowering
+    # globalTimeout.
+    timeout-minutes: 35
 
     # The e2e suite runs the built Next.js app against the real Supabase local
     # stack. It needs the same stack the vitest job uses — but the app also
@@ -574,7 +589,12 @@ jobs:
         run: pnpm exec supabase stop --no-backup
 
       - name: Upload Playwright HTML report
-        if: failure()
+        # `always()`, not `failure()`: a job killed by `timeout-minutes` is
+        # CANCELLED, and `failure()` is false for a cancelled job — so the three
+        # dead runs of 2026-07-30 uploaded nothing and left no way to see where
+        # the suite had got to. The report is the only forensic artifact this
+        # job produces; upload it whatever the outcome.
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report

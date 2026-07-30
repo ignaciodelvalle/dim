@@ -422,6 +422,10 @@ test.describe("Final seams cross-POV", () => {
 
   test.afterAll(() => {
     fs.mkdirSync(SHOT_DIR, { recursive: true });
-    fs.writeFileSync(path.join(SHOT_DIR, "results.json"), JSON.stringify(results, null, 2));
+    // Trailing newline is not cosmetic: this file is TRACKED, and biome's
+    // formatter requires one. Without it every full e2e pass left `pnpm lint`
+    // red on a file the runner had just rewritten — the gate failing on its own
+    // test output. (Someone already had to hand-format it once: 5e08db94.)
+    fs.writeFileSync(path.join(SHOT_DIR, "results.json"), `${JSON.stringify(results, null, 2)}\n`);
   });
 });
