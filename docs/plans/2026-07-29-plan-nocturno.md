@@ -540,11 +540,17 @@ Cinco decisiones tomadas en batch para que las próximas sesiones no bloqueen:
    nombradas + captura antes/después POR SUPERFICIE (credencial, panorama,
    colas gob, cuenta) + suite completo. Un solo commit, ratchet de la regla 9
    a 0.
-3. **Cancelar-saliente del ciudadano: NO se construye.** El PO decidió contra
-   la recomendación: la caducidad de 7 días alcanza. Costo declarado y
-   aceptado: un dueño que se equivocó de email queda 7 días con la propuesta
-   viva y el receptor equivocado puede aceptarla en ese lapso. La copy actual
-   (honesta) queda como está. NO volver a proponer salvo evidencia nueva.
+3. **Cancelar-saliente del ciudadano — DECISIÓN ANULADA POR PREMISA FALSA
+   (pre-push review 2026-07-30).** La pregunta nunca correspondió: **el
+   cancelar YA EXISTE** — `AcceptTransferActions.tsx:156` renderiza "Cancelar
+   transferencia" (con confirmación, vía `cancelPetTransferAction`) al
+   remitente en el detalle de la transferencia. El diagnóstico de C.2 falló por
+   un grep de `cancelTransfer|CancelTransfer` que no matchea
+   `cancelPetTransferAction`. Consecuencias: (a) la copy "corregida" de C.2
+   empeoraba la verdad — restaurada y mejorada (ahora dice DÓNDE se cancela);
+   (b) el "costo aceptado" de 7 días de exposición NO es real; (c) la elección
+   "No" del PO coincide con la realidad (no hay nada que construir), pero que
+   quede claro que se respondió una pregunta que no existía.
 4. **D.8 slot "Asentar" con 0 mascotas**: se REETIQUETA a "Cargar mascota"
    apuntando a `/mis-mascotas/nueva`; con ≥1 mascota vuelve a "Asentar".
    Restricción técnica: la señal de conteo NO puede agregar una query por
@@ -595,6 +601,6 @@ e2e rojo en CI (infra del runner).
 | D.1 (h1) | **hecha** — 4 pasos display nuevos + 67 headings tokenizados. Y destapó un defecto sistémico: `text-[var(--text-*)]` compila a `color`, no a `font-size` — **703 usos muertos** en 207 archivos, cercados en la regla 9 | `73c33104` |
 | SC-6 | pendiente | |
 | C.1 | pendiente | |
-| C.2 | **hecha** — ruta des-huerfanada (visibilidad sobre AMBAS direcciones, badge sigue sólo entrantes) + la promesa falsa "podés cancelarla" corregida. **Decisión de producto pendiente**: si el ciudadano debe poder cancelar una saliente (hoy `CancelTransferAction` existe sólo en `app/org/`) | `6d716356` |
+| C.2 | **hecha, con corrección post-review** — ruta des-huerfanada (bien, quedó). Pero el "arreglo" de copy era un ERROR MÍO: el cancelar del remitente YA EXISTE (`AcceptTransferActions.tsx:156`, `cancelPetTransferAction`); mi grep no lo matcheaba. Copy restaurada y mejorada por la pre-push review | `6d716356` + fix |
 | #41 detalle de caso | pendiente | |
 | D.8 (resto) | **investigada la 1ª parte; el plan la describe mal.** NO es un loop de redirects — ese camino está bien y documentado. Detalle abajo | |

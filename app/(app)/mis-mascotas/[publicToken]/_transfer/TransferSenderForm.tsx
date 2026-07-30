@@ -113,17 +113,20 @@ export function TransferSenderForm({
         )}
       </LnField>
 
-      {/* C.2 — this said "Mientras esté pendiente podés cancelarla" and the
-          sender could not. CancelTransferAction exists ONLY under app/org/: a
-          citizen has no cancel control on /transferencias, none on the transfer
-          detail (where `cancelled` is just a status LABEL), and no action to
-          call. The screen promised a capability that belongs to organizations.
-          Corrected to what is actually true — expiry is the sender's only exit
-          today. Giving citizens a real cancel is a product decision, raised for
-          the PO rather than half-built here. */}
+      {/* The sender CAN cancel while pending — AcceptTransferActions.tsx
+          renders "Cancelar transferencia" (confirm step +
+          cancelPetTransferAction) on the transfer detail page the sender lands
+          on right after submitting this form.
+          HISTORY, kept as a warning: a C.2 pass rewrote this line to claim
+          expiry was the sender's only exit, off a grep for
+          `cancelTransfer|CancelTransfer` — which cannot match
+          `cancelPetTransferAction` — and that false diagnosis briefly fed a PO
+          decision. Caught by the pre-push review (2026-07-30). The copy now
+          states the capability AND where it lives, which is more than the
+          original "podés cancelarla" did. */}
       <p className="text-xs text-[var(--color-ln-mute)]">
-        La propuesta vence en 7 días. Si no la aceptan antes, caduca sola y la mascota sigue siendo
-        tuya.
+        La propuesta vence en 7 días. Mientras esté pendiente, podés cancelarla desde el detalle de
+        la transferencia.
       </p>
 
       <button
