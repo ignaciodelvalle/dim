@@ -46,12 +46,22 @@ async function relogin(page: Page, email: string): Promise<void> {
   await loginAs(page, email);
 }
 
+// The commit button of the `?sheet=marcar-encontrada` sheet. It used to read
+// the generic "Confirmar"; decision D.3 (commit f50e2064, 2026-07-30) renamed
+// 24 confirmation buttons to the VERB OF THE ACT, and this one became "Marcar
+// como encontrada" (SheetMounter → MarkFoundConfirmation). The specs kept the
+// old locator, which is why seam (a) failed the first CI run that reported a
+// verdict — and why ensurePetFound below had silently stopped cleaning up
+// (its `count() > 0` guard turns a drifted locator into a no-op, so every run
+// left the pet marked lost).
+const MARK_FOUND_BUTTON = /^marcar como encontrada$/i;
+
 /** Force a pet back to the active state (idempotent mark-found cleanup). */
 async function ensurePetFound(page: Page, token: string): Promise<void> {
   await page
     .goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, { waitUntil: "domcontentloaded" })
     .catch(() => {});
-  const confirm = page.getByRole("button", { name: /^confirmar$/i });
+  const confirm = page.getByRole("button", { name: MARK_FOUND_BUTTON });
   if ((await confirm.count().catch(() => 0)) > 0) {
     await confirm.click().catch(() => {});
     await page.waitForLoadState("networkidle").catch(() => {});
@@ -176,7 +186,7 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       await page.goto(`/mis-mascotas/${token}?sheet=marcar-encontrada`, {
         waitUntil: "domcontentloaded",
       });
-      const confirm = page.getByRole("button", { name: /^confirmar$/i });
+      const confirm = page.getByRole("button", { name: MARK_FOUND_BUTTON });
       await expect(confirm).toBeVisible({ timeout: 15_000 });
       await confirm.click();
       await page.waitForLoadState("networkidle").catch(() => {});
@@ -284,13 +294,16 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     await page.waitForURL(/\/admin\/moderacion\/[^/?#]+/, { timeout: 15_000 });
     await page.waitForLoadState("networkidle").catch(() => {});
 
-    // Pass it to triage (legitimate report, not spam).
-    await page.getByRole("button", { name: /pasar a triage/i }).click();
+    // Pass it to triage (legitimate report, not spam). ModerationActions swaps
+    // the two trigger buttons for the notes form, so after this click the only
+    // "Pasar a triage" left on the page is the commit button — which carries the
+    // verb of the act since D.3 (f50e2064), not the old bare "Confirmar".
+    await page.getByRole("button", { name: /^pasar a triage$/i }).click();
     await page
       .locator("textarea")
       .first()
       .fill("Denuncia verificada en la batería de costuras — contenido coherente con abandono.");
-    await page.getByRole("button", { name: /^confirmar$/i }).click();
+    await page.getByRole("button", { name: /^pasar a triage$/i }).click();
     await page.waitForURL(/\/admin\/moderacion(?![/\w])/, { timeout: 20_000 });
 
     // --- Operator POV: the triaged report is visible at /gob/maltrato -------
