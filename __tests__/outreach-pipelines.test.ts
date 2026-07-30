@@ -294,7 +294,13 @@ describe("fetchOverdueRabiesVaccine — pipeline (a)", () => {
     // with an old vaccine. The govt-scope isolation is covered by the test above.
     expect(admin.pets.length).toBeGreaterThan(0);
     expect(admin.pets.length).toBeGreaterThanOrEqual(govt.pets.length);
-  });
+    // 30s, not the 5s default: this is the ONE test here that deliberately runs
+    // UNFILTERED (that is the assertion), so it is the only one whose cost grows
+    // with the local DB. Measured 2026-07-31: green in isolation on a 32.435-pet
+    // dev DB, but it timed out inside the full suite, where the serial `db`
+    // project is hammering the same local Postgres. The assertions above are
+    // untouched — this raises the clock, not the bar.
+  }, 30000);
 
   it("returns empty list when no pets match in jurisdiction", async () => {
     const ctx = buildProjectionContext(
