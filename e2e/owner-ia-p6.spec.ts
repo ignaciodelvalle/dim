@@ -353,18 +353,41 @@ test("6 — zero-pet owner /inicio lands on /mis-mascotas with the first-run CTA
     // D.8: the empty state now names the credential before asking for the act.
     await expect(page.getByText(/Todavía no registraste ninguna mascota/i)).toBeVisible();
     await expect(page.getByText(/credencial digital/i).first()).toBeVisible();
-    await expect(page.getByRole("link", { name: /Cargar una mascota/i })).toBeVisible();
+
+    // ---- D.9 (2026-07-30): re-anchored on STRUCTURE, not on copy. ----------
+    //
+    // "Registrar" is now the one verb for this act on every surface, so the
+    // page body's CTA and the tab-bar centre slot render the SAME three words.
+    // The previous locators told them apart purely by text ("Cargar mascota"
+    // not substring-matching "Cargar una mascota") — a disambiguation that
+    // existed only because the two strings happened to differ, and that D.9
+    // deletes on purpose. Making them differ again to keep the test green
+    // would undo the decision, so the anchors move to the DOM instead:
+    //
+    //   - the tab bar is <nav data-testid="citizen-tab-bar">, a SIBLING of
+    //     <main id="main-content"> (AppShell citizen variant);
+    //   - the page body is that <main>.
+    //
+    // Containment partitions the page, so no copy change — in either
+    // direction — can make one scope match the other's link. A role query
+    // would not work here: the bar is md:hidden and this suite runs at a
+    // desktop viewport, so it is out of the accessibility tree entirely.
+    const body = page.locator("#main-content");
+    const tabBar = page.locator('[data-testid="citizen-tab-bar"]');
+
+    await expect(body.getByRole("link", { name: "Registrar mascota", exact: true })).toBeVisible();
+    // Exactly one CTA for the act in the body: D.9 drops the header's twin
+    // while the first-run empty state is the one carrying the reason.
+    await expect(body.locator('a[href="/mis-mascotas/nueva"]')).toHaveCount(1);
 
     // D.8: with zero pets the tab-bar centre slot is the alta, not the capture
     // no-op ("Asentar" → /inicio?sheet=anotar, which for a pets-less owner
-    // bounces back here with an inert sheet param). The bar is md:hidden, so
-    // assert on the DOM rather than on visibility. "Cargar mascota" does not
-    // substring-match the empty state's own "Cargar una mascota" button.
-    await expect(page.locator("a", { hasText: "Cargar mascota" })).toHaveAttribute(
+    // bounces back here with an inert sheet param).
+    await expect(tabBar.locator("a", { hasText: "Registrar mascota" })).toHaveAttribute(
       "href",
       "/mis-mascotas/nueva",
     );
-    await expect(page.locator("a", { hasText: "Asentar" })).toHaveCount(0);
+    await expect(tabBar.locator("a", { hasText: "Asentar" })).toHaveCount(0);
   } finally {
     await context.close();
   }

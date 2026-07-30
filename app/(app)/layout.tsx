@@ -54,7 +54,7 @@ export default async function AuthenticatedLayout({
   if (profile?.role === "govt") redirect("/gob");
 
   // ownedPetsCount drives the tab bar's centre slot (D.8): with zero pets the
-  // capture action is a no-op, so the slot becomes "Cargar mascota" instead.
+  // capture action is a no-op, so the slot becomes "Registrar mascota" instead.
   // One indexed count per request — the documented cost (see
   // getOwnedPetsCountCached); nothing else in this layout touches ownerships.
   const [unreadCount, orgMemberships, ownedPetsCount] = await Promise.all([

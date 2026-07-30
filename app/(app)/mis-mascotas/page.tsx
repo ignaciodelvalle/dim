@@ -197,6 +197,20 @@ export default async function MisMascotasPage({
   const isSearching = query.length > 0;
   const hasAnyOwned = matchingTotal > 0 || (!isSearching && ownedPets.length > 0);
 
+  /* D.9 (2026-07-30): "Registrar" is now the ONE verb for this act on every
+     surface, which turned the header CTA and the first-run empty state's CTA
+     into the SAME three words twice on one screen, ~300px apart with only the
+     search box between them. (The 2026-07-27 craft review already flagged the
+     pair as "doble primario en el vacío"; identical wording removes the last
+     excuse for it.) One has to cede, and it is the HEADER: the empty state's
+     button is the one with the REASON attached — it sits directly under the
+     sentence that says what registering GIVES you — and stripping the box's
+     action would end the first-run screen on an explanation the owner cannot
+     act on without scrolling back up. The header CTA returns the moment there
+     is anything to list (including an owner whose only pets are in memoriam,
+     whose empty state is deliberately absent). */
+  const showFirstRunEmptyState = activePets.length === 0 && !isSearching && !hasAnyOwned;
+
   return (
     <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
       {/* ------------------------------------------------------------------ */}
@@ -212,14 +226,18 @@ export default async function MisMascotasPage({
             {deceasedPets.length > 0 && ` · ${deceasedPets.length} en memoria`}
           </p>
         </div>
-        <LnButton href="/mis-mascotas/nueva" variant="primary" size="md">
-          {/* "Registrar" — the ONE verb for this act (D.8). This said
-              "Inscribir", the form's H1 said "Registrar" and its submit button
-              said "Crear": three words for one thing, two of them on the same
-              screen. The domain agrees with "registrar" (the event is
-              pet_registered), so that is the one that stays. */}
-          + Registrar mascota
-        </LnButton>
+        {/* "Registrar" — the ONE verb for this act (D.8, ratified as D.9 and
+            extended to every surface including the mobile tab bar). This said
+            "Inscribir", the form's H1 said "Registrar" and its submit button
+            said "Crear": three words for one thing, two of them on the same
+            screen. The domain agrees with "registrar" (the event is
+            pet_registered), so that is the one that stays.
+            Hidden on the first-run screen — see showFirstRunEmptyState. */}
+        {!showFirstRunEmptyState && (
+          <LnButton href="/mis-mascotas/nueva" variant="primary" size="md">
+            + Registrar mascota
+          </LnButton>
+        )}
       </div>
 
       {/* Claimed pets banner */}
@@ -291,14 +309,18 @@ export default async function MisMascotasPage({
              screen a pets-less owner sees is where it has to be named. Sober
              and literal on purpose: only what the pet actually gets, no
              promise of the physical chapita (that channel is gated per
-             jurisdiction). Guarded by owner-process-clarity-19.test.ts. */
+             jurisdiction). Guarded by owner-process-clarity-19.test.ts.
+             This branch is exactly showFirstRunEmptyState, which is why the
+             header CTA above is suppressed while it renders: with D.9 both
+             buttons say "Registrar mascota", and this is the copy of the pair
+             that carries the reason. */
           <LnEmptyState
             variant="dashed"
             title="Todavía no registraste ninguna mascota."
             description="Al registrarla obtiene su credencial digital: una página pública con código QR que cualquiera puede verificar desde el celular. Es lo que ve quien la encuentre si alguna vez se pierde."
             action={
               <LnButton href="/mis-mascotas/nueva" variant="primary" size="sm">
-                Cargar una mascota
+                Registrar mascota
               </LnButton>
             }
           />

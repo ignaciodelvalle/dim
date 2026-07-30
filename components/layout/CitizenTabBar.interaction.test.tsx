@@ -70,7 +70,7 @@ describe("CitizenTabBar — Asentar opens the sheet off the router hot path", ()
   it("with zero pets the slot is the alta and never touches the sheet router", () => {
     pathnameRef.current = "/mis-mascotas";
     render(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={0} />);
-    const link = screen.getByText("Cargar mascota").closest("a");
+    const link = screen.getByText("Registrar mascota").closest("a");
     if (!link) throw new Error("no alta anchor rendered");
     expect(link.getAttribute("href")).toBe("/mis-mascotas/nueva");
     const event = new MouseEvent("click", { bubbles: true, cancelable: true, button: 0 });

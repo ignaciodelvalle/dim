@@ -132,11 +132,11 @@ import { OWNER_NAV } from "@/components/layout/nav-presets";
 
 describe("CitizenTabBar — 44px tab targets", () => {
   // D.8: the centre slot's label depends on the owned-pet count ("Asentar"
-  // with pets, "Cargar mascota" without), so the target check runs on BOTH
+  // with pets, "Registrar mascota" without), so the target check runs on BOTH
   // branches — the 44px floor is not allowed to depend on which one renders.
   it.each([
     ["with pets (Asentar)", 3],
-    ["with zero pets (Cargar mascota)", 0],
+    ["with zero pets (Registrar mascota)", 0],
   ])("all owner tabs plus the centre slot render as links with min-h-12 — %s", (_label, count) => {
     const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={count} />);
     const anchors = html.match(/<a [^>]*>/g) ?? [];
@@ -160,7 +160,7 @@ describe("CitizenTabBar — 44px tab targets", () => {
 
   it("with zero pets the centre slot is the alta, not the inert capture (D.8)", () => {
     const html = renderToStaticMarkup(<CitizenTabBar nav={OWNER_NAV} ownedPetsCount={0} />);
-    const altaSeg = html.split(/<a /).find((s) => />Cargar mascota</.test(s));
+    const altaSeg = html.split(/<a /).find((s) => />Registrar mascota</.test(s));
     expect(altaSeg?.match(/href="([^"]*)"/)?.[1]).toBe("/mis-mascotas/nueva");
   });
 });

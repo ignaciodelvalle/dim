@@ -139,8 +139,15 @@ export function CitizenTabBar({
   // /inicio redirects a pets-less owner to /mis-mascotas, and ?sheet=anotar is
   // inert there (app/(app)/inicio/page.tsx) — so the most emphasised control in
   // the whole citizen shell did nothing for exactly the first-run owner who
-  // most needs a way in. With no pets the slot becomes the alta: "Cargar
-  // mascota" → /mis-mascotas/nueva. With ≥1 pet the behaviour is unchanged.
+  // most needs a way in. With no pets the slot becomes the alta:
+  // "Registrar mascota" → /mis-mascotas/nueva. With ≥1 pet the behaviour is
+  // unchanged.
+  //
+  // D.9 (2026-07-30) supersedes D.8 on the WORDING only: "Registrar" is the
+  // one verb for this act on every surface, because it is the DOMAIN verb
+  // (the event is `pet_registered`, the product is the Registro Nacional, the
+  // credential badge reads "Registrado/a"). D.8's "Cargar mascota" was a UI
+  // verb that made this slot the fourth name for one act.
   //
   // A pet token in the pathname still WINS over the zero-count branch: an org
   // or foster user can legitimately be on a pet profile inside the citizen
@@ -153,7 +160,7 @@ export function CitizenTabBar({
     : showAlta
       ? "/mis-mascotas/nueva"
       : "/inicio?sheet=anotar";
-  const asentarLabel = showAlta ? "Cargar mascota" : "Asentar";
+  const asentarLabel = showAlta ? "Registrar mascota" : "Asentar";
   // SAME-ROUTE opens go through SheetTriggerLink, CROSS-route stays a real
   // navigation (X1-F4).
   //
@@ -198,6 +205,15 @@ export function CitizenTabBar({
 
   return (
     <nav
+      // Structural anchor for e2e. The aria-label is deliberately shared with
+      // the masthead nav (see the block comment above), and the bar is
+      // md:hidden — so neither a role query nor the label can single this
+      // element out at a desktop viewport. Copy CANNOT disambiguate it either:
+      // since D.9 the centre slot says "Registrar mascota", the exact words the
+      // /mis-mascotas empty state uses. This id is the one handle that survives
+      // both. The bar renders outside <main id="main-content">, so scoping to
+      // one or the other partitions the page cleanly.
+      data-testid="citizen-tab-bar"
       aria-label="Navegación principal"
       className="pb-safe fixed inset-x-0 bottom-0 z-40 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-card)] md:hidden"
     >

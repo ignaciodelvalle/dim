@@ -130,6 +130,6 @@ describe("the tab bar consumes it without a silent default", () => {
   it("routes the zero case to the alta, not to the inert capture URL", () => {
     expect(tabBarSrc).toContain("const showAlta = !currentPetToken && ownedPetsCount === 0;");
     expect(tabBarSrc).toContain('"/mis-mascotas/nueva"');
-    expect(tabBarSrc).toContain('showAlta ? "Cargar mascota" : "Asentar"');
+    expect(tabBarSrc).toContain('showAlta ? "Registrar mascota" : "Asentar"');
   });
 });

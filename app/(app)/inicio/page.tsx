@@ -22,7 +22,7 @@
 // preserves any OTHER forwarded params) but ?sheet=anotar itself is INERT there:
 // the index doesn't mount SheetMounter, and with zero live pets there is nothing
 // to capture an event against anyway. For a pets-less owner the index's own
-// "Cargar una mascota" CTA is the correct landing, not a capture sheet (W1
+// "Registrar mascota" CTA is the correct landing, not a capture sheet (W1
 // review fix bar 2026-07-15: the prior comment claimed this forward "opens the
 // capture sheet for zero-pet owners" — it never did). The former /cuenta/casos
 // #casos anchor now points at /mis-mascotas#inbox directly.
@@ -83,7 +83,7 @@ export default async function InicioPage({
   // consistency with the profile branch below (harmless — preserves any other
   // params), but note ?sheet=anotar itself is inert on the bare index: there is
   // no pet yet to capture an event against, and the index doesn't mount
-  // SheetMounter. The index's own "Cargar una mascota" CTA is the right next
+  // SheetMounter. The index's own "Registrar mascota" CTA is the right next
   // step for a zero-pet owner.
   if (livePets.length === 0) {
     redirect(`/mis-mascotas${query ? `?${query}` : ""}`);

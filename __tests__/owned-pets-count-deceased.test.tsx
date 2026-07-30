@@ -1,7 +1,7 @@
 // getOwnedPetsCountCached — LIVE pets, not live ownerships.
 //
 // PRE-PUSH REVIEW 2026-07-30 of D.8. The tab-bar centre slot picks "Asentar"
-// (→ /inicio?sheet=anotar) vs "Cargar mascota" (→ /mis-mascotas/nueva) off this
+// (→ /inicio?sheet=anotar) vs "Registrar mascota" (→ /mis-mascotas/nueva) off this
 // count. The first version counted ACTIVE OWNERSHIPS, and DEATH DOES NOT END AN
 // OWNERSHIP — no code path sets `ownerships.ended_at` when a pet dies, because
 // In memoriam is deliberately still your pet. So an owner whose only pet had
@@ -35,11 +35,11 @@ const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false } });
 
 /** The centre-slot label the tab bar renders for a given count. */
-function slotLabel(ownedPetsCount: number): "Asentar" | "Cargar mascota" {
+function slotLabel(ownedPetsCount: number): "Asentar" | "Registrar mascota" {
   const html = renderToStaticMarkup(
     <CitizenTabBar nav={OWNER_NAV} ownedPetsCount={ownedPetsCount} />,
   );
-  return html.includes(">Cargar mascota<") ? "Cargar mascota" : "Asentar";
+  return html.includes(">Registrar mascota<") ? "Registrar mascota" : "Asentar";
 }
 
 async function createOwner(email: string): Promise<string> {
@@ -90,7 +90,7 @@ afterAll(async () => {
 }, 60_000);
 
 describe("getOwnedPetsCountCached excludes deceased pets", () => {
-  it("an owner whose ONLY pet died counts 0 and gets the 'Cargar mascota' slot", async () => {
+  it("an owner whose ONLY pet died counts 0 and gets the 'Registrar mascota' slot", async () => {
     // The ownership is still ACTIVE (death never ends it) — that is exactly the
     // trap: counting ownerships returns 1 here and re-arms the no-op.
     const stillOwned = await db
@@ -101,7 +101,7 @@ describe("getOwnedPetsCountCached excludes deceased pets", () => {
 
     const n = await getOwnedPetsCountCached(mourningId);
     expect(n).toBe(0);
-    expect(slotLabel(n)).toBe("Cargar mascota");
+    expect(slotLabel(n)).toBe("Registrar mascota");
   }, 30_000);
 
   it("an owner with 1 live + 1 deceased counts 1 and keeps 'Asentar'", async () => {

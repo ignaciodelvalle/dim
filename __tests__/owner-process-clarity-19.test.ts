@@ -31,7 +31,25 @@ const lostCaseBlockSrc = read("components", "pet-profile", "LostCaseBlock.tsx");
 describe("index — first-run empty state (task #19, Lens 1)", () => {
   it("leads a zero-pet owner with the real first action, not a reassurance", () => {
     expect(indexSrc).toContain("Todavía no registraste ninguna mascota");
-    expect(indexSrc).toContain("Cargar una mascota");
+    // D.9 (2026-07-30): the CTA is "Registrar mascota" — the one verb for this
+    // act on every surface. Asserted INSIDE the empty-state block, because the
+    // header CTA carries the same three words now and a bare toContain would
+    // pass on the header alone even if this button disappeared.
+    const emptyStateBlock = indexSrc.slice(
+      indexSrc.indexOf("Todavía no registraste ninguna mascota"),
+    );
+    expect(emptyStateBlock).toContain("Registrar mascota");
+    expect(indexSrc).not.toContain("Cargar una mascota");
+  });
+
+  // D.9 (2026-07-30): with one verb everywhere, the header CTA and this box's
+  // CTA became the same three words on one screen. The header cedes while the
+  // first-run box renders, so the act has exactly one name AND one button.
+  it("suppresses the header CTA while the first-run box carries the act", () => {
+    expect(indexSrc).toContain(
+      "const showFirstRunEmptyState = activePets.length === 0 && !isSearching && !hasAnyOwned;",
+    );
+    expect(indexSrc).toContain("{!showFirstRunEmptyState && (");
   });
 
   // D.8 (2026-07-30): the old copy ("No tenés mascotas registradas." / "Cargá

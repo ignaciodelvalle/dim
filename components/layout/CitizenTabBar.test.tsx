@@ -89,9 +89,9 @@ describe("CitizenTabBar — Asentar retarget on pet-profile routes", () => {
 // ---------------------------------------------------------------------------
 
 describe("CitizenTabBar — zero-pet slot becomes the alta (D.8)", () => {
-  it("with 0 owned pets the slot reads 'Cargar mascota' and points at /mis-mascotas/nueva", () => {
+  it("with 0 owned pets the slot reads 'Registrar mascota' and points at /mis-mascotas/nueva", () => {
     const html = renderAt("/mis-mascotas", 0);
-    expect(slotHref(html, "Cargar mascota")).toBe("/mis-mascotas/nueva");
+    expect(slotHref(html, "Registrar mascota")).toBe("/mis-mascotas/nueva");
     // And the no-op is gone: no "Asentar" label, no /inicio?sheet=anotar href.
     expect(html).not.toContain(">Asentar<");
     expect(html).not.toContain("/inicio?sheet=anotar");
@@ -99,7 +99,7 @@ describe("CitizenTabBar — zero-pet slot becomes the alta (D.8)", () => {
 
   it("with 0 pets the alta slot holds on every non-profile route, pathname or not", () => {
     for (const path of ["/mis-mascotas", "/mis-mascotas/reclamar", "/notificaciones", null]) {
-      expect(slotHref(renderAt(path, 0), "Cargar mascota")).toBe("/mis-mascotas/nueva");
+      expect(slotHref(renderAt(path, 0), "Registrar mascota")).toBe("/mis-mascotas/nueva");
     }
   });
 
@@ -109,7 +109,7 @@ describe("CitizenTabBar — zero-pet slot becomes the alta (D.8)", () => {
     expect(asentarHref(renderAt("/mis-mascotas/DIM-PAMP-0001", 1))).toBe(
       "/mis-mascotas/DIM-PAMP-0001?sheet=anotar",
     );
-    expect(renderAt("/mis-mascotas", 1)).not.toContain("Cargar mascota");
+    expect(renderAt("/mis-mascotas", 1)).not.toContain("Registrar mascota");
   });
 
   it("a pet token in the path WINS over a zero count — org/foster viewers keep Asentar", () => {
@@ -118,13 +118,13 @@ describe("CitizenTabBar — zero-pet slot becomes the alta (D.8)", () => {
     // is correct and the alta would be wrong.
     const html = renderAt("/mis-mascotas/DIM-PAMP-0001", 0);
     expect(asentarHref(html)).toBe("/mis-mascotas/DIM-PAMP-0001?sheet=anotar");
-    expect(html).not.toContain("Cargar mascota");
+    expect(html).not.toContain("Registrar mascota");
   });
 
   it("the reserved index child /mis-mascotas/nueva is NOT read as a pet token", () => {
     // petTokenFromPathname requires a DIM- prefix; without that guard the alta
     // slot would self-target and hand a zero-pet owner a ?sheet=anotar no-op.
-    expect(slotHref(renderAt("/mis-mascotas/nueva", 0), "Cargar mascota")).toBe(
+    expect(slotHref(renderAt("/mis-mascotas/nueva", 0), "Registrar mascota")).toBe(
       "/mis-mascotas/nueva",
     );
   });

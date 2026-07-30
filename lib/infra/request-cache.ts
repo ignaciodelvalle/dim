@@ -254,7 +254,7 @@ export const getUnreadCountCached = cache(async (userId: string): Promise<number
  * destination it points at can never disagree. Coherent with `/mis-mascotas`,
  * which already branches on `hasAnyOwned`: an owner with only deceased pets gets
  * no "no pets" box (the In memoriam section carries them) and now also gets the
- * "Cargar mascota" slot instead of a dead-end capture link.
+ * "Registrar mascota" slot instead of a dead-end capture link.
  *
  * Still ONE indexed count: the join is on `pets.id` (primary key) from the same
  * `ownerships_owner_user_id_idx` scan.
