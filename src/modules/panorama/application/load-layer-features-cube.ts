@@ -60,6 +60,7 @@ import {
   type ProvinceChoroplethCell,
   buildChoroplethFeatures,
   buildProvinceChoroplethFeatures,
+  provinceCellPreDecided,
 } from "./build-features";
 import type { LayerFeaturesResult, LayerPeriod } from "./get-layer-features";
 import {
@@ -201,11 +202,18 @@ export function assembleCubeLayerResult(
   if (level === "province") {
     const cells: ProvinceChoroplethCell[] = rows
       .filter((r) => r.unitLevel === "province")
-      .map((r) => ({
-        provinceCode: r.unitCode,
-        label: r.label ?? r.province,
-        value: Number(r.value ?? 0),
-      }));
+      // #40: read the cube's `suppressed` flag — do NOT infer suppression from a
+      // null value. `Number(r.value ?? 0)` used to turn a protected province into
+      // a published 0, the exact false-zero the k-anon rule forbids. The flag is
+      // the carrier; the value is nulled from it.
+      .map((r) =>
+        provinceCellPreDecided(
+          r.unitCode,
+          r.label ?? r.province,
+          r.value === null ? null : Number(r.value),
+          r.suppressed === true,
+        ),
+      );
     return {
       features: buildProvinceChoroplethFeatures(cells),
       truncated: false,

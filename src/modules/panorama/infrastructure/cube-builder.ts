@@ -318,7 +318,11 @@ export function buildProvinceCubeRows(
     // den ⇒ department-grain truncated flag (0/1) for this province — see jsdoc.
     den: deptTruncatedByProvince.get(cell.label) ? 1 : 0,
     noLocality: residualByProvince.get(cell.label) ?? 0,
-    suppressed: false,
+    // #40: was hardcoded `false` under the old "provinces are never suppressed"
+    // premise. Province cells now carry k-anon, and the flag MUST round-trip:
+    // `value` alone cannot, because the reader coalesces a null value and would
+    // republish a protected cell as 0 — a false zero that reads as real data.
+    suppressed: cell.suppressed,
     complementary: false,
   }));
 }

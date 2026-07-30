@@ -37,6 +37,7 @@ import { HATCH_SWATCH_CSS } from "@/components/panorama/hatch-pattern";
 import { NO_DATA_SWATCH_CSS, NO_DATA_SWATCH_SIZE } from "@/components/panorama/no-data-pattern";
 import {
   type ScaleBounds,
+  hasSuppressedProvince,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
@@ -300,7 +301,10 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
         )}
         {provinceLegends.map(({ layer, isMeta }) => {
           const values = layer.features.features
-            .map((f) => (f.properties as { value?: number } | null)?.value)
+            // #40: `value` is now nullable (k-anon suppressed). The typeof guard
+            // already excluded null, but the declared type said it could not
+            // happen — a lie the compiler was happy to keep.
+            .map((f) => (f.properties as { value?: number | null } | null)?.value)
             .filter((v): v is number => typeof v === "number");
           const target =
             isMeta && typeof layer.complianceTarget === "number" ? layer.complianceTarget : null;
@@ -345,12 +349,27 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                 />
                 Sin datos
               </div>
-              {/* NO k-anon disclosure here (QA fix): provinces are never
-                  suppressed — only the division (departamento/barrio) and
-                  locality choropleths carry a k-anon-protected class, and
-                  their own legend blocks below already state it. Showing the
-                  "Dato protegido" line under the province legend announced a
-                  category this choropleth never renders. */}
+              {/* k-anon disclosure at PROVINCE grain (#40). This block used to be
+                  a comment explaining its own ABSENCE: "provinces are never
+                  suppressed". That premise died with #40 — a province cell is now
+                  suppressed when its DENOMINATOR is sub-k (Santa Cruz publishing
+                  100% over 11 dogs), and the map hatches it. The key must name the
+                  mark: an unexplained texture on a province is worse than none,
+                  because the reader's only available guess is "sin datos".
+                  Rendered ONLY when this layer actually has a suppressed province,
+                  so the row never announces a state the current frame lacks — the
+                  same conditional discipline as divisionLegend.suppressed above. */}
+              {hasSuppressedProvince(layer.features) && (
+                <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
+                    // Shared hatch color (hatch-pattern.ts): legend key == on-map mark.
+                    style={{ backgroundImage: HATCH_SWATCH_CSS }}
+                    aria-hidden="true"
+                  />
+                  Protegido por privacidad (k&lt;5)
+                </div>
+              )}
             </div>
           );
         })}

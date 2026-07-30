@@ -19,13 +19,20 @@ import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { MapLegends } from "../MapLegends";
 
-function provinceFC(cells: Array<{ provinceCode: string; value: number }>): FeatureCollection {
+function provinceFC(
+  cells: Array<{ provinceCode: string; value: number | null; suppressed?: boolean }>,
+): FeatureCollection {
   return {
     type: "FeatureCollection",
     features: cells.map((c) => ({
       type: "Feature",
       geometry: null,
-      properties: { provinceCode: c.provinceCode, province: c.provinceCode, value: c.value },
+      properties: {
+        provinceCode: c.provinceCode,
+        province: c.provinceCode,
+        value: c.value,
+        suppressed: c.suppressed === true,
+      },
     })),
   };
 }
@@ -81,9 +88,39 @@ describe("MapLegends — META'd rate layer renders the discrete threshold-class 
     expect(html).not.toContain("sobre meta");
   });
 
-  it("never renders the k-anon 'Dato protegido' line for a province legend (QA fix — provinces are never suppressed)", () => {
+  // ⚠️ REWRITTEN (#40). This test used to read "never renders the k-anon line
+  // for a province legend (QA fix — provinces are never suppressed)". That
+  // premise died: a province cell is suppressed when its DENOMINATOR is sub-k.
+  // The rule is now CONDITIONAL, not absent — the row appears exactly when this
+  // frame has a suppressed province, so the key never announces a mark the map
+  // is not painting, and never omits one it is.
+  it("omits the k-anon row when NO province in this frame is suppressed", () => {
     const html = renderLegend(metaLayer());
-    expect(html).not.toContain("Dato protegido");
+    expect(html).not.toContain("Protegido por privacidad");
+  });
+
+  it("renders the k-anon row when a province IS suppressed (#40)", () => {
+    // An unexplained hatch on a province is worse than none: the reader's only
+    // available guess is "sin datos", which is the one thing it does not mean.
+    const layer = metaLayer();
+    layer.features = provinceFC([
+      { provinceCode: "AR-B", value: 34 },
+      { provinceCode: "AR-Z", value: null, suppressed: true },
+    ]);
+    const html = renderLegend(layer);
+    expect(html).toContain("Protegido por privacidad");
+    expect(html).toContain("k&lt;5");
+  });
+
+  it("keeps the k-anon row DISTINCT from the 'Sin datos' row (three states, three marks)", () => {
+    const layer = metaLayer();
+    layer.features = provinceFC([
+      { provinceCode: "AR-B", value: 34 },
+      { provinceCode: "AR-Z", value: null, suppressed: true },
+    ]);
+    const html = renderLegend(layer);
+    expect(html).toContain("Sin datos");
+    expect(html).toContain("Protegido por privacidad");
   });
 
   it("swatch ranges track the LIFTED scale (map/legend parity, e.g. under scrub)", () => {

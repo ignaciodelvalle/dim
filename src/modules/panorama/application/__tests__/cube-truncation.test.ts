@@ -67,8 +67,8 @@ function deptRow(over: Partial<PanoramaCubeRow> = {}): PanoramaCubeRow {
 
 describe("buildProvinceCubeRows — den carries the department-grain truncation flag", () => {
   const cells = [
-    { provinceCode: "AR-B", label: "Buenos Aires", value: 62.1 },
-    { provinceCode: "AR-L", label: "La Pampa", value: 71 },
+    { provinceCode: "AR-B", label: "Buenos Aires", value: 62.1, suppressed: false },
+    { provinceCode: "AR-L", label: "La Pampa", value: 71, suppressed: false },
   ];
   const residual = new Map([
     ["Buenos Aires", 3],
@@ -109,6 +109,42 @@ describe("buildProvinceCubeRows — den carries the department-grain truncation 
       noLocality: 3,
       den: 1,
     });
+  });
+
+  // #40 — the cube used to hardcode `suppressed: false` on every province row,
+  // under the same dead "provinces are never suppressed" premise. The flag was
+  // the ONLY carrier that survives the round-trip: `value` is stored nullable,
+  // and the reader coalesced a null to 0, so a protected province came back out
+  // of the cube published as a real, confident zero.
+  it("round-trips the k-anon flag and NEVER republishes a suppressed cell as 0", () => {
+    const rows = buildProvinceCubeRows(
+      "rabies-coverage",
+      [{ provinceCode: "AR-Z", label: "Santa Cruz", value: null, suppressed: true }],
+      new Map(),
+      new Map(),
+    );
+    expect(rows[0].suppressed).toBe(true);
+    expect(rows[0].value).toBeNull();
+
+    const back = assembleCubeLayerResult(
+      [
+        provinceRow({
+          unitCode: "AR-Z",
+          province: "Santa Cruz",
+          label: "Santa Cruz",
+          value: null,
+          suppressed: true,
+        }),
+      ],
+      "province",
+    );
+    const props = back.features.features[0].properties as {
+      value: number | null;
+      suppressed: boolean;
+    };
+    expect(props.suppressed).toBe(true);
+    expect(props.value).toBeNull();
+    expect(props.value).not.toBe(0);
   });
 });
 

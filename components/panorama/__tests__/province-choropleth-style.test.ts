@@ -10,11 +10,14 @@ import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { classSwatches } from "../class-scale";
 import {
+  hasSuppressedProvince,
+  provinceCellAt,
   provinceColorExpr,
   provinceMetaClassScale,
   provinceMetaColorExpr,
   provinceNoDataFilter,
   provinceSeqClassScale,
+  provinceSuppressedCodes,
   provinceValueBounds,
 } from "../province-choropleth-style";
 
@@ -30,13 +33,20 @@ function decodeStep(step: unknown[]): { breaks: number[]; colors: string[] } {
 }
 
 // Build a province FeatureCollection (null geometry; the polygon is the basemap).
-function provinceFC(cells: Array<{ provinceCode: string; value: number }>): FeatureCollection {
+function provinceFC(
+  cells: Array<{ provinceCode: string; value: number | null; suppressed?: boolean }>,
+): FeatureCollection {
   return {
     type: "FeatureCollection",
     features: cells.map((c) => ({
       type: "Feature",
       geometry: null,
-      properties: { provinceCode: c.provinceCode, province: c.provinceCode, value: c.value },
+      properties: {
+        provinceCode: c.provinceCode,
+        province: c.provinceCode,
+        value: c.value,
+        suppressed: c.suppressed === true,
+      },
     })),
   };
 }
@@ -318,5 +328,92 @@ describe("provinceNoDataFilter (D.5(b) — the stipple overlay)", () => {
     const known = (filter[1] as unknown[])[2] as string[];
     expect(known).toEqual(["AR-C"]);
     expect(known).not.toContain("AR-B");
+  });
+
+  // ── #40: THE TRAP. A suppressed province has no value, so the naive
+  // complement would stipple it — rendering "nadie reportó acá" over a province
+  // that reported fine. That is a LIE and, worse, a LEAK: the single province
+  // wearing the wrong texture is exactly the one whose count is sub-k.
+  it("treats a SUPPRESSED province as KNOWN, never stippling it as no-data", () => {
+    const filter = provinceNoDataFilter(
+      provinceFC([
+        { provinceCode: "AR-B", value: 12 },
+        { provinceCode: "AR-Z", value: null, suppressed: true },
+      ]),
+    ) as unknown[];
+    const known = (filter[1] as unknown[])[2] as string[];
+    expect(known).toContain("AR-Z");
+    expect(known).toEqual(expect.arrayContaining(["AR-B", "AR-Z"]));
+  });
+
+  it("still stipples a null-valued province that is NOT suppressed", () => {
+    // The two states must stay separable: hatch = protected, stipple = nothing
+    // reported. Suppression is read off the FLAG, never inferred from a null.
+    const filter = provinceNoDataFilter(
+      provinceFC([
+        { provinceCode: "AR-B", value: 12 },
+        { provinceCode: "AR-Z", value: null, suppressed: false },
+      ]),
+    ) as unknown[];
+    const known = (filter[1] as unknown[])[2] as string[];
+    expect(known).toEqual(["AR-B"]);
+    expect(known).not.toContain("AR-Z");
+  });
+
+  it("is NOT constant-true when every cell is suppressed (all protected != all unknown)", () => {
+    const filter = provinceNoDataFilter(
+      provinceFC([{ provinceCode: "AR-Z", value: null, suppressed: true }]),
+    );
+    expect(filter).not.toBe(true);
+  });
+});
+
+describe("provinceSuppressedCodes / hasSuppressedProvince (#40 — the hatch set)", () => {
+  it("collects the codes flagged suppressed", () => {
+    const fc = provinceFC([
+      { provinceCode: "AR-B", value: 12 },
+      { provinceCode: "AR-Z", value: null, suppressed: true },
+      { provinceCode: "AR-U", value: null, suppressed: true },
+    ]);
+    expect(provinceSuppressedCodes(fc)).toEqual(["AR-Z", "AR-U"]);
+    expect(hasSuppressedProvince(fc)).toBe(true);
+  });
+
+  it("reads the FLAG, not a null value — an unflagged null is absent, not protected", () => {
+    const fc = provinceFC([{ provinceCode: "AR-Z", value: null, suppressed: false }]);
+    expect(provinceSuppressedCodes(fc)).toEqual([]);
+    expect(hasSuppressedProvince(fc)).toBe(false);
+  });
+
+  it("is empty (and hasSuppressedProvince false) for a fully visible layer", () => {
+    const fc = provinceFC([{ provinceCode: "AR-B", value: 12 }]);
+    expect(provinceSuppressedCodes(fc)).toEqual([]);
+    expect(hasSuppressedProvince(fc)).toBe(false);
+  });
+});
+
+describe("provinceCellAt (#40 — the popup lookup that used to publish a false 0)", () => {
+  const fc = provinceFC([
+    { provinceCode: "AR-B", value: 12 },
+    { provinceCode: "AR-Z", value: null, suppressed: true },
+  ]);
+
+  it("returns NULL, never 0, for a suppressed province", () => {
+    // `p.value ?? 0` was the bug: on a coverage layer a confident "0" is the
+    // most alarming reading available, invented for a cell that has no value.
+    expect(provinceCellAt(fc, "AR-Z")).toEqual({ value: null, suppressed: true });
+    expect(provinceCellAt(fc, "AR-Z").value).not.toBe(0);
+  });
+
+  it("returns the real value for a visible province", () => {
+    expect(provinceCellAt(fc, "AR-B")).toEqual({ value: 12, suppressed: false });
+  });
+
+  it("distinguishes ABSENT from SUPPRESSED — both valueless, only one protected", () => {
+    expect(provinceCellAt(fc, "AR-X")).toEqual({ value: null, suppressed: false });
+  });
+
+  it("tolerates an undefined feature collection", () => {
+    expect(provinceCellAt(undefined, "AR-B")).toEqual({ value: null, suppressed: false });
   });
 });

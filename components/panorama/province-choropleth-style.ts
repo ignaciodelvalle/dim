@@ -21,7 +21,7 @@ import { COLOR_NO_DATA } from "@/lib/analytics/viz-scales";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 /** A province feature's properties (as emitted by buildProvinceChoroplethFeatures). */
-type ProvinceFeatureProps = { provinceCode?: string; value?: number };
+type ProvinceFeatureProps = { provinceCode?: string; value?: number | null; suppressed?: boolean };
 
 /**
  * Adversarial-review fix (2026-07-11, MED #3): NaN hardening for the MAPLIBRE
@@ -65,14 +65,76 @@ function provincePairs(features: FeatureCollection): Array<[string, number]> {
  * mainland was no-data and read as plain land. On a light canvas that fill is
  * only ΔE00 1.48 from the basemap, so "nobody reported anything" was
  * indistinguishable from "this area is not in the analysis".
+ *
+ * ⚠️ k-ANON EXCLUSION (#40) — THE TRAP THIS FILTER WALKS INTO OTHERWISE. A
+ * SUPPRESSED province carries `value: null`, so `provincePairs` drops it and the
+ * naive complement stipples it. That renders "nadie reportó acá" over a province
+ * that reported perfectly well — a LIE, and simultaneously a leak, because the
+ * one province wearing the wrong texture is exactly the one whose count is
+ * sub-k. `suppressed` is therefore KNOWN, not missing: the state is published by
+ * the hatch (`provinceSuppressedCodes`), not by the absence of a value.
+ *
+ * Three states, three textures, no overlap: colour = value · hatch = protected ·
+ * stipple = genuinely nothing reported.
  */
 export function provinceNoDataFilter(features: FeatureCollection): FilterSpecification {
-  const valued = new Set(provincePairs(features).map(([code]) => code));
-  if (valued.size === 0) return true as unknown as FilterSpecification;
+  const known = new Set(provincePairs(features).map(([code]) => code));
+  for (const code of provinceSuppressedCodes(features)) known.add(code);
+  if (known.size === 0) return true as unknown as FilterSpecification;
   return [
     "!",
-    ["match", ["get", "code"], [...valued], true, false],
+    ["match", ["get", "code"], [...known], true, false],
   ] as unknown as FilterSpecification;
+}
+
+/** One province's published state, as the popups and readouts must read it. */
+export type ProvinceCellState = { value: number | null; suppressed: boolean };
+
+/**
+ * Look up a province's cell state by code.
+ *
+ * #40: the two call sites in SituationalMap (the hover popup and the
+ * multi-layer readout) both did `p.value ?? 0`, which published a confident
+ * ZERO for a k-anon-protected province — the exact false zero the rule forbids,
+ * and the most misleading substitution available on a coverage layer. They now
+ * share this one lookup, which returns the FLAG so the caller can render
+ * "protegido" instead of a number or a wrong "sin datos".
+ */
+export function provinceCellAt(
+  features: FeatureCollection | undefined,
+  code: string,
+): ProvinceCellState {
+  for (const f of features?.features ?? []) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (p.provinceCode === code)
+      return { value: p.value ?? null, suppressed: p.suppressed === true };
+  }
+  return { value: null, suppressed: false };
+}
+
+/** Whether a province layer has at least one k-anon-suppressed cell — the
+ *  condition the legend's "Protegido por privacidad" row renders on, so the key
+ *  never announces a mark the current frame does not paint. */
+export function hasSuppressedProvince(features: FeatureCollection): boolean {
+  return provinceSuppressedCodes(features).length > 0;
+}
+
+/**
+ * The province codes whose cell is k-anon SUPPRESSED — the set the hatch overlay
+ * paints and the set `provinceNoDataFilter` must treat as KNOWN.
+ *
+ * Reads the `suppressed` FLAG, never "value is null". Inferring suppression from
+ * a missing value would conflate it with a province that is simply absent from
+ * the layer, and those two must render differently (hatch vs stipple).
+ */
+export function provinceSuppressedCodes(features: FeatureCollection): string[] {
+  const codes: string[] = [];
+  for (const f of features.features) {
+    const p = f.properties as ProvinceFeatureProps;
+    if (typeof p.provinceCode !== "string" || p.provinceCode.length === 0) continue;
+    if (p.suppressed === true) codes.push(p.provinceCode);
+  }
+  return codes;
 }
 
 /**

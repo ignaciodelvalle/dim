@@ -249,12 +249,20 @@ beforeAll(async () => {
 
 afterAll(cleanup);
 
-/** The single province cell the scoped loader returns. */
+/** The single province cell the scoped loader returns.
+ *
+ * #40: every fixture universe here is >= 5 active pets, so the cell must come
+ * back VISIBLE. Asserting that explicitly is the point — if a future fixture
+ * shrinks below k the cell turns suppressed (value null), and this would
+ * otherwise fail as a confusing null comparison instead of naming the cause. */
 async function pctFor(locality: string, asOf?: Date): Promise<number> {
   const res = await loadVetDesertByProvince(GOVT, jurs(locality), SINCE, asOf);
   expect(res.cells).toHaveLength(1);
   expect(res.cells[0].provinceCode).toBe(PROVINCE_CODE);
-  return res.cells[0].value;
+  expect(res.cells[0].suppressed).toBe(false);
+  const value = res.cells[0].value;
+  if (value === null) throw new Error("k-anon suppressed: fixture universe fell below k=5");
+  return value;
 }
 
 describe("loadVetDesertByProvince — share of active pets with no veterinary act", () => {
@@ -334,9 +342,21 @@ describe("loadVetDesertByProvince — the denominator travels with the numerator
 });
 
 describe("loadVetDesertByProvince — k-anon on the ACTIVE-pet universe", () => {
-  it("suppresses a sub-k universe entirely (no cell, disclosed via suppressedCount)", async () => {
+  it("suppresses a sub-k universe as a PRESENT, valueless cell (not an absent one)", async () => {
+    // ⚠️ This assertion used to be `expect(res.cells).toHaveLength(0)` — the
+    // same defect #40 fixed in tendencia. Dropping the cell made the province
+    // disappear, and the D.5(b) overlay then stippled it as "sin datos", which
+    // reads as "nadie reportó acá". The truth is the opposite: there ARE pets,
+    // just too few for the share to describe them without identifying them.
+    // Absence is also a channel — a province that vanishes announces it crossed k.
     const res = await loadVetDesertByProvince(GOVT, jurs(LOC_SUBK), SINCE);
-    expect(res.cells).toHaveLength(0);
     expect(res.suppressedCount).toBe(1);
+    expect(res.cells).toHaveLength(1);
+    expect(res.cells[0].suppressed).toBe(true);
+    expect(res.cells[0].value).toBeNull();
+    // Never a 0 — on this layer 0% means "every pet was attended", the most
+    // reassuring reading on the map. A false zero here would be the worst
+    // possible substitution.
+    expect(res.cells[0].value).not.toBe(0);
   }, 30_000);
 });

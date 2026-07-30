@@ -85,6 +85,7 @@ export {
   loadMicrochipCoverageByProvince,
   loadPppComplianceByProvince,
   loadMortalityByProvince,
+  loadMortalityRawRollupByProvince,
   loadVetAccessByProvince,
   loadTendenciaByProvince,
   loadVetDesertByProvince,

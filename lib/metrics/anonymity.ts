@@ -11,6 +11,13 @@ import type { Cell, MetricResult, SuppressedCells } from "./types";
 
 export type { Cell, MetricResult, SuppressedCells };
 
+/**
+ * THE k. One constant so every grain (locality, department, province, open
+ * data) reads the same policy number instead of re-typing `5`. Changing the
+ * policy is a one-line change here, not a grep.
+ */
+export const ANONYMITY_K = 5;
+
 /** Options for suppressSmallCells. */
 export type SuppressOpts<Row> = {
   /** Extract the population count for a row (used to compare against k). */
@@ -53,7 +60,7 @@ export function suppressSmallCells<Row>(
   suppressed: Row[];
   suppressedCount: number;
 } {
-  const k = opts.k ?? 5;
+  const k = opts.k ?? ANONYMITY_K;
   const visible: Row[] = [];
   const suppressed: Row[] = [];
 

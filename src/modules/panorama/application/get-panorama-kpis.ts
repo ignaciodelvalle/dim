@@ -625,7 +625,17 @@ export async function getPanoramaKpis(
   // Mortality KPI value = the scope total, i.e. Σ of the province choropleth cells
   // (each cell value is a raw deceased count — density metric). Guarantees the
   // headline number equals the sum of what the mortality map paints.
-  const mortalityTotal = mortalityProv.cells.reduce((sum, c) => sum + c.value, 0);
+  //
+  // #40 null-guard: a k-anon-suppressed province carries `value: null` and is
+  // SKIPPED, not counted as 0. Two consequences, both deliberate:
+  //  · the headline can now sit slightly BELOW the true national total — by at
+  //    most (k-1) per suppressed province. It still equals Σ of what the map
+  //    paints, which is the invariant this line exists to hold.
+  //  · skipping is also what keeps the total safe to publish: a headline that
+  //    INCLUDED the hidden cells would let a reader recover them by subtracting
+  //    the visible provinces (the differencing attack complementarySuppress
+  //    defends against on the open-data side).
+  const mortalityTotal = mortalityProv.cells.reduce((sum, c) => sum + (c.value ?? 0), 0);
   // PPP "sin PPP" state: no dangerous-breed-flagged pets in scope → a 0% rate would
   // read as bad registry adoption when the honest reading is "there are no PPP here".
   const pppNoData = ppp.flaggedCount === 0;

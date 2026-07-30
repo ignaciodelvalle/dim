@@ -100,10 +100,12 @@ import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama
 // per-map-component in this repo (see LocationMap/LocationPicker), not globally.
 import "maplibre-gl/dist/maplibre-gl.css";
 import {
+  provinceCellAt,
   provinceMetaClassScale,
   provinceSeqClassScale,
   provinceSeqLegendEntry,
   provinceSeqScaleForLayer,
+  provinceSuppressedCodes,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
@@ -1867,18 +1869,14 @@ export function SituationalMap({
         if (cell) return bivariateReadouts(cell, l.bivariatePair);
         continue;
       }
-      let value: number | null = null;
-      for (const f of l.features.features) {
-        const p = f.properties as { provinceCode?: string; value?: number };
-        if (p.provinceCode === code) {
-          value = p.value ?? 0;
-          break;
-        }
-      }
+      // #40: `p.value ?? 0` published a confident ZERO for a k-anon-protected
+      // province. buildLayerReadout already has a "suppressed" state — use it.
+      const cell = provinceCellAt(l.features, code);
       out.push(
         buildLayerReadout({
           label: l.label,
-          value,
+          value: cell.value,
+          suppressed: cell.suppressed,
           dataType: l.dataType,
           complianceTarget: l.complianceTarget,
         }),
@@ -2414,14 +2412,13 @@ export function SituationalMap({
     }
   }
 
-  // task #63: hatch the provinces whose bivariate cell is k-anon suppressed (its
-  // color was withheld). A fill-pattern layer over the shared ar-provinces source,
-  // filtered to the suppressed codes, inserted ABOVE the bivariate fill. Removed
-  // when the layer is not bivariate or nothing is suppressed. Same fail-honest
-  // fallback as the division hatch (solid tone when the pattern image is absent).
+  // task #63 + #40: hatch the k-anon-suppressed provinces — from the BIVARIATE signal
+  // axis, and now equally from a plain choropleth with a sub-k DENOMINATOR.
   function applyProvinceBivariateSuppression(map: maplibregl.Map, layer: ActiveLayer) {
     const sid = provinceSuppressLayerId(layer.id);
-    const codes = layer.bivariateCells ? bivariateSuppressedCodes(layer.bivariateCells) : [];
+    const codes = layer.bivariateCells
+      ? bivariateSuppressedCodes(layer.bivariateCells)
+      : provinceSuppressedCodes(layer.features);
     if (codes.length === 0) {
       if (map.getLayer(sid)) map.removeLayer(sid);
       return;
@@ -2453,14 +2450,8 @@ export function SituationalMap({
     provinceWiredRef.current.add(layer.id);
     const fillId = provinceFillLayerId(layer.id);
     // Look up the value for a province code from the layer's current features.
-    const valueFor = (code: string): number | null => {
-      const current = layersRef.current.find((l) => l.id === layer.id);
-      for (const f of current?.features.features ?? []) {
-        const p = f.properties as { provinceCode?: string; province?: string; value?: number };
-        if (p.provinceCode === code) return p.value ?? 0;
-      }
-      return null;
-    };
+    const cellFor = (code: string) =>
+      provinceCellAt(layersRef.current.find((l) => l.id === layer.id)?.features, code);
     map.on("mouseenter", fillId, () => {
       map.getCanvas().style.cursor = "pointer";
     });
@@ -2516,11 +2507,12 @@ export function SituationalMap({
           valueLine = `<span style="color:#94a3b8">Sin datos</span>`;
         }
       } else {
-        const value = valueFor(code);
-        valueLine =
-          value === null
+        const c = cellFor(code);
+        valueLine = c.suppressed
+          ? `<span style="color:#94a3b8">Protegido por privacidad (k&lt;5)</span>`
+          : c.value === null
             ? `<span style="color:#94a3b8">Sin datos</span>`
-            : `<strong>${value.toLocaleString("es-AR")}</strong>`;
+            : `<strong>${c.value.toLocaleString("es-AR")}</strong>`;
       }
       // Read the label live too (handlers are wired once — a captured label
       // would go stale when e.g. the bivariate encoding renames the layer).
@@ -2551,7 +2543,7 @@ export function SituationalMap({
           properties: {
             provinceCode: code,
             province: props.name ?? code,
-            value: valueFor(code),
+            value: cellFor(code).value,
             level: "province",
           },
         },

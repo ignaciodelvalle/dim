@@ -5,8 +5,10 @@
 // U5 invariant the spec asserts: a PROVINCE rollup equals the SUM of its
 // LOCALITY rollups, because both share the same metric predicate + scope and
 // differ only in the GROUP BY. They also check province coverage (≤24 valid
-// jurisdictions), k-anon asymmetry (locality suppresses small cells; province
-// never does), and the level-overload routing.
+// jurisdictions), k-anon at BOTH grains (#40 — this used to read "k-anon
+// asymmetry: province never suppresses", which was the leak, not the design:
+// province cells now apply k=5 to their DENOMINATOR), and the level-overload
+// routing.
 //
 // PERFORMANCE NOTE: at panorama-seed scale (~45k pets) the rabies-coverage
 // LOCALITY rollup is pathologically slow (~50s) because its centroid join uses
@@ -51,8 +53,16 @@ describe("U5 rollup — province total equals the sum of its localities (mortali
       loadMortality(ADMIN, []),
     ]);
 
+    // #40: the province cell is now k-anon'd too — a province with a sub-k
+    // deceased count publishes `value: null`. It is EXCLUDED from the
+    // reconciliation rather than read as 0: there is no province total to
+    // reconcile against, and treating the withheld cell as zero would make this
+    // test demand that its localities sum to nothing.
     const provTotalByCode = new Map<string, number>();
-    for (const c of prov.cells) provTotalByCode.set(c.provinceCode, c.value);
+    for (const c of prov.cells) {
+      if (c.suppressed || c.value === null) continue;
+      provTotalByCode.set(c.provinceCode, c.value);
+    }
 
     // The locality cells are k-anon'd: a SUPPRESSED cell carries value=null.
     // A PRIMARY (k=5) suppression hides a count in [1, 4] — but `toChoroplethCells`
@@ -182,7 +192,14 @@ describe("U5 province choropleth coverage", () => {
     const seen = new Set<string>();
     for (const c of prov.cells) {
       expect(VALID_CODES.has(c.provinceCode)).toBe(true);
-      expect(c.value).toBeGreaterThan(0);
+      // #40: the value contract is now conditional on suppression. A protected
+      // cell has NO value (null, never 0); a visible one must clear k, because
+      // on a density layer the count IS the denominator.
+      if (c.suppressed) {
+        expect(c.value).toBeNull();
+      } else {
+        expect(c.value ?? 0).toBeGreaterThanOrEqual(5);
+      }
       expect(c.label.length).toBeGreaterThan(0);
       // No duplicate province cells (one row per province).
       expect(seen.has(c.provinceCode)).toBe(false);
@@ -191,15 +208,25 @@ describe("U5 province choropleth coverage", () => {
   }, 30_000);
 });
 
-describe("U5 k-anon asymmetry", () => {
-  it("province cells are NEVER suppressed (large cells, no k-anon)", async () => {
-    // Rabies PROVINCE rollup (fast: no centroid join). Even values below the
-    // locality k=5 threshold are shown at province level — no suppression.
+describe("U5 k-anon at both grains", () => {
+  // ⚠️ REWRITTEN (#40). This described a "k-anon ASYMMETRY" and asserted
+  // "province cells are NEVER suppressed (large cells, no k-anon)" — a test
+  // that ratified the leak. The premise confused a province's POPULATION with
+  // its DENOMINATOR: on a rate layer they are different numbers, and Santa Cruz
+  // publishing 100% over 11 dogs has a value of 100, not 11. Both grains now
+  // carry k=5; only the unit differs.
+  it("province cells obey the k-anon contract: suppressed ⇔ null value, never a number", async () => {
+    // Rabies PROVINCE rollup (fast: no centroid join). The DENOMINATOR is the
+    // dogs in scope — a province with fewer than 5 publishes no rate.
     const prov = await loadRabiesCoverageByProvince(ADMIN, []);
-    expect(prov).not.toHaveProperty("suppressedCount");
     expect(prov.cells.length).toBeGreaterThan(0);
     for (const c of prov.cells) {
-      expect(typeof c.value).toBe("number");
+      if (c.suppressed) {
+        expect(c.value).toBeNull();
+        expect(c.value).not.toBe(0);
+      } else {
+        expect(typeof c.value).toBe("number");
+      }
     }
   }, 30_000);
 
@@ -262,7 +289,10 @@ describe("U5 metric enumeration — microchip-penetration + ppp-compliance", () 
       expect(rows).not.toHaveProperty("suppressedCount");
       for (const c of rows.cells) {
         expect(VALID_CODES.has(c.provinceCode)).toBe(true);
-        expect(typeof c.value).toBe("number");
+        // #40: ppp-compliance carries the SMALLEST denominator on the board
+        // (PPP-flagged pets are a rare subset), so this is the layer where
+        // province suppression actually fires on the seed data.
+        expect(c.suppressed ? c.value : typeof c.value).toBe(c.suppressed ? null : "number");
       }
     },
     30_000,

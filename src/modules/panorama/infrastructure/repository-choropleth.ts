@@ -48,7 +48,12 @@ import type {
   ChoroplethCell,
   ProvinceChoroplethCell,
 } from "@/src/modules/panorama/application/build-features";
-import { aggregateCellsToDepartment } from "@/src/modules/panorama/application/build-features";
+import {
+  PROVINCE_K,
+  aggregateCellsToDepartment,
+  provinceCell,
+  provinceCellPreDecided,
+} from "@/src/modules/panorama/application/build-features";
 import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
 import type { AggregationLevel } from "@/src/modules/panorama/domain/types";
 
@@ -471,13 +476,19 @@ const TENDENCIA_INCIDENT_EVENTS = [
 
 /** Map a raw province density rollup to ProvinceChoroplethCell[] (resolve ISO
  * code + label). Provinces whose name has no ISO code are dropped — the basemap
- * can only fill a polygon it can join by code. */
+ * can only fill a polygon it can join by code.
+ *
+ * k-anon (#40): on a DENSITY layer the value IS the population, so the count is
+ * both the number painted and the denominator k protects — a province with
+ * fewer than k registered/deceased pets is a group small enough to re-identify,
+ * and publishing "3" names three animals. Suppressed cells stay in the array
+ * (value null) so the map hatches them. */
 function toProvinceChoroplethCells(rollup: ProvinceRollupRow[]): ProvinceChoroplethCell[] {
   const cells: ProvinceChoroplethCell[] = [];
   for (const r of rollup) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    cells.push({ provinceCode: code, label: r.province, value: r.count });
+    cells.push(provinceCell(code, r.province, r.count, r.count));
   }
   return cells;
 }
@@ -689,7 +700,9 @@ export async function loadRabiesCoverageByProvince(
   for (const r of byProvince) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+    // k-anon denominator = `total` (DOGS in scope), never `ratePct`: a province
+    // with 3 dogs publishes 100% and the value alone looks large.
+    cells.push(provinceCell(code, r.province, r.ratePct, r.total));
   }
   return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
 }
@@ -716,7 +729,8 @@ export async function loadSterilizationCoverageByProvince(
   for (const r of byProvince) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+    // k-anon denominator = `total` (ACTIVE pets in scope), never `ratePct`.
+    cells.push(provinceCell(code, r.province, r.ratePct, r.total));
   }
   return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
 }
@@ -740,7 +754,8 @@ export async function loadMicrochipCoverageByProvince(
   for (const r of byProvince) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+    // k-anon denominator = `active` (ACTIVE pets in scope), never `ratePct`.
+    cells.push(provinceCell(code, r.province, r.ratePct, r.active));
   }
   return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
 }
@@ -764,7 +779,11 @@ export async function loadPppComplianceByProvince(
   for (const r of byProvince) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+    // k-anon denominator = `flaggedCount` (PPP-flagged pets), never `ratePct`.
+    // This is the SMALLEST denominator on the board: PPP-flagged pets are a rare
+    // subset, so most provinces sit near k and the value is a compliance rate
+    // about a handful of identifiable owners of a dangerous-breed dog.
+    cells.push(provinceCell(code, r.province, r.ratePct, r.flaggedCount));
   }
   return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
 }
@@ -778,6 +797,35 @@ export async function loadMortalityByProvince(
   const scope = petsScope(actor, jurisdictions, adminProvince, adminLocality);
   const rollup = await rollupPetsPerProvince([metricPredicate("mortality")], scope);
   return { cells: toProvinceChoroplethCells(rollup), truncated: rollup.length >= PER_LAYER_CAP };
+}
+
+/**
+ * The mortality rollup BEFORE province k-anon — RAW national counts.
+ *
+ * Exists for exactly one caller: the PUBLIC open-data `mortalidad` dataset,
+ * which runs its OWN province suppression (`suppressDensityProvinces`, same
+ * k=5, same denominator criterion) and needs the raw counts to do it PROPERLY.
+ * Its rule is STRICTLY STRONGER than the map's: on top of the k=5 small-cell
+ * rule it applies COMPLEMENTARY suppression — if exactly one province is
+ * suppressed nationally, the next-smallest visible one is suppressed too, so the
+ * hidden count cannot be recovered by subtracting the visible provinces from the
+ * national total.
+ *
+ * Feeding that pipeline the already-suppressed map cells would have SILENTLY
+ * WEAKENED the public file: with the sub-k rows nulled, `complementarySuppress`
+ * sees zero suppressed cells and promotes no complement, and the differencing
+ * defence quietly stops firing. Same k, same criterion, raw input — that is what
+ * "aligned" means here, not "pre-suppressed twice".
+ *
+ * NOT a general-purpose export. Any other consumer must go through
+ * `loadMortalityByProvince` and get the suppressed cells.
+ */
+export async function loadMortalityRawRollupByProvince(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): Promise<ProvinceRollupRow[]> {
+  const scope = petsScope(actor, jurisdictions);
+  return rollupPetsPerProvince([metricPredicate("mortality")], scope);
 }
 
 // metrics:vet-access (acceso-veterinario) — per-PROVINCE visits-per-1.000-active-pets
@@ -812,11 +860,15 @@ export async function loadVetAccessByProvince(
   for (const [province, agg] of byProvince) {
     const code = PROVINCE_ISO[province];
     if (!code) continue;
-    cells.push({
-      provinceCode: code,
-      label: province,
-      value: perThousand(agg.visits, agg.activePets),
-    });
+    // k-anon denominator = `activePets`, the base the per-1.000 rate is taken
+    // over. In practice this rarely bites (the locality fold upstream already
+    // dropped sub-k localities, so a surviving province carries >= k), but the
+    // rate is only SOUND because that is true — asserting it here is what keeps
+    // it true if the upstream fold ever changes. This loader is NOT in the #40
+    // handover's table of nine; the compiler found it as a tenth site.
+    cells.push(
+      provinceCell(code, province, perThousand(agg.visits, agg.activePets), agg.activePets),
+    );
   }
   return { cells, truncated: false };
 }
@@ -879,11 +931,15 @@ export async function loadTendenciaByProvince(
   for (const c of deltaCells(current, prior, { key: (r) => r.province, count: (r) => r.n })) {
     const code = PROVINCE_ISO[c.key];
     if (!code) continue;
-    if (c.suppressed || c.delta === null) {
-      suppressedCount++;
-      continue;
-    }
-    cells.push({ provinceCode: code, label: c.key, value: c.delta });
+    const suppressed = c.suppressed || c.delta === null;
+    if (suppressed) suppressedCount++;
+    // #40: a suppressed delta used to `continue` — the cell VANISHED. That is
+    // itself a disclosure channel (a province that drops out between two frames
+    // announces that one of its windows crossed k) and it made the map stipple
+    // the province as "sin datos", i.e. "nadie reportó incidentes acá" — the
+    // opposite of the truth, which is "hubo tan pocos que no se pueden publicar".
+    // The cell is now EMITTED with a null value so the render hatches it.
+    cells.push(provinceCellPreDecided(code, c.key, c.delta, suppressed));
   }
   return { cells, truncated: false, suppressedCount };
 }
@@ -996,10 +1052,10 @@ export async function loadVetDesertByProvince(
   // would inflate every province by its mortality history.
   // The denominator travels with the numerator when a cut is requested (D3).
   const universe = await rollupPetsPerProvince([asOf ? activePetsAsOf(until) : ACTIVE_PETS], scope);
-  const { visible, suppressedCount } = suppressSmallCells(universe, {
+  const { visible, suppressed, suppressedCount } = suppressSmallCells(universe, {
     count: (r) => r.count,
     key: (r) => r.province,
-    k: 5,
+    k: PROVINCE_K,
   });
 
   // Numerator complement: DISTINCT active pets with ≥1 veterinary act inside the
@@ -1042,7 +1098,22 @@ export async function loadVetDesertByProvince(
     if (r.count <= 0) continue; // no live population → no share to publish
     const attended = Math.min(attendedByProvince.get(r.province) ?? 0, r.count);
     const pct = Math.round(((r.count - attended) / r.count) * 100 * 10) / 10;
-    cells.push({ provinceCode: code, label: r.province, value: pct });
+    // Denominator = the same active-pet universe suppressSmallCells just cleared,
+    // so this never re-suppresses; naming it keeps the fence honest.
+    cells.push(provinceCell(code, r.province, pct, r.count));
+  }
+  // #40, same defect as tendencia: the sub-k provinces used to be COUNTED and
+  // then dropped, so the map stippled them as "sin datos" — "nadie reportó acá"
+  // over a province whose real reading is "hay tan pocas mascotas activas que la
+  // proporción identificaría a sus dueños". Emit them present-and-suppressed.
+  for (const r of suppressed) {
+    const code = PROVINCE_ISO[r.province];
+    if (!code) continue;
+    // Zero nuance (same rule as provinceCell): a province with NO active pets is
+    // a genuine data gap, not a protected group — hatching it would dress an
+    // empty padrón as a privacy decision. It stays absent → stippled "sin datos".
+    if (r.count <= 0) continue;
+    cells.push(provinceCellPreDecided(code, r.province, null, true));
   }
   return { cells, truncated: false, suppressedCount };
 }
@@ -1067,7 +1138,8 @@ export async function loadDewormingCoverageByProvince(
   for (const r of byProvince) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    cells.push({ provinceCode: code, label: r.province, value: r.ratePct });
+    // k-anon denominator = `total` (ACTIVE pets in scope), never `ratePct`.
+    cells.push(provinceCell(code, r.province, r.ratePct, r.total));
   }
   return { cells, truncated: byProvince.length >= PER_LAYER_CAP };
 }
@@ -1078,9 +1150,37 @@ export async function loadDewormingCoverageByProvince(
 // target-attainments computed by computeJurisdictionIndex over ≤24 provinces.
 // Delegates to the SAME two functions /admin/inteligencia composes
 // (fetchCrossJurisdictionOutliers → computeJurisdictionIndex), so the map and that
-// table paint one number. No k-anon hatch: fetchCrossJurisdictionOutliers already
-// drops <5-pet provinces upstream (a suppressed province has no row → no cell).
+// table paint one number.
 // value = score (0-100, sequential fill; not a compliance rate).
+//
+// ─────────────────────────────────────────────────────────────────────────────
+// #40 — THE ONE LAYER DELIBERATELY EXCLUDED FROM PROVINCE k-ANON, AND THE GAP
+// THAT LEAVES. Read this before "fixing" it.
+//
+// It is excluded because it has NO DENOMINATOR TO EXCLUDE IT BY. The score is a
+// COMPOSITE: the unweighted mean of the rabies / sterilization / microchip
+// target-attainments. Each component had its own denominator upstream, and
+// JurisdictionIndexRow does not carry any of them — by the time a score reaches
+// this loader, "how many animals is this about" is gone. `provinceCell` demands
+// a denominator precisely so that this question cannot be skipped, and the only
+// way to satisfy it here would be to INVENT one. A guessed denominator is worse
+// than a declared gap: it would suppress the wrong provinces and, worse, it
+// would make every other province look deliberately cleared when it was not.
+//
+// WHAT PROTECTS IT TODAY (verified 2026-07-30, program-health.ts:384): the
+// upstream fetcher skips any province with `totalPets < K_ANON_MIN`, and
+// K_ANON_MIN is 5 — the SAME k. So no sub-k province reaches this map.
+//
+// THE RESIDUAL GAP, stated plainly: that upstream protection DROPS the row
+// instead of marking it. So a sub-k province produces no cell, and the D.5(b)
+// stipple then paints it as "sin datos" — which reads as "nobody reported here"
+// when the truth is "too few animals to publish". It is the same defect this
+// task fixed for tendencia and desierto veterinario, and it is NOT fixed here:
+// closing it means teaching fetchCrossJurisdictionOutliers to RETURN its
+// suppressed provinces instead of skipping them, which changes a shape that
+// /admin/inteligencia also reads. That is a separate change with its own blast
+// radius, not a line to sneak into this one.
+// ─────────────────────────────────────────────────────────────────────────────
 export async function loadTerritorialIndexByProvince(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
@@ -1096,7 +1196,10 @@ export async function loadTerritorialIndexByProvince(
   for (const r of indexRows) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
-    cells.push({ provinceCode: code, label: r.province, value: r.score });
+    // NOT `provinceCell` — see the excluded-by-design block above. Every row
+    // that gets here already cleared k upstream, so `suppressed: false` is a
+    // statement of fact about these rows, not a claim that the layer is exempt.
+    cells.push(provinceCellPreDecided(code, r.province, r.score, false));
   }
   return { cells, truncated: indexRows.length >= PER_LAYER_CAP };
 }

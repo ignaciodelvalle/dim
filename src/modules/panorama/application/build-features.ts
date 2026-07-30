@@ -6,6 +6,7 @@
 // all coordinate/null/property handling lives here on top of the domain
 // geojson helpers.
 
+import { ANONYMITY_K, suppressSmallCells } from "@/lib/metrics/anonymity";
 import { DEPARTMENT_REPRESENTATIVE_POINTS } from "@/src/modules/panorama/domain/geo-representative-points";
 import { featureCollection, pointFeature } from "@/src/modules/panorama/domain/geojson";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
@@ -576,14 +577,27 @@ export function buildAggregatedPointFeatures(
  * A per-PROVINCE rollup cell (U5 aggregation level = province). Unlike the
  * locality cell it carries NO centroid: the map data-joins this to the LOCAL
  * ar-provinces basemap polygons by `provinceCode` and fills them by `value`.
- * Province cells are large, so there is NO k-anon suppression here (spec §U5).
+ *
+ * k-ANON AT PROVINCE GRAIN (task #40). This type used to declare "province cells
+ * are large, so there is NO k-anon suppression here". That was true of a
+ * province's POPULATION and false of its DENOMINATOR, which is what k-anonymity
+ * is actually about: on a RATE layer Santa Cruz publishes 100% over 11 dogs and
+ * its `value` is 100, not 11 — a threshold read off the value sees a big number
+ * and publishes a cell describing eleven identifiable animals. Cells are now
+ * built through `provinceCell`, whose signature makes the denominator
+ * OBLIGATORY so no call site can repeat that mistake.
  */
 export type ProvinceChoroplethCell = {
   /** ISO 3166-2:AR code, the join key against the basemap polygon `code`. */
   provinceCode: string;
   /** Canonical province display name (popup label). */
   label: string;
-  value: number;
+  /** NULL when k-anon suppressed — a protected cell has NO value, not a hidden
+   *  one and never a zero (a false zero reads as real data AND leaks sub-k). */
+  value: number | null;
+  /** True when the cell's DENOMINATOR fell under k: render hatched, never
+   *  stippled as "sin datos" and never absent. */
+  suppressed: boolean;
 };
 
 /**
@@ -594,16 +608,98 @@ export type ProvinceChoroplethCell = {
 export type ProvinceChoroplethProps = {
   provinceCode: string;
   province: string;
-  value: number;
-  /** Always false at province level (no k-anon); kept for a uniform popup path. */
-  suppressed: false;
+  /** null ⇔ `suppressed` (see ProvinceChoroplethCell.value). */
+  value: number | null;
+  suppressed: boolean;
 };
+
+/**
+ * The k-anonymity threshold at province grain — the SAME k the locality and
+ * department grains use (`suppressSmallCells`, AGENTS.md "Aggregation & privacy
+ * policy"). Read from the shared primitive's default rather than re-declared, so
+ * a future change to the policy moves every grain at once.
+ */
+export const PROVINCE_K = ANONYMITY_K;
+
+/**
+ * Build ONE province choropleth cell, deciding k-anon suppression from the
+ * cell's `denominator`.
+ *
+ * THE DENOMINATOR IS A REQUIRED PARAMETER ON PURPOSE. Every province loader has
+ * one (rabies → `total`, microchip → `active`, PPP → `flaggedCount`, density →
+ * the count itself), and the one composite that does NOT (`indice-territorial`,
+ * a mean of attainments) is excluded rather than fed a guess — see the note at
+ * `loadTerritorialIndexByProvince`. Making it positional-and-required means the
+ * compiler, not a reviewer, enumerates the sites where the question must be
+ * answered.
+ *
+ * `suppressSmallCells` is the single source of the rule (k and the `>= k`
+ * comparison both come from it); this function only routes one row through it.
+ *
+ * THE ZERO NUANCE, and why it is not an oversight: a denominator of EXACTLY 0 is
+ * NOT protected. An empty group re-identifies nobody, so there is nothing for
+ * k-anonymity to hide — and labelling it "protegido por privacidad" would be a
+ * lie in the OTHER direction: it would dress a genuine data gap ("no hay
+ * mascotas activas acá") as a deliberate withholding, hiding a coverage problem
+ * behind a privacy badge. Such a province has no value and renders as no-data.
+ * This matches the nuance already written into `suppressDelta` and
+ * `isProtectedCount` (lib/open-data/province-suppression.ts) — all three grains
+ * now protect the SAME interval, (0, k).
+ */
+export function provinceCell(
+  provinceCode: string,
+  label: string,
+  value: number,
+  denominator: number,
+): ProvinceChoroplethCell {
+  if (denominator <= 0) return { provinceCode, label, value, suppressed: false };
+  const { suppressedCount } = suppressSmallCells([denominator], {
+    count: (n) => n,
+    key: () => provinceCode,
+    k: PROVINCE_K,
+  });
+  const suppressed = suppressedCount > 0;
+  return { provinceCode, label, value: suppressed ? null : value, suppressed };
+}
+
+/**
+ * The ONE sanctioned way to build a province cell whose suppression was ALREADY
+ * decided upstream by a different (but equally k-anchored) rule, so the cell has
+ * no single denominator to hand `provinceCell`.
+ *
+ * Two callers, both documented at their site:
+ *  · TENDENCIA — a two-window delta. Its rule is the DIFFERENCING rule
+ *    (`suppressDelta`, same k): a cell is protected when EITHER window carries a
+ *    protected count, and no single denominator expresses that.
+ *  · DESIERTO VETERINARIO — its active-pet universe is run through
+ *    `suppressSmallCells` before the share is computed, so the decision (and the
+ *    raw count that drove it) is already gone by the time the cell is built.
+ *
+ * It exists so those two cannot quietly hand-roll `{ …, suppressed: true }`: a
+ * suppressed cell is STILL EMITTED (value null), never dropped. This is the
+ * whole point — a cell that DISAPPEARS when it crosses k makes absence the
+ * disclosure channel, and the map then stipples it as "nadie reportó acá",
+ * which is both false and a tell that this province is different.
+ */
+export function provinceCellPreDecided(
+  provinceCode: string,
+  label: string,
+  value: number | null,
+  suppressed: boolean,
+): ProvinceChoroplethCell {
+  return { provinceCode, label, value: suppressed ? null : value, suppressed };
+}
 
 /**
  * Build a province choropleth FeatureCollection. Each cell becomes a feature
  * with NULL geometry — the map colors the matching ar-provinces polygon by
  * `value` (data-join on provinceCode), it does NOT plot a point. Cells with no
  * provinceCode (unmappable province name) are dropped.
+ *
+ * A SUPPRESSED cell is emitted, not dropped: it carries `value: null` +
+ * `suppressed: true` so the render can hatch it. Dropping it would make absence
+ * itself the disclosure channel — a province that vanishes from one frame to the
+ * next tells you its count crossed k.
  */
 export function buildProvinceChoroplethFeatures(
   cells: readonly ProvinceChoroplethCell[],
@@ -616,8 +712,15 @@ export function buildProvinceChoroplethFeatures(
       properties: {
         provinceCode: c.provinceCode,
         province: c.label,
-        value: c.value,
-        suppressed: false as const,
+        // Belt-and-braces: a suppressed cell publishes null even if a caller
+        // hand-built the cell with a stale value alongside the flag.
+        value: c.suppressed ? null : (c.value ?? null),
+        // `=== true` is not redundant: a JS caller (a test mock, a cube row
+        // read back as `undefined`) can hand us a missing flag, and an
+        // `undefined` here would be DROPPED by JSON.stringify — the property
+        // would vanish from the serialized feature entirely, so a reader could
+        // not even tell the layer HAS a suppression dimension. Always a boolean.
+        suppressed: c.suppressed === true,
       },
     }));
   return featureCollection(features);

@@ -136,8 +136,24 @@ describe("loadTendenciaByProvince — the differencing rule", () => {
     // Publishing Δ = 7 − 3 = +4 next to the visible current 7 would reveal the
     // protected prior count by subtraction — the exact leak the rule prevents.
     const res = await loadTendenciaByProvince(GOVT, jurs(LOC_DIFFERENCING), SINCE);
-    expect(res.cells).toHaveLength(0);
     expect(res.suppressedCount).toBe(1);
+    // ⚠️ THIS ASSERTION USED TO READ `expect(res.cells).toHaveLength(0)` — it
+    // PINNED the defect (#40). A protected cell that DISAPPEARS is itself a
+    // disclosure channel: a province dropping out between two frames announces
+    // that one of its windows crossed k. And downstream it was worse than the
+    // leak it prevented — with no cell, the D.5(b) overlay stippled the province
+    // as "sin datos", i.e. "nadie reportó incidentes acá", the opposite of the
+    // truth. The cell is now PRESENT and suppressed, so the map hatches it.
+    expect(res.cells).toHaveLength(1);
+    expect(res.cells[0].provinceCode).toBe(PROVINCE_CODE);
+    expect(res.cells[0].suppressed).toBe(true);
+    expect(res.cells[0].value).toBeNull();
+  }, 30_000);
+
+  it("a suppressed delta publishes NULL, never 0 (a false zero reads as 'no change')", async () => {
+    const res = await loadTendenciaByProvince(GOVT, jurs(LOC_DIFFERENCING), SINCE);
+    expect(res.cells[0].value).not.toBe(0);
+    expect(res.cells[0].value).toBeNull();
   }, 30_000);
 });
 

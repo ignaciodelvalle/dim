@@ -144,10 +144,14 @@ function seedDefaults() {
     flaggedCount: 20,
   });
   // Orphaned-layer wiring — mortality province aggregate (KPI == Σ cell counts).
+  // #40: CABA was `value: 4` here — a count the province loader can no longer
+  // emit unsuppressed (density denominator == the count itself, and 4 < k=5), so
+  // the fixture modelled an impossible loader output. Both cells now clear k;
+  // the suppressed case has its own test below.
   vi.mocked(loadMortalityByProvince).mockResolvedValue({
     cells: [
-      { provinceCode: "AR-B", label: "Buenos Aires", value: 8 },
-      { provinceCode: "AR-C", label: "CABA", value: 4 },
+      { provinceCode: "AR-B", label: "Buenos Aires", value: 8, suppressed: false },
+      { provinceCode: "AR-C", label: "CABA", value: 6, suppressed: false },
     ],
     truncated: false,
   });
@@ -366,11 +370,27 @@ describe("getPanoramaKpis", () => {
   it("mortality KPI equals the SUM of the province choropleth cells (== Σ map cells)", async () => {
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const kpi = kpis.find((k) => k.id === "mortalidad")!;
-    // 8 (Buenos Aires) + 4 (CABA) = 12 deceased pets — the same total the map paints.
-    expect(kpi.value).toBe("12");
+    // 8 (Buenos Aires) + 6 (CABA) = 14 deceased pets — the same total the map paints.
+    expect(kpi.value).toBe("14");
     expect(kpi.currentState).toBe(true);
     expect(kpi.tone).toBe("warn");
     expect(kpi.source).toBe("repository.loadMortalityByProvince");
+  });
+
+  it("SKIPS a k-anon-suppressed province instead of counting it as 0 (#40)", async () => {
+    // The null-guard must not become `?? 0` semantics that silently ADD a zero
+    // for a protected cell — the headline stays Σ of what the map PAINTS, which
+    // is also what keeps it safe: a total that included the hidden cells would
+    // let a reader recover them by subtracting the visible ones.
+    vi.mocked(loadMortalityByProvince).mockResolvedValue({
+      cells: [
+        { provinceCode: "AR-B", label: "Buenos Aires", value: 8, suppressed: false },
+        { provinceCode: "AR-Z", label: "Santa Cruz", value: null, suppressed: true },
+      ],
+      truncated: false,
+    });
+    const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
+    expect(kpis.find((k) => k.id === "mortalidad")?.value).toBe("8");
   });
 
   it("threads the SAME (actor, jurisdictions, period) to the dashboard fetchers (no scope widening)", async () => {

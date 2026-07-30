@@ -42,7 +42,7 @@ import {
   suppressDensityProvinces,
   suppressRateProvinces,
 } from "@/lib/open-data/province-suppression";
-import { loadMortalityByProvince } from "@/src/modules/panorama/infrastructure/repository";
+import { loadMortalityRawRollupByProvince } from "@/src/modules/panorama/infrastructure/repository";
 
 /** The stable dataset slugs (the `[dataset]` route segment + download filenames). */
 export const DATASET_IDS = [
@@ -351,13 +351,20 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
   mortalidad: {
     kind: "density",
     countColumn: "fallecimientos_registrados",
+    // #40 alignment: reads the RAW rollup, not the map's already-suppressed
+    // cells. The panorama now applies k=5 at province grain too, but its cells
+    // arrive with sub-k counts NULLED — and this pipeline needs those counts to
+    // run `suppressDensityProvinces`, whose complementary pass is strictly
+    // stronger than the map's rule (see loadMortalityRawRollupByProvince). Same
+    // k, same denominator criterion, raw input. A suppressed province is still
+    // PUBLISHED as a row here, with SUPPRESSED_MARKER in place of the count —
+    // the value is withheld, the province's existence is not.
     fetch: async () => {
-      const { cells } = await loadMortalityByProvince({ role: "admin" }, []);
-      return cells.map((c) => ({
-        provinceCode: c.provinceCode,
-        provinceName: c.label,
-        count: c.value,
-      }));
+      const rollup = await loadMortalityRawRollupByProvince({ role: "admin" }, []);
+      return rollup.flatMap((r) => {
+        const code = isoOf(r.province);
+        return code ? [{ provinceCode: code, provinceName: r.province, count: r.count }] : [];
+      });
     },
   },
 };

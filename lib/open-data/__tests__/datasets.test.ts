@@ -21,6 +21,9 @@ const { fetchSterilizationCoverage } = vi.hoisted(() => ({
 const { fetchMicrochipPenetrationByProvince } = vi.hoisted(() => ({
   fetchMicrochipPenetrationByProvince: vi.fn(),
 }));
+const { loadMortalityRawRollupByProvince } = vi.hoisted(() => ({
+  loadMortalityRawRollupByProvince: vi.fn(),
+}));
 
 vi.mock("@/lib/analytics/govt-home-kpis", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics/govt-home-kpis")>();
@@ -34,6 +37,14 @@ vi.mock("@/lib/analytics/compliance-metrics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics/compliance-metrics")>();
   return { ...actual, fetchMicrochipPenetrationByProvince };
 });
+// #40: the mortalidad builder now reads the RAW province rollup (not the map's
+// already-suppressed cells) so suppressDensityProvinces can run its
+// complementary pass over real counts. Mocked at that seam.
+vi.mock("@/src/modules/panorama/infrastructure/repository", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@/src/modules/panorama/infrastructure/repository")>();
+  return { ...actual, loadMortalityRawRollupByProvince };
+});
 
 import { SUPPRESSED_MARKER } from "@/lib/open-data/province-suppression";
 import { datasetToCsv, datasetToJson } from "@/lib/open-data/serialize";
@@ -43,6 +54,63 @@ beforeEach(() => {
   fetchRabiesCoverageByProvince.mockReset();
   fetchSterilizationCoverage.mockReset();
   fetchMicrochipPenetrationByProvince.mockReset();
+  loadMortalityRawRollupByProvince.mockReset();
+});
+
+describe("buildDataset — mortalidad (density) k-anon, aligned with the map (#40)", () => {
+  it("marks a sub-k province and publishes the visible ones (same k=5, same criterion)", async () => {
+    loadMortalityRawRollupByProvince.mockResolvedValue([
+      { province: "Santa Cruz", count: 3 }, // < k → primary suppression
+      { province: "Buenos Aires", count: 40 },
+      { province: "Córdoba", count: 25 },
+    ]);
+
+    const built = await buildDataset("mortalidad", new Date("2026-07-15T00:00:00.000Z"));
+
+    const sc = built.rows.find((r) => r.provincia === "Santa Cruz");
+    expect(sc).toBeDefined();
+    expect(sc?.fallecimientos_registrados).toBe(SUPPRESSED_MARKER);
+    // The public file NEVER publishes the protected number, and never a 0.
+    expect(sc?.fallecimientos_registrados).not.toBe(3);
+    expect(sc?.fallecimientos_registrados).not.toBe(0);
+    expect(built.meta.suppression.k).toBe(5);
+  });
+
+  it("keeps the COMPLEMENTARY pass alive — the reason it reads raw counts, not map cells", async () => {
+    // The regression this locks: feeding this pipeline the map's suppressed
+    // cells would hide the sub-k row, complementarySuppress would see ZERO
+    // suppressed cells nationally, promote no complement, and the lone hidden
+    // count would be recoverable by subtracting the visible provinces from the
+    // national total. Exactly one primary suppression ⇒ a second row must also
+    // be marked (the next-smallest visible).
+    loadMortalityRawRollupByProvince.mockResolvedValue([
+      { province: "Santa Cruz", count: 3 },
+      { province: "Córdoba", count: 25 },
+      { province: "Buenos Aires", count: 40 },
+    ]);
+
+    const built = await buildDataset("mortalidad", new Date("2026-07-15T00:00:00.000Z"));
+
+    expect(built.meta.suppressedCount).toBe(2);
+    // Córdoba (25) is the smallest visible → promoted; Buenos Aires survives.
+    expect(built.rows.find((r) => r.provincia === "Córdoba")?.fallecimientos_registrados).toBe(
+      SUPPRESSED_MARKER,
+    );
+    expect(built.rows.find((r) => r.provincia === "Buenos Aires")?.fallecimientos_registrados).toBe(
+      40,
+    );
+  });
+
+  it("suppresses the VALUE, not the province's existence — the row is still published", async () => {
+    loadMortalityRawRollupByProvince.mockResolvedValue([
+      { province: "Santa Cruz", count: 3 },
+      { province: "Buenos Aires", count: 40 },
+      { province: "Córdoba", count: 25 },
+    ]);
+    const built = await buildDataset("mortalidad", new Date("2026-07-15T00:00:00.000Z"));
+    expect(built.rows.map((r) => r.provincia)).toContain("Santa Cruz");
+    expect(built.rows).toHaveLength(3);
+  });
 });
 
 describe("buildDataset — suppression end-to-end (real buildDataset, fetcher mocked)", () => {
