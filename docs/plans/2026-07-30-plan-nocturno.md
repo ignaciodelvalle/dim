@@ -319,6 +319,8 @@ autorización es para ESTA corrida, no permanente.
 | R2 | **A5: gana la anatomía de `CaseQueue`**, y se adoptan sus ÁTOMOS en las otras 4 colas en vez de forzarlas a `<table>` | Medición en este archivo (§A5): 4 superficies vs 1 de cada una de las otras | Las colas quedan como están hoy: 5 gramáticas visuales distintas para el mismo trabajo |
 | R3 | **B3 redefinida: NO se diferencian las 3 rutas de la libreta** | §B3 de este archivo: ADR-10, handoff "Una sola libreta", matriz de tests `pet-face-nav.test.ts:42-123` | Si el PO igual quiere 3 destinos distintos, hay que revertir ADR-10 — decisión de producto, no de implementación |
 | R4 | **B2: la post-alta LINKEA a `/chapita` en vez de imprimir el QR ahí mismo** | §B2 punto 3: `/chapita` está gateada por `printable_qr`, que puede estar deshabilitado por jurisdicción | Un botón de imprimir embebido saltearía el gate de canal de la jurisdicción |
+| R5 | **A3: dos desvíos de la tabla acto→clase→gramática** — (a) `ReviewButtons`/rechazo dice **"No avanzar"**, no "Rechazar postulación" (la pantalla ya eligió el verbo suave y renombrarlo a mitad de flujo lo vuelve otro acto); (b) `CancelTransferAction` gana `cancelLabel="Volver"` (único diálogo donde "Cancelar" es homógrafo del acto) | Commits `f50e2064` / `acd08f43`; 182 tests verdes en 25 archivos dirigidos | Sólo copy: se vuelve al label de la tabla con un string |
+| R6 | **A3: la tabla tenía 3 sitios incompletos y 5 fuera de inventario.** `InvestigationActions` son 5 modos (no 3), `GovtModerationActions` 3 (no 1), `TriageActions` 5 — todos pasan a mapa label-por-modo. Fuera de tabla, mismo defecto: `EndFosterButton`, `LeaveMembershipButton`, `WithdrawButton`, `BlockSlotButton`, `SheetMounter`, y el default de `CaptureConfidenceCard` | `__tests__/confirm-label-grammar.guard.test.ts` en cero; mutación verificada (label revuelto → el guard lo nombra con archivo:línea) | Sin los 5 fuera de tabla el guard de regresión no puede quedar en cero, así que revertirlos implica borrar el fence |
 
 ## Estado (actualizar al cerrar cada unidad)
 
@@ -326,7 +328,7 @@ autorización es para ESTA corrida, no permanente.
 |---|---|---|
 | A1 exit-1 (timebox 60') | en curso | |
 | A2 #40 k-anon provincia | en curso | |
-| A3 D.3 gramática | en curso | |
+| A3 D.3 gramática | **CERRADA** | `f50e2064` (clases 2-3) + `acd08f43` (fence + clase 1) |
 | A4 copy Registrado/a | **CERRADA** | `ac2af21f` |
 | A5 D.4 chips | medida, implementación pendiente | |
 | B1 pasada 703 | pendiente | |
