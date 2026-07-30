@@ -134,10 +134,36 @@ Medido en cinco corridas:
 justamente lo que evita racionalizar a las 6 de la mañana. Y el paso 1 del
 protocolo de cierre pide gate verde; no lo está.
 
-**El camino**: **A0 es el arreglo diseñado para esta clase.** Hacerlo primero,
-en árbol limpio; si la suite queda verde, pushear el delta pendiente junto con
-él. Si A0 no lo cierra, entonces hay que cazar el archivo con bisección del
-proyecto `db` — y ahí sí vale gastar el timebox, porque ya no hay hipótesis barata.
+### ACTUALIZACIÓN 2026-07-31 — A0 corrió y DESCARTÓ su propia hipótesis
+
+A0 se aplicó (`ec4aafde`) y es un arreglo real de un defecto latente real, pero
+**no arregla la muerte del worker**: 2 de 3 después, contra 3 de 5 antes.
+Sin cambio. A0 queda descartada como causa.
+
+**Y el hallazgo que vale más que el arreglo**: cada corrida que falla pierde
+exactamente UN archivo del conteo de consola, pero **un número DISTINTO de
+tests** — una perdió 10, otra perdió 2. **Muere un archivo diferente cada vez.**
+
+Consecuencias, las dos importantes:
+1. **No hay archivo culpable, y la bisección del proyecto `db` NO va a converger.**
+   El párrafo anterior de este plan decía justamente eso; era falso y queda
+   anulado.
+2. El stack **no tiene un solo frame de código nuestro**:
+   `[vitest-pool]: Worker forks emitted error` → `Caused by: Worker exited
+   unexpectedly` → `ChildProcess.emitUnexpectedExit`. Es una **carrera en el
+   teardown del pool de forks de vitest**, no un test malo.
+
+**El camino corregido**: apuntar al POOL, no a un archivo — `pool: "threads"`,
+`poolOptions.forks.singleFork`, `teardownTimeout`. Nota: `__tests__/setup.ts` ya
+tiene un `afterAll` de drenaje de pool escrito para este mismo síntoma, y
+evidentemente no alcanza. El proyecto `db` ya corre con `fileParallelism: false`,
+así que `singleFork: true` es semánticamente casi idéntico pero deja de crear y
+matar un fork por archivo — es el candidato más barato y de menor riesgo.
+
+**Presupuesto medido**: **~12 min por corrida de suite completa** (730 s, de los
+cuales 698 s son el proyecto `db` serial). Con una tasa base de 3 de 5, distinguir
+un arreglo del ruido pide 3 corridas como mínimo → **~40 min por hipótesis.**
+Presupuestarlo, no improvisarlo.
 
 ## A0 — RTL cleanup estructural (VA PRIMERO Y SOLO, antes de todo lo demás)
 
@@ -372,7 +398,8 @@ que habría que hacer y que hacerlo sería un error.
 
 | Unidad | Estado | Commit |
 |---|---|---|
-| A0 RTL cleanup (timebox 45') | pendiente | |
+| A0 RTL cleanup (timebox 45') | **CERRADA** — arregla un defecto latente, NO la muerte del worker | `ec4aafde` |
+| A0b pool de vitest (la muerte del worker) | en curso | |
 | A1 bug estado por defecto panorama | pendiente | |
 | A2 B3 chips en timeline único | pendiente | |
 | A3 caza de tests que pinnean el defecto | pendiente | |
