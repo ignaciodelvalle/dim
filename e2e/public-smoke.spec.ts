@@ -93,9 +93,11 @@ test("/p/[token] lost-mode credential → 200, no error boundary (UX 0.1 regress
   await page.waitForLoadState("networkidle");
 
   const credLink = page.locator('a[href^="/p/"]').first();
+  // Same fixture gap as the a11y scan further down — say it in the reason so a
+  // green summary is not mistaken for coverage of the lost-mode render.
   test.skip(
     (await credLink.count()) === 0,
-    "No lost pets seeded — skipping lost-credential smoke.",
+    "NO COVERAGE: /perdidas is empty — db:bootstrap seeds no lost pet, so the UX-0.1 regression guard did not run. Fixture gap, not a flake.",
   );
 
   const href = await credLink.getAttribute("href");
@@ -125,9 +127,18 @@ test("a11y(axe) /p/[token] lost-mode credential — WCAG 2.1 AA", async ({ page 
   await page.waitForLoadState("networkidle");
 
   const credLink = page.locator('a[href^="/p/"]').first();
+  // A SKIP HERE MEANS THIS SURFACE HAS NO CI COVERAGE AT ALL. `pnpm
+  // db:bootstrap` (all the e2e job runs) seeds reference data plus
+  // scripts/seed-test-users.ts, and neither marks a pet lost — so /perdidas is
+  // empty in CI and this scan, on the surface the file itself calls "the hero
+  // moment" under Ley 26.653, has almost certainly never executed there. A skip
+  // is at least honest (it is neither pass nor fail and Playwright counts it),
+  // which is why this stays a skip rather than becoming a red on a fixture gap
+  // that must be closed in scripts/, not here. Say so in the reason so nobody
+  // reads the summary as coverage.
   test.skip(
     (await credLink.count()) === 0,
-    "No lost pets seeded — skipping lost-credential a11y check.",
+    "NO COVERAGE: /perdidas is empty — db:bootstrap seeds no lost pet, so the lost-mode credential (Ley 26.653 hero surface) went unaudited this run. Fixture gap, not a flake.",
   );
 
   const href = await credLink.getAttribute("href");
@@ -159,21 +170,29 @@ test("a11y(axe) /p/[token] lost-mode credential — WCAG 2.1 AA", async ({ page 
 // variant=citizen (Item 7, Phase C): it exercises the new citizen masthead +
 // footer chrome so the migration cannot regress a11y. (The home `/` lives at
 // app/page.tsx, outside the (public) group, and is not migrated by Phase C.)
-const A11Y_ROUTES = [
-  "/refugios",
-  "/adoptar",
-  "/denuncias",
-  "/denuncias/buscar",
-  // /casos renders a search/listing landing — static, no DB token required.
-  "/casos",
-] as const;
+// `/casos` WAS LISTED HERE AND IS NOT A ROUTE. app/(public)/casos/ contains
+// only `[publicCode]/` — there is no casos/page.tsx, a single dynamic segment
+// does not match zero segments, and next.config.ts declares headers() only, no
+// rewrites. `/casos` resolves to the branded 404, and the comment that used to
+// sit on this line ("renders a search/listing landing — static, no DB token
+// required") was simply false. The string appears exactly ONCE in the whole
+// repo: right here. Nothing links to it, nothing serves it.
+//
+// It is removed rather than repointed at /casos/[publicCode], which would need
+// a discovered code and belongs with the other token-gated scans below.
+//
+// Third instance of this class (after DIM-B4KS-KWZA and DIM-DEMO-0001): a route
+// literal that no longer resolves, audited as if it did, reporting clean.
+const A11Y_ROUTES = ["/refugios", "/adoptar", "/denuncias", "/denuncias/buscar"] as const;
 
 for (const path of A11Y_ROUTES) {
   test(`a11y(axe) ${path} — WCAG 2.1 AA (no critical violations)`, async ({ page }) => {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
-    // Cheap here (these routes are asserted 200 above) but not free: a renamed
-    // or removed route would otherwise keep reporting "axe-clean" from its 404.
+    // NOT redundant with the PUBLIC_ROUTES block above — that list and this one
+    // are separate, and nothing status-asserts A11Y_ROUTES. (An earlier version
+    // of this comment claimed "these routes are asserted 200 above"; it was
+    // wrong, and `/casos` sat in this list precisely because nothing checked.)
     await assertRealPage(page, path);
 
     const results = await new AxeBuilder({ page })
@@ -264,9 +283,11 @@ test("a11y(axe) /adoptar/[token] — public pet detail (WCAG 2.1 AA)", async ({ 
   await page.waitForLoadState("networkidle");
 
   const petLink = page.locator('a[href^="/adoptar/"]').first();
+  // Same class as the lost-credential skip above: db:bootstrap publishes no
+  // adoption listing, so this very likely never runs in CI either.
   test.skip(
     (await petLink.count()) === 0,
-    "No adoptable pets seeded — skipping /adoptar/[token] a11y check.",
+    "NO COVERAGE: /adoptar lists nothing — db:bootstrap publishes no adoption listing, so the public pet detail went unaudited this run. Fixture gap, not a flake.",
   );
 
   const href = await petLink.getAttribute("href");
