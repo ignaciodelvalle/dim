@@ -147,7 +147,7 @@ no de diseño.
 
 | # | Unidad | Estado |
 |---|---|---|
-| **P2.1** | **Los 4 rojos de `final-seams`.** La spec no podía fallar (verde-y-muerta en TODAS las corridas de CI). Ahora afirma. El PO pidió **investigar los 4 antes** de decidir arreglarla o jubilarla — `crisis-seams` cubre las mismas costuras sobre el nivel que CI sí siembra y pasa | abierta |
+| **P2.1** | **Los 4 rojos de `final-seams`.** La spec no podía fallar (verde-y-muerta en TODAS las corridas de CI). Ahora afirma. El PO pidió **investigar los 4 antes** de decidir arreglarla o jubilarla — `crisis-seams` cubre las mismas costuras sobre el nivel que CI sí siembra y pasa | **CERRADA** — los 4 son drift/fixture, **cero defectos de producto**. Spec jubilada |
 | **P2.2** | **A15 — el fixture de RLS elige mascota con transferencia pendiente.** `__tests__/rls/matrix.test.ts:222` choca con `one_pending_per_pet`. **Solo local** (CI bootstrapea limpio). Mismo patrón que A8: `NOT EXISTS` sobre el predicado del índice, copiar `scripts/seed-case-guards.ts` | abierta |
 | **P2.3** | **`csp-smoke` escanea un 404.** Verde para una ruta que nunca visitó — misma clase que el gate de a11y que escaneaba un no-encontrado | abierta |
 | **P2.4** | **El chequeo de PII de `synthetic-monitor` no puede fallar** — asserta contra `"Ignacio del Valle"` mientras el dueño en CI es `"Lucía Tester"` | abierta |
@@ -294,7 +294,7 @@ Es para ESTA corrida, no permanente.
 |---|---|---|
 | P1.1 #40c censo/población | **CERRADA** (datos + render + divulgación + tests) | `9305f942` · `4ff4d55c` · `bf5c9edf` |
 | P1.2 A14 nav drop | pendiente | |
-| P2.1 los 4 de final-seams | pendiente | |
+| P2.1 los 4 de final-seams | **CERRADA** — los 4 investigados: (a) manejaba una mascota de otro dueño, (b) exigía sello profesional a un firmante sin matrícula, (c) esperaba un h1 que la fusión F1 suprime a propósito, (d) nunca publicaba y colgaba 120s en "Ya postulaste". **Ningún defecto de producto.** Spec + su config dedicada jubiladas; delta de cobertura en el encabezado de `crisis-seams` | |
 | P2.2 A15 fixture RLS | **CERRADA** — el `NOT EXISTS` obvio dejaba 44 celdas en skip-silencioso; el fixture se auto-provisiona una mascota propia | `4bd6f9fd` |
 | P2.3 csp-smoke sobre 404 | **CERRADA** — y `assertRealPage()` de A7 tenía el mismo bug que arreglaba: no reconocía el 404 de `(public)` | `d2494b60` |
 | P2.4 PII assert imposible | **CERRADA** — PII del dueño descubierta en runtime; teléfono por dígitos; `findPiiLeaks` lanza si el nombre viene vacío | `e93a1a72` |

@@ -66,7 +66,7 @@ Cuatro acciones manuales. Ninguna es código.
 ### Tests que no guardan nada
 | # | Qué |
 |---|---|
-| **P2.1** | **Los 4 rojos de `final-seams`** — el PO pidió investigarlos antes de decidir si jubilar la spec. **Sin hacer** |
+| ~~**P2.1**~~ | ~~**Los 4 rojos de `final-seams`**~~ — **CERRADA 31/07**: los 4 investigados uno por uno, **ninguno era un defecto de producto**. Spec jubilada; `crisis-seams` cubre las mismas 4 costuras sobre el nivel que CI siembra. Delta de cobertura documentada en su encabezado |
 | **RA-4 F8** | Un test de scope de gobierno que **nunca ejecutó una aserción** desde que se escribió: el primer test del archivo deja al usuario en un estado que hace fallar su `submit`, y el `if (!submit.ok) return` se traga todo |
 | **RA-4 F9** | Un guard cross-org que **nunca llama a la acción que guarda** — la aserción de cierre es tautológica por construcción |
 | **RA-4 F5-F7** | El `pet-carousel-dots` muerto, el chequeo de "cero disfrazado de supresión" que nunca inspecciona un numérico, y warn-and-skip en tests de constraint |

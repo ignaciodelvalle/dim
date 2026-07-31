@@ -28,6 +28,44 @@
  * seed-demo.ts persona: CI never runs that chain, so such a spec measures
  * accumulated laptop state rather than the code (commit 51b2eff1). Seam (d) is
  * the remaining exception and is documented as such at its own definition.
+ *
+ * ─── ABSORBED: e2e/final-seams.spec.ts, retired 2026-07-31 (P2.1) ─────────
+ * That file was the older SOFT recording battery over these same four seams.
+ * Commit 96c8a2d3 gave it a real assertion and it went red on all four; the PO
+ * gate was to investigate each red before retiring it, so that a genuine
+ * regression could not be deleted along with the noise. Measured back-to-back
+ * against one healthy QA server: final-seams 0/4, this suite 3/4 with (d)
+ * failing on its own documented fixture exhaustion. Not one of the four had
+ * found a product defect —
+ *   (a) drove DIM-DEMO-0010 (Pipa) as owner@dim.test. Pipa belongs to
+ *       graciela@dim.test, so requireOwnedPetByToken bounced it every run
+ *       since the day it was written. It also asserted that govt@dim.test
+ *       (scoped to Ushuaia + El Calafate) could see a CABA pet, and reverted
+ *       through a "Confirmar" button D.3 had renamed to "Marcar como
+ *       encontrada" — so its cleanup was a silent no-op too.
+ *   (b) asserted a professional seal from alejo@dim.test, an org admin with no
+ *       validated matrícula. The vaccine signs fine; the asiento correctly
+ *       lands author_verified=f, which is exactly what the Atender surface
+ *       warns the signer before they sign. Seam (b) here uses the matriculated
+ *       vet@dim.test for that reason, and asserts the provenance, not a
+ *       page-wide /matrícula/ substring that the disclaimer alone satisfies.
+ *   (c) waited for the "Moderación de denuncias" heading at /admin/moderacion.
+ *       The F1 fusion (2026-07-22) turned that route into a redirect into a hub
+ *       that suppresses the stage's own h1 on purpose (ScreenHeader underHub).
+ *       Seam (c) here asserts the redirect and the hub's own h1 instead.
+ *   (d) never published anything — its publish click was guarded by
+ *       `if (isEnabled)` — so it inherited whatever listing an earlier run had
+ *       left behind and then hung for its entire 120s budget on the "Ya
+ *       postulaste" screen it had no branch for.
+ *
+ * WHAT STOPPED BEING WATCHED: nothing that was ASSERTED. Its three unique legs
+ * — the /gob rabies KPI delta, the CAS- code on the owner profile, and the
+ * /gob/perdidas board after mark-found — were note-only or screenshot-only and
+ * could not turn a test red. The one real gap is the DNI path of the finalize
+ * screen ("¿Adopción por fuera de las postulaciones?"), which loses its only
+ * e2e mention; that mention was nominal, since final-seams died three steps
+ * earlier on every run, and the rule itself is covered by
+ * src/modules/adoption/domain/__tests__/finalize-rules.test.ts.
  */
 
 import { type Locator, type Page, expect, test } from "@playwright/test";
