@@ -20,6 +20,25 @@
 
 ---
 
+## Decisiones del PO tomadas ANTES de arrancar (2026-07-31)
+
+| # | Tema | Decisión |
+|---|---|---|
+| **D.10** | **#40c alcance** | **El funcionario ve SU propia jurisdicción con el número real; se suprime lo ajeno. El export coincide EXACTAMENTE con la pantalla.** Razón: mirar el censo del propio municipio no es una divulgación —son sus administrados, ya están en su padrón—; la supresión existe para impedir inferir sobre jurisdicciones ajenas. Y un export que difiera de la pantalla se vuelve la vía para saltear la protección |
+| **D.11** | **Geocoding caído** | **Fallback a la jurisdicción del texto del formulario, marcada como NO VERIFICADA.** Nunca se pierde la denuncia. **Condición de implementación (no negociable)**: la marca de baja confianza debe ser VISIBLE en la cola del operador, no solo persistida — si no, una denuncia ruteada al municipio equivocado *se ve atendida y no lo está*, que es el riesgo que el PO aceptó y que esta condición neutraliza |
+| **D.12** | **A14 interino** | Si no aparece la causa raíz: **fallo RUIDOSO**. El vet ve "no pudimos confirmar — revisá la libreta antes de volver a firmar", nunca "Registrando…" eterno. No afirma éxito: declara que no sabe. Corta el daño irreversible. **NO** se agrega un guard server-side de re-firma (lógica de dominio nueva, sin tiempo de maduración) |
+| **D.13** | **Push y visuales** | **Push AUTORIZADO para esta corrida.** Los dos cambios visuales grandes (703 + SC-7) entran con capturas antes/después por superficie y van a ratificación. Si una review da DO NOT SHIP y el fix no es claro: **NO se pushea** y el veredicto queda arriba de todo en este archivo |
+
+## Defaults que el agente fija (no molestar al PO por esto)
+
+- **A2b (limpiador de huérfanos)**: **NO se implementa.** Cambia un script que BORRA y no hay autorización. Queda documentado con la propuesta.
+- **Partir `PanoramaConsole.tsx`** (para desbloquear A2c): **se hace.** Es refactor mecánico con tests detrás, y el fence obliga igual.
+- **Si `verify` se pone rojo por algo que no puedo arreglar**: se detiene ESA unidad, siguen las demás, se documenta.
+- **Si una review da DO NOT SHIP**: no se pushea, veredicto arriba de todo (D.13).
+- **Escritura a la base local bloqueada por el clasificador**: NO se insiste ni se rodea. Se encola con el comando exacto para el PO y se sigue con otro trabajo. **Nunca se frena la corrida por esto.**
+- **Ratificación R1-R10 / N1-N4**: no bloquea nada, se acumula.
+- **Fecha de cutover**: no se propone hasta que la tabla cierre (regla D7).
+
 ## PARTE 1 — El backlog completo
 
 ### Prioridad 1 — Privacidad y daño irreversible
@@ -145,7 +164,21 @@ Las 18 de `2026-07-31-*` siguen vigentes. Las tres que más costaron:
 - **Serializar todo lo que necesite servidor.** Máximo 3 escritores, territorio enumerado.
 
 ## Autorización de push
-**PENDIENTE** — se concede por corrida.
+**CONCEDIDA (PO, 2026-07-31)** — ver D.13. Al cierre: gate verde → las 10 reviews
+sobre el rango completo → fixes de los CONFIRMED como commits propios → push.
+DO NOT SHIP con fix no claro ⇒ no se pushea y el veredicto va arriba de todo.
+Es para ESTA corrida, no permanente.
+
+## Auditoría de autonomía — dónde PODRÍA trabarme, y qué hago
+
+| Riesgo | Mitigación |
+|---|---|
+| El clasificador bloquea una escritura a la base local (pasó el 31 con un `UPDATE` a `pets`) | No insistir. Encolar el comando exacto y **seguir con otras unidades**. La corrida no se frena |
+| Una unidad de privacidad no cierra entera | Regla 7: se revierte y se documenta. No es una pregunta |
+| Los 4 de `final-seams` resultan defectos reales y caros | Se arreglan si son baratos o revelan un defecto; se jubila la spec solo si son puro drift de nivel demo **y** se demuestra que `crisis-seams` cubre la misma costura |
+| Dos agentes chocan por el servidor | Máximo 3 escritores, territorio enumerado, **y una sola unidad con servidor por vez** |
+| El worker de Windows pone la suite en exit 1 | Conocido, no reproduce en Linux. Se juzga por CONTEOS, nunca por exit code |
+| Una review produce cien "quizás" | Regla transversal: sin input concreto → salida incorrecta, es sospecha y va en sección aparte |
 
 ## Estado
 
