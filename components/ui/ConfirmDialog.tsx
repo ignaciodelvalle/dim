@@ -86,6 +86,12 @@ export type ConfirmDialogProps = {
   onClose: () => void;
   onConfirm: () => void;
   title: string;
+  /**
+   * The consequence sentence. Wired to the dialog via `aria-describedby`, so a
+   * screen reader speaks it as part of the dialog announcement (RA-9 BR-3) —
+   * without that wiring `showModal()` announces only the title plus the focused
+   * Cancel button, and the consequence is never read aloud.
+   */
   description?: string;
   /**
    * REQUIRED — the label carries the VERB OF THE ACT ("Revocar", "Aceptar
@@ -123,6 +129,12 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const titleId = useRef(`confirm-dialog-title-${Math.random().toString(36).slice(2)}`).current;
+  // RA-9 BR-3: showModal() puts initial focus on Cancel, so the AT announces the
+  // dialog NAME plus the focused control — the `description` (the sentence that
+  // STATES the consequence, the entire point of D.3's "modal that states the
+  // consequence") was spoken by nobody. aria-describedby is what makes the
+  // browser read it as part of the dialog announcement.
+  const descId = useRef(`confirm-dialog-desc-${Math.random().toString(36).slice(2)}`).current;
   // Tracks whether THIS instance has actually been open, so the focus-restore
   // effect below only fires on a real open→close transition — see its comment.
   const wasOpenRef = useRef(false);
@@ -178,6 +190,7 @@ export function ConfirmDialog({
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
+      aria-describedby={description ? descId : undefined}
       aria-modal="true"
       onClose={onClose}
       className={[
@@ -200,7 +213,7 @@ export function ConfirmDialog({
           {title}
         </h2>
         {description && (
-          <p className="mt-1.5 text-[13px] text-[var(--color-ln-ink-2)] leading-snug">
+          <p id={descId} className="mt-1.5 text-[13px] text-[var(--color-ln-ink-2)] leading-snug">
             {description}
           </p>
         )}
