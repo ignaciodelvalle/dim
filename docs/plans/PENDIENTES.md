@@ -26,13 +26,32 @@ Cuatro acciones manuales. Ninguna es código.
    un contacto **monitoreado**, así que moverlo a `hola@mimar.ar` solo es seguro
    si alguien lee esa casilla. `SECURITY.md:12` lleva la misma dirección.
 
-### Además, ahora mismo
-- **El servidor de QA en `:3000` sirve chunks que no existen** (2 de 8 dan 400).
-  React nunca hidrata, así que **todo click se descarta en silencio** — y eso
-  imita perfectamente un defecto de producto. Casi reportamos dos como reales.
-  Hay uno sano en **`:3100`**; cualquier agente que use navegador debe ir con
-  `QA_PORT=3100` hasta que se reinicie `:3000`. El árbol está limpio: un
-  `pwsh scripts/qa-up.ps1` es seguro. **Detectarlo es un solo `curl`.**
+### Además, ahora mismo — NINGÚN servidor de QA sirve
+
+Medido 31/07 09:20: **`:3000` tiene 7 chunks rotos de 21; `:3100`, 3 de 21.**
+Los dos dan 400 en `webpack-*.js`, así que React **nunca hidrata** y **todo
+click se descarta en silencio**. Eso imita perfectamente un defecto de
+producto: dos specs independientes fallaron igual y casi las reportamos como
+dos defectos graves reales.
+
+**Cómo se llegó acá, porque se va a repetir**: un agente dejó `:3100` sano;
+después alguien corrió `pnpm verify`, que hace `pnpm build`, y el build
+**reescribió `.next` por debajo de los dos servidores vivos**. Los hashes de
+chunk cambian, el HTML servido sigue pidiendo los viejos.
+
+**La regla**: después de cualquier build, los servidores de QA quedan muertos
+aunque respondan 200 en `/`. Reiniciarlos es obligatorio, no opcional.
+
+**Detectarlo es un `curl`**: bajar `/`, extraer `/_next/static/chunks/*.js`,
+pedir cada uno. Un solo 400 invalida toda sesión de navegador. Vale la pena
+meter ese chequeo dentro de `qa-up.ps1` y de cualquier brief que use navegador.
+
+PIDs actuales: `:3000` → 36372, `:3100` → 33356. Matarlos con
+`taskkill //PID <pid> //F`. El árbol está limpio, así que rebuild + restart es
+seguro. **`pwsh` no está instalado acá** — la invocación es
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/qa-up.ps1`, y
+ojo que su rama "port already listening → reusing running server" **reusa el
+servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero.
 
 ---
 
