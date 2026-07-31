@@ -130,18 +130,31 @@ export default async function PerdidasPage({
         <QuickFilterRow filters={filters} />
 
         {items.length === 0 ? (
+          // UX 3.5 item 3 (same class /adoptar already solved): distinguish
+          // true-empty from filter-empty. The primary line used to say "con
+          // esos filtros" unconditionally — hasActiveFilters only gated the
+          // secondary line — so a visitor who had applied nothing was told
+          // their filters were the problem, and then, in the next breath, that
+          // there were no lost pets at all. Two answers to one question.
           <div className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
-            <p className="text-sm font-medium text-[var(--color-ln-ink)]">
-              No encontramos mascotas perdidas con esos filtros.
-            </p>
             {hasActiveFilters ? (
-              <Link href="/perdidas" className="text-sm text-[var(--color-ln-err)] underline">
-                Limpiar filtros
-              </Link>
+              <>
+                <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+                  No encontramos mascotas perdidas con esos filtros.
+                </p>
+                <Link href="/perdidas" className="text-sm text-[var(--color-ln-err)] underline">
+                  Limpiar filtros
+                </Link>
+              </>
             ) : (
-              <p className="text-xs text-[var(--color-ln-mute)]">
-                Buena noticia: no hay mascotas reportadas como perdidas en este momento.
-              </p>
+              <>
+                <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+                  No hay mascotas reportadas como perdidas en este momento.
+                </p>
+                <p className="text-xs text-[var(--color-ln-mute)]">
+                  Buena noticia. Si perdiste la tuya, activá el modo perdido desde su credencial.
+                </p>
+              </>
             )}
           </div>
         ) : (

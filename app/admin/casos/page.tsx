@@ -61,6 +61,8 @@ export default async function AdminCasosPage({
   // Used to show/hide the "Limpiar filtros" link — the default open view is not
   // considered an active filter.
   const statusExplicitlyOverridden = casoEstado !== "open";
+  const hasActiveFilters =
+    statusExplicitlyOverridden || kindFilter !== null || provinceFilter !== null;
 
   const filterParams: Record<string, string | undefined> = {
     // Carry status in pagination links only when it differs from the default (open).
@@ -192,7 +194,15 @@ export default async function AdminCasosPage({
           // "más recientes de N" is a first-page affordance; on a keyset page
           // (cursor set) these are the NEXT 50, not the most recent, so omit it.
           totalCount={rawCursor ? undefined : totalCount}
-          emptyMessage="Sin casos registrados para los filtros aplicados."
+          // Same class /adoptar solved and /perdidas has now been fixed for:
+          // "para los filtros aplicados" blamed filters nobody had applied. On
+          // the untouched default view the honest reading is that the open
+          // queue is empty — which is the good news, not a filtering accident.
+          emptyMessage={
+            hasActiveFilters
+              ? "Ningún caso coincide con los filtros aplicados."
+              : "No hay casos abiertos. Usá «Ver todos» para incluir los cerrados."
+          }
         />
       </Suspense>
 

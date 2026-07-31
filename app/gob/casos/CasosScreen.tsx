@@ -206,9 +206,17 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
     detailHref: `/gob/casos/${c.publicCode}`,
   }));
 
+  // The two casos twins must read identically, so the admin branch gets the
+  // same true-empty / filter-empty split /admin/casos now uses: "para los
+  // filtros aplicados" blamed filters nobody had applied on the untouched
+  // default view (RA-6 finding 5). The govt branches below were already honest.
+  const hasFilters = casoEstado !== "open" || kindFilter !== null || provinceFilter !== null;
+
   const emptyMessage =
     scope.role === "admin"
-      ? "Sin casos registrados para los filtros aplicados."
+      ? hasFilters
+        ? "Ningún caso coincide con los filtros aplicados."
+        : "No hay casos abiertos."
       : activeStatus === "open"
         ? "No hay casos abiertos en tu jurisdicción."
         : activeStatus === "closed"
@@ -225,7 +233,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
     rawCursor,
     olderLink,
     newerLink,
-    hasFilters: casoEstado !== "open" || kindFilter !== null || provinceFilter !== null,
+    hasFilters,
     queueRows,
     totalCount,
     emptyMessage,
