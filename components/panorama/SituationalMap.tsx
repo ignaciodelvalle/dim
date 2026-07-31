@@ -38,6 +38,7 @@ import { HATCH_IMAGE_ID } from "@/components/panorama/hatch-pattern";
 import { registerChoroplethPatterns } from "@/components/panorama/map-pattern-images";
 import {
   type LayerReadout,
+  buildChoroplethDetailProps,
   buildLayerReadout,
   buildPinnedPopupHtml,
   divisionReadoutDataType,
@@ -2137,7 +2138,10 @@ export function SituationalMap({
         readouts: divisionReadouts(code),
         detail: {
           layerId: layer.id,
-          properties: {
+          // Same builder as the province grain (RA-7 F1) — one payload shape,
+          // both grains, the k-anon flag structurally inseparable from the value.
+          properties: buildChoroplethDetailProps({
+            level: "locality",
             // Barrio divisions map 1:1 to a locality, so surface the name as the
             // locality (unit-history keyed by locality still works). Departamento
             // fills aggregate several localities — carry the department name
@@ -2148,10 +2152,8 @@ export function SituationalMap({
             // drilled into one province (the barrio/department case); null at
             // national LOD scope, where no single province owns the click.
             province: provinceByCode(selectedProvinceRef.current)?.name ?? null,
-            value,
-            level: "locality",
-            suppressed: isSuppressed,
-          },
+            cell: { value, suppressed: isSuppressed },
+          }),
         },
       });
     });
@@ -2538,14 +2540,17 @@ export function SituationalMap({
         lngLat: e.lngLat,
         place: props.name ?? code ?? "—",
         readouts: provinceReadouts(code),
+        // RA-7 F1: the payload is built from the CELL, so the k-anon flag rides
+        // along with the value (this used to forward `.value` alone — see
+        // buildChoroplethDetailProps).
         detail: {
           layerId: layer.id,
-          properties: {
+          properties: buildChoroplethDetailProps({
+            level: "province",
             provinceCode: code,
             province: props.name ?? code,
-            value: cellFor(code).value,
-            level: "province",
-          },
+            cell: cellFor(code),
+          }),
         },
       });
     });

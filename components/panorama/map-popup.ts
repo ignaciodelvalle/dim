@@ -221,3 +221,62 @@ export function buildPinnedPopupHtml(input: {
     `${context}${detail}</div>`
   );
 }
+
+// ---------------------------------------------------------------------------
+// The DetailDrawer payload behind "Ver detalle →"
+// ---------------------------------------------------------------------------
+
+/** A choropleth cell's PUBLISHED state — both halves, never one.
+ *  Structurally identical to `ProvinceCellState` (province-choropleth-style.ts);
+ *  restated here so this module stays a leaf (no map-graph import). */
+export type CellState = { value: number | null; suppressed: boolean };
+
+/** What "Ver detalle →" hands the DetailDrawer for a choropleth cell, per grain. */
+export type ChoroplethDetailInput =
+  | { level: "province"; provinceCode: string; province: string; cell: CellState }
+  | {
+      level: "locality";
+      locality: string | null;
+      departmentName: string | null;
+      province: string | null;
+      cell: CellState;
+    };
+
+/**
+ * Build the DetailDrawer property bag for a clicked choropleth cell.
+ *
+ * RA-7 F1 — THE REASON THIS IS A FUNCTION AND NOT TWO OBJECT LITERALS. The two
+ * click handlers in SituationalMap each assembled their own bag. The division
+ * one carried `suppressed`; the province one wrote `value: cellFor(code).value`
+ * and dropped the `.suppressed` the SAME lookup returned. Downstream, the
+ * drawer's #40b guard ("the flag decides, at any grain") read
+ * `properties.suppressed === true` — permanently false on that path — and fell
+ * through to a confident `String(value ?? 0)`. So the map hatched a k-anon
+ * province, the hover said "Protegido por privacidad (k<5)", the pinned popup
+ * said "Dato protegido", and the drawer one click later published "0" for the
+ * very cell those three marks exist to protect. A correct guard whose input
+ * never arrived — and on mortalidad, a confident zero that under-reports deaths.
+ *
+ * The fix is shaped so it cannot recur: this takes the CELL STATE, not a bare
+ * value, so there is no signature through which a caller can forward the number
+ * and leave the flag behind. Both grains go through it; parity is structural,
+ * not a convention two handlers have to remember.
+ */
+export function buildChoroplethDetailProps(input: ChoroplethDetailInput): Record<string, unknown> {
+  const base = { value: input.cell.value, suppressed: input.cell.suppressed };
+  if (input.level === "province") {
+    return {
+      ...base,
+      level: "province",
+      provinceCode: input.provinceCode,
+      province: input.province,
+    };
+  }
+  return {
+    ...base,
+    level: "locality",
+    locality: input.locality,
+    departmentName: input.departmentName,
+    province: input.province,
+  };
+}

@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   COUNT_READOUT_SUFFIX,
+  buildChoroplethDetailProps,
   buildLayerReadout,
   buildPinnedPopupHtml,
   countReadoutLabel,
@@ -275,5 +276,85 @@ describe("formatNegativeGap — an already-computed shortfall", () => {
   it("agrees with formatSignedGap on the same shortfall", () => {
     // 80 against a target of 95,6 is a 15,6-point gap either way.
     expect(formatSignedGap(80, 95.6)).toBe(formatNegativeGap(15.6));
+  });
+});
+
+// RA-7 F1 — the "Ver detalle →" payload. The province click handler forwarded
+// `cellFor(code).value` and threw the `.suppressed` from the SAME lookup away,
+// so the DetailDrawer's k-anon guard was dead code on that path: the map
+// hatched the province, the popup said "Dato protegido", and the drawer said
+// "Mascotas fallecidas: 0". Both grains now go through ONE builder that takes
+// the CELL, so a caller cannot forward the number without the flag.
+describe("buildChoroplethDetailProps — the flag travels with the value", () => {
+  it("carries suppressed:true for a protected PROVINCE cell (the F1 regression)", () => {
+    const props = buildChoroplethDetailProps({
+      level: "province",
+      provinceCode: "AR-Z",
+      province: "Santa Cruz",
+      cell: { value: null, suppressed: true },
+    });
+    expect(props.suppressed).toBe(true);
+    expect(props.value).toBeNull();
+    expect(props.level).toBe("province");
+    expect(props.province).toBe("Santa Cruz");
+  });
+
+  it("carries suppressed:false — explicitly, never undefined — for a published cell", () => {
+    // `undefined` is the shape that broke it: `properties.suppressed === true`
+    // is false for BOTH states, so an absent key reads exactly like "publicable".
+    const props = buildChoroplethDetailProps({
+      level: "province",
+      provinceCode: "AR-B",
+      province: "Buenos Aires",
+      cell: { value: 137, suppressed: false },
+    });
+    expect(props.suppressed).toBe(false);
+    expect(props.suppressed).not.toBeUndefined();
+    expect(props.value).toBe(137);
+  });
+
+  it("keeps a null value NULL — the drawer must not read it as a measured 0", () => {
+    const props = buildChoroplethDetailProps({
+      level: "province",
+      provinceCode: "AR-X",
+      province: "Córdoba",
+      cell: { value: null, suppressed: false },
+    });
+    expect(props.value).toBeNull();
+    expect(props.value).not.toBe(0);
+  });
+
+  it("carries the flag at LOCALITY grain too (the division handler's contract)", () => {
+    const props = buildChoroplethDetailProps({
+      level: "locality",
+      locality: "Palermo",
+      departmentName: "Palermo",
+      province: "CABA",
+      cell: { value: null, suppressed: true },
+    });
+    expect(props.suppressed).toBe(true);
+    expect(props.level).toBe("locality");
+    expect(props.locality).toBe("Palermo");
+  });
+
+  it("emits `suppressed` at EVERY grain — the parity the two handlers used to break", () => {
+    const grains = [
+      buildChoroplethDetailProps({
+        level: "province",
+        provinceCode: "AR-B",
+        province: "Buenos Aires",
+        cell: { value: 1, suppressed: false },
+      }),
+      buildChoroplethDetailProps({
+        level: "locality",
+        locality: "Palermo",
+        departmentName: "Palermo",
+        province: "CABA",
+        cell: { value: 1, suppressed: false },
+      }),
+    ];
+    for (const props of grains) {
+      expect(Object.hasOwn(props, "suppressed")).toBe(true);
+    }
   });
 });

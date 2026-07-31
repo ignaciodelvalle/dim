@@ -555,10 +555,20 @@ export function FeatureBody({
                 // `String(value ?? 0)` for a k-anon-protected PROVINCE, i.e. a
                 // confident "0" for a cell the map was hatching. The flag decides,
                 // at any grain.
+                //
+                // RA-7 F1, the second false zero on the same line: a province the
+                // layer carries NO cell for resolves to `{ value: null,
+                // suppressed: false }`, and `?? 0` turned that absence into a
+                // measured "0". The map already separates the three states
+                // (colour = value · hatch = protegido · stipple = sin datos —
+                // province-choropleth-style.ts); the drawer must not collapse the
+                // last two back into a number the data never contained.
                 suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
+                ) : value === null || value === undefined ? (
+                  <span className="text-ln-op-mute">Sin datos</span>
                 ) : (
-                  String(value ?? 0)
+                  String(value)
                 )
               }
             />
