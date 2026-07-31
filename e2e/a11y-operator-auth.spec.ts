@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-import { assertRealPage } from "./demo/_helpers";
+import { ACCOUNTS, assertRealPage, discoverPetToken, loginAs } from "./demo/_helpers";
 
 /**
  * A11y e2e tests for operator + authenticated surfaces (Wave 2 Item 11).
@@ -24,7 +24,8 @@ import { assertRealPage } from "./demo/_helpers";
  *     role=owner), so these routes redirect to / or /mis-mascotas. We axe-test
  *     the REDIRECT TARGET because the browser always lands on that page, and
  *     that page must be axe-clean.
- *   - /anotar — accessible to any authenticated owner.
+ *   - /mis-mascotas/[token]/anotar — accessible to any authenticated owner.
+ *     (Listed as "/anotar" until 2026-07-31. That route does not exist.)
  *
  * WS-C (2026-07-01): authenticated axe passes for /admin and /gob added below,
  * using the seeded admin@dim.test and govt@dim.test accounts. They assert no
@@ -35,35 +36,28 @@ import { assertRealPage } from "./demo/_helpers";
  * resolution — tracked as a follow-up.
  */
 
-const OWNER_EMAIL = "owner@dim.test";
-const OWNER_PASSWORD = "Test1234!";
-
-// Institutional accounts seeded by scripts/seed-test-users.ts.
-const ADMIN_EMAIL = "admin@dim.test";
-const GOVT_EMAIL = "govt@dim.test";
-const SHARED_PASSWORD = "Test1234!";
-
-// Authenticated operator landings + their login account. axe asserts no
-// critical/serious violations (WS-C bar); color-contrast is validated via tokens.
+// Sign-in goes through the shared `loginAs` (e2e/demo/_helpers.ts), which waits
+// for "left /login" rather than for a specific landing URL. The three inline
+// copies that used to live in this file all waited on `/\/inicio/`, a pathname
+// the address bar NEVER shows: app/(app)/inicio/page.tsx is a redirect-only
+// router, so the redirect resolves before the navigation commits. e2e/owner-
+// shell.spec.ts carried the same copy and died on it in every CI run
+// (TimeoutError: page.waitForURL, run 30614542320 failures 13/14/15). Waiting
+// on the landing is unnecessary here anyway — each test navigates to its own
+// route immediately afterwards and asserts THAT.
 const AUTHED_OPERATOR_ROUTES = [
-  { path: "/admin", email: ADMIN_EMAIL, landing: /\/admin/ },
-  { path: "/gob", email: GOVT_EMAIL, landing: /\/gob/ },
+  { path: "/admin", email: ACCOUNTS.admin },
+  { path: "/gob", email: ACCOUNTS.govt },
 ] as const;
 
 test.describe("authenticated operator surfaces — axe-clean (WCAG 2.1 AA, WS-C)", () => {
-  for (const { path, email, landing } of AUTHED_OPERATOR_ROUTES) {
+  for (const { path, email } of AUTHED_OPERATOR_ROUTES) {
     test(`a11y(axe) ${path} authenticated — no critical/serious`, async ({ page }) => {
-      await page.goto("/login");
-      await page.getByLabel(/correo electrónico/i).fill(email);
-      await page.getByLabel(/contraseña/i).fill(SHARED_PASSWORD);
-      await page.getByRole("button", { name: /iniciar sesión/i }).click();
-      // Institutional accounts land on their portal (not /inicio).
-      //
-      // NO `.catch(() => {})` HERE. Swallowing this is what let the scan run
-      // against the login page: a failed sign-in became "we are somewhere, axe
-      // it". If an institutional account cannot reach its portal, that is the
-      // finding — report it as one instead of measuring the consolation prize.
-      await page.waitForURL(landing, { timeout: 15_000 });
+      // Throws on a refused sign-in. The version this replaced ended in
+      // `.catch(() => {})`, which turned a failed login into "we are somewhere,
+      // axe it" — the scan then measured the login page or a 404 and reported
+      // critical=0.
+      await loginAs(page, email);
 
       await page.goto(path);
       await page.waitForLoadState("networkidle");
@@ -93,11 +87,7 @@ const OPERATOR_REDIRECT_SOURCES = [
 
 test.describe("operator routes — redirect targets are axe-clean (WCAG 2.1 AA)", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
-    await page.getByLabel(/contraseña/i).fill(OWNER_PASSWORD);
-    await page.getByRole("button", { name: /iniciar sesión/i }).click();
-    await page.waitForURL(/\/inicio/, { timeout: 15_000 });
+    await loginAs(page, ACCOUNTS.owner);
   });
 
   for (const { path, redirectPattern } of OPERATOR_REDIRECT_SOURCES) {
@@ -110,9 +100,11 @@ test.describe("operator routes — redirect targets are axe-clean (WCAG 2.1 AA)"
         { timeout: 10_000 },
       );
       await page.waitForLoadState("networkidle");
-      // The redirect TARGET is the subject here, so name it as such — landing on
-      // a 404 would otherwise be scored as "the redirect target is axe-clean".
-      await assertRealPage(page, `${path} -> redirect target`);
+      // The DESTINATION is the subject, so assert the destination. Passing a
+      // prose label here ("/admin -> redirect target") is what the old version
+      // did, and since assertRealPage only used its second argument for error
+      // text, the destination was never checked at all.
+      await assertRealPage(page, redirectPattern);
 
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -124,24 +116,29 @@ test.describe("operator routes — redirect targets are axe-clean (WCAG 2.1 AA)"
   }
 });
 
-// /anotar is accessible to any authenticated owner (no institutional role needed).
-test.describe("owner route /anotar — axe-clean (WCAG 2.1 AA)", () => {
+// THE ROUTE IS /mis-mascotas/[publicToken]/anotar. There is no top-level
+// `/anotar`: no app/(app)/anotar/**, not one `href="/anotar"` anywhere in app/,
+// components/ or lib/, and next.config.ts declares headers() only — no rewrite.
+//
+// This whole describe block audited `/anotar` and the comment on it asserted
+// the premise that made it look reasonable: "without a petToken it redirects or
+// shows a picker. Either is a real surface." Neither happens. It 404s, and a
+// branded 404 is a small clean page that axe scores at zero violations. The
+// route literal is discovered from the owner's own registry for the same reason
+// the rest of the suite does it (DIM-B4KS-KWZA, then DIM-DEMO-0001, both rotted).
+test.describe("owner route /mis-mascotas/[token]/anotar — axe-clean (WCAG 2.1 AA)", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/login");
-    await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
-    await page.getByLabel(/contraseña/i).fill(OWNER_PASSWORD);
-    await page.getByRole("button", { name: /iniciar sesión/i }).click();
-    await page.waitForURL(/\/inicio/, { timeout: 15_000 });
+    await loginAs(page, ACCOUNTS.owner);
   });
 
-  test("a11y(axe) /anotar — WCAG 2.1 AA (no critical violations)", async ({ page }) => {
-    // /anotar requires a petToken — without one it redirects or shows a picker.
-    // Either is a real surface and worth auditing; a not-found boundary is not,
-    // and the old comment here ("let the page settle") was the whole problem:
-    // the test did not know what it had measured, and said so.
-    await page.goto("/anotar");
+  test("a11y(axe) /mis-mascotas/[token]/anotar — WCAG 2.1 AA (no critical violations)", async ({
+    page,
+  }) => {
+    const token = await discoverPetToken(page);
+    const route = `/mis-mascotas/${token}/anotar`;
+    await page.goto(route);
     await page.waitForLoadState("networkidle");
-    await assertRealPage(page, "/anotar");
+    await assertRealPage(page, route);
 
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
