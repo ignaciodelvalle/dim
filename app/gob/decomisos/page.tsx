@@ -5,12 +5,19 @@
 //
 // Query: cases WHERE caseKind='custody_episode'
 //          AND openedByOrganizationId = govtOrg.id
-//        ORDER BY openedAt DESC, id DESC
+//          AND <the case's jurisdiction is inside session.jurisdictions>
+//        ORDER BY openedAt DESC, createdAt DESC, id DESC
 //
 // Columns: pet, status/phase, dias transcurridos, refugio receptor, accion Reasignar.
-// Auth: requireDecomisoPrincipal (admin sees all; govt scoped to their org).
+// Auth: requireDecomisoPrincipal, then TWO independent narrowings for govt:
+//   1. openedByOrganizationId — workflow ownership ("my authority opened it").
+//   2. jurisdictionPairClause  — the jurisdictional FENCE (RA-8 R3). This list
+//      used to have only (1), which a stale membership in another province's
+//      authority org satisfies; the rows it surfaced fed the Reasignar and
+//      Devolver buttons. See decomiso-jurisdiction-fence.ts.
+// Admin is universal on both.
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { type SQL, and, desc, eq, inArray, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import {
@@ -29,6 +36,7 @@ import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
+import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { formatCount, formatDate, speciesLabel } from "@/lib/utils/format";
 import { resolveGovtOrgForUser } from "@/src/modules/decomiso/application/resolve-govt-org";
 
@@ -85,9 +93,10 @@ export default async function DecomisosDashboardPage({
 }) {
   const session = await requireDecomisoPrincipal();
 
-  // Admin sees every custody_episode. Govt is scoped to cases opened by their
-  // own sanitary_authority org.
+  // Admin sees every custody_episode. Govt is narrowed twice — by the authority
+  // that opened the episode AND by the operator's own jurisdiction assignments.
   let govtOrgId: string | null = null;
+  let jurisdictionFence: SQL | undefined;
   if (session.profile.role !== "admin") {
     const govtOrg = await resolveGovtOrgForUser(session.user.id);
     if (!govtOrg) {
@@ -100,6 +109,18 @@ export default async function DecomisosDashboardPage({
       );
     }
     govtOrgId = govtOrg.id;
+
+    // The SQL mirror of jurisdictionScopeContains — same whole-province
+    // subsumption the CREATE guard and canReadCase apply, so the list can never
+    // disagree with the detail page about what this operator governs.
+    // `?? sql\`false\`` is the fail-closed leg: zero assignments means zero
+    // rows, never an absent predicate.
+    jurisdictionFence =
+      jurisdictionPairClause(
+        session.jurisdictions.map((j) => ({ province: j.province, locality: j.locality })),
+        sql`${cases.jurisdictionProvince}`,
+        sql`${cases.jurisdictionLocality}`,
+      ) ?? sql`false`;
   }
 
   const sp = await searchParams;
@@ -121,7 +142,11 @@ export default async function DecomisosDashboardPage({
     .leftJoin(organizations, eq(organizations.id, cases.receiverOrganizationId))
     .where(
       govtOrgId
-        ? and(eq(cases.caseKind, "custody_episode"), eq(cases.openedByOrganizationId, govtOrgId))
+        ? and(
+            eq(cases.caseKind, "custody_episode"),
+            eq(cases.openedByOrganizationId, govtOrgId),
+            jurisdictionFence,
+          )
         : eq(cases.caseKind, "custody_episode"),
     )
     // openedAt alone is not unique — most custody_episode rows share an

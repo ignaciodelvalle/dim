@@ -2,7 +2,10 @@
 //
 // Spec: docs/superpowers/specs/2026-05-19-decomiso-welfare-authority-design.md §5.3
 //
-// Auth (requireDecomisoPrincipal + jurisdiction guard) is handled by the caller.
+// Auth: the caller runs requireDecomisoPrincipal and resolves the govt org.
+// The JURISDICTIONAL fence lives here, in validateReassignDecomiso, because
+// only this function has the case row to fence against — see
+// decomiso-jurisdiction-fence.ts for why org membership was never it (RA-8 R3).
 //
 // Transaction steps:
 //   1. Emit note_added(category='system') documenting the superseded proposal.
@@ -27,6 +30,10 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import { validateReceiverOrg } from "../domain/seizure-rules";
 import type { GovtOrg, NewNotification, ReceiverOrg } from "../domain/types";
+import {
+  type DecomisoActorScope,
+  actorCoversCaseJurisdiction,
+} from "./decomiso-jurisdiction-fence";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -41,6 +48,16 @@ export type ReassignDecomisoInput = {
 export type ReassignDecomisoContext = {
   user: { id: string };
   govtOrg: GovtOrg;
+};
+
+/**
+ * Validation context. `actor` carries the operator's GRANTED jurisdiction
+ * assignments — it is not interchangeable with `govtOrg`, which only says
+ * which authority they belong to. See decomiso-jurisdiction-fence.ts.
+ */
+export type ValidateReassignContext = {
+  govtOrg: GovtOrg;
+  actor: DecomisoActorScope;
 };
 
 type ValidateReassignOk = {
@@ -64,10 +81,10 @@ type ValidateReassignErr = { ok: false; error: string };
 
 export async function validateReassignDecomiso(
   input: ReassignDecomisoInput,
-  ctx: { govtOrg: GovtOrg },
+  ctx: ValidateReassignContext,
   dbInstance: typeof db,
 ): Promise<ValidateReassignOk | ValidateReassignErr> {
-  const { govtOrg } = ctx;
+  const { govtOrg, actor } = ctx;
 
   // Load + validate the custody_episode case.
   const [caseRow] = await dbInstance
@@ -76,6 +93,24 @@ export async function validateReassignDecomiso(
     .where(eq(cases.publicCode, input.casePublicCode))
     .limit(1);
   if (!caseRow) return { ok: false, error: "Caso no encontrado." };
+
+  // JURISDICTIONAL FENCE (RA-8 R3) — first, and with the not-found wording.
+  //
+  // First, because every check below it (kind, status, opener) leaks a fact
+  // about a case the operator has no business knowing exists.
+  //
+  // Not-found wording, because a distinct "out of your jurisdiction" message
+  // is an existence oracle over the national custody register — the same
+  // reason the welfare inspector surfaces answer "no encontrada". This mirrors
+  // the DETAIL guard (canReadCase), which 404s rather than 403s.
+  //
+  // The `openedByOrganizationId` check further down is NOT this check: it
+  // answers "did my authority open this episode", which a stale membership
+  // in another province's authority org satisfies perfectly.
+  if (!actorCoversCaseJurisdiction(actor, caseRow)) {
+    return { ok: false, error: "Caso no encontrado." };
+  }
+
   if (caseRow.caseKind !== "custody_episode") {
     return { ok: false, error: "Este caso no es un episodio de custodia." };
   }

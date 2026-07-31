@@ -80,6 +80,24 @@ const RECEIVER_ORG_TOKEN = "DIM-RTO-RCV1";
 const PET_TOKEN = "DIM-RTO-PET1";
 const UNOWNED_PET_TOKEN = "DIM-RTO-STRAY1";
 
+// Jurisdiction assignments of the acting govt operator (RA-8 R3). The fixture
+// pet — and therefore the custody_episode opened over it — is CABA with a NULL
+// locality, so a WHOLE-CABA assignment is what covers it: `Ciudad Autónoma de
+// Buenos Aires` is CABA's whole-province INDEC locality, which subsumes every
+// barrio and matches on province alone. Passing the govt org's own
+// (province, locality) here instead would be the bug the fence exists to stop:
+// org membership is not scope.
+const CABA_ACTOR = {
+  role: "govt",
+  jurisdictions: [{ province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" }],
+};
+// Same operator, reassigned to another province. Their membership in the CABA
+// authority org is untouched — that is the whole point.
+const MENDOZA_ACTOR = {
+  role: "govt",
+  jurisdictions: [{ province: "Mendoza", locality: "Godoy Cruz" }],
+};
+
 const govtUserId = randomUUID();
 const otherGovtUserId = randomUUID();
 const ownerId = randomUUID();
@@ -338,6 +356,7 @@ describe("returnCustodyToOwner", () => {
           jurisdictionProvince: "CABA",
           jurisdictionLocality: "Buenos Aires",
         },
+        actor: CABA_ACTOR,
       },
       db,
     );
@@ -345,6 +364,71 @@ describe("returnCustodyToOwner", () => {
     if (!result.ok) {
       expect(result.error).toContain("Solo la autoridad que abrió el decomiso");
     }
+  });
+
+  // -------------------------------------------------------------------------
+  // RA-8 R3 — the jurisdictional fence
+  // -------------------------------------------------------------------------
+
+  it("out-of-jurisdiction operator cannot return, even holding the OPENING org's membership", async () => {
+    // The exact reachable scenario: this operator's assignments were moved to
+    // Mendoza, but nobody revoked their membership in the CABA authority that
+    // opened this episode. Every pre-fence check passes for them — the case
+    // exists, is a custody_episode, is open, and openedByOrganizationId is
+    // their own org — so returning an animal in a province they no longer
+    // govern was one button click.
+    const result = await validateReturnCustodyToOwner(
+      { casePublicCode },
+      {
+        govtOrg: {
+          id: govtOrgId,
+          displayName: "Autoridad RTO",
+          jurisdictionProvince: "CABA",
+          jurisdictionLocality: "Buenos Aires",
+        },
+        actor: MENDOZA_ACTOR,
+      },
+      db,
+    );
+    expect(result.ok, "an out-of-jurisdiction operator was allowed to return custody").toBe(false);
+    // Indistinguishable from a bad code: no existence oracle over the national
+    // custody register.
+    if (!result.ok) expect(result.error).toBe("Caso no encontrado.");
+  });
+
+  it("an operator with ZERO assignments is fenced out (fail-closed, not wide-open)", async () => {
+    const result = await validateReturnCustodyToOwner(
+      { casePublicCode },
+      {
+        govtOrg: {
+          id: govtOrgId,
+          displayName: "Autoridad RTO",
+          jurisdictionProvince: "CABA",
+          jurisdictionLocality: "Buenos Aires",
+        },
+        actor: { role: "govt", jurisdictions: [] },
+      },
+      db,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error).toBe("Caso no encontrado.");
+  });
+
+  it("admin is universal — the fence does not fence the national role out", async () => {
+    const result = await validateReturnCustodyToOwner(
+      { casePublicCode },
+      {
+        govtOrg: {
+          id: govtOrgId,
+          displayName: "Autoridad RTO",
+          jurisdictionProvince: "CABA",
+          jurisdictionLocality: "Buenos Aires",
+        },
+        actor: { role: "admin", jurisdictions: [] },
+      },
+      db,
+    );
+    expect(result.ok, "admin was blocked by the jurisdiction fence").toBe(true);
   });
 
   it("unknown case public code is rejected cleanly", async () => {
@@ -357,6 +441,7 @@ describe("returnCustodyToOwner", () => {
           jurisdictionProvince: "CABA",
           jurisdictionLocality: "Buenos Aires",
         },
+        actor: CABA_ACTOR,
       },
       db,
     );
@@ -374,6 +459,7 @@ describe("returnCustodyToOwner", () => {
           jurisdictionProvince: "CABA",
           jurisdictionLocality: "Buenos Aires",
         },
+        actor: CABA_ACTOR,
       },
       db,
     );
@@ -520,6 +606,7 @@ describe("returnCustodyToOwner", () => {
           jurisdictionProvince: "CABA",
           jurisdictionLocality: "Buenos Aires",
         },
+        actor: CABA_ACTOR,
       },
       db,
     );
@@ -605,6 +692,7 @@ describe("returnCustodyToOwner — unowned animal guard", () => {
           jurisdictionProvince: "CABA",
           jurisdictionLocality: "Buenos Aires",
         },
+        actor: CABA_ACTOR,
       },
       db,
     );

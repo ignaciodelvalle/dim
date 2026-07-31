@@ -8,8 +8,13 @@
 // (the handoff family this use-case joins), PO decision 2026-07-18 (former-
 // owner read access during custody — "Si se lo devuelve, nunca se le fue.").
 //
-// Auth (requireDecomisoPrincipal + jurisdiction guard) is handled by the
-// caller, mirroring every sibling decomiso use-case in this module.
+// Auth: the caller runs requireDecomisoPrincipal and resolves the govt org.
+// The JURISDICTIONAL fence lives here, in validateReturnCustodyToOwner,
+// because only this function has the case row to fence against — see
+// decomiso-jurisdiction-fence.ts for why org membership was never it
+// (RA-8 R3). Returning an animal to a previous owner is an irreversible
+// custody decision; a stale membership in another province's authority org
+// must not authorize it.
 //
 // Transaction steps:
 //   1. custody_transferred event (shelter_custody → owner, govt org → former
@@ -54,6 +59,10 @@ import {
 } from "@/lib/infra/pet-access";
 
 import type { GovtOrg, NewNotification } from "../domain/types";
+import {
+  type DecomisoActorScope,
+  actorCoversCaseJurisdiction,
+} from "./decomiso-jurisdiction-fence";
 
 export type { ImmediateFormerOwnerOwnership };
 
@@ -68,6 +77,16 @@ export type ReturnCustodyToOwnerInput = {
 export type ReturnCustodyToOwnerContext = {
   user: { id: string };
   govtOrg: GovtOrg;
+};
+
+/**
+ * Validation context. `actor` carries the operator's GRANTED jurisdiction
+ * assignments — not interchangeable with `govtOrg`, which only says which
+ * authority they belong to. See decomiso-jurisdiction-fence.ts.
+ */
+export type ValidateReturnContext = {
+  govtOrg: GovtOrg;
+  actor: DecomisoActorScope;
 };
 
 type ValidateReturnOk = {
@@ -86,10 +105,10 @@ type ValidateReturnErr = { ok: false; error: string };
 
 export async function validateReturnCustodyToOwner(
   input: ReturnCustodyToOwnerInput,
-  ctx: { govtOrg: GovtOrg },
+  ctx: ValidateReturnContext,
   dbInstance: typeof db,
 ): Promise<ValidateReturnOk | ValidateReturnErr> {
-  const { govtOrg } = ctx;
+  const { govtOrg, actor } = ctx;
 
   const [caseRow] = await dbInstance
     .select()
@@ -97,6 +116,16 @@ export async function validateReturnCustodyToOwner(
     .where(eq(cases.publicCode, input.casePublicCode))
     .limit(1);
   if (!caseRow) return { ok: false, error: "Caso no encontrado." };
+
+  // JURISDICTIONAL FENCE (RA-8 R3) — first, and with the not-found wording, for
+  // the same two reasons as validateReassignDecomiso: every later check leaks a
+  // fact about a case out-of-scope operators must not learn exists, and a
+  // distinct "out of your jurisdiction" message is an existence oracle over the
+  // national custody register.
+  if (!actorCoversCaseJurisdiction(actor, caseRow)) {
+    return { ok: false, error: "Caso no encontrado." };
+  }
+
   if (caseRow.caseKind !== "custody_episode") {
     return { ok: false, error: "Este caso no es un episodio de custodia." };
   }

@@ -385,7 +385,11 @@ export async function reassignDecomisoToAnotherReceiverAction(input: {
 
   // 3+4. Pre-tx validation (module use-case): case load + open-episode
   // checks, opener authorization, new-receiver rules, pet-name resolution.
-  const validated = await validateReassignDecomiso(input, { govtOrg }, db);
+  const validated = await validateReassignDecomiso(
+    input,
+    { govtOrg, actor: { role: session.profile.role, jurisdictions: session.jurisdictions } },
+    db,
+  );
   if (!validated.ok) return { error: validated.error };
   const { caseRow, newReceiverOrg: validatedNewReceiverOrg, petName, reassignReason } = validated;
 
@@ -454,7 +458,11 @@ export async function returnCustodyToOwnerAction(input: {
 
   // 3. Pre-tx validation (module use-case): case load + open-episode checks,
   // opener authorization, immediate former-owner derivation.
-  const validated = await validateReturnCustodyToOwner(input, { govtOrg }, db);
+  const validated = await validateReturnCustodyToOwner(
+    input,
+    { govtOrg, actor: { role: session.profile.role, jurisdictions: session.jurisdictions } },
+    db,
+  );
   if (!validated.ok) return { error: validated.error };
   const { caseRow, formerOwner, petName, petPublicToken } = validated;
 
