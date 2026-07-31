@@ -45,7 +45,7 @@
 
 | # | Unidad | Estado |
 |---|---|---|
-| **P1.1** | **#40c — censo y control de población.** `census.ts:645,656` y `population-control.ts:132,146` publican conteo y tasa CRUDOS por provincia. Confirmado NO exento (una tasa revela su denominador). Los renders viven en `app/`: hay que cerrar datos **y** divulgación juntos o no se cierra. Consumidores: `/admin/censo`, `/gob/censo`, `/gob/censo/export`, `/admin/poblacion`, `/gob/poblacion/export` | abierta |
+| **P1.1** | **#40c — censo y control de población.** `census.ts:645,656` y `population-control.ts:132,146` publican conteo y tasa CRUDOS por provincia. Confirmado NO exento (una tasa revela su denominador). Los renders viven en `app/`: hay que cerrar datos **y** divulgación juntos o no se cierra. Consumidores: `/admin/censo`, `/gob/censo`, `/gob/censo/export`, `/admin/poblacion`, `/gob/poblacion/export` | **cerrada** |
 | **P1.2** | **A14 — nav drop post-acción.** Mecanismo hallado: `pendingLanes == suspendedLanes == warmLanes` con `pingedLanes == 0` → transición suspendida sobre una promesa que no resuelve. Explica el link que no navega y el `isPending` clavado. `PendingSignaturesCard` es causal dominante (0/8 vs 8/8 apagada); queda 25-40% de fondo sin ella. **Próximo experimento: separar la query del servidor del render de la tarjeta.** Daño: el vet firma, no recibe confirmación, vuelve a firmar → fila duplicada permanente en una libreta con peso legal | abierta |
 
 ### Prioridad 2 — Confianza en el gate
@@ -184,7 +184,7 @@ Es para ESTA corrida, no permanente.
 
 | Unidad | Estado | Commit |
 |---|---|---|
-| P1.1 #40c censo/población | pendiente | |
+| P1.1 #40c censo/población | **cerrada** (datos + render + divulgación + tests) | `9305f942` · `4ff4d55c` |
 | P1.2 A14 nav drop | pendiente | |
 | P2.1 los 4 de final-seams | pendiente | |
 | P2.2 A15 fixture RLS | pendiente | |
