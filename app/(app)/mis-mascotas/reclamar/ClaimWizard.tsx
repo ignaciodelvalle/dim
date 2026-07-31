@@ -282,9 +282,9 @@ export function ClaimWizard() {
           Iniciar disputa por {state.petName}
         </p>
         <p className="text-[var(--color-ln-warn)]">
-          Tu reclamo se envía a la autoridad local para revisión. Subí evidencia (foto del chip
-          escaneado, libreta sanitaria si la tenés, etc.) y contanos por qué creés que es tu
-          mascota.
+          Tu reclamo se envía a la autoridad local para revisión y le avisa a la persona registrada
+          como dueña. Contanos por qué creés que es tu mascota y adjuntá al menos una prueba (foto
+          del chip escaneado, libreta sanitaria, fotos tuyas con el animal).
         </p>
       </div>
 
@@ -314,17 +314,27 @@ export function ClaimWizard() {
           htmlFor="claim-evidence"
           className="block text-sm font-medium text-[var(--color-ln-warn)]"
         >
-          Evidencia (opcional, máx. 5 archivos)
+          Evidencia (al menos 1 archivo, máx. 5)
         </label>
+        {/* `required` is a courtesy that fails fast in the browser. The rule
+            itself lives in submit-claim-dispute.ts — this action is an
+            independently-addressable server action, so a client-only check
+            would be worth nothing. */}
         <input
           id="claim-evidence"
           name="evidence"
           type="file"
+          required
           multiple
           accept="image/*,video/*"
           capture="environment"
+          aria-describedby="claim-evidence-hint"
           className="block w-full text-xs text-[var(--color-ln-warn)]"
         />
+        <p id="claim-evidence-hint" className="text-xs text-[var(--color-ln-warn)]">
+          Sin evidencia no podemos abrir el reclamo: la autoridad necesita algo concreto para
+          revisarlo.
+        </p>
       </div>
 
       {state.error && (

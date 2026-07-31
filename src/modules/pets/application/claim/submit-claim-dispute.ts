@@ -76,6 +76,34 @@ export async function submitClaimDisputeForUser(
     return { error: "El microchip debe tener exactamente 15 dígitos." };
   }
 
+  // Evidence gate (PO decision 2026-07-30). Raising a dispute is not a request
+  // — it is a permanent, third-party-visible accusation: it notifies the
+  // registered owner that a stranger claims their animal, appends an
+  // uneditable custody_dispute_raised row to their spine (invariant #2), flips
+  // pets.in_custody_dispute (which strips the owner's contact channel from the
+  // public credential) and opens a case the local authority must adjudicate.
+  // The friction has to be proportional to that, and 20 characters of prose
+  // was not: `files: []` opened a dispute with zero proof.
+  //
+  // Same rule the other two evidence-backed accusation writers already
+  // enforce: createOrgWelfareReportAction ("Un reporte profesional requiere al
+  // menos un adjunto de evidencia") and validateMotivoAndAttachments
+  // (EVIDENCE_REQUIRED) for revocations. Empty/zero-byte entries are filtered
+  // first so a submitted-but-empty file input cannot satisfy the gate — that
+  // is the same `f.size > 0` filter uploadWelfareEvidence applies downstream,
+  // hoisted here so the count the gate checks is the count that gets stored.
+  //
+  // Server-side on purpose: the wizard also marks the input required, but the
+  // action is an independently-addressable server action — the client check is
+  // a courtesy, this is the rule.
+  const evidenceFiles = files.filter((f) => f && f.size > 0);
+  if (evidenceFiles.length === 0) {
+    return {
+      error:
+        "Adjuntá al menos una foto o un video como prueba. Una disputa le avisa a la persona registrada como dueña y queda asentada de forma permanente, así que la autoridad necesita ver algo concreto para poder revisarla.",
+    };
+  }
+
   // Rate limit — same key as lookup so a burst of probes counts together.
   try {
     await enforceRateLimit("claim_lookup", userId, { maxPerMinute: 30, maxPerHour: 200 });
@@ -133,7 +161,7 @@ export async function submitClaimDisputeForUser(
 
   // Evidence upload — happens BEFORE the tx so failures don't dangle.
   const reportId = crypto.randomUUID();
-  const upload = await uploadWelfareEvidence(`claims/${reportId}`, files);
+  const upload = await uploadWelfareEvidence(`claims/${reportId}`, evidenceFiles);
   if (upload.error) return { error: upload.error };
 
   let disputeToken = "";
