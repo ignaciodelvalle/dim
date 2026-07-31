@@ -7,6 +7,7 @@ import {
   divergentLegendBins,
 } from "@/components/charts/choropleth-stops";
 import { stepColorExpr } from "@/components/panorama/class-scale";
+import { cellsPaintHatch } from "@/components/panorama/hatch-pattern";
 import {
   COLOR_DIVERGENT_ABOVE,
   COLOR_DIVERGENT_BELOW,
@@ -206,6 +207,16 @@ const LEVEL_UNIT_NOUN: Record<GeoLevel, string> = {
   province: "jurisdicción",
   department: "departamento",
   barrio: "barrio",
+};
+
+/** "N <unidad> ocultA/O" per level for the k-anon disclosure line (RA-3 C5).
+ *  Written out instead of derived from LEVEL_UNIT_NOUN: es-AR needs the real
+ *  plural ("jurisdicciones", not "jurisdiccións") AND the adjective gender
+ *  ("jurisdicción oculta" feminine vs "departamento oculto" masculine). */
+const LEVEL_HIDDEN_PHRASE: Record<GeoLevel, (n: number) => string> = {
+  province: (n) => (n === 1 ? "jurisdicción oculta" : "jurisdicciones ocultas"),
+  department: (n) => (n === 1 ? "departamento oculto" : "departamentos ocultos"),
+  barrio: (n) => (n === 1 ? "barrio oculto" : "barrios ocultos"),
 };
 
 // ---------------------------------------------------------------------------
@@ -879,6 +890,15 @@ export function MapChoropleth({
   const isEmpty = data.length === 0;
   const allSuppressed = data.length > 0 && data.every((d) => d.suppressed);
 
+  // RA-3 C6: does THIS frame actually paint a hatch? The shared atom
+  // (components/panorama/hatch-pattern.ts) that already gates LegendPill and
+  // MapLegends — same question, same module, one answer. The legend's
+  // "Datos insuficientes (privacidad)" swatch was unconditional on every
+  // caller, which is the exact defect legend-suppression-parity.test.tsx was
+  // written for, reappearing in the OTHER map component.
+  const framePaintsHatch = cellsPaintHatch(data);
+  const suppressedInFrame = data.filter((d) => d.suppressed).length;
+
   // ---------------------------------------------------------------------------
   // Render
   // ---------------------------------------------------------------------------
@@ -1053,7 +1073,13 @@ export function MapChoropleth({
           </fieldset>
         )}
 
-        {/* Discrete swatches: no-data + suppressed */}
+        {/* Discrete swatches: no-data + suppressed. The suppressed row is GATED
+            on the frame actually painting a hatch (RA-3 C6) — a legend that
+            names a mark the canvas does not paint teaches the operator that the
+            key does not describe the map, and the notice they learn to skip is
+            the privacy one. "Sin datos" stays unconditional: any province absent
+            from `data` renders in COLOR_NO_DATA, so that swatch is describing
+            the basemap's own default state, not a data-dependent mark. */}
         <ul
           className="flex items-center gap-3 list-none m-0 p-0 text-xs text-ln-op-mute"
           aria-label="Estados especiales"
@@ -1066,19 +1092,33 @@ export function MapChoropleth({
             />
             Sin datos
           </li>
-          <li className="flex items-center gap-1">
-            {/* Hatched swatch mirrors the on-map fill-pattern — the suppressed
-                state is encoded by texture + text, never color alone. */}
-            <span
-              className="inline-block w-3 h-3 rounded-sm border border-ln-op-line"
-              style={{
-                background: `repeating-linear-gradient(45deg, ${COLOR_SUPPRESSED}, ${COLOR_SUPPRESSED} 3px, rgba(71, 85, 105, 0.9) 3px, rgba(71, 85, 105, 0.9) 4px)`,
-              }}
-              aria-hidden="true"
-            />
-            Datos insuficientes (privacidad)
-          </li>
+          {framePaintsHatch && (
+            <li className="flex items-center gap-1">
+              {/* Hatched swatch mirrors the on-map fill-pattern — the suppressed
+                  state is encoded by texture + text, never color alone. */}
+              <span
+                className="inline-block w-3 h-3 rounded-sm border border-ln-op-line"
+                style={{
+                  background: `repeating-linear-gradient(45deg, ${COLOR_SUPPRESSED}, ${COLOR_SUPPRESSED} 3px, rgba(71, 85, 105, 0.9) 3px, rgba(71, 85, 105, 0.9) 4px)`,
+                }}
+                aria-hidden="true"
+              />
+              Datos insuficientes (privacidad)
+            </li>
+          )}
         </ul>
+
+        {/* RA-3 C5 disclosure: the frame says HOW MANY units it is withholding,
+            and does it from the frame's own marks (never a caller-supplied
+            count, which can describe a different grain). Suppressed only when
+            EVERY unit is hidden → the anchored in-map card already says it, so
+            this line would be the third copy of the same sentence. */}
+        {framePaintsHatch && !allSuppressed && (
+          <p className="text-xs text-ln-op-mute">
+            {suppressedInFrame} {LEVEL_HIDDEN_PHRASE[drillState.level](suppressedInFrame)}{" "}
+            {"por privacidad (k<5) — con trama, sin número."}
+          </p>
+        )}
 
         {/* Honesty caption (dataviz review #5): e.g. the /gob dashboards state
             the values are absolute counts, not a population rate. A <p>, not a

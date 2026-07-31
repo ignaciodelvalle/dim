@@ -61,15 +61,24 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
     expect(html).toContain("escala de colores");
   });
 
-  it("renders gradient bar with min and max values when scaleLabel is provided", () => {
+  // Renamed + repaired 2026-07-31 (RA-3 C6). It asserted `linear-gradient` on a
+  // SEQUENTIAL frame, but the continuous min→max gradient bar was removed in the
+  // 2026-07-24 classed-legend redesign (see the next test, which documents it)
+  // — the only `linear-gradient` left in this markup came from the k-anon hatch
+  // swatch, which used to render UNCONDITIONALLY. So this test passed by reading
+  // a privacy mark and calling it a colour scale, and gating the swatch is what
+  // exposed it. It now asserts what the sequential legend actually publishes.
+  it("surfaces the data range through the legend when scaleLabel is provided", () => {
     const html = renderToStaticMarkup(
       <MapChoropleth data={baseData} scaleLabel="Casos abiertos" />,
     );
     // The min (5) and max (20) of non-suppressed data should appear.
     expect(html).toContain(">5<");
     expect(html).toContain(">20<");
-    // Gradient CSS should reference the color scale.
-    expect(html).toContain("linear-gradient");
+    // Classed sequential: each bin chip carries its exact painted class color.
+    expect(html).toContain("Resaltar regiones por rango de valores");
+    // …and NOT a continuous gradient bar, which this frame does not paint.
+    expect(html).not.toContain("linear-gradient(to right");
   });
 
   it("renders the classed legend with a labeled range fieldset", () => {
@@ -86,9 +95,10 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
   });
 
   // The GRADIENT SCALE bar uses `linear-gradient(to right, …)`; the
-  // always-rendered suppressed-cell swatch (map-QOL hatching) uses
+  // suppressed-cell swatch (map-QOL hatching) uses
   // `repeating-linear-gradient(45deg, …)` — assert on the scale's exact
   // pattern so the hatch swatch doesn't false-positive the substring.
+  // ("always-rendered" until RA-3 C6; the swatch is now gated on the frame.)
   const SCALE_GRADIENT = "linear-gradient(to right";
 
   it("does NOT render the gradient scale when scaleLabel is omitted", () => {
@@ -114,8 +124,24 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
     expect(html).toContain("Sin datos");
   });
 
-  it("renders the suppressed-cell swatch for COLOR_SUPPRESSED", () => {
+  // INVERTED 2026-07-31 (RA-3 C6). This test asserted the suppressed swatch on
+  // `baseData`, which has NO suppressed cell — i.e. it pinned the bug: a legend
+  // naming a mark the canvas does not paint. The swatch is now gated on the
+  // frame, and both directions are pinned here.
+  it("does NOT name the suppressed-cell swatch when the frame paints no hatch", () => {
     const html = renderToStaticMarkup(<MapChoropleth data={baseData} />);
+    expect(html).not.toContain("Datos insuficientes (privacidad)");
+  });
+
+  it("renders the suppressed-cell swatch when the frame DOES paint a hatch", () => {
+    const html = renderToStaticMarkup(
+      <MapChoropleth
+        data={[
+          ...baseData,
+          { code: "AR-V", value: 0, suppressed: true, label: "Tierra del Fuego" },
+        ]}
+      />,
+    );
     // map-QOL renamed 'Suprimido (privacidad)' → 'Datos insuficientes
     // (privacidad)' so the operator learns WHY there is no number.
     expect(html).toContain("Datos insuficientes (privacidad)");

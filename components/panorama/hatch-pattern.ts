@@ -86,6 +86,27 @@ export function layerPaintsHatch(layer: HatchableLayer): boolean {
 }
 
 /**
+ * Whether a CELL-LIST frame paints at least one hatched unit.
+ *
+ * The third carrier in this family (RA-3 C6, 2026-07-31). `MapChoropleth`
+ * (components/charts) is not a Panorama layer: its frame is a flat
+ * `ChoroplethRegionDatum[]`, so it has neither a `FeatureCollection` for
+ * `hasSuppressedProvince` nor `bivariateCells` for `bivariateSuppressedCodes`.
+ * Reading the wrong carrier silently answers false — the failure
+ * legend-suppression-parity.test.tsx already pins for the other two — so the
+ * atom lives HERE, beside the mark and beside its siblings, instead of as an
+ * inline `.some()` inside a 1100-line chart component. One module answers
+ * "does this frame paint a hatch", for every carrier there is.
+ *
+ * Deliberately NOT a `suppressedCount > 0` read, same as `frameHasSuppressedMark`:
+ * a count describes the RESPONSE and can be non-zero at a grain the canvas is not
+ * painting. This reads the marks the frame actually carries.
+ */
+export function cellsPaintHatch(cells: readonly { suppressed?: boolean }[]): boolean {
+  return cells.some((c) => c.suppressed === true);
+}
+
+/**
  * Whether ANY surface in the current frame paints a hatch — the condition for
  * naming the k-anon mark in a legend. This is exactly "MapLegends would render
  * at least one «Protegido por privacidad (k<5)» row", by construction: it ORs
