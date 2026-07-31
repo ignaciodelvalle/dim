@@ -1,5 +1,11 @@
+import type { Notification } from "@/db";
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  type Group,
+  type NotificationRow,
+  groupNotifications,
+} from "@/app/(app)/notificaciones/notification-ordering";
 import {
   type ClinicalEventNotifyInput,
   notifyOwnersOfClinicalEvent,
@@ -12,6 +18,8 @@ function makeInput(over: Partial<ClinicalEventNotifyInput> = {}): ClinicalEventN
     petPublicToken: "DIM-1234-5678",
     eventId: "evt-1",
     eventType: "vaccination_administered",
+    // 2026-07-16 12:00 UTC → 16 de julio de 2026 in America/Argentina/Buenos_Aires.
+    occurredAt: new Date("2026-07-16T12:00:00Z"),
     authorUserId: "vet-1",
     authorLabel: "Refugio Patitas del Norte",
     ...over,
@@ -33,10 +41,17 @@ describe("notifyOwnersOfClinicalEvent — third-party clinical signature", () =>
     expect(arg.notificationType).toBe("clinical_event_recorded");
     expect(arg.category).toBe("health");
     expect(arg.title).toBe("Nuevo registro en la libreta de Rocky");
+    // The three facts the owner needs — WHAT, WHO, WHEN — plus the recourse.
+    // Pinned as one exact string: a partial match would let a mutant drop the
+    // date or the recourse sentence and still pass.
     expect(arg.body).toBe(
-      "Refugio Patitas del Norte registró vacuna administrada en la libreta de Rocky.",
+      "Refugio Patitas del Norte registró vacuna administrada con fecha 16 de julio de 2026. " +
+        "Si no reconocés esta atención, abrí el registro para revisarlo o corregirlo.",
     );
-    expect(arg.ctaUrl).toBe("/mis-mascotas/DIM-1234-5678");
+    // Deep link to the EVENT, not the libreta: that page carries the owner's
+    // "Corregir registro" button, which is the recourse the body promises.
+    expect(arg.ctaLabel).toBe("Ver el registro");
+    expect(arg.ctaUrl).toBe("/mis-mascotas/DIM-1234-5678/eventos/evt-1");
     expect(arg.relatedPetId).toBe("pet-1");
     expect(arg.relatedEventId).toBe("evt-1");
     expect(arg.dedupeKey).toBe("event:evt-1:owner-1:clinical_recorded");
@@ -88,8 +103,23 @@ describe("notifyOwnersOfClinicalEvent — third-party clinical signature", () =>
     });
 
     expect(createNotification.mock.calls[0][0].body).toBe(
-      "Refugio Patitas del Norte registró antiparasitario en la libreta de Rocky.",
+      "Refugio Patitas del Norte registró antiparasitario con fecha 16 de julio de 2026. " +
+        "Si no reconocés esta atención, abrí el registro para revisarlo o corregirlo.",
     );
+  });
+
+  it("dates the body from occurredAt, not from the moment it was recorded", async () => {
+    const createNotification = vi.fn().mockResolvedValue({ status: "inserted" });
+
+    // A walk-in event declared six months back. The notification list already
+    // shows "hace un minuto" from the row's createdAt, so the ONLY way an owner
+    // sees a backdated signature is if the declared date is in the body.
+    await notifyOwnersOfClinicalEvent(makeInput({ occurredAt: new Date("2026-01-09T12:00:00Z") }), {
+      findOwnerUserIds: async () => ["owner-1"],
+      createNotification,
+    });
+
+    expect(createNotification.mock.calls[0][0].body).toContain("con fecha 9 de enero de 2026");
   });
 
   it("is best-effort: a lookup failure never throws", async () => {
@@ -104,5 +134,80 @@ describe("notifyOwnersOfClinicalEvent — third-party clinical signature", () =>
 
     expect(res.delivered).toBe(0);
     expect(createNotification).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Noise
+// ---------------------------------------------------------------------------
+//
+// A consultation is a BURST: one vet loads five things and the owner must not
+// get five cards. The repo's answer already exists — groupNotifications() folds
+// ≥3 rows sharing `relatedPetId|notificationType` behind "+ N más del mismo
+// tipo" — so the job here is not to invent a digest, it is to keep the payload
+// GROUPABLE. These tests run the burst through the REAL grouper (not a copy of
+// its bucket key), so the day someone varies notificationType per event type
+// the burst unfolds into five cards and this fails.
+
+/** Build the notification row the /notificaciones page would render. */
+function rowFrom(payload: { notificationType: string; relatedPetId?: string | null }, i: number) {
+  return {
+    notification: {
+      id: `n-${i}`,
+      severity: "info",
+      createdAt: new Date(2026, 6, 16, 10, i),
+      notificationType: payload.notificationType,
+      relatedPetId: payload.relatedPetId ?? null,
+    } as unknown as Notification,
+    pet: null,
+  } satisfies NotificationRow;
+}
+
+/** Fire one clinical alert per event type and collect the created payloads. */
+async function burst(eventTypes: ClinicalEventNotifyInput["eventType"][]) {
+  const createNotification = vi.fn().mockResolvedValue({ status: "inserted" });
+  for (const [i, eventType] of eventTypes.entries()) {
+    await notifyOwnersOfClinicalEvent(makeInput({ eventType, eventId: `evt-${i}` }), {
+      findOwnerUserIds: async () => ["owner-1"],
+      createNotification,
+    });
+  }
+  return createNotification.mock.calls.map((c) => c[0]);
+}
+
+describe("notifyOwnersOfClinicalEvent — one consultation is not five notifications", () => {
+  it("collapses a five-event consultation into ONE group in the real notification list", async () => {
+    const payloads = await burst([
+      "vaccination_administered",
+      "vaccination_administered",
+      "deworming_administered",
+      "note_added",
+      "medication_started",
+    ]);
+    expect(payloads).toHaveLength(5);
+
+    const groups: Group[] = groupNotifications(payloads.map(rowFrom));
+
+    expect(groups).toHaveLength(1);
+    const only = groups[0];
+    expect(only.kind).toBe("group");
+    if (only.kind !== "group") throw new Error("unreachable");
+    // Exactly one visible card; the other four sit behind the disclosure.
+    expect(only.rest).toHaveLength(4);
+    expect(only.leader.notification.id).toBe("n-0");
+  });
+
+  it("keeps two DIFFERENT pets apart — grouping must not merge across animals", async () => {
+    const payloads = await burst(["vaccination_administered", "note_added", "note_added"]);
+    // Re-point one of them at another pet, exactly as a second walk-in would.
+    const rows = payloads.map(rowFrom);
+    rows[2].notification.relatedPetId = "pet-2";
+
+    const groups = groupNotifications(rows);
+
+    // pet-1 has 2 (< GROUP_MIN) and pet-2 has 1, so nothing collapses: three
+    // separate cards. This is what proves the grouping is keyed on the pet and
+    // not merely on the shared notificationType.
+    expect(groups.map((g) => g.kind)).toEqual(["single", "single", "single"]);
   });
 });

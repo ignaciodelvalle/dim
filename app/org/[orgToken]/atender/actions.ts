@@ -24,7 +24,6 @@ import {
 
 import { db } from "@/db";
 import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
-import { notifyOwnersOfClinicalEvent } from "@/lib/infra/notify-owners-of-clinical-event";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { findDrugByLabel } from "@/lib/reference/drugs";
@@ -45,6 +44,7 @@ import { EventsRepository } from "@/src/modules/events/infrastructure/events-rep
 
 import { ATENDER_TOKEN_PATTERN, normalizeAtenderToken, resolveAtenderPet } from "./atender-access";
 import { attemptedChipMatchesDeclaration, rejectIfAlreadySigned } from "./atender-declared-events";
+import { completeAtenderSignature } from "./atender-signature-completion";
 import { hasUncataloguedVaccineFlag } from "./atender-vaccine-gate";
 
 export type { EventFormState } from "@/src/modules/events/actions";
@@ -74,9 +74,10 @@ type Authorship = {
   authorVerified: boolean;
 };
 
-function successRedirect(orgToken: string, publicToken: string): string {
-  return `/org/${orgToken}/atender/${publicToken}?firmado=1`;
-}
+// Every writer below closes through completeAtenderSignature — see that module's
+// header. It owns BOTH the owner alert and the `?firmado=1` receipt, so success
+// is not something a walk-in writer can construct on its own and the alert
+// cannot be forgotten by a writer added later.
 
 // ---------------------------------------------------------------------------
 // Code entry — resolve a DIM credential to the signing surface
@@ -189,23 +190,20 @@ export async function atenderVaccinationAction(
     };
   }
 
-  // Owner alert for the third-party signature — best-effort and POST-COMMIT: run
-  // it AFTER the try/catch so a hypothetical throw in the helper can never trigger
-  // cleanupAttachment on an already-persisted event. The helper swallows its own
-  // errors (see lib/infra/notify-owners-of-clinical-event.ts).
-  if (signedEventId) {
-    await notifyOwnersOfClinicalEvent({
-      petId: pet.id,
-      petName: pet.name,
-      petPublicToken: publicToken,
-      eventId: signedEventId,
-      eventType: "vaccination_administered",
-      authorUserId: user.id,
-      authorLabel: access.organizationName,
-    });
-  }
-
-  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+  // Closed AFTER the try/catch, always: the owner alert inside is POST-COMMIT, so
+  // a hypothetical throw there can never reach cleanupAttachment and delete the
+  // attachment of an event that already persisted.
+  return completeAtenderSignature({
+    orgToken,
+    publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName: access.organizationName,
+    signerUserId: user.id,
+    eventId: signedEventId,
+    eventType: "vaccination_administered",
+    occurredAt,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -277,21 +275,17 @@ export async function atenderDewormingAction(
     };
   }
 
-  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
-  // never clean up an already-persisted event; the helper swallows its own errors).
-  if (signedEventId) {
-    await notifyOwnersOfClinicalEvent({
-      petId: pet.id,
-      petName: pet.name,
-      petPublicToken: publicToken,
-      eventId: signedEventId,
-      eventType: "deworming_administered",
-      authorUserId: user.id,
-      authorLabel: access.organizationName,
-    });
-  }
-
-  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+  return completeAtenderSignature({
+    orgToken,
+    publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName: access.organizationName,
+    signerUserId: user.id,
+    eventId: signedEventId,
+    eventType: "deworming_administered",
+    occurredAt,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -369,21 +363,17 @@ export async function atenderClinicalInfoAction(
     };
   }
 
-  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
-  // never clean up an already-persisted event; the helper swallows its own errors).
-  if (signedEventId) {
-    await notifyOwnersOfClinicalEvent({
-      petId: pet.id,
-      petName: pet.name,
-      petPublicToken: publicToken,
-      eventId: signedEventId,
-      eventType: "clinical_info_logged",
-      authorUserId: user.id,
-      authorLabel: access.organizationName,
-    });
-  }
-
-  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+  return completeAtenderSignature({
+    orgToken,
+    publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName: access.organizationName,
+    signerUserId: user.id,
+    eventId: signedEventId,
+    eventType: "clinical_info_logged",
+    occurredAt,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -485,21 +475,17 @@ export async function atenderMedicationStartAction(
     };
   }
 
-  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
-  // never clean up an already-persisted event; the helper swallows its own errors).
-  if (signedEventId) {
-    await notifyOwnersOfClinicalEvent({
-      petId: pet.id,
-      petName: pet.name,
-      petPublicToken: publicToken,
-      eventId: signedEventId,
-      eventType: "medication_started",
-      authorUserId: user.id,
-      authorLabel: access.organizationName,
-    });
-  }
-
-  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+  return completeAtenderSignature({
+    orgToken,
+    publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName: access.organizationName,
+    signerUserId: user.id,
+    eventId: signedEventId,
+    eventType: "medication_started",
+    occurredAt,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -563,21 +549,17 @@ export async function atenderNoteAction(
     };
   }
 
-  // Owner alert — best-effort, POST-COMMIT (outside the try so a helper throw can
-  // never clean up an already-persisted event; the helper swallows its own errors).
-  if (signedEventId) {
-    await notifyOwnersOfClinicalEvent({
-      petId: pet.id,
-      petName: pet.name,
-      petPublicToken: publicToken,
-      eventId: signedEventId,
-      eventType: "note_added",
-      authorUserId: user.id,
-      authorLabel: access.organizationName,
-    });
-  }
-
-  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+  return completeAtenderSignature({
+    orgToken,
+    publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName: access.organizationName,
+    signerUserId: user.id,
+    eventId: signedEventId,
+    eventType: "note_added",
+    occurredAt,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -689,19 +671,17 @@ export async function atenderMicrochipAction(
     };
   }
 
-  if (signedEventId) {
-    await notifyOwnersOfClinicalEvent({
-      petId: pet.id,
-      petName: pet.name,
-      petPublicToken: publicToken,
-      eventId: signedEventId,
-      eventType: "microchip_implanted",
-      authorUserId: user.id,
-      authorLabel: access.organizationName,
-    });
-  }
-
-  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+  return completeAtenderSignature({
+    orgToken,
+    publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName: access.organizationName,
+    signerUserId: user.id,
+    eventId: signedEventId,
+    eventType: "microchip_implanted",
+    occurredAt,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -783,17 +763,15 @@ export async function atenderSterilizationAction(
     };
   }
 
-  if (signedEventId) {
-    await notifyOwnersOfClinicalEvent({
-      petId: pet.id,
-      petName: pet.name,
-      petPublicToken: publicToken,
-      eventId: signedEventId,
-      eventType: "sterilization_performed",
-      authorUserId: user.id,
-      authorLabel: access.organizationName,
-    });
-  }
-
-  return { error: null, ok: true, redirectTo: successRedirect(orgToken, publicToken) };
+  return completeAtenderSignature({
+    orgToken,
+    publicToken,
+    petId: pet.id,
+    petName: pet.name,
+    organizationName: access.organizationName,
+    signerUserId: user.id,
+    eventId: signedEventId,
+    eventType: "sterilization_performed",
+    occurredAt,
+  });
 }

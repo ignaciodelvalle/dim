@@ -25,15 +25,22 @@ import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { type EventType, db, ownerships } from "@/db";
 import { createNotification } from "@/lib/infra/notification-service";
-import { eventTypeLabel } from "@/lib/utils/format";
+import { eventTypeLabel, formatDate } from "@/lib/utils/format";
 
 export type ClinicalEventNotifyInput = {
   petId: string;
   petName: string;
-  /** Public DIM token — used to build the owner's "Ver libreta" deep link. */
+  /** Public DIM token — used to build the owner's deep link into the record. */
   petPublicToken: string;
   eventId: string;
   eventType: EventType;
+  /**
+   * The clinical date the signer declared. Carried into the body because it is
+   * the one fact the notification list cannot show on its own: the row's own
+   * createdAt says WHEN IT WAS RECORDED, and a walk-in signature whose declared
+   * date sits far from that is exactly what an owner needs to see.
+   */
+  occurredAt: Date;
   /** The signer's user id — never notified about their own signature. */
   authorUserId: string;
   /** How the signer is named to the owner (e.g. the clinic / refugio name). */
@@ -92,13 +99,30 @@ export async function notifyOwnersOfClinicalEvent(
     for (const userId of recipients) {
       const res = await deps.createNotification({
         userId,
+        // NOISE: one notification per event, deliberately — the inbox already
+        // owns the collapsing. groupNotifications() (app/(app)/notificaciones/
+        // notification-ordering.ts) buckets by `relatedPetId|notificationType`
+        // and folds ≥3 of a bucket behind "+ N más del mismo tipo". A vet who
+        // loads five vaccines in one consultation therefore renders as ONE card
+        // plus a disclosure, WITHOUT a bespoke digest here — but only while both
+        // of these stay CONSTANT across event types. Varying notificationType
+        // per event (e.g. "vaccination_recorded") would silently unfold the
+        // group back into five cards; notify-owners-of-clinical-event.test.ts
+        // pins that against the real grouper.
         notificationType: "clinical_event_recorded",
         category: "health",
+        // info, not warning: the overwhelming majority of these are legitimate
+        // care. It also keeps the row out of the urgent-only Web Push leg.
         severity: "info",
         title: `Nuevo registro en la libreta de ${input.petName}`,
-        body: `${input.authorLabel} registró ${eventLabelInline} en la libreta de ${input.petName}.`,
-        ctaLabel: "Ver libreta",
-        ctaUrl: `/mis-mascotas/${input.petPublicToken}`,
+        body: `${input.authorLabel} registró ${eventLabelInline} con fecha ${formatDate(
+          input.occurredAt,
+        )}. Si no reconocés esta atención, abrí el registro para revisarlo o corregirlo.`,
+        ctaLabel: "Ver el registro",
+        // Deep-link to the EVENT, not the libreta: that page is where the
+        // owner's "Corregir registro" affordance lives, so the recourse the body
+        // promises is one tap away.
+        ctaUrl: `/mis-mascotas/${input.petPublicToken}/eventos/${input.eventId}`,
         relatedPetId: input.petId,
         relatedEventId: input.eventId,
         dedupeKey: `event:${input.eventId}:${userId}:clinical_recorded`,
