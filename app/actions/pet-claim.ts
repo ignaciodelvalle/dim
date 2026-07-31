@@ -52,7 +52,10 @@ export async function submitClaimDisputeAction(input: ClaimDisputeInput, files: 
   const { user } = await requireUserOrRedirect();
   const result = await _submitClaimDispute(user.id, input, files);
   if (!("error" in result)) {
-    revalidatePath(`/mis-mascotas/${input.petToken}`);
+    // The pet token is derived server-side from the verified identifier — never
+    // trusted from the caller — so revalidate using the resolved token (same
+    // rule as submitFreeClaimAction below).
+    revalidatePath(`/mis-mascotas/${result.petToken}`);
   }
   return result;
 }

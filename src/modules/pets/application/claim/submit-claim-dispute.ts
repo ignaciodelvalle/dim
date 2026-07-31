@@ -3,10 +3,46 @@
 // Raises a custody_dispute against the active owner of a chip/tattoo-matched
 // pet. Uploads evidence BEFORE the tx so failures don't dangle, then opens
 // a case + raising event + dispute row in one atomic transaction.
+//
+// AUTHORIZATION: the private identifier, never a caller-supplied pet token.
+//
+// This writer used to take `petToken` straight into `where(eq(pets.publicToken,
+// …))` behind nothing but requireUserOrRedirect. That made it a national
+// denial-of-rescue button: /perdidas lists every lost animal with a link to
+// /p/{token} and no login, so a free account could scrape tokens and raise a
+// dispute on each one. Every raise flips `pets.in_custody_dispute` (see
+// openDisputeFromEvent), and app/(public)/p/[publicToken]/page.tsx reads that
+// flag to null out ownerFirstName, ownerPhoneE164, ownerEmail, the finder form
+// AND the sighting form — so mass-disputing lost pets strips the only channel
+// by which a finder reaches the owner, on exactly the animals that need it.
+// It also notified each owner that a stranger claims their pet, and appended a
+// permanent custody_dispute_raised row to their append-only spine.
+//
+// The fix resolves the pet FROM the identifier and never consults a token, so
+// a mismatch is not merely rejected — it is unrepresentable. That is verbatim
+// what submitFreeClaimForUser (the sibling step of the SAME wizard) already
+// did, calling the identifier "the evidence". The dispute step was an outlier,
+// not a design. The wizard already carries kind+value forward for the free
+// branch; this branch now uses the value it was already holding.
+//
+// The identifier is not proof of ownership — a vet or a shelter knows the chip
+// too. It is proof the caller reached this flow legitimately, and the dispute
+// is adjudicated by a human authority afterwards. What it buys is the end of
+// bulk abuse against arbitrary animals: a 15-digit keyspace at 30 attempts a
+// minute instead of a token list anyone can download.
 
 import { and, eq, isNull } from "drizzle-orm";
 
-import { attachments, auditLog, db, notifications, ownerships, petEvents, pets } from "@/db";
+import {
+  attachments,
+  auditLog,
+  db,
+  notifications,
+  ownerships,
+  petEvents,
+  petIdentifications,
+  pets,
+} from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -14,6 +50,8 @@ import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfar
 import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 
 import type { ClaimDisputeInput, ClaimDisputeResult } from "./types";
+
+const MICROCHIP_PATTERN = /^\d{15}$/;
 
 export async function submitClaimDisputeForUser(
   userId: string,
@@ -27,6 +65,17 @@ export async function submitClaimDisputeForUser(
     return { error: "La explicación no puede superar los 2000 caracteres." };
   }
 
+  // Evidence gate — mirrors submitFreeClaimForUser. An empty value (or a
+  // malformed microchip) can never resolve to a pet, so reject before spending
+  // a rate-limit token or uploading anything.
+  const identifierValue = input.identifierValue.trim();
+  if (!identifierValue) {
+    return { error: "Ingresá el número de microchip o el código del tatuaje." };
+  }
+  if (input.identifierKind === "microchip" && !MICROCHIP_PATTERN.test(identifierValue)) {
+    return { error: "El microchip debe tener exactamente 15 dígitos." };
+  }
+
   // Rate limit — same key as lookup so a burst of probes counts together.
   try {
     await enforceRateLimit("claim_lookup", userId, { maxPerMinute: 30, maxPerHour: 200 });
@@ -37,18 +86,30 @@ export async function submitClaimDisputeForUser(
     throw err;
   }
 
-  // Load pet + current owner.
+  // Resolve the pet FROM the private identifier — this is the evidence, and it
+  // is the whole authorization. No caller-supplied token is consulted anywhere
+  // in this function, so there is no token/pet pair that could disagree.
+  // The active-status partial unique index guarantees at most one match.
+  const identificationKind = input.identifierKind === "microchip" ? "microchip_iso" : "tattoo";
   const [pet] = await db
     .select({
       id: pets.id,
+      publicToken: pets.publicToken,
       name: pets.name,
       status: pets.status,
       inCustodyDispute: pets.inCustodyDispute,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
     })
-    .from(pets)
-    .where(eq(pets.publicToken, input.petToken))
+    .from(petIdentifications)
+    .innerJoin(pets, eq(pets.id, petIdentifications.petId))
+    .where(
+      and(
+        eq(petIdentifications.kind, identificationKind),
+        eq(petIdentifications.code, identifierValue),
+        eq(petIdentifications.status, "active"),
+      ),
+    )
     .limit(1);
   if (!pet) return { error: "No encontramos la mascota." };
   if (pet.status === "deceased") {
@@ -116,7 +177,26 @@ export async function submitClaimDisputeForUser(
           occurredAt: new Date(),
           recordedAt: new Date(),
           recordedByUserId: userId,
-          authorRole: "owner",
+          // NOT "owner" — see the twin fix in confirm-chip-match-vecino.ts
+          // (4b09b445). This writer runs on a pet the actor demonstrably does
+          // NOT own: the guard 100 lines up returns an error when the claimant
+          // IS the registered owner, so reaching this insert proves they are
+          // not. The timeline renders author_role verbatim as "Dueño/a", so
+          // signing it "owner" showed the real owner an accusation against
+          // themselves apparently written by themselves. The spine is
+          // append-only (invariant #2): a false attribution here cannot be
+          // edited later, only contradicted by a second event.
+          //
+          // The payload's `raised_by_role` below stays "owner" on purpose —
+          // that is a different axis. Its domain is owner|org|govt|admin (DB
+          // CHECK custody_disputes_raised_role_valid, migration 0025) and it
+          // classifies WHO INITIATED — a private party asserting ownership, as
+          // opposed to an org, a govt agent or an admin. There is no
+          // "claimant" member; adding one is a CHECK migration plus the label
+          // and legacy-parser tables, not a rename. authorRole answers "who
+          // wrote this row", raised_by_role answers "under what capacity was
+          // the dispute opened".
+          authorRole: "finder",
           payload,
           caseId: disputeCase.id,
         })
@@ -162,7 +242,9 @@ export async function submitClaimDisputeForUser(
           severity: "warning",
           relatedPetId: pet.id,
           ctaLabel: "Ver mi mascota",
-          ctaUrl: `/mis-mascotas/${input.petToken}`,
+          // The RESOLVED token, not caller input — this notification goes to
+          // the owner and must point at their own pet.
+          ctaUrl: `/mis-mascotas/${pet.publicToken}`,
           category: "custody",
         });
       }
@@ -197,5 +279,5 @@ export async function submitClaimDisputeForUser(
     return { error: `No se pudo enviar el reclamo: ${message}` };
   }
 
-  return { disputeToken };
+  return { disputeToken, petToken: pet.publicToken };
 }

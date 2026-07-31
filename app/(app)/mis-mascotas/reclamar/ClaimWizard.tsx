@@ -33,7 +33,13 @@ type Step2State = {
 };
 type Step3State = {
   phase: "dispute";
-  petToken: string;
+  // Carried forward for the SAME reason the free-claim branch above carries it:
+  // the dispute submit re-proves knowledge of the private identifier
+  // server-side. The public pet token is NOT evidence — /perdidas hands those
+  // out without a login, so a token-authorized dispute let anyone flip
+  // in_custody_dispute on any animal (see submit-claim-dispute.ts).
+  kind: IdKind;
+  value: string;
   petName: string;
   reason: string;
   error: string | null;
@@ -211,8 +217,15 @@ export function ClaimWizard() {
         error={state.error}
         stepFocusRef={stepFocusRef}
         onBack={() => setState(INITIAL)}
-        onClaim={(t, n) =>
-          setState({ phase: "dispute", petToken: t, petName: n, reason: "", error: null })
+        onClaim={(_t, n) =>
+          setState({
+            phase: "dispute",
+            kind: state.kind,
+            value: state.value,
+            petName: n,
+            reason: "",
+            error: null,
+          })
         }
         onFreeClaim={() => {
           startTransition(async () => {
@@ -244,7 +257,7 @@ export function ClaimWizard() {
         startTransition(async () => {
           const reason = String(fd.get("reason") ?? "");
           const result = await submitClaimDisputeAction(
-            { petToken: state.petToken, reason },
+            { identifierKind: state.kind, identifierValue: state.value, reason },
             files,
           );
           if ("error" in result) {

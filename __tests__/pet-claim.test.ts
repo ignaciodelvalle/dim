@@ -142,6 +142,16 @@ async function addMicrochip(petId: string, code: string): Promise<void> {
   });
 }
 
+// Distinct 15-digit chips per dispute scenario. The dispute writer resolves the
+// pet FROM the chip, so every scenario needs its own or they collide on the
+// active-status partial unique index.
+const DISPUTE_OK_CHIP = "900000000000101";
+const DISPUTE_SHORT_CHIP = "900000000000102";
+const DISPUTE_SELF_CHIP = "900000000000103";
+const DISPUTE_DUP_CHIP = "900000000000104";
+const VICTIM_CHIP = "900000000000105";
+const BYSTANDER_CHIP = "900000000000106";
+
 // Insert a pet with an active owner — direct claim must fail, dispute is the
 // path.
 async function insertOwnedPet(token: string, name: string, owner: string): Promise<string> {
@@ -350,8 +360,13 @@ describe("submitClaimDisputeAction", () => {
     const petId = await insertOwnedPet(token, "Disputado", ownerUserId);
     mockSessionAs(claimantUserId);
 
+    await addMicrochip(petId, DISPUTE_OK_CHIP);
     const result = await submitClaimDisputeAction(
-      { petToken: token, reason: "Es mi perro, lo perdí hace dos meses y lo reconozco." },
+      {
+        identifierKind: "microchip",
+        identifierValue: DISPUTE_OK_CHIP,
+        reason: "Es mi perro, lo perdí hace dos meses y lo reconozco.",
+      },
       [],
     );
 
@@ -409,21 +424,30 @@ describe("submitClaimDisputeAction", () => {
 
   it("rejects a reason shorter than 20 characters", async () => {
     const token = "DIM-DISPUTE-SHORT";
-    await insertOwnedPet(token, "Razon Corta", ownerUserId);
+    const petId = await insertOwnedPet(token, "Razon Corta", ownerUserId);
+    await addMicrochip(petId, DISPUTE_SHORT_CHIP);
     mockSessionAs(claimantUserId);
 
-    const result = await submitClaimDisputeAction({ petToken: token, reason: "mía" }, []);
+    const result = await submitClaimDisputeAction(
+      { identifierKind: "microchip", identifierValue: DISPUTE_SHORT_CHIP, reason: "mía" },
+      [],
+    );
     expect(result).toHaveProperty("error");
     expect((result as { error: string }).error).toContain("al menos 20 caracteres");
   });
 
   it("rejects when the claimant is already the registered owner", async () => {
     const token = "DIM-DISPUTE-SELF";
-    await insertOwnedPet(token, "Ya Es Mío", claimantUserId);
+    const petId = await insertOwnedPet(token, "Ya Es Mío", claimantUserId);
+    await addMicrochip(petId, DISPUTE_SELF_CHIP);
     mockSessionAs(claimantUserId);
 
     const result = await submitClaimDisputeAction(
-      { petToken: token, reason: "Quiero reclamar mi propia mascota registrada acá." },
+      {
+        identifierKind: "microchip",
+        identifierValue: DISPUTE_SELF_CHIP,
+        reason: "Quiero reclamar mi propia mascota registrada acá.",
+      },
       [],
     );
     expect(result).toEqual({ error: "Esta mascota ya está registrada a tu nombre." });
@@ -432,16 +456,25 @@ describe("submitClaimDisputeAction", () => {
   it("rejects raising a second dispute while one is already open", async () => {
     const token = "DIM-DISPUTE-DUP";
     const petId = await insertOwnedPet(token, "Doble Disputa", ownerUserId);
+    await addMicrochip(petId, DISPUTE_DUP_CHIP);
     mockSessionAs(claimantUserId);
 
     const first = await submitClaimDisputeAction(
-      { petToken: token, reason: "Primera disputa con motivo suficientemente largo." },
+      {
+        identifierKind: "microchip",
+        identifierValue: DISPUTE_DUP_CHIP,
+        reason: "Primera disputa con motivo suficientemente largo.",
+      },
       [],
     );
     expect(first).toHaveProperty("disputeToken");
 
     const second = await submitClaimDisputeAction(
-      { petToken: token, reason: "Segunda disputa con motivo suficientemente largo." },
+      {
+        identifierKind: "microchip",
+        identifierValue: DISPUTE_DUP_CHIP,
+        reason: "Segunda disputa con motivo suficientemente largo.",
+      },
       [],
     );
     expect(second).toHaveProperty("error");
@@ -453,5 +486,192 @@ describe("submitClaimDisputeAction", () => {
       .from(custodyDisputes)
       .where(eq(custodyDisputes.petId, petId));
     expect(disputes).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The denial-of-rescue attack — the private identifier is the authorization
+// ---------------------------------------------------------------------------
+//
+// The writer used to take a caller-supplied `petToken` straight into the WHERE
+// behind nothing but requireUserOrRedirect. /perdidas lists every lost animal
+// with a link to /p/{token} and no login, so a free account could scrape tokens
+// and dispute each one. Each raise flips pets.in_custody_dispute, which the
+// public credential page reads to null out the owner's name, phone, email, the
+// finder form and the sighting form — stripping the only channel by which a
+// finder reaches the owner, on exactly the animals that need it.
+//
+// These drive the REAL action against the REAL database. The type no longer
+// admits a pet token at all, so the residual runtime question is whether the
+// identifier actually binds: an attacker holding a DIFFERENT pet's chip, or no
+// valid chip, must not be able to touch the victim.
+
+describe("dispute authorization — the identifier binds, the token is gone", () => {
+  /** The victim's flag and spine must both be untouched. */
+  async function assertUntouched(petId: string) {
+    const [pet] = await db
+      .select({ inCustodyDispute: pets.inCustodyDispute })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    expect(pet?.inCustodyDispute).toBe(false);
+
+    const raised = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_dispute_raised")));
+    expect(raised).toHaveLength(0);
+
+    const disputes = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .where(eq(custodyDisputes.petId, petId));
+    expect(disputes).toHaveLength(0);
+  }
+
+  it("a chip that belongs to ANOTHER pet cannot dispute the victim", async () => {
+    const victimId = await insertOwnedPet("DIM-VICTIM-XPET", "Victima", ownerUserId);
+    await addMicrochip(victimId, VICTIM_CHIP);
+    const bystanderId = await insertOwnedPet("DIM-BYSTANDER-1", "Ajena", ownerUserId);
+    await addMicrochip(bystanderId, BYSTANDER_CHIP);
+    mockSessionAs(claimantUserId);
+
+    // The attacker holds the victim's public token (harvested from /perdidas)
+    // but only a DIFFERENT animal's chip. The request can only ever name the
+    // animal the chip resolves to.
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: BYSTANDER_CHIP,
+        reason: "Intento apuntar a la victima usando el chip de otro animal.",
+      },
+      [],
+    );
+
+    // It resolved to the bystander, never to the victim.
+    expect(result).toHaveProperty("petToken");
+    expect((result as { petToken: string }).petToken).toBe("DIM-BYSTANDER-1");
+    await assertUntouched(victimId);
+  });
+
+  it("an unknown chip disputes nothing at all", async () => {
+    const victimId = await insertOwnedPet("DIM-VICTIM-NOCHIP", "Victima2", ownerUserId);
+    await addMicrochip(victimId, "900000000000107");
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: "900000000000999",
+        reason: "Un chip que no existe no puede disputar ninguna mascota.",
+      },
+      [],
+    );
+
+    expect(result).toEqual({ error: "No encontramos la mascota." });
+    await assertUntouched(victimId);
+  });
+
+  it("an empty identifier is rejected before anything is written", async () => {
+    const victimId = await insertOwnedPet("DIM-VICTIM-EMPTY", "Victima3", ownerUserId);
+    await addMicrochip(victimId, "900000000000108");
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: "   ",
+        reason: "Sin identificador no se puede abrir ninguna disputa.",
+      },
+      [],
+    );
+
+    // Pin the EMPTY-value message specifically, not just "some error". Dropping
+    // the `if (!identifierValue)` guard is otherwise a behaviour-preserving
+    // mutation: whitespace trims to "" and the 15-digit pattern rejects it a
+    // line later, so the security property (nothing written) survives either
+    // way. What the guard actually buys is the better message — asking for the
+    // number rather than complaining about its length — so that is what this
+    // asserts. assertUntouched below still pins the security property itself.
+    expect(result).toEqual({
+      error: "Ingresá el número de microchip o el código del tatuaje.",
+    });
+    await assertUntouched(victimId);
+  });
+
+  it("an empty TATTOO identifier is rejected too — no pattern check backs that kind up", async () => {
+    const victimId = await insertOwnedPet("DIM-VICTIM-EMPTYTAT", "Victima5", ownerUserId);
+    await addMicrochip(victimId, "900000000000111");
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "tattoo",
+        identifierValue: "",
+        reason: "Un tatuaje vacio tampoco puede abrir una disputa.",
+      },
+      [],
+    );
+
+    expect(result).toEqual({
+      error: "Ingresá el número de microchip o el código del tatuaje.",
+    });
+    await assertUntouched(victimId);
+  });
+
+  it("a retired (replaced) chip no longer authorizes a dispute", async () => {
+    const victimId = await insertOwnedPet("DIM-VICTIM-RETIRED", "Victima4", ownerUserId);
+    const retired = "900000000000109";
+    await db.insert(petIdentifications).values({
+      petId: victimId,
+      kind: "microchip_iso",
+      code: retired,
+      recordedAt: TODAY,
+      status: "replaced",
+    });
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: retired,
+        reason: "Un chip dado de baja no debe seguir habilitando la disputa.",
+      },
+      [],
+    );
+
+    expect(result).toEqual({ error: "No encontramos la mascota." });
+    await assertUntouched(victimId);
+  });
+
+  it("signs the raising event authorRole=finder — the claimant is NOT the owner", async () => {
+    const petId = await insertOwnedPet("DIM-DISPUTE-ROLE", "Atribucion", ownerUserId);
+    const chip = "900000000000110";
+    await addMicrochip(petId, chip);
+    mockSessionAs(claimantUserId);
+
+    const result = await submitClaimDisputeAction(
+      {
+        identifierKind: "microchip",
+        identifierValue: chip,
+        reason: "La atribucion del evento debe decir la verdad sobre quien escribe.",
+      },
+      [],
+    );
+    expect(result).toHaveProperty("disputeToken");
+
+    // The guard above this insert refuses when the claimant IS the registered
+    // owner, so reaching the insert proves they are not. The timeline renders
+    // author_role verbatim as "Dueño/a" — signing it "owner" showed the real
+    // owner an accusation against themselves apparently written by themselves.
+    // Append-only (invariant #2): a false attribution cannot be edited later.
+    const [evt] = await db
+      .select({ authorRole: petEvents.authorRole, recordedByUserId: petEvents.recordedByUserId })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_dispute_raised")))
+      .limit(1);
+    expect(evt.recordedByUserId).toBe(claimantUserId);
+    expect(evt.authorRole).toBe("finder");
+    expect(evt.authorRole).not.toBe("owner");
   });
 });
