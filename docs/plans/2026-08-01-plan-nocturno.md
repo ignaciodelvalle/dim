@@ -37,12 +37,31 @@ Y el corolario que lo explica: **una enumeración mantenida a mano falla ABIERTA
 
 # 🚨 GATE DE DEPLOY — LEER ANTES DE SUBIR NADA
 
-**La migración `db/migrations/0162_welfare_reports_jurisdiction_unverified.sql`
-DEBE aplicarse antes de que esto shipee.** `db/schema.ts:1680` ya declara
-`jurisdictionUnverified` y `MaltratoQueueScreen` hace un `.select()` pelado sobre
-`welfareReports`: contra una base sin migrar, **toda query de welfare da 500 y el
-circuito de denuncias entero se cae**. Numeración verificada (0160/0161/0162,
-forward-only, idempotente). Aplicada SOLO en local.
+Tres cosas hay que hacer a mano ANTES de que esto sirva en un entorno real.
+
+**1. Migración `0162_welfare_reports_jurisdiction_unverified.sql` — obligatoria.**
+`db/schema.ts:1680` ya declara `jurisdictionUnverified` y `MaltratoQueueScreen`
+hace un `.select()` pelado sobre `welfareReports`: contra una base sin migrar,
+**toda query de welfare da 500 y el circuito de denuncias entero se cae**.
+Numeración verificada (0160/0161/0162, forward-only, idempotente). Aplicada SOLO
+en local.
+
+**2. Las migraciones de RA-8 (R1 auto-otorgamiento de tenencia, R2 bucket de
+evidencia).** Son cambios de política de RLS y de storage sobre vulnerabilidades
+**alcanzables hoy**. El agente deja el orden de aplicación explícito en su
+reporte. Aplicar a un entorno real es decisión tuya, no de un agente.
+
+**3. `DEMO_PET_TOKEN` en Vercel + sembrar el flagship.** Hasta que eso esté, la
+landing **degrada a propósito**: QR decorativo inerte, sin link, token
+enmascarado, y la invitación a escanear reemplazada. Degradado ≠ roto — pero es
+la primera pantalla del producto y conviene decidirlo con los ojos abiertos. La
+receta está en el header de `components/landing/demo-pet.ts`.
+
+**Y una que es tuya, no técnica**: `lib/infra/geocoding.ts:62` manda **tu Gmail
+personal** a Nominatim en el `USER_AGENT` de cada geocodificación. El agente lo
+dejó a propósito: la política de uso de OSM exige un contacto **monitoreado**, así
+que cambiarlo a `hola@mimar.ar` solo es seguro si esa casilla existe y alguien la
+lee. `SECURITY.md:12` lleva la misma dirección.
 
 # ⛔ VEREDICTO RA-3 — NO APTO PARA STAGING HASTA CERRAR C1-C4
 
