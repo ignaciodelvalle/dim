@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
 
-import { ACCOUNTS, discoverPetToken, loginAs } from "./demo/_helpers";
+import { ACCOUNTS, assertRealPage, discoverPetToken, loginAs } from "./demo/_helpers";
 
 /**
  * CSP regression guard — public pages only.
@@ -24,20 +24,65 @@ import { ACCOUNTS, discoverPetToken, loginAs } from "./demo/_helpers";
  * (chunk path + page), not by the build-specific chunk hash. Any other CSP
  * violation — on any page, including a different chunk on
  * /denuncias/nueva, or any inline-script refusal anywhere — fails the test.
+ *
+ * ---------------------------------------------------------------------------
+ * P2.3 — THE PAGE MUST BE THE PAGE BEFORE ANYTHING IS MEASURED
+ * ---------------------------------------------------------------------------
+ * A CSP listener measures ABSENCE. A not-found boundary is a small static page
+ * with no map, no QR, no lazy chunk and no inline script: it raises zero
+ * violations, so this suite reported GREEN for a route it never loaded. That is
+ * the same silent pass A7 found in a11y-regression (axe scoring a 404
+ * "critical=0"). It first bit on `/p/DIM-DEMO-0001` — a demo-tier token
+ * `pnpm db:bootstrap` never seeds — but the hole was never specific to that
+ * route: NONE of the pages below proved they had rendered either.
+ *
+ * So every route now carries a MARKER — an element only the real page renders —
+ * and goes through the shared `assertRealPage()` (e2e/demo/_helpers.ts) before
+ * the violation list is read. Absence-of-404 alone is not enough; the marker is
+ * the positive half.
+ *
+ * Do not add a route here without a marker, and do not hardcode a pet token —
+ * the credential test discovers one from the owner's own registry at runtime.
  */
 
 const CSP_VIOLATION_PATTERN =
   /Content Security Policy|violates the following Content Security Policy|Refused to (load|execute)/i;
 
-// The public credential is NOT in this list — it needs a token that exists,
-// and it used to be here as the literal `/p/DIM-DEMO-0001`. On a bootstrapped
-// database that is a not-found boundary, and a not-found boundary is a small
-// static page with no map, no QR and no inline chunk: it raises zero CSP
-// violations and this suite printed GREEN for a route it never scanned. That is
-// the same silent-pass A7 found in a11y-regression (axe scoring a 404 page
-// "critical=0"). It gets its own test below, with a runtime token and a proof
-// that the real credential rendered. Do not put a pet route back in this array.
-const PUBLIC_PAGES = ["/", "/adoptar", "/perdidas", "/denuncias/nueva", "/refugios"] as const;
+/**
+ * Public routes, each with the element that PROVES it rendered. Markers are
+ * anchored on the route's own `<h1>` (or, for the wizard, its first step
+ * control) — the one thing a not-found boundary cannot produce.
+ */
+const PUBLIC_PAGES: ReadonlyArray<{
+  path: string;
+  marker: (page: Page) => ReturnType<Page["locator"]>;
+}> = [
+  {
+    // Landing: the crisis band is above the fold on every viewport and is the
+    // landing's own copy, not shared chrome.
+    path: "/",
+    marker: (page) => page.getByText(/credencial pública o seguimiento de denuncia/i).first(),
+  },
+  {
+    path: "/adoptar",
+    marker: (page) => page.getByRole("heading", { name: /adoptar en/i, level: 1 }),
+  },
+  {
+    path: "/perdidas",
+    marker: (page) => page.getByRole("heading", { name: /mascotas\s+perdidas/i, level: 1 }),
+  },
+  {
+    // The wizard's step-1 card group. Server-rendered copy would be enough to
+    // prove the route resolved, but this also proves the client bundle ran —
+    // and CSP violations are precisely a thing that stops it running.
+    path: "/denuncias/nueva",
+    marker: (page) => page.locator('label:has(input[name="kindCard"])').first(),
+  },
+  {
+    path: "/refugios",
+    marker: (page) => page.getByRole("heading", { name: /refugios y redes de rescate/i, level: 1 }),
+  },
+];
 
 // The one verified-cosmetic violation: a modulepreload for the lazy
 // LocationPicker (maplibre) chunk on /denuncias/nueva, refused because it
@@ -47,19 +92,26 @@ function isKnownCosmeticViolation(path: string, message: string): boolean {
   return path === "/denuncias/nueva" && message.includes("_next/static/chunks/");
 }
 
-for (const path of PUBLIC_PAGES) {
-  test(`${path} → no unexpected CSP violations`, async ({ page }) => {
-    const violations: string[] = [];
+/** Collect CSP-violation console messages from BEFORE navigation onwards. */
+function watchCspViolations(page: Page): string[] {
+  const violations: string[] = [];
+  page.on("console", (msg) => {
+    const text = msg.text();
+    if (CSP_VIOLATION_PATTERN.test(text)) violations.push(text);
+  });
+  return violations;
+}
 
-    page.on("console", (msg) => {
-      const text = msg.text();
-      if (CSP_VIOLATION_PATTERN.test(text)) {
-        violations.push(text);
-      }
-    });
+for (const { path, marker } of PUBLIC_PAGES) {
+  test(`${path} → no unexpected CSP violations`, async ({ page }) => {
+    const violations = watchCspViolations(page);
 
     await page.goto(path);
     await page.waitForLoadState("networkidle");
+
+    // Gate first: a 404 or a crashed route raises no CSP violations, so
+    // measuring one would report green for a page that never loaded.
+    await assertRealPage(page, path, marker(page));
 
     const unexpected = violations.filter((text) => !isKnownCosmeticViolation(path, text));
 
@@ -74,6 +126,9 @@ test("/p/[token] → no unexpected CSP violations (on a credential that exists)"
   page,
 }) => {
   // Token discovered from the owner's registry, then loaded anonymously.
+  // NEVER a literal: `DIM-DEMO-0001` lives in scripts/seed-owner-demo.ts, which
+  // `pnpm db:bootstrap` does not run, so in CI it resolves to the (public)
+  // not-found boundary.
   const owner = await browser.newContext();
   let token: string;
   try {
@@ -84,22 +139,19 @@ test("/p/[token] → no unexpected CSP violations (on a credential that exists)"
     await owner.close();
   }
 
-  const violations: string[] = [];
-  page.on("console", (msg) => {
-    const text = msg.text();
-    if (CSP_VIOLATION_PATTERN.test(text)) violations.push(text);
-  });
+  const violations = watchCspViolations(page);
 
   await page.goto(`/p/${token}`);
   await page.waitForLoadState("networkidle");
 
-  // PROVE the credential rendered. Without this the test is worth nothing: a
-  // not-found boundary raises no CSP violations either, which is exactly how
-  // the old hardcoded token passed in CI while scanning a 404.
-  await expect(
-    page.getByText("Credencial pública", { exact: true }),
-    "the public credential actually rendered — not a not-found boundary",
-  ).toBeVisible({ timeout: 20_000 });
+  // PROVE the credential rendered, via the SHARED guard — which, unlike the
+  // bespoke check that used to be here, also recognises the (public) group's
+  // "No encontramos esa credencial" boundary.
+  await assertRealPage(
+    page,
+    `/p/${token}`,
+    page.getByText("Credencial pública", { exact: true }).first(),
+  );
 
   expect(
     violations,

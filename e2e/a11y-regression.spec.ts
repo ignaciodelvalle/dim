@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type Browser, type Page, expect, test } from "@playwright/test";
 
-import { ACCOUNTS, loginAs } from "./demo/_helpers";
+import { ACCOUNTS, assertRealPage, loginAs } from "./demo/_helpers";
 
 /**
  * A11y REGRESSION ARMOR (capstone readiness gap) — axe-core + keyboard nav.
@@ -65,19 +65,17 @@ async function petToken(browser: Browser): Promise<string> {
   }
 }
 
-/**
- * Refuse to scan a page that is not the page under test.
- *
- * axe on a not-found (or crashed) route returns a clean bill of health, so
- * without this every token drift downgrades an assertion into a decoration.
- */
-async function assertRealPage(page: Page, route: string): Promise<void> {
-  await expect(page.getByText(/application error/i), `${route}: app crashed`).not.toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: /no encontramos esta página/i }),
-    `${route}: rendered the not-found boundary — axe would scan a 404 and pass vacuously`,
-  ).toHaveCount(0);
-}
+// `assertRealPage` — "refuse to scan a page that is not the page under test" —
+// used to be defined right here, privately. It now lives in
+// e2e/demo/_helpers.ts (backed by e2e/_page-identity.ts) because csp-smoke
+// needs the identical guard, AND because the private version had the same
+// class of bug it was written to fix: it matched only the heading
+// "No encontramos esta página", which is the (app)/admin/gob/root copy. The
+// `(public)` group — where /p/[token] lives, the route A7 was repairing —
+// renders "No encontramos esa CREDENCIAL", so the guard would not have
+// recognised the 404 it was guarding against. The shared version keys on
+// BrandedNotFound's data-testid first and on every heading second, pinned by
+// __tests__/e2e-page-identity.test.ts against the real not-found.tsx files.
 
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"] as const;
 

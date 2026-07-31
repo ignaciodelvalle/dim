@@ -8,6 +8,13 @@ import {
   expect,
 } from "@playwright/test";
 
+import {
+  BRANDED_NOT_FOUND_TESTID,
+  CRASH_BOUNDARY,
+  NOT_FOUND_HEADING,
+  type OwnerPii,
+} from "../_page-identity";
+
 export const SHARED_PASSWORD = "Test1234!";
 
 // Demo accounts (all password Test1234!).
@@ -256,6 +263,77 @@ export async function discoverDisplayName(page: Page, email: string): Promise<st
   expect(name, `display name read from /cuenta for ${email}`).not.toBe("");
   expect(name, "display name is not the email itself").not.toContain("@");
   return name;
+}
+
+/**
+ * Refuse to measure a page that is not the page under test.
+ *
+ * THE gate-integrity primitive. A not-found boundary and a crashed route are
+ * both small, clean, quiet pages: axe finds zero violations on them, a CSP
+ * console listener hears nothing, and a PII substring check finds no PII. Every
+ * such gate therefore reports GREEN for a route it never loaded. It has now
+ * happened twice in this repo (a11y-regression scanning /p/DIM-DEMO-0001 as a
+ * 404 and printing "critical=0"; csp-smoke doing the same on the same token).
+ *
+ * This function is the SINGLE implementation. It used to live privately inside
+ * e2e/a11y-regression.spec.ts, matching only the heading
+ * "No encontramos esta página" — which is the (app)/admin/gob/root copy, NOT
+ * the `(public)` group's "No encontramos esa credencial". `/p/[token]` is a
+ * (public) route, so the guard did not recognise the one boundary it existed to
+ * catch. Fixed here by keying on BrandedNotFound's data-testid first (copy
+ * cannot disarm it) and on the full set of headings second — see
+ * e2e/_page-identity.ts and its parity test.
+ *
+ * @param marker OPTIONAL positive proof: something only the real page renders.
+ *   Absence-of-404 is necessary but not sufficient — pass this whenever the
+ *   route has a stable identifying element. "Assert the page is the page."
+ */
+export async function assertRealPage(page: Page, route: string, marker?: Locator): Promise<void> {
+  await expect(
+    page.getByTestId(BRANDED_NOT_FOUND_TESTID),
+    `${route}: rendered the branded not-found boundary — measuring it would pass vacuously`,
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: NOT_FOUND_HEADING }),
+    `${route}: rendered a not-found heading — measuring it would pass vacuously`,
+  ).toHaveCount(0);
+  await expect(page.getByText(CRASH_BOUNDARY), `${route}: the page crashed`).toHaveCount(0);
+  if (marker) {
+    await expect(marker, `${route}: the page's own content never rendered`).toBeVisible({
+      timeout: 20_000,
+    });
+  }
+}
+
+/**
+ * The signed-in account's PII, resolved at runtime, for "this public surface
+ * must not leak the owner" assertions.
+ *
+ * `page` must already be authenticated as that account.
+ *
+ * The phone is read from the editar-perfil sheet (`/cuenta?sheet=editar-perfil`
+ * renders `input#phone` pre-filled from profiles.phone) because /cuenta itself
+ * only prints name, email and `••••<dni_last4>`. It is OPTIONAL: an account
+ * with no phone on file yields null, and the caller must skip the phone
+ * assertion rather than search for the empty string — `body.includes("")` is
+ * always true, which would turn the leak detector into a permanent false alarm.
+ *
+ * See e2e/_page-identity.ts → OwnerPii for the scope decision (why DNI and
+ * address are deliberately not in here).
+ */
+export async function discoverOwnerPii(page: Page, email: string): Promise<OwnerPii> {
+  const displayName = await discoverDisplayName(page, email);
+
+  await page.goto("/cuenta?sheet=editar-perfil", { waitUntil: "domcontentloaded" });
+  await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
+  const phoneInput = page.locator("input#phone");
+  let phone: string | null = null;
+  if (await phoneInput.count().then((c) => c > 0)) {
+    const value = (await phoneInput.inputValue()).trim();
+    phone = value === "" ? null : value;
+  }
+
+  return { displayName, email, phone };
 }
 
 /**

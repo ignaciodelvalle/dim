@@ -18,7 +18,16 @@ export function BrandedNotFound({
   secondary?: { href: string; label: string };
 }) {
   return (
-    <div className="mx-auto flex max-w-md flex-col items-center px-6 py-20 text-center">
+    // data-testid is a COPY-INDEPENDENT hook for the e2e "is this page the page
+    // I think it is?" guard (e2e/_page-identity.ts). Matching on the heading
+    // text alone already failed once: A7's assertRealPage() looked for
+    // "No encontramos esta página" and therefore did not recognise the
+    // (public) group's "No encontramos esa credencial" — the very boundary it
+    // was written to catch. A wording change must not be able to disarm a gate.
+    <div
+      data-testid="branded-not-found"
+      className="mx-auto flex max-w-md flex-col items-center px-6 py-20 text-center"
+    >
       <div
         className="mb-5 inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-ln-celeste-050)] text-3xl text-[var(--color-ln-azul)]"
         aria-hidden="true"
