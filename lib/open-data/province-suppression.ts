@@ -1,11 +1,46 @@
 // Province-tier k-anonymity for the PUBLIC open-data datasets (Epic B, item 1).
 //
-// The authenticated Panorama province choropleth publishes province aggregates
-// UNSUPPRESSED (repository.ts § U5: "Province returns filled-polygon cells (no
-// k-anon)") — acceptable for a jurisdiction-scoped government operator, NOT for
-// an anonymous open-data download. Ley 27.275 active transparency requires the
-// data be OPEN, so the same province aggregates must be re-published to the
-// public — and that re-publication is what this module protects.
+// WHY THIS MODULE EXISTS — header corrected 2026-07-31 (RA-5).
+// -------------------------------------------------------------------------
+// This comment used to open by asserting that "the authenticated Panorama
+// province choropleth publishes province aggregates UNSUPPRESSED (repository.ts
+// § U5: 'Province returns filled-polygon cells (no k-anon)')", and derived the
+// module's whole reason for being from that asymmetry. **It has been false
+// since task #40.** `provinceCell` (src/modules/panorama/application/
+// build-features.ts) runs every province cell's DENOMINATOR through
+// suppressSmallCells at PROVINCE_K === ANONYMITY_K === 5, and
+// `ProvinceChoroplethRows.suppressedCount` is a REQUIRED field precisely
+// because province cells can come back suppressed. The premise behind the old
+// wording — "province cells are large" — is the retired one that justified a
+// live privacy leak across 13 files for months. It must not be re-cited here.
+//
+// The authenticated province CHOROPLETH and this module differ in STRENGTH, not
+// in presence:
+//   · The choropleth's province rule is per-cell k-anon on the denominator
+//     (`provinceCell`) and stops there — the province loaders in
+//     repository-choropleth.ts run no complementary suppression.
+//     `toChoroplethCells` in that same file does, but that is the DEPARTMENT
+//     tier, grouped by province. (Do NOT generalise this to "the map never
+//     complements at province grain": repository-by-unit.ts, the aggregated
+//     point-cell family, DOES — `group: kanon.grain === "province" ? "national"
+//     : r.province`. The gap is specific to the province choropleth.)
+//   · This module adds COMPLEMENTARY (differencing) suppression across the
+//     NATION on top of the same k=5. A public download is the one surface where
+//     an attacker sits with the whole table and the national total and can
+//     subtract. `loadMortalityRawRollupByProvince` exists solely to feed this
+//     pipeline RAW counts for that reason: hand it the already-suppressed map
+//     cells and complementarySuppress sees zero suppressed rows, promotes no
+//     complement, and the differencing defence silently stops firing.
+//
+// Ley 27.275 active transparency still requires the same province aggregates be
+// re-published OPEN to anonymous users. That re-publication is what this module
+// protects — protected MORE than the map, not instead of it.
+//
+// Third member of the family, named so it is findable: lib/metrics/
+// province-disclosure.ts carries the D.10 rule for AUTHENTICATED censo /
+// control-poblacional (own jurisdiction real, foreign cells suppressed). Its
+// SUPPRESSED_CELL_TEXT is word-identical to SUPPRESSED_MARKER below, and
+// province-disclosure.test.ts pins the two strings together.
 //
 // It routes the province tier through the SAME primitives the locality tier uses
 // (lib/metrics/anonymity.ts): the k=5 small-cell rule and complementary
@@ -17,8 +52,11 @@
 // population base (see isRateCellProtected).
 //
 // Pure and DB-free by design so the privacy rule is unit-testable without a DB.
-// The suppressed marker below is the ONLY thing a protected cell ever emits — a
-// suppressed cell NEVER carries a numeric value, a numerator, or a denominator.
+// A suppressed cell NEVER carries a numeric value, a numerator, or a
+// denominator — but that invariant is ENFORCED one layer up, in
+// lib/open-data/datasets.ts (`baseSuppressed = suppressed || …`, so a row can
+// never publish its base while hiding its own pct). This module only TAGS rows;
+// the dataset layer decides what is emitted.
 
 import { complementarySuppress, suppressSmallCells } from "@/lib/metrics/anonymity";
 
@@ -27,7 +65,12 @@ export const OPEN_DATA_K = 5;
 
 /** The exact string a suppressed numeric cell renders/exports as. Never 0 — a
  *  suppressed value is WITHHELD, not zero (a false zero would itself leak that
- *  the true count is sub-k, and read as real data). */
+ *  the true count is sub-k, and read as real data).
+ *
+ *  Word-for-word identical to `SUPPRESSED_CELL_TEXT` in
+ *  lib/metrics/province-disclosure.ts so an operator reads the SAME sentence in
+ *  a /gob CSV and in a public download; province-disclosure.test.ts asserts the
+ *  two are equal, so neither can be reworded alone. */
 export const SUPPRESSED_MARKER = "suprimido por privacidad";
 
 /** The complementary-suppression group for the province tier: the whole country.
