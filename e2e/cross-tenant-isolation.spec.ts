@@ -48,6 +48,8 @@
 import { type Page, expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
+import { assertRealPage } from "./demo/_helpers";
+
 // ---------------------------------------------------------------------------
 // Config
 // ---------------------------------------------------------------------------
@@ -119,15 +121,28 @@ async function signInOwnerB(): Promise<{ userId: string; accessToken: string } |
   return { userId: data.user.id, accessToken: data.session.access_token };
 }
 
-/** Resolve Owner B's own pet token + id, read AS Owner B (positive-control read). */
-async function getOwnerBPet(accessToken: string): Promise<{ token: string; id: string } | null> {
+/**
+ * Resolve Owner B's own pet token + id + NAME, read AS Owner B (positive-control
+ * read).
+ *
+ * The name is what makes the /mis-mascotas leak test an actual leak test — see
+ * the comment on that test. It was previously left unresolved, so the spec
+ * knew Owner B's identifiers and never once looked for them on a page.
+ */
+async function getOwnerBPet(
+  accessToken: string,
+): Promise<{ token: string; id: string; name: string } | null> {
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
   });
   await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
-  const { data } = await client.from("pets").select("id, public_token").limit(1);
+  const { data } = await client.from("pets").select("id, public_token, name").limit(1);
   return data && data.length > 0
-    ? { token: data[0].public_token as string, id: data[0].id as string }
+    ? {
+        token: data[0].public_token as string,
+        id: data[0].id as string,
+        name: data[0].name as string,
+      }
     : null;
 }
 
@@ -173,33 +188,46 @@ let ownerAUserId: string | null = null;
 let ownerBUserId: string | null = null;
 let ownerBPetToken: string | null = null;
 let ownerBPetId: string | null = null;
-let setupSkip: string | null = null;
+let ownerBPetName: string | null = null;
 // Govt + org fixtures — true when the account is seeded (seed-test-users.ts).
-// The govt/org scope tests self-skip when their account is absent.
+// The govt/org scope tests skip VISIBLY (test.skip) when their account is
+// absent. Never a bare `return`: a skipped test reports as skipped, a returned
+// one reports as passed.
 let govtSeeded = false;
 let orgAdminSeeded = false;
 
+/**
+ * A MISSING FIXTURE FAILS THE SUITE. It used to set `setupSkip`, which a marker
+ * test console.warn'd next to `expect(true).toBe(true)` while thirteen
+ * authorization tests opened with `if (setupSkip) return;`. The comment on the
+ * marker said "same pattern as matrix.test.ts" — and it was, right up until
+ * P2.8 deleted that pattern from matrix.test.ts on 2026-07-31 for printing
+ * green while asserting nothing. This is the sibling it did not reach.
+ *
+ * Thirteen cross-tenant assertions that all evaporate together on one unset env
+ * var is not a graceful degradation; it is the entire authorization suite
+ * agreeing to say yes. The required fixtures (anon key, Owner A + a pet) are
+ * created by `pnpm db:bootstrap` — if they are missing the run is broken, and a
+ * broken run must look broken.
+ */
 test.beforeAll(async () => {
   if (!SUPABASE_ANON_KEY) {
-    setupSkip =
-      "NEXT_PUBLIC_SUPABASE_ANON_KEY not set — cross-tenant isolation spec skipped. Run db:bootstrap + seed:test first.";
-    return;
+    throw new Error(
+      "NEXT_PUBLIC_SUPABASE_ANON_KEY not set — the cross-tenant isolation suite cannot probe anything. Run db:bootstrap + seed:test, and check the CI job exports the real key (.github/actions/supabase-env).",
+    );
   }
 
-  try {
-    const { userId, accessToken } = await signInOwnerA();
-    ownerAUserId = userId;
-    ownerAPetToken = await getOwnerAPetToken(accessToken);
-    if (!ownerAPetToken) {
-      setupSkip =
-        "Owner A has no pets visible via PostgREST — re-run pnpm seed:test to populate test fixtures.";
-    }
-  } catch (err) {
-    setupSkip = `Cross-tenant spec setup failed: ${String(err)}. Run pnpm seed:test first.`;
+  const { userId, accessToken } = await signInOwnerA();
+  ownerAUserId = userId;
+  ownerAPetToken = await getOwnerAPetToken(accessToken);
+  if (!ownerAPetToken) {
+    throw new Error(
+      "Owner A has no pets visible via PostgREST — every cross-tenant probe below would compare against nothing. Re-run pnpm seed:test.",
+    );
   }
 
-  // Owner B is optional: if the owner2 fixture is absent, real-Owner-B tests
-  // self-skip while the fabricated-UUID probes still run.
+  // Owner B is genuinely optional: if the owner2 fixture is absent, the
+  // real-Owner-B tests skip VISIBLY while the fabricated-UUID probes still run.
   const ownerB = await signInOwnerB();
   if (ownerB) {
     ownerBUserId = ownerB.userId;
@@ -207,11 +235,11 @@ test.beforeAll(async () => {
     if (bPet) {
       ownerBPetToken = bPet.token;
       ownerBPetId = bPet.id;
+      ownerBPetName = bPet.name;
     }
   }
 
-  // Govt + org accounts are optional fixtures (seed-test-users.ts). Their scope
-  // tests self-skip when the account isn't seeded.
+  // Govt + org accounts are optional fixtures (seed-test-users.ts).
   govtSeeded = await accountSeeded(GOVT_EMAIL, GOVT_PASSWORD);
   orgAdminSeeded = await accountSeeded(ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD);
 });
@@ -221,14 +249,9 @@ test.beforeAll(async () => {
 // ---------------------------------------------------------------------------
 
 test.describe("cross-tenant isolation — Owner A cannot access Owner B data", () => {
-  // Skip the entire suite body when fixtures are missing (but count as pass,
-  // not failure — same pattern as matrix.test.ts).
-  test("setup: fixtures resolved (suite skips cleanly when seed missing)", () => {
-    if (setupSkip) {
-      console.warn(`[cross-tenant] SKIPPING: ${setupSkip}`);
-    }
-    expect(true).toBe(true); // always pass the setup marker
-  });
+  // The fixtures are asserted in beforeAll, which THROWS. No marker test here:
+  // a marker that always passes is not a gate, it is a decoration, and this one
+  // sat above thirteen tests that trusted it.
 
   // -------------------------------------------------------------------------
   // 1. Pet profile page — /mis-mascotas/[token] scoped to Owner A
@@ -236,20 +259,46 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   test("Owner A on /mis-mascotas sees only own pets (not leaked names/tokens)", async ({
     page,
   }) => {
-    if (setupSkip) return;
     await loginAsOwnerA(page);
 
     await page.goto("/mis-mascotas");
     await page.waitForLoadState("networkidle");
+    await assertRealPage(page, "/mis-mascotas");
 
-    // The page must not 500.
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
+    // POSITIVE CONTROL — the registry actually rendered Owner A's own pet.
+    // Without it, a page that lists NOTHING satisfies every negative assertion
+    // below and the leak test passes on an empty screen. The selector is the
+    // one discoverPetToken() already relies on: every card links to
+    // /mis-mascotas/DIM-…, so a rendered pet is always a matching href.
+    await expect(
+      page.locator(`a[href="/mis-mascotas/${ownerAPetToken}"]`),
+      "Owner A's own pet never rendered on /mis-mascotas — the negative assertions below would pass vacuously",
+    ).toBeVisible({ timeout: 20_000 });
 
-    // The page renders a list of pet cards. Every visible pet name must
-    // belong to Owner A. We can't enumerate all of Owner B's pet names here
-    // (they are dynamic), but we can assert the page renders without error
-    // and that no "Usted no tiene acceso" cross-tenant error leaks through.
-    await expect(page.locator("main, [role=main]").first()).toBeVisible();
+    // THE ACTUAL LEAK ASSERTION. This test previously ended at "no application
+    // error" + "main is visible" — it never mentioned Owner B, whose token, id
+    // and pet were resolved in this very file and left unused. A mutation that
+    // rendered EVERY pet in the database left it green.
+    test.skip(
+      !ownerBPetToken || !ownerBPetName,
+      "owner2 fixture absent — cannot assert the absence of a specific foreign pet.",
+    );
+
+    const body = (await page.locator("body").innerText()).toLowerCase();
+    const html = await page.content();
+
+    expect(
+      html.includes(ownerBPetToken as string),
+      `cross-tenant leak: Owner B's pet token ${ownerBPetToken} appeared in Owner A's registry`,
+    ).toBe(false);
+    expect(
+      body.includes((ownerBPetName as string).toLowerCase()),
+      `cross-tenant leak: Owner B's pet name "${ownerBPetName}" appeared in Owner A's registry`,
+    ).toBe(false);
+    expect(
+      html.includes(ownerBUserId as string),
+      "cross-tenant leak: Owner B's user id appeared in Owner A's registry",
+    ).toBe(false);
   });
 
   // -------------------------------------------------------------------------
@@ -257,7 +306,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    logged in as Owner A should work (positive control).
   // -------------------------------------------------------------------------
   test("Owner A can access own pet profile page (positive control)", async ({ page }) => {
-    if (setupSkip || !ownerAPetToken) return;
     await loginAsOwnerA(page);
 
     const response = await page.goto(`/mis-mascotas/${ownerAPetToken}`);
@@ -275,7 +323,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    not a 500 or leaked data.
   // -------------------------------------------------------------------------
   test("fabricated pet token returns 404 / not-found (no 500, no leak)", async ({ page }) => {
-    if (setupSkip) return;
     await loginAsOwnerA(page);
 
     const response = await page.goto("/mis-mascotas/not-a-real-pet-token-00000000");
@@ -290,7 +337,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   // the pet query to the session owner. Self-skips if owner2 isn't seeded.
   // -------------------------------------------------------------------------
   test("Owner A gets 404 on Owner B's REAL pet URL (action-edge scoping)", async ({ page }) => {
-    if (setupSkip || !ownerBPetToken) return;
+    test.skip(!ownerBPetToken, "owner2 fixture absent — no real Owner B pet to probe.");
     await loginAsOwnerA(page);
 
     const response = await page.goto(`/mis-mascotas/${ownerBPetToken}`);
@@ -307,7 +354,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   // real ownerships row (by B's real user id) nor B's real pet_events.
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read Owner B's REAL ownerships / pet_events", async () => {
-    if (setupSkip || !ownerBUserId) return;
+    test.skip(!ownerBUserId, "owner2 fixture absent — no real Owner B identity to probe.");
 
     const { accessToken } = await signInOwnerA();
     const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -340,8 +387,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    This exercises the RLS layer directly (not the action edge).
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read ownerships filtered to a different user id", async () => {
-    if (setupSkip || !ownerAUserId) return;
-
     const { accessToken } = await signInOwnerA();
     const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -366,8 +411,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    for other users.
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read profiles for a fabricated user id", async () => {
-    if (setupSkip) return;
-
     const { accessToken } = await signInOwnerA();
     const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -389,8 +432,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    not own (using a well-formed but unowned UUID).
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read pet_events for a fabricated pet id", async () => {
-    if (setupSkip) return;
-
     const { accessToken } = await signInOwnerA();
     const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -414,8 +455,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    non-owned case returns zero rows.
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read pet_identifications for unowned pet", async () => {
-    if (setupSkip) return;
-
     const { accessToken } = await signInOwnerA();
     const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -441,8 +480,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    Migration 0105 added sender/receiver SELECT policies.
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read pet_transfers for fabricated owner ids", async () => {
-    if (setupSkip) return;
-
     const { accessToken } = await signInOwnerA();
     const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
@@ -465,8 +502,6 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   //    must see zero rows on the core owner tables.
   // -------------------------------------------------------------------------
   test("PostgREST: anon cannot read profiles, pets, ownerships, pet_events", async () => {
-    if (setupSkip) return;
-
     const anonClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
@@ -494,7 +529,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   test("govt operator gets 404 on an approval request outside their jurisdiction", async ({
     page,
   }) => {
-    if (setupSkip || !govtSeeded) return;
+    test.skip(!govtSeeded, "govt@dim.test not seeded — jurisdiction scope probe cannot run.");
     await loginAs(page, GOVT_EMAIL, GOVT_PASSWORD);
 
     // A well-formed but foreign request token. govt@ covers only Ushuaia +
@@ -519,7 +554,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   test("org admin gets 404 on another org's portal (non-member = non-existent)", async ({
     page,
   }) => {
-    if (setupSkip || !orgAdminSeeded) return;
+    test.skip(!orgAdminSeeded, "orgadmin@dim.test not seeded — org scope probe cannot run.");
     await loginAs(page, ORG_ADMIN_EMAIL, ORG_ADMIN_PASSWORD);
 
     // A foreign org token the admin has no membership in. The org layout must
