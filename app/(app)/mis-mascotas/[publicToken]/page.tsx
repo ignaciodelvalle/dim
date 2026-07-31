@@ -140,6 +140,7 @@ import { notFound, redirect } from "next/navigation";
 import QRCode from "qrcode";
 import { Suspense } from "react";
 import { SheetMounter } from "./SheetMounter";
+import { CloseRabiesObservationButton } from "./_components/CloseRabiesObservationButton";
 import { ConvertFosterButton } from "./_components/ConvertFosterButton";
 import { resolveCaptureIntentUrl } from "./anotar/handoff";
 
@@ -1251,24 +1252,11 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         Si {pet.name} muestra salivación excesiva, agresividad inusual, parálisis o cambios bruscos
         de comportamiento, consultá al veterinario de inmediato.
       </p>
-      {periodClosed && (
-        <form
-          action={async () => {
-            "use server";
-            const { ownerCloseRabiesObservationAction } = await import(
-              "@/src/modules/surveillance/actions"
-            );
-            await ownerCloseRabiesObservationAction(pet.publicToken);
-          }}
-        >
-          <button
-            type="submit"
-            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-white px-3 py-1.5 font-ln-sans text-md font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
-          >
-            Confirmar fin de observación
-          </button>
-        </form>
-      )}
+      {/* RA-2 F3: this close can be REFUSED, and the most important refusal is
+          "hubo síntomas compatibles con rabia … Contactá a tu vet." The inline
+          server action that used to live here awaited the result and threw it
+          away, so that warning never reached the owner. */}
+      {periodClosed && <CloseRabiesObservationButton petPublicToken={pet.publicToken} />}
     </section>
   );
 }
