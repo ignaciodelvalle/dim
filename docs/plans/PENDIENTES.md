@@ -91,6 +91,8 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 ### Tests que no guardan nada
 | # | Qué |
 |---|---|
+| **E2E no es un gate — 33 ubicaciones rojas** | Medido 31/07 comparando dos corridas: **antes de esta ola ya había 30**, incluidas las dos de `cross-tenant-isolation`. No es una regresión nuestra: es que **el gate de e2e hace meses que no dice nada**. Mientras siga así, "CI verde" significa "CI menos e2e" |
+| **El presupuesto de login POR EMAIL** | La causa de 9 de las rojas nuevas (`synthetic-monitor`): `login refused for owner@dim.test`. El workaround de `x-real-ip` en `demo/_helpers.ts:166` cubre el presupuesto **por IP** y su propio comentario aclara que el **por email** (5/min, 20/hora, indexado por la dirección) queda afuera. ~20 specs comparten las mismas cuentas semilla. Jubilar `final-seams` corrió el scheduling y varios cayeron en la misma ventana. Opciones: cuenta por spec, subir el tope en entorno de test, o serializar |
 | **E2E `a11y-operator-auth`** | Dos tests describen una **IA retirada**, mismo patrón que `owner-shell`: esperan que un operador sin permisos caiga en `/` y en `/mis-mascotas`, y cae en `/mis-mascotas/DIM-…` y en `/acceso-denegado`. **Rojos en CI desde antes de esta ola** — hay que decidir cuál es el destino correcto y después arreglar el test |
 | **E2E `crisis-seams` (d)** | La adopción no transfiere fuera de la custodia del refugio, o el test no lo ve. Rojo en CI desde antes de esta ola |
 | **`PanoramaConsole` "finding 1"** | `waitFor` con el presupuesto por defecto de 1s; en CI tardó 1541 ms y se pasó. **47 `waitFor` sin timeout explícito en ese archivo.** No subir uno suelto: o se decide un presupuesto para el archivo, o se acepta el flake declarado |
