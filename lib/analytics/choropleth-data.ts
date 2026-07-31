@@ -16,8 +16,32 @@
 // Pure — no DB, no React/next imports. See choropleth-data.test.ts.
 
 import { type GeoLevel, isCABA } from "@/lib/infra/geo-join";
+import { complementarySuppress, suppressSmallCells } from "@/lib/metrics";
 import { PROVINCE_ISO_MAP } from "./govt-dashboards";
 import type { SubregionCaseCount } from "./subregion-redaction";
+
+/**
+ * ISO code → canonical province display name. The exact inverse of
+ * PROVINCE_ISO_MAP, derived from it (never re-typed) so the two cannot drift.
+ *
+ * Needed because a SUPPRESSED cell must not carry the caller's `labelFor(value)`
+ * string: on the two screens that use `aggregateChoroplethData` that string IS
+ * the count ("1 caso abierto"), and MapChoropleth renders `label` as the popup's
+ * PLACE line. Blanking the value while the place line spells the count out is
+ * not a suppression at all — it is the leak wearing the hatch.
+ */
+const PROVINCE_NAME_BY_ISO: Record<string, string> = Object.fromEntries(
+  Object.entries(PROVINCE_ISO_MAP).map(([name, code]) => [code, name]),
+);
+
+/**
+ * The complementary-suppression group for the province tier: the whole country
+ * — identical rationale (and identical value) to `NATIONAL_GROUP` in
+ * lib/open-data/province-suppression.ts. The published aggregate one level
+ * coarser than a province cell is the national/scope total, so that is the
+ * group across which a single hidden cell must not be isolable by subtraction.
+ */
+const NATIONAL_GROUP = "AR";
 
 /**
  * {code, value, label} triple consumed by MapChoropleth's `data` prop
@@ -80,6 +104,49 @@ export function toChoroplethData<T extends { province: string }>(
  * province, keyOf resolves the raw province name through PROVINCE_ISO_MAP)
  * and /gob/vigilancia (`provinceChoroplethData`: sums per-locality case
  * counts that already carry a resolved `code` up to province level).
+ *
+ * ---------------------------------------------------------------------------
+ * k-ANONYMITY AT THE PROVINCE TIER (RA-3 C5, 2026-07-31).
+ * ---------------------------------------------------------------------------
+ * Both callers used to hand MapChoropleth raw sums, so a province with ONE open
+ * case painted a coloured polygon, a "1 caso abierto" tooltip and a bare `1` in
+ * the "Ver datos" a11y table. The DEPARTMENT drill of those same two screens has
+ * been suppressed since the scoped-drill work (`redactSmallSubregionCells`);
+ * only the province tier was naked. Suppression now happens HERE, inside the
+ * shared fold, for the same reason `suppressSmallCells` is the only constructor
+ * of `SuppressedCells`: a boundary a caller can forget is not a boundary.
+ *
+ * THERE IS DELIBERATELY NO OPT-OUT PARAMETER. A per-caller `skipSuppression`
+ * flag would be the same defect RA-3 C1 names one row above — "a suppression
+ * anyone can switch off is not a suppression".
+ *
+ * Two passes, both from lib/metrics/anonymity.ts, no third mechanism and no
+ * second k:
+ *  1. PRIMARY `suppressSmallCells` at ANONYMITY_K (the default; not re-typed).
+ *  2. COMPLEMENTARY `complementarySuppress` grouped NATIONALLY. Required here
+ *     and not on the sibling tables: /gob/perdidas publishes the scope total
+ *     (`lostPets.length`) in the list header AND feeds it to the map's
+ *     `scopeAggregate` notice, so a LONE hidden province is recoverable by
+ *     `total − Σ(visible provinces)`. National is the right group for the same
+ *     reason `lib/open-data/province-suppression.ts` uses NATIONAL_GROUP: the
+ *     published aggregate one level above a province row is the country.
+ *
+ * A suppressed cell keeps `value: 0` ONLY as an inert placeholder — the same
+ * contract `toChoroplethData` above documents, and MapChoropleth honours it on
+ * every read path (`!f.suppressed` before the domain, `choropleth_suppressed`
+ * before the fill, the popup, the bin filter and the a11y table all branch on
+ * the flag first). The cell is EMITTED rather than dropped because a province
+ * that disappears at k makes absence the disclosure channel and the map would
+ * stipple it "sin datos" — false, and a tell.
+ *
+ * /gob/perdidas got the identical treatment rather than an exemption. Yes, lost
+ * episodes are owner-published and the page lists them per-animal below the map,
+ * so the privacy GAIN there is close to zero. But the exemption would have to be
+ * a product decision, not an agent's: this repo has no "already public
+ * elsewhere" carve-out (its two public-facing modules suppress MORE, not less),
+ * this screen's own department tier already hatches, and un-suppressing later is
+ * a one-line change while shipping the naked tier is not reversible. Flagged for
+ * PO ratification instead of decided here.
  */
 export function aggregateChoroplethData<T>(
   rows: T[],
@@ -93,11 +160,32 @@ export function aggregateChoroplethData<T>(
     if (!code) continue;
     codeToValue.set(code, (codeToValue.get(code) ?? 0) + getValue(row));
   }
-  return Array.from(codeToValue.entries()).map(([code, value]) => ({
-    code,
-    value,
-    label: labelFor(value),
-  }));
+  const cells = Array.from(codeToValue.entries()).map(([code, value]) => ({ code, value }));
+
+  // Zero-count cells are not protected (an empty group re-identifies no one —
+  // the same "zero nuance" suppressDelta documents) and are not produced by
+  // this fold anyway: a province with no rows never enters the map.
+  const { visible, suppressed } = suppressSmallCells(
+    cells.filter((c) => c.value > 0),
+    { count: (c) => c.value, key: (c) => c.code },
+  );
+  const { suppressed: allSuppressed } = complementarySuppress(
+    visible as unknown as ReadonlyArray<{ code: string; value: number }>,
+    suppressed,
+    { group: () => NATIONAL_GROUP, count: (c) => c.value },
+  );
+  const suppressedCodes = new Set(allSuppressed.map((c) => c.code));
+
+  return cells.map((c) =>
+    suppressedCodes.has(c.code)
+      ? {
+          code: c.code,
+          value: 0,
+          suppressed: true,
+          label: PROVINCE_NAME_BY_ISO[c.code] ?? c.code,
+        }
+      : { code: c.code, value: c.value, label: labelFor(c.value) },
+  );
 }
 
 /** GeoJSON URL per drill-down level — mirrors MapChoropleth's own GEOJSON_BY_LEVEL. */

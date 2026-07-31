@@ -72,11 +72,15 @@ describe("toChoroplethData", () => {
 });
 
 describe("aggregateChoroplethData", () => {
+  const casesLabel = (value: number) =>
+    `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`;
+
   it("counts occurrences per resolved province like /gob/perdidas (aggregateLostByProvince)", () => {
+    // Every province is at/above the k floor so this test measures the FOLD,
+    // not the k-anon rule (which has its own block below).
     const lostPets = [
-      { province: "Buenos Aires" as string | null },
-      { province: "Buenos Aires" as string | null },
-      { province: "Córdoba" as string | null },
+      ...Array.from({ length: 6 }, () => ({ province: "Buenos Aires" as string | null })),
+      ...Array.from({ length: 5 }, () => ({ province: "Córdoba" as string | null })),
       { province: null }, // dropped: no province
       { province: "Atlántida" }, // dropped: not in PROVINCE_ISO_MAP
     ];
@@ -89,29 +93,29 @@ describe("aggregateChoroplethData", () => {
     );
 
     expect(result).toEqual([
-      { code: "AR-B", value: 2, label: "2 mascotas perdidas" },
-      { code: "AR-X", value: 1, label: "1 mascota perdida" },
+      { code: "AR-B", value: 6, label: "6 mascotas perdidas" },
+      { code: "AR-X", value: 5, label: "5 mascotas perdidas" },
     ]);
   });
 
   it("sums an already-resolved code field like /gob/vigilancia (provinceChoroplethData)", () => {
     const mapData = [
       { code: "AR-B", count: 3 },
-      { code: "AR-B", count: 2 },
-      { code: "AR-X", count: 1 },
-      { code: "", count: 5 }, // dropped: falsy code
+      { code: "AR-B", count: 4 },
+      { code: "AR-X", count: 5 },
+      { code: "", count: 9 }, // dropped: falsy code
     ];
 
     const result = aggregateChoroplethData(
       mapData,
       (row) => row.code,
       (row) => row.count,
-      (value) => `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
+      casesLabel,
     );
 
     expect(result).toEqual([
-      { code: "AR-B", value: 5, label: "5 casos abiertos" },
-      { code: "AR-X", value: 1, label: "1 caso abierto" },
+      { code: "AR-B", value: 7, label: "7 casos abiertos" },
+      { code: "AR-X", value: 5, label: "5 casos abiertos" },
     ]);
   });
 
@@ -128,17 +132,109 @@ describe("aggregateChoroplethData", () => {
     expect(result).toEqual([]);
   });
 
-  it("singular label branch (value === 1) reads correctly", () => {
-    const rows = [{ code: "AR-C", count: 1 }];
+  // -------------------------------------------------------------------------
+  // RA-3 C5 — the province tier is k-anonymised inside the shared fold.
+  // -------------------------------------------------------------------------
+
+  it("k-anon: a sub-k province paints a hatch, not a polygon with a number", () => {
+    // THE finding: one open case used to render a coloured province, a
+    // "1 caso abierto" tooltip and a bare 1 in the "Ver datos" a11y table.
+    const rows = [
+      { code: "AR-B", count: 30 },
+      { code: "AR-S", count: 20 },
+      { code: "AR-V", count: 1 },
+    ];
 
     const result = aggregateChoroplethData(
       rows,
       (r) => r.code,
       (r) => r.count,
-      (value) => `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`,
+      casesLabel,
+    );
+    const tdf = result.find((c) => c.code === "AR-V");
+
+    expect(tdf?.suppressed).toBe(true);
+    // The LABEL is the disclosure channel nobody looks at: MapChoropleth renders
+    // it as the popup's place line, and `labelFor(value)` here spells the count
+    // out in words. A suppressed cell must carry the province NAME instead.
+    expect(tdf?.label).toBe("Tierra del Fuego");
+    expect(tdf?.label).not.toMatch(/\d/);
+  });
+
+  it("k-anon: the cell is EMITTED, never dropped — absence would be the tell", () => {
+    const rows = [
+      { code: "AR-B", count: 30 },
+      { code: "AR-S", count: 20 },
+      { code: "AR-V", count: 2 },
+    ];
+
+    const result = aggregateChoroplethData(
+      rows,
+      (r) => r.code,
+      (r) => r.count,
+      casesLabel,
     );
 
-    expect(result).toEqual([{ code: "AR-C", value: 1, label: "1 caso abierto" }]);
+    // A province that vanishes at k gets stippled "sin datos" by the map — false,
+    // and it makes absence the disclosure channel.
+    expect(result.map((c) => c.code).sort()).toEqual(["AR-B", "AR-S", "AR-V"]);
+  });
+
+  it("k-anon: a lone suppressed province also suppresses its smallest sibling (differencing)", () => {
+    // /gob/perdidas publishes the scope total in the list header and in the
+    // map's scopeAggregate notice, so ONE hidden province is recoverable by
+    // `total − Σ(visible)`. complementarySuppress (national group) closes it.
+    const rows = [
+      { code: "AR-B", count: 30 },
+      { code: "AR-S", count: 20 },
+      { code: "AR-V", count: 1 },
+    ];
+
+    const result = aggregateChoroplethData(
+      rows,
+      (r) => r.code,
+      (r) => r.count,
+      casesLabel,
+    );
+    const suppressed = result.filter((c) => c.suppressed).map((c) => c.code);
+
+    // AR-V primary + AR-S (smallest visible sibling) complementary.
+    expect(suppressed.sort()).toEqual(["AR-S", "AR-V"]);
+    expect(result.find((c) => c.code === "AR-B")?.suppressed).toBeUndefined();
+  });
+
+  it("k-anon: a province exactly AT k is published (k is a floor, not a ceiling)", () => {
+    const rows = [
+      { code: "AR-B", count: 30 },
+      { code: "AR-X", count: 5 },
+    ];
+
+    const result = aggregateChoroplethData(
+      rows,
+      (r) => r.code,
+      (r) => r.count,
+      casesLabel,
+    );
+
+    expect(result).toEqual([
+      { code: "AR-B", value: 30, label: "30 casos abiertos" },
+      { code: "AR-X", value: 5, label: "5 casos abiertos" },
+    ]);
+  });
+
+  it("k-anon: a suppressed cell's value is an inert 0 placeholder, never reported as data", () => {
+    const rows = [{ code: "AR-C", count: 1 }];
+
+    const [cell] = aggregateChoroplethData(
+      rows,
+      (r) => r.code,
+      (r) => r.count,
+      casesLabel,
+    );
+
+    expect(cell.suppressed).toBe(true);
+    expect(cell.value).toBe(0);
+    expect(cell.label).toBe("CABA");
   });
 });
 
