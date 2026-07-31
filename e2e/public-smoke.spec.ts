@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { type Page, expect, test } from "@playwright/test";
 
 import { BRANDED_NOT_FOUND_TESTID } from "./_page-identity";
+import { assertRealPage } from "./demo/_helpers";
 
 /**
  * Public smoke tests — no auth required.
@@ -132,6 +133,10 @@ test("a11y(axe) /p/[token] lost-mode credential — WCAG 2.1 AA", async ({ page 
   const href = await credLink.getAttribute("href");
   await page.goto(href as string);
   await page.waitForLoadState("networkidle");
+  // /p/[token] is a (public) route, so its boundary reads "No encontramos esa
+  // credencial" — the exact copy that once let a11y-regression and csp-smoke
+  // both audit a 404 and report clean. Never measure this route unguarded.
+  await assertRealPage(page, href as string);
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -167,6 +172,9 @@ for (const path of A11Y_ROUTES) {
   test(`a11y(axe) ${path} — WCAG 2.1 AA (no critical violations)`, async ({ page }) => {
     await page.goto(path);
     await page.waitForLoadState("networkidle");
+    // Cheap here (these routes are asserted 200 above) but not free: a renamed
+    // or removed route would otherwise keep reporting "axe-clean" from its 404.
+    await assertRealPage(page, path);
 
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -266,6 +274,9 @@ test("a11y(axe) /adoptar/[token] — public pet detail (WCAG 2.1 AA)", async ({ 
 
   await page.goto(href as string);
   await page.waitForLoadState("networkidle");
+  // The link came from the listing, so the detail page should exist — "should"
+  // is exactly the assumption this guard is for (a delisted pet 404s).
+  await assertRealPage(page, href as string);
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])

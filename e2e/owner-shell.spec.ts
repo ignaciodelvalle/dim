@@ -1,6 +1,8 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+import { assertRealPage } from "./demo/_helpers";
+
 /**
  * Owner AppShell e2e — covers the citizen-variant chrome migrated in Item 7
  * Phase C (owner (app) layout → AppShell variant=citizen).
@@ -41,6 +43,10 @@ test("owner /inicio renders the citizen masthead with a single #main-content", a
 test("a11y(axe) owner /inicio — citizen chrome (WCAG 2.1 AA)", async ({ page }) => {
   await page.goto("/inicio");
   await page.waitForLoadState("networkidle");
+  // The subject is the CITIZEN CHROME, so prove the chrome is on screen — a
+  // not-found boundary renders no masthead and scores zero violations. The
+  // sibling test above checks the masthead; this one measured whatever loaded.
+  await assertRealPage(page, "/inicio", page.getByRole("banner").getByText("MiMAR").first());
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
