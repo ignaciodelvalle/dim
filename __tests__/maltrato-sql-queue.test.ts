@@ -30,21 +30,42 @@ import { assertKpiListParity } from "./helpers/kpi-list-parity";
 // ============================================================================
 
 /**
- * Drizzle SQL conditions contain circular references (PgTable → PgColumn →
- * PgTable) that break JSON.stringify. This extractor recursively collects all
- * primitive string/number values from the queryChunks tree so we can assert
- * that expected literals (field names, enum values) appear in the condition
- * without trying to serialize the whole object graph.
+ * The predicate a condition ACTUALLY compiles to: the WHERE clause, with its
+ * bound parameters substituted back where their placeholders stood.
+ *
+ * REPLACES an `extractLiterals` walker that recursed the Drizzle condition's
+ * object tree collecting every string and number it found. That tree holds a
+ * reference to the whole `PgTable`, so EVERY column name and EVERY pgEnum value
+ * of welfare_reports appeared in the extracted string whether the predicate
+ * mentioned them or not.
+ *
+ * Measured 2026-07-31 on `queue: "all"` — a predicate that filters on none of
+ * them — the extractor returned a 7 015-character string containing
+ * "assigned_to_user_id", "created_at", "closed", "invalid", "duplicate",
+ * "critical", "high", "neglect", "medium", "hoarding" and "abandonment". Every
+ * assertion in this block that probed a column name or an enum value was
+ * therefore passing VACUOUSLY, and any negative assertion over it could not
+ * have failed at all. Only the `mine` queue's UUID probe and the length
+ * comparison were measuring anything.
+ *
+ * `.toSQL()` renders only what the WHERE actually says and issues no query.
+ * Same reasoning, and the same shape, as `whereSql` in
+ * __tests__/geocoding-fallback-jurisdiccion.test.ts.
  */
-function extractLiterals(node: unknown, seen = new WeakSet()): string {
-  if (node === null || node === undefined) return "";
-  if (typeof node === "string" || typeof node === "number") return String(node);
-  if (typeof node !== "object") return "";
-  if (seen.has(node as object)) return "";
-  seen.add(node as object);
-  return Object.values(node as Record<string, unknown>)
-    .map((v) => extractLiterals(v, seen))
-    .join(" ");
+function whereSql(filters: MaltratoListFilters): string {
+  const { sql: text, params } = db
+    .select({ id: welfareReports.id })
+    .from(welfareReports)
+    .where(buildMaltratoListConditions(filters))
+    .toSQL();
+  const at = text.indexOf(" where ");
+  // A predicate that vanished entirely would silently satisfy every negative
+  // assertion below, so refuse to hand one back.
+  expect(at, `the condition compiled to no WHERE clause: ${text}`).toBeGreaterThan(-1);
+  return text.slice(at + " where ".length).replace(/\$(\d+)/g, (_m, n: string) => {
+    const v = params[Number(n) - 1];
+    return typeof v === "string" ? `'${v}'` : String(v);
+  });
 }
 
 describe("buildMaltratoListConditions — unit", () => {
@@ -55,58 +76,67 @@ describe("buildMaltratoListConditions — unit", () => {
     currentUserId: "00000000-0000-0000-0000-000000000001",
   };
 
+  // The DEFAULT predicate, kept as the shared negative witness. Every "queue X
+  // adds predicate P" test below pairs its assertion with the absence of P
+  // here — that pairing is what proves the probe discriminates, and it is
+  // exactly what the object-tree extractor could never do (it reported every
+  // probe present on this very predicate).
+  const noQueuePredicate = () => whereSql({ ...BASE, queue: "all" });
+
   it("returns sql`false` for govt with no assignments", () => {
-    const result = buildMaltratoListConditions({
-      ...BASE,
-      filteredJurisdictions: [],
-    });
-    // The helper returns sql`false` — detect via the internal queryChunks literal.
-    const chunks = (result as { queryChunks?: Array<{ value?: string[] }> }).queryChunks;
-    expect(Array.isArray(chunks)).toBe(true);
-    expect(chunks?.[0]?.value?.[0]).toBe("false");
+    expect(whereSql({ ...BASE, filteredJurisdictions: [] })).toBe("false");
   });
 
-  it("returns a truthy condition for admin with no jurisdictions (unscoped)", () => {
-    const result = buildMaltratoListConditions({
+  it("returns a truthy, still-moderation-gated condition for admin with no jurisdictions", () => {
+    const where = whereSql({
       ...BASE,
       actor: { role: "admin" },
       filteredJurisdictions: [],
       queue: "all",
     });
-    // For admin the scope clause is null; the condition must still be defined.
-    expect(result).toBeDefined();
+    // Unscoped is not unfiltered: admin drops the jurisdiction clause but keeps
+    // the moderation gate. `toBeDefined()` (the old assertion) could not tell
+    // those two apart.
+    expect(where).not.toBe("false");
+    expect(where).not.toContain('"jurisdiction_province"');
+    expect(where).toContain('"flagged_at" IS NULL');
   });
 
   it("includes severity + status predicates for urgent queue", () => {
-    const result = buildMaltratoListConditions({ ...BASE, queue: "urgent" });
-    const literals = extractLiterals(result);
-    // urgent queue embeds the severity values and terminal statuses.
-    expect(literals).toContain("critical");
-    expect(literals).toContain("high");
-    expect(literals).toContain("closed");
-    expect(literals).toContain("invalid");
-    expect(literals).toContain("duplicate");
+    const where = whereSql({ ...BASE, queue: "urgent" });
+    // urgent queue embeds the severity values and excludes the terminal statuses.
+    expect(where).toContain('"severity" in');
+    expect(where).toContain("'critical'");
+    expect(where).toContain("'high'");
+    for (const terminal of TERMINAL_STATUSES) {
+      expect(where, `terminal status ${terminal} must be excluded`).toContain(`'${terminal}'`);
+    }
+
+    const otherwise = noQueuePredicate();
+    expect(otherwise).not.toContain('"severity"');
+    expect(otherwise).not.toContain("'critical'");
+    expect(otherwise).not.toContain("'closed'");
   });
 
   it("includes assigned_to_user_id NULL check + terminal statuses for unassigned queue", () => {
-    const result = buildMaltratoListConditions({ ...BASE, queue: "unassigned" });
-    const literals = extractLiterals(result);
+    const where = whereSql({ ...BASE, queue: "unassigned" });
     // The unassigned queue mirrors the "Sin asignar" KPI predicate:
     // assigned_to_user_id IS NULL AND status NOT IN (terminal states).
-    expect(literals).toContain("assigned_to_user_id");
-    expect(literals).toContain("closed");
-    expect(literals).toContain("invalid");
-    expect(literals).toContain("duplicate");
+    expect(where).toContain('"assigned_to_user_id" is null');
+    expect(where).toContain('not "welfare_reports"."status" in');
+    for (const terminal of TERMINAL_STATUSES) {
+      expect(where).toContain(`'${terminal}'`);
+    }
+    // …and it does NOT narrow by severity, which `urgent` does.
+    expect(where).not.toContain('"severity"');
+    expect(noQueuePredicate()).not.toContain('"assigned_to_user_id"');
   });
 
   it("includes assignedToUserId predicate for mine queue", () => {
     const userId = "00000000-0000-0000-0000-000000000099";
-    const result = buildMaltratoListConditions({
-      ...BASE,
-      queue: "mine",
-      currentUserId: userId,
-    });
-    expect(extractLiterals(result)).toContain(userId);
+    const where = whereSql({ ...BASE, queue: "mine", currentUserId: userId });
+    expect(where).toContain(`"assigned_to_user_id" = '${userId}'`);
+    expect(noQueuePredicate()).not.toContain(userId);
   });
 
   // The overdue queue used to be `status = 'open' AND createdAt < now() - 7d`,
@@ -117,37 +147,46 @@ describe("buildMaltratoListConditions — unit", () => {
   // the tab never migrated. It also went the other way: `open` is not the only
   // non-terminal status, so a row inside the tab could read "SIN SLA ACTIVO".
   it("the overdue queue applies the SEVERITY-TIERED SLA, not a flat 7-day window", () => {
-    const result = buildMaltratoListConditions({ ...BASE, queue: "overdue" });
-    const literals = extractLiterals(result);
+    const where = whereSql({ ...BASE, queue: "overdue" });
 
-    // Every tier's day count reaches the SQL, sourced from the shared map so a
-    // tier change cannot move the badge and leave the tab behind.
-    for (const days of Object.values(WELFARE_SLA_DAYS)) {
-      expect(literals, `SLA tier of ${days} day(s) missing from the clause`).toContain(days);
+    // Each severity is PAIRED with its own tier inside the CASE, sourced from
+    // the shared map so a tier change cannot move the badge and leave the tab
+    // behind. The old assertion only checked that both tokens appeared
+    // somewhere in the extracted soup — it could not see the pairing, and in
+    // fact saw both on a predicate with no CASE in it at all.
+    for (const [severity, days] of Object.entries(WELFARE_SLA_DAYS)) {
+      expect(where, `SLA tier for ${severity} (${days} day(s)) missing from the clause`).toMatch(
+        new RegExp(`'${severity}'::text\\s+THEN\\s+${days}\\b`),
+      );
     }
-    // …and each severity is named as a CASE branch.
-    for (const severity of Object.keys(WELFARE_SLA_DAYS)) {
-      expect(literals).toContain(severity);
-    }
-    expect(literals).toContain("created_at");
+    expect(where).toContain('"created_at" <');
+    expect(where).toContain("INTERVAL '1 day'");
+
+    // The default queue has no SLA window at all — the witness that makes the
+    // assertions above capable of failing.
+    const otherwise = noQueuePredicate();
+    expect(otherwise).not.toContain('"created_at"');
+    expect(otherwise).not.toContain("INTERVAL");
   });
 
   it("the overdue queue excludes TERMINAL statuses, not just non-open ones", () => {
-    const literals = extractLiterals(buildMaltratoListConditions({ ...BASE, queue: "overdue" }));
+    const where = whereSql({ ...BASE, queue: "overdue" });
     // A closed report has nothing left to escalate and must never be "atrasada".
+    expect(where).toContain('not "welfare_reports"."status" in');
     for (const terminal of TERMINAL_STATUSES) {
-      expect(literals, `terminal status ${terminal} must be excluded`).toContain(terminal);
+      expect(where, `terminal status ${terminal} must be excluded`).toContain(`'${terminal}'`);
     }
+    expect(noQueuePredicate()).not.toContain('"status"');
   });
 
   it("includes kind value when kind filter is set", () => {
-    const result = buildMaltratoListConditions({ ...BASE, kind: "neglect" });
-    expect(extractLiterals(result)).toContain("neglect");
+    expect(whereSql({ ...BASE, kind: "neglect" })).toContain("\"kind\" = 'neglect'");
+    expect(noQueuePredicate()).not.toContain('"kind"');
   });
 
   it("includes severity value when severity filter is set", () => {
-    const result = buildMaltratoListConditions({ ...BASE, severity: "medium" });
-    expect(extractLiterals(result)).toContain("medium");
+    expect(whereSql({ ...BASE, severity: "medium" })).toContain("\"severity\" = 'medium'");
+    expect(noQueuePredicate()).not.toContain('"severity"');
   });
 });
 
@@ -1054,18 +1093,14 @@ describe("buildMaltratoListConditions — status filter (unit)", () => {
   };
 
   it("includes status value when status filter is set", () => {
-    const result = buildMaltratoListConditions({ ...BASE, status: "closed" });
-    expect(extractLiterals(result)).toContain("closed");
+    expect(whereSql({ ...BASE, status: "closed" })).toContain("\"status\" = 'closed'");
   });
 
-  it("condition with status=null is shorter than with status='closed' (no extra eq)", () => {
-    const withStatus = buildMaltratoListConditions({ ...BASE, status: "closed" });
-    const withoutStatus = buildMaltratoListConditions({ ...BASE, status: null });
-    // When status is null, no extra status condition is added — the SQL literal
-    // string should be strictly shorter.
-    expect(extractLiterals(withStatus).length).toBeGreaterThan(
-      extractLiterals(withoutStatus).length,
-    );
+  it("status=null adds NO status predicate at all (not merely a shorter one)", () => {
+    // This used to compare the two extracted strings by LENGTH, which was the
+    // one honest assertion left in the old block but a weak one: any extra
+    // character anywhere satisfied it. Naming the absent column is exact.
+    expect(whereSql({ ...BASE, status: null })).not.toContain('"status"');
   });
 });
 
