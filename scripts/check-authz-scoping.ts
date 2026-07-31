@@ -39,13 +39,15 @@
 //   Run `pnpm tsx scripts/check-authz-scoping.ts --write-baseline` after a
 //   deliberate change to re-record.
 //
-//   Current baseline: 49 offenders across 21 files (authz-scoping-baseline.json,
-//   verified 2026-07-15). Earlier docs cited 43/48 — that drift is corrected
-//   here; the authoritative count is always the live SUM of the JSON, which the
-//   run prints ("baseline: N known"). This ratchet only blocks GROWTH — it does
-//   NOT prove the existing offenders are correctly scoped (most delegate scoping
-//   to an application use-case this file-local regex cannot see; burning the
-//   backlog down still needs a manual per-file scoping audit).
+//   Current baseline: 41 offenders across 16 files (authz-scoping-baseline.json,
+//   verified 2026-07-31 by re-running the script — output: "baseline: 41
+//   known"). Earlier docs cited 43/48, then 49/21 — both wrong; the
+//   authoritative count is always the live SUM of the JSON, which the run
+//   prints ("baseline: N known"), never a number copied into a comment. This
+//   ratchet only blocks GROWTH — it does NOT prove the existing offenders are
+//   correctly scoped (most delegate scoping to an application use-case this
+//   file-local regex cannot see; burning the backlog down still needs a
+//   manual per-file scoping audit).
 //
 // Run: pnpm tsx scripts/check-authz-scoping.ts   (or: pnpm lint:authz-scoping)
 
