@@ -40,7 +40,22 @@ describe("/admin/casos — render smoke test", () => {
     expect(html).toContain("Casos");
     expect(html).toContain("Estado");
     expect(html).toContain("Abiertos");
-    expect(html).toContain("Sin casos registrados para los filtros aplicados.");
+    // The empty state must NOT blame filters nobody applied — same class
+    // /adoptar solved and /perdidas was fixed for. This asserts the BEHAVIOUR,
+    // not the wording: with no query, the copy may not mention filters at all.
+    expect(html).not.toMatch(/filtros aplicados/i);
+    expect(html).toContain("No hay casos abiertos.");
+  });
+
+  it("blames the filters only when filters are actually applied", async () => {
+    const node = await AdminCasosPage({
+      searchParams: Promise.resolve({ kind: "welfare_denuncia" }),
+    });
+    const html = renderToStaticMarkup(node);
+    // The control group for the test above: the filtered branch is the ONLY
+    // one allowed to say it. Without this pair, deleting the ternary and
+    // hardcoding the unfiltered copy would still pass.
+    expect(html).toContain("Ningún caso coincide con los filtros aplicados.");
   });
 
   it("renders with an explicit status + kind + province query without throwing", async () => {
