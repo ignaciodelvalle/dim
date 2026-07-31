@@ -20,18 +20,30 @@
 
 Cuatro acciones manuales. Ninguna es código.
 
-1. **Migración `0162`** (`welfare_reports_jurisdiction_unverified`). Sin ella
-   **toda query de welfare da 500** y el circuito de denuncias entero se cae.
-2. **Migraciones `0163` y `0164`** (las dos vulnerabilidades de RA-8), en ese
-   orden, **migraciones primero y código inmediatamente después**: `0164` sin el
-   código ciega a todo visor de evidencia; el código sin `0164` no rompe nada.
-   Verificar antes que `SUPABASE_SERVICE_ROLE_KEY` esté en el runtime destino.
-3. **`DEMO_PET_TOKEN` en Vercel + sembrar el flagship.** Hasta entonces la landing
-   degrada a propósito: QR inerte, token enmascarado, sin link.
-4. **El Gmail personal del PO viaja a Nominatim** en el `USER_AGENT` de cada
-   geocodificación (`lib/infra/geocoding.ts:62`). Sin tocar a propósito: OSM exige
-   un contacto **monitoreado**, así que moverlo a `hola@mimar.ar` solo es seguro
-   si alguien lee esa casilla. `SECURITY.md:12` lleva la misma dirección.
+1. ~~**Migraciones `0162`, `0163`, `0164`**~~ — **APLICADAS a staging 31/07**,
+   junto con `0158`-`0161` y la nueva `0165`. Ledger en 164/164, `Pending: 0`.
+   Verificado contra la base, no contra la salida del comando: la columna
+   `jurisdiction_unverified` existe, `ownerships` tiene cero políticas de
+   escritura, y **el RLS pasó de 26/53 a 53/53**. Datos intactos (66.732
+   mascotas, 226.335 eventos).
+2. **`0165` — el ledger mentía.** Staging reportaba 156 migraciones aplicadas y
+   salud perfecta con **27 tablas sin RLS**, incluidas `profiles`, `pets`,
+   `pet_identifications`, `notifications` y `audit_log`, todas legibles por
+   `anon` vía PostgREST con la clave que viaja en el bundle. Causa probable:
+   `drizzle-kit push` (que no lleva RLS) + `migrate.ts --baseline` (que marca
+   todo aplicado **sin ejecutar SQL**). Producción estaba limpia. **Pendiente:
+   un chequeo que compare el ledger contra el estado real de la base**, para que
+   esto no dependa de que alguien sospeche.
+3. **`DEMO_PET_TOKEN` en Vercel.** El flagship **ya está sembrado** en staging
+   (`DIM-PAMP-0001`, Pampa, 22 eventos). Falta solo la variable, y **solo en el
+   proyecto de staging** — en producción no va, el código exige que ese entorno
+   no tenga mobiliario de demo. Requiere redeploy para tomar efecto.
+4. ~~**El Gmail personal del PO viaja a Nominatim**~~ — **DECIDIDO 31/07: queda.**
+   `lib/infra/geocoding.ts:62` y `SECURITY.md:12` siguen con la dirección
+   personal. El razonamiento del PO: OSM exige un contacto **monitoreado**, y una
+   casilla genérica que nadie lee es peor que una personal que sí se lee —
+   cuando OSM avise de abuso de su API, el aviso tiene que llegarle a alguien.
+   Se mueve cuando exista una casilla específica con lector. **No es bloqueante.**
 
 ### Además, ahora mismo — NINGÚN servidor de QA sirve
 
