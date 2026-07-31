@@ -66,6 +66,7 @@ import {
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { createAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/create-alert-subscription";
 import { deleteAlertSubscriptionForUser } from "@/src/modules/alerts/application/subscriptions/delete-alert-subscription";
+import { CreateAlertSubscriptionSchema } from "@/src/modules/alerts/application/subscriptions/types";
 
 import { expectDbError } from "./_helpers/expect-db-error";
 
@@ -335,23 +336,53 @@ describe("DB CHECK constraints (migration 0108)", () => {
     if (canonicalProvince) track(canonicalProvince);
   });
 
-  it("the province CHECK is the ONLY gate — CreateAlertSubscriptionSchema does not validate it", async () => {
-    // Honest coverage note, not a defect report: the Zod schema types
-    // jurisdictionProvince as `z.string().min(1)`, with no enum. So an
-    // un-canonical province coming through the use-case reaches Postgres and
-    // raises 23514 rather than returning a friendly { error }. If that UX is
-    // ever fixed, THIS test is the one that will tell you.
-    await expectDbError(
-      createAlertSubscriptionForUser(ownerId, {
-        metricKey: "active_zoonosis",
-        direction: "above",
-        threshold: 1,
-        jurisdictionProvince: "Cordoba", // missing the accent → not canonical
-        jurisdictionLocality: null,
-        label: `${LABEL_PREFIX} usecase-bad-province`,
-      }),
-      { code: "23514", constraint: "alert_subscriptions_province_valid" },
-    );
+  // REWRITTEN 2026-07-31 (P3.2). This test used to assert the OPPOSITE — that
+  // the DB CHECK was the only gate and an un-canonical province came back as a
+  // raw SQLSTATE 23514 — and it carried the note "if that UX is ever fixed,
+  // THIS test is the one that will tell you". It told us. The schema now
+  // validates jurisdictionProvince against the same catalog, so the test
+  // asserts the new contract instead of the old defect.
+  it("a non-canonical province is refused by Zod as a friendly { error } — it never reaches Postgres", async () => {
+    const label = `${LABEL_PREFIX} usecase-bad-province`;
+    const result = await createAlertSubscriptionForUser(ownerId, {
+      metricKey: "active_zoonosis",
+      direction: "above",
+      threshold: 1,
+      jurisdictionProvince: "Cordoba", // missing the accent → not canonical
+      jurisdictionLocality: null,
+      label,
+    });
+
+    expect(result).toHaveProperty("error");
+    // The message must NAME the problem. A generic "Datos inválidos" here would
+    // be a different defect wearing this test's green.
+    expect("error" in result && result.error).toMatch(/provincia/i);
+
+    // The load-bearing half: rejected BEFORE the insert, not after catching the
+    // constraint. Without this the assertion above would also pass on a version
+    // that wrote the row and then reported an error.
+    const written = await db
+      .select({ id: alertSubscriptions.id })
+      .from(alertSubscriptions)
+      .where(eq(alertSubscriptions.label, label));
+    for (const r of written) createdIds.add(r.id);
+    expect(written).toHaveLength(0);
+  });
+
+  it("a canonical province still goes through the use-case unharmed (the enum is a gate, not a wall)", async () => {
+    const result = await createAlertSubscriptionForUser(ownerId, {
+      metricKey: "active_zoonosis",
+      direction: "above",
+      threshold: 1,
+      jurisdictionProvince: "Córdoba",
+      jurisdictionLocality: null,
+      label: `${LABEL_PREFIX} usecase-good-province`,
+    });
+    expect(result).not.toHaveProperty("error");
+    if (!("error" in result)) {
+      track(result);
+      expect(result.jurisdictionProvince).toBe("Córdoba");
+    }
   });
 });
 
@@ -409,5 +440,38 @@ describe("migration 0108 DDL parity with code constants", () => {
   it("keeps jurisdiction_province nullable in the CHECK (optional scope)", () => {
     const tail = MIGRATION_SQL.split(/CONSTRAINT\s+alert_subscriptions_province_valid\b/i)[1] ?? "";
     expect(tail).toMatch(/jurisdiction_province\s+IS\s+NULL\s+OR/i);
+  });
+
+  // P3.2 — the third side of the triangle. The two tests above pin
+  // DDL ↔ PROVINCES; this one pins DDL ↔ the Zod gate, so the friendly
+  // rejection and the constraint can never admit different sets. Without it,
+  // adding a province to PROVINCES + the migration while forgetting the schema
+  // (or vice-versa) would turn a legitimate value into a 400, or an illegitimate
+  // one back into a raw 23514 — the exact defect P3.2 closed.
+  function parseProvince(name: string | null) {
+    return CreateAlertSubscriptionSchema.safeParse({
+      metricKey: "active_zoonosis",
+      direction: "above",
+      threshold: 1,
+      jurisdictionProvince: name,
+    });
+  }
+
+  it("the Zod enum admits EXACTLY the provinces the DDL CHECK admits", () => {
+    const fromDdl = literalsAfterConstraint("alert_subscriptions_province_valid");
+    // Guard against the parser silently returning [] and making the loop vacuous.
+    expect(fromDdl).toHaveLength(24);
+    for (const name of fromDdl) {
+      expect(parseProvince(name).success, `DDL admits "${name}" but Zod rejects it`).toBe(true);
+    }
+    // NULL is legal on both sides (optional scope).
+    expect(parseProvince(null).success).toBe(true);
+  });
+
+  it("the Zod enum rejects a province the DDL CHECK would also reject", () => {
+    for (const bad of ["Cordoba", "Provincia de Buenos Aires", "Ciudad Autónoma de Buenos Aires"]) {
+      expect(literalsAfterConstraint("alert_subscriptions_province_valid")).not.toContain(bad);
+      expect(parseProvince(bad).success, `Zod admits "${bad}" but the DDL does not`).toBe(false);
+    }
   });
 });
