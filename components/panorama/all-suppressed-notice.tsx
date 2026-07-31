@@ -9,11 +9,15 @@
 // (fase-3 split discipline — neither file may keep growing):
 //
 //   buildAllSuppressedNotice — the console-side derivation. Composes an
-//     anchored corner-card text: the privacy treatment + the scope AGGREGATE,
-//     sourced from the layer's own headline KPI (KPI_RELATED_LAYERS is the
-//     same subject mapping the relevance gate uses). The KPI value is already
-//     rendered in the metrics column, so this discloses nothing new and issues
-//     no query. Null (card hidden) whenever at least one unit paints a real
+//     anchored corner-card text: the privacy treatment at the grain being
+//     plotted, plus — only when it carries information — the layer's own
+//     headline KPI (KPI_RELATED_LAYERS is the same subject mapping the
+//     relevance gate uses). The KPI value is already rendered in the metrics
+//     column, so this discloses nothing new and issues no query. It is NOT
+//     called "the scope total": see the RA-7 F2 note at the composition site —
+//     a Σ(published cells) headline is a sum over nothing in precisely this
+//     frame, and a zero there reads as "nothing happened", not as "protegido".
+//     Null (card hidden) whenever at least one unit paints a real
 //     value — the map explains itself then. Covers BOTH suppression
 //     conventions: layers whose server envelope OMITS suppressed cells
 //     (features empty, suppressedCount discloses them) and layers that ship
@@ -40,9 +44,23 @@ import type { LayerId, PanoramaKpiId } from "@/src/modules/panorama/domain/types
 type NoticeLayerState = { active: boolean; loading: boolean; suppressedCount: number };
 type NoticeActiveLayer = {
   id: string;
+  /** The grain the layer is actually plotting — the card names it (RA-7 F2). */
+  level?: string;
   features: { features: Array<{ properties: unknown }> };
 };
 type NoticeKpi = { id: PanoramaKpiId; label: string; value: string };
+
+/**
+ * Whether a PRE-FORMATTED KPI string is numerically zero — "0", "0%", "0,0%",
+ * "0 casos" all qualify; "10" and "0,4%" do not.
+ *
+ * RA-7 F2 needs this because the notice only ever sees the rendered string, and
+ * a zero is the one value it must never republish (see below).
+ */
+function readsAsZero(value: string): boolean {
+  const digits = value.replace(/[^\d]/g, "");
+  return digits.length > 0 && /^0+$/.test(digits);
+}
 
 export function buildAllSuppressedNotice(args: {
   /** The base (caption) layer painting the map, or null. */
@@ -64,9 +82,36 @@ export function buildAllSuppressedNotice(args: {
     (f) => (f.properties as { suppressed?: boolean } | null)?.suppressed === true,
   );
   if (!allHidden) return null;
+  // RA-7 F2 (minor): the copy said "Detalle por localidad" at every grain,
+  // including frames whose plotted units ARE provinces. Name the grain the layer
+  // is painting — a card that misdescribes what is hidden is a card the operator
+  // learns to skim.
+  const grain = live.level === "province" ? "provincia" : "localidad";
   const kpi = kpis.find((k) => KPI_RELATED_LAYERS[k.id]?.includes(captionLayer.id));
-  const aggregate = kpi ? ` — ${kpi.label}: ${kpi.value} en el total del alcance` : "";
-  return `Detalle por localidad protegido por privacidad (k<5)${aggregate}.`;
+  // RA-7 F2 — THE ZERO THIS CARD MUST NOT REPUBLISH.
+  //
+  // This clause used to read "— {label}: {value} en el total del alcance", and
+  // it is composed in EXACTLY the frame where every plotted unit is k-anon
+  // protected. Any headline that is Σ(published cells) — mortalidad is built
+  // that way on purpose, skipping suppressed provinces so the total cannot be
+  // reversed by differencing (get-panorama-kpis.ts) — is then a sum over
+  // NOTHING, i.e. 0. So an operator scoped to one province with 1-4 deceased
+  // read a card that asserted "Mortalidad registrada: 0 en el total del alcance"
+  // and admitted the detail was hidden in the same breath. A confident zero is
+  // the single most misleading substitution available here: it does not read as
+  // "protegido", it reads as "nadie se murió".
+  //
+  // Two changes, both about not claiming more than is known:
+  //  · a zero is DROPPED. There is no informative aggregate to publish when the
+  //    only cells in scope are the hidden ones, and silence beats a false floor.
+  //  · a non-zero is no longer called "el total del alcance". The card cannot
+  //    know how the headline was derived, only that it is the number already on
+  //    screen in the metrics column — so it says exactly that, and nothing more.
+  const aggregate =
+    kpi !== undefined && !readsAsZero(kpi.value)
+      ? ` — ${kpi.label}: ${kpi.value} (valor publicado para el alcance)`
+      : "";
+  return `Detalle por ${grain} protegido por privacidad (k<5)${aggregate}.`;
 }
 
 export function AllSuppressedNoticeCard({
