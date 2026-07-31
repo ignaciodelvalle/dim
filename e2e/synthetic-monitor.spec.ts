@@ -1,11 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 import { resolveStagingUrl } from "./_base-url";
+import { type OwnerPii, describePiiLeaks, findPiiLeaks } from "./_page-identity";
 import {
   ACCOUNTS,
   DEMO_PHOTOS,
   USHUAIA_POINT,
-  discoverDisplayName,
+  assertRealPage,
+  discoverOwnerPii,
   discoverPetToken,
   fileDenunciaAt,
   loginAs,
@@ -50,8 +52,10 @@ if (STAGING) test.use({ baseURL: STAGING });
 test.describe.configure({ mode: "parallel", timeout: 90_000 });
 
 /**
- * The pet token and the owner display name are BOTH resolved at runtime from
- * the owner's own account, memoized for the file.
+ * The pet token and the owner's PII are BOTH resolved at runtime from the
+ * owner's own account, memoized for the file.
+ *
+ * P2.4 — WHY THIS IS NOT A LITERAL, AND WHY THE SCOPE IS WHAT IT IS.
  *
  * The token used to be the literal `DIM-DEMO-0001` (seed-demo's hero pet) and
  * the name the literal "Ignacio del Valle". Neither exists on a bootstrapped
@@ -59,21 +63,34 @@ test.describe.configure({ mode: "parallel", timeout: 90_000 });
  * tokens. That made flow (b) worse than red — a 404 boundary would have
  * answered 200-with-no-PII, and `not.toContain("Ignacio del Valle")` CANNOT
  * FAIL against a page that never had that name on it. A privacy assertion that
- * cannot fail is not a privacy assertion.
+ * cannot fail is not a privacy assertion; it is a decoration on the one class
+ * of check that must never be decorative.
+ *
+ * Scope now covers the owner's display name, their exact account email AND
+ * their phone (format-independent — see findPiiLeaks), instead of just a name.
+ * DNI and address are deliberately excluded and the reasoning is written down
+ * next to the type: e2e/_page-identity.ts → OwnerPii.
+ *
+ * `discoverPetToken` defaults to activeOnly, so the pet under test is
+ * REGISTRADA, never lost. That precondition is load-bearing for the phone and
+ * email halves: `pets.disclose_phone_when_lost` / `disclose_email_when_lost`
+ * make those two a LEGITIMATE disclosure on a lost pet. Flow (b) re-asserts the
+ * non-lost state on the rendered page before treating their presence as a leak.
  */
-let fixture: Promise<{ token: string; ownerName: string }> | null = null;
+let fixture: Promise<{ token: string; pii: OwnerPii }> | null = null;
 function ownerFixture(browser: import("@playwright/test").Browser): Promise<{
   token: string;
-  ownerName: string;
+  pii: OwnerPii;
 }> {
   fixture ??= (async () => {
     const context = await browser.newContext();
     try {
       const page = await context.newPage();
       await loginAs(page, ACCOUNTS.owner);
+      // ACTIVE pet (activeOnly is the default) — see the docblock above.
       const token = await discoverPetToken(page);
-      const ownerName = await discoverDisplayName(page, ACCOUNTS.owner);
-      return { token, ownerName };
+      const pii = await discoverOwnerPii(page, ACCOUNTS.owner);
+      return { token, pii };
     } finally {
       await context.close();
     }
@@ -109,7 +126,7 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
   // (b) Anon public credential — 200, no PII, no-store.
   // ------------------------------------------------------------------------
   test("(b) anon /p credential: 200 + no PII + no-store", async ({ browser, page }) => {
-    const { token, ownerName } = await ownerFixture(browser);
+    const { token, pii } = await ownerFixture(browser);
     // Header + status via a raw request on a context that never authenticated —
     // a true anon fetch. Only the token DISCOVERY above was authenticated.
     const res = await page.request.get(`/p/${token}`);
@@ -121,15 +138,44 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
       `/p/${token} Cache-Control must forbid shared caching (no-store) — got "${cacheControl}". A stale CDN copy would keep serving a found pet as SE BUSCA + phone, or a revoked share. This is the privacy-class fix in middleware.ts + lib/infra/public-cache-policy.ts.`,
     ).toMatch(/no-store/i);
 
-    // Body must carry NO owner PII.
     const body = await res.text();
-    expect(body, "public credential leaks owner display name").not.toContain(ownerName);
+
+    // ---- Preconditions, asserted BEFORE the leak check reads anything -------
+    // A 200 alone does not prove this is the credential, and the credential's
+    // PII contract is STATE-DEPENDENT: on a LOST pet, phone and email are a
+    // legitimate disclosure behind pets.disclose_{phone,email}_when_lost, so
+    // asserting their absence there would be asserting the wrong thing.
+    // `<title>` settles both at once — app/(public)/p/[publicToken]/page.tsx
+    // emits "<name> | Credencial miMAR" for a live pet and "SE BUSCA: <name> |
+    // miMAR" for a lost one.
+    expect(
+      body,
+      `/p/${token} is not the credential page (or the pet is LOST, where phone/email are a disclosed-by-consent field, not a leak). Expected the live-credential <title>.`,
+    ).toContain("Credencial miMAR");
+    expect(body, `/p/${token} rendered the SE BUSCA (lost) surface`).not.toContain("SE BUSCA");
+
+    // ---- The actual privacy assertion --------------------------------------
+    // Against the PII of the account under test, resolved at runtime. The
+    // literal it replaced ("Ignacio del Valle", a persona CI never seeds) could
+    // not fail no matter what the page leaked.
+    const leaks = findPiiLeaks(body, pii);
+    expect(
+      leaks,
+      `public credential /p/${token} leaks owner PII — ${describePiiLeaks(leaks)}`,
+    ).toEqual([]);
+    // Domain-wide net: catches ANY seeded account's address, not just this
+    // owner's, so a leak of a different profile still trips the monitor.
     expect(body, "public credential leaks an @dim.test email").not.toMatch(/@dim\.test/i);
 
     // Render sanity: the page is the credential, not an error/404 boundary.
+    // Shared guard — the bespoke check here matched only "no encontramos esta
+    // página", which is NOT the copy the (public) group's boundary renders.
     await page.goto(`/p/${token}`, { waitUntil: "domcontentloaded" });
-    await expect(page.getByText(/no encontramos esta página|application error/i)).not.toBeVisible();
-    await expect(page.locator("main, h1").first()).toBeVisible({ timeout: 20_000 });
+    await assertRealPage(
+      page,
+      `/p/${token}`,
+      page.getByText("Credencial pública", { exact: true }).first(),
+    );
   });
 
   // ------------------------------------------------------------------------
