@@ -5,8 +5,8 @@
 // /admin/poblacion, /gob/poblacion and /gob/poblacion/export, so these tests are
 // the contract for all six surfaces at once.
 
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import { readFileSync, readdirSync } from "node:fs";
+import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -381,22 +381,102 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
 }
 
-const CONSUMERS = [
+// ---------------------------------------------------------------------------
+// THE ENUMERATION FAILS CLOSED
+// ---------------------------------------------------------------------------
+//
+// The previous version of this block was a hand-written `CONSUMERS` array, and
+// it let C1 survive THREE sweeps: the sweep IS the list, so a consumer the list
+// does not name is a consumer it stops asserting anything about. That failure
+// mode is identical to a stale comment — AN ENUMERATION THAT GOES STALE FAILS
+// OPEN — and "remember to append" is not a control.
+//
+// So the set is DERIVED from the source tree: every non-test file under
+// app/ lib/ src/ components/ whose COMMENT-STRIPPED source names one of the
+// deciders' fetchers. Classification still needs a human (only a person can say
+// whether a given surface publishes a scope aggregate), but OMISSION no longer
+// does: a newly-derived file that appears in neither bucket fails this suite,
+// and a bucket entry that no longer derives fails it too. You cannot add a
+// consumer of these fetchers without editing this file.
+//
+// What it still cannot catch, stated because this wave is about docblocks that
+// promise more than the code delivers: a surface that receives an already-fetched
+// result through a PROP or a cache without naming the fetcher. `app/gob/analytics
+// /page.tsx` → `RegionRankingTable` is exactly that shape, which is why the
+// render side is pinned by its own assertion below and by
+// RegionRankingTable.test.tsx.
+
+const DECIDER_FETCHERS = /\b(registryCounts|fetchSterilizationCoverage|fetchRegionRanking)\b/;
+const SEARCH_ROOTS = ["app", "lib", "src", "components"];
+
+function deriveConsumers(): string[] {
+  const found: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        if (entry.name === "node_modules" || entry.name === ".next") continue;
+        walk(abs);
+        continue;
+      }
+      if (!/\.tsx?$/.test(entry.name)) continue;
+      if (/\.(test|spec)\.tsx?$/.test(entry.name)) continue;
+      if (abs.includes(`${sep}__tests__${sep}`)) continue;
+      const rel = relative(REPO_ROOT, abs).split(sep).join("/");
+      if (DECIDERS.includes(rel)) continue;
+      if (DECIDER_FETCHERS.test(stripComments(readFileSync(abs, "utf8")))) found.push(rel);
+    }
+  };
+  for (const root of SEARCH_ROOTS) walk(join(REPO_ROOT, root));
+  return found.sort();
+}
+
+/**
+ * Derived consumers that PUBLISH a scope-wide aggregate from a decider — the KPI
+ * row, the executive summary, the CSV `resumen`. Every one of these must gate on
+ * the fetcher's `scopeTotalPublishable`.
+ *
+ * /gob/programa and /admin/programa joined LATE, and the Panorama console later
+ * still: the censo/población sweep enumerated the surfaces it could see, and each
+ * of the others carried the identical C1 shape for exactly as long as the list
+ * did not name it. That is why the set is derived now.
+ */
+const HEADLINE_CONSUMERS = [
   "app/admin/censo/AdminCensoScreen.tsx",
   "app/gob/censo/CensoScreen.tsx",
   "app/gob/censo/export/route.ts",
   "app/admin/poblacion/AdminPoblacionScreen.tsx",
   "app/gob/poblacion/PoblacionScreen.tsx",
   "app/gob/poblacion/export/route.ts",
-  // The executive summaries. They joined this list LATE, and that is the point:
-  // the censo/población sweep enumerated the surfaces it could see, both of
-  // these call `registryCounts` + `fetchSterilizationCoverage`, and /gob/programa
-  // accepts `?province=` — so it carried the identical C1 shape for as long as
-  // the list did not name it. THIS LIST IS THE SWEEP. A new consumer of either
-  // decider belongs here in the same commit that adds the call.
   "app/gob/programa/page.tsx",
   "app/admin/programa/page.tsx",
+  // RA-3 C1, fourth surface: `?province=` on the Panorama console narrows the
+  // WHOLE scope, so "Cobertura de esterilización" became the withheld cell under
+  // a KPI label.
+  "src/modules/panorama/application/get-panorama-kpis.ts",
 ];
+
+/**
+ * Derived consumers that publish NO scope aggregate from these deciders, each
+ * with the reason it is safe. A reason is mandatory: the bucket exists to record
+ * a judgment, not to silence the guard.
+ */
+const NON_HEADLINE_CONSUMERS: Record<string, string> = {
+  "lib/metrics/index.ts": "Barrel re-export. Names the fetchers, consumes nothing.",
+  "lib/metrics/kpi-catalog.ts":
+    "Metric metadata. The fetcher names appear inside description STRING LITERALS (which survive comment-stripping on purpose), not in a call.",
+  "lib/open-data/datasets.ts":
+    "Public open-data tier. Reads `byProvince` ROWS only and applies its own suppression (SUPPRESSED_MARKER / province-suppression.ts); it publishes no scope headline from this decider.",
+  "src/modules/panorama/infrastructure/repository-choropleth.ts":
+    "Map LAYER loader. Reads `byProvince` rows only and re-decides per CELL via `provinceCell` (task #40's blanket tier — the divergence province-disclosure.ts documents). No scope aggregate.",
+  "app/gob/analytics/page.tsx":
+    "Ranking consumer. `fetchRegionRanking` returns ROWS plus a `suppressedCount`; the page publishes no aggregate of its own and only hands the verdict to RegionRankingTable — pinned by its own assertion below.",
+  "lib/metrics/alert-evaluation.ts":
+    "Threshold evaluator. Reads `.rate`, but `buildProjectionContext(baseActor, …)` is called WITHOUT adminProvince, and subscriptions can only be created by admins (requireAdminOrRedirect), so scope.kind is always 'global' with no drill: the value is the NATIONAL rate, strictly coarser than any single cell. KNOWN DEFECT, reported 2026-07-31: a province-scoped subscription therefore evaluates NATIONALLY (a correctness bug, not a leak). Whoever fixes it MUST consume `scopeTotalPublishable` in the same change, or this file moves to HEADLINE_CONSUMERS and the fix becomes C1's fifth instance.",
+};
+
+/** Every derived file must land in exactly one bucket. */
+const CLASSIFIED = [...HEADLINE_CONSUMERS, ...Object.keys(NON_HEADLINE_CONSUMERS)];
 
 /**
  * Consumers that publish the HEADLINE but no per-province row from these
@@ -413,13 +493,73 @@ const HEADLINE_ONLY = new Set([
   "app/gob/poblacion/PoblacionScreen.tsx",
   "app/gob/programa/page.tsx",
   "app/admin/programa/page.tsx",
+  // The Panorama KPI strip renders TILES, never a province breakdown from these
+  // fetchers — the map's per-province layer is a different tier
+  // (repository-choropleth + provinceCell, classified NON_HEADLINE). Its C1 was
+  // the tile, which the headline guard below covers.
+  "src/modules/panorama/application/get-panorama-kpis.ts",
 ]);
 
-/** The two fetchers that own the decision — the only sanctioned callers. */
-const DECIDERS = ["lib/metrics/census.ts", "lib/metrics/population-control.ts"];
+/**
+ * The fetchers that own the decision — the only sanctioned callers of the rule.
+ * `analytics-ranking.ts` joined on RA-3 finding C7: /gob/analytics' per-province
+ * coverage is a RATE, and a rate reveals its denominator, so it routes through
+ * the same decider instead of shipping a second k.
+ */
+const DECIDERS = [
+  "lib/metrics/census.ts",
+  "lib/metrics/population-control.ts",
+  "lib/analytics/analytics-ranking.ts",
+];
+
+/** The subset of deciders that also publish a SCOPE HEADLINE and must therefore
+ *  pass `plan.scopeTotalPublishable` through. The ranking publishes rows only —
+ *  it has no scope aggregate to gate, so demanding the field would be cargo. */
+const HEADLINE_DECIDERS = ["lib/metrics/census.ts", "lib/metrics/population-control.ts"];
+
+describe("the consumer enumeration fails CLOSED", () => {
+  // The point of this describe block: you cannot ADD a consumer of these
+  // fetchers, or REMOVE one, without editing this file. The old hand-written
+  // array let three surfaces ship the same leak because nobody remembered to
+  // append — and a guard you have to remember is the same control as a comment.
+
+  it("every derived consumer is classified", () => {
+    const unclassified = deriveConsumers().filter((f) => !CLASSIFIED.includes(f));
+    expect(
+      unclassified,
+      "New consumer(s) of registryCounts / fetchSterilizationCoverage / fetchRegionRanking. " +
+        "Decide whether each publishes a SCOPE-WIDE aggregate: if yes add it to " +
+        "HEADLINE_CONSUMERS and gate it on scopeTotalPublishable; if no add it to " +
+        "NON_HEADLINE_CONSUMERS with the reason.",
+    ).toEqual([]);
+  });
+
+  it("no classified entry has gone stale", () => {
+    // The inverse rot: a bucket entry for a file that no longer consumes a
+    // decider is an assertion quietly passing about nothing.
+    const derived = deriveConsumers();
+    const stale = CLASSIFIED.filter((f) => !derived.includes(f));
+    expect(stale, "Classified but no longer a consumer — remove the entry.").toEqual([]);
+  });
+
+  it("every non-headline classification carries a reason", () => {
+    for (const [file, reason] of Object.entries(NON_HEADLINE_CONSUMERS)) {
+      expect(reason.length, file).toBeGreaterThan(40);
+    }
+  });
+
+  it("a non-headline consumer does not quietly become a headline one", () => {
+    // If a file in this bucket starts calling the headline helpers, the
+    // classification is wrong and the reason beside it is now false.
+    for (const rel of Object.keys(NON_HEADLINE_CONSUMERS)) {
+      const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
+      expect(code, rel).not.toMatch(/scopeTotalSuppressionNotice\(|scopeSummaryRow\(/);
+    }
+  });
+});
 
 describe("screen/export parity is structural", () => {
-  it.each(CONSUMERS)("%s never re-derives the suppression rule", (rel) => {
+  it.each(HEADLINE_CONSUMERS)("%s never re-derives the suppression rule", (rel) => {
     const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
 
     // A consumer that imported the primitives could decide differently from the
@@ -440,7 +580,7 @@ describe("screen/export parity is structural", () => {
     // HEADLINE_ONLY consumers are excluded on purpose — see its docblock. They
     // are NOT excluded from the headline guard below, which is where every one
     // of them actually leaked.
-    const publishers = CONSUMERS.filter((c) => !HEADLINE_ONLY.has(c));
+    const publishers = HEADLINE_CONSUMERS.filter((c) => !HEADLINE_ONLY.has(c));
     for (const rel of publishers) {
       const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
       expect(code, rel).toMatch(/\.suppressed|suppressedCount|SuppressedCount/);
@@ -451,14 +591,14 @@ describe("screen/export parity is structural", () => {
     // #40's own follow-up suppressed the values and left suppressedCount at 0 —
     // a fully hatched map that told nobody. Hiding without disclosing is the
     // failure mode, not the fix.
-    const announcing = CONSUMERS.filter((c) => !HEADLINE_ONLY.has(c));
+    const announcing = HEADLINE_CONSUMERS.filter((c) => !HEADLINE_ONLY.has(c));
     for (const rel of announcing) {
       const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
       expect(code, rel).toMatch(/provinceSuppressionNotice\(/);
     }
   });
 
-  it.each(CONSUMERS)("%s gates its SCOPE HEADLINE on the same verdict", (rel) => {
+  it.each(HEADLINE_CONSUMERS)("%s gates its SCOPE HEADLINE on the same verdict", (rel) => {
     // RA-3 C1 / RA-1 C1c. EVERY consumer is in this list, /gob/poblacion
     // included: the leak was never the row, it was the KPI (and the CSV
     // `resumen`) beside the row, publishing what the row withheld in the same
@@ -477,11 +617,17 @@ describe("screen/export parity is structural", () => {
     // OPEN — it stops asserting anything about the file it skipped. What must
     // never appear is a literal, which the second assertion pins directly.
     expect(code).toMatch(/[A-Za-z_$][\w$]*\.scopeTotalPublishable\b/);
-    expect(code).not.toMatch(/scopeTotalPublishable\s*[:=]\s*(true|false)\b/);
+    // Only the literal `true` is banned, and the asymmetry is the point: `true`
+    // is the one value that PUBLISHES, so it is the only one a hardcode can leak
+    // with. A literal `false` withholds — banning it would ban the fail-closed
+    // direction, which is what
+    // src/modules/panorama/application/get-panorama-kpis.ts uses for the
+    // fallback shape it builds when its fetcher rejects.
+    expect(code).not.toMatch(/scopeTotalPublishable\s*[:=]\s*true\b/);
     expect(code).toMatch(/scopeTotalSuppressionNotice\(|scopeSummaryRow\(/);
   });
 
-  it.each(CONSUMERS.filter((c) => c.endsWith("route.ts")))(
+  it.each(HEADLINE_CONSUMERS.filter((c) => c.endsWith("route.ts")))(
     "%s withholds its CSV resumen through the shared helper",
     (rel) => {
       // Not a hand-rolled ternary per route: `scopeSummaryRow` is ONE
@@ -493,7 +639,18 @@ describe("screen/export parity is structural", () => {
     },
   );
 
-  it.each(DECIDERS)("%s hands the headline verdict down from the plan", (rel) => {
+  it("the ranking page hands its suppression count to the render (RA-3 C7)", () => {
+    // The one shape the derived enumeration cannot see: RegionRankingTable never
+    // names a decider, it receives already-decided rows through props. If the
+    // page drops `suppressedCount`, the table withholds silently — the exact
+    // "hid it and told nobody" failure #40's follow-up shipped.
+    const code = stripComments(readFileSync(join(REPO_ROOT, "app/gob/analytics/page.tsx"), "utf8"));
+    expect(code).toMatch(/suppressedCount=\{\s*regionRanking\.suppressedCount\s*\}/);
+    // And the card must survive a fully-withheld scope, or the notice never renders.
+    expect(code).toMatch(/regionRanking\.suppressedCount\s*>\s*0/);
+  });
+
+  it.each(HEADLINE_DECIDERS)("%s hands the headline verdict down from the plan", (rel) => {
     // The fetcher must PASS THROUGH plan.scopeTotalPublishable, not recompute a
     // headline rule of its own — two implementations that agree today drift
     // tomorrow, which is the entire reason D.10 is decided in one place.
