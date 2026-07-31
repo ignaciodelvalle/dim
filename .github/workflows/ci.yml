@@ -386,12 +386,22 @@ jobs:
     # version family. The seed step's auth.admin.createUser calls need a
     # real local key (not a dummy) to land users that the trigger picks up.
     #
+    # NEXT_PUBLIC_SUPABASE_ANON_KEY is DELIBERATELY ABSENT from this map. It is
+    # exported by the `Extract Supabase env vars` step below (the same composite
+    # action the e2e job uses) once the stack is up. It used to be pinned here
+    # to the literal `dummy_anon_key`, and that placeholder is what made the
+    # `anon` row of __tests__/rls/matrix.test.ts vacuous: with no session,
+    # supabase-js sends the anon key as the bearer token, PostgREST rejected the
+    # malformed JWT with 401 before RLS ran, and the harness scored the empty
+    # result as "deny". 11 anon cells passed without evaluating a single policy.
+    # A job-level `env:` entry would also SHADOW the $GITHUB_ENV export, so do
+    # not "helpfully" add a default back.
+    #
     # timeout-minutes raised from 15 → 20 to account for v8 coverage
     # instrumentation overhead (~20-30% on a cold run).
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
       SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
 
     steps:
@@ -418,6 +428,15 @@ jobs:
         # several minutes off cold-cache startup. Add a service back to the
         # list if a future test needs it.
         run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+
+      - name: Extract Supabase env vars
+        # Publishes the REAL anon key (and the rest of `supabase status -o env`)
+        # to $GITHUB_ENV for every step below. Same composite action the e2e job
+        # runs — one mechanism, so the two jobs cannot drift again.
+        #
+        # Placed before db:bootstrap so the seeding scripts and the test run see
+        # identical credentials.
+        uses: ./.github/actions/supabase-env
 
       - name: Bootstrap DB (schema + triggers + RLS + seeds)
         # One script replaces what used to be four CI steps: db:push, replay
@@ -537,28 +556,30 @@ jobs:
         # inbucket, imgproxy, edge-runtime, or realtime.
         run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
 
+      - name: Extract Supabase env vars for runtime
+        # Was an inline script AFTER db:bootstrap; now the shared composite
+        # action the vitest job also runs, hoisted above bootstrap so every
+        # later step in both jobs sees the same credentials.
+        #
+        # The move also fixed a live bug this copy carried: `supabase status
+        # -o env` QUOTES its values, and $GITHUB_ENV keeps the quotes, so the
+        # exported key was `"eyJ..."`. GoTrue tolerated it (it does not validate
+        # `apikey`) but PostgREST answered every browser-side read with
+        # 401 PGRST301. See .github/actions/supabase-env/action.yml.
+        uses: ./.github/actions/supabase-env
+
       - name: Bootstrap DB (schema + triggers + RLS + seeds)
         # Bootstraps the full schema, triggers, RLS policies, reference data,
         # and test users (owner@dim.test / Test1234! — see scripts/seed-test-users.ts).
+        #
+        # No NEXT_PUBLIC_SUPABASE_ANON_KEY here: it used to be pinned to
+        # `dummy_anon_key`, and a step-level `env:` SHADOWS the $GITHUB_ENV
+        # export above. Inherit the real one.
         env:
           DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
           NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
           SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
         run: pnpm db:bootstrap
-
-      - name: Extract Supabase env vars for runtime
-        # `supabase status -o env` emits ANON_KEY/API_URL/etc. Write them to
-        # $GITHUB_ENV and also alias ANON_KEY → NEXT_PUBLIC_SUPABASE_ANON_KEY
-        # (the CLI uses a raw name; Next.js reads the NEXT_PUBLIC_* form).
-        run: |
-          # 2>/dev/null drops the pnpm "[WARN] ..." stderr line; grep keeps only
-          # KEY=VALUE lines so nothing non-env pollutes $GITHUB_ENV (the warning
-          # line previously broke the file command with "Invalid format").
-          STATUS_ENV=$(pnpm exec supabase status -o env 2>/dev/null)
-          echo "$STATUS_ENV" | grep -E '^[A-Z_][A-Z0-9_]*=' >> "$GITHUB_ENV"
-          ANON=$(echo "$STATUS_ENV" | grep '^ANON_KEY=' | cut -d= -f2-)
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${ANON}" >> "$GITHUB_ENV"
 
       - name: Build Next.js app
         # The build step needs env vars to resolve module-level reads; the

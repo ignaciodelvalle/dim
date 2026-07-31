@@ -616,6 +616,46 @@ interface ProbeResult {
   detail: string;
 }
 
+/**
+ * Refuse to score a CREDENTIAL failure as a policy denial.
+ *
+ * A real RLS denial is `200 []` — PostgREST authenticates the request, runs the
+ * policy, and returns an empty set. A rejected credential is `401` with no rows
+ * at all. Both arrive here as `data === null || data.length === 0`, and the
+ * probe below used to call both of them "deny".
+ *
+ * That is not hypothetical. Until 2026-07-31 the vitest CI job exported
+ * `NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key`. The three signed-in roles
+ * were unaffected — the local GoTrue gateway does not validate `apikey`, so
+ * sign-in still minted a real session JWT and those cells probed real policies.
+ * The `anon` role has no session, so supabase-js sent the placeholder itself as
+ * the bearer token and PostgREST answered:
+ *
+ *     {"code":"PGRST301","message":"Expected 3 parts in JWT; got 1"}
+ *
+ * before RLS was consulted. Every anon cell reported `deny` and passed. A
+ * permissive `anon` SELECT policy added to any table in RLS_MATRIX would not
+ * have turned a single one of them red.
+ *
+ * The CI env is fixed (.github/actions/supabase-env), but env is exactly the
+ * kind of thing that regresses silently, so the harness now refuses the input
+ * rather than trusting the pipeline that feeds it.
+ */
+function assertCredentialReachedRls(
+  error: { code?: string; message: string } | null,
+  table: string,
+  role: RlsRole,
+): void {
+  if (!error) return;
+  const credentialRejected =
+    error.code?.startsWith("PGRST30") || /JWT|API key/i.test(error.message);
+  if (!credentialRejected) return;
+  const detail = `${error.code ?? "no code"}: ${error.message}`;
+  throw new Error(
+    `RLS probe for ${role} on ${table} never reached a policy — PostgREST rejected the CREDENTIAL (${detail}). This is NOT a denial, and scoring it as one is how the anon row of this matrix passed for months without evaluating a policy. Check NEXT_PUBLIC_SUPABASE_ANON_KEY — it must be the running stack's real key (\`supabase status -o env\`), not a placeholder.`,
+  );
+}
+
 async function probeSelect(
   client: SupabaseClient,
   table: string,
@@ -662,6 +702,8 @@ async function probeSelect(
   }
 
   const { data, error } = await query;
+  // MUST run before the zero-rows reading below: a 401 is an empty result too.
+  assertCredentialReachedRls(error, table, role);
   const rows = data?.length ?? 0;
   // Pass criterion mirrors the smoke pattern: zero rows == deny.
   return {
