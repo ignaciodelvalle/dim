@@ -6,12 +6,16 @@ import { ACCOUNTS, assertRealPage, loginAs } from "./demo/_helpers";
 /**
  * A11y REGRESSION ARMOR (capstone readiness gap) — axe-core + keyboard nav.
  *
- * Runs axe against the four highest-traffic surfaces the product cannot ship
- * broken: the public landing (/), a public pet credential (/p/[token]), and two
- * authenticated owner screens (/inicio, the pet profile). Asserts ZERO
+ * Runs axe against the THREE highest-traffic surfaces the product cannot ship
+ * broken: the public landing (/), a public pet credential (/p/[token]), and the
+ * authenticated pet profile (/mis-mascotas/[token]). Asserts ZERO
  * serious/critical WCAG 2.1 AA violations per route. `color-contrast` is
  * disabled here (validated separately via the design-token linter), matching
  * the sibling e2e/a11y-operator-auth.spec.ts.
+ *
+ * It used to say FOUR, counting /inicio. /inicio is a redirect-only router with
+ * no renderable branch, so that fourth scan was the pet profile measured a
+ * second time under a different label — see the test below for the CI evidence.
  *
  * Any pre-existing serious/critical violation must be added to that route's
  * `allow` list WITH A REASON — it is NOT silently swallowed: every run prints
@@ -143,11 +147,28 @@ test.describe("a11y regression — authenticated owner surfaces (axe, WCAG 2.1 A
     await loginAs(page, ACCOUNTS.owner);
   });
 
-  test("/inicio — no serious/critical", async ({ page }) => {
+  // /inicio HAS NO AXE SURFACE. app/(app)/inicio/page.tsx is a redirect-only
+  // router: every branch ends in redirect() (vet landing line 63, /mis-mascotas
+  // line 89, the most-urgent pet line 120) and the function has no JSX return.
+  //
+  // This test used to `goto("/inicio")` and axe whatever it landed on, which is
+  // the pet profile — the SAME page as the test directly below it. CI run
+  // 30614542320 printed the proof: `[a11y] /inicio` and
+  // `[a11y] /mis-mascotas/DIM-5E9E-PVPF`, two log lines, one page. The label was
+  // the only thing that differed, and `assertRealPage` could not catch it
+  // because until 2026-07-31 it never compared page.url().
+  //
+  // So the axe scan is gone (the destination is covered below, once) and what
+  // remains is the contract that actually belongs to /inicio: it routes the
+  // owner somewhere real instead of 404ing or looping.
+  test("/inicio routes the owner to their registry (redirect-only router — no surface of its own)", async ({
+    page,
+  }) => {
     await page.goto("/inicio");
     await page.waitForLoadState("networkidle");
-    await assertRealPage(page, "/inicio");
-    assertAxeClean("/inicio", await analyze(page));
+    // Either landing is correct: the pet profile when the owner has live pets,
+    // the bare registry when they do not.
+    await assertRealPage(page, /^\/mis-mascotas(\/DIM-[A-Z0-9-]+)?$/);
   });
 
   test("pet profile /mis-mascotas/[token] — no serious/critical", async ({ page, browser }) => {

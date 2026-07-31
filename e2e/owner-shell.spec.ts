@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
-import { assertRealPage } from "./demo/_helpers";
+import { ACCOUNTS, assertRealPage, loginAs } from "./demo/_helpers";
 
 /**
  * Owner AppShell e2e — covers the citizen-variant chrome migrated in Item 7
@@ -18,20 +18,26 @@ import { assertRealPage } from "./demo/_helpers";
  * Uses the OWNER account seeded by `pnpm seed:test` (owner@dim.test).
  */
 
-const OWNER_EMAIL = "owner@dim.test";
-const OWNER_PASSWORD = "Test1234!";
+// The owner landing reached THROUGH /inicio. Not "/inicio" itself:
+// app/(app)/inicio/page.tsx is a redirect-only router (every branch ends in
+// redirect(); no JSX return), so the browser never rests on that pathname.
+//
+// That is also why this file's beforeEach was failing on EVERY CI run — it
+// waited for `/\/inicio/` after sign-in, a URL the address bar never shows
+// because the redirect resolves before the navigation commits. All three tests
+// died at `TimeoutError: page.waitForURL` (run 30614542320, failures 13/14/15)
+// and had never executed their bodies. Replaced with the shared `loginAs`,
+// which waits for "left /login" and is role-agnostic.
+const OWNER_LANDING = /^\/mis-mascotas(\/DIM-[A-Z0-9-]+)?$/;
 
 test.beforeEach(async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
-  await page.getByLabel(/contraseña/i).fill(OWNER_PASSWORD);
-  await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL(/\/inicio/, { timeout: 15_000 });
+  await loginAs(page, ACCOUNTS.owner);
 });
 
-test("owner /inicio renders the citizen masthead with a single #main-content", async ({ page }) => {
+test("owner landing renders the citizen masthead with a single #main-content", async ({ page }) => {
   await page.goto("/inicio");
   await page.waitForLoadState("networkidle");
+  await assertRealPage(page, OWNER_LANDING);
 
   // Citizen masthead present (brand wordmark).
   await expect(page.getByRole("banner").getByText("MiMAR").first()).toBeVisible();
@@ -40,13 +46,13 @@ test("owner /inicio renders the citizen masthead with a single #main-content", a
   await expect(page.locator("#main-content")).toHaveCount(1);
 });
 
-test("a11y(axe) owner /inicio — citizen chrome (WCAG 2.1 AA)", async ({ page }) => {
+test("a11y(axe) owner landing — citizen chrome (WCAG 2.1 AA)", async ({ page }) => {
   await page.goto("/inicio");
   await page.waitForLoadState("networkidle");
-  // The subject is the CITIZEN CHROME, so prove the chrome is on screen — a
-  // not-found boundary renders no masthead and scores zero violations. The
-  // sibling test above checks the masthead; this one measured whatever loaded.
-  await assertRealPage(page, "/inicio", page.getByRole("banner").getByText("MiMAR").first());
+  // The subject is the CITIZEN CHROME, so prove the chrome is on screen AND
+  // that we are on the landing rather than any page that happens to carry the
+  // same banner — the masthead alone does not distinguish them.
+  await assertRealPage(page, OWNER_LANDING, page.getByRole("banner").getByText("MiMAR").first());
 
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -59,6 +65,7 @@ test("a11y(axe) owner /inicio — citizen chrome (WCAG 2.1 AA)", async ({ page }
 test("logged-in owner on /adoptar is NOT stranded — keeps a role return (D4)", async ({ page }) => {
   await page.goto("/adoptar");
   await page.waitForLoadState("networkidle");
+  await assertRealPage(page, "/adoptar");
 
   // Still exactly one #main-content (citizen shell, not a duplicate).
   await expect(page.locator("#main-content")).toHaveCount(1);

@@ -284,22 +284,61 @@ export async function discoverDisplayName(page: Page, email: string): Promise<st
  * cannot disarm it) and on the full set of headings second — see
  * e2e/_page-identity.ts and its parity test.
  *
+ * IT NOW ASSERTS THE URL, NOT JUST "a page rendered". Until 2026-07-31 `route`
+ * was a pure error-message string — nothing ever compared `page.url()` — so the
+ * function proved "SOME real page" and never "THE page". Any redirect sailed
+ * through it, which is not a corner case in this app:
+ * `app/(app)/inicio/page.tsx` has NO renderable branch (every path ends in
+ * `redirect()`, lines 63 / 89 / 120), so
+ *
+ *   e2e/a11y-regression.spec.ts  "/inicio — no serious/critical"
+ *
+ * was scanning /mis-mascotas/{token} — byte-identical to the test on the very
+ * next line. The docblock's "four highest-traffic surfaces" was three, one of
+ * them measured twice, and /inicio's axe number described a different page.
+ *
+ * @param expected the pathname the browser must actually be on. A string is
+ *   compared exactly (query and hash ignored); pass a RegExp when the
+ *   destination is legitimately variable — a redirect target, a discovered
+ *   token. Do NOT pass a prose label: it is an assertion now, not a caption.
  * @param marker OPTIONAL positive proof: something only the real page renders.
- *   Absence-of-404 is necessary but not sufficient — pass this whenever the
- *   route has a stable identifying element. "Assert the page is the page."
+ *   The right pathname plus no 404 is still not proof the CONTENT rendered —
+ *   pass this whenever the route has a stable identifying element.
  */
-export async function assertRealPage(page: Page, route: string, marker?: Locator): Promise<void> {
+export async function assertRealPage(
+  page: Page,
+  expected: string | RegExp,
+  marker?: Locator,
+): Promise<void> {
+  const label = typeof expected === "string" ? expected : String(expected);
+  const actual = new URL(page.url()).pathname;
+
+  if (typeof expected === "string") {
+    // Normalise through URL so a caller may pass an href carrying ?query#hash
+    // (public-smoke discovers hrefs from listings and passes them straight in).
+    const wanted = new URL(expected, "http://localhost").pathname;
+    expect(
+      actual,
+      `expected to be measuring ${wanted}, but the browser is on ${actual} — a redirect, not the route under test`,
+    ).toBe(wanted);
+  } else {
+    expect(
+      actual,
+      `expected to be measuring a path matching ${label}, but the browser is on ${actual}`,
+    ).toMatch(expected);
+  }
+
   await expect(
     page.getByTestId(BRANDED_NOT_FOUND_TESTID),
-    `${route}: rendered the branded not-found boundary — measuring it would pass vacuously`,
+    `${label}: rendered the branded not-found boundary — measuring it would pass vacuously`,
   ).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: NOT_FOUND_HEADING }),
-    `${route}: rendered a not-found heading — measuring it would pass vacuously`,
+    `${label}: rendered a not-found heading — measuring it would pass vacuously`,
   ).toHaveCount(0);
-  await expect(page.getByText(CRASH_BOUNDARY), `${route}: the page crashed`).toHaveCount(0);
+  await expect(page.getByText(CRASH_BOUNDARY), `${label}: the page crashed`).toHaveCount(0);
   if (marker) {
-    await expect(marker, `${route}: the page's own content never rendered`).toBeVisible({
+    await expect(marker, `${label}: the page's own content never rendered`).toBeVisible({
       timeout: 20_000,
     });
   }
