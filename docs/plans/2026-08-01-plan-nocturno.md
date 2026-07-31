@@ -67,6 +67,12 @@
 - **Comentario que se volvió mentira** (material de RA-5): el header de `lib/open-data/province-suppression.ts` sigue afirmando que *"the authenticated Panorama province choropleth publishes province aggregates UNSUPPRESSED"* — falso desde #40.
 - Cerrado de paso: el pie de "sin provincia asignada" se recalculaba desde las filas visibles, lo que **sobreestimaba el residual y recuperaba la celda oculta por resta**. Ahora sale del Σ que incluye las ocultas.
 
+### Hallazgos de P2.2-P2.4 — dos que reencuadran, y una unidad nueva
+
+- **El arreglo obvio de P2.2 habría sido PEOR.** `owner@dim.test` tiene exactamente UNA mascota activa y es la que carga la transferencia de demo, así que un `NOT EXISTS` sobre sus mascotas no encuentra candidato → `setupError` → **las 44 celdas de la matriz pasan a skip silencioso y la suite imprime verde**. Medido: las salteadas corren en 0 ms, las reales en 3-4 ms. El fixture ahora se auto-provisiona una mascota propia, siguiendo el precedente del propio archivo. **Segundo caso en esta ola de "el arreglo obvio empeora"** — el primero fue el `ORDER BY` de A8, que habría convertido un fallo intermitente en uno del 100%.
+- **El `assertRealPage()` de A7 tenía el mismo bug que arreglaba.** Matcheaba solo `/no encontramos esta página/i`, pero `app/(public)/not-found.tsx` dice **"No encontramos esa CREDENCIAL"** — y `/p/[token]` es una ruta `(public)`, exactamente la que A7 estaba reparando. Cinco boundaries, dos títulos; el guard no reconocía el que guardaba. Ahora hay una sola implementación en `e2e/demo/_helpers.ts` + un `data-testid` en `BrandedNotFound` para que el copy no pueda desarmar el gate.
+- **UNIDAD NUEVA — P2.8: `__tests__/rls/matrix.test.ts:552` es skip-es-aprobado.** `setupError` solo hace `console.warn` y las 44 celdas retornan temprano, así que **la suite puede imprimir verde entero sin afirmar nada**. Es la misma enfermedad; se dejó sin tocar por radio de explosión y porque necesita una decisión de semántica CI-vs-local.
+
 ### Prioridad 3 — Robustez y defectos de producto
 
 | # | Unidad | Estado |
@@ -194,13 +200,14 @@ Es para ESTA corrida, no permanente.
 | P1.1 #40c censo/población | **CERRADA** (datos + render + divulgación + tests) | `9305f942` · `4ff4d55c` · `bf5c9edf` |
 | P1.2 A14 nav drop | pendiente | |
 | P2.1 los 4 de final-seams | pendiente | |
-| P2.2 A15 fixture RLS | pendiente | |
-| P2.3 csp-smoke sobre 404 | pendiente | |
-| P2.4 PII assert imposible | pendiente | |
+| P2.2 A15 fixture RLS | **CERRADA** — el `NOT EXISTS` obvio dejaba 44 celdas en skip-silencioso; el fixture se auto-provisiona una mascota propia | `4bd6f9fd` |
+| P2.3 csp-smoke sobre 404 | **CERRADA** — y `assertRealPage()` de A7 tenía el mismo bug que arreglaba: no reconocía el 404 de `(public)` | `d2494b60` |
+| P2.4 PII assert imposible | **CERRADA** — PII del dueño descubierta en runtime; teléfono por dígitos; `findPiiLeaks` lanza si el nombre viene vacío | `e93a1a72` |
 | P2.5 skeletons de Suspense | pendiente | |
 | P2.6 worker de Windows | pendiente (no bloquea) | |
+| **P2.8 (NUEVA)** rls/matrix skip-es-aprobado | pendiente — 44 celdas retornan temprano; la suite imprime verde sin afirmar nada | |
 | P2.7 A2b limpiador | pendiente (necesita revisión) | |
-| P3.1 nominatim hardcodeado | pendiente | |
+| P3.1 nominatim hardcodeado | en curso | |
 | P3.2 jurisdictionProvince sin enum | pendiente | |
 | P3.3 A2c aviso enterrado | bloqueada por el fence | |
 | P4.1 B2 los 703 | pendiente | |
