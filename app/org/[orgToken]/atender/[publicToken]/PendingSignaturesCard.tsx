@@ -48,7 +48,7 @@ export function PendingSignaturesCard({
       <OpCardHead title="Declarado por el dueño · pendiente de firma" />
       <OpCardBody>
         {!signerMatriculaVerified && (
-          <p className="mb-2 text-[13px] text-ln-op-ink-2">
+          <p className="mb-2 text-sm text-ln-op-ink-2">
             Podés dejar el registro a nombre de la organización, pero la firma seguirá pendiente
             hasta que lo confirme alguien con matrícula validada.
           </p>
