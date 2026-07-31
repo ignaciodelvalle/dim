@@ -32,6 +32,7 @@
 //   - attachmentFiles:              >= 2 mandatory files (photo + acta)
 
 import { Icon } from "@/components/Icon";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { OpButton } from "@/components/ui/dashboard";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
@@ -119,6 +120,8 @@ export function DecomisoForm({
 }: DecomisoFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // RA-9 BR-1: focus returns here when the DC2 confirm modal closes.
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   // --- Subject mode toggle (DC3) ---
   const [subjectMode, setSubjectMode] = useState<SubjectMode>("registered_pet");
@@ -836,6 +839,7 @@ export function DecomisoForm({
 
         {/* --- Submit --- */}
         <OpButton
+          ref={submitRef}
           type="button"
           onClick={handleSubmit}
           disabled={isPending}
@@ -853,74 +857,37 @@ export function DecomisoForm({
         </p>
       </div>
 
-      {/* DC2 -- double-confirm modal for pets with an owner */}
-      {showConfirmModal && petPreview && (
-        <dialog
-          open
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 m-0 w-full h-full max-w-none max-h-none bg-transparent border-none"
-          aria-labelledby="confirm-modal-title"
+      {/* DC2 -- double-confirm modal for pets with an owner.
+          RA-9 BR-1: this used to be a hand-rolled `<dialog open>` — the ATTRIBUTE,
+          not showModal(). Non-modal by definition: no top layer, no inertness, no
+          native `cancel`/Escape, and focus stayed on the submit button behind the
+          overlay, so the funcionario could re-submit from behind the panel. Now it
+          rides the vetted ConfirmDialog primitive (showModal focus trap + Escape +
+          focus restore to the trigger + aria-describedby consequence). */}
+      {petPreview && (
+        <ConfirmDialog
+          open={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={executeDecomiso}
+          title="Ejecutar decomiso"
+          description={`Esta mascota tiene un dueño registrado. Vas a quitarle la custodia legal de ${petPreview.name}${
+            petPreview.ownerDisplayName ? ` a ${petPreview.ownerDisplayName}` : " al dueño actual"
+          }. El sistema le notificará que el animal fue decomisado. Esta acción está amparada en Ley 14.346, queda auditada y no se puede deshacer.`}
+          confirmLabel="Ejecutar decomiso"
+          tone="danger"
+          pending={isPending}
+          triggerRef={submitRef}
         >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-ln-op-ink/40"
-            onClick={() => setShowConfirmModal(false)}
-            onKeyDown={(e) => e.key === "Escape" && setShowConfirmModal(false)}
-          />
-          {/* Modal */}
-          <div className="relative z-10 w-full max-w-md rounded-[var(--radius-lg)] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
-            <h3 id="confirm-modal-title" className="text-base font-semibold text-ln-op-ink">
-              Confirmar decomiso
-            </h3>
-            <div className="rounded-[var(--radius-md)] bg-ln-op-warn-bg border border-ln-op-warn-bd px-4 py-3 space-y-1">
-              <p className="text-[13px] font-medium text-ln-op-warn">
-                Esta mascota tiene un dueño registrado.
-              </p>
-              <p className="text-[13px] text-ln-op-ink">
-                Vas a quitarle la custodia legal de{" "}
-                <span className="font-semibold">{petPreview.name}</span>
-                {petPreview.ownerDisplayName
-                  ? ` a ${petPreview.ownerDisplayName}`
-                  : " al dueño actual"}
-                .
-              </p>
-              <p className="text-[13px] text-ln-op-ink">
-                El sistema notificará al dueño que el animal fue decomisado. Esta acción está
-                amparada en Ley 14.346 y quedará auditada.
-              </p>
-            </div>
-            <p className="text-[13px] text-ln-op-mute">
-              Motivo:{" "}
-              <span className="font-medium text-ln-op-ink">
-                {SEIZURE_MOTIVE_LABELS[seizureMotive as SeizureMotive]}
-              </span>
-              {seizureMotive === "otro" && seizureMotiveOtherDetail
-                ? ` — ${seizureMotiveOtherDetail}`
-                : ""}
-            </p>
-            <div className="flex gap-3 pt-2">
-              <OpButton
-                type="button"
-                onClick={executeDecomiso}
-                disabled={isPending}
-                variant="danger"
-                block
-                className="py-3"
-              >
-                {isPending ? "Ejecutando..." : "Si, ejecutar decomiso"}
-              </OpButton>
-              <OpButton
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                disabled={isPending}
-                variant="ghost"
-                block
-                className="py-3"
-              >
-                Cancelar
-              </OpButton>
-            </div>
-          </div>
-        </dialog>
+          <p className="px-5 pb-1 text-[13px] text-[var(--color-ln-ink-2)]">
+            Motivo:{" "}
+            <span className="font-medium text-[var(--color-ln-ink)]">
+              {SEIZURE_MOTIVE_LABELS[seizureMotive as SeizureMotive]}
+            </span>
+            {seizureMotive === "otro" && seizureMotiveOtherDetail
+              ? ` — ${seizureMotiveOtherDetail}`
+              : ""}
+          </p>
+        </ConfirmDialog>
       )}
     </>
   );
