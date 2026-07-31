@@ -33,9 +33,18 @@
 // advances, and the flip swaps instantly. The "lost" state keeps a subtle
 // border pulse (motion-gated).
 //
-// The QR is REAL and scannable: server-generated SVG (qrcode package, same
-// pattern as /mis-mascotas/[publicToken]) pointing at the stable seeded demo
-// pet (DIM-HACH-0016) — unchanged as Pampa plays through states.
+// The QR is REAL and scannable — WHEN the deployment has one to offer:
+// server-generated SVG (qrcode package, same pattern as
+// /mis-mascotas/[publicToken]) pointing at the demo pet this deployment
+// declared and app/page.tsx verified actually resolves. Unchanged as Pampa
+// plays through states.
+//
+// When there is no such pet (production, per docs/ops/cutover-playbook.md's
+// "no seed pets"), qrSvg/publicHref/publicToken all arrive null and the card
+// degrades to an ILLUSTRATIVE credential: an inert QR glyph, no link, a masked
+// token, and microcopy that describes the product instead of inviting a scan.
+// It must never render a QR that scans to a 404 — on a government front door
+// that is worse than no QR (cold-start review RA-6, finding 1).
 //
 // Sub-brand note: the serif "Libreta Nacional" display face used across the
 // landing (lp-display / --font-ln-serif, see globals.css) is an INTENTIONAL
@@ -50,13 +59,17 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type LandingHeroProps = {
-  /** Pre-rendered QR SVG markup (qrcode's toString({ type: "svg" })). */
-  qrSvg: string;
-  /** Public credential URL the QR encodes, e.g. /p/DIM-XXXX-XXXX. */
-  publicHref: string;
-  /** Token displayed on the credential (must match the QR target). */
-  publicToken: string;
+  /** Pre-rendered QR SVG markup (qrcode's toString({ type: "svg" })), or null
+   *  when this deployment has no demo pet to point at. */
+  qrSvg: string | null;
+  /** Public credential URL the QR encodes, e.g. /p/DIM-XXXX-XXXX, or null. */
+  publicHref: string | null;
+  /** Token displayed on the credential (must match the QR target), or null. */
+  publicToken: string | null;
 };
+
+/** Shown in place of a real token when there is no demo pet to resolve. */
+const PLACEHOLDER_TOKEN = "DIM-••••-••••";
 
 /** Landing-local status tone group (drives the card tint in CSS via data-tone). */
 type HeroTone = "ok" | "lost" | "watch" | "sick" | "ppp";
@@ -166,7 +179,11 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
   }, [stopCycle]);
 
   const state = HERO_STATES[index] ?? HERO_STATES[0];
-  const mrz = buildMrz(publicToken);
+  // A scannable QR needs BOTH the markup and a target that resolves; app/page.tsx
+  // only supplies them together. Anything less renders the inert glyph.
+  const scannable = qrSvg !== null && publicHref !== null;
+  const displayToken = publicToken ?? PLACEHOLDER_TOKEN;
+  const mrz = buildMrz(displayToken);
 
   return (
     <section className="lp-section lp-section--paper lp-hero" id="top" data-section="landing-hero">
@@ -251,16 +268,37 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                       </span>
                       <span className="lp-hcard-id">
                         <span className="lp-hcard-name">{PAMPA.name}</span>
-                        <span className="lp-hcard-token">{publicToken}</span>
+                        <span className="lp-hcard-token">{displayToken}</span>
                       </span>
-                      <Link
-                        href={publicHref}
-                        aria-label="Ver la credencial pública de demostración"
-                        title="Escaneame — QR real de demostración"
-                        className="lp-hcard-qr"
-                        // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated QR SVG from the qrcode package, no user input.
-                        dangerouslySetInnerHTML={{ __html: qrSvg }}
-                      />
+                      {scannable ? (
+                        <Link
+                          href={publicHref}
+                          aria-label="Ver la credencial pública de demostración"
+                          title="Escaneame — QR real de demostración"
+                          className="lp-hcard-qr"
+                          // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated QR SVG from the qrcode package, no user input.
+                          dangerouslySetInnerHTML={{ __html: qrSvg }}
+                        />
+                      ) : (
+                        // Inert QR glyph — decorative finder patterns only, no
+                        // encoded data and no link. Reuses .lp-hcard-qr so the
+                        // card's `64px 1fr auto` grid keeps its shape.
+                        <span className="lp-hcard-qr" aria-hidden="true">
+                          <svg viewBox="0 0 29 29" fill="none">
+                            <title>Ilustración de un código QR</title>
+                            <g fill="var(--color-ln-line)">
+                              <path d="M0 0h9v9H0zM20 0h9v9h-9zM0 20h9v9H0z" />
+                            </g>
+                            <g fill="var(--color-ln-card)">
+                              <path d="M2 2h5v5H2zM22 2h5v5h-5zM2 22h5v5H2z" />
+                            </g>
+                            <g fill="var(--color-ln-line)">
+                              <path d="M3.5 3.5h2v2h-2zM23.5 3.5h2v2h-2zM3.5 23.5h2v2h-2z" />
+                              <path d="M12 0h2v2h-2zM12 4h2v2h-2zM12 8h2v2h-2zM16 12h2v2h-2zM12 12h2v2h-2zM8 12h2v2h-2zM4 12h2v2h-2zM0 12h2v2H0zM20 12h2v2h-2zM24 12h2v2h-2zM12 16h2v2h-2zM12 20h2v2h-2zM12 24h2v2h-2zM16 16h2v2h-2zM20 20h2v2h-2zM24 24h2v2h-2zM16 24h2v2h-2zM24 16h2v2h-2z" />
+                            </g>
+                          </svg>
+                        </span>
+                      )}
                     </div>
 
                     <div key={index} className="lp-hcard-ctx">
@@ -281,7 +319,7 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                       <b>Libreta sanitaria</b>
                       <span className="lp-hcard-trim-r">
                         <span className="lp-hcard-libmeta">
-                          {PAMPA.name} · {publicToken}
+                          {PAMPA.name} · {displayToken}
                         </span>
                         <button
                           type="button"
@@ -325,9 +363,14 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                   train): sits between the credential and the state dots, so it
                   reads as "about this card" without crowding either. Points at
                   the same QR the card already renders — no new link, just the
-                  nudge to actually try it. */}
+                  nudge to actually try it.
+
+                  With no demo pet to resolve, the invitation would be a lie, so
+                  the line describes the product instead (RA-6 finding 1). */}
               <p className="lp-hcard-hint lp-reveal" data-d="3">
-                Escanealo para ver más sobre {PAMPA.name}
+                {scannable
+                  ? `Escanealo para ver más sobre ${PAMPA.name}`
+                  : "Cada mascota registrada tiene su credencial pública con QR"}
               </p>
 
               {/* State dots — tap one to take control of the cycle */}

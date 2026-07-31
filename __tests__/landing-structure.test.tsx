@@ -42,18 +42,23 @@ import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { StorySection } from "@/components/landing/StorySection";
-import { CHAPTERS, DEMO_PUBLIC_TOKEN } from "@/components/landing/landing-content";
+import { CHAPTERS } from "@/components/landing/landing-content";
 
 const QR_SVG = '<svg data-qr="demo"><path d="M0 0h1v1H0z"/></svg>';
+// A render fixture, not a seed dependency: nothing here touches a database.
+// app/page.tsx decides at request time whether a real token exists at all
+// (components/landing/demo-pet.ts) — see the no-demo-pet cases below.
+const DEMO_TOKEN = "DIM-PAMP-0001";
 
 function renderHero(): string {
   return renderToStaticMarkup(
-    <LandingHero
-      qrSvg={QR_SVG}
-      publicHref={`/p/${DEMO_PUBLIC_TOKEN}`}
-      publicToken={DEMO_PUBLIC_TOKEN}
-    />,
+    <LandingHero qrSvg={QR_SVG} publicHref={`/p/${DEMO_TOKEN}`} publicToken={DEMO_TOKEN} />,
   );
+}
+
+/** The hero as a deployment with no demo furniture renders it. */
+function renderHeroWithoutDemoPet(): string {
+  return renderToStaticMarkup(<LandingHero qrSvg={null} publicHref={null} publicToken={null} />);
 }
 
 describe("landing hero — credential + lost demo", () => {
@@ -68,9 +73,34 @@ describe("landing hero — credential + lost demo", () => {
   it("embeds the real QR SVG linking to the seeded demo credential", () => {
     const html = renderHero();
     expect(html).toContain('data-qr="demo"');
-    expect(html).toContain(`href="/p/${DEMO_PUBLIC_TOKEN}"`);
+    expect(html).toContain(`href="/p/${DEMO_TOKEN}"`);
     // The visible mono token matches what the QR resolves to.
-    expect(html).toContain(DEMO_PUBLIC_TOKEN);
+    expect(html).toContain(DEMO_TOKEN);
+  });
+
+  // RA-6 finding 1 — the hero used to hardcode a token that only
+  // scripts/seed-flagship-pampa.ts writes, so on any deployment provisioned per
+  // docs/ops/cutover-playbook.md ("no seed pets") the QR scanned straight into
+  // /p's notFound(). A 404 QR on a government front door is worse than no QR.
+  it("promises NOTHING scannable when there is no demo pet to resolve", () => {
+    const html = renderHeroWithoutDemoPet();
+    // No link to a credential that does not exist…
+    expect(html).not.toContain('href="/p/');
+    // …and no invitation to scan an inert glyph.
+    expect(html).not.toContain("Escanealo para ver más");
+    expect(html).not.toContain("Ver la credencial pública de demostración");
+    // No token is displayed as if it resolved.
+    expect(html).not.toContain("DIM-PAMP-");
+  });
+
+  it("still renders a complete, presentable credential without a demo pet", () => {
+    const html = renderHeroWithoutDemoPet();
+    // Degraded ≠ broken: the card, its resting state and the hero copy all stand.
+    expect(html).toContain("lp-hcard");
+    expect(html).toContain("AL DÍA");
+    expect(html).toContain("Gratis para siempre.");
+    // Honest microcopy in place of the scan invitation.
+    expect(html).toContain("Cada mascota registrada tiene su credencial pública con QR");
   });
 
   it("renders the credential resting on AL DÍA at SSR (state cycle is client-only)", () => {

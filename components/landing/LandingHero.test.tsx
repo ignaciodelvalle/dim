@@ -35,3 +35,22 @@ describe("<LandingHero> — curiosity-hook microcopy", () => {
     expect(qrLink).toHaveAttribute("href", "/p/DIM-PAMP-0001");
   });
 });
+
+describe("<LandingHero> — no demo pet to resolve (RA-6 finding 1)", () => {
+  it("drops the QR link entirely rather than pointing at a 404", () => {
+    render(<LandingHero qrSvg={null} publicHref={null} publicToken={null} />);
+
+    expect(
+      screen.queryByRole("link", { name: "Ver la credencial pública de demostración" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("swaps the scan invitation for copy that describes the product", () => {
+    render(<LandingHero qrSvg={null} publicHref={null} publicToken={null} />);
+
+    expect(screen.queryByText(/^Escanealo para ver más/)).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Cada mascota registrada tiene su credencial pública con QR"),
+    ).toBeInTheDocument();
+  });
+});

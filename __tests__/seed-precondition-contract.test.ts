@@ -24,6 +24,25 @@
 // actually depends on the seed, and it declares it. The suite is clean today.
 // The fence is here so it stays clean, because the failure mode is invisible:
 // nothing goes red, the tests just stop being run without anybody noticing.
+//
+// …AND THE PRODUCT, NOT JUST CI (cold-start review RA-6, finding 1)
+// ---------------------------------------------------------------------------
+// The original collector matched `/\.test\.tsx?$/`. It therefore protected CI
+// and left the product completely unprotected — and the product had the worse
+// instance of the exact same bug: components/landing/landing-content.ts
+// hardcoded DIM-PAMP-0001, app/page.tsx rendered a REAL scannable QR at it,
+// and /p/[publicToken] calls notFound() when a token does not resolve. That
+// token is seeded ONLY by scripts/seed-flagship-pampa.ts, which runs in
+// neither db-bootstrap step 4 nor deploy-provision step 8, and
+// docs/ops/cutover-playbook.md mandates production carry "no seed pets". The
+// front door 404'd by design of the playbook, and no test could see it.
+//
+// So the second fence below scans every NON-test file that ships — the same
+// detector, the same comment stripping, a stricter rule. Shipped code may not
+// name a demo-seed token at ALL: a runtime file has no `.skipIf` with which to
+// declare a precondition, so the only honest declaration is one the DEPLOYMENT
+// makes (an env var) plus a runtime probe that degrades when the row is absent.
+// components/landing/demo-pet.ts is what that looks like.
 
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -97,11 +116,11 @@ function readFacts(file: string): TestFileFacts {
   };
 }
 
-/** Every `*.test.ts(x)` under the roots that hold this project's tests. */
-function collectTestFiles(root: string): string[] {
+/** Every `.ts(x)` under `root` matching `keep`, skipping node_modules. */
+function collectFiles(root: string, keep: (name: string) => boolean): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(root, { withFileTypes: true, recursive: true })) {
-    if (!entry.isFile() || !/\.test\.tsx?$/.test(entry.name)) continue;
+    if (!entry.isFile() || !keep(entry.name)) continue;
     const dir = entry.parentPath ?? entry.path ?? root;
     if (dir.includes("node_modules")) continue;
     out.push(join(dir, entry.name));
@@ -109,9 +128,22 @@ function collectTestFiles(root: string): string[] {
   return out;
 }
 
-const TEST_FILES = ["__tests__", "app", "components", "lib"].flatMap(collectTestFiles);
+const isTest = (name: string) => /\.test\.tsx?$/.test(name);
+/** Ships to users: `.ts(x)`, not a test, not an ambient declaration file. */
+const isRuntime = (name: string) => /\.tsx?$/.test(name) && !isTest(name) && !/\.d\.ts$/.test(name);
+
+const TEST_FILES = ["__tests__", "app", "components", "lib"].flatMap((r) =>
+  collectFiles(r, isTest),
+);
+
+// `scripts/` is deliberately absent: the seeds are where demo tokens BELONG.
+// `e2e/` too — a browser test driving the demo stack is a test, not shipped code.
+const RUNTIME_FILES = ["app", "components", "lib", "src"].flatMap((r) =>
+  collectFiles(r, isRuntime),
+);
 
 const FACTS = TEST_FILES.map(readFacts);
+const RUNTIME_FACTS = RUNTIME_FILES.map(readFacts);
 
 describe("seed precondition contract (H.2)", () => {
   it("scans a real suite — the fence must not go inert", () => {
@@ -157,6 +189,52 @@ describe("seed precondition contract (H.2)", () => {
         "furniture is not CI's job (PO decision D2).",
         "",
         "Or create the fixture yourself, which is what most tests here already do.",
+      ].join("\n"),
+    ).toEqual([]);
+  });
+});
+
+describe("seed precondition contract — shipped code (RA-6 finding 1)", () => {
+  it("scans a real runtime surface — the fence must not go inert", () => {
+    // Same anti-inertia guard as above. A glob typo here would silently protect
+    // nothing, which is precisely the state this fence was added to end.
+    expect(RUNTIME_FILES.length).toBeGreaterThan(500);
+  });
+
+  it("collects shipped code and excludes tests", () => {
+    // Pins both halves of the collector. If it stopped reaching app/page.tsx —
+    // the file that rendered the 404-ing hero QR — the fence would pass by
+    // seeing nothing; if it swept tests in, every render fixture would go red
+    // and the fence would be neutered by an allowlist within the week.
+    const files = RUNTIME_FILES.map((f) => f.replace(/\\/g, "/"));
+    expect(files.some((f) => f.endsWith("app/page.tsx"))).toBe(true);
+    expect(files.some((f) => isTest(f))).toBe(false);
+  });
+
+  it("no shipped file hardcodes a pet only a demo seed creates", () => {
+    const violations = RUNTIME_FACTS.filter((f) => f.demoTokens.length > 0);
+    expect(
+      violations.map((v) => `${v.file} (uses ${v.demoTokens.join(", ")})`),
+      [
+        "These files SHIP. They name a public token that only a demo/storyline seed",
+        "writes — and no seed script runs in db-bootstrap step 4 or deploy-provision",
+        "step 8, while docs/ops/cutover-playbook.md mandates production be loaded with",
+        "'no seed pets, no demo accounts'. So on every honestly-provisioned deployment",
+        "that row does not exist and whatever the code does with it (render a QR, link",
+        "to /p, look it up) fails or 404s.",
+        "",
+        "A runtime file cannot declare a precondition the way a test can — there is no",
+        "`.skipIf` at 3am in production. The honest shape has two parts, and",
+        "components/landing/demo-pet.ts + app/page.tsx are the worked example:",
+        "",
+        "  1. The DEPLOYMENT declares its demo furniture (an env var), so a deployment",
+        "     that has none simply says nothing and gets the degraded path.",
+        "  2. The code PROBES the row before promising anything, so a stale or mistyped",
+        "     declaration degrades too instead of shipping a broken promise.",
+        "",
+        "Then make the no-pet path a first-class render, not an error. Do NOT add a demo",
+        "seed step to db:bootstrap or deploy-provision: demo furniture is not the",
+        "product's job (PO decision D2).",
       ].join("\n"),
     ).toEqual([]);
   });

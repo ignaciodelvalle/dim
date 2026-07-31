@@ -4,9 +4,11 @@
 // model). Copy is es-AR (voseo); identifiers in English. Event types are the
 // REAL system event types, verbatim, as they appear in the event log.
 //
-// PAMPA is the narrative pet of the story AND the real seeded flagship pet the
-// hero QR points at (see DEMO_PUBLIC_TOKEN below): portada name, QR target and
-// /p all resolve to the same animal, scannable against /p/[publicToken].
+// PAMPA is the narrative pet of the story. Whether the hero ALSO renders a
+// real scannable QR is a per-deployment declaration, not a constant baked in
+// here — see components/landing/demo-pet.ts (RA-6 finding 1: the hardcoded
+// flagship token made the front door 404 on every deployment provisioned the
+// way docs/ops/cutover-playbook.md mandates).
 //
 // Sub-brand note: the landing's serif display type ("Libreta Nacional" —
 // lp-display / --font-ln-serif in globals.css) is an INTENTIONAL departure
@@ -21,7 +23,7 @@
 import type { IconName } from "@/components/Icon";
 
 // ---------------------------------------------------------------------------
-// Narrative pet + demo QR target
+// Narrative pet
 // ---------------------------------------------------------------------------
 
 export const PAMPA = {
@@ -29,18 +31,6 @@ export const PAMPA = {
   sex: "Hembra",
   age: "4 años",
 } as const;
-
-/**
- * Stable seeded flagship pet for the scannable hero QR — this IS Pampa. Seeded
- * by scripts/seed-flagship-pampa.ts with a fixed token so re-seeds recreate her:
- * a female dog owned by owner@dim.test ("Martín"), her `pampa-hero.jpg` portada
- * photo as primary_photo_id, a vet-signed antirrábica (so /p reads "verificada"
- * and al día), and the full LIBRETA_EVENTS story ending ALIVE + RECOVERED.
- * Must stay a LIVE, presentable pet: the hero is a funcionario's first
- * impression, so never point it at a deceased/lost pet. Portada name (Pampa),
- * QR target and /p now all agree — what you see is what the QR resolves to.
- */
-export const DEMO_PUBLIC_TOKEN = "DIM-PAMP-0001";
 
 // ---------------------------------------------------------------------------
 // Cast — the four hands around the pet (CastFila, PO-locked variant)

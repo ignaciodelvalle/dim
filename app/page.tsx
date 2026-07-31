@@ -12,10 +12,10 @@ import { LandingHero } from "@/components/landing/LandingHero";
 import { LandingNav } from "@/components/landing/LandingNav";
 import { RevealManager } from "@/components/landing/RevealManager";
 import { StorySection } from "@/components/landing/StorySection";
-import { DEMO_PUBLIC_TOKEN } from "@/components/landing/landing-content";
+import { resolveDemoPetToken } from "@/components/landing/demo-pet";
 import { GobStripe } from "@/components/layout/GobStripe";
 import { ScrollReset } from "@/components/layout/ScrollReset";
-import { db, organizationMemberships } from "@/db";
+import { db, organizationMemberships, pets } from "@/db";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import {
   isDeactivatedInstitutional,
@@ -79,23 +79,48 @@ export default async function Home() {
     redirect(pathForRole(role, { hasOrgAdminMembership }));
   }
 
-  // Real, scannable QR → seeded demo pet credential. Same absolute-URL +
+  // Hero QR — TWO gates before we promise anything scannable (RA-6 finding 1).
+  //
+  // 1. The deployment must DECLARE it has demo furniture (DEMO_PET_TOKEN, see
+  //    components/landing/demo-pet.ts). Production, provisioned the way
+  //    docs/ops/cutover-playbook.md mandates ("no seed pets, no demo
+  //    accounts"), declares nothing.
+  // 2. The declared token must actually resolve. This probe is the SAME
+  //    condition /p/[publicToken] uses before calling notFound(), so a stale
+  //    or mistyped value degrades here instead of shipping a QR that scans to
+  //    a 404 — which on a government front door is worse than no QR at all.
+  //
+  // Either gate failing hands LandingHero nulls and it renders an illustrative
+  // credential that promises nothing.
+  const declaredDemoToken = resolveDemoPetToken();
+  let demoToken: string | null = null;
+  if (declaredDemoToken) {
+    const [demoPet] = await db
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, declaredDemoToken))
+      .limit(1);
+    demoToken = demoPet ? declaredDemoToken : null;
+  }
+
+  // Real, scannable QR → declared demo pet credential. Same absolute-URL +
   // inline-SVG pattern as /mis-mascotas/[publicToken] (no image route).
   // resolveSiteUrl handles the set-but-empty env pitfall that would otherwise
   // encode a host-less relative URL no phone camera can resolve.
-  const siteBaseUrl = resolveSiteUrl();
-  const publicHref = `/p/${DEMO_PUBLIC_TOKEN}`;
+  const publicHref = demoToken ? `/p/${demoToken}` : null;
   // width 160 (up from 64) + errorCorrectionLevel "Q": the hero QR must scan
   // comfortably from a phone against the on-screen credential. The SVG is vector
   // so the real display size comes from the `.lp-hcard-qr` container (globals.css),
   // but generating at a larger module size keeps it crisp; "Q" adds scan
   // robustness (25% recovery) for camera reads off a glossy screen.
-  const qrSvg = await QRCode.toString(`${siteBaseUrl}${publicHref}`, {
-    type: "svg",
-    margin: 1,
-    width: 160,
-    errorCorrectionLevel: "Q",
-  });
+  const qrSvg = publicHref
+    ? await QRCode.toString(`${resolveSiteUrl()}${publicHref}`, {
+        type: "svg",
+        margin: 1,
+        width: 160,
+        errorCorrectionLevel: "Q",
+      })
+    : null;
 
   return (
     <div className="lp flex min-h-screen flex-col" data-landing-root>
@@ -104,7 +129,7 @@ export default async function Home() {
       <GobStripe height={6} />
       <main id="main-content" data-scroll-reset className="flex-1">
         <ScrollReset />
-        <LandingHero qrSvg={qrSvg} publicHref={publicHref} publicToken={DEMO_PUBLIC_TOKEN} />
+        <LandingHero qrSvg={qrSvg} publicHref={publicHref} publicToken={demoToken} />
         <CrisisBand />
         <BondBand />
         <StorySection />
