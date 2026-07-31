@@ -84,22 +84,68 @@ describe("/gob/suscripciones — render smoke test", () => {
     expect(html).not.toContain("max-w-5xl");
   });
 
-  it("renders the breaching-alert banner, both subscription rows (toggle + delete wired), and the create form", async () => {
+  it("renders the breaching-alert banner and both subscription rows", async () => {
     const node = await SuscripcionesPage({ searchParams: Promise.resolve({}) });
     const html = renderToStaticMarkup(node);
     // Alertas activas — the breaching row only.
     expect(html).toContain("Alertas activas");
     expect(html).toContain("Cobertura de esterilización");
-    // Mis suscripciones — both rows, both actions wired.
+    // Mis suscripciones — both rows.
     expect(html).toContain("Mis suscripciones");
+    expect(html).toContain("Penetración de microchip");
+    expect(html).toContain("(inactiva)"); // sub-2 state marker
+  });
+
+  // RA-2 F7. These three used to assert that a govt operator SAW "Pausar" /
+  // "Activar" / "Eliminar" / "Crear suscripción". All three write actions are
+  // gated by requireAdminOrRedirect (app/actions/alert-subscriptions.ts:52,72,
+  // 83), which ends in redirect("/") with no try/catch — so every one of those
+  // controls bounced a govt operator to the home page, silently, with their
+  // input gone. The tests were pinning the defect in place: the fix that
+  // removed the dead controls is what turned them red.
+  it("gives a govt operator NO write controls — the actions are admin-only", async () => {
+    const node = await SuscripcionesPage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(node);
+    expect(html).not.toContain("Pausar");
+    expect(html).not.toContain("Activar");
+    expect(html).not.toContain("Eliminar");
+    expect(html).not.toContain("Crear suscripción");
+  });
+
+  it("gives an admin ALL of them", async () => {
+    // The control group. Without this, deleting the canManage branch entirely
+    // and rendering read-only for everyone would still pass the test above.
+    const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
+    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
+      user: { id: "admin-1", email: "admin@dim.test" },
+      profile: { id: "admin-1", role: "admin" },
+      jurisdictions: [{ province: "Buenos Aires" }],
+    } as unknown as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>);
+    const node = await SuscripcionesPage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(node);
     expect(html).toContain("Pausar"); // sub-1 (active) toggle
     expect(html).toContain("Activar"); // sub-2 (inactive) toggle
-    expect(html).toContain("(inactiva)"); // sub-2 state marker
     expect(html).toContain("Eliminar"); // DeleteAlertSubscriptionButton idle state
-    // Crear suscripción — the form is mounted.
-    expect(html).toContain("Crear suscripción");
     expect(html).toContain("Crear suscripción de alerta");
   });
+
+  // The filters are scoped to the "Mis suscripciones" list. Asserting on the
+  // whole document cannot show that: the breaching metric ALSO appears in the
+  // unfiltered Alertas activas banner above. These used to use the "Pausar"
+  // button label as a list-only proxy, which is why an authz change broke a
+  // pair of filter tests. Slice the list instead — it says what it means, and
+  // it survives changes to which controls the list happens to carry.
+  // Bounded at the list's own </ul>, NOT at the end of the document: the create
+  // form below it carries a <select> naming every metric, so an unbounded slice
+  // would find the filtered-out metric again and only pass for roles that do
+  // not get the form. Caught by mutating canManage to true.
+  const listSection = (html: string) => {
+    const from = html.indexOf("suscripciones-lista-titulo");
+    const to = html.indexOf("</ul>", from);
+    expect(from).toBeGreaterThan(-1);
+    expect(to).toBeGreaterThan(from);
+    return html.slice(from, to);
+  };
 
   it("Estado=inactive filters the list to the inactive row only, without touching the Alertas activas banner", async () => {
     const node = await SuscripcionesPage({ searchParams: Promise.resolve({ state: "inactive" }) });
@@ -107,19 +153,21 @@ describe("/gob/suscripciones — render smoke test", () => {
     // Banner is UNFILTERED — the breaching (active) row still shows there.
     expect(html).toContain("Alertas activas");
     expect(html).toContain("Cobertura de esterilización");
-    // List IS filtered — sub-1 (active) dropped out, so its "Pausar" toggle
-    // is gone; sub-2 (inactive) remains with "Activar".
-    expect(html).not.toContain("Pausar");
-    expect(html).toContain("Activar");
+    // List IS filtered — sub-1 (active) dropped out of it.
+    const list = listSection(html);
+    expect(list).toContain("1 de 2");
+    expect(list).toContain("Penetración de microchip");
+    expect(list).not.toContain("Cobertura de esterilización");
   });
 
   it("Métrica filter narrows the list to the matching subscription only", async () => {
     const node = await SuscripcionesPage({
       searchParams: Promise.resolve({ metricKey: "microchip_penetration_pct" }),
     });
-    const html = renderToStaticMarkup(node);
-    expect(html).not.toContain("Pausar"); // sub-1 filtered out
-    expect(html).toContain("Activar"); // sub-2 matches
+    const list = listSection(renderToStaticMarkup(node));
+    expect(list).toContain("1 de 2");
+    expect(list).toContain("Penetración de microchip");
+    expect(list).not.toContain("Cobertura de esterilización");
   });
 });
 
