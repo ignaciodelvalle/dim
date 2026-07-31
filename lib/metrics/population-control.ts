@@ -170,10 +170,24 @@ export type SterilizationCoverageResult = {
    *  MUST announce this number — a hidden cell nobody mentions is worse than a
    *  published one. */
   byProvinceSuppressedCount: number;
-  /** Σ `total` over ALL provinces (withheld included), or null when publishing it
-   *  would isolate a lone withheld cell by subtraction. Feeds the "sin provincia
-   *  asignada" footnote; render nothing when null. */
+  /** Σ `total` over ALL provinces (withheld included), or null when the withheld
+   *  mass it exposes is itself under k. Feeds the "sin provincia asignada"
+   *  footnote; render nothing when null. */
   byProvinceAssignedTotal: number | null;
+  /**
+   * FALSE ⇒ this screen/CSV must publish NO scope-wide aggregate: not `rate`,
+   * not `sterilized`, not `total`, and not the sibling KPIs counted over the
+   * same scope (preñeces, nacimientos, balance, ratio). RA-3 finding C1:
+   * `/gob/padron?vista=poblacion&province=AR-V` printed "meta programática 70% ·
+   * 1 de 3" beside a province row reading "suprimido por privacidad" — a rate
+   * published next to its base gives up the numerator by multiplication, and a
+   * single-province scope makes the base the withheld cell.
+   *
+   * Decided by the SAME `planProvinceDisclosure` call that decided `byProvince`,
+   * so the screen and /gob/poblacion/export cannot disagree about the headline
+   * any more than they can about a row. Render `scopeTotalSuppressionNotice`.
+   */
+  scopeTotalPublishable: boolean;
 };
 
 /**
@@ -198,10 +212,14 @@ export type SterilizationCoverageResult = {
  * DENOMINATOR: COUNT active/lost pets in scope.
  * SOURCE:      pets, pet_events (sterilization_performed).
  * CADENCE:     point-in-time snapshot ("ever sterilized", not "in period").
- * SUPPRESSION: none on the headline rate (a whole-scope aggregate the operator
- *              is entitled to); k=5 on the per-province breakdown for provinces
- *              OUTSIDE the viewer's jurisdiction (D.10, planProvinceDisclosure),
- *              reported via `byProvinceSuppressedCount`.
+ * SUPPRESSION: k=5 on the per-province breakdown for provinces OUTSIDE the
+ *              viewer's jurisdiction (D.10, planProvinceDisclosure), reported
+ *              via `byProvinceSuppressedCount` — AND on the headline rate
+ *              itself via `scopeTotalPublishable`. The old exemption here read
+ *              "none on the headline rate (a whole-scope aggregate the operator
+ *              is entitled to)": true nationally, FALSE the moment `?province=`
+ *              narrows the scope to one unit, because then the whole-scope
+ *              aggregate is that unit's cell (RA-3 finding C1).
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
@@ -216,6 +234,7 @@ export async function fetchSterilizationCoverage(
     byProvince: [],
     byProvinceSuppressedCount: 0,
     byProvinceAssignedTotal: 0,
+    scopeTotalPublishable: true,
   };
   if (isEmptyScope(ctx)) return empty;
 
@@ -287,7 +306,7 @@ export function applyCoverageDisclosure(
   raw: readonly { province: string; total: number; sterilized: number }[],
 ): Pick<
   SterilizationCoverageResult,
-  "byProvince" | "byProvinceSuppressedCount" | "byProvinceAssignedTotal"
+  "byProvince" | "byProvinceSuppressedCount" | "byProvinceAssignedTotal" | "scopeTotalPublishable"
 > {
   // k protects the BASE (active pets), never the rate — the rate is the thing
   // the base makes safe to publish.
@@ -312,6 +331,7 @@ export function applyCoverageDisclosure(
     byProvince,
     byProvinceSuppressedCount: plan.suppressedCount,
     byProvinceAssignedTotal: plan.publishableRowTotal,
+    scopeTotalPublishable: plan.scopeTotalPublishable,
   };
 }
 

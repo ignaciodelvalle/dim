@@ -293,12 +293,25 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
         if (!code) return [];
         // A row the AUTHENTICATED tier already withheld (D.10, lib/metrics/
         // province-disclosure.ts) carries no numbers to pass on. It is protected
-        // in the public tier too, by construction: this builder runs on a
-        // national/admin context, where D.10 withholds exactly the provinces
-        // whose base is sub-k, and `isRateCellProtected` protects every one of
-        // those under its own first clause (`denominator < k`). Feed a zero base
-        // so `suppressRateProvinces` reaches that verdict from ITS OWN rule
-        // instead of trusting an upstream flag — and the row still SHIPS, as
+        // in the public tier too, by construction: on a national/admin context
+        // D.10 withholds only provinces whose base is sub-k, and
+        // `isRateCellProtected` protects every one of those under its own first
+        // clause (`denominator < k`).
+        //
+        // THAT SENTENCE USED TO SAY "exactly the provinces whose base is sub-k"
+        // AND IT WAS FALSE (RA-1): D.10 also ran a national COMPLEMENTARY pass
+        // that promoted an above-k province, whose base is by definition >= k —
+        // so a 1.204-pet province arrived here with `denominator: 0`, and since
+        // the public tier picks its own complement by NUMERATOR while D.10
+        // picked by TOTAL, the identity of the suppressed province in this
+        // dataset changed: one province vanished, another reappeared. The
+        // complementary pass has since been removed from D.10 (it withholds the
+        // row total instead), which is what makes the claim true again. Do not
+        // reinstate an upstream complement without revisiting this feed.
+        //
+        // Feed a zero base so `suppressRateProvinces` reaches its verdict from
+        // ITS OWN rule instead of trusting an upstream flag — and the row still
+        // SHIPS, as
         // SUPPRESSED_MARKER in every numeric column: never dropped (absence is a
         // disclosure channel), never a 0 (a false zero asserts).
         if (r.suppressed) {

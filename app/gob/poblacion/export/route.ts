@@ -27,6 +27,8 @@ import {
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
   provinceSuppressionNotice,
+  scopeSummaryRow,
+  scopeTotalSuppressionNotice,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 
@@ -88,8 +90,16 @@ export async function GET(request: NextRequest): Promise<Response> {
       fetchSterilizationNatalidadRatio(ctx, { species }),
     ]);
 
+  // RA-3 C1 / RA-1 C1c — THE RESUMEN OBEYS THE SAME VERDICT AS THE ROWS. This
+  // file used to print `cobertura_esterilizacion_pct` and `mascotas_total`
+  // above a `cobertura_por_provincia` section that withheld the very same
+  // numbers. Every column is counted over the SAME scope, so a one-jurisdiction
+  // scope makes all of them that jurisdiction's cell — and a rate published
+  // beside its base gives up the numerator by multiplication, which is why they
+  // are withheld together rather than column by column.
+  const scopeNotice = scopeTotalSuppressionNotice(coverage.scopeTotalPublishable);
   const summaryRows = [
-    {
+    scopeSummaryRow(coverage.scopeTotalPublishable, {
       cobertura_esterilizacion_pct: coverage.rate,
       mascotas_esterilizadas: coverage.sterilized,
       mascotas_total: coverage.total,
@@ -97,7 +107,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       nacimientos_registrados: outcomes.registeredBirths,
       balance_poblacional: netGrowth.net,
       ratio_esterilizacion_natalidad: sterilNatalidadRatio ?? "",
-    },
+    }),
   ];
 
   // D.10 — THE EXPORT MATCHES THE SCREEN BECAUSE IT CANNOT DO OTHERWISE.
@@ -128,7 +138,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   // The suppression is DECLARED in the file, not just performed — a CSV outlives
   // the screen that would have explained it.
   const privacyNotice = provinceSuppressionNotice(coverage.byProvinceSuppressedCount);
-  const privacyRows = privacyNotice ? [{ aviso: privacyNotice }] : [];
+  const privacyRows = [privacyNotice, scopeNotice]
+    .filter((aviso): aviso is string => aviso !== null)
+    .map((aviso) => ({ aviso }));
 
   const csvContent = buildSectionedCsv([
     { title: "resumen", rows: summaryRows },

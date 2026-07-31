@@ -18,6 +18,8 @@ import {
   SUPPRESSED_CELL_TEXT,
   planProvinceDisclosure,
   provinceSuppressionNotice,
+  scopeSummaryRow,
+  scopeTotalSuppressionNotice,
 } from "./province-disclosure";
 
 const period = {
@@ -131,17 +133,45 @@ describe("planProvinceDisclosure — admin, decided on the merits", () => {
 });
 
 describe("planProvinceDisclosure — differencing defence", () => {
-  it("a LONE sub-k foreign cell pulls in the smallest visible sibling (complementary)", () => {
-    // Otherwise: hidden = publishedTotal − Σ(published cells). One hidden cell
-    // is one equation with one unknown.
+  it("a LONE sub-k foreign cell costs the ROW TOTAL, never a large province", () => {
+    // RA-1 finding C1a. The complementary pass used to promote the smallest
+    // VISIBLE sibling here, so /admin/censo hid Santa Cruz's real 40 (in
+    // production, La Rioja's 1.204) to protect Tierra del Fuego's 3 — and then
+    // announced "menos de 5 mascotas" about it. D.10 authorised withholding lo
+    // ajeno that is sub-k; it never authorised spending a large province to
+    // protect a small one. The subtraction is closed by withholding the Σ, the
+    // one number this module owns.
     const plan = planProvinceDisclosure(nationalAdmin(), [
       { province: "Tierra del Fuego", denominator: 3 },
       { province: "Santa Cruz", denominator: 40 },
       { province: "Buenos Aires", denominator: 90_000 },
     ]);
 
-    expect([...plan.withheld].sort()).toEqual(["Santa Cruz", "Tierra del Fuego"]);
-    expect(plan.suppressedCount).toBe(2);
+    expect([...plan.withheld]).toEqual(["Tierra del Fuego"]);
+    expect(plan.suppressedCount).toBe(1);
+    // hidden = Σ − Σ(visible) is the whole attack; there is no Σ to subtract from.
+    expect(plan.publishableRowTotal).toBeNull();
+  });
+
+  it("every withheld province really is sub-k, so the notice's reason is true", () => {
+    // RA-1 finding C1b: while the complementary pass ran, this line said
+    // "2 provincias ocultas por privacidad (menos de 5 mascotas en la
+    // jurisdicción)" about a province with 1.204. A notice that misstates the
+    // reason teaches the operator to distrust every other one.
+    const rows = [
+      { province: "Tierra del Fuego", denominator: 3 },
+      { province: "La Rioja", denominator: 1_204 },
+      { province: "Buenos Aires", denominator: 90_000 },
+    ];
+    const plan = planProvinceDisclosure(nationalAdmin(), rows);
+
+    expect(plan.withheld.has("La Rioja")).toBe(false);
+    for (const r of rows.filter((x) => plan.withheld.has(x.province))) {
+      expect(r.denominator, r.province).toBeLessThan(ANONYMITY_K);
+    }
+    expect(provinceSuppressionNotice(plan.suppressedCount)).toContain(
+      `menos de ${ANONYMITY_K} mascotas`,
+    );
   });
 
   it("never promotes an OWN cell to protect a foreign one", () => {
@@ -229,6 +259,64 @@ describe("planProvinceDisclosure — differencing defence", () => {
   });
 });
 
+describe("planProvinceDisclosure — the scope headline (RA-3 C1)", () => {
+  it("an admin drilled into a sub-k province gets NO scope total", () => {
+    // /gob/padron?vista=censo&province=AR-V: petsScopeClause narrows the WHOLE
+    // scope to Tierra del Fuego, so "Total registradas: 3" beside a row reading
+    // "suprimido por privacidad" is the same number twice — the KPI switched the
+    // suppression off with a query param.
+    const plan = planProvinceDisclosure(drilledAdmin("Tierra del Fuego"), [
+      { province: "Tierra del Fuego", denominator: 3 },
+    ]);
+
+    expect(plan.withheld.has("Tierra del Fuego")).toBe(true);
+    expect(plan.scopeTotalPublishable).toBe(false);
+    expect(plan.publishableRowTotal).toBeNull();
+  });
+
+  it("D.10 SURVIVES: a govt operator keeps the total for their OWN sub-k province", () => {
+    // The PO's ruling, unchanged: son sus administrados. This is the assertion
+    // that must never go green-by-over-suppression.
+    const plan = planProvinceDisclosure(tdfOperator(), [
+      { province: "Tierra del Fuego", denominator: 3 },
+    ]);
+
+    expect(plan.withheld.size).toBe(0);
+    expect(plan.scopeTotalPublishable).toBe(true);
+    expect(plan.publishableRowTotal).toBe(3);
+  });
+
+  it("a drill into an above-k province still publishes its total", () => {
+    // Over-suppression is the failure in the other direction: the row is
+    // published, so withholding the identical KPI beside it would be theatre.
+    const plan = planProvinceDisclosure(drilledAdmin("Buenos Aires"), [
+      { province: "Buenos Aires", denominator: 90_000 },
+    ]);
+
+    expect(plan.scopeTotalPublishable).toBe(true);
+    expect(plan.publishableRowTotal).toBe(90_000);
+  });
+
+  it("a MULTI-unit scope keeps its headline — a national admin loses nothing", () => {
+    // The scope total is a real aggregate here; rule (4) guards its residual,
+    // and blanking /admin/censo because one province is small would be exactly
+    // the over-correction RA-1 called out.
+    const plan = planProvinceDisclosure(nationalAdmin(), [
+      { province: "Tierra del Fuego", denominator: 3 },
+      { province: "La Rioja", denominator: 1_204 },
+      { province: "Buenos Aires", denominator: 90_000 },
+    ]);
+
+    expect(plan.scopeTotalPublishable).toBe(true);
+  });
+
+  it("an empty grouping has nothing to withhold", () => {
+    const plan = planProvinceDisclosure(nationalAdmin(), []);
+    expect(plan.scopeTotalPublishable).toBe(true);
+    expect(plan.publishableRowTotal).toBe(0);
+  });
+});
+
 describe("disclosure copy", () => {
   it("says nothing when nothing is hidden — never announce a mark this frame lacks", () => {
     expect(provinceSuppressionNotice(0)).toBeNull();
@@ -239,6 +327,28 @@ describe("disclosure copy", () => {
     expect(provinceSuppressionNotice(1)).toContain("1 provincia oculta");
     expect(provinceSuppressionNotice(3)).toContain("3 provincias ocultas");
     expect(provinceSuppressionNotice(3)).toContain(String(ANONYMITY_K));
+  });
+
+  it("the scope-headline notice says WHY, and says nothing when there is nothing to say", () => {
+    expect(scopeTotalSuppressionNotice(true)).toBeNull();
+    const notice = scopeTotalSuppressionNotice(false);
+    expect(notice).toContain("una sola jurisdicción");
+    expect(notice).toContain(String(ANONYMITY_K));
+    // It must NOT read as a coverage gap — the data exists, it is withheld.
+    expect(notice).not.toMatch(/sin datos/i);
+  });
+
+  it("a withheld resumen keeps every column, marked, and never a zero", () => {
+    const raw = { total_registradas: 3, activas: 3, ratio: 0.5 };
+    expect(scopeSummaryRow(true, raw)).toEqual(raw);
+
+    const withheld = scopeSummaryRow(false, raw);
+    // Same columns — a column that vanishes when it crosses k IS the channel.
+    expect(Object.keys(withheld)).toEqual(Object.keys(raw));
+    for (const value of Object.values(withheld)) {
+      expect(value).toBe(SUPPRESSED_CELL_TEXT);
+      expect(value).not.toBe(0);
+    }
   });
 
   it("uses the SAME wording as the public open-data tier", () => {
@@ -301,10 +411,11 @@ describe("screen/export parity is structural", () => {
   // The name carries no COUNT on purpose: it iterates the live list, and a
   // number written into an it() name goes stale the next time a surface joins
   // (it already had, saying "four" while iterating five).
-  it("every value-publishing consumer branches on the fetcher's verdict", () => {
+  it("every per-row publisher branches on the fetcher's verdict", () => {
     // /gob/poblacion is excluded on purpose: it publishes NO per-province value
     // (its map is the Panorama embed, which carries its own k-anon + legend), so
-    // it has nothing to branch on. Its CSV export is in the list below.
+    // it has no ROW to branch on. It is NOT excluded from the headline guard
+    // below — its KPI row was RA-3 finding C1.
     const publishers = CONSUMERS.filter((c) => !c.endsWith("PoblacionScreen.tsx"));
     for (const rel of publishers) {
       const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
@@ -312,7 +423,7 @@ describe("screen/export parity is structural", () => {
     }
   });
 
-  it("every surface that withholds also ANNOUNCES it", () => {
+  it("every per-row publisher ANNOUNCES what it withholds", () => {
     // #40's own follow-up suppressed the values and left suppressedCount at 0 —
     // a fully hatched map that told nobody. Hiding without disclosing is the
     // failure mode, not the fix.
@@ -321,5 +432,40 @@ describe("screen/export parity is structural", () => {
       const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
       expect(code, rel).toMatch(/provinceSuppressionNotice\(/);
     }
+  });
+
+  it.each(CONSUMERS)("%s gates its SCOPE HEADLINE on the same verdict", (rel) => {
+    // RA-3 C1 / RA-1 C1c. EVERY consumer is in this list, /gob/poblacion
+    // included: the leak was never the row, it was the KPI (and the CSV
+    // `resumen`) beside the row, publishing what the row withheld in the same
+    // request. Reading the fetcher's `scopeTotalPublishable` — through the one
+    // notice helper, so no surface invents its own wording — is what makes the
+    // headline a single decision instead of six.
+    const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
+    // The verdict must ARRIVE FROM the fetcher — a literal `true`, or a rule
+    // re-derived here, is the second decision point this whole file exists to
+    // prevent.
+    expect(code).toMatch(/(registry|coverage)\.scopeTotalPublishable/);
+    expect(code).toMatch(/scopeTotalSuppressionNotice\(|scopeSummaryRow\(/);
+  });
+
+  it.each(CONSUMERS.filter((c) => c.endsWith("route.ts")))(
+    "%s withholds its CSV resumen through the shared helper",
+    (rel) => {
+      // Not a hand-rolled ternary per route: `scopeSummaryRow` is ONE
+      // implementation, so the two CSVs cannot withhold differently, and the
+      // argument is pinned to the fetcher's field so a `true` slipped in here
+      // fails instead of shipping.
+      const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
+      expect(code).toMatch(/scopeSummaryRow\(\s*(registry|coverage)\.scopeTotalPublishable/);
+    },
+  );
+
+  it.each(DECIDERS)("%s hands the headline verdict down from the plan", (rel) => {
+    // The fetcher must PASS THROUGH plan.scopeTotalPublishable, not recompute a
+    // headline rule of its own — two implementations that agree today drift
+    // tomorrow, which is the entire reason D.10 is decided in one place.
+    const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
+    expect(code).toMatch(/scopeTotalPublishable:\s*plan\.scopeTotalPublishable/);
   });
 });

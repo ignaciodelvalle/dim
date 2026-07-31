@@ -124,6 +124,7 @@ function seedDefaults() {
     byProvince: [],
     byProvinceSuppressedCount: 0,
     byProvinceAssignedTotal: 0,
+    scopeTotalPublishable: true,
   });
   vi.mocked(lastIngestAt).mockResolvedValue(new Date("2026-06-19T18:30:00.000Z"));
   // v+1 rail defaults.
@@ -338,6 +339,7 @@ describe("getPanoramaKpis", () => {
       byProvince: [],
       byProvinceSuppressedCount: 0,
       byProvinceAssignedTotal: 0,
+      scopeTotalPublishable: true,
     });
     const { kpis } = await getPanoramaKpis({ role: "admin" }, [], period);
     const kpi = kpis.find((k) => k.id === "esterilizacion")!;

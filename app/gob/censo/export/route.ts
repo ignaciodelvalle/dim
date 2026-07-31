@@ -19,6 +19,8 @@ import {
   provinceSuppressionNotice,
   registryByProvince,
   registryCounts,
+  scopeSummaryRow,
+  scopeTotalSuppressionNotice,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 
@@ -76,8 +78,17 @@ export async function GET(request: NextRequest): Promise<Response> {
     registryByProvince(ctx, { species }),
   ]);
 
+  // RA-3 C1 / RA-1 C1c — THE RESUMEN OBEYS THE SAME VERDICT AS THE ROWS. This
+  // file used to print `total_registradas,3` a few lines above
+  // `Tierra del Fuego,suprimido por privacidad`: the same CSV publishing the
+  // protected number and claiming to protect it. Every column here is counted
+  // over the SAME scope, so when that scope is one withheld jurisdiction they
+  // are all that jurisdiction's cell — withheld together, with the SAME marker
+  // the province rows use, never a 0 and never an omitted column (a dropped
+  // column is a disclosure channel that outlives the screen).
+  const scopeNotice = scopeTotalSuppressionNotice(registry.scopeTotalPublishable);
   const summaryRows = [
-    {
+    scopeSummaryRow(registry.scopeTotalPublishable, {
       total_registradas: counts.total,
       activas: counts.active,
       dormant: counts.dormant,
@@ -85,7 +96,7 @@ export async function GET(request: NextRequest): Promise<Response> {
       con_chip: funnel.chipped,
       iso_valido: funnel.isoValid,
       escaneada_en_periodo: funnel.scanned,
-    },
+    }),
   ];
 
   // D.10 — THE EXPORT MATCHES THE SCREEN BECAUSE IT CANNOT DO OTHERWISE.
@@ -103,7 +114,9 @@ export async function GET(request: NextRequest): Promise<Response> {
   // silently omits cells is the "hid the data, told nobody" failure in its most
   // durable form — the file outlives the screen that would have explained it.
   const privacyNotice = provinceSuppressionNotice(registry.suppressedCount);
-  const privacyRows = privacyNotice ? [{ aviso: privacyNotice }] : [];
+  const privacyRows = [privacyNotice, scopeNotice]
+    .filter((aviso): aviso is string => aviso !== null)
+    .map((aviso) => ({ aviso }));
 
   const csvContent = buildSectionedCsv([
     { title: "resumen", rows: summaryRows },

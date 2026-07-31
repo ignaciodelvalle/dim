@@ -58,6 +58,7 @@ import {
   futureBucketLabel,
   projectSeries,
   provinceSuppressionNotice,
+  scopeTotalSuppressionNotice,
   toneForTarget,
 } from "@/lib/metrics";
 import type { ProvinceSterlizationRow } from "@/lib/metrics";
@@ -249,6 +250,24 @@ export async function AdminPoblacionScreen({
   // /gob/poblacion/export for the same viewer. Announcing it is mandatory —
   // hiding cells without saying so is the failure #40's follow-up shipped.
   const coverageNotice = provinceSuppressionNotice(coverage.byProvinceSuppressedCount);
+
+  // Same single verdict as /gob/poblacion (RA-3 finding C1). No province drill
+  // here, so it only trips when the whole national grouping is one withheld
+  // province — a sparse pilot where the national coverage rate would be that
+  // province's protected base wearing a national label.
+  const scopeNotice = scopeTotalSuppressionNotice(coverage.scopeTotalPublishable);
+  if (scopeNotice) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <LnEmptyState
+          icon="lock"
+          title="Datos insuficientes (privacidad)"
+          description={scopeNotice}
+        />
+      </div>
+    );
+  }
 
   const registeredBirthsDelta = formatDelta(
     outcomes.registeredBirths,

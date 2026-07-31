@@ -53,6 +53,10 @@ const mocks = vi.hoisted(() => ({
     byProvince: [],
     byProvinceSuppressedCount: 0,
     byProvinceAssignedTotal: 0,
+    // RA-3 C1: the screen now gates its whole KPI row on this verdict. The
+    // helper treats a missing flag as NOT publishable (fail-closed), which is
+    // how this stale mock announced itself the moment the gate landed.
+    scopeTotalPublishable: true,
   })),
   fetchActivePregnancies: vi.fn(async (_ctx: unknown, _opts?: { species?: string }) => 2),
   fetchReproductiveOutcomes: vi.fn(async (_ctx: unknown, _opts?: { species?: string }) => ({

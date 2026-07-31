@@ -670,10 +670,24 @@ export type ProvinceRegistryResult = {
   rows: ProvinceRegistryRow[];
   /** Provinces withheld. Every surface MUST announce this — see the plan type. */
   suppressedCount: number;
-  /** Σ count over ALL provinces (withheld included), or null when publishing it
-   *  would isolate a lone withheld cell. Feeds the "sin provincia asignada"
+  /** Σ count over ALL provinces (withheld included), or null when the withheld
+   *  mass it exposes is itself under k. Feeds the "sin provincia asignada"
    *  footnote; render nothing when null. */
   assignedTotal: number | null;
+  /**
+   * FALSE ⇒ this screen/CSV must publish NO scope-wide aggregate: not
+   * `registryCounts(ctx).total`, not `active`/`dormant`/`incomplete`, not the
+   * funnel stages. They are all counted over the SAME scope, and when that scope
+   * holds a single withheld jurisdiction every one of them IS the withheld cell
+   * (RA-3 finding C1: `?province=AR-V` printed "Total registradas: 3" beside a
+   * row reading "suprimido por privacidad").
+   *
+   * The verdict comes from `planProvinceDisclosure`, the same call that decided
+   * `rows` — which is what keeps /gob/censo and /gob/censo/export from
+   * disagreeing about the headline, exactly as they already cannot disagree
+   * about a row. Render `scopeTotalSuppressionNotice` in its place.
+   */
+  scopeTotalPublishable: boolean;
 };
 
 /**
@@ -705,7 +719,12 @@ export async function registryByProvince(
   ctx: ProjectionContext,
   opts?: { species?: string },
 ): Promise<ProvinceRegistryResult> {
-  const empty: ProvinceRegistryResult = { rows: [], suppressedCount: 0, assignedTotal: 0 };
+  const empty: ProvinceRegistryResult = {
+    rows: [],
+    suppressedCount: 0,
+    assignedTotal: 0,
+    scopeTotalPublishable: true,
+  };
   if (isEmptyScope(ctx)) return empty;
 
   const activeCond = activePetsCondition(ctx);
@@ -756,5 +775,6 @@ export function applyRegistryDisclosure(
     rows: out,
     suppressedCount: plan.suppressedCount,
     assignedTotal: plan.publishableRowTotal,
+    scopeTotalPublishable: plan.scopeTotalPublishable,
   };
 }

@@ -47,6 +47,7 @@ import {
   registrationTrend,
   registryByProvince,
   registryCounts,
+  scopeTotalSuppressionNotice,
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
@@ -229,6 +230,29 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
   // the CSV incapable of publishing a cell the map hatches.
   const provinceRows = registry.rows;
   const provinceNotice = provinceSuppressionNotice(registry.suppressedCount);
+
+  // THE HEADLINE OBEYS THE SAME VERDICT AS THE ROWS (RA-3 finding C1). With
+  // `?province=AR-V` the scope narrows to ONE province, so every scope aggregate
+  // on this page — the KPI row, the funnel's "Total registradas", the trend — is
+  // that province's cell under another label, and the map beside them hatches
+  // it. There is no second decision here: `registryByProvince` handed down
+  // `scopeTotalPublishable` from the same `planProvinceDisclosure` call that
+  // decided the rows, which is why /gob/censo/export cannot publish what this
+  // screen withholds.
+  const scopeNotice = scopeTotalSuppressionNotice(registry.scopeTotalPublishable);
+  if (scopeNotice) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filtersRow}
+        <LnEmptyState
+          icon="lock"
+          title="Datos insuficientes (privacidad)"
+          description={scopeNotice}
+        />
+      </div>
+    );
+  }
 
   const hasData = counts.total > 0;
   const hasTrend = trend.points.length > 0;

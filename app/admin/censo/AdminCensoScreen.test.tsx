@@ -71,6 +71,9 @@ const mocks = vi.hoisted(() => ({
     rows: [],
     suppressedCount: 0,
     assignedTotal: 0,
+    // RA-3 C1: the screen gates its whole KPI row on this verdict, and the
+    // helper reads a missing flag as NOT publishable (fail-closed).
+    scopeTotalPublishable: true,
   })),
 }));
 

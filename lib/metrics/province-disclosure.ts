@@ -24,7 +24,7 @@
 // Pure and DB-free: `ProjectionContext` is only read for its scope, so the rule
 // is unit-testable without Postgres.
 
-import { ANONYMITY_K, complementarySuppress, suppressSmallCells } from "./anonymity";
+import { ANONYMITY_K, suppressSmallCells } from "./anonymity";
 import type { ProjectionContext } from "./context";
 import { isOwnJurisdictionProvince } from "./scope";
 
@@ -39,14 +39,6 @@ import { isOwnJurisdictionProvince } from "./scope";
  * pins the two strings together.
  */
 export const SUPPRESSED_CELL_TEXT = "suprimido por privacidad";
-
-/**
- * The complementary-suppression group: the whole country. Identical choice, and
- * for the identical reason, as the open-data province tier — the published
- * aggregate one level coarser than a province row is the NATIONAL total, so the
- * group across which a single hidden cell must not be isolable is national.
- */
-const NATIONAL_GROUP = "AR";
 
 /**
  * The minimum a row must carry for the rule to decide: which province it is, and
@@ -85,8 +77,35 @@ export type ProvinceDisclosurePlan = {
    * cells, zero protection. What k protects is the MASS behind the residual, so
    * that is what the test has to be. Callers must render nothing when this is
    * null.
+   *
+   * WHAT Σ ≥ k STILL DOES NOT GUARANTEE — stated because this whole wave is
+   * about docblocks that promised more than the code delivered: a mass ≥ k does
+   * NOT prove every hidden cell is un-pinnable. `[4, 4]` sums to 8, clears k,
+   * and still pins both cells at 4 (no other split of 8 keeps each ≤ k − 1). The
+   * complete instrument is an interval-feasibility (LP) audit over the hidden
+   * cells; it is NOT implemented here. Σ ≥ k is the rule this tier ships, and it
+   * bounds the residual mass — not the width of each cell's feasible interval.
    */
   publishableRowTotal: number | null;
+  /**
+   * May the surface publish a SCOPE-WIDE headline aggregate at all — the KPI row
+   * ("Total registradas", "cobertura · N de M") and the CSV `resumen` section?
+   *
+   * A scope total is a legitimate whole-scope aggregate ONLY while the scope
+   * genuinely aggregates more than one unit, or the viewer owns it. Narrow the
+   * scope to a SINGLE unit and the "total" stops being an aggregate: it IS that
+   * unit's cell, arriving under a different label. That is RA-3 finding C1 —
+   * `?province=AR-V` narrowed the whole scope (scope.ts `petsScopeClause`), so
+   * the table said "suprimido por privacidad" and the KPI beside it published
+   * the same 3, in the same page and the same request. A suppression any viewer
+   * can turn off with a query param is not a suppression; the drill narrows the
+   * rows and changes nothing about the verdict, here as in rule (c) below.
+   *
+   * `false` ⇒ the surface renders NO scope aggregate — not a zero, not a dash
+   * labelled "sin datos" (that would badge a withholding as a coverage gap).
+   * Use `scopeTotalSuppressionNotice` for the copy.
+   */
+  scopeTotalPublishable: boolean;
 };
 
 /**
@@ -103,15 +122,36 @@ export type ProvinceDisclosurePlan = {
  *     group re-identifies nobody, and badging it "protegido por privacidad"
  *     would dress a genuine coverage gap as a deliberate withholding. Same
  *     nuance as `provinceCell`, `suppressDelta` and `isProtectedCount`.
- *  4. COMPLEMENTARY suppression over the foreign cells, grouped nationally, so a
- *     lone hidden province cannot be recovered by subtracting the published ones
- *     from a published total. Own cells are never promoted — D.10 says the
- *     operator sees their own number, and a rule that hides it to protect a
- *     stranger's cell has picked the wrong cell.
- *  5. THE RESIDUAL: a Σ over the whole grouping is publishable only while the
- *     withheld MASS it exposes (`Σ − Σ(visible)`) is itself ≥ k. Complementary
- *     suppression guarantees ≥2 hidden cells, which is NOT the same guarantee —
- *     see `publishableRowTotal`.
+ *  4. THE RESIDUAL: the Σ over the grouping is published only while the withheld
+ *     MASS it exposes (`Σ − Σ(visible)`) is itself ≥ k — see
+ *     `publishableRowTotal`.
+ *  5. THE SCOPE HEADLINE: a single-unit scope has no aggregate to publish, only
+ *     a relabelled cell — see `scopeTotalPublishable`.
+ *
+ * WHY THERE IS NO COMPLEMENTARY PASS HERE, and there used to be (RA-1 finding
+ * C1a). `complementarySuppress` promotes the SMALLEST VISIBLE sibling when a
+ * group holds exactly one suppressed cell. Grouped nationally, that sibling is a
+ * real province: with Tierra del Fuego at 3, /admin/censo hid **La Rioja
+ * (1.204)** — and then announced "2 provincias ocultas (menos de 5 mascotas en
+ * la jurisdicción)", which is false about a province with 1.204. Nobody decided
+ * that. D.10 authorised suppressing lo ajeno that is sub-k; it did not authorise
+ * spending a large province's real number to protect a small one.
+ *
+ * The promotion was inherited from a premise that is retired. Its own jsdoc
+ * (anonymity.ts) justified itself with "a coarser aggregate is published
+ * UNSUPPRESSED (the Panorama province choropleth totals, spec §U5)" — i.e. the
+ * defence existed because the group total was OUT OF REACH. Task #40 retired
+ * that, and in THIS tier the group total is not out of reach at all: rule (4)
+ * owns `publishableRowTotal` and rule (5) owns the headline. Given the choice
+ * between withholding one derived total and blinding a jurisdiction, withhold
+ * the total. Every above-k province stays visible, and the disclosure notice
+ * goes back to stating the true reason, because every withheld cell really is
+ * sub-k.
+ *
+ * Scope of that removal: THIS tier only. `complementarySuppress` is unchanged
+ * and its six other callers (open-data, panorama repositories, subregion
+ * redaction, choropleth-data) keep it — several of them genuinely do not
+ * control the coarser aggregate they are defending against.
  *
  * ADMIN (scope.kind === "global") — decided on the merits, per the brief:
  * an admin owns NO province at this grain, so every cell is foreign and the
@@ -161,16 +201,10 @@ export function planProvinceDisclosure(
     k: ANONYMITY_K,
   });
 
-  // (4) national complementary pass over the foreign cells only.
-  const { suppressed } = complementarySuppress(
-    primary.visible as unknown as readonly ProvinceDenominatorRow[],
-    primary.suppressed,
-    { group: () => NATIONAL_GROUP, count: (r) => r.denominator },
-  );
-
+  const suppressed = primary.suppressed;
   const withheld = new Set(suppressed.map((r) => r.province));
 
-  // (5) THE RESIDUAL RULE. A published Σ hands the attacker
+  // (4) THE RESIDUAL RULE. A published Σ hands the attacker
   // `Σ(withheld) = rowTotal − Σ(visible)`; k must protect that residual exactly
   // as it protects a single cell, so the same `>= ANONYMITY_K` comparison the
   // per-cell pass uses is applied to the withheld MASS. Counting cells instead
@@ -180,10 +214,18 @@ export function planProvinceDisclosure(
   const withheldMass = suppressed.reduce((sum, r) => sum + r.denominator, 0);
   const residualProtected = withheld.size === 0 || withheldMass >= ANONYMITY_K;
 
+  // (5) THE SCOPE HEADLINE. With exactly one unit in the grouping, the scope
+  // total is not an aggregate over units — it is that unit's cell under another
+  // label, so it inherits that cell's verdict. With two or more units it is a
+  // real aggregate and rule (4) is what guards its residual.
+  const soleUnit = rows.length === 1 ? rows[0] : null;
+  const scopeTotalPublishable = soleUnit === null || !withheld.has(soleUnit.province);
+
   return {
     withheld,
     suppressedCount: withheld.size,
     publishableRowTotal: residualProtected ? rowTotal : null,
+    scopeTotalPublishable,
   };
 }
 
@@ -196,10 +238,61 @@ export function planProvinceDisclosure(
  * nothing to disclose —
  * a surface must never announce a suppression this frame does not carry (the
  * inverse failure: a legend promising a hatch the map never paints).
+ *
+ * THE REASON IN THE PARENTHESIS IS LOAD-BEARING and it is now true again: with
+ * the complementary pass gone (see `planProvinceDisclosure`), every withheld
+ * province really does hold fewer than k. While the pass ran, this line claimed
+ * "menos de 5 mascotas" about La Rioja's 1.204 (RA-1 finding C1b) — a notice
+ * that misstates the reason teaches the operator to distrust every other one.
  */
 export function provinceSuppressionNotice(suppressedCount: number): string | null {
   if (suppressedCount <= 0) return null;
   return suppressedCount === 1
     ? `1 provincia oculta por privacidad (menos de ${ANONYMITY_K} mascotas en la jurisdicción)`
     : `${suppressedCount} provincias ocultas por privacidad (menos de ${ANONYMITY_K} mascotas en la jurisdicción)`;
+}
+
+/**
+ * The Spanish line a surface renders INSTEAD OF its scope aggregates when
+ * `scopeTotalPublishable` is false — one wording for the KPI row, the CSV
+ * `resumen` and any future headline, for the same reason
+ * `provinceSuppressionNotice` is one wording.
+ *
+ * It must say WHY, and the why is specific: the filter narrowed the scope to a
+ * single jurisdiction that is itself withheld, so any "total" of that scope is
+ * that jurisdiction's number wearing a different label. It must NOT read as
+ * "sin datos" — the data exists, and dressing a withholding as a coverage gap is
+ * the same lie as dressing a coverage gap as a withholding.
+ *
+ * Returns `null` when the aggregate IS publishable: never announce a mark this
+ * frame does not carry.
+ */
+export function scopeTotalSuppressionNotice(scopeTotalPublishable: boolean): string | null {
+  if (scopeTotalPublishable) return null;
+  return `Totales ocultos por privacidad: el filtro deja una sola jurisdicción y tiene menos de ${ANONYMITY_K} mascotas registradas, así que el total del recorte sería exactamente esa cifra. Ampliá el filtro de jurisdicción para ver los agregados.`;
+}
+
+/**
+ * Apply the same verdict to a CSV `resumen` row — ONE implementation for both
+ * /gob/censo/export and /gob/poblacion/export, so the two files cannot withhold
+ * differently (RA-1 finding C1c: the censo CSV printed `total_registradas,3`
+ * fourteen lines above `Tierra del Fuego,suprimido por privacidad` — the same
+ * file publishing the protected number and claiming to protect it).
+ *
+ * ALL-OR-NOTHING, by construction: every column of a `resumen` is an aggregate
+ * over the SAME scope, so a caller cannot withhold one and keep another. That
+ * matters most for poblacion, where a rate kept beside a withheld base would
+ * hand back the numerator by multiplication.
+ *
+ * KEYS ARE PRESERVED and the value becomes `SUPPRESSED_CELL_TEXT`, the same
+ * marker the province rows use — never `0` (a false zero asserts something
+ * untrue) and never a dropped column (a column that disappears when it crosses k
+ * makes absence the disclosure channel, in a file that outlives the screen).
+ */
+export function scopeSummaryRow<T extends Record<string, unknown>>(
+  scopeTotalPublishable: boolean,
+  row: T,
+): Record<string, unknown> {
+  if (scopeTotalPublishable) return row;
+  return Object.fromEntries(Object.keys(row).map((key) => [key, SUPPRESSED_CELL_TEXT]));
 }

@@ -349,6 +349,12 @@ describe("applyRegistryDisclosure", () => {
 
   it("empty input is a clean zero, not a suppression", () => {
     const out = applyRegistryDisclosure(censoAdmin(), []);
-    expect(out).toEqual({ rows: [], suppressedCount: 0, assignedTotal: 0 });
+    expect(out).toEqual({
+      rows: [],
+      suppressedCount: 0,
+      assignedTotal: 0,
+      // Nothing to withhold, so nothing bars the scope headline either.
+      scopeTotalPublishable: true,
+    });
   });
 });

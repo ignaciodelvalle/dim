@@ -53,6 +53,7 @@ import {
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
   fetchSterilizationTrend,
+  scopeTotalSuppressionNotice,
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
@@ -246,6 +247,29 @@ export async function PoblacionScreen({
     deworming,
     prevRegisteredBirths,
   ] = load.value;
+
+  // THE HEADLINE OBEYS THE SAME VERDICT AS THE ROWS (RA-3 finding C1).
+  // `?province=AR-V` narrows the whole scope to one province, and then
+  // "meta programática 70% · 1 de 3" IS that province's withheld cell — a rate
+  // beside its base gives up the numerator by multiplication. Every KPI on this
+  // page counts over that same scope, so the page withholds them together
+  // rather than tile by tile. The verdict came from the same
+  // `planProvinceDisclosure` call that decided `byProvince`, which is what stops
+  // /gob/poblacion/export from publishing what this screen hides.
+  const scopeNotice = scopeTotalSuppressionNotice(coverage.scopeTotalPublishable);
+  if (scopeNotice) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filtersRow}
+        <LnEmptyState
+          icon="lock"
+          title="Datos insuficientes (privacidad)"
+          description={scopeNotice}
+        />
+      </div>
+    );
+  }
 
   const registeredBirthsDelta = formatDelta(
     outcomes.registeredBirths,

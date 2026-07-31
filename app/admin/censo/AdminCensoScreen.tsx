@@ -48,6 +48,7 @@ import {
   registrationTrend,
   registryByProvince,
   registryCounts,
+  scopeTotalSuppressionNotice,
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
@@ -164,6 +165,24 @@ export async function AdminCensoScreen({
   // publish one and cannot disagree with /gob/censo/export for the same viewer.
   const provinceRows = registry.rows;
   const provinceNotice = provinceSuppressionNotice(registry.suppressedCount);
+
+  // Same single verdict as /gob/censo (RA-3 finding C1). This screen has no
+  // province drill, so it only trips when the WHOLE national grouping is one
+  // withheld province — a sparse pilot where "Total registradas" would be that
+  // province's protected count with a national label on it.
+  const scopeNotice = scopeTotalSuppressionNotice(registry.scopeTotalPublishable);
+  if (scopeNotice) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <LnEmptyState
+          icon="lock"
+          title="Datos insuficientes (privacidad)"
+          description={scopeNotice}
+        />
+      </div>
+    );
+  }
 
   const hasData = counts.total > 0;
   const hasTrend = trend.points.length > 0;

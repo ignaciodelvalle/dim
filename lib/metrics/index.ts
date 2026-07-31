@@ -176,6 +176,8 @@ export {
   SUPPRESSED_CELL_TEXT,
   planProvinceDisclosure,
   provinceSuppressionNotice,
+  scopeSummaryRow,
+  scopeTotalSuppressionNotice,
 } from "./province-disclosure";
 export type { ProvinceDenominatorRow, ProvinceDisclosurePlan } from "./province-disclosure";
 export type {
