@@ -2,12 +2,13 @@
 
 import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { ACTION_STALL_COPY, ACTION_STALL_MS } from "@/lib/ui/action-stall";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import {
   type FinalizeAdoptionFormState,
   finalizeAdoptionAction,
 } from "@/src/modules/adoption/actions";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };
 
@@ -32,7 +33,25 @@ export function FinalizeAdoptionForm({
   // On success the action returns `redirectTo`; navigate via a full document
   // load (immune to the Next 15.5.x router-drop that stranded this flow — see
   // the FinalizeAdoptionFormState.redirectTo docblock).
-  useActionRedirect(state.redirectTo, state);
+  const navigating = useActionRedirect(state.redirectTo, state);
+
+  // D.12 noisy failure. Finalizing an adoption rides the same dropped
+  // post-action navigation as the atender signing surface: the action commits
+  // and the button stays on "Finalizando adopción…" forever, so the operator
+  // finalizes again and the append-only spine keeps both. Once the submit has
+  // been pending past ACTION_STALL_MS we stop implying progress and say what we
+  // actually know — nothing — instead of nothing at all.
+  // `navigating` is excluded on purpose: once the full document load has
+  // started the flow IS working, it is just slow.
+  const [stalled, setStalled] = useState(false);
+  useEffect(() => {
+    if (!isPending || navigating) {
+      setStalled(false);
+      return;
+    }
+    const t = setTimeout(() => setStalled(true), ACTION_STALL_MS);
+    return () => clearTimeout(t);
+  }, [isPending, navigating]);
 
   const hasApproved = approvedApplications.length > 0;
   // Default to the approved-application path when one exists — it transfers the
@@ -47,7 +66,23 @@ export function FinalizeAdoptionForm({
   const usingApplication = hasApproved && !offline;
 
   return (
-    <form action={formAction} className="space-y-4" encType="multipart/form-data">
+    // ⚠ `onSubmitCapture` IS LOAD-BEARING — DO NOT REMOVE IT. On the atender
+    // signing surface, registering a capture-phase `submit` listener above the
+    // form is what stops the dropped-navigation wedge outright: measured there
+    // at 0/16 navigated without it and 16/16 with it, against an extra bare
+    // <div> (0/16) and an extra client component without the handler (0/16), so
+    // the listener — not the element and not the component — is the cause. That
+    // A/B was run on atender, NOT here: this surface is not reachable from the
+    // harness without staging a live adoption, so the same wedge is assumed to
+    // share the mechanism and is not proven to. The `stalled` notice below stays
+    // regardless, because an unproven fix is exactly when D.12's truthful
+    // failure has to still be there.
+    <form
+      action={formAction}
+      onSubmitCapture={() => setStalled(false)}
+      className="space-y-4"
+      encType="multipart/form-data"
+    >
       {usingApplication && (
         <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
           <div className="space-y-1">
@@ -227,6 +262,28 @@ export function FinalizeAdoptionForm({
         <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
+      )}
+
+      {stalled && (
+        <div
+          role="alert"
+          className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3"
+        >
+          <p className="text-md font-semibold text-ln-op-warn">
+            {ACTION_STALL_COPY.adoption.title}
+          </p>
+          <p className="mt-1 text-sm text-ln-op-warn">{ACTION_STALL_COPY.adoption.body}</p>
+          <p className="mt-2">
+            {/* A hard document GET on purpose: the router transition is exactly
+                what is broken here, so `next/link` is not a safe way out. */}
+            <a
+              href={`/org/${orgToken}/mascotas/${publicToken}`}
+              className="text-sm font-semibold text-ln-op-warn underline"
+            >
+              Volver a la ficha de esta mascota
+            </a>
+          </p>
+        </div>
       )}
 
       <OpButton type="submit" disabled={isPending} variant="ok">

@@ -45,6 +45,7 @@ import {
   atenderSterilizationAction,
   atenderVaccinationAction,
 } from "../actions";
+import { AtenderStallNotice } from "./AtenderStallNotice";
 import { AtenderVaccinationGate } from "./AtenderVaccinationGate";
 
 // ATENDER_EVENTOS + AtenderEvento moved to ./atender-eventos (server-safe) so
@@ -128,7 +129,15 @@ export function AtenderCaptureMounter({
 
   return (
     <LnSheetWrap>
-      <LnSheetCard>{form}</LnSheetCard>
+      <LnSheetCard>
+        {/* D.12 noisy failure: when the post-action navigation is dropped the
+            CTA is stuck on "Registrando…" forever and the vet signs again,
+            duplicating a row in an append-only health record. See
+            lib/ui/action-stall.ts. */}
+        <AtenderStallNotice href={`/org/${orgToken}/atender/${publicToken}`}>
+          {form}
+        </AtenderStallNotice>
+      </LnSheetCard>
     </LnSheetWrap>
   );
 }
