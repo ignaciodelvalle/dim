@@ -56,7 +56,17 @@ import { InspectorMounter } from "./_inspector/InspectorMounter";
 import { decodeRiskCursor, encodeRiskCursor, severityRank } from "./_lib/welfare-sla";
 
 const PAGE_SIZE = 50;
-const VALID_QUEUES: MaltratoQueue[] = ["urgent", "unassigned", "mine", "all", "overdue"];
+const VALID_QUEUES: MaltratoQueue[] = [
+  "urgent",
+  "unassigned",
+  "mine",
+  "all",
+  "overdue",
+  // D.11 audit lens — denuncias whose jurisdiction was recovered from the form
+  // text after a geocoder failure. They stay in every other tab too; this only
+  // isolates them.
+  "unverified",
+];
 
 // Default queue (C2 language contract, 2026-07-22 — PO-locked: "sin asignar
 // abiertas", not "Todas"). "Todas" as a landing view buries the actionable
@@ -293,6 +303,10 @@ export async function MaltratoQueueScreen({
     { value: "mine" as const, label: "Mías" },
     { value: "all" as const, label: "Todas" },
     { value: "overdue" as const, label: "Atrasadas" },
+    // D.11 — the guesses, isolated. Last on purpose: it is an audit lens, not a
+    // daily stage, and every row it holds is already visible (and pill-marked)
+    // in the tabs to its left.
+    { value: "unverified" as const, label: "Sin verificar" },
   ];
 
   return (

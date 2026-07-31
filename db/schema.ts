@@ -1680,6 +1680,12 @@ export const welfareReports = pgTable(
     // Structural locality-attribution FK (migration 0147). Nullable + additive —
     // mirrors pets.localityId. References the ar_localities uuid PK.
     localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
+    // Low-confidence routing mark (migration 0162, PO decision D.11).
+    // TRUE = the geocoder was unreachable and the (province, locality) above was
+    // read out of the FORM TEXT instead. The report is routed on a GUESS, so the
+    // triage queue MUST show it (WelfareDenunciaRow) — a flag no screen renders
+    // would ship D.11's accepted risk without D.11's mitigation.
+    jurisdictionUnverified: boolean("jurisdiction_unverified").notNull().default(false),
     // Coordinate pair. Numeric(10,7) matches pet_events.location_lat/lng so
     // both tables can flow through the same accessor (`lib/location.ts`).
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),

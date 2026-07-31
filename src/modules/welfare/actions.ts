@@ -37,7 +37,6 @@ import {
   welfareReportToMpfDto,
 } from "@/lib/analytics/welfare-exports";
 import { signalWelfareReport } from "@/lib/domain/authority";
-import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { writePoint } from "@/lib/domain/location";
 import {
   CoordError,
@@ -54,6 +53,7 @@ import {
 } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
+import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
@@ -74,6 +74,10 @@ import { createWelfareReport } from "./application/create-welfare-report";
 import { escalateModerationToAdmin } from "./application/escalate-moderation-to-admin";
 import { generateMpfExport } from "./application/generate-mpf-export";
 import { passWelfareToTriage } from "./application/pass-welfare-to-triage";
+import {
+  loadAndVerifyScope as loadAndVerifyScopeFor,
+  loadInScopeReport as loadInScopeReportFor,
+} from "./application/report-scope-guards";
 import { returnDerivedReport } from "./application/return-derived-report";
 import { startWelfareReport } from "./application/start-welfare-report";
 import { takeDerivedReport } from "./application/take-derived-report";
@@ -146,7 +150,8 @@ export async function triageWelfareReportAction(input: {
 
   // Jurisdiction scope is enforced inside the action via a pre-load.
   // The use-case receives a trusted actor — jurisdiction check happens here.
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -181,7 +186,8 @@ export async function startWelfareReportAction(input: {
 }): Promise<TriageResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -213,7 +219,8 @@ export async function closeWelfareReportAction(input: {
 }): Promise<TriageResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -309,7 +316,8 @@ export async function approveDenunciaModerationAction(input: {
 }): Promise<ModerationResult> {
   const session = await requireDenunciaModerationPrincipal();
 
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -343,7 +351,8 @@ export async function rejectDenunciaAsAbuseAction(input: {
 }): Promise<ModerationResult> {
   const session = await requireDenunciaModerationPrincipal();
 
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -373,7 +382,8 @@ export async function escalateDenunciaToAdminAction(input: {
 }): Promise<ModerationResult> {
   const session = await requireDenunciaModerationPrincipal();
 
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -400,7 +410,12 @@ export async function escalateDenunciaToAdminAction(input: {
 export async function assignWelfareToMeAction(reportId: string): Promise<AssignResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadAndVerifyScope(reportId, session.profile, session.jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(
+    repo,
+    reportId,
+    session.profile,
+    session.jurisdictions,
+  );
   if ("error" in loaded) return { ok: false, error: loaded.error };
 
   const result = await assignWelfare(
@@ -422,7 +437,12 @@ export async function assignWelfareToMeAction(reportId: string): Promise<AssignR
 export async function unassignWelfareAction(reportId: string): Promise<AssignResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadAndVerifyScope(reportId, session.profile, session.jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(
+    repo,
+    reportId,
+    session.profile,
+    session.jurisdictions,
+  );
   if ("error" in loaded) return { ok: false, error: loaded.error };
 
   const result = await unassignWelfare(
@@ -459,7 +479,7 @@ export async function deriveWelfareToOrgAction(input: {
 }): Promise<DeriveWelfareToOrgResult> {
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadAndVerifyScope(input.welfareReportId, profile, jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(repo, input.welfareReportId, profile, jurisdictions);
   if ("error" in loaded) return { ok: false, error: loaded.error };
 
   const report = loaded.row;
@@ -803,7 +823,7 @@ export async function generateMpfExportAction(
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
 
   // Jurisdiction scope guard (mirrors the detail page).
-  const loaded = await loadAndVerifyScope(welfareReportId, profile, jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(repo, welfareReportId, profile, jurisdictions);
   if ("error" in loaded) return { ok: false, error: "not_found" };
 
   // MPF export format cascade (jurisdiction-compliance, 2026-07-22) —
@@ -988,10 +1008,26 @@ export async function createWelfareReportAction(
     throw err;
   }
   const locationAddress = normalizedLoc.address;
-  const jurisdictionProvince: string | null = normalizedLoc.province;
-  const jurisdictionLocality: string | null = normalizedLoc.locality;
+  // D.11 (PO, 2026-07-31) — GEOCODER-DOWN FALLBACK. The (province, locality)
+  // above is derived CLIENT-side by LocationFields from a geocoder result. When
+  // nominatim is unreachable those hidden inputs arrive empty and the row lands
+  // with jurisdiction_province NULL — invisible to every govt queue, because
+  // every branch of jurisdictionPairClause tests province equality. Rather than
+  // lose the denuncia, recover the jurisdiction from the address text the
+  // citizen typed and MARK IT UNVERIFIED. The mark is not bookkeeping: the
+  // triage row renders it (WelfareDenunciaRow), which is the condition the PO
+  // attached to accepting the mis-routing risk.
+  const routable = await resolveRoutableJurisdiction({
+    province: normalizedLoc.province,
+    locality: normalizedLoc.locality,
+    localityId: normalizedLoc.localityId,
+    addressText: locationAddress,
+  });
+  const jurisdictionProvince: string | null = routable.province;
+  const jurisdictionLocality: string | null = routable.locality;
   // Structural locality-attribution FK (migration 0147) for the welfare_reports row.
-  const jurisdictionLocalityId: string | null = normalizedLoc.localityId;
+  const jurisdictionLocalityId: string | null = routable.localityId;
+  const jurisdictionUnverified = routable.unverified;
   const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
   const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -1118,6 +1154,7 @@ export async function createWelfareReportAction(
         jurisdictionProvince,
         jurisdictionLocality,
         localityId: jurisdictionLocalityId,
+        jurisdictionUnverified,
         locationLat,
         locationLng,
         occurredAt,
@@ -1292,10 +1329,21 @@ export async function createOrgWelfareReportAction(
     throw err;
   }
   const locationAddress = normalizedLoc.address;
-  const jurisdictionProvince: string | null = normalizedLoc.province;
-  const jurisdictionLocality: string | null = normalizedLoc.locality;
+  // D.11 geocoder-down fallback — same gate as the public intake above. An org
+  // report reaches the SAME jurisdiction-scoped triage queue, so a null province
+  // makes it just as invisible; there is no reason the professional path should
+  // be the one that silently loses reports.
+  const routable = await resolveRoutableJurisdiction({
+    province: normalizedLoc.province,
+    locality: normalizedLoc.locality,
+    localityId: normalizedLoc.localityId,
+    addressText: locationAddress,
+  });
+  const jurisdictionProvince: string | null = routable.province;
+  const jurisdictionLocality: string | null = routable.locality;
   // Structural locality-attribution FK (migration 0147) for the welfare_reports row.
-  const jurisdictionLocalityId: string | null = normalizedLoc.localityId;
+  const jurisdictionLocalityId: string | null = routable.localityId;
+  const jurisdictionUnverified = routable.unverified;
   const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
   const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
@@ -1360,6 +1408,7 @@ export async function createOrgWelfareReportAction(
         jurisdictionProvince,
         jurisdictionLocality,
         localityId: jurisdictionLocalityId,
+        jurisdictionUnverified,
         locationLat,
         locationLng,
         occurredAt,
@@ -1450,10 +1499,6 @@ export async function createOrgWelfareReportAction(
 }
 
 // ---------------------------------------------------------------------------
-// Internal helpers — jurisdiction scope guards
-// ---------------------------------------------------------------------------
-
-// ---------------------------------------------------------------------------
 // addReporterCommentAction — reporter adds a free-text note to their case
 // ---------------------------------------------------------------------------
 
@@ -1486,54 +1531,4 @@ export async function addReporterCommentAction(
 
   revalidatePath(`/denuncias/${welfareReportId}`);
   return { ok: true };
-}
-
-type WelfareReportRow = import("@/db").WelfareReport;
-
-async function loadInScopeReport(
-  reportId: string,
-  actor: { id: string; role: "admin" | "govt" },
-  jurisdictions: { province: string; locality: string }[],
-): Promise<{ row: WelfareReportRow } | { error: string }> {
-  const row = await repo.findById(reportId);
-  if (!row) return { error: "Denuncia no encontrada." };
-
-  if (actor.role === "govt") {
-    // Subsumption-aware scope check (whole-province assignments govern every
-    // barrio) — MUST match the triage queue list and the detail page, so the
-    // full operator circuit (assign/triage/close/derive/MPF) resolves any
-    // denuncia the queue shows. See jurisdictionScopeContains.
-    const inScope = jurisdictionScopeContains(
-      jurisdictions,
-      row.jurisdictionProvince,
-      row.jurisdictionLocality,
-    );
-    // Uniform "not found" for out-of-scope: never confirm a report exists in
-    // another jurisdiction (no existence oracle for a govt with a known UUID).
-    if (!inScope) return { error: "Denuncia no encontrada." };
-  }
-
-  return { row };
-}
-
-async function loadAndVerifyScope(
-  reportId: string,
-  actor: { id: string; role: "admin" | "govt" },
-  jurisdictions: { province: string; locality: string }[],
-): Promise<{ row: WelfareReportRow } | { ok: false; error: string }> {
-  const row = await repo.findById(reportId);
-  if (!row) return { ok: false, error: "Denuncia no encontrada." };
-
-  if (actor.role === "govt") {
-    // Subsumption-aware scope check — see loadInScopeReport above and
-    // jurisdictionScopeContains.
-    const inScope = jurisdictionScopeContains(
-      jurisdictions,
-      row.jurisdictionProvince,
-      row.jurisdictionLocality,
-    );
-    if (!inScope) return { ok: false, error: "Denuncia no encontrada." };
-  }
-
-  return { row };
 }

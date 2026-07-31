@@ -89,6 +89,12 @@ export type WelfareDenunciaRowProps = {
     status: WelfareReportStatus;
     jurisdictionLocality: string | null;
     jurisdictionProvince: string | null;
+    /** D.11 (PO, 2026-07-31): TRUE when the geocoder was unreachable and the
+     * jurisdiction above was read out of the FORM TEXT. The row is routed on a
+     * GUESS. Rendering this is the CONDITION the PO attached to accepting the
+     * mis-routing risk — a persisted flag that no screen shows would deliver the
+     * risk without the mitigation. Do not "clean up" the pill away. */
+    jurisdictionUnverified: boolean;
     createdAt: Date;
     assignedToUserId: string | null;
   };
@@ -166,12 +172,31 @@ export function WelfareDenunciaRow({
                     statuses. */}
                 <SlaBadge severity={report.severity} status={report.status} createdAt={createdAt} />
               </div>
-              <p className="text-[11px] text-ln-op-mute">
-                {report.jurisdictionLocality && report.jurisdictionProvince
-                  ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`
-                  : "Sin jurisdicción declarada"}
-                {" · "}
-                <time dateTime={createdAt.toISOString()}>{formatDate(createdAt)}</time>
+              {/* Jurisdiction line. The "sin verificar" pill sits HERE, welded
+                  to the claim it qualifies, and not up in the severity/SLA row:
+                  that row is the urgency voice, and this is not an urgency
+                  statement — it is a warning that the address printed one line
+                  below may belong to somebody else's municipality. */}
+              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-ln-op-mute">
+                <span>
+                  {report.jurisdictionLocality && report.jurisdictionProvince
+                    ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`
+                    : "Sin jurisdicción declarada"}
+                  {" · "}
+                  <time dateTime={createdAt.toISOString()}>{formatDate(createdAt)}</time>
+                </span>
+                {report.jurisdictionUnverified && (
+                  <>
+                    <OpPill tone="open">Jurisdicción sin verificar</OpPill>
+                    {/* Same <p>, not a sibling one: the explanation inherits the
+                        jurisdiction line's size instead of introducing a third
+                        arbitrary pixel size (design-token ratchet). */}
+                    <span className="basis-full">
+                      No pudimos confirmar la ubicación con el geocodificador: la jurisdicción se
+                      tomó del texto de la denuncia y puede no corresponder a este municipio.
+                    </span>
+                  </>
+                )}
               </p>
               <div className="flex items-center gap-2 flex-wrap">
                 <OpCodeBadge tone="blue">{report.referenceCode}</OpCodeBadge>

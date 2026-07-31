@@ -53,6 +53,7 @@ const baseReport = {
   status: "open" as const,
   jurisdictionLocality: "Palermo",
   jurisdictionProvince: "CABA",
+  jurisdictionUnverified: false,
   assignedToUserId: null,
 };
 
@@ -151,5 +152,75 @@ describe("WelfareDenunciaRow — operator-queue anatomy alignment (A5)", () => {
     // SlaBadge legitimately says "vencido hace N días" elsewhere on the card,
     // and that pill is the row's ONE urgency voice now.
     expect(time?.textContent).not.toMatch(/hace/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// D.11 — the low-confidence jurisdiction mark must be VISIBLE IN THE QUEUE
+//
+// The PO accepted the mis-routing risk of the geocoder-down fallback (a report
+// routed to the wrong municipality looks attended and is not) on ONE
+// non-negotiable condition: that the operator can SEE the case's jurisdiction
+// is unverified in the list where they triage, not only on a detail page they
+// may never open. These two tests ARE that condition. A flag persisted to a
+// column no screen renders delivers the risk without the mitigation.
+// ---------------------------------------------------------------------------
+
+describe("WelfareDenunciaRow — unverified jurisdiction mark (D.11)", () => {
+  it("shows the mark on the row when the jurisdiction was recovered from the form text", () => {
+    render(
+      <WelfareDenunciaRow
+        report={{
+          ...baseReport,
+          severity: "high",
+          createdAt: daysAgo(1),
+          jurisdictionLocality: "Quilmes",
+          jurisdictionProvince: "Buenos Aires",
+          jurisdictionUnverified: true,
+        }}
+        assignedToName={null}
+        currentUserId="user-1"
+      />,
+    );
+    expect(screen.getByText("Jurisdicción sin verificar")).toBeInTheDocument();
+    // The guessed jurisdiction is still PRINTED — the operator needs to know
+    // which municipality was guessed in order to judge the guess.
+    expect(screen.getByText(/Quilmes, Buenos Aires/)).toBeInTheDocument();
+    // And the row says why, in the operator's language, without an extra click.
+    expect(screen.getByText(/se tomó del texto de la denuncia/)).toBeInTheDocument();
+  });
+
+  it("shows NOTHING extra on a normally geocoded row", () => {
+    render(
+      <WelfareDenunciaRow
+        report={{ ...baseReport, severity: "high", createdAt: daysAgo(1) }}
+        assignedToName={null}
+        currentUserId="user-1"
+      />,
+    );
+    expect(screen.queryByText("Jurisdicción sin verificar")).not.toBeInTheDocument();
+    expect(screen.queryByText(/se tomó del texto de la denuncia/)).not.toBeInTheDocument();
+  });
+
+  it("marks a row that could not be routed at all — the queue still says the jurisdiction is a guess", () => {
+    // Text with no jurisdiction in it leaves province null; the row is only
+    // reachable by an admin (unscoped), and that admin must be told WHY it has
+    // no jurisdiction rather than assume nobody filled the form in.
+    render(
+      <WelfareDenunciaRow
+        report={{
+          ...baseReport,
+          severity: "critical",
+          createdAt: daysAgo(1),
+          jurisdictionLocality: null,
+          jurisdictionProvince: null,
+          jurisdictionUnverified: true,
+        }}
+        assignedToName={null}
+        currentUserId="user-1"
+      />,
+    );
+    expect(screen.getByText(/Sin jurisdicción declarada/)).toBeInTheDocument();
+    expect(screen.getByText("Jurisdicción sin verificar")).toBeInTheDocument();
   });
 });

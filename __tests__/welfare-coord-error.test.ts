@@ -78,18 +78,34 @@ const mockTransaction = vi.hoisted(() =>
   vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => cb({})),
 );
 
-vi.mock("@/db", () => ({
-  db: {
-    transaction: mockTransaction,
-    select: vi.fn(() => ({
-      from: vi.fn(() => ({ where: vi.fn(() => ({ limit: vi.fn(async () => []) })) })),
-    })),
-  },
-  organizationMemberships: {},
-  organizations: {},
-  welfareReports: {},
-  notifications: {},
-}));
+vi.mock("@/db", () => {
+  // `.orderBy()` and the `arLocalities` table are reached by the D.11
+  // geocoder-down fallback (lib/infra/jurisdiction-from-text.ts →
+  // localityByName), which this fixture's form triggers because it carries an
+  // address but no provinceCode. Returning [] keeps the catalog lookup a no-op
+  // so these tests stay about the COORD range check, while still running the
+  // real fallback code rather than stubbing it out.
+  const emptyResult = Promise.resolve([]);
+  const chain = () => {
+    const step: Record<string, unknown> = {};
+    step.from = vi.fn(() => step);
+    step.where = vi.fn(() => step);
+    step.orderBy = vi.fn(() => step);
+    step.limit = vi.fn(() => emptyResult);
+    return step;
+  };
+  return {
+    db: {
+      transaction: mockTransaction,
+      select: vi.fn(() => chain()),
+    },
+    arLocalities: {},
+    organizationMemberships: {},
+    organizations: {},
+    welfareReports: {},
+    notifications: {},
+  };
+});
 
 vi.mock("@/lib/infra/case-helpers", () => ({
   openCase: vi.fn(),
@@ -218,6 +234,9 @@ vi.mock("drizzle-orm", () => ({
   and: vi.fn(),
   eq: vi.fn(),
   isNull: vi.fn(),
+  // Reached through localityByName's case-insensitive fallback on the D.11
+  // geocoder-down path (see the @/db mock above).
+  sql: vi.fn(),
 }));
 
 // ---------------------------------------------------------------------------

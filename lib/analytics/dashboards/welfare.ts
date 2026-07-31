@@ -119,7 +119,7 @@ export function buildModerationQueueConditions(filters: ModerationQueueFilters):
 // a full DB round-trip.
 // ============================================================================
 
-export type MaltratoQueue = "urgent" | "mine" | "all" | "overdue" | "unassigned";
+export type MaltratoQueue = "urgent" | "mine" | "all" | "overdue" | "unassigned" | "unverified";
 
 export type MaltratoListFilters = {
   actor: DashboardActor;
@@ -276,6 +276,21 @@ export function buildMaltratoListConditions(filters: MaltratoListFilters) {
       // status.
       conditions.push(not(inArray(welfareReports.status, [...TERMINAL_STATUSES])));
       conditions.push(slaBreachedClause());
+      break;
+    case "unverified":
+      // D.11 (2026-07-31) — rows whose jurisdiction was recovered from the FORM
+      // TEXT because the geocoder was down. They are NOT hidden from the other
+      // tabs: every one of them also appears in the queue of the jurisdiction it
+      // guessed, wearing a visible "Jurisdicción sin verificar" pill. This tab is
+      // a LENS, the same kind `urgent`/`mine`/`overdue` already are — a way to
+      // isolate the guesses for an audit pass, never the only place they live.
+      //
+      // Why not a separate bucket ONLY: nobody watches a bucket of maybes. That
+      // reproduces the exact defect (invisible report) under a nicer name.
+      // Why not the guessed queue ONLY: an operator who cannot separate guesses
+      // from real workload stops trusting the whole queue. Both, therefore —
+      // routed and marked by default, separable on demand.
+      conditions.push(eq(welfareReports.jurisdictionUnverified, true));
       break;
     default:
       // "all" — no extra filter.
