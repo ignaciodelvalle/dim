@@ -42,6 +42,7 @@ import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
 import { closeSheetNav, closeSheetNavWithFullReload } from "@/lib/ui/sheet-nav";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { markLostActionLabel } from "@/lib/utils/format";
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useActionState, useCallback } from "react";
 
@@ -427,7 +428,32 @@ export function SheetMounter({
   }
 
   if (sheet === "marcar-perdida") {
-    if (!markLostData) return null; // pet not active — flow doesn't apply
+    // RA-2 F8 — same treatment the sibling marcar-encontrada sheet already got
+    // (WP-6, below). `markLostData` is null whenever the pet is not "active"
+    // (page.tsx builds it only for active pets), and ?sheet=marcar-perdida is
+    // reachable on any pet: the Anotar capture list renders "Marcar como
+    // perdida" unconditionally (anotar/handoff.ts), and free text ("se escapó")
+    // routes here too. Returning null left an owner mid-crisis staring at their
+    // own profile with no sheet and no explanation.
+    if (!markLostData) {
+      return (
+        <Sheet
+          id="marcar-perdida"
+          title={markLostActionLabel(petSex)}
+          open
+          onClose={close}
+          side="right"
+          size="md"
+        >
+          <MarkLostNotApplicableNotice
+            petName={petName}
+            petToken={petToken}
+            petStatus={petStatus}
+            onClose={close}
+          />
+        </Sheet>
+      );
+    }
     const action = setPetLostAction.bind(null, petToken);
     return (
       <Sheet
@@ -576,6 +602,56 @@ function PetNotLostNotice({
         encontrada.
       </p>
       <div className="flex gap-2">
+        <LnButton type="button" variant="ghost" onClick={onClose}>
+          Volver al perfil
+        </LnButton>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MarkLostNotApplicableNotice — shown when marcar-perdida is triggered but the
+// pet is not "active" (RA-2 F8). Mirrors PetNotLostNotice above: the flow does
+// not apply, so say why and offer the move that DOES apply instead of dropping
+// the owner on a blank profile mid-crisis.
+// ---------------------------------------------------------------------------
+
+function MarkLostNotApplicableNotice({
+  petName,
+  petToken,
+  petStatus,
+  onClose,
+}: {
+  petName: string;
+  petToken: string;
+  petStatus: "active" | "lost" | "deceased";
+  onClose: () => void;
+}) {
+  const alreadyLost = petStatus === "lost";
+  return (
+    <div className="space-y-4">
+      <p className="text-sm text-[var(--color-ln-ink-2)]">
+        {alreadyLost ? (
+          <>
+            <strong>{petName}</strong> ya figura como perdida. Su aviso está publicado y visible
+            para quien escanee su credencial, así que no hace falta volver a marcarla.
+          </>
+        ) : (
+          <>
+            <strong>{petName}</strong> figura como fallecida, así que no se la puede marcar como
+            perdida. Si es un error, corregí su estado desde el perfil.
+          </>
+        )}
+      </p>
+      <div className="flex flex-wrap gap-2">
+        {alreadyLost && (
+          <Link href={`/mis-mascotas/${petToken}?sheet=marcar-encontrada`}>
+            <LnButton type="button" variant="primary">
+              Ya apareció — marcar como encontrada
+            </LnButton>
+          </Link>
+        )}
         <LnButton type="button" variant="ghost" onClick={onClose}>
           Volver al perfil
         </LnButton>
