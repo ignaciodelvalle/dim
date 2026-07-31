@@ -175,11 +175,7 @@ export function LnField({
           {hint}
         </FieldHint>
       )}
-      {error && (
-        <FieldError id={errorId}>
-          {error}
-        </FieldError>
-      )}
+      {error && <FieldError id={errorId}>{error}</FieldError>}
     </div>
   );
 }
@@ -267,11 +263,7 @@ export function LnRadioGroup({
         </FieldHint>
       )}
       <div className={optionsClassName ?? "space-y-2"}>{children}</div>
-      {error && (
-        <FieldError id={errorId}>
-          {error}
-        </FieldError>
-      )}
+      {error && <FieldError id={errorId}>{error}</FieldError>}
     </fieldset>
   );
 }
