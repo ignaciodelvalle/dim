@@ -3102,14 +3102,14 @@ export function SituationalMap({
   const briefingActions = viewMeta ? (
     <div className="flex flex-wrap items-center justify-end gap-1.5">
       {copied && (
-        <output className="rounded-[var(--radius-sm)] bg-ln-op-ok-bg px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ok">
+        <output className="rounded-[var(--radius-sm)] bg-ln-op-ok-bg px-2 py-1 text-sm font-medium text-ln-op-ok">
           Vista copiada
         </output>
       )}
       <button
         type="button"
         onClick={copyView}
-        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
+        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-sm font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
       >
         Copiar vista
       </button>
@@ -3118,7 +3118,7 @@ export function SituationalMap({
       <button
         type="button"
         onClick={exportPng}
-        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
+        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-sm font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
       >
         Exportar PNG
       </button>
@@ -3296,7 +3296,7 @@ export function SituationalMap({
             so the reader knows the granularity's meaning changed on drill. */}
           {aggregationLabel && (
             <span
-              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1 text-[var(--text-sm)] font-medium text-ln-op-ink-2 shadow-md"
+              className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1 text-sm font-medium text-ln-op-ink-2 shadow-md"
               title="Nivel de agregación del mapa"
             >
               {aggregationLabel}
@@ -3305,7 +3305,7 @@ export function SituationalMap({
         </div>
         {centeredOverlayVisible && (
           <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <p className="max-w-xs rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-2 text-center text-[var(--text-md)] text-ln-op-ink-2 shadow-md">
+            <p className="max-w-xs rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-2 text-center text-md text-ln-op-ink-2 shadow-md">
               {emptyOverlayMessage({
                 layerDegraded,
                 rateProvinceOnlyEmpty,
@@ -3329,10 +3329,8 @@ export function SituationalMap({
             role="alert"
             className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-ln-op-card/95 p-6 text-center"
           >
-            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
-              No pudimos cargar el mapa
-            </p>
-            <p className="max-w-sm text-[var(--text-sm)] text-ln-op-mute">
+            <p className="text-md font-semibold text-ln-op-ink">No pudimos cargar el mapa</p>
+            <p className="max-w-sm text-sm text-ln-op-mute">
               No se pudo descargar la geografía base. Revisá la conexión y volvé a intentar.
             </p>
             <button
@@ -3342,7 +3340,7 @@ export function SituationalMap({
                 setBasemapError(false);
                 setMapEpoch((n) => n + 1);
               }}
-              className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+              className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-sm font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
             >
               Reintentar
             </button>
@@ -3356,10 +3354,8 @@ export function SituationalMap({
             role="alert"
             className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-ln-op-card/95 p-6 text-center"
           >
-            <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
-              Recuperando el mapa…
-            </p>
-            <p className="max-w-sm text-[var(--text-sm)] text-ln-op-mute">
+            <p className="text-md font-semibold text-ln-op-ink">Recuperando el mapa…</p>
+            <p className="max-w-sm text-sm text-ln-op-mute">
               El mapa perdió el contexto gráfico y se está recuperando solo. Si no vuelve,
               recargalo.
             </p>
@@ -3369,7 +3365,7 @@ export function SituationalMap({
                 setGlLost(false);
                 setMapEpoch((n) => n + 1);
               }}
-              className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+              className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-sm font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
             >
               Recargar el mapa
             </button>

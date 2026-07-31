@@ -497,7 +497,7 @@ export function TimeScrubber({
                 aria-pressed={!scrubDetail}
                 aria-label="Modo simple de la reproducción temporal"
                 onClick={() => onScrubDetailChange(false)}
-                className={`px-2 py-0.5 text-[var(--text-sm)] font-medium transition-colors ${
+                className={`px-2 py-0.5 text-sm font-medium transition-colors ${
                   !scrubDetail
                     ? "bg-ln-op-azul/10 text-ln-op-azul"
                     : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
@@ -510,7 +510,7 @@ export function TimeScrubber({
                 aria-pressed={scrubDetail}
                 aria-label="Modo detalle de la reproducción temporal"
                 onClick={() => onScrubDetailChange(true)}
-                className={`px-2 py-0.5 text-[var(--text-sm)] font-medium transition-colors ${
+                className={`px-2 py-0.5 text-sm font-medium transition-colors ${
                   scrubDetail
                     ? "bg-ln-op-azul/10 text-ln-op-azul"
                     : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
@@ -529,7 +529,7 @@ export function TimeScrubber({
           header could not tell whether the scrub is by fecha de ocurrencia
           or fecha de registro. This one-liner is unconditional (independent
           of scrubDetail/temporalAvailable) so the basis is always visible. */}
-      <p className="text-[var(--text-xs)] text-ln-op-mute">
+      <p className="text-xs text-ln-op-mute">
         Base: {basis === "transaction" ? "fecha de registro" : "fecha de ocurrencia"}
       </p>
 
@@ -538,7 +538,7 @@ export function TimeScrubber({
         // 12-month TREND of the metric; this control REPRODUCES temporal event
         // layers as-of a date — a different tool. Say what it needs (an active
         // temporal layer) so "no disponible" doesn't contradict a visible trend.
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute">
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-sm text-ln-op-mute">
           La reproducción temporal necesita una capa de eventos activa (señales, denuncias). Activá
           una para ver la situación formarse. La tendencia del indicador se ve en su miniatura.
         </p>
@@ -550,7 +550,7 @@ export function TimeScrubber({
               not reconstructed). Without this the "Situación al …" label reads
               as if the whole map were as-of-t. */}
           {currentStateBaseLabel && (
-            <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+            <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-1.5 text-xs text-ln-op-mute">
               {/* H3 (cowork QA): in Brotes activos the base metric ({label}) is a
                   current-state stock, so the operator read the whole timeline as
                   "dead". Clarify that the scrubber DOES reproduce the temporal
@@ -661,7 +661,7 @@ export function TimeScrubber({
               // hatch even at the live edge so a stuck delta is never uncleanable.
               disabled={atLive && !playing && looping === null && !temporalActive}
               aria-label="Volver al último evento"
-              className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-[var(--text-sm)] text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex h-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 text-sm text-ln-op-ink-2 hover:border-ln-op-azul disabled:cursor-not-allowed disabled:opacity-40"
             >
               Ahora
             </button>
@@ -675,7 +675,7 @@ export function TimeScrubber({
           {/* Detalle: date-tick references along the track. */}
           {scrubDetail && ticks.length > 0 && (
             <div
-              className="flex items-center justify-between text-[var(--text-xs)] text-ln-op-faint"
+              className="flex items-center justify-between text-xs text-ln-op-faint"
               aria-hidden="true"
             >
               {ticks.map((t) => (
@@ -697,7 +697,7 @@ export function TimeScrubber({
           <div className="flex flex-wrap items-center gap-1.5">
             <span
               aria-hidden="true"
-              className="mr-1 text-[var(--text-sm)] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+              className="mr-1 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
             >
               Ventana de reproducción
             </span>
@@ -713,7 +713,7 @@ export function TimeScrubber({
                     : undefined
                 }
                 onClick={() => startLoop(days)}
-                className={`rounded-[var(--radius-md)] border px-2 py-1 text-[var(--text-sm)] transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                className={`rounded-[var(--radius-md)] border px-2 py-1 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                   looping === days
                     ? "border-ln-op-azul bg-ln-op-azul/10 font-semibold text-ln-op-ink"
                     : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
@@ -724,7 +724,7 @@ export function TimeScrubber({
             ))}
           </div>
           {scrubbable && win.step === "month" && (
-            <p className="text-[var(--text-sm)] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               Los atajos de repetición no están disponibles para períodos largos (reproducción
               mensual).
             </p>
@@ -740,7 +740,7 @@ export function TimeScrubber({
                 <legend className="sr-only">Base temporal de la reproducción</legend>
                 <span
                   aria-hidden="true"
-                  className="mr-1 text-[var(--text-sm)] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+                  className="mr-1 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
                 >
                   Base
                 </span>
@@ -748,7 +748,7 @@ export function TimeScrubber({
                   type="button"
                   aria-pressed={basis === "valid"}
                   onClick={() => onBasisChange("valid")}
-                  className={`rounded-[var(--radius-md)] border px-2 py-1 text-[var(--text-sm)] transition-colors ${
+                  className={`rounded-[var(--radius-md)] border px-2 py-1 text-sm transition-colors ${
                     basis === "valid"
                       ? "border-ln-op-azul bg-ln-op-azul/10 font-semibold text-ln-op-ink"
                       : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
@@ -760,7 +760,7 @@ export function TimeScrubber({
                   type="button"
                   aria-pressed={basis === "transaction"}
                   onClick={() => onBasisChange("transaction")}
-                  className={`rounded-[var(--radius-md)] border px-2 py-1 text-[var(--text-sm)] transition-colors ${
+                  className={`rounded-[var(--radius-md)] border px-2 py-1 text-sm transition-colors ${
                     basis === "transaction"
                       ? "border-ln-op-azul bg-ln-op-azul/10 font-semibold text-ln-op-ink"
                       : "border-ln-op-line bg-ln-op-card text-ln-op-ink-2 hover:border-ln-op-azul"
@@ -770,7 +770,7 @@ export function TimeScrubber({
                 </button>
               </fieldset>
 
-              <p className="text-[var(--text-sm)] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 {basis === "transaction"
                   ? "Reproduciendo por fecha de registro (cuándo el Estado tomó conocimiento): la brecha con la fecha de ocurrencia revela demoras de reporte y presencia territorial."
                   : "Reproduciendo: arrastrá o reproducí para ver la situación formarse. Las capas sin dimensión temporal se atenúan durante la reproducción."}

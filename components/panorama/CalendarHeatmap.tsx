@@ -142,23 +142,21 @@ export function CalendarHeatmap({
         {!hideHeading && (
           <h3
             id={titleId}
-            className="text-[var(--text-xs)] font-bold uppercase tracking-[0.12em] text-ln-op-mute"
+            className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
           >
             {title}
           </h3>
         )}
-        {methodNote && (
-          <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">{methodNote}</p>
-        )}
+        {methodNote && <p className="text-xs leading-snug text-ln-op-faint">{methodNote}</p>}
         {capped && (
-          <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+          <p className="text-xs leading-snug text-ln-op-faint">
             Últimos {CALENDAR_CAP_MONTHS} meses del período activo.
           </p>
         )}
       </div>
 
       {isEmpty ? (
-        <p className="text-[var(--text-sm)] leading-snug text-ln-op-mute">
+        <p className="text-sm leading-snug text-ln-op-mute">
           {emptyMessage ?? "Sin actividad temporal para mostrar en este período y alcance."}
         </p>
       ) : (
@@ -168,7 +166,7 @@ export function CalendarHeatmap({
                 aligns the labels with the cell rows below the month-label row. */}
             <div
               aria-hidden="true"
-              className="flex flex-col gap-0.5 text-[var(--text-xs)] leading-none text-ln-op-faint"
+              className="flex flex-col gap-0.5 text-xs leading-none text-ln-op-faint"
             >
               <div className="h-3.5" />
               {grid.weekdayLabels.map((w, r) => (
@@ -188,7 +186,7 @@ export function CalendarHeatmap({
                     <div
                       // biome-ignore lint/suspicious/noArrayIndexKey: columns are positional (week index) and never reorder
                       key={i}
-                      className="w-3 whitespace-nowrap text-[var(--text-xs)] leading-none text-ln-op-faint"
+                      className="w-3 whitespace-nowrap text-xs leading-none text-ln-op-faint"
                     >
                       {col.monthLabel ?? ""}
                     </div>
@@ -219,7 +217,7 @@ export function CalendarHeatmap({
           </div>
 
           {/* Sequential-intensity legend (SCALE_BLUE_SEQ, colorblind-safe). */}
-          <div className="flex items-center gap-1 text-[var(--text-xs)] text-ln-op-faint">
+          <div className="flex items-center gap-1 text-xs text-ln-op-faint">
             <span>Menos</span>
             {SCALE_BLUE_SEQ.map((c, i) => (
               <span
@@ -238,11 +236,11 @@ export function CalendarHeatmap({
       {/* A11y fallback table — the keyboard/screen-reader path. Rows mirror the
           INPUT series (days with data); each date filters when onDayClick is set. */}
       {tableData.length > 0 && (
-        <details className="text-[var(--text-sm)]">
-          <summary className="cursor-pointer text-[var(--text-xs)] font-medium text-ln-op-azul hover:underline">
+        <details className="text-sm">
+          <summary className="cursor-pointer text-xs font-medium text-ln-op-azul hover:underline">
             Ver datos
           </summary>
-          <table className="mt-2 w-full border-collapse text-[var(--text-xs)]">
+          <table className="mt-2 w-full border-collapse text-xs">
             <caption className="sr-only">
               Eventos por día — {grid.total} en total sobre {grid.dayCount} días
             </caption>

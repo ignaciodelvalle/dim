@@ -70,7 +70,7 @@ export function PanoramaMetricsColumn({
     // esta vista." copy so a degraded strip is never mistaken for "these
     // particular metrics aren't part of this vista".
     return (
-      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-warn">
+      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-center text-sm text-ln-op-warn">
         No pudimos cargar los indicadores en este momento.
       </p>
     );
@@ -83,7 +83,7 @@ export function PanoramaMetricsColumn({
     return (
       <p
         aria-busy="true"
-        className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute"
+        className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-sm text-ln-op-mute"
       >
         Cargando indicadores…
       </p>
@@ -95,7 +95,7 @@ export function PanoramaMetricsColumn({
     // out — say so instead of silently rendering nothing, which used to read
     // as "the column vanished" rather than "these metrics aren't available".
     return (
-      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute">
+      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line px-3 py-2 text-center text-sm text-ln-op-mute">
         Métricas no disponibles para esta vista.
       </p>
     );

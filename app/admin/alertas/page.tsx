@@ -138,7 +138,7 @@ export default async function AdminAlertasPage({
         eyebrow="Admin · Operaciones"
         title="Bandeja de alertas"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Alertas disparadas al cruzar un umbral suscripto. Reconocé, investigá, contactá a la
             autoridad de la jurisdicción y cerrá cada alerta. El SLA de atención (antigüedad)
             refuerza el grado sanitario del programa.
@@ -199,10 +199,10 @@ export default async function AdminAlertasPage({
         <OpCardBody>
           {degraded ? (
             <div className="space-y-3 py-4 text-center">
-              <p className="text-[var(--text-sm)] font-semibold text-ln-op-ink">
+              <p className="text-sm font-semibold text-ln-op-ink">
                 No pudimos cargar la bandeja de alertas.
               </p>
-              <p className="text-[var(--text-sm)] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 La consulta tardó demasiado o falló. Reintentá en unos segundos.
               </p>
               <a

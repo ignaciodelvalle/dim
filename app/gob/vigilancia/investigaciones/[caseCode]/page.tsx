@@ -112,7 +112,7 @@ export default async function InvestigacionDetailPage({
 
       <header className="space-y-2">
         <div className="flex items-center gap-3 flex-wrap">
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             {/* eslint-disable-next-line react/jsx-curly-brace-presence */}
             {"Investigación de brote"}
             {diseaseCode ? ` — ${diseaseCode}` : ""}

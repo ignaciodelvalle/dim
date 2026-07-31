@@ -206,7 +206,7 @@ function MedStat({
         {label}
       </dt>
       <dd
-        className={`m-0 font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold leading-none ${valueClass}`}
+        className={`m-0 font-[var(--font-ln-serif)] text-title font-semibold leading-none ${valueClass}`}
       >
         {value}
       </dd>

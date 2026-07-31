@@ -145,7 +145,7 @@ export async function UsuariosScreen({ searchParams: sp, underHub = false }: Usu
         eyebrow={base === "/admin" ? "Admin · Usuarios" : "miMAR Gobierno · Usuarios"}
         title="Usuarios"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Buscá por nombre y proponé cambios de rol. Las búsquedas quedan registradas en el audit
             log.
           </p>

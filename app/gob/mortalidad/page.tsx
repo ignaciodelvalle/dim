@@ -235,12 +235,12 @@ export default async function GobMortalidadPage({
             {/* The universal claim yields to the narrowed-view caption (never both). */}
             {profile.role === "admin" ? (
               narrowedView ? null : (
-                <p className="text-[var(--text-md)] text-ln-op-mute">
+                <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.
                 </p>
               )
             ) : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 {!traceabilityLegalGap && traceabilityLegalBasis
                   ? `Trazabilidad de la disposición final de fallecimientos (${traceabilityLegalBasis}) en tu cobertura.`
                   : // Provincial gap: the mandate has no province with a

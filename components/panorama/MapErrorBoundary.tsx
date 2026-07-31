@@ -49,16 +49,14 @@ export class MapErrorBoundary extends Component<Props, State> {
           role="alert"
           className="flex h-full min-h-[440px] w-full flex-col items-center justify-center gap-3 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-6 text-center"
         >
-          <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
-            No pudimos mostrar el mapa
-          </p>
-          <p className="max-w-sm text-[var(--text-sm)] text-ln-op-mute">
+          <p className="text-md font-semibold text-ln-op-ink">No pudimos mostrar el mapa</p>
+          <p className="max-w-sm text-sm text-ln-op-mute">
             Ocurrió un problema al dibujar el panorama. El resto del tablero sigue disponible.
           </p>
           <button
             type="button"
             onClick={this.handleRetry}
-            className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+            className="rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-azul/5 px-3.5 py-1.5 text-sm font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
           >
             Recargar el panorama
           </button>

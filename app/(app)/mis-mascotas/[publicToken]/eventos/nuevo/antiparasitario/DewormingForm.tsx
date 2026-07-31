@@ -178,7 +178,7 @@ export function DewormingForm({
             <button
               type="button"
               onClick={confirmSameDay}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-2 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90 active:scale-[0.98] active:opacity-90"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90 active:scale-[0.98] active:opacity-90"
             >
               Sí, registrar otro igual
             </button>

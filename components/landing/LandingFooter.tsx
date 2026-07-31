@@ -19,7 +19,7 @@ export function LandingFooter() {
                 <span className="lp-brand-sub">Mi Mascota Argentina</span>
               </span>
             </div>
-            <p className="max-w-xs text-[var(--text-md)] leading-relaxed text-[var(--color-ln-mute)]">
+            <p className="max-w-xs text-md leading-relaxed text-[var(--color-ln-mute)]">
               El registro nacional de identidad y salud de las mascotas de la Argentina. Una
               iniciativa pública.
             </p>

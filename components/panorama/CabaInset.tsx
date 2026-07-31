@@ -402,13 +402,13 @@ export function CabaInset({
   const content = (
     <>
       <div className="flex items-baseline justify-between px-2 py-1 text-ln-op-ink-2">
-        <span className="text-[var(--text-xs)] font-medium">
+        <span className="text-xs font-medium">
           CABA
           {referenceNote && (
             <span className="ml-1 font-normal text-ln-op-mute">· {referenceNote}</span>
           )}
         </span>
-        <span className="text-[var(--text-xs)] text-ln-op-mute">
+        <span className="text-xs text-ln-op-mute">
           {scopeLabel ?? (uniformFill ? "valor provincial" : "por barrio")}
         </span>
       </div>

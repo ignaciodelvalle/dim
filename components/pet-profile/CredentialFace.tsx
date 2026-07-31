@@ -340,7 +340,7 @@ export function CredentialFace({
                 data-section="compliance-summary"
                 className="mb-2.5 flex items-center justify-between gap-3"
               >
-                <p className="m-0 text-[var(--text-sm)] font-medium text-[var(--color-ln-ink-2)]">
+                <p className="m-0 text-sm font-medium text-[var(--color-ln-ink-2)]">
                   {complianceSummary}
                 </p>
                 {complianceStamp && <LnVstamp variant={complianceStamp} />}

@@ -176,7 +176,7 @@ export default async function AdminLibroPage({
         eyebrow="Admin · Gobernanza"
         title="Libro de eventos"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Registro append-only — nada se edita, todo se anexa. Las correcciones son eventos nuevos
             que referencian al original; el original se conserva.
           </p>

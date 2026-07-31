@@ -184,13 +184,13 @@ export function VaccinationForm({
                 listClassName="absolute left-0 right-0 z-20 mt-1 max-h-60 overflow-auto rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] py-1 shadow-lg"
                 renderItem={(v, { active }) => (
                   <div
-                    className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-[var(--text-sm)] text-[var(--color-ln-ink)] transition-colors ${
+                    className={`flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm text-[var(--color-ln-ink)] transition-colors ${
                       active ? "bg-[var(--color-ln-stripe)]" : "hover:bg-[var(--color-ln-stripe)]"
                     }`}
                   >
                     <span>{v.name}</span>
                     {v.isCore && (
-                      <span className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-wide text-[var(--color-ln-mute)]">
+                      <span className="font-[var(--font-ln-mono)] text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
                         Núcleo
                       </span>
                     )}
@@ -333,7 +333,7 @@ export function VaccinationForm({
             <button
               type="button"
               onClick={confirmSameDay}
-              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-2 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90 active:scale-[0.98] active:opacity-90"
+              className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-2 text-sm font-semibold text-white transition-colors hover:opacity-90 active:scale-[0.98] active:opacity-90"
             >
               Sí, registrar otra igual
             </button>

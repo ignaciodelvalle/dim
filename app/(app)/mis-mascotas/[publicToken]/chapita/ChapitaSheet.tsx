@@ -30,7 +30,7 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
           <h1 className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
             Chapita de {petName}
           </h1>
-          <p className="mt-1 text-[var(--text-md)] text-[var(--color-ln-mute)]">
+          <p className="mt-1 text-md text-[var(--color-ln-mute)]">
             Imprimí al 100% (sin “ajustar a la página”), recortá el formato que te sirva y
             plastificalo o metelo en un portachapita.
           </p>
@@ -51,7 +51,7 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
             <div className="chapita-cut chapita-circle justify-center p-[2.5mm]">
               <QrBlock qrSvg={qrSvg} size="22mm" />
             </div>
-            <p className="chapita-no-print mt-2 text-center text-[var(--text-sm)] text-[var(--color-ln-mute)]">
+            <p className="chapita-no-print mt-2 text-center text-sm text-[var(--color-ln-mute)]">
               Portachapita Ø30mm
             </p>
           </div>
@@ -66,7 +66,7 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
                 <p className="chapita-tag-hint">Escaneame si me perdí</p>
               </div>
             </div>
-            <p className="chapita-no-print mt-2 text-center text-[var(--text-sm)] text-[var(--color-ln-mute)]">
+            <p className="chapita-no-print mt-2 text-center text-sm text-[var(--color-ln-mute)]">
               Tag de collar 50×30mm
             </p>
           </div>
@@ -84,7 +84,7 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
                 </p>
               </div>
             </div>
-            <p className="chapita-no-print mt-2 text-center text-[var(--text-sm)] text-[var(--color-ln-mute)]">
+            <p className="chapita-no-print mt-2 text-center text-sm text-[var(--color-ln-mute)]">
               Tarjeta billetera 85,6×54mm
             </p>
           </div>

@@ -146,7 +146,7 @@ export function StaticFirstMap({
             type="button"
             onClick={() => setActivated(true)}
             aria-describedby={helpId}
-            className="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] bg-ln-op-azul px-4 text-[var(--text-md)] font-medium text-white hover:bg-ln-op-azul-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
+            className="mt-1 inline-flex min-h-11 items-center gap-1.5 rounded-[var(--radius-md)] bg-ln-op-azul px-4 text-md font-medium text-white hover:bg-ln-op-azul-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
           >
             Activar mapa interactivo
           </button>

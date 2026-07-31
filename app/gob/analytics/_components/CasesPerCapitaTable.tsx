@@ -31,7 +31,7 @@ export function CasesPerCapitaTable({ rows }: Props) {
 
   if (ranked.length === 0 && noCensus.length === 0) {
     return (
-      <p className="text-[var(--text-md)] text-ln-op-mute italic">
+      <p className="text-md text-ln-op-mute italic">
         Sin casos abiertos en la cobertura seleccionada.
       </p>
     );
@@ -40,7 +40,7 @@ export function CasesPerCapitaTable({ rows }: Props) {
   return (
     <div className="space-y-3">
       {ranked.length > 0 && (
-        <table className="w-full text-[var(--text-md)]" aria-labelledby="cap-percapita-title">
+        <table className="w-full text-md" aria-labelledby="cap-percapita-title">
           <caption id="cap-percapita-title" className="sr-only">
             Provincias con mayor cantidad de casos abiertos por cada 10.000 habitantes
           </caption>
@@ -78,7 +78,7 @@ export function CasesPerCapitaTable({ rows }: Props) {
         </table>
       )}
       {noCensus.length > 0 && (
-        <p className="text-[var(--text-sm)] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           Sin dato de población censal (INDEC 2022) — se muestra el conteo bruto:{" "}
           {noCensus.map((r) => `${r.province} (${r.count})`).join(", ")}.
         </p>

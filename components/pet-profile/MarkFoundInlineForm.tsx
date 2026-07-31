@@ -28,7 +28,7 @@ export function MarkFoundInlineForm({
       <button
         type="submit"
         disabled={isPending}
-        className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-[var(--text-sm)] font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-50"
+        className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-ok px-4 text-sm font-semibold text-white transition-colors hover:opacity-90 disabled:opacity-50"
       >
         {isPending ? "Guardando…" : label}
       </button>

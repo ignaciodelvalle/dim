@@ -34,7 +34,7 @@ export default async function OrgCensoPage({
     return (
       <div className="space-y-6">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Censo" }]} />
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Censo de animales</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Censo de animales</h1>
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-6 text-[13px] text-ln-op-mute">
           El censo de ocupación solo está disponible para refugios y redes de rescate con acceso a
           ingresos.
@@ -69,7 +69,7 @@ export default async function OrgCensoPage({
     <div className="space-y-6">
       <div className="space-y-1">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Censo" }]} />
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Censo de animales</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Censo de animales</h1>
         <p className="text-[13px] text-ln-op-mute">
           Animales actualmente en custodia de{" "}
           <strong className="text-ln-op-ink-2">{organization.displayName}</strong>.

@@ -149,7 +149,7 @@ export function LostPetRow({ pet, caseCode, showOwnerDetail }: LostPetRowProps) 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 space-y-0.5">
             <div className="flex items-center gap-2 flex-wrap">
-              <p className="text-[var(--text-md)] font-medium text-ln-op-ink">{pet.petName}</p>
+              <p className="text-md font-medium text-ln-op-ink">{pet.petName}</p>
               <OpPill tone="neutral">{speciesLabel(pet.species)}</OpPill>
               <OpPill tone={statusTone}>{statusLabel}</OpPill>
             </div>
@@ -179,7 +179,7 @@ export function LostPetRow({ pet, caseCode, showOwnerDetail }: LostPetRowProps) 
                 <OpCodeBadge tone="blue">{caseCode}</OpCodeBadge>
               </Link>
             )}
-            <p className="text-[var(--text-md)] font-medium text-ln-op-ink">{pet.petName}</p>
+            <p className="text-md font-medium text-ln-op-ink">{pet.petName}</p>
             <OpPill tone="neutral">{speciesLabel(pet.species)}</OpPill>
             <OpPill tone={statusTone}>{statusLabel}</OpPill>
           </div>

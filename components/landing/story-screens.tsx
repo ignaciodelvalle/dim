@@ -366,7 +366,7 @@ export function EstadoConsole() {
         <div>
           <p className="lp-eyebrow">Vista · Estado</p>
           <h3 className="lp-display lp-h-sub mt-3">Tendencias, no planillas.</h3>
-          <p className="lp-lead mt-3.5 text-[var(--text-lg)]">
+          <p className="lp-lead mt-3.5 text-lg">
             Cada miMAR suma a la foto sanitaria del país. La consola llega prefiltrada: señales
             zoonóticas por jurisdicción, en tiempo real.
           </p>

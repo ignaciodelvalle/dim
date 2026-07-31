@@ -57,18 +57,18 @@ function QueueTile({
         TONE_CARD[tone],
       ].join(" ")}
     >
-      <span className="text-[var(--text-sm)] font-bold uppercase leading-tight tracking-[0.1em] text-ln-op-mute">
+      <span className="text-sm font-bold uppercase leading-tight tracking-[0.1em] text-ln-op-mute">
         {label}
       </span>
       <span
         className={[
-          "mt-1.5 font-ln-serif text-[var(--text-2xl)] font-semibold leading-none tracking-[-0.02em] tabular-nums",
+          "mt-1.5 font-ln-serif text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums",
           TONE_VALUE[tone],
         ].join(" ")}
       >
         {count}
       </span>
-      {sub ? <span className="mt-1 text-[var(--text-sm)] text-ln-op-mute">{sub}</span> : null}
+      {sub ? <span className="mt-1 text-sm text-ln-op-mute">{sub}</span> : null}
     </Link>
   );
 }
@@ -103,10 +103,10 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
         {/* Aprobaciones — the one queue that was a KPI, now broken out per type. */}
         <div className="space-y-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h4 className="text-[var(--text-sm)] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-ln-op-mute">
               Aprobaciones {"·"} {approvals.pendingTotal} pendientes
             </h4>
-            <span className="text-[var(--text-sm)] text-ln-op-mute">{oldestNote}</span>
+            <span className="text-sm text-ln-op-mute">{oldestNote}</span>
           </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             {/* Each approval tile deep-links to its OWN filtered queue via ?type=
@@ -136,7 +136,7 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
 
         {/* Colas operativas — previously invisible on the home. */}
         <div className="space-y-2">
-          <h4 className="text-[var(--text-sm)] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             Colas operativas
           </h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

@@ -121,7 +121,7 @@ export default async function OrgMaltratoRecibidosPage({
         <OpCrumbs
           items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Denuncias de maltrato" }]}
         />
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Denuncias de maltrato — solo para roles institucionales
         </h1>
         <OpBreach
@@ -176,7 +176,7 @@ export default async function OrgMaltratoRecibidosPage({
         <div className="space-y-1">
           {/* "Maltrato" — the surface's single name across nav, breadcrumb and
               H1 (QA round 2 2026-07-03 finished unifying the 3 old names). */}
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Maltrato</h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">Maltrato</h1>
           <p className="text-[13px] text-ln-op-mute">{organization.displayName}</p>
         </div>
         <Link

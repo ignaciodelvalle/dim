@@ -4019,7 +4019,7 @@ export function PanoramaConsole({
           naming what this pane IS — the raw records behind the current
           filtered view — matching the caption idiom used elsewhere in the
           dock (the disclosures right below, MapLegends' framing line). */}
-      <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
+      <p className="text-xs leading-snug text-ln-op-mute">
         Los registros crudos detrás de la vista filtrada actual.
       </p>
       {/* Cowork QA ronda 3 §3: the EVENT total (Σ cell counts across the active
@@ -4028,7 +4028,7 @@ export function PanoramaConsole({
           longer sits over a populated value table reading as a contradiction. The
           unit count is units-WITH-events (never the rate count-density rows). */}
       {dockRecordSummary.hasCountLayer && (
-        <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] tabular-nums text-ln-op-ink-2">
+        <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs tabular-nums text-ln-op-ink-2">
           {/* Period-flow layers say "Eventos en el período"; a current-state stock
               (mortalidad, acceso-veterinario) says "Registros (estado actual)" so
               the label matches what the number is (Cursor review). */}
@@ -4045,14 +4045,14 @@ export function PanoramaConsole({
         </p>
       )}
       {referenceLayerLabels.length > 0 && (
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs text-ln-op-mute">
           {referenceLayerLabels.length === 1
             ? `${referenceLayerLabels[0]} se muestra solo en el mapa (capa de referencia); no se tabula en Registros.`
             : `${referenceLayerLabels.join(" y ")} se muestran solo en el mapa (capas de referencia); no se tabulan en Registros.`}
         </p>
       )}
       {localityRateInView && (
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs text-ln-op-mute">
           La cobertura por unidad se muestra como conteo; el porcentaje se calcula solo a nivel
           provincia.
         </p>
@@ -4062,12 +4062,12 @@ export function PanoramaConsole({
           numbers are never mistaken for a contradiction (same disclosure pattern
           as the reference-layer / rate-count notes above). */}
       {percapitaActive && (
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-[var(--text-xs)] text-ln-op-mute">
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs text-ln-op-mute">
           El mapa pinta tasas por 10.000 habitantes; esta tabla y el ranking muestran conteos.
         </p>
       )}
       {mapTableRows.length > 0 && (
-        <p className="text-[var(--text-xs)] font-medium text-ln-op-ink-2">Valor por unidad</p>
+        <p className="text-xs font-medium text-ln-op-ink-2">Valor por unidad</p>
       )}
       <MapDataTable
         rows={mapTableRows}
@@ -4499,7 +4499,7 @@ export function PanoramaConsole({
           {/* Item 3: the panel header surfaces BOTH facts, each labelled — the
               real active-layer count AND the modifiers-over-the-vista count — so
               the tab badge's bare number is never read as a layer count. */}
-          <p className="text-[var(--text-xs)] text-ln-op-mute">
+          <p className="text-xs text-ln-op-mute">
             {describeCapasMeta({
               activeLayerCount: activeLayers.length,
               modifierCount: filtroBadge,
@@ -4564,25 +4564,25 @@ export function PanoramaConsole({
       render: () => (
         <div className="space-y-3">
           {/* P5: what the shared link reproduces, in words (explainViewState). */}
-          <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-2 text-[var(--text-xs)] leading-snug text-ln-op-ink-2">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-2 text-xs leading-snug text-ln-op-ink-2">
             {viewExplanation}
           </p>
           <div className="space-y-1">
             <button
               type="button"
               onClick={copyView}
-              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm text-ln-op-ink hover:bg-ln-op-stripe"
             >
               <Icon name="enlace" size="sm" decorative /> Copiar vista
-              {copied && <span className="text-[var(--text-xs)] text-ln-op-ok">· copiada</span>}
+              {copied && <span className="text-xs text-ln-op-ok">· copiada</span>}
             </button>
-            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+            <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
               Copia un enlace con la vista, el alcance y el período actuales.
             </p>
           </div>
           <div className="space-y-1">
             <SavedViewsPopover />
-            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+            <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
               Recuerda tableros con nombre para volver a ellos rápido.
             </p>
           </div>
@@ -4591,7 +4591,7 @@ export function PanoramaConsole({
               of exactly what it captures. The dock bar no longer carries its own
               scattered "Exportar CSV". */}
           <div className="space-y-0.5 border-t border-ln-op-line-2 pt-2">
-            <p className="px-2.5 text-[var(--text-xs)] font-semibold uppercase tracking-[0.08em] text-ln-op-faint">
+            <p className="px-2.5 text-xs font-semibold uppercase tracking-[0.08em] text-ln-op-faint">
               Descargas
             </p>
           </div>
@@ -4604,16 +4604,16 @@ export function PanoramaConsole({
                 // repo's standard sonner toast (Toaster is mounted in the root
                 // layout), so the operator knows the export started.
                 onClick={() => toast.success("Descarga iniciada: panorama-mapa.csv")}
-                className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+                className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm text-ln-op-ink hover:bg-ln-op-stripe"
               >
                 <Icon name="descargar" size="sm" decorative /> Exportar CSV
               </a>
             ) : (
-              <span className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-faint">
+              <span className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm text-ln-op-faint">
                 <Icon name="descargar" size="sm" decorative /> Exportar CSV
               </span>
             )}
-            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+            <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
               {dockCsvHref !== null
                 ? "Descarga la tabla de datos por unidad (la misma de Registros) en CSV."
                 : "No hay datos por unidad para exportar en esta vista."}
@@ -4623,11 +4623,11 @@ export function PanoramaConsole({
             <button
               type="button"
               onClick={() => exportPngFnRef.current?.()}
-              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm text-ln-op-ink hover:bg-ln-op-stripe"
             >
               <Icon name="exportar-imagen" size="sm" decorative /> Exportar PNG
             </button>
-            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+            <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
               Captura el mapa como imagen, con una nota de método al pie.
             </p>
           </div>
@@ -4635,11 +4635,11 @@ export function PanoramaConsole({
             <button
               type="button"
               onClick={handlePrintInforme}
-              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] text-ln-op-ink hover:bg-ln-op-stripe"
+              className="flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm text-ln-op-ink hover:bg-ln-op-stripe"
             >
               <Icon name="nota" size="sm" decorative /> Informe de situación
             </button>
-            <p className="px-2.5 text-[var(--text-xs)] leading-snug text-ln-op-mute">
+            <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
               Genera un informe imprimible de la vista actual (indicadores, ranking y método) para
               imprimir o guardar como PDF.
             </p>
@@ -4663,7 +4663,7 @@ export function PanoramaConsole({
       // panorama QA root-cause #6: no Simple/Detalle toggle — always full detail.
       detail: true,
       render: () => (
-        <div className="space-y-2 text-[var(--text-sm)] text-ln-op-mute">
+        <div className="space-y-2 text-sm text-ln-op-mute">
           <p className="max-w-prose">
             Mapa situacional por capas sobre el registro de eventos. Las superficies de detalle
             (mortalidad, vigilancia, pérdidas) viven como capas de esta misma vista.
@@ -4719,7 +4719,7 @@ export function PanoramaConsole({
                 nothing scrolls, but it must also never be hidden behind a click. */}
             {demoNotice != null && (
               <span
-                className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-2 py-0.5 text-[var(--text-xs)] font-medium text-ln-op-ink-2"
+                className="rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-2 py-0.5 text-xs font-medium text-ln-op-ink-2"
                 title="El dataset cargado es sintético (densidad ponderada por Censo 2022); no representa casos reales."
               >
                 Datos de demostración
@@ -4734,7 +4734,7 @@ export function PanoramaConsole({
               <span
                 suppressHydrationWarning
                 title="Fecha y hora del evento más reciente dentro del alcance seleccionado (no es la frescura general de los datos). No cambia al mover la línea de tiempo."
-                className="rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-[var(--text-xs)] tabular-nums text-ln-op-mute"
+                className="rounded-full border border-ln-op-line bg-ln-op-card px-2.5 py-0.5 text-xs tabular-nums text-ln-op-mute"
               >
                 Último evento en el alcance:{" "}
                 {new Date(kpis.dataAsOf).toLocaleString("es-AR", {
@@ -4801,7 +4801,7 @@ export function PanoramaConsole({
             aria-live="polite"
             className="pointer-events-none absolute inset-0 z-[5] flex items-center justify-center bg-ln-op-card/45 backdrop-blur-[1px]"
           >
-            <span className="animate-pulse rounded-full border border-ln-op-line bg-ln-op-card/95 px-4 py-1.5 text-[var(--text-sm)] font-medium text-ln-op-mute shadow-sm">
+            <span className="animate-pulse rounded-full border border-ln-op-line bg-ln-op-card/95 px-4 py-1.5 text-sm font-medium text-ln-op-mute shadow-sm">
               Cargando el mapa…
             </span>
           </div>
@@ -4851,7 +4851,7 @@ export function PanoramaConsole({
                   summaryTestId="panorama-scope-pill"
                   panelClassName="left-0 w-80 max-w-[80vw]"
                   closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
-                  summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-[var(--text-sm)] font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
+                  summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-sm font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
                   summary={<ScopePillSummary scopeLabel={liveScopeLabel || "Nacional"} />}
                 >
                   <div className="space-y-3">
@@ -4871,7 +4871,7 @@ export function PanoramaConsole({
                       />
                     )}
                     {filtersSlot}
-                    <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+                    <p className="text-xs leading-snug text-ln-op-faint">
                       También podés hacer clic en una provincia del mapa.
                     </p>
                   </div>
@@ -4880,7 +4880,7 @@ export function PanoramaConsole({
               {/* #53 QOL — the vista, named ONCE (the standalone shadowed pill is
                   gone; the dock meta / caption serve other surfaces). */}
               {vistaName && (
-                <p className="text-[var(--text-xs)] text-ln-op-mute">
+                <p className="text-xs text-ln-op-mute">
                   Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
                 </p>
               )}
@@ -4898,15 +4898,13 @@ export function PanoramaConsole({
                   beside truncated KPI numbers. screenViewExplanation trims what
                   this container already says; the travelling copies (link,
                   informe, embed) still get the whole sentence. */}
-              <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
-                {screenExplanation}
-              </p>
+              <p className="text-xs leading-snug text-ln-op-mute">{screenExplanation}</p>
               {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
                   changes the board silently; one tap returns to the vista left. */}
               {personalizadaFrom !== null && activePresetId === null && (
                 <output
                   aria-live="polite"
-                  className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-[var(--text-xs)] text-ln-op-ink-2"
+                  className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-xs text-ln-op-ink-2"
                 >
                   <span>
                     Editaste la vista — ahora es{" "}
@@ -4952,7 +4950,7 @@ export function PanoramaConsole({
                   number over a department map never reads as incoherent. Matches
                   the on-map aggregation badge so label = number = map. */}
               {kpiScopeCoarserThanMap && (
-                <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+                <p className="text-xs leading-snug text-ln-op-faint">
                   Indicadores: total del alcance ({liveScopeLabel || "Argentina"}). El mapa muestra
                   el detalle por {aggregationLabel.toLowerCase()}.
                 </p>

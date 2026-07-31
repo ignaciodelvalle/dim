@@ -28,7 +28,7 @@ export function LnOfflineBanner({ className }: LnOfflineBannerProps = {}) {
       className={[
         "block w-full border-b px-4 py-1.5 text-center",
         "border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)]",
-        "text-[var(--text-sm)] text-[var(--color-ln-ink-2)]",
+        "text-sm text-[var(--color-ln-ink-2)]",
         className,
       ]
         .filter(Boolean)

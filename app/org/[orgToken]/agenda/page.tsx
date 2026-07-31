@@ -176,7 +176,7 @@ export default async function OrgAgendaPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Agenda del día</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Agenda del día</h1>
       </header>
 
       {/* Date picker nav */}

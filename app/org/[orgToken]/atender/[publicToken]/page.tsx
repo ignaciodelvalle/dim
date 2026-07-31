@@ -79,7 +79,7 @@ export default async function AtenderSignPage({
               { label: pet.name },
             ]}
           />
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             Atendiendo a {pet.name} · {speciesLabel(pet.species)}
           </h1>
           <p className="text-[13px] text-ln-op-ink-2">
@@ -87,7 +87,7 @@ export default async function AtenderSignPage({
             {signer.matriculaVerified ? " · verificado por profesional" : "."}
           </p>
           {!signer.matriculaVerified && (
-            <p className="text-[var(--text-sm)] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               Queda registrado a nombre de la organización: es un registro válido, pero el sello
               “verificado por profesional” requiere un firmante con matrícula validada.
             </p>

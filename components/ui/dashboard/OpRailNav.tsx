@@ -54,7 +54,7 @@ function NavLink({
         ].join(" ")}
       >
         <span className="flex-1 truncate">{item.label}</span>
-        <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-[var(--text-xs)] font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
+        <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
           Próximamente
         </span>
       </span>
@@ -143,7 +143,7 @@ export function OpRailNav({ nav, sections, variant = "gob" }: Props) {
               <summary
                 className={[
                   "flex min-h-11 cursor-pointer select-none list-none items-center justify-between",
-                  "rounded-[var(--radius-sm)] px-2 py-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em]",
+                  "rounded-[var(--radius-sm)] px-2 py-2 text-xs font-semibold uppercase tracking-[0.18em]",
                   "text-[var(--color-ln-op-rail-mute)] hover:bg-[rgba(255,255,255,0.05)]",
                   "[&::-webkit-details-marker]:hidden",
                 ].join(" ")}
@@ -172,7 +172,7 @@ export function OpRailNav({ nav, sections, variant = "gob" }: Props) {
         return (
           <div key={section.label} className="flex flex-col">
             {section.label && (
-              <div className="mb-1.5 px-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em] text-[var(--color-ln-op-rail-mute)]">
+              <div className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--color-ln-op-rail-mute)]">
                 {section.label}
               </div>
             )}

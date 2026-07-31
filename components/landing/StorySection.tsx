@@ -90,9 +90,7 @@ function CastFila() {
     <div className="lp-castfila" data-section="cast-fila">
       <div className="lp-castfila-pet">
         <LnPetPhoto alt={PAMPA.name} status="ok" size={148} />
-        <span className="font-[var(--font-ln-serif)] text-[var(--text-xl)] font-semibold">
-          {PAMPA.name}
-        </span>
+        <span className="font-[var(--font-ln-serif)] text-xl font-semibold">{PAMPA.name}</span>
         <LnStatusFlag status="ok" />
       </div>
       <div className="lp-castfila-sep" aria-hidden="true" />

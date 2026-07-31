@@ -37,7 +37,7 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
             {pet.color && <Field label="Color" value={pet.color} />}
           </div>
           {(pet.jurisdictionLocality || pet.jurisdictionProvince) && (
-            <p className="text-[var(--text-xs)] text-ln-op-mute">
+            <p className="text-xs text-ln-op-mute">
               {[pet.jurisdictionLocality, pet.jurisdictionProvince].filter(Boolean).join(", ")}
             </p>
           )}
@@ -48,7 +48,7 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
         <OpCardHead title="Microchip" />
         <OpCardBody>
           {pet.microchipCode ? (
-            <p className="font-mono text-[var(--text-sm)] text-ln-op-ink">{pet.microchipCode}</p>
+            <p className="font-mono text-sm text-ln-op-ink">{pet.microchipCode}</p>
           ) : (
             <p className="text-sm text-ln-op-mute">Sin microchip activo registrado.</p>
           )}
@@ -58,7 +58,7 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
       <OpCard>
         <OpCardHead title="Titular registrado" />
         <OpCardBody>
-          <p className="text-[var(--text-sm)] text-ln-op-ink">
+          <p className="text-sm text-ln-op-ink">
             {pet.ownerOfRecord ?? <span className="text-ln-op-mute">Sin titular registrado.</span>}
           </p>
         </OpCardBody>
@@ -79,10 +79,8 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
                     className="flex items-baseline justify-between gap-3 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2 hover:bg-ln-op-stripe"
                   >
                     <span className="min-w-0">
-                      <span className="font-mono text-[var(--text-xs)] text-ln-op-ink-2">
-                        {c.publicCode}
-                      </span>
-                      <span className="ml-2 text-[var(--text-sm)] text-ln-op-ink">
+                      <span className="font-mono text-xs text-ln-op-ink-2">{c.publicCode}</span>
+                      <span className="ml-2 text-sm text-ln-op-ink">
                         {caseKindLabel(c.caseKind)}
                       </span>
                     </span>
@@ -102,7 +100,7 @@ function Field({ label, value, mono = false }: { label: string; value: string; m
   return (
     <div className="space-y-0.5">
       <p className="text-xs uppercase tracking-wider text-ln-op-mute">{label}</p>
-      <p className={`text-[var(--text-sm)] text-ln-op-ink ${mono ? "font-mono" : ""}`}>{value}</p>
+      <p className={`text-sm text-ln-op-ink ${mono ? "font-mono" : ""}`}>{value}</p>
     </div>
   );
 }

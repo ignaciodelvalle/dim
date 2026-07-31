@@ -70,7 +70,7 @@ export function FiltroPanel({
       {vista && (
         // The vista name is stated ONCE here so the rows below can drop the stem
         // it carries (de-dup, item 5).
-        <p className="text-[var(--text-xs)] text-ln-op-mute">
+        <p className="text-xs text-ln-op-mute">
           Vista · <span className="font-semibold text-ln-op-ink-2">{vista}</span>
         </p>
       )}
@@ -79,7 +79,7 @@ export function FiltroPanel({
         if (layers.length === 0) return null;
         return (
           <fieldset key={role} className="m-0 space-y-0.5 border-0 p-0">
-            <legend className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute">
+            <legend className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
               {title}
             </legend>
             <ul className="space-y-0.5">
@@ -98,7 +98,7 @@ export function FiltroPanel({
                 return (
                   <li key={layer.id}>
                     <label
-                      className={`flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] px-1.5 py-0.5 text-[var(--text-sm)] text-ln-op-ink-2 ${
+                      className={`flex min-h-11 items-center gap-2 rounded-[var(--radius-md)] px-1.5 py-0.5 text-sm text-ln-op-ink-2 ${
                         isBlocked
                           ? "cursor-not-allowed opacity-40"
                           : "cursor-pointer hover:bg-ln-op-stripe"
@@ -129,21 +129,18 @@ export function FiltroPanel({
                       />
                       <span className="min-w-0 flex-1 truncate">{rowLabel}</span>
                       {detail && active && !st?.loading && (
-                        <span className="shrink-0 tabular-nums text-[var(--text-xs)] text-ln-op-mute">
+                        <span className="shrink-0 tabular-nums text-xs text-ln-op-mute">
                           {st.count.toLocaleString("es-AR")}
                         </span>
                       )}
                       {st?.loading && (
-                        <span
-                          className="shrink-0 text-[var(--text-xs)] text-ln-op-mute"
-                          aria-live="polite"
-                        >
+                        <span className="shrink-0 text-xs text-ln-op-mute" aria-live="polite">
                           cargando…
                         </span>
                       )}
                       {detail && active && !st?.loading && st.suppressedCount > 0 && (
                         <span
-                          className="shrink-0 rounded-full border border-ln-op-line px-1.5 text-[var(--text-xs)] text-ln-op-mute"
+                          className="shrink-0 rounded-full border border-ln-op-line px-1.5 text-xs text-ln-op-mute"
                           title="Celdas ocultas por privacidad (k-anonimato, k=5)"
                         >
                           {st.suppressedCount} supr.
@@ -152,7 +149,7 @@ export function FiltroPanel({
                     </label>
                     {/* Detalle: the honest one-line method note (layer.description). */}
                     {detail && (
-                      <p className="px-1.5 pb-1 pl-8 text-[var(--text-xs)] leading-snug text-ln-op-faint">
+                      <p className="px-1.5 pb-1 pl-8 text-xs leading-snug text-ln-op-faint">
                         {layer.description}
                       </p>
                     )}
@@ -160,7 +157,7 @@ export function FiltroPanel({
                     {isBlocked && compatibilityHint && (
                       <p
                         id={`filtro-hint-${layer.id}`}
-                        className="px-1.5 pl-8 text-[var(--text-xs)] text-ln-op-mute"
+                        className="px-1.5 pl-8 text-xs text-ln-op-mute"
                       >
                         {compatibilityHint}
                       </p>
@@ -172,7 +169,7 @@ export function FiltroPanel({
                     {lodHint && (
                       <p
                         id={`filtro-lod-${layer.id}`}
-                        className="px-1.5 pl-8 text-[var(--text-xs)] leading-snug text-ln-op-mute"
+                        className="px-1.5 pl-8 text-xs leading-snug text-ln-op-mute"
                         role="note"
                       >
                         {lodHint}
@@ -183,7 +180,7 @@ export function FiltroPanel({
                       <div className="flex items-center gap-2 px-1.5 pb-1 pl-8">
                         <label
                           htmlFor={`filtro-opacity-${layer.id}`}
-                          className="text-[var(--text-xs)] text-ln-op-mute"
+                          className="text-xs text-ln-op-mute"
                         >
                           Opacidad
                         </label>
@@ -209,10 +206,8 @@ export function FiltroPanel({
                           onChange={() => onToggleVerified(layer.id)}
                         />
                         <span className="flex flex-col gap-0.5">
-                          <span className="text-[var(--text-xs)] font-semibold">
-                            Solo firmado por matrícula
-                          </span>
-                          <span className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
+                          <span className="text-xs font-semibold">Solo firmado por matrícula</span>
+                          <span className="text-xs leading-snug text-ln-op-mute">
                             Cuenta solo las dosis firmadas por un veterinario matriculado.
                           </span>
                         </span>
@@ -226,7 +221,7 @@ export function FiltroPanel({
         );
       })}
       {!detail && (
-        <p className="text-[var(--text-xs)] leading-snug text-ln-op-faint">
+        <p className="text-xs leading-snug text-ln-op-faint">
           Cambiá a Detalle para ver qué mide cada capa y sus conteos.
         </p>
       )}

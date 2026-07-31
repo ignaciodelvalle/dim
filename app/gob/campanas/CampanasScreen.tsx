@@ -185,12 +185,12 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
             {/* The universal claim yields to the narrowed-view caption (never both). */}
             {profile.role === "admin" ? (
               narrowedView ? null : (
-                <p className="text-[var(--text-md)] text-ln-op-mute">
+                <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.
                 </p>
               )
             ) : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 Inscripciones, completitud, impacto sanitario y alcance geográfico de las campañas
                 sanitarias en tu cobertura.
               </p>
@@ -218,7 +218,7 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
           ] satisfies OpFilterAxis[]
         }
         actions={
-          <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
+          <a href={exportHref} className="text-md text-ln-op-azul hover:underline">
             Exportar CSV →
           </a>
         }
@@ -340,7 +340,7 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
               title={
                 <span id={panelOfferingsId}>
                   Performance por servicio
-                  <span className="ml-2 text-[var(--text-sm)] font-normal text-ln-op-mute">
+                  <span className="ml-2 text-sm font-normal text-ln-op-mute">
                     ({dashboard.offerings.length}{" "}
                     {pluralizeEs(dashboard.offerings.length, "servicio")})
                   </span>
@@ -363,17 +363,17 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-[var(--text-md)] font-medium text-ln-op-ink">
+                          <p className="text-md font-medium text-ln-op-ink">
                             {offering.displayName}
                           </p>
-                          <p className="text-[var(--text-sm)] text-ln-op-mute">
+                          <p className="text-sm text-ln-op-mute">
                             {kindLabel}
                             {location ? ` · ${location}` : ""}
                           </p>
                         </div>
                         <a
                           href={`/gob/servicios/${offering.offeringToken}`}
-                          className="shrink-0 text-[var(--text-sm)] text-ln-op-azul hover:underline"
+                          className="shrink-0 text-sm text-ln-op-azul hover:underline"
                         >
                           Ver servicio →
                         </a>
@@ -386,7 +386,7 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
                           <p className="text-lg font-semibold font-ln-serif text-ln-op-ink leading-none">
                             {offering.enrollment}
                           </p>
-                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Inscripciones
                           </p>
                         </div>
@@ -409,13 +409,13 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
                           >
                             {offering.completionRate !== null ? `${offering.completionRate}%` : "—"}
                           </p>
-                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Completitud
                           </p>
                           {/* Icon + text a11y (Item 11 pattern: no color-only) */}
                           {offering.completionRate !== null &&
                             offering.completionRate < TARGETS.CAMPAIGN_COMPLETION_PCT * 0.6 && (
-                              <p className="text-[var(--text-xs)] text-ln-op-danger mt-0.5 flex items-center justify-center gap-0.5">
+                              <p className="text-xs text-ln-op-danger mt-0.5 flex items-center justify-center gap-0.5">
                                 <span aria-hidden="true">↓</span>
                                 <span>Baja</span>
                               </p>
@@ -432,11 +432,11 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
                           >
                             {offering.noShow}
                           </p>
-                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Ausencias
                           </p>
                           {offering.noShow > 0 && (
-                            <p className="text-[var(--text-xs)] text-ln-op-warn mt-0.5 flex items-center justify-center gap-0.5">
+                            <p className="text-xs text-ln-op-warn mt-0.5 flex items-center justify-center gap-0.5">
                               <Icon name="alerta" size={12} decorative />
                               <span>Ausente</span>
                             </p>
@@ -448,11 +448,11 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
                           <p className="text-lg font-semibold font-ln-serif text-ln-op-ok leading-none">
                             {offering.sanitaryOutcome}
                           </p>
-                          <p className="text-[var(--text-xs)] font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
+                          <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute mt-0.5">
                             Prestaciones
                           </p>
                           {offering.outcomeConversionRate !== null && (
-                            <p className="text-[var(--text-xs)] text-ln-op-mute mt-0.5">
+                            <p className="text-xs text-ln-op-mute mt-0.5">
                               {offering.outcomeConversionRate}% conv.
                             </p>
                           )}
@@ -475,14 +475,14 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
                 title={
                   <span id={panelGeoId}>
                     Alcance geográfico
-                    <span className="ml-2 text-[var(--text-sm)] font-normal text-ln-op-mute">
+                    <span className="ml-2 text-sm font-normal text-ln-op-mute">
                       localidades con asistencias
                     </span>
                   </span>
                 }
                 actions={
                   dashboard.geoReach.suppressedCount > 0 ? (
-                    <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
+                    <span className="text-sm font-normal text-ln-op-mute">
                       {dashboard.geoReach.suppressedCount}{" "}
                       {dashboard.geoReach.suppressedCount === 1
                         ? "localidad oculta"

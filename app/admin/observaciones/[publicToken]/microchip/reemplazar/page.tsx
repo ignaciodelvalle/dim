@@ -41,7 +41,7 @@ export default async function ReplaceMicrochipAdminPage({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {"Admin · Microchip"}
           </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             {"Reemplazar microchip — "}
             {pet.name}
           </h1>
@@ -68,11 +68,11 @@ export default async function ReplaceMicrochipAdminPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Microchip"}
         </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           {"Reemplazar microchip — "}
           {pet.name}
         </h1>
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           {
             "Acción administrativa. Todas las razones están disponibles, incluidas fraude y duplicado. Quedará registrado en el log de auditoría."
           }

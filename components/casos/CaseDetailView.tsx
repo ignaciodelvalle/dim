@@ -228,7 +228,7 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
         {/* map-QOL P3: primary-location embed (institutional viewers only). */}
         {showCaseMap && (
           <section aria-label="Ubicación del caso">
-            <h2 className="mb-3 font-ln-serif text-[var(--text-xl)] font-semibold tracking-[-0.01em] text-ln-ink">
+            <h2 className="mb-3 font-ln-serif text-xl font-semibold tracking-[-0.01em] text-ln-ink">
               Ubicación
             </h2>
             <StaticFirstMap

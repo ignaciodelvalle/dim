@@ -45,7 +45,7 @@ export function OpBulkResultPanel({
     <output
       aria-live="polite"
       className={[
-        "block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 space-y-2 text-[var(--text-md)]",
+        "block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 space-y-2 text-md",
         className,
       ]
         .filter(Boolean)

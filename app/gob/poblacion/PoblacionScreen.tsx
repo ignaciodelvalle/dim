@@ -165,12 +165,10 @@ export async function PoblacionScreen({
           {/* The universal claim yields to the narrowed-view caption (never both). */}
           {profile.role === "admin" ? (
             narrowedView ? null : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
-                Vista universal — todas las jurisdicciones.
-              </p>
+              <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )
           ) : (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Cobertura de esterilización, reproducción activa y balance poblacional en tu
               cobertura.
             </p>
@@ -198,7 +196,7 @@ export async function PoblacionScreen({
         ] satisfies OpFilterAxis[]
       }
       actions={
-        <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
+        <a href={exportHref} className="text-md text-ln-op-azul hover:underline">
           Exportar CSV →
         </a>
       }
@@ -497,7 +495,7 @@ export async function PoblacionScreen({
           />
           <OpCardBody>
             {profile.role !== "admin" && (sp.province || sp.locality) && (
-              <p className="mb-2 text-[var(--text-sm)] text-ln-op-mute">
+              <p className="mb-2 text-sm text-ln-op-mute">
                 El mapa muestra tu asignación completa; el filtro de jurisdicción no se aplica en
                 esta vista.
               </p>

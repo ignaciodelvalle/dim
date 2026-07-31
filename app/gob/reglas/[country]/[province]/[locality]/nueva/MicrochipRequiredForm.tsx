@@ -66,7 +66,7 @@ export function MicrochipRequiredForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[var(--text-md)] text-ln-op-ink-2">
+      <p className="text-md text-ln-op-ink-2">
         Si esta jurisdicción exige la identificación por microchip. Por defecto es obligatorio en
         todo el país (migración 0150) — esta regla permite que una jurisdicción específica opte por
         NO exigirlo.
@@ -98,9 +98,9 @@ export function MicrochipRequiredForm({
         cumplimiento ("N de M al día") de cada mascota registrada ahí.
       </LnAlert>
 
-      {state.warning && <p className="text-[var(--text-md)] text-ln-op-warn">{state.warning}</p>}
+      {state.warning && <p className="text-md text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-[var(--text-md)] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

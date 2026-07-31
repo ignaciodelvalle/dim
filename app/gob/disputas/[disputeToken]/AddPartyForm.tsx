@@ -190,7 +190,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
 
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-3">
-      <p className="text-[var(--text-md)] font-medium text-ln-op-ink">Sumar parte a la disputa</p>
+      <p className="text-md font-medium text-ln-op-ink">Sumar parte a la disputa</p>
 
       <div className="flex gap-2 text-sm">
         <button
@@ -236,7 +236,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           onBlur={handleInputBlur}
           onKeyDown={handleInputKeyDown}
           placeholder={partyKind === "user" ? "Ej: María Gómez" : "Ej: Refugio Huellas"}
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
 
         {/* role="listbox"/"option" on <ul>/<li> — same APG combobox pattern as
@@ -269,7 +269,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
                       index === activeIndex ? "bg-ln-op-stripe" : "hover:bg-ln-op-stripe"
                     }`}
                   >
-                    <p className="text-[var(--text-md)] text-ln-op-ink">{c.displayName}</p>
+                    <p className="text-md text-ln-op-ink">{c.displayName}</p>
                     <p className="text-sm text-ln-op-mute">
                       {c.secondaryLabel}
                       {c.flagLabel && <span className="text-ln-op-danger"> · {c.flagLabel}</span>}
@@ -306,7 +306,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           id="party-role"
           value={partyRole}
           onChange={(e) => setPartyRole(e.target.value as RoleValue)}
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {PARTY_ROLE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
@@ -326,11 +326,11 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setPositionSummary(e.target.value)}
           rows={2}
           placeholder="Resumen de la posicion de esta parte"
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[var(--text-md)] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 
-      {error && <output className="block text-[var(--text-md)] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
         <OpButton

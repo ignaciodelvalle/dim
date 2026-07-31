@@ -72,7 +72,7 @@ export default async function PetsNoAptasPage({
               { label: "No aptas" },
             ]}
           />
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             Mascotas no aptas para adopción
           </h1>
           <p className="text-[13px] text-ln-op-ink-2">

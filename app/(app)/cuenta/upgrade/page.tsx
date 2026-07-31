@@ -79,7 +79,7 @@ export default async function UpgradePage() {
                 </p>
                 <Link
                   href="/cuenta/crear-consultorio"
-                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[var(--text-md)] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                  className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-md font-semibold text-white no-underline transition-opacity hover:opacity-90"
                 >
                   Crear mi consultorio →
                 </Link>
@@ -117,7 +117,7 @@ export default async function UpgradePage() {
                     <div className="mt-2.5 flex flex-wrap items-center gap-3">
                       <Link
                         href="/cuenta/crear-consultorio"
-                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[var(--text-md)] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+                        className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-md font-semibold text-white no-underline transition-opacity hover:opacity-90"
                       >
                         Crear mi consultorio →
                       </Link>

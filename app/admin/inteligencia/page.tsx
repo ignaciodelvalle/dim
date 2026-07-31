@@ -67,9 +67,7 @@ function ScoreBar({ value, max = 100 }: { value: number; max?: number }) {
           aria-hidden="true"
         />
       </div>
-      <span className="w-10 shrink-0 text-right text-[var(--text-md)] tabular-nums text-ln-op-ink">
-        {value}
-      </span>
+      <span className="w-10 shrink-0 text-right text-md tabular-nums text-ln-op-ink">{value}</span>
     </div>
   );
 }
@@ -138,7 +136,7 @@ export default async function AdminInteligenciaPage({
       eyebrow="Admin · Inteligencia territorial"
       title="Inteligencia operativa"
       subtitle={
-        <p className="text-[var(--text-md)] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Índice compuesto por jurisdicción, correlación regla→métrica y calidad de datos. Señales
           agregadas por territorio — sin puntuación de personas.
         </p>
@@ -325,7 +323,7 @@ export default async function AdminInteligenciaPage({
             // score answers "¿cómo cumple esta jurisdicción sus metas?"; the
             // impact sort answers "¿cuál mueve más el gap nacional si mejora?"
             // — two different, both honest, questions over the SAME rows.
-            <span className="flex items-center gap-2 text-[var(--text-sm)] text-ln-op-mute">
+            <span className="flex items-center gap-2 text-sm text-ln-op-mute">
               Ordenar por
               <a
                 href={sortHref("indice")}
@@ -358,7 +356,7 @@ export default async function AdminInteligenciaPage({
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Ranking de provincias por {sortByImpact ? "impacto estimado" : "índice compuesto"}{" "}
                   de cumplimiento de metas, de mayor a menor.
@@ -472,7 +470,7 @@ export default async function AdminInteligenciaPage({
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Cambios recientes de reglas jurisdiccionales y el movimiento de la métrica
                   agregada asociada antes y después del cambio.
@@ -567,7 +565,7 @@ export default async function AdminInteligenciaPage({
                   (localidad/chip/titular/inactivas/chips reemplazados) move
                   behind a disclosure — still fully honest/reachable, just not
                   co-equal with the decision-relevant columns by default. */}
-              <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Ranking de provincias por puntaje de calidad de datos, con la señal de registros
                   fantasma.
@@ -639,7 +637,7 @@ export default async function AdminInteligenciaPage({
                   Ver desglose completo de completitud (localidad, chip, titular, inactivas, chips
                   reemplazados)
                 </summary>
-                <table className="mt-2 w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
+                <table className="mt-2 w-full text-md text-ln-op-ink border-collapse">
                   <caption className="sr-only">
                     Desglose de completitud por provincia: registros sin localidad, sin chip, sin
                     titular, inactivos y chips reemplazados.

@@ -140,7 +140,7 @@ export function DateInputAr({
       />
       <input type="hidden" name={name} value={iso} />
       {invalid ? (
-        <p id={errorId} role="alert" className="text-[var(--text-sm)] text-ln-op-danger">
+        <p id={errorId} role="alert" className="text-sm text-ln-op-danger">
           {INVALID_MESSAGE}
         </p>
       ) : null}

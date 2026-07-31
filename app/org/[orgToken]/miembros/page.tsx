@@ -165,7 +165,7 @@ export default async function MiembrosPage({
           <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Miembros</h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">Miembros</h1>
         </div>
         {canInvite && (
           <Link

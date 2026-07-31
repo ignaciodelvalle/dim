@@ -79,8 +79,8 @@ export default async function NewRulePage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Nueva regla</h1>
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">{jurisdictionLabel}</p>
+        <h1 className="text-title font-semibold text-ln-op-ink">Nueva regla</h1>
+        <p className="text-md text-ln-op-ink-2">{jurisdictionLabel}</p>
       </header>
 
       <RuleForm

@@ -151,7 +151,7 @@ export function OutreachRabiesReminderList({ pets }: { pets: OutreachRabiesRemin
       {bulkSummary && (
         <output
           aria-live="polite"
-          className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-2.5 text-[var(--text-sm)] text-ln-op-ink"
+          className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-2.5 text-sm text-ln-op-ink"
         >
           {summaryLine(bulkSummary)}
         </output>
@@ -187,11 +187,9 @@ export function OutreachRabiesReminderList({ pets }: { pets: OutreachRabiesRemin
                     Recordar
                   </OpButton>
                 )}
-                {state === "pending" && (
-                  <span className="text-[var(--text-sm)] text-ln-op-mute">Enviando…</span>
-                )}
+                {state === "pending" && <span className="text-sm text-ln-op-mute">Enviando…</span>}
                 {state !== "idle" && state !== "pending" && (
-                  <span className={`text-[var(--text-sm)] font-medium ${OUTCOME_TONE[state]}`}>
+                  <span className={`text-sm font-medium ${OUTCOME_TONE[state]}`}>
                     {OUTCOME_LABEL[state]}
                   </span>
                 )}

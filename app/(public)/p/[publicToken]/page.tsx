@@ -545,11 +545,11 @@ export default async function PublicCredentialPage({
             data-section="custody-dispute-disclaimer"
             className="mb-4 rounded-[var(--radius-sm)] border border-ln-warn-100 border-l-[3px] border-l-ln-warn bg-ln-warn-050 px-4 py-3"
           >
-            <p className="mb-1 font-[var(--font-ln-mono)] text-[var(--text-xs)] font-semibold uppercase tracking-[.1em] text-ln-warn">
+            <p className="mb-1 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-ln-warn">
               Titularidad en revisión
             </p>
             <p className="m-0 text-sm text-ln-ink-2">Titularidad en revisión por la autoridad.</p>
-            <p className="mt-1 text-[var(--text-sm)] text-ln-mute">
+            <p className="mt-1 text-sm text-ln-mute">
               Estamos revisando la situación de esta mascota junto a la autoridad competente.
             </p>
           </div>
@@ -841,7 +841,7 @@ export default async function PublicCredentialPage({
                     <p className="m-0 font-[var(--font-ln-serif)] text-md font-semibold text-ln-ink">
                       ¿Tenés información sobre esta mascota?
                     </p>
-                    <p className="mt-0.5 text-[var(--text-sm)] text-ln-mute">
+                    <p className="mt-0.5 text-sm text-ln-mute">
                       La titularidad de esta mascota está en revisión por la autoridad. Si tenés
                       información, será dirigida a la autoridad competente, no a las partes.
                     </p>

@@ -62,7 +62,7 @@ export function UpdateLastSeenForm({
             suppressHydrationWarning
           />
 
-          <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">
+          <p className="text-sm text-[var(--color-ln-mute)]">
             Marcá dónde la viste ahora — esto se suma a la actividad del caso, el registro original
             de cuando se marcó como perdida queda intacto.
           </p>
@@ -94,7 +94,7 @@ export function UpdateLastSeenForm({
 
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[var(--text-sm)] text-[var(--color-ln-err)]"
+              className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-err)]"
               role="alert"
             >
               {state.error}

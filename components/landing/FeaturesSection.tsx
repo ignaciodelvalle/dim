@@ -11,7 +11,7 @@ export function FeaturesSection() {
       <div className="lp-wrap">
         <div className="lp-featband-h lp-reveal">
           <h2 className="lp-display text-[clamp(28px,3.6vw,44px)]">Y cuando no es un buen día</h2>
-          <span className="lp-lead text-[var(--text-base)]">
+          <span className="lp-lead text-base">
             Lo serio también está cubierto — de punta a punta.
           </span>
         </div>

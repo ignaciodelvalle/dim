@@ -53,7 +53,7 @@ export function RetryOutboxButton({ rowId }: { rowId: string }) {
       <OpButton type="button" variant="primary" onClick={submit} disabled={pending}>
         {pending ? "Programando…" : "Reintentar ahora"}
       </OpButton>
-      {error && <output className="block text-[var(--text-sm)] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
     </span>
   );
 }

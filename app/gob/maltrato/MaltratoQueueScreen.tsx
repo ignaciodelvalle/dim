@@ -319,7 +319,7 @@ export async function MaltratoQueueScreen({
           title="Denuncias de maltrato"
           subtitle={
             <>
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 Cola de triage bajo Ley Nacional 14.346.{" "}
                 {/* The universal claim yields to the narrowed-view caption (never both). */}
                 {profile.role === "admin"

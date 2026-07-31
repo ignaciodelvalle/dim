@@ -155,12 +155,10 @@ export default async function GobAnalyticsPage({
           {/* The universal claim yields to the narrowed-view caption (never both). */}
           {profile.role === "admin" ? (
             narrowedView ? null : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
-                Vista universal — todas las jurisdicciones.
-              </p>
+              <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )
           ) : (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Métricas analíticas de salud animal y gestión de mascotas en tu cobertura.
             </p>
           )}
@@ -259,7 +257,7 @@ export default async function GobAnalyticsPage({
         period={{ defaultPreset: "trailing12m" }}
         jurisdiction={{ allowedProvinces, localities }}
         actions={
-          <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
+          <a href={exportHref} className="text-md text-ln-op-azul hover:underline">
             Exportar datos →
           </a>
         }
@@ -425,7 +423,7 @@ export default async function GobAnalyticsPage({
           title={
             <span id={panelPerCapitaId}>
               Incidencia de casos abiertos por habitante{" "}
-              <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">INDEC 2022</span>
+              <span className="text-sm font-normal text-ln-op-mute">INDEC 2022</span>
             </span>
           }
         />

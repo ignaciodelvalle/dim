@@ -62,7 +62,7 @@ export function ScreenHeader({
       {eyebrow && (
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">{eyebrow}</p>
       )}
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">{title}</h1>
+      <h1 className="text-title font-semibold text-ln-op-ink">{title}</h1>
       {subtitle}
     </header>
   );

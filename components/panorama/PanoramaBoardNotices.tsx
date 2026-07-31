@@ -30,14 +30,14 @@ export function PanoramaBoardNotices({
   return (
     <>
       {droppedLayerIds.length > 0 && (
-        <output className="block px-3 pb-1 text-[var(--text-xs)] leading-snug text-ln-op-warn">
+        <output className="block px-3 pb-1 text-xs leading-snug text-ln-op-warn">
           Este enlace pedía{" "}
           {droppedLayerIds.length === 1 ? "una capa que ya no existe" : "capas que ya no existen"} (
           {droppedLayerIds.join(", ")}). La vista que estás viendo no es completa.
         </output>
       )}
       {staleFrame !== null && (
-        <output className="block px-3 pb-1 text-[var(--text-xs)] leading-snug text-ln-op-warn">
+        <output className="block px-3 pb-1 text-xs leading-snug text-ln-op-warn">
           {staleFrame.rateLimited
             ? "Se alcanzó el límite de consultas: "
             : "No se pudieron cargar los datos de esta fecha: "}

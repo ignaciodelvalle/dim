@@ -59,7 +59,7 @@ export function CaseHeader({ title, status, code, aside, meta }: CaseHeaderProps
       <h1 className="font-ln-serif text-2xl font-semibold tracking-[-0.02em] text-ln-op-ink">
         {title}
       </h1>
-      {meta ? <p className="font-ln-mono text-[var(--text-sm)] text-ln-op-mute">{meta}</p> : null}
+      {meta ? <p className="font-ln-mono text-sm text-ln-op-mute">{meta}</p> : null}
     </header>
   );
 }

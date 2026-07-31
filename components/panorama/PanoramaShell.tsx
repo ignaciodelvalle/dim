@@ -219,7 +219,7 @@ export function PanoramaShell({
             <summary className="cursor-pointer select-none font-medium text-ln-op-ink">
               Acerca de estas métricas
             </summary>
-            <ul className="mt-2 space-y-1.5 text-[var(--text-sm)] leading-relaxed">
+            <ul className="mt-2 space-y-1.5 text-sm leading-relaxed">
               <li>
                 <span className="font-medium text-ln-op-ink">Cálculo.</span> Los indicadores reusan
                 los mismos cálculos que los dashboards de detalle (idéntico denominador): el

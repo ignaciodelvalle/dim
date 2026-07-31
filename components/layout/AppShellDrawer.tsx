@@ -102,7 +102,7 @@ export function AppShellDrawer({
               <span className="font-ln-serif text-[15px] font-semibold text-white">
                 {BRANDING.appName}
               </span>
-              <span className="text-[var(--text-xs)] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
+              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
                 {brandSubtitle}
               </span>
             </div>
@@ -174,7 +174,7 @@ export function AppShellDrawer({
                     <summary
                       className={[
                         "flex min-h-11 cursor-pointer select-none list-none items-center justify-between",
-                        "rounded-[var(--radius-sm)] px-2 py-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em]",
+                        "rounded-[var(--radius-sm)] px-2 py-2 text-xs font-semibold uppercase tracking-[0.18em]",
                         "text-ln-op-rail-mute hover:bg-[rgba(255,255,255,0.05)]",
                         "[&::-webkit-details-marker]:hidden",
                       ].join(" ")}
@@ -203,7 +203,7 @@ export function AppShellDrawer({
               return (
                 <div key={section.label} className="flex flex-col">
                   {section.label && (
-                    <div className="mb-1.5 px-2 text-[var(--text-xs)] font-semibold uppercase tracking-[0.18em] text-ln-op-rail-mute">
+                    <div className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-[0.18em] text-ln-op-rail-mute">
                       {section.label}
                     </div>
                   )}

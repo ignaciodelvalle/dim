@@ -247,7 +247,7 @@ export default async function GobHistorialPage({
     return (
       <>
         <div className="min-w-0 space-y-0.5">
-          <p className="text-[var(--text-md)] font-medium text-ln-op-ink" title={entry.action}>
+          <p className="text-md font-medium text-ln-op-ink" title={entry.action}>
             {auditActionLabel(entry.action)}
           </p>
           <p className="text-sm text-ln-op-mute">
@@ -342,7 +342,7 @@ export default async function GobHistorialPage({
         className="space-y-2"
         eyebrow="Historial"
         title="Historial de auditoría"
-        subtitle={<p className="text-[var(--text-md)] text-ln-op-mute">{scopeCopy}</p>}
+        subtitle={<p className="text-md text-ln-op-mute">{scopeCopy}</p>}
       />
 
       {/* Unified filter bar — Período (shared PeriodPicker, same param names
@@ -407,7 +407,7 @@ export default async function GobHistorialPage({
                     <details className="group/run">
                       <summary className="flex cursor-pointer list-none items-start justify-between gap-3 select-none">
                         <div className="min-w-0 space-y-0.5">
-                          <p className="flex items-center gap-2 text-[var(--text-md)] font-medium text-ln-op-ink">
+                          <p className="flex items-center gap-2 text-md font-medium text-ln-op-ink">
                             {auditActionLabel(group.action)}
                             <OpPill tone="neutral">×{group.count}</OpPill>
                           </p>

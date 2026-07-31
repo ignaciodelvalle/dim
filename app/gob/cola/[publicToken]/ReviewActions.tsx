@@ -126,7 +126,7 @@ export function ReviewActions({
               </LnCheckbox>
             ))}
             {!checklistComplete && (
-              <p className="text-[var(--text-sm)] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 Marcá los tres puntos para habilitar la aprobación.
               </p>
             )}

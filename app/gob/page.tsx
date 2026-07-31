@@ -490,7 +490,7 @@ export default async function GobiernoDashboardPage({
         {alerts.length === 0 ? (
           <OpCard>
             <OpCardBody>
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 Sin alertas activas — las métricas con meta están dentro de rango.
               </p>
             </OpCardBody>
@@ -500,7 +500,7 @@ export default async function GobiernoDashboardPage({
             {alerts.map((alert) => (
               <OpCard key={alert.id} accent={alert.severity === "alta" ? "danger" : "warn"}>
                 <OpCardBody className="space-y-1.5">
-                  <p className="text-[var(--text-md)] font-medium text-ln-op-ink">
+                  <p className="text-md font-medium text-ln-op-ink">
                     <span className="sr-only">
                       {alert.severity === "alta" ? "Prioridad alta" : "Prioridad media"}:
                     </span>
@@ -751,9 +751,7 @@ export default async function GobiernoDashboardPage({
             title={
               <span id="panel-bites-trend-titulo">
                 Mordeduras por {bitesBucketWord}{" "}
-                <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
-                  últimos 12 meses
-                </span>
+                <span className="text-sm font-normal text-ln-op-mute">últimos 12 meses</span>
               </span>
             }
             actions={
@@ -768,7 +766,7 @@ export default async function GobiernoDashboardPage({
           />
           <OpCardBody>
             {bitesTrendPoints.length === 0 ? (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 No hay incidentes de mordedura registrados en tu cobertura en el período.
               </p>
             ) : (
@@ -856,7 +854,7 @@ export default async function GobiernoDashboardPage({
             />
             <OpCardBody className="p-0">
               {activityRows.length === 0 ? (
-                <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">
+                <p className="px-4 py-3 text-md text-ln-op-mute">
                   No tenés acciones registradas en los últimos 7 días.
                 </p>
               ) : (
@@ -866,9 +864,7 @@ export default async function GobiernoDashboardPage({
                       key={row.id}
                       className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                     >
-                      <p className="text-[var(--text-md)] text-ln-op-ink">
-                        {activityRowLabel(row)}
-                      </p>
+                      <p className="text-md text-ln-op-ink">{activityRowLabel(row)}</p>
                       <time className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap">
                         {new Date(row.performedAt).toLocaleString("es-AR", {
                           dateStyle: "short",

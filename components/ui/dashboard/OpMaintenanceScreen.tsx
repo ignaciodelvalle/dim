@@ -35,10 +35,8 @@ export function OpMaintenanceScreen({ className }: OpMaintenanceScreenProps = {}
         >
           <Icon name="reparacion" size={28} decorative />
         </div>
-        <h1 className="text-[var(--text-title)] font-semibold text-[var(--color-ln-op-ink)]">
-          En mantenimiento
-        </h1>
-        <p className="text-[var(--text-md)] text-[var(--color-ln-op-mute)]">
+        <h1 className="text-title font-semibold text-[var(--color-ln-op-ink)]">En mantenimiento</h1>
+        <p className="text-md text-[var(--color-ln-op-mute)]">
           Volvé en unos minutos. Estamos actualizando miMAR; tu información está segura.
         </p>
       </output>

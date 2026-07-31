@@ -140,7 +140,7 @@ function OverdueRabiesPipelineCard({
         title={
           <span id={panelId} className="flex items-center gap-2">
             Antirrábica vencida
-            <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
+            <span className="text-sm font-normal text-ln-op-mute">
               · pipeline (a) ·{" "}
               {zone.selected
                 ? "datos operativos con PII · audit registrado"
@@ -154,7 +154,7 @@ function OverdueRabiesPipelineCard({
               href={`/gob/outreach/export?pipeline=overdue_rabies&province=${encodeURIComponent(
                 zoneParamValue(zone.province),
               )}&locality=${encodeURIComponent(zoneParamValue(zone.locality))}`}
-              className="text-[var(--text-sm)] text-ln-op-azul hover:underline"
+              className="text-sm text-ln-op-azul hover:underline"
             >
               Exportar CSV →
             </a>
@@ -185,12 +185,12 @@ function ZoneDetail({ zone }: { zone: Extract<ZoneSelection, { selected: true }>
   return (
     <>
       <div className="mb-3 flex items-center justify-between gap-3">
-        <p className="text-[var(--text-md)] font-medium text-ln-op-ink">
+        <p className="text-md font-medium text-ln-op-ink">
           {zoneLabel(zone.province, zone.locality)} · {zone.pets.length} mascota(s)
         </p>
         <Link
           href="?"
-          className="text-[var(--text-sm)] text-ln-op-mute underline underline-offset-2 hover:text-ln-op-ink"
+          className="text-sm text-ln-op-mute underline underline-offset-2 hover:text-ln-op-ink"
         >
           ← Volver a todas las zonas
         </Link>
@@ -205,13 +205,13 @@ function ZoneDetail({ zone }: { zone: Extract<ZoneSelection, { selected: true }>
         <>
           <OutreachRabiesReminderList pets={zone.pets.slice(0, 50)} />
           {zone.pets.length > 50 && (
-            <p className="py-1 text-center text-[var(--text-sm)] text-ln-op-mute">
+            <p className="py-1 text-center text-sm text-ln-op-mute">
               … y {zone.pets.length - 50} más — exportá el CSV para la lista completa
             </p>
           )}
         </>
       )}
-      <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+      <p className="mt-3 text-sm text-ln-op-mute">
         Estos datos son PII operativos, scoped a esta zona. Esta consulta queda registrada.{" "}
         <Link href="/gob/historial" className="underline underline-offset-2 hover:text-ln-op-ink">
           Ver historial →
@@ -231,7 +231,7 @@ function zoneExpandHref(zoneRow: { locality: string | null; province: string | n
 }
 
 const ZONE_ACTION_LINK_CLASSES =
-  "rounded-[var(--radius-op-btn,6px)] border border-[var(--color-ln-op-azul)] bg-[var(--color-ln-op-azul)] text-[var(--text-sm)] font-semibold text-white hover:bg-[var(--color-ln-op-azul-700)]";
+  "rounded-[var(--radius-op-btn,6px)] border border-[var(--color-ln-op-azul)] bg-[var(--color-ln-op-azul)] text-sm font-semibold text-white hover:bg-[var(--color-ln-op-azul-700)]";
 
 function ZoneAggregates({
   overdueByLocality,
@@ -261,15 +261,13 @@ function ZoneAggregates({
                 <span className="block truncate font-medium text-ln-op-ink">
                   {zoneRow.locality ?? "Sin localidad registrada"}
                 </span>
-                <span className="block text-[var(--text-sm)] text-ln-op-mute">
-                  {zoneRow.province ?? "—"}
-                </span>
+                <span className="block text-sm text-ln-op-mute">{zoneRow.province ?? "—"}</span>
               </p>
               <p className="flex-shrink-0 text-right">
                 <span className="block tabular-nums font-semibold text-ln-op-danger">
                   {zoneRow.count}
                 </span>
-                <span className="block text-[var(--text-xs)] text-ln-op-mute">vencidas</span>
+                <span className="block text-xs text-ln-op-mute">vencidas</span>
               </p>
             </div>
             <Link
@@ -327,12 +325,12 @@ function ZoneAggregates({
         </tbody>
       </table>
       {totalPets >= 500 && (
-        <p className="mt-2 text-[var(--text-sm)] text-ln-op-mute">
+        <p className="mt-2 text-sm text-ln-op-mute">
           Estos totales reflejan como máximo los primeros 500 casos de tu cobertura (orden por
           antigüedad) — puede haber más sin contar aquí.
         </p>
       )}
-      <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+      <p className="mt-3 text-sm text-ln-op-mute">
         Agregado por localidad — sin datos de mascotas individuales. Elegí una zona y hacé clic en
         &quot;Armar operativo →&quot; para ver la lista con nombres, contactar dueños/as y exportar
         el CSV; esa acción queda registrada en el audit log.
@@ -415,7 +413,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
         eyebrow="Alcance comunitario"
         title="Pipelines de alcance comunitario"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
             campañas de contacto. Las consultas quedan registradas en el audit log.
           </p>
@@ -478,7 +476,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
           title={
             <span id={panelStrayId} className="flex items-center gap-2">
               Densidad de escaneos callejeros por barrio
-              <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 · pipeline (b) · últimos 30 días
               </span>
             </span>
@@ -487,7 +485,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
             !strayResult.empty ? (
               <a
                 href="/gob/outreach/export?pipeline=stray_density"
-                className="text-[var(--text-sm)] text-ln-op-azul hover:underline"
+                className="text-sm text-ln-op-azul hover:underline"
               >
                 Exportar CSV →
               </a>
@@ -546,7 +544,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
           title={
             <span id={panelSterilId} className="flex items-center gap-2">
               Ranking de esterilización por veterinario/a
-              <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">
+              <span className="text-sm font-normal text-ln-op-mute">
                 · pipeline (c) · reconocimiento · últimos 30 días
               </span>
             </span>
@@ -613,7 +611,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
               surfaced instead as an honest footnote (screenshot review
               finding #11). */}
           {sterilResult.unattributedCount > 0 && (
-            <p className="mt-2 text-[var(--text-sm)] text-ln-op-mute">
+            <p className="mt-2 text-sm text-ln-op-mute">
               {sterilResult.unattributedCount}{" "}
               {sterilResult.unattributedCount === 1
                 ? "esterilización sin veterinario/a registrado/a"

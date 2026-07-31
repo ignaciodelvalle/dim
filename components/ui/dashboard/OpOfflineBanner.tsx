@@ -27,7 +27,7 @@ export function OpOfflineBanner({ className }: OpOfflineBannerProps = {}) {
       className={[
         "block w-full border-b px-4 py-1.5 text-center",
         "border-[var(--color-ln-op-warn-bd)] bg-[var(--color-ln-op-warn-bg)]",
-        "text-[var(--text-sm)] text-[var(--color-ln-op-ink-2)]",
+        "text-sm text-[var(--color-ln-op-ink-2)]",
         className,
       ]
         .filter(Boolean)

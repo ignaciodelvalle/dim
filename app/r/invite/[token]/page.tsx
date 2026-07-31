@@ -170,7 +170,7 @@ export default async function InviteAcceptPage({
             <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
               Invitación
             </p>
-            <h1 className="font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold text-[var(--color-ln-ink)]">
+            <h1 className="font-[var(--font-ln-serif)] text-title font-semibold text-[var(--color-ln-ink)]">
               {org.displayName}
             </h1>
           </div>
@@ -253,7 +253,7 @@ export default async function InviteAcceptPage({
           <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
             Invitación
           </p>
-          <h1 className="font-[var(--font-ln-serif)] text-[var(--text-title)] font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-[var(--font-ln-serif)] text-title font-semibold text-[var(--color-ln-ink)]">
             {org.displayName}
           </h1>
         </div>

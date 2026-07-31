@@ -53,7 +53,7 @@ export default async function PrivacidadPage() {
             necesitás el borrado de esos registros sanitarios, contactanos y lo evaluamos caso por
             caso bajo la base legal de auditoría.
           </p>
-          <p className="mt-3 text-[var(--text-md)] leading-[1.6] text-[var(--color-ln-ink-2)]">
+          <p className="mt-3 text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
             Dentro de esos eventos preservados, el texto libre que hayas escrito vos (notas,
             descripciones, contexto del último avistaje) se reemplaza por un aviso de contenido
             eliminado — se conserva el registro sanitario, no el detalle identificable.

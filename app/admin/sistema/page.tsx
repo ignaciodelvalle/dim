@@ -165,9 +165,7 @@ export default async function AdminSistemaPage() {
         title="Salud del sistema"
         subtitle={
           <>
-            <p className="text-[var(--text-md)] text-ln-op-ink-2">
-              Métricas operativas en vivo. Solo admin.
-            </p>
+            <p className="text-md text-ln-op-ink-2">Métricas operativas en vivo. Solo admin.</p>
             {/* D6 — cross-link a la profundidad analítica nacional (mapa, ranking,
                 métricas agregadas). El admin no tiene charts propios todavía; el
                 Centro de Situación es la superficie integradora pendiente. */}
@@ -383,7 +381,7 @@ export default async function AdminSistemaPage() {
           const visibleGovts = sortedGovts.slice(0, GOVT_ACTIVITY_LIMIT);
           const govtsTruncated = sortedGovts.length > GOVT_ACTIVITY_LIMIT;
           return govts.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">No hay gobiernos activos.</p>
+            <p className="text-md text-ln-op-mute">No hay gobiernos activos.</p>
           ) : (
             <OpCard>
               <div className="overflow-x-auto">
@@ -423,7 +421,7 @@ export default async function AdminSistemaPage() {
                   <tbody>
                     {visibleGovts.map((g) => (
                       <tr key={g.userId} className="border-t border-ln-op-line">
-                        <td className="px-3 py-2 text-[var(--text-md)] font-medium text-ln-op-ink">
+                        <td className="px-3 py-2 text-md font-medium text-ln-op-ink">
                           {g.displayName}
                         </td>
                         <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
@@ -432,7 +430,7 @@ export default async function AdminSistemaPage() {
                         <td className="px-3 py-2 tabular-nums text-sm text-ln-op-ink-2">
                           {g.decisions30d}
                         </td>
-                        <td className="px-3 py-2 text-[var(--text-sm)] text-ln-op-mute">
+                        <td className="px-3 py-2 text-sm text-ln-op-mute">
                           {g.lastActionAt ? formatDateShort(g.lastActionAt) : "—"}
                         </td>
                       </tr>
@@ -441,7 +439,7 @@ export default async function AdminSistemaPage() {
                 </table>
               </div>
               {govtsTruncated && (
-                <p className="px-3 py-2 text-[var(--text-sm)] text-ln-op-mute">
+                <p className="px-3 py-2 text-sm text-ln-op-mute">
                   Mostrando los {GOVT_ACTIVITY_LIMIT} gobiernos más activos de {sortedGovts.length}.
                 </p>
               )}

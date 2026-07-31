@@ -25,7 +25,7 @@ export function SimpleDetalleToggle({ detail, onChange, labelSuffix }: Props) {
         aria-pressed={!detail}
         aria-label={`Modo simple ${labelSuffix}`}
         onClick={() => onChange(false)}
-        className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
+        className={`px-2.5 py-1 text-sm font-medium transition-colors ${
           !detail
             ? "bg-ln-op-azul/10 text-ln-op-azul"
             : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
@@ -38,7 +38,7 @@ export function SimpleDetalleToggle({ detail, onChange, labelSuffix }: Props) {
         aria-pressed={detail}
         aria-label={`Modo detalle ${labelSuffix}`}
         onClick={() => onChange(true)}
-        className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors ${
+        className={`px-2.5 py-1 text-sm font-medium transition-colors ${
           detail
             ? "bg-ln-op-azul/10 text-ln-op-azul"
             : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"

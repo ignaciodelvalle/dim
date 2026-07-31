@@ -158,12 +158,10 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
           {/* The universal claim yields to the narrowed-view caption (never both). */}
           {profile.role === "admin" ? (
             narrowedView ? null : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
-                Vista universal — todas las jurisdicciones.
-              </p>
+              <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )
           ) : (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Crecimiento del padrón, mascotas inactivas y calidad de identificación en tu
               cobertura.
             </p>
@@ -191,7 +189,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
         ] satisfies OpFilterAxis[]
       }
       actions={
-        <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
+        <a href={exportHref} className="text-md text-ln-op-azul hover:underline">
           Exportar CSV →
         </a>
       }

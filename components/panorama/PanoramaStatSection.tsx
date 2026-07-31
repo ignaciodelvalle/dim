@@ -41,10 +41,8 @@ export function PanoramaStatSection({ title, subtitle, defaultOpen = true, child
         className="flex w-full items-center justify-between gap-2 rounded-t-[var(--radius-lg)] px-3 py-2 text-left hover:bg-ln-op-stripe"
       >
         <span className="flex flex-col">
-          <span className="text-[var(--text-sm)] font-semibold text-ln-op-ink">{title}</span>
-          {subtitle && (
-            <span className="text-[var(--text-xs)] leading-snug text-ln-op-mute">{subtitle}</span>
-          )}
+          <span className="text-sm font-semibold text-ln-op-ink">{title}</span>
+          {subtitle && <span className="text-xs leading-snug text-ln-op-mute">{subtitle}</span>}
         </span>
         <Icon
           name={open ? "chevron-up" : "chevron-down"}

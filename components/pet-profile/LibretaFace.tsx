@@ -268,7 +268,7 @@ function EmergenciaBlock({
       data-section="libreta-emergencia"
       className="border-t border-[var(--color-ln-line-2)] pt-4"
     >
-      <p className="mb-1.5 font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
+      <p className="mb-1.5 font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
         Emergencia
       </p>
       {hasAnyContact && (

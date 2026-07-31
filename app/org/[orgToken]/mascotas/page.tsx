@@ -76,9 +76,7 @@ export default async function OrgMascotasPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-            Permiso requerido
-          </h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
           <p className="text-[13px] text-ln-op-ink-2">
             Para ver el listado de animales necesitás el permiso{" "}
             <code className="text-[11px]">pet.read_held</code>.
@@ -227,9 +225,7 @@ export default async function OrgMascotasPage({
             />
             {/* Title matches the nav-rail item "Mascotas" (QA 2026-07-03:
                 sidebar said Mascotas, page said Animales en custodia). */}
-            <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-              Mascotas en custodia
-            </h1>
+            <h1 className="text-title font-semibold text-ln-op-ink">Mascotas en custodia</h1>
             <p className="text-[13px] text-ln-op-ink-2">
               {allCards.length === 0
                 ? "Todavía no hay animales registrados a nombre de la organización."

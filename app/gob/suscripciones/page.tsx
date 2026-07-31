@@ -136,7 +136,7 @@ export default async function SuscripcionesPage({
         className="space-y-2"
         title="Alertas y suscripciones"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Suscribite a umbrales de métricas del programa y recibí un aviso cuando se rompan. Cada
             suscripción es personal — solo ves y gestionás las tuyas.
           </p>
@@ -184,26 +184,24 @@ export default async function SuscripcionesPage({
               cleared "Mis suscripciones" list next to a still-shown alert reads as
               intentional, not a bug. */}
           {(metricFilter || stateFilter) && (
-            <p className="mb-2 text-[var(--text-xs)] text-ln-op-mute">
+            <p className="mb-2 text-xs text-ln-op-mute">
               Muestra todas las alertas activas, sin importar los filtros de arriba.
             </p>
           )}
           {breachingAlerts.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">Sin alertas activas.</p>
+            <p className="text-md text-ln-op-mute">Sin alertas activas.</p>
           ) : (
             <ul className="space-y-2">
               {breachingAlerts.map((a) => (
                 <li
                   key={a.id}
-                  className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[var(--text-md)] text-ln-op-danger"
+                  className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-md text-ln-op-danger"
                 >
                   <span className="font-semibold">
                     {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
                   </span>
                   {a.jurisdictionProvince ? (
-                    <span className="ml-1 text-[var(--text-sm)] text-ln-op-mute">
-                      ({a.jurisdictionProvince})
-                    </span>
+                    <span className="ml-1 text-sm text-ln-op-mute">({a.jurisdictionProvince})</span>
                   ) : null}
                   {" — "}
                   actual{" "}
@@ -227,7 +225,7 @@ export default async function SuscripcionesPage({
           title={<span id={panelListaId}>Mis suscripciones</span>}
           actions={
             alertEvals.length > 0 ? (
-              <span className="text-[var(--text-sm)] text-ln-op-mute">
+              <span className="text-sm text-ln-op-mute">
                 {filteredEvals.length} de {alertEvals.length}
               </span>
             ) : undefined
@@ -235,34 +233,32 @@ export default async function SuscripcionesPage({
         />
         <OpCardBody>
           {alertEvals.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Sin suscripciones configuradas. Creá una abajo.
             </p>
           ) : filteredEvals.length === 0 ? (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Sin suscripciones que coincidan con el filtro.
             </p>
           ) : (
             <ul className="divide-y divide-ln-op-line-2">
               {filteredEvals.map((a) => (
-                <li key={a.id} className="flex items-center gap-3 py-2 text-[var(--text-md)]">
+                <li key={a.id} className="flex items-center gap-3 py-2 text-md">
                   <div className="flex-1">
                     <span className={a.isActive ? "text-ln-op-ink" : "text-ln-op-mute"}>
                       {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
                     </span>
                     {a.jurisdictionProvince ? (
-                      <span className="ml-1 text-[var(--text-sm)] text-ln-op-mute">
+                      <span className="ml-1 text-sm text-ln-op-mute">
                         ({a.jurisdictionProvince})
                       </span>
                     ) : null}
-                    <span className="ml-2 text-[var(--text-sm)] text-ln-op-mute">
+                    <span className="ml-2 text-sm text-ln-op-mute">
                       {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction}{" "}
                       {Number(a.threshold).toLocaleString("es-AR")}
                     </span>
                     {!a.isActive && (
-                      <span className="ml-2 text-[var(--text-sm)] text-ln-op-mute italic">
-                        (inactiva)
-                      </span>
+                      <span className="ml-2 text-sm text-ln-op-mute italic">(inactiva)</span>
                     )}
                   </div>
                   <form action={toggleAlertSubscriptionAction}>

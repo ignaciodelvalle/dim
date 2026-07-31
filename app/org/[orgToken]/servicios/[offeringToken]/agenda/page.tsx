@@ -94,7 +94,7 @@ export default async function AgendaPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName} · {kind?.label ?? offering.serviceKind}
         </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Agenda</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Agenda</h1>
         <p className="text-[13px] text-ln-op-mute">
           Reglas de disponibilidad recurrente para{" "}
           <strong className="text-ln-op-ink-2">{offering.displayName}</strong>.

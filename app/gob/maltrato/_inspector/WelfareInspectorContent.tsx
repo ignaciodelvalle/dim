@@ -135,13 +135,9 @@ function ResumenTab({
       <OpCard>
         <OpCardHead title="¿Qué pasó?" />
         <OpCardBody className="space-y-2">
-          <p className="whitespace-pre-wrap text-[var(--text-sm)] text-ln-op-ink">
-            {detail.description}
-          </p>
+          <p className="whitespace-pre-wrap text-sm text-ln-op-ink">{detail.description}</p>
           {detail.occurredAt && (
-            <p className="text-[var(--text-xs)] text-ln-op-mute">
-              Ocurrió el {formatDate(detail.occurredAt)}
-            </p>
+            <p className="text-xs text-ln-op-mute">Ocurrió el {formatDate(detail.occurredAt)}</p>
           )}
         </OpCardBody>
       </OpCard>
@@ -149,7 +145,7 @@ function ResumenTab({
       <OpCard>
         <OpCardHead title="Sujeto" />
         <OpCardBody className="space-y-2">
-          <p className="text-[var(--text-sm)] text-ln-op-ink">
+          <p className="text-sm text-ln-op-ink">
             {welfareReportSubjectKindLabel(detail.subjectKind)}
           </p>
           {detail.subjectDescription && (
@@ -201,10 +197,10 @@ function ResumenTab({
         <OpCard>
           <OpCardHead title={`Evidencia (${detail.attachments.length})`} />
           <OpCardBody>
-            <ul className="space-y-1.5 text-[var(--text-sm)]">
+            <ul className="space-y-1.5 text-sm">
               {detail.attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate font-mono text-[var(--text-xs)] text-ln-op-ink-2">
+                  <span className="truncate font-mono text-xs text-ln-op-ink-2">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (
@@ -212,12 +208,12 @@ function ResumenTab({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[var(--text-xs)] text-ln-op-azul underline hover:text-ln-op-azul-700"
+                      className="text-xs text-ln-op-azul underline hover:text-ln-op-azul-700"
                     >
                       Abrir →
                     </a>
                   ) : (
-                    <span className="text-[var(--text-xs)] text-ln-op-mute">(no disponible)</span>
+                    <span className="text-xs text-ln-op-mute">(no disponible)</span>
                   )}
                 </li>
               ))}
@@ -257,7 +253,7 @@ function ResumenTab({
       {(detail.triagedAt || detail.closedAt) && (
         <OpCard>
           <OpCardHead title="Trayectoria" />
-          <OpCardBody className="space-y-2 text-[var(--text-sm)]">
+          <OpCardBody className="space-y-2 text-sm">
             {detail.triagedAt && (
               <p className="text-ln-op-ink">
                 Revisada el {formatDateTime(detail.triagedAt)}
@@ -270,7 +266,7 @@ function ResumenTab({
               <p className="text-ln-op-ink">Cerrada el {formatDateTime(detail.closedAt)}</p>
             )}
             {detail.resolutionNotes && (
-              <div className="whitespace-pre-wrap rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[var(--text-xs)] text-ln-op-ink-2">
+              <div className="whitespace-pre-wrap rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-xs text-ln-op-ink-2">
                 {detail.resolutionNotes}
               </div>
             )}
@@ -343,7 +339,7 @@ function AccionesTab({ detail }: { detail: WelfareInspectorDetail }) {
       <OpCard>
         <OpCardHead title="Derivar a organización" />
         <OpCardBody className="space-y-2">
-          <p className="text-[var(--text-xs)] text-ln-op-mute">
+          <p className="text-xs text-ln-op-mute">
             Derivá esta denuncia a un refugio o red de rescate verificada para seguimiento en campo.
           </p>
           {detail.orgInterventionStatus === "tomado" && (
@@ -389,13 +385,13 @@ function AccionesTab({ detail }: { detail: WelfareInspectorDetail }) {
       <OpCard>
         <OpCardHead title="Derivar a decomiso" />
         <OpCardBody className="space-y-2">
-          <p className="text-[var(--text-xs)] text-ln-op-mute">
+          <p className="text-xs text-ln-op-mute">
             Si la denuncia amerita una incautación bajo Ley 14.346, iniciá el decomiso desde acá.
           </p>
           <Link
             href={`/gob/decomisos/nuevo?welfareReportId=${detail.id}${detail.subjectPetToken ? `&pet=${detail.subjectPetToken}` : ""}`}
             prefetch={false}
-            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[var(--text-sm)] font-medium text-white transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-sm font-medium text-white transition-opacity hover:opacity-90"
           >
             Iniciar decomiso →
           </Link>
@@ -409,7 +405,7 @@ function Chip({ label, value }: { label: string; value: string }) {
   return (
     <div className="space-y-0.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2">
       <p className="text-xs uppercase tracking-wider text-ln-op-mute">{label}</p>
-      <p className="truncate text-[var(--text-sm)] font-semibold text-ln-op-ink">{value}</p>
+      <p className="truncate text-sm font-semibold text-ln-op-ink">{value}</p>
     </div>
   );
 }

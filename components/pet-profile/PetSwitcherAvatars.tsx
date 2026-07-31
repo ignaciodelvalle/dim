@@ -84,7 +84,7 @@ export function PetSwitcherAvatars({
             <span
               aria-hidden="true"
               style={{ width: 30, height: 30 }}
-              className="grid place-items-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--text-xs)] font-semibold text-[var(--color-ln-mute)]"
+              className="grid place-items-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-xs font-semibold text-[var(--color-ln-mute)]"
             >
               +{hiddenCount}
             </span>

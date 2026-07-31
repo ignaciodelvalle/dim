@@ -39,7 +39,7 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
       />
       <OpCardBody>
         {reconcile === null ? (
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             El cron reconcile_pet_status todavía no registró corridas.
           </p>
         ) : (
@@ -79,10 +79,7 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
                     const fieldLabel =
                       cols.length > 0 ? cols.join(", ") : statusDrifted ? "status" : "—";
                     return (
-                      <li
-                        key={s.publicToken}
-                        className="flex flex-col gap-0.5 text-[var(--text-sm)]"
-                      >
+                      <li key={s.publicToken} className="flex flex-col gap-0.5 text-sm">
                         <div className="flex items-baseline justify-between gap-3">
                           <span className="font-mono text-ln-op-ink">{s.publicToken}</span>
                           <span className="text-ln-op-mute">{fieldLabel}</span>
@@ -102,9 +99,9 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
             <div className="flex items-baseline justify-between gap-3 border-t border-ln-op-line pt-2">
               <span className="text-sm text-ln-op-mute">Chequeo semántico (cron-health)</span>
               {metaCheck === null ? (
-                <span className="text-[var(--text-sm)] text-ln-op-mute">Sin datos</span>
+                <span className="text-sm text-ln-op-mute">Sin datos</span>
               ) : (
-                <span className="flex items-center gap-1.5 text-[var(--text-sm)] tabular-nums">
+                <span className="flex items-center gap-1.5 text-sm tabular-nums">
                   {formatDate(metaCheck.checkedAt)}
                   <OpPill tone={metaCheck.healthy ? "ok" : "danger"}>
                     {metaCheck.healthy
@@ -117,7 +114,7 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
               )}
             </div>
 
-            <p className="text-[var(--text-sm)] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               Solo detección: la reparación de la caché es manual y auditada (no hay auto-repair).
             </p>
           </div>
@@ -131,7 +128,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
       <span className="text-sm text-ln-op-mute">{label}</span>
-      <span className="text-[var(--text-md)] font-medium tabular-nums text-ln-op-ink">{value}</span>
+      <span className="text-md font-medium tabular-nums text-ln-op-ink">{value}</span>
     </div>
   );
 }

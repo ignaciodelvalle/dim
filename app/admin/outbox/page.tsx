@@ -106,7 +106,7 @@ export default async function AdminOutboxPage({
         eyebrow="Admin"
         title="Bandeja de salida de notificaciones"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             {hasFilters
               ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
               : `Últimas ${rows.length} filas de la bandeja de salida de eventos de notificación ENO/govt.`}

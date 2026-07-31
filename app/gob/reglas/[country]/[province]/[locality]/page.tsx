@@ -103,7 +103,7 @@ export default async function JurisdictionReglasPage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Reglas para {jurisdictionLabel(country, province, locality)}
         </h1>
       </header>
@@ -119,7 +119,7 @@ export default async function JurisdictionReglasPage({
             this province) can still take precedence for pets in that
             locality — see "Tipos sin excepción" below for the resolved
             (cascade-aware) picture of what's NOT overridden here. */}
-        <p className="text-[var(--text-sm)] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           Configuradas exactamente en {jurisdictionLabel(country, province, locality)} — un nivel
           más específico (si existe) puede tener su propia excepción.
         </p>

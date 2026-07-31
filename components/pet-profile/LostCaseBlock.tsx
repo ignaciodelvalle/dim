@@ -176,17 +176,17 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
             {photoUrl ? (
               <Image src={photoUrl} alt={pet.name} fill sizes="40px" className="object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-[var(--text-lg)] font-bold text-[var(--color-ln-err)]">
+              <div className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-lg font-bold text-[var(--color-ln-err)]">
                 {pet.name.charAt(0).toUpperCase()}
               </div>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="m-0 font-[var(--font-ln-serif)] text-[var(--text-lg)] font-semibold leading-tight text-[var(--color-ln-err)]">
+            <p className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight text-[var(--color-ln-err)]">
               {pet.name} {lostThirdPersonPhrase(pet.sex)}
             </p>
-            <p className="mt-0.5 text-[var(--text-sm)] text-[var(--color-ln-ink-2)]">
+            <p className="mt-0.5 text-sm text-[var(--color-ln-ink-2)]">
               <Link
                 href={caseHref}
                 className="text-[var(--color-ln-ink-2)] underline-offset-2 hover:underline"
@@ -239,10 +239,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               moved into "Más opciones" below; this keeps the primary strip
               to a single glanceable line + one edit affordance. */}
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--color-ln-line)] pt-3">
-            <p
-              className="m-0 min-w-0 truncate text-[var(--text-sm)]"
-              style={{ color: "var(--color-ln-ink-2)" }}
-            >
+            <p className="m-0 min-w-0 truncate text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
               <span className="font-semibold">
                 {episode.placeName ?? "Ubicación no especificada"}
               </span>
@@ -253,7 +250,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
             </p>
             <Link
               href={editLastSeenHref}
-              className="flex-shrink-0 text-[var(--text-sm)] font-medium text-[var(--color-ln-azul)] no-underline hover:underline"
+              className="flex-shrink-0 text-sm font-medium text-[var(--color-ln-azul)] no-underline hover:underline"
             >
               actualizar
             </Link>
@@ -268,7 +265,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               transition-duration to 0.01ms), so the arrow rotation is safe
               as-is. */}
           <details className="group mt-3">
-            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-[var(--text-sm)] font-medium text-[var(--color-ln-azul)]">
+            <summary className="flex cursor-pointer list-none items-center gap-1.5 text-sm font-medium text-[var(--color-ln-azul)]">
               <span
                 aria-hidden="true"
                 className="inline-block transition-transform group-open:rotate-90"
@@ -342,7 +339,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
           <LnCard>
             <LnCardHead title="Última vez visto" />
             <LnCardBody>
-              <p className="text-[var(--text-md)]" style={{ color: "var(--color-ln-ink-2)" }}>
+              <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
                 <span className="font-semibold">
                   {episode.placeName ?? "Ubicación no especificada"}
                 </span>
@@ -352,10 +349,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
                 </span>
               </p>
               {episode.ownerNote && (
-                <p
-                  className="mt-1.5 text-[var(--text-md)] italic"
-                  style={{ color: "var(--color-ln-mute)" }}
-                >
+                <p className="mt-1.5 text-md italic" style={{ color: "var(--color-ln-mute)" }}>
                   "{episode.ownerNote}"
                 </p>
               )}
@@ -417,7 +411,7 @@ function StaleLostCaseBanner({
             <form action={reactivateAction}>
               <button
                 type="submit"
-                className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-warn-100)] bg-[var(--color-ln-card)] px-4 text-[var(--text-sm)] font-semibold text-[var(--color-ln-warn)] transition-colors hover:bg-white"
+                className="inline-flex min-h-11 items-center justify-center rounded-full border-[3px] border-[var(--color-ln-warn-100)] bg-[var(--color-ln-card)] px-4 text-sm font-semibold text-[var(--color-ln-warn)] transition-colors hover:bg-white"
               >
                 Reactivar búsqueda
               </button>

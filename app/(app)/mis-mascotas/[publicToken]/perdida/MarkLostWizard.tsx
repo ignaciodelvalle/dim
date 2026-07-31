@@ -435,7 +435,7 @@ export function MarkLostWizard({
             aria-hidden={step !== disclosureStep}
             inert={step !== disclosureStep ? true : undefined}
           >
-            <p className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">
+            <p className="text-sm text-[var(--color-ln-mute)]">
               Elegí qué información tuya se muestra en la credencial pública mientras {petName} esté
               perdida. No se comparte nada que no actives acá, y podés cambiarlo desde su perfil en
               cualquier momento.

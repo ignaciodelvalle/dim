@@ -122,9 +122,7 @@ function TierRow({ row, tier }: { row: FeatureRow; tier: FeatureTier }) {
   return (
     <div className="flex items-start justify-between gap-3 px-4 py-3">
       <span className="min-w-0">
-        <span className="block text-[var(--text-base)] font-semibold text-[var(--color-ln-ink)]">
-          {row.name}
-        </span>
+        <span className="block text-base font-semibold text-[var(--color-ln-ink)]">{row.name}</span>
         <span className="mt-0.5 block text-sm leading-snug text-[var(--color-ln-mute)]">
           {row.line}
         </span>
@@ -139,10 +137,7 @@ function TierRow({ row, tier }: { row: FeatureRow; tier: FeatureTier }) {
 function TierSection({ tier }: { tier: FeatureTier }) {
   return (
     <section aria-labelledby={`${tier.id}-heading`} className="space-y-3">
-      <h2
-        id={`${tier.id}-heading`}
-        className="text-[var(--text-xl)] font-semibold text-[var(--color-ln-ink)]"
-      >
+      <h2 id={`${tier.id}-heading`} className="text-xl font-semibold text-[var(--color-ln-ink)]">
         {tier.title}
       </h2>
       <div className="divide-y divide-[var(--color-ln-line-2)] overflow-hidden rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
@@ -160,7 +155,7 @@ export default function FuncionalidadesPage() {
       <div className="mx-auto max-w-2xl space-y-10 px-6 py-16">
         <header className="space-y-3">
           <h1
-            className="text-[var(--text-2xl)] font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
+            className="text-2xl font-semibold tracking-[-0.015em] leading-tight text-[var(--color-ln-ink)]"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             Qué hace miMAR
@@ -184,7 +179,7 @@ export default function FuncionalidadesPage() {
 
         <Link
           href="/"
-          className="inline-block text-[var(--text-md)] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-md text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

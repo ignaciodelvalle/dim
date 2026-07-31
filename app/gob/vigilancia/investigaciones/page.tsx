@@ -81,7 +81,7 @@ export default async function GobInvestigacionesPage({
           title="Investigaciones de brote"
           subtitle={
             <>
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 Casos abiertos, escalados y cerrados en los últimos 90 días.
               </p>
               <ViewScopeCaption scope={narrowedView} />

@@ -62,7 +62,7 @@ export default async function OrgTransferenciaNuevaPage({
             { label: "Nueva propuesta" },
           ]}
         />
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Nueva propuesta de transferencia
         </h1>
         <OpBreach
@@ -104,7 +104,7 @@ export default async function OrgTransferenciaNuevaPage({
           ]}
         />
         <header className="space-y-1">
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             Nueva propuesta de transferencia
           </h1>
           <p className="text-[13px] text-ln-op-mute">
@@ -175,7 +175,7 @@ export default async function OrgTransferenciaNuevaPage({
             { label: "Nueva propuesta" },
           ]}
         />
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Nueva propuesta de transferencia
         </h1>
         <OpBreach
@@ -235,9 +235,7 @@ export default async function OrgTransferenciaNuevaPage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Transferir {pet.name}
-        </h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Transferir {pet.name}</h1>
         <p className="text-[13px] text-ln-op-mute">
           Proponer la transferencia de custodia desde {organization.displayName} a otra organización
           verificada.

@@ -38,7 +38,7 @@ export function CronsDownBanner({
       ].join(" ")}
     >
       <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <b className="text-[var(--text-sm)] font-bold text-ln-op-danger">
+        <b className="text-sm font-bold text-ln-op-danger">
           Procesos automáticos caídos {"·"} avisá a soporte
         </b>
         {showSistemaLink && (
@@ -47,21 +47,21 @@ export function CronsDownBanner({
           // defect. A real anchor hard-navigates so the click always lands.
           <a
             href="/admin/sistema"
-            className="inline-flex items-center gap-1 text-[var(--text-sm)] font-semibold text-ln-op-danger underline underline-offset-2"
+            className="inline-flex items-center gap-1 text-sm font-semibold text-ln-op-danger underline underline-offset-2"
           >
             Ver detalle
             <Icon name="chevron-right" size="sm" decorative />
           </a>
         )}
       </div>
-      <p className="text-[var(--text-sm)] text-ln-op-danger opacity-85">
+      <p className="text-sm text-ln-op-danger opacity-85">
         {failedCronNames.length === 1
           ? "Un proceso automático no está corriendo. Avisale al equipo de soporte para que lo revise; algunas tareas del sistema pueden estar demoradas."
           : `${failedCronNames.length} procesos automáticos no están corriendo. Avisale al equipo de soporte para que los revise; algunas tareas del sistema pueden estar demoradas.`}
       </p>
-      <details className="text-[var(--text-sm)] text-ln-op-danger opacity-85">
+      <details className="text-sm text-ln-op-danger opacity-85">
         <summary className="cursor-pointer select-none font-medium">Detalle técnico</summary>
-        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-[var(--text-xs)]">
+        <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs">
           {failedCronNames.map((name) => (
             // es-AR label for the operator; the raw snake_case key rides `title`
             // for support/debugging without putting English-looking text on screen.

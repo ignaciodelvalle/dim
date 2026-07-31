@@ -87,9 +87,7 @@ export default async function OrgTransferenciasSalientesPage({
 
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-            Transferencias salientes
-          </h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">Transferencias salientes</h1>
           <p className="text-[13px] text-ln-op-mute">
             Propuestas que {organization.displayName} envió a otras organizaciones.
           </p>

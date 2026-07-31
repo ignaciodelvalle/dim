@@ -79,7 +79,7 @@ export function MpfExportFormatForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[var(--text-md)] text-ln-op-ink-2">
+      <p className="text-md text-ln-op-ink-2">
         Qué formato usa el PDF de denuncia formal a la fiscalía (MPF) para esta jurisdicción.
         Cascada localidad → provincia → país → default nacional, igual que el resto de las reglas.
       </p>
@@ -122,9 +122,9 @@ export function MpfExportFormatForm({
         una segunda variante de formato.
       </LnAlert>
 
-      {state.warning && <p className="text-[var(--text-md)] text-ln-op-warn">{state.warning}</p>}
+      {state.warning && <p className="text-md text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-[var(--text-md)] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

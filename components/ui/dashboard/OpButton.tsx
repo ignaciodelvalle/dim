@@ -62,8 +62,8 @@ const base =
 
 const sizes: Record<OpButtonSize, string> = {
   sm: "px-[11px] py-1.5 text-sm",
-  md: "px-3.5 py-2 text-[var(--text-md)]",
-  lg: "px-[18px] py-2.5 text-[var(--text-md)]",
+  md: "px-3.5 py-2 text-md",
+  lg: "px-[18px] py-2.5 text-md",
 };
 
 const variants: Record<OpButtonVariant, string> = {

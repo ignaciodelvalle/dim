@@ -35,11 +35,11 @@ export function ScopePillSummary({ scopeLabel }: { scopeLabel: string }) {
       {scopeLabel}
       <span
         aria-hidden="true"
-        className="ml-0.5 font-normal text-[var(--text-xs)] underline decoration-dotted underline-offset-2"
+        className="ml-0.5 font-normal text-xs underline decoration-dotted underline-offset-2"
       >
         Cambiar
       </span>
-      <span aria-hidden="true" className="text-[var(--text-xs)]">
+      <span aria-hidden="true" className="text-xs">
         ▾
       </span>
     </>

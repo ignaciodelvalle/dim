@@ -123,7 +123,7 @@ function RoleGateNotice({
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -131,10 +131,10 @@ function RoleGateNotice({
       <LnCard>
         <LnCardHead title={title} />
         <LnCardBody>
-          <p className="mb-4 text-[var(--text-md)] text-[var(--color-ln-ink-2)]">{body}</p>
+          <p className="mb-4 text-md text-[var(--color-ln-ink-2)]">{body}</p>
           <Link
             href={ctaHref}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-[var(--text-md)] font-semibold text-white no-underline transition-opacity hover:opacity-90"
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] px-3.5 py-2 text-md font-semibold text-white no-underline transition-opacity hover:opacity-90"
           >
             {ctaLabel}
           </Link>

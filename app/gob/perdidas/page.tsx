@@ -245,12 +245,12 @@ export default async function GobPerdidasPage({
             {/* The universal claim yields to the narrowed-view caption (never both). */}
             {profile.role === "admin" ? (
               narrowedView ? null : (
-                <p className="text-[var(--text-md)] text-ln-op-mute">
+                <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.
                 </p>
               )
             ) : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 Mascotas marcadas como perdidas dentro de tu cobertura.
               </p>
             )}
@@ -261,7 +261,7 @@ export default async function GobPerdidasPage({
 
       {/* No-scope warning */}
       {noScope && (
-        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-[var(--text-md)] text-ln-op-warn">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-md text-ln-op-warn">
           Tu cuenta no tiene localidades asignadas. Un administrador debe asignarte al menos una
           para ver casos.{" "}
           <a
@@ -468,7 +468,7 @@ export default async function GobPerdidasPage({
                           : lostPets.length}
                         )
                         {q && (
-                          <span className="ml-2 text-[var(--text-sm)] font-normal text-ln-op-mute">
+                          <span className="ml-2 text-sm font-normal text-ln-op-mute">
                             {"—"} búsqueda: &ldquo;{q}&rdquo;
                           </span>
                         )}
@@ -480,7 +480,7 @@ export default async function GobPerdidasPage({
                         rule above: only renders when the current view is
                         NOT yet narrowed to one operative jurisdiction. */}
                     {!showOwnerDetail && lostPets.length > 0 && (
-                      <p className="mb-2 text-[var(--text-sm)] text-ln-op-mute">
+                      <p className="mb-2 text-sm text-ln-op-mute">
                         Vista nacional/multi-provincial: se ocultan los datos de contacto y
                         ubicación exacta. Filtrá a tu jurisdicción operativa para ver el detalle de
                         contacto.

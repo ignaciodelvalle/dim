@@ -98,14 +98,14 @@ export function MpfExportGate({
       </OpButton>
 
       {untriaged && (
-        <p className="text-[var(--text-xs)] text-ln-op-warn">
+        <p className="text-xs text-ln-op-warn">
           Triage la denuncia (marcala revisada o iniciá seguimiento) antes de generar el export
           fiscal.
         </p>
       )}
-      {error && <p className="text-[var(--text-xs)] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-xs text-ln-op-danger">{error}</p>}
       {signedUrl && (
-        <p className="text-[var(--text-xs)] text-ln-op-ok">
+        <p className="text-xs text-ln-op-ok">
           PDF generado.{" "}
           <a
             href={signedUrl}
@@ -142,7 +142,7 @@ export function MpfExportGate({
         <div className="px-5 pb-1">
           <label
             htmlFor="mpf-export-reason"
-            className="mb-1 block text-[var(--text-sm)] font-medium text-[var(--color-ln-ink-2)]"
+            className="mb-1 block text-sm font-medium text-[var(--color-ln-ink-2)]"
           >
             Motivo del export
           </label>
@@ -152,9 +152,9 @@ export function MpfExportGate({
             onChange={(e) => setReason(e.target.value)}
             rows={3}
             placeholder={`Motivo del export fiscal (mínimo ${MIN_REASON} caracteres)`}
-            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-2 text-[var(--text-sm)] text-[var(--color-ln-ink)]"
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)]"
           />
-          <p className="mt-1 text-[var(--text-xs)] text-[var(--color-ln-mute)] tabular-nums">
+          <p className="mt-1 text-xs text-[var(--color-ln-mute)] tabular-nums">
             {reason.trim().length} caracteres
             {!reasonValid && ` · faltan ${Math.max(0, MIN_REASON - reason.trim().length)}`}
           </p>

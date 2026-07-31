@@ -100,9 +100,9 @@ export async function CredencialesScreen({
                 expansion + one-line purpose, so RUPGA is never assumed knowledge
                 for a first-time operator (S2 "RUPGA sin expandir"). Kept even
                 underHub — none of this repeats the "Credenciales" tab label. */}
-            <p className="text-[var(--text-sm)] text-ln-op-mute">{expandAcronym("RUPGA")}</p>
-            <p className="text-[var(--text-sm)] text-ln-op-ink-2">{acronymPurpose("RUPGA")}</p>
-            <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+            <p className="text-sm text-ln-op-mute">{expandAcronym("RUPGA")}</p>
+            <p className="text-sm text-ln-op-ink-2">{acronymPurpose("RUPGA")}</p>
+            <p className="text-sm text-ln-op-ink-2">
               {profile.role === "admin"
                 ? "Buscá por nombre de la mascota, token o número RUPGA. Tu vista es universal."
                 : `Credenciales en tus ${jurisdictions.length} ${pluralizeEs(jurisdictions.length, "localidad")}.`}
@@ -177,9 +177,7 @@ export async function CredencialesScreen({
                       <div className="space-y-3">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0 space-y-0.5">
-                            <p className="text-[var(--text-sm)] font-medium text-ln-op-ink">
-                              {c.petName}
-                            </p>
+                            <p className="text-sm font-medium text-ln-op-ink">{c.petName}</p>
                             <p className="text-sm text-ln-op-mute">
                               {SERVICE_TYPE_LABELS[c.serviceType]}
                               {c.rupgaCredential && ` · RUPGA ${c.rupgaCredential}`}

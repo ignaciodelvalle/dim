@@ -73,7 +73,7 @@ export default async function AdoptionReviewIndexPage({
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Sin acceso</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
         <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
         <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
@@ -201,7 +201,7 @@ export default async function AdoptionReviewIndexPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Postulaciones</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Postulaciones</h1>
         <p className="text-[13px] text-ln-op-mute">
           Revisá, aprobá o rechazá postulaciones de adopción. Podés seleccionar varias para
           procesarlas en lote.

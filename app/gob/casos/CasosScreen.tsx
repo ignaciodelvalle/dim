@@ -262,7 +262,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
         eyebrow="Casos regulatorios"
         title="Casos"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             {scope.role === "admin"
               ? "Expedientes en todo el sistema. Vista universal admin."
               : "Expedientes en tu jurisdicción asignada."}{" "}

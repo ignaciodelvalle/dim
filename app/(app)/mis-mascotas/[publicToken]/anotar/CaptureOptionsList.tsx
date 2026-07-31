@@ -46,10 +46,10 @@ export function CaptureOptionsList({ petPublicToken }: { petPublicToken: string 
                 <li key={`${opt.eventType}-${opt.routeOverride ?? ""}`}>
                   <Link
                     href={opt.href}
-                    className="flex items-center justify-between px-3.5 py-2.5 text-[var(--text-md)] text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+                    className="flex items-center justify-between px-3.5 py-2.5 text-md text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
                   >
                     <span>{opt.label}</span>
-                    <span className="text-[var(--text-sm)] text-[var(--color-ln-mute)]">→</span>
+                    <span className="text-sm text-[var(--color-ln-mute)]">→</span>
                   </Link>
                 </li>
               ))}

@@ -222,7 +222,7 @@ function KpiCard({
         : "text-[var(--color-ln-mute)]";
   return (
     <div className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3">
-      <p className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1">
+      <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1">
         {label}
       </p>
       <p className={`text-3xl font-semibold leading-tight tabular-nums ${valueClass}`}>
@@ -285,7 +285,7 @@ function QuickFilterRow({ filters }: { filters: LostListingFilters }) {
 
   return (
     <div className="flex items-center gap-2 flex-wrap text-xs">
-      <span className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mr-1">
+      <span className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mr-1">
         Filtros rápidos:
       </span>
       {chips.map((chip) => (
@@ -380,7 +380,7 @@ function LostListingCard({ item }: { item: LostListingItem }) {
               (the searcher shouldn't assume a location that isn't there). */}
           {item.lastSeenDescription ? (
             <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2 space-y-0.5">
-              <p className="font-[var(--font-ln-mono)] text-[var(--text-xs)] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-seal)]">
+              <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-seal)]">
                 Visto por última vez
               </p>
               <p className="text-xs text-[var(--color-ln-ink)] font-medium line-clamp-2">
@@ -388,13 +388,13 @@ function LostListingCard({ item }: { item: LostListingItem }) {
               </p>
             </div>
           ) : (
-            <p className="text-[var(--text-sm)] italic text-[var(--color-ln-mute)]">
+            <p className="text-sm italic text-[var(--color-ln-mute)]">
               Sin ubicación de avistaje registrada
             </p>
           )}
 
           {/* Footer */}
-          <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-ln-line)] text-[var(--text-sm)] text-[var(--color-ln-mute)]">
+          <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-ln-line)] text-sm text-[var(--color-ln-mute)]">
             {item.microchipId && (
               <span className="text-[var(--color-ln-celeste)] font-medium">Con chip</span>
             )}

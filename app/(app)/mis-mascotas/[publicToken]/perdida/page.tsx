@@ -52,7 +52,7 @@ export default async function MarkPetLostPage({
       <div className="mx-auto max-w-md px-8 py-7 pb-12">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="mb-5 inline-block font-[var(--font-ln-mono)] text-[var(--text-sm)] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← {pet.name}
         </Link>

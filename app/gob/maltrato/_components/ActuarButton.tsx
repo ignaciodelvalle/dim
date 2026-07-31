@@ -54,7 +54,7 @@ export function ActuarButton({
     <a
       href={href}
       onClick={handleClick}
-      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-azul bg-ln-op-azul px-2.5 py-1.5 text-[var(--text-xs)] font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-azul bg-ln-op-azul px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
     >
       {label} →
     </a>

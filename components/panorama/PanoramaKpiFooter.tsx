@@ -54,7 +54,7 @@ export function PanoramaKpiFooter({
           KPI. Shown once under the strip so it never competes with the decision
           KPIs or repeats across presets. */}
       {kpis.coverageDenominator && (
-        <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+        <p className="text-sm text-ln-op-ink-2">
           <a href={kpis.coverageDenominator.href} className="hover:underline">
             <span className="font-semibold tabular-nums">
               {formatCount(kpis.coverageDenominator.totalPets)}
@@ -64,7 +64,7 @@ export function PanoramaKpiFooter({
           <span className="text-ln-op-mute"> · denominador de las tasas (activas o perdidas)</span>
         </p>
       )}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[var(--text-sm)] text-ln-op-mute">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ln-op-mute">
         <p className="flex items-center gap-1.5">
           <span
             aria-hidden="true"
@@ -104,7 +104,7 @@ export function PanoramaKpiFooter({
           live for a daily snapshot), "Datos en vivo" when live — plus the
           capped-layer disclosure when a live layer hit the row cap. Unobtrusive:
           mute text, below the KPI row. */}
-      <p suppressHydrationWarning className="text-[var(--text-xs)] text-ln-op-mute">
+      <p suppressHydrationWarning className="text-xs text-ln-op-mute">
         {freshnessCaption}
       </p>
     </div>

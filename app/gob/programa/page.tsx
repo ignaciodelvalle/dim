@@ -177,12 +177,10 @@ export default async function GobProgramaPage({
           {/* The universal claim yields to the narrowed-view caption (never both). */}
           {profile.role === "admin" ? (
             narrowedView ? null : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
-                Vista universal — todas las jurisdicciones.
-              </p>
+              <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )
           ) : (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de
               PII en tu cobertura asignada.
             </p>
@@ -463,7 +461,7 @@ export default async function GobProgramaPage({
           ) : (
             <div className="space-y-2">
               {topImpactSummary && (
-                <p className="text-[var(--text-md)] font-medium text-ln-op-ink-2">
+                <p className="text-md font-medium text-ln-op-ink-2">
                   {/* Scope honesty (red-team 2026-07 #5): this summary is built
                       from the operator's FENCED assignment set, so the line must
                       say "tu cobertura", never "nacional" — the admin twin is the

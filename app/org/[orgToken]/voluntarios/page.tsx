@@ -69,9 +69,7 @@ export default async function VoluntariosPage({
       <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Voluntarios" }]} />
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Voluntarios</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Pool de voluntarios
-        </h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Pool de voluntarios</h1>
         <p className="mt-1 text-[13px] text-ln-op-mute">
           Voluntarios activos con al menos un slot disponible.
         </p>

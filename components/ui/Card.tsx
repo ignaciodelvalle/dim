@@ -69,7 +69,7 @@ export function LnCardHead({ title, label, icon, actions, className = "" }: LnCa
         .join(" ")}
     >
       {icon && <span className="text-[var(--color-ln-mute)]">{icon}</span>}
-      <h3 className="m-0 font-[var(--font-ln-serif)] text-[var(--text-base)] font-semibold leading-tight text-[var(--color-ln-ink)]">
+      <h3 className="m-0 font-[var(--font-ln-serif)] text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
         {title}
       </h3>
       {(label || actions) && (
@@ -258,10 +258,10 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <p className="m-0 font-[var(--font-ln-serif)] text-[var(--text-base)] font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <p className="m-0 font-[var(--font-ln-serif)] text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
-        {meta && <p className="mt-px text-[var(--text-sm)] text-[var(--color-ln-mute)]">{meta}</p>}
+        {meta && <p className="mt-px text-sm text-[var(--color-ln-mute)]">{meta}</p>}
       </div>
 
       {/* Change link */}

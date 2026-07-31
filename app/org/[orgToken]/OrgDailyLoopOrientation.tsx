@@ -105,7 +105,7 @@ export function OrgDailyLoopOrientation({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">
-          <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
+          <p className="text-md font-semibold text-ln-op-ink">
             ¡Listo! Tu organización quedó configurada.
           </p>
           <p className="text-sm text-ln-op-mute">
@@ -124,7 +124,7 @@ export function OrgDailyLoopOrientation({
               href={`/org/${orgToken}/${item.path}`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line-2 p-3 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[var(--text-md)] font-medium text-ln-op-ink">{item.label}</p>
+              <p className="text-md font-medium text-ln-op-ink">{item.label}</p>
               <p className="text-sm text-ln-op-mute">{item.hint}</p>
             </Link>
           </li>

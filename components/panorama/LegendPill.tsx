@@ -136,7 +136,7 @@ export function LegendPill({
       // calc(100vw-1.75rem) (same viewport-edge margin the collapsed strip's
       // outer container already reserves) so it never overflows a narrow phone.
       panelClassName="left-0 max-h-[calc(100vh-10rem)] w-[22rem] max-w-[calc(100vw-1.75rem)] overflow-y-auto"
-      summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card px-3.5 py-1.5 text-[var(--text-sm)] text-ln-op-ink-2 shadow-md hover:border-ln-op-celeste"
+      summaryClassName="flex max-w-full items-center gap-2.5 overflow-hidden whitespace-nowrap rounded-full border border-ln-op-line bg-ln-op-card px-3.5 py-1.5 text-sm text-ln-op-ink-2 shadow-md hover:border-ln-op-celeste"
       summary={
         <>
           {/* min-w-0 + 2-line clamp: at the dock's mobile width the shrink-0
@@ -155,9 +155,7 @@ export function LegendPill({
             // matrix crosses, not just that it is a matrix.
             <span className="inline-flex shrink-0 items-center gap-1">
               <BivariateHint />
-              <span className="text-[var(--text-xs)] leading-none text-ln-op-faint">
-                cobertura × señal
-              </span>
+              <span className="text-xs leading-none text-ln-op-faint">cobertura × señal</span>
             </span>
           )}
           {rampColors !== null && rampColors.length > 0 && (
@@ -165,7 +163,7 @@ export function LegendPill({
             // collapsed pill answers "what does dark mean" without expanding.
             <span className="inline-flex shrink-0 items-center gap-1">
               {rampEndpoints && (
-                <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
+                <span className="text-xs tabular-nums leading-none text-ln-op-faint">
                   {rampEndpoints.min}
                 </span>
               )}
@@ -184,7 +182,7 @@ export function LegendPill({
                 ))}
               </span>
               {rampEndpoints && (
-                <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
+                <span className="text-xs tabular-nums leading-none text-ln-op-faint">
                   {rampEndpoints.max}
                 </span>
               )}
@@ -203,13 +201,10 @@ export function LegendPill({
                 className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
                 style={{ width: 4, height: 4 }}
               />
-              <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
+              <span className="text-xs tabular-nums leading-none text-ln-op-faint">
                 {graduatedHint.small.label}
               </span>
-              <span
-                aria-hidden="true"
-                className="text-[var(--text-xs)] leading-none text-ln-op-faint"
-              >
+              <span aria-hidden="true" className="text-xs leading-none text-ln-op-faint">
                 –
               </span>
               <span
@@ -217,7 +212,7 @@ export function LegendPill({
                 className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
                 style={{ width: 10, height: 10 }}
               />
-              <span className="text-[var(--text-xs)] tabular-nums leading-none text-ln-op-faint">
+              <span className="text-xs tabular-nums leading-none text-ln-op-faint">
                 {graduatedHint.large.label}
               </span>
             </span>
@@ -229,7 +224,7 @@ export function LegendPill({
                 className="inline-block h-2 w-2 rounded-full border border-ln-op-line"
                 style={{ background: dot.color }}
               />
-              <span className="text-[var(--text-xs)]">{dot.label}</span>
+              <span className="text-xs">{dot.label}</span>
             </span>
           ))}
           {/* k-anon pill — shown whenever the frame paints a hatch, and ONLY
@@ -238,7 +233,7 @@ export function LegendPill({
               with nothing hatched on it. See `suppressedInFrame` above. */}
           {suppressedInFrame && (
             <span
-              className="shrink-0 rounded-full border border-ln-op-line px-2 py-0.5 text-[var(--text-xs)] text-ln-op-mute"
+              className="shrink-0 rounded-full border border-ln-op-line px-2 py-0.5 text-xs text-ln-op-mute"
               style={{
                 backgroundImage:
                   "repeating-linear-gradient(45deg, var(--color-ln-op-stripe) 0 3px, var(--color-ln-op-line-2) 3px 6px)",
@@ -248,7 +243,7 @@ export function LegendPill({
               ⊘ k&lt;5 protegido
             </span>
           )}
-          <span aria-hidden="true" className="shrink-0 text-[var(--text-xs)] text-ln-op-faint">
+          <span aria-hidden="true" className="shrink-0 text-xs text-ln-op-faint">
             ▴
           </span>
         </>
@@ -266,7 +261,7 @@ export function LegendPill({
       {visibleDots.length > 0 && (
         <div className="mb-2 flex flex-col gap-1 border-b border-ln-op-line-2 pb-2">
           {visibleDots.map((dot) => (
-            <span key={dot.label} className="flex items-start gap-1.5 text-[var(--text-xs)]">
+            <span key={dot.label} className="flex items-start gap-1.5 text-xs">
               <span
                 aria-hidden="true"
                 className="mt-0.5 inline-block h-2 w-2 shrink-0 rounded-full border border-ln-op-line"

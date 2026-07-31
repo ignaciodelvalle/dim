@@ -141,8 +141,8 @@ export default async function AdminProgramaPage({
       <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         Admin · Resumen ejecutivo
       </p>
-      <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Salud del programa</h1>
-      <p className="text-[var(--text-md)] text-ln-op-mute">
+      <h1 className="text-title font-semibold text-ln-op-ink">Salud del programa</h1>
+      <p className="text-md text-ln-op-mute">
         KPIs principales, valores atípicos por jurisdicción, calidad de datos y supervisión de PII.
       </p>
       <a
@@ -310,9 +310,7 @@ export default async function AdminProgramaPage({
           point-in-time). That read as a broken filter. The control now lives down
           at the projection — the only period-driven visual — and this strip is
           framed as estado actual, so no KPI sits under a filter that ignores it. */}
-      <h2 className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
-        Estado actual del programa
-      </h2>
+      <h2 className="text-sm font-semibold text-ln-op-ink-2">Estado actual del programa</h2>
       <section
         aria-label="KPIs principales del programa (estado actual)"
         className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3"
@@ -431,10 +429,8 @@ export default async function AdminProgramaPage({
           "I changed the period and nothing moved" confusion the top placement
           created over the current-state KPI strip above. */}
       <div className="space-y-1">
-        <p className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">
-          Tendencia y proyección
-        </p>
-        <p className="text-[var(--text-xs)] text-ln-op-mute">
+        <p className="text-sm font-semibold text-ln-op-ink-2">Tendencia y proyección</p>
+        <p className="text-xs text-ln-op-mute">
           El período aplica a la proyección de abajo; los indicadores de estado actual no varían con
           él.
         </p>
@@ -492,7 +488,7 @@ export default async function AdminProgramaPage({
           ) : (
             <div className="space-y-2">
               {topImpactSummary && (
-                <p className="text-[var(--text-md)] font-medium text-ln-op-ink-2">
+                <p className="text-md font-medium text-ln-op-ink-2">
                   {formatTopImpactLine(topImpactSummary, "national")}
                 </p>
               )}
@@ -501,7 +497,7 @@ export default async function AdminProgramaPage({
                   (census-derived), not the registered padrón — so its
                   magnitudes (e.g. ~1M sin chip en una provincia) dwarf the
                   padrón counts and read as invented without this label. */}
-              <p className="text-[var(--text-sm)] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 El impacto proyecta la brecha sobre la población canina <strong>estimada</strong>{" "}
                 (censo INDEC), no sobre el padrón registrado — por eso sus magnitudes superan a las
                 mascotas registradas.

@@ -58,12 +58,12 @@ export default async function AdminPadronPage({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Admin · Padrón
         </p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           ¿Crece sano el padrón y contenemos la población?
         </h1>
         {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
             see app/gob/padron/page.tsx for the full rationale. */}
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           Vista nacional. Población (cobertura de esterilización vs. meta) y Censo (crecimiento y
           calidad del registro) leen el mismo padrón desde dos preguntas distintas.
         </p>

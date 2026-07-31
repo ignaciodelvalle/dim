@@ -164,7 +164,7 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
           eyebrow="Admin · Reglas"
           title="Reglas por jurisdicción"
           subtitle={
-            <p className="text-[var(--text-md)] text-ln-op-ink-2">
+            <p className="text-md text-ln-op-ink-2">
               {groups.length === 0
                 ? "Ninguna jurisdicción tiene reglas personalizadas."
                 : `${groups.length} ${pluralizeEs(groups.length, "jurisdicción", "jurisdicciones")} con reglas propias.`}
@@ -173,7 +173,7 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
         />
         <Link
           href={createHref}
-          className="shrink-0 rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[var(--text-md)] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+          className="shrink-0 rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
         >
           {"+ Crear regla"}
         </Link>
@@ -184,27 +184,25 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
           click away without competing for attention with the actual content
           of this screen (the customized jurisdictions). */}
       <details className="group rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-[var(--text-md)] font-semibold text-ln-op-ink">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-md font-semibold text-ln-op-ink">
           <span>Defaults nacionales (referencia)</span>
-          <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">{"Ver ->"}</span>
+          <span className="text-sm font-normal text-ln-op-mute">{"Ver ->"}</span>
         </summary>
         <div className="space-y-3 border-t border-ln-op-line-2 px-4 py-3">
-          <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+          <p className="text-sm text-ln-op-ink-2">
             Valores que rigen cuando ninguna jurisdicción los anula.
           </p>
           <ul className="divide-y divide-ln-op-line-2">
             {GOVT_BUSINESS_RULE_TYPES.map((t) => (
               <li key={t} className="flex items-baseline justify-between gap-3 py-1.5">
-                <span className="text-[var(--text-md)] text-ln-op-ink">
-                  {RULE_TYPE_REGISTRY[t].label}
-                </span>
-                <span className="text-right text-[var(--text-sm)] text-ln-op-ink-2">
+                <span className="text-md text-ln-op-ink">{RULE_TYPE_REGISTRY[t].label}</span>
+                <span className="text-right text-sm text-ln-op-ink-2">
                   {summarizeRulePayload(t, RULE_TYPE_REGISTRY[t].default)}
                 </span>
               </li>
             ))}
           </ul>
-          <p className="text-[var(--text-sm)] text-ln-op-ink-2">
+          <p className="text-sm text-ln-op-ink-2">
             ¿Necesitás una excepción a nivel país (sin ligar a ninguna provincia)?{" "}
             <Link
               href={buildJurisdictionRulesHref({ country: "AR", base })}
@@ -223,7 +221,7 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
           action={
             <Link
               href={createHref}
-              className="rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[var(--text-md)] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+              className="rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-md font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
             >
               {"+ Crear regla"}
             </Link>
@@ -267,10 +265,8 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
                             key={rule.ruleType}
                             className="flex items-baseline justify-between gap-3 py-1.5"
                           >
-                            <span className="text-[var(--text-md)] font-medium text-ln-op-ink">
-                              {rule.label}
-                            </span>
-                            <span className="text-right text-[var(--text-sm)] text-ln-op-ink-2">
+                            <span className="text-md font-medium text-ln-op-ink">{rule.label}</span>
+                            <span className="text-right text-sm text-ln-op-ink-2">
                               {rule.summary}
                             </span>
                           </li>

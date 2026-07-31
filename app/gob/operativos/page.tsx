@@ -56,12 +56,12 @@ export default async function GobOperativosPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Operativos</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           ¿Dónde y cómo intervengo esta semana?
         </h1>
         {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
             see app/gob/padron/page.tsx for the full rationale. */}
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           Alcance comunitario convierte un indicador en una lista objetivo para actuar ahora;
           Campañas muestra cómo están rindiendo los operativos ya lanzados.
         </p>

@@ -31,7 +31,7 @@ export default async function AtenderEntryPage({
           <OpCrumbs
             items={[{ label: "Inicio", href: `/org/${orgToken}` }, { label: "Atender mascota" }]}
           />
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Atender mascota</h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">Atender mascota</h1>
           <p className="text-[13px] text-ln-op-ink-2">
             Registrá un evento clínico sobre la mascota que trae el dueño, sin necesidad de tenerla
             en custodia.

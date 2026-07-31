@@ -129,7 +129,7 @@ export default async function AdminCasosPage({
         eyebrow="Admin · Casos"
         title="Casos"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Expedientes abiertos en el sistema. Vista universal admin.{" "}
             {!statusExplicitlyOverridden && (
               <a

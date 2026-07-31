@@ -151,7 +151,7 @@ export function PanoramaRail({ items, open, onOpenChange }: Props) {
                     aria-label={item.badgeLabel}
                     title={item.badgeLabel}
                     aria-hidden={item.badgeLabel ? undefined : true}
-                    className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-ln-op-azul px-1 text-[var(--text-xs)] font-semibold tabular-nums text-white"
+                    className="absolute -right-0.5 -top-0.5 inline-flex min-w-4 items-center justify-center rounded-full bg-ln-op-azul px-1 text-xs font-semibold tabular-nums text-white"
                   >
                     {item.badge}
                   </span>
@@ -210,7 +210,7 @@ function RailPanel({
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[var(--text-sm)] text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
+            className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
           >
             <Icon name="close" size="sm" decorative />
           </button>

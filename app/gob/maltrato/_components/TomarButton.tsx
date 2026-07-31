@@ -58,10 +58,7 @@ export function TomarButton({ reportId }: { reportId: string }) {
         {pending ? "Tomando..." : "Tomar"}
       </OpButton>
       {error && (
-        <p
-          role="alert"
-          className="max-w-[140px] text-right text-[var(--text-xs)] text-ln-op-danger"
-        >
+        <p role="alert" className="max-w-[140px] text-right text-xs text-ln-op-danger">
           {error}
         </p>
       )}

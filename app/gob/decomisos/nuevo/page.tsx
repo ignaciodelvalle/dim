@@ -119,8 +119,8 @@ export default async function NuevoDecomisoPage({ searchParams }: PageProps) {
           <span className="mx-2 text-ln-op-line">{"›"}</span>
           <span className="text-ln-op-ink">Nuevo decomiso</span>
         </nav>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">Ejecutar decomiso</h1>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Ejecutar decomiso</h1>
+        <p className="text-md text-ln-op-mute">
           {"Ley 14.346 — incautación de animal por autoridad sanitaria. Requiere mínimo 2 adjuntos"}
           {" (foto del animal + acta administrativa)."}
         </p>

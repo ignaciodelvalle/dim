@@ -196,7 +196,7 @@ export default async function DecomisosDashboardPage({
           eyebrow="Ley 14.346"
           title="Decomisos"
           subtitle={
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               {session.profile.role === "admin"
                 ? "Todos los episodios de custodia del sistema."
                 : "Decomisos ejecutados por tu autoridad sanitaria."}
@@ -270,10 +270,10 @@ export default async function DecomisosDashboardPage({
           here; this states the boundary the code already has. */}
       <section aria-label="Episodios de custodia registrados" className="space-y-3">
         <div className="space-y-0.5">
-          <h2 className="text-[var(--text-md)] font-semibold text-ln-op-ink">
+          <h2 className="text-md font-semibold text-ln-op-ink">
             Episodios de custodia registrados
           </h2>
-          <p className="text-[var(--text-md)] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             El período seleccionado no filtra este listado: sólo afecta los indicadores de arriba.
             Se muestran los 200 episodios más recientes, sin importar su fecha de apertura.
           </p>

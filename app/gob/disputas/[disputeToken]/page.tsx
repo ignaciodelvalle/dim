@@ -120,12 +120,12 @@ export default async function DisputeDetailPage({
           {"←"} Volver a la lista
         </Link>
         <div className="flex items-center gap-3">
-          <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">{pet.name}</h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">{pet.name}</h1>
           <OpPill tone={STATUS_TONE[dispute.status] ?? "neutral"}>
             {STATUS_LABELS[dispute.status] ?? dispute.status}
           </OpPill>
         </div>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           {speciesLabel(pet.species)}
           {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
           {dispute.jurisdictionProvince}

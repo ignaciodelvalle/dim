@@ -74,7 +74,7 @@ export function DeleteRuleButton({
           className="w-full rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
         />
         {state.error && (
-          <p className="text-[var(--text-sm)] text-ln-op-danger" role="alert">
+          <p className="text-sm text-ln-op-danger" role="alert">
             {state.error}
           </p>
         )}

@@ -97,7 +97,7 @@ export function CrisisBand() {
             </button>
           </div>
           {error ? (
-            <p className="text-[var(--text-sm)] text-[var(--color-ln-seal)]" role="alert">
+            <p className="text-sm text-[var(--color-ln-seal)]" role="alert">
               {error}
             </p>
           ) : (

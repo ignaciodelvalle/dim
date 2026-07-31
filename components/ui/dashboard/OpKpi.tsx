@@ -365,7 +365,7 @@ function InfoButton({ info }: { info: InfoTooltip }) {
               leading-snug definition so it reads as one system, not a bespoke box. */}
           <div
             role="tooltip"
-            className="absolute z-50 bottom-full left-0 mb-2 w-72 space-y-1.5 rounded-lg border border-ln-line bg-ln-card p-3 text-[var(--text-sm)] leading-snug text-ln-ink shadow-lg"
+            className="absolute z-50 bottom-full left-0 mb-2 w-72 space-y-1.5 rounded-lg border border-ln-line bg-ln-card p-3 text-sm leading-snug text-ln-ink shadow-lg"
           >
             <p className="font-medium text-ln-ink-2">{info.definition}</p>
             {info.formula && (
@@ -685,13 +685,13 @@ export function OpKpi({
       {deltaV2 && <DeltaV2Row delta={deltaV2} priorBase={guardInput?.priorBase} />}
 
       {/* Sub */}
-      {sub && <div className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-mute">{sub}</div>}
+      {sub && <div className="mt-auto pt-1.5 text-sm text-ln-op-mute">{sub}</div>}
 
       {/* red-team-admin #20: point-in-time KPI under a period control — say it
           plainly so the picker never reads as a broken control on this tile. */}
       {(periodInvariant ?? derivedPeriodInvariant) && (
         <p
-          className="mt-1 text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-ln-op-faint"
           title="Valor de estado actual (point-in-time): el selector de período mueve los gráficos, no este número."
         >
           no varía con el período
@@ -709,7 +709,7 @@ export function OpKpi({
       {drillHref && (
         <a
           href={drillHref}
-          className="mt-auto pt-1.5 text-[var(--text-sm)] text-ln-op-azul hover:underline self-start"
+          className="mt-auto pt-1.5 text-sm text-ln-op-azul hover:underline self-start"
           onClick={(e) => e.stopPropagation()}
         >
           Ver detalle →
@@ -746,7 +746,7 @@ export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) 
 
   const content = (
     <>
-      <div className="mb-1 text-[var(--text-xs)] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+      <div className="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
         {label}
       </div>
       <div

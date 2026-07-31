@@ -64,7 +64,7 @@ export default async function GobPadronPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Padrón</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           ¿Crece sano el padrón y contenemos la población?
         </h1>
         {/* PO fix (validacion-A 2026-07-23, systemic across every hub header):
@@ -75,7 +75,7 @@ export default async function GobPadronPage({
             wrap on narrow viewports); same change applied to every other hub
             header below (casos/directorio/denuncias/operativos + the admin
             padron twin). */}
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           Población (cobertura de esterilización vs. meta) y Censo (crecimiento y calidad del
           registro) leen el mismo padrón desde dos preguntas distintas. Elegí la vista en la que
           querés trabajar ahora.

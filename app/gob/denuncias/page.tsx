@@ -133,12 +133,10 @@ export default async function GobDenunciasPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Denuncias</p>
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          El recorrido de una denuncia
-        </h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">El recorrido de una denuncia</h1>
         {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
             see app/gob/padron/page.tsx for the full rationale. */}
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           Una denuncia ciudadana pasa por moderación, triage según Ley 14.346, y puede escalar a un
           caso regulatorio. Elegí la etapa en la que querés trabajar ahora — Caso vive en su propia
           pantalla, con seguimiento formal.
@@ -179,11 +177,9 @@ export default async function GobDenunciasPage({
           stays fully present, just de-emphasized to match its "step 3 of the
           journey, not today's queue" role. */}
       <OpCard>
-        <OpCardHead
-          title={<span className="text-[var(--text-sm)] font-semibold">Paso 3 · Caso</span>}
-        />
+        <OpCardHead title={<span className="text-sm font-semibold">Paso 3 · Caso</span>} />
         <OpCardBody className="flex flex-wrap items-center justify-between gap-4">
-          <p className="max-w-prose text-[var(--text-md)] text-ln-op-ink-2">
+          <p className="max-w-prose text-md text-ln-op-ink-2">
             Denuncias escaladas a un caso regulatorio, con seguimiento formal.
           </p>
           <div className="flex items-center gap-4">

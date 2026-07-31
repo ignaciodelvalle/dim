@@ -103,14 +103,9 @@ function KpiCard({
       title={`${kpi.label} — ${methodNote(kpi)}`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-[var(--text-lg)] font-bold tabular-nums text-ln-op-ink">
-          {kpi.value}
-        </span>
+        <span className="text-lg font-bold tabular-nums text-ln-op-ink">{kpi.value}</span>
         {kpi.delta && (
-          <span
-            className="shrink-0 text-[var(--text-xs)] tabular-nums text-ln-op-faint"
-            title={kpi.delta.label}
-          >
+          <span className="shrink-0 text-xs tabular-nums text-ln-op-faint" title={kpi.delta.label}>
             <DeltaGlyph direction={kpi.delta.direction} /> {kpi.delta.pct > 0 ? "+" : ""}
             {kpi.delta.pct.toLocaleString("es-AR")}
             {kpi.delta.unit === "pts" ? " pts" : "%"}
@@ -118,7 +113,7 @@ function KpiCard({
         )}
       </div>
       <div className="flex items-center justify-between gap-2">
-        <span className="min-w-0 flex-1 truncate text-[var(--text-xs)] text-ln-op-mute">
+        <span className="min-w-0 flex-1 truncate text-xs text-ln-op-mute">
           {shortKpiLabel(presetId, kpi.id, kpi.label)}
         </span>
         {kpi.sparkline && kpi.sparkline.length > 1 && (
@@ -133,9 +128,7 @@ function KpiCard({
       {/* C2a: an indicator whose subject layer is NOT painted — say so plainly so
           the number never reads as if it described the current map. */}
       {dimmed && (
-        <span className="text-[var(--text-xs)] italic text-ln-op-faint">
-          no corresponde a las capas activas
-        </span>
+        <span className="text-xs italic text-ln-op-faint">no corresponde a las capas activas</span>
       )}
       {/* Q8 — unified temporal-basis label: EVERY chip states its basis in the
           primary card body (not just a hover/footer), so a STOCK number
@@ -146,7 +139,7 @@ function KpiCard({
           the scrubber — say so, emphasized while a temporal frame is active. */}
       {kpi.currentState ? (
         <span
-          className={`text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] ${
+          className={`text-xs font-medium uppercase tracking-[0.06em] ${
             temporalFrameActive
               ? "w-fit rounded-[var(--radius-sm)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-ln-op-warn"
               : "text-ln-op-faint"
@@ -159,14 +152,14 @@ function KpiCard({
         // #12a: a flow KPI on a FIXED window (e.g. mordeduras · 12 meses) — its
         // own label, never the generic "período" that implies the picker moves it.
         <span
-          className="text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          className="text-xs font-medium uppercase tracking-[0.06em] text-ln-op-faint"
           title="Valor de flujo de una ventana fija: no cambia con la línea de tiempo (a diferencia de un valor de período, que sigue el selector)."
         >
           {kpi.fixedWindowLabel}
         </span>
       ) : (
         <span
-          className="text-[var(--text-xs)] font-medium uppercase tracking-[0.06em] text-ln-op-faint"
+          className="text-xs font-medium uppercase tracking-[0.06em] text-ln-op-faint"
           title="Valor de flujo del período seleccionado: acumula los eventos dentro de la ventana temporal activa (a diferencia de un valor de estado actual)."
         >
           período
@@ -174,9 +167,7 @@ function KpiCard({
       )}
       {/* Coherence hybrid (cowork QA H6): the clearly-labeled secondary figure. */}
       {kpi.secondary && (
-        <span className="truncate text-[var(--text-xs)] tabular-nums text-ln-op-faint">
-          {kpi.secondary}
-        </span>
+        <span className="truncate text-xs tabular-nums text-ln-op-faint">{kpi.secondary}</span>
       )}
     </li>
   );
@@ -197,7 +188,7 @@ export function KpiChips({
 
   if (degraded) {
     return (
-      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-warn">
+      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-center text-sm text-ln-op-warn">
         No pudimos cargar los indicadores en este momento.
       </p>
     );
@@ -212,7 +203,7 @@ export function KpiChips({
     return (
       <p
         aria-busy="true"
-        className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute"
+        className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-sm text-ln-op-mute"
       >
         Actualizando indicadores…
       </p>
@@ -234,14 +225,14 @@ export function KpiChips({
       return (
         <p
           aria-busy="true"
-          className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute"
+          className="animate-pulse rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-sm text-ln-op-mute"
         >
           Cargando indicadores…
         </p>
       );
     }
     return (
-      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-sm)] text-ln-op-mute">
+      <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-sm text-ln-op-mute">
         Métricas no disponibles para esta vista.
       </p>
     );
@@ -295,7 +286,7 @@ export function KpiChips({
         ))}
       </ul>
       {shownRelevant.length === 0 && (
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-[var(--text-xs)] text-ln-op-mute">
+        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-xs text-ln-op-mute">
           Ningún indicador corresponde directamente a las capas activas.
         </p>
       )}
@@ -306,7 +297,7 @@ export function KpiChips({
             aria-expanded={showAll}
             aria-controls="kpi-irrelevant-list"
             onClick={() => setShowAll((v) => !v)}
-            className="w-fit text-[var(--text-xs)] font-medium text-ln-op-azul hover:underline"
+            className="w-fit text-xs font-medium text-ln-op-azul hover:underline"
           >
             {showAll
               ? "Ocultar indicadores de otras capas"

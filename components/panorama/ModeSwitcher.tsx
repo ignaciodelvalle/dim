@@ -45,10 +45,8 @@ export function ModeSwitcher({ options, value, onChange, heading, sub, note }: P
     <div className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2">
       {(heading || sub) && (
         <div className="flex flex-col">
-          {heading && (
-            <span className="text-[var(--text-sm)] font-semibold text-ln-op-ink-2">{heading}</span>
-          )}
-          {sub && <span className="text-[var(--text-xs)] text-ln-op-mute">{sub}</span>}
+          {heading && <span className="text-sm font-semibold text-ln-op-ink-2">{heading}</span>}
+          {sub && <span className="text-xs text-ln-op-mute">{sub}</span>}
         </div>
       )}
       <fieldset className="m-0 inline-flex overflow-hidden rounded-[var(--radius-md)] border border-ln-op-line p-0">
@@ -63,7 +61,7 @@ export function ModeSwitcher({ options, value, onChange, heading, sub, note }: P
               disabled={opt.disabled}
               title={opt.title}
               onClick={() => onChange(opt.id)}
-              className={`px-2.5 py-1 text-[var(--text-sm)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+              className={`px-2.5 py-1 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
                 active
                   ? "bg-ln-op-azul/10 text-ln-op-azul"
                   : "bg-ln-op-card text-ln-op-ink-2 hover:bg-ln-op-stripe"
@@ -75,7 +73,7 @@ export function ModeSwitcher({ options, value, onChange, heading, sub, note }: P
         })}
       </fieldset>
       {note && (
-        <p className="w-full text-[var(--text-xs)] text-ln-op-mute" aria-live="polite">
+        <p className="w-full text-xs text-ln-op-mute" aria-live="polite">
           {note}
         </p>
       )}

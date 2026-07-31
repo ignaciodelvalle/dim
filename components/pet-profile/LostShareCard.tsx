@@ -63,7 +63,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
       <button
         type="button"
         onClick={shareWhatsApp}
-        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--color-ln-ok)] px-5 py-3 text-[var(--text-md)] font-semibold text-white transition-colors hover:opacity-90"
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--color-ln-ok)] px-5 py-3 text-md font-semibold text-white transition-colors hover:opacity-90"
       >
         <Icon name="mensaje" size="md" decorative />
         Compartir por WhatsApp

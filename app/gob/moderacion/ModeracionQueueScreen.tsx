@@ -196,7 +196,7 @@ export async function ModeracionQueueScreen({
         eyebrow="Moderación"
         title="Moderación de denuncias"
         subtitle={
-          <p className="text-[var(--text-md)] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Denuncias anónimas {scopePhrase} que las heurísticas marcaron para revisión, antes de
             que entren a la cola de triage. Aprobalas para pasarlas a triage, rechazalas como abuso,
             o escalalas al equipo de plataforma. Las denuncias sin jurisdicción clara las modera el
@@ -279,7 +279,7 @@ export async function ModeracionQueueScreen({
                               <div className="flex items-baseline justify-between gap-3">
                                 <div className="min-w-0 space-y-1">
                                   <div className="flex flex-wrap items-center gap-2">
-                                    <p className="text-[var(--text-md)] font-semibold text-ln-op-ink">
+                                    <p className="text-md font-semibold text-ln-op-ink">
                                       {welfareReportKindLabel(r.kind)}
                                     </p>
                                     <OpPill tone={severityTone}>

@@ -365,7 +365,7 @@ export function OpOmnibox({
                         ? "No encontramos esa mascota en tu jurisdicción."
                         : "Sin coincidencias en tu jurisdicción"}
                   </p>
-                  <p className="mt-1 text-[var(--text-xs)] text-ln-op-mute">
+                  <p className="mt-1 text-xs text-ln-op-mute">
                     {orgToken
                       ? "Probá con el nombre de la mascota o su código (DIM-…)."
                       : "Probá con el nombre o token (DIM-…) de una mascota, un código de caso (CAS-…), de denuncia (DEN-…), o nombre, apellido o DNI."}

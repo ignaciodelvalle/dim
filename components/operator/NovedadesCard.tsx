@@ -90,8 +90,7 @@ export function NovedadesCard({
       <OpCardHead
         title={
           <>
-            Novedades{" "}
-            <span className="text-[var(--text-sm)] font-normal text-ln-op-mute">{subtitle}</span>
+            Novedades <span className="text-sm font-normal text-ln-op-mute">{subtitle}</span>
           </>
         }
         actions={actions}
@@ -99,7 +98,7 @@ export function NovedadesCard({
       {collapsed ? null : (
         <OpCardBody className="p-0">
           {groups.length === 0 ? (
-            <p className="px-4 py-3 text-[var(--text-md)] text-ln-op-mute">{emptyCopy}</p>
+            <p className="px-4 py-3 text-md text-ln-op-mute">{emptyCopy}</p>
           ) : (
             <ul className="divide-y divide-ln-op-line-2">
               {groups.map((group) => (
@@ -135,9 +134,7 @@ export function NovedadesCard({
                         </span>
                       ) : null}
                       <div className="min-w-0">
-                        <p className="text-[var(--text-md)] text-ln-op-ink">
-                          {feedGroupLabel(group.eventType)}
-                        </p>
+                        <p className="text-md text-ln-op-ink">{feedGroupLabel(group.eventType)}</p>
                         <p className="truncate text-sm text-ln-op-mute">
                           {formatJurisdiction(group.province, group.locality)} ·{" "}
                           {relativeTime(group.latestRecordedAt)}

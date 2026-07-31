@@ -198,7 +198,7 @@ export function PanoramaDock({
                 >
                   {TAB_LABELS[key]}
                   {key === "registros" && (
-                    <span className="rounded-full bg-ln-op-azul/10 px-1.5 text-[var(--text-xs)] font-medium tabular-nums text-ln-op-azul">
+                    <span className="rounded-full bg-ln-op-azul/10 px-1.5 text-xs font-medium tabular-nums text-ln-op-azul">
                       {recordCount.toLocaleString("es-AR")}
                     </span>
                   )}
@@ -208,9 +208,7 @@ export function PanoramaDock({
           })}
         </div>
         <div className="ml-auto flex flex-none items-center gap-2">
-          <span className="hidden text-[var(--text-xs)] tabular-nums text-ln-op-mute md:inline">
-            {meta}
-          </span>
+          <span className="hidden text-xs tabular-nums text-ln-op-mute md:inline">{meta}</span>
           {csvAction}
           <OpButton
             size="sm"

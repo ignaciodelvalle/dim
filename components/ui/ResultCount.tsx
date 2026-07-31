@@ -47,7 +47,7 @@ export function ResultCount({
   const capped = total === undefined || total > shown;
 
   return (
-    <p className={className ?? "text-[var(--text-sm)] text-ln-op-mute"}>
+    <p className={className ?? "text-sm text-ln-op-mute"}>
       {total !== undefined ? (
         <>
           Mostrando {n} de {total.toLocaleString("es-AR")} {noun}

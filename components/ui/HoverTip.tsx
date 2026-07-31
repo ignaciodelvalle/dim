@@ -58,7 +58,7 @@ export function HoverTip({
         <span
           role="tooltip"
           id={id}
-          className={`absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 ${width} rounded-lg border border-ln-line bg-ln-card p-2.5 text-[var(--text-sm)] font-normal leading-snug text-ln-ink shadow-lg`}
+          className={`absolute bottom-full left-1/2 z-50 mb-2 -translate-x-1/2 ${width} rounded-lg border border-ln-line bg-ln-card p-2.5 text-sm font-normal leading-snug text-ln-ink shadow-lg`}
         >
           {content}
         </span>

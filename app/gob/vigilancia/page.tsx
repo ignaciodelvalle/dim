@@ -127,12 +127,10 @@ export default async function GobVigilanciaPage({
           {/* The universal claim yields to the narrowed-view caption (never both). */}
           {profile.role === "admin" ? (
             narrowedView ? null : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
-                Vista universal — todas las jurisdicciones.
-              </p>
+              <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
             )
           ) : (
-            <p className="text-[var(--text-md)] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Señales de zoonosis y enfermedades reportables detectadas en tu cobertura.
             </p>
           )}
@@ -538,7 +536,7 @@ export default async function GobVigilanciaPage({
             title={<span id={panelComplianceId}>Cumplimiento legal — observación rábica</span>}
           />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-md">
               {/* (A8) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
               <dt className="text-ln-op-mute">Cumplimiento 10 días</dt>
               <dd className="text-right font-semibold text-ln-op-ink">
@@ -574,7 +572,7 @@ export default async function GobVigilanciaPage({
             }
           />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-md">
               {/* (A7) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
               <dt className="text-ln-op-mute">Entregadas en SLA</dt>
               <dd className="text-right font-semibold text-ln-op-ink">{pct(enoSla.onTimePct)}</dd>
@@ -597,7 +595,7 @@ export default async function GobVigilanciaPage({
                 external transmission to the health authority awaits a
                 receiving endpoint. Never "próximamente" (this pipeline is
                 real and running today). */}
-            <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+            <p className="mt-3 text-sm text-ln-op-mute">
               Registrada y auditada — transmisión a la autoridad pendiente de endpoint receptor.
             </p>
           </OpCardBody>
@@ -629,7 +627,7 @@ export default async function GobVigilanciaPage({
                 />
               </div>
             ) : (
-              <ul className="px-4 py-2 text-[var(--text-md)]">
+              <ul className="px-4 py-2 text-md">
                 {reportableCells.map((c) => (
                   <li
                     key={c.key}
@@ -644,7 +642,7 @@ export default async function GobVigilanciaPage({
               </ul>
             )}
             {reportableIncidence.byDisease.suppressedCount > 0 && (
-              <p className="px-4 pb-3 text-[var(--text-sm)] text-ln-op-mute">
+              <p className="px-4 pb-3 text-sm text-ln-op-mute">
                 {reportableIncidence.byDisease.suppressedCount} celda(s) ocultas por privacidad
                 (k-anonimato).
               </p>
@@ -671,7 +669,7 @@ export default async function GobVigilanciaPage({
               />
             ) : (
               <>
-                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[var(--text-md)]">
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-md">
                   {/* (A12) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
                   <dt className="text-ln-op-mute">Densidad</dt>
                   <dd className="text-right font-semibold text-ln-op-ink">
@@ -687,7 +685,7 @@ export default async function GobVigilanciaPage({
                   </dd>
                 </dl>
                 {amrDensity.provisionalUnclassified > 0 && (
-                  <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+                  <p className="mt-3 text-sm text-ln-op-mute">
                     {amrDensity.provisionalUnclassified} evento(s) con fármaco sin clasificar —
                     conteo provisional (clasificación provisional), no incluido en la tasa.
                   </p>
@@ -724,34 +722,28 @@ export default async function GobVigilanciaPage({
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.total.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
-                    Movimientos totales
-                  </div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Movimientos totales</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.jurisdictionChanged.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
-                    Cambios de jurisdicción
-                  </div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Cambios de jurisdicción</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.cviIssued.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">CVI emitidos</div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">CVI emitidos</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {movement.transportRecorded.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
-                    Transportes registrados
-                  </div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Transportes registrados</div>
                 </div>
               </div>
-              <p className="mt-3 text-[var(--text-sm)] text-ln-op-mute">
+              <p className="mt-3 text-sm text-ln-op-mute">
                 Eventos movement_recorded en el período, scoped a la jurisdicción de origen de la
                 mascota. Un cambio de jurisdicción reasigna el hogar de la mascota al destino.
               </p>

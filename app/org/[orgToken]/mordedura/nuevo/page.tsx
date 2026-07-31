@@ -32,9 +32,9 @@ export default async function NewOrgBitePage({
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-[var(--text-2xl)] font-semibold text-ln-op-ink">Sin acceso</h1>
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">{auth.error}</p>
-        <p className="text-[var(--text-md)] text-ln-op-mute">
+        <h1 className="text-2xl font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-md text-ln-op-ink-2">{auth.error}</p>
+        <p className="text-md text-ln-op-mute">
           Podés pedir el permiso «Reportar mordeduras» desde la página de permisos de tu
           organización.
         </p>
@@ -62,9 +62,7 @@ export default async function NewOrgBitePage({
       />
 
       <header className="space-y-2">
-        <h1 className="text-[var(--text-title)] font-semibold text-ln-op-ink">
-          Reportar mordedura
-        </h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Reportar mordedura</h1>
         <p className="text-[13px] text-ln-op-mute">
           Registrar una mordedura que presenciaste o conocés clínicamente. Inicia automáticamente el
           período de observación antirrábica de 10 días según la legislación vigente.

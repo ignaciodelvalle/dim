@@ -181,11 +181,11 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
           titles below already name WHICH capa each block decodes; this states
           WHAT the section is for, so a first-time operator does not have to
           infer it from the blocks alone. */}
-      <p className="text-[var(--text-xs)] leading-snug text-ln-op-mute">
+      <p className="text-xs leading-snug text-ln-op-mute">
         Cómo leer los colores y símbolos del mapa.
       </p>
       {!anyLegend && (
-        <p className="text-[var(--text-xs)] leading-snug text-ln-op-ink-2">
+        <p className="text-xs leading-snug text-ln-op-ink-2">
           Por ahora no hay escalas que decodificar: las capas activas no están pintando ningún valor
           por color ni por tamaño en este alcance (por ejemplo, cuando todos los valores quedan
           protegidos por k&lt;5). Activá otra capa o ampliá el alcance para ver las referencias.
@@ -204,7 +204,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
             </div>
             <div className="flex items-stretch gap-1.5">
               <div className="flex flex-col items-center justify-center">
-                <span className="whitespace-nowrap text-[var(--text-xs)] text-ln-op-mute [writing-mode:vertical-rl] [transform:rotate(180deg)]">
+                <span className="whitespace-nowrap text-xs text-ln-op-mute [writing-mode:vertical-rl] [transform:rotate(180deg)]">
                   {bivariateLayer.bivariatePair?.signalAxis ?? "Señales ↑"}
                 </span>
               </div>
@@ -228,7 +228,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                     />
                   ))}
                 </div>
-                <div className="mt-0.5 text-center text-[var(--text-xs)] text-ln-op-mute">
+                <div className="mt-0.5 text-center text-xs text-ln-op-mute">
                   {bivariateLayer.bivariatePair?.coverageAxis ?? "Cobertura →"}
                 </div>
               </div>

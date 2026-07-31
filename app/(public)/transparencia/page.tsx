@@ -20,9 +20,7 @@ function DatasetCard({ id }: { id: (typeof DATASET_IDS)[number] }) {
       className="space-y-3 rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4"
     >
       <div className="space-y-1">
-        <h3 className="text-[var(--text-base)] font-semibold text-[var(--color-ln-ink)]">
-          {d.title}
-        </h3>
+        <h3 className="text-base font-semibold text-[var(--color-ln-ink)]">{d.title}</h3>
         <p className="text-sm leading-snug text-[var(--color-ln-mute)]">{d.summary}</p>
       </div>
 
@@ -63,7 +61,7 @@ export default function TransparenciaPage() {
       <div className="mx-auto max-w-2xl space-y-10 px-6 py-16">
         <header className="space-y-3">
           <h1
-            className="text-[var(--text-2xl)] leading-tight font-semibold tracking-[-0.015em] text-[var(--color-ln-ink)]"
+            className="text-2xl leading-tight font-semibold tracking-[-0.015em] text-[var(--color-ln-ink)]"
             style={{ fontFamily: "var(--font-ln-serif)" }}
           >
             Transparencia activa
@@ -77,10 +75,7 @@ export default function TransparenciaPage() {
         </header>
 
         <section aria-labelledby="datasets-heading" className="space-y-4">
-          <h2
-            id="datasets-heading"
-            className="text-[var(--text-xl)] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="datasets-heading" className="text-xl font-semibold text-[var(--color-ln-ink)]">
             Conjuntos de datos
           </h2>
           <p className="text-sm leading-relaxed text-[var(--color-ln-mute)]">
@@ -104,7 +99,7 @@ export default function TransparenciaPage() {
             />
             <h2
               id="metodologia-heading"
-              className="text-[var(--text-xl)] font-semibold text-[var(--color-ln-ink)]"
+              className="text-xl font-semibold text-[var(--color-ln-ink)]"
             >
               Metodología y privacidad
             </h2>
@@ -154,10 +149,7 @@ export default function TransparenciaPage() {
         </section>
 
         <section aria-labelledby="diccionario-heading" id="diccionario" className="space-y-3">
-          <h2
-            id="diccionario-heading"
-            className="text-[var(--text-xl)] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="diccionario-heading" className="text-xl font-semibold text-[var(--color-ln-ink)]">
             Diccionario de datos
           </h2>
           <p className="text-sm leading-relaxed text-[var(--color-ln-ink-2)]">
@@ -172,10 +164,7 @@ export default function TransparenciaPage() {
         </section>
 
         <section aria-labelledby="licencia-heading" className="space-y-3">
-          <h2
-            id="licencia-heading"
-            className="text-[var(--text-xl)] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="licencia-heading" className="text-xl font-semibold text-[var(--color-ln-ink)]">
             Licencia
           </h2>
           <p className="text-sm leading-relaxed text-[var(--color-ln-ink-2)]">
@@ -194,10 +183,7 @@ export default function TransparenciaPage() {
         </section>
 
         <section aria-labelledby="contacto-heading" className="space-y-3">
-          <h2
-            id="contacto-heading"
-            className="text-[var(--text-xl)] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="contacto-heading" className="text-xl font-semibold text-[var(--color-ln-ink)]">
             Contacto
           </h2>
           <p className="text-sm leading-relaxed text-[var(--color-ln-ink-2)]">
@@ -224,7 +210,7 @@ export default function TransparenciaPage() {
 
         <Link
           href="/"
-          className="inline-block text-[var(--text-md)] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-md text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

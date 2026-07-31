@@ -73,10 +73,7 @@ export function InspectorPanel({ title, fullPageHref, onClose, onBack, children 
             ← Volver a la denuncia
           </OpButton>
         )}
-        <h2
-          id={titleId}
-          className="min-w-0 flex-1 truncate text-[var(--text-md)] font-semibold text-ln-op-ink"
-        >
+        <h2 id={titleId} className="min-w-0 flex-1 truncate text-md font-semibold text-ln-op-ink">
           {title}
         </h2>
         <div className="flex flex-shrink-0 items-center gap-2">
@@ -84,7 +81,7 @@ export function InspectorPanel({ title, fullPageHref, onClose, onBack, children 
             <Link
               href={fullPageHref}
               prefetch={false}
-              className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[var(--text-sm)] text-ln-op-mute hover:bg-ln-op-stripe hover:text-ln-op-ink-2"
+              className="inline-flex items-center gap-1 rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-sm text-ln-op-mute hover:bg-ln-op-stripe hover:text-ln-op-ink-2"
               title="Abrir en página completa"
             >
               <Icon name="externo" size="sm" decorative />

@@ -81,9 +81,7 @@ export function RulesWizard({ base }: Props) {
         aria-hidden={step !== 1}
         inert={step !== 1 ? true : undefined}
       >
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
-          ¿A qué provincia se aplica la nueva regla?
-        </p>
+        <p className="text-md text-ln-op-ink-2">¿A qué provincia se aplica la nueva regla?</p>
         <OpField label="Provincia" required>
           {({ id, describedBy, invalid }) => (
             <OpSelect
@@ -125,7 +123,7 @@ export function RulesWizard({ base }: Props) {
         aria-hidden={step !== 2}
         inert={step !== 2 ? true : undefined}
       >
-        <p className="text-[var(--text-md)] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           ¿La regla aplica a toda {provinceName || "la provincia"} o solo a una localidad?
         </p>
         <OpCheckbox
@@ -173,7 +171,7 @@ export function RulesWizard({ base }: Props) {
         inert={step !== 3 ? true : undefined}
       >
         <fieldset className="m-0 space-y-2 border-0 p-0">
-          <legend className="mb-1 block text-[var(--text-md)] text-ln-op-ink-2">
+          <legend className="mb-1 block text-md text-ln-op-ink-2">
             ¿Qué tipo de regla querés configurar?
           </legend>
           {RULE_TYPE_OPTIONS.map((t) => {
@@ -195,12 +193,8 @@ export function RulesWizard({ base }: Props) {
                   onChange={() => setRuleType(t)}
                   className="sr-only"
                 />
-                <span className="block text-[var(--text-md)] font-medium text-ln-op-ink">
-                  {def.label}
-                </span>
-                <span className="block text-[var(--text-sm)] text-ln-op-ink-2">
-                  {def.description}
-                </span>
+                <span className="block text-md font-medium text-ln-op-ink">{def.label}</span>
+                <span className="block text-sm text-ln-op-ink-2">{def.description}</span>
               </label>
             );
           })}
@@ -227,7 +221,7 @@ export function RulesWizard({ base }: Props) {
       >
         {ruleType && RuleForm ? (
           <>
-            <p className="text-[var(--text-md)] text-ln-op-ink-2">
+            <p className="text-md text-ln-op-ink-2">
               {jurisdictionLabel("AR", provinceName || null, effectiveLocality)} {"·"}{" "}
               {RULE_TYPE_REGISTRY[ruleType].label}
             </p>

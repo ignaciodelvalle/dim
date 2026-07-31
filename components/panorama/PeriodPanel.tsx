@@ -100,7 +100,7 @@ export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: 
             type="button"
             aria-pressed={isActive}
             onClick={() => pick(value)}
-            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] ${
+            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm ${
               isActive
                 ? "bg-ln-op-azul/10 font-semibold text-ln-op-azul"
                 : "text-ln-op-ink hover:bg-ln-op-stripe"
@@ -119,7 +119,7 @@ export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: 
             type="button"
             aria-pressed={customActive}
             onClick={revealCustom}
-            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-[var(--text-sm)] ${
+            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm ${
               customActive
                 ? "bg-ln-op-azul/10 font-semibold text-ln-op-azul"
                 : "text-ln-op-ink hover:bg-ln-op-stripe"

@@ -197,12 +197,12 @@ export default async function GobAdopcionesPage({
             {/* The universal claim yields to the narrowed-view caption (never both). */}
             {profile.role === "admin" ? (
               narrowedView ? null : (
-                <p className="text-[var(--text-md)] text-ln-op-mute">
+                <p className="text-md text-ln-op-mute">
                   Vista universal — todas las jurisdicciones.
                 </p>
               )
             ) : (
-              <p className="text-[var(--text-md)] text-ln-op-mute">
+              <p className="text-md text-ln-op-mute">
                 Flujo de custodia, tiempos de custodia y pool de tránsitos en tu cobertura.
               </p>
             )}
@@ -229,7 +229,7 @@ export default async function GobAdopcionesPage({
           ] satisfies OpFilterAxis[]
         }
         actions={
-          <a href={exportHref} className="text-[var(--text-md)] text-ln-op-azul hover:underline">
+          <a href={exportHref} className="text-md text-ln-op-azul hover:underline">
             Exportar CSV →
           </a>
         }
@@ -335,9 +335,7 @@ export default async function GobAdopcionesPage({
                   className="flex items-center gap-3"
                   aria-label={`Ingresos al refugio: ${funnel.intake.toLocaleString("es-AR")}`}
                 >
-                  <span className="w-48 shrink-0 text-[var(--text-md)] text-ln-op-ink">
-                    Ingresos al refugio
-                  </span>
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">Ingresos al refugio</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -347,7 +345,7 @@ export default async function GobAdopcionesPage({
                       style={{ width: `${fPct.intakePct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[var(--text-md)] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.intake.toLocaleString("es-AR")}
                   </span>
                 </li>
@@ -357,9 +355,7 @@ export default async function GobAdopcionesPage({
                   className="flex items-center gap-3"
                   aria-label={`Asignados a tránsito: ${funnel.foster.toLocaleString("es-AR")}`}
                 >
-                  <span className="w-48 shrink-0 text-[var(--text-md)] text-ln-op-ink">
-                    Asignados a tránsito
-                  </span>
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">Asignados a tránsito</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -369,7 +365,7 @@ export default async function GobAdopcionesPage({
                       style={{ width: `${fPct.fosterPct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[var(--text-md)] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.foster.toLocaleString("es-AR")}
                   </span>
                 </li>
@@ -382,7 +378,7 @@ export default async function GobAdopcionesPage({
                   className="flex items-center gap-3"
                   aria-label={`${KPI_CATALOG.adoptions_finalized.label}: ${funnel.adoption.toLocaleString("es-AR")}`}
                 >
-                  <span className="w-48 shrink-0 text-[var(--text-md)] text-ln-op-ink">
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">
                     {KPI_CATALOG.adoptions_finalized.label}
                   </span>
                   <div
@@ -394,7 +390,7 @@ export default async function GobAdopcionesPage({
                       style={{ width: `${fPct.adoptionPct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[var(--text-md)] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.adoption.toLocaleString("es-AR")}
                   </span>
                 </li>
@@ -408,9 +404,7 @@ export default async function GobAdopcionesPage({
                     returnRatePct != null ? ` (${returnRatePct}% de las adopciones)` : ""
                   }`}
                 >
-                  <span className="w-48 shrink-0 text-[var(--text-md)] text-ln-op-ink">
-                    Devoluciones
-                  </span>
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">Devoluciones</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -420,7 +414,7 @@ export default async function GobAdopcionesPage({
                       style={{ width: `${fPct.reversedPct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[var(--text-md)] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.reversed.toLocaleString("es-AR")}
                     {returnRatePct != null ? (
                       <span className="ml-1 text-ln-op-mute">({returnRatePct}%)</span>
@@ -459,31 +453,31 @@ export default async function GobAdopcionesPage({
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {appFunnel.submitted.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">Postulaciones</div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Postulaciones</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {appFunnel.resolved.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">Resueltas</div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Resueltas</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ok tabular-nums">
                     {appFunnel.approved.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">Aprobadas</div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Aprobadas</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {appFunnel.rejected.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">Rechazadas</div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Rechazadas</div>
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                     {conversionPct != null ? `${conversionPct}%` : "—"}
                   </div>
-                  <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">Conversión</div>
+                  <div className="text-sm text-ln-op-mute mt-0.5">Conversión</div>
                 </div>
               </div>
               <p className="mt-3 text-xs text-ln-op-mute">
@@ -511,7 +505,7 @@ export default async function GobAdopcionesPage({
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[var(--text-md)] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Tiempo promedio y percentil 75 en estado de custodia o tránsito, en días.
                 </caption>
@@ -591,10 +585,10 @@ export default async function GobAdopcionesPage({
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center gap-4">
-                  <div className="text-[var(--text-2xl)] font-semibold text-ln-op-ink tabular-nums">
+                  <div className="text-2xl font-semibold text-ln-op-ink tabular-nums">
                     {shelterOccupancy.occupied.toLocaleString("es-AR")}
                   </div>
-                  <div className="text-[var(--text-md)] text-ln-op-mute">
+                  <div className="text-md text-ln-op-mute">
                     {shelterOccupancy.capacity != null ? (
                       <>
                         de {shelterOccupancy.capacity.toLocaleString("es-AR")} cupos declarados
@@ -644,25 +638,19 @@ export default async function GobAdopcionesPage({
               <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeVolunteers.toLocaleString("es-AR")}
               </div>
-              <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
-                Voluntarios activos
-              </div>
+              <div className="text-sm text-ln-op-mute mt-0.5">Voluntarios activos</div>
             </div>
             <div className="text-center">
               <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.withCapacity.toLocaleString("es-AR")}
               </div>
-              <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
-                Con cupo disponible
-              </div>
+              <div className="text-sm text-ln-op-mute mt-0.5">Con cupo disponible</div>
             </div>
             <div className="text-center">
               <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeFosterPlacements.toLocaleString("es-AR")}
               </div>
-              <div className="text-[var(--text-sm)] text-ln-op-mute mt-0.5">
-                Colocaciones activas
-              </div>
+              <div className="text-sm text-ln-op-mute mt-0.5">Colocaciones activas</div>
             </div>
           </div>
           <p className="mt-3 text-xs text-ln-op-mute">
