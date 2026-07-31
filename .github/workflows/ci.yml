@@ -373,7 +373,7 @@ jobs:
   test:
     name: Tests (vitest)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     # Tests need the full Supabase local stack (Postgres + GoTrue + PostgREST),
     # not just bare Postgres — 11 tests call admin.auth.admin.{listUsers,
@@ -399,6 +399,23 @@ jobs:
     #
     # timeout-minutes raised from 15 → 20 to account for v8 coverage
     # instrumentation overhead (~20-30% on a cold run).
+    #
+    # 2026-07-31: 20 → 30. The job had been finishing at 19m59s (run
+    # 30624892995, sha 324e853d) — ONE SECOND inside its own budget — and the
+    # next commit tipped it over. Two things made that invisible for however
+    # long it had been true:
+    #   - A green check reports "19:59" and "healthy" identically. Nothing
+    #     watches the margin, so the job was one commit from breaking for
+    #     anyone, not just whoever happened to push.
+    #   - GitHub reports a timeout-minutes kill as `cancelled`, not `failure`
+    #     (same trap the always()-vs-failure() note further down documents), so
+    #     the death read as flaky infrastructure rather than an exhausted
+    #     budget. It was neither: 13k tests plus ~4.5min of Supabase bootstrap
+    #     simply do not fit in 20.
+    # 30 leaves real headroom on a loaded runner while still killing a genuine
+    # hang. If this ever creeps past ~25 again, the answer is a faster suite,
+    # not another bump — raising it forever is how a timeout stops meaning
+    # anything.
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
