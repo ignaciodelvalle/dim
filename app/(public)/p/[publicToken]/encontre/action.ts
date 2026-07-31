@@ -30,6 +30,7 @@ import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-lim
 import { reportError } from "@/lib/infra/report-error";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
 import { AR_TIME_ZONE, parseArDatetimeLocal } from "@/lib/utils/format";
 
 export type FinderInPossessionState = {
@@ -144,9 +145,7 @@ export async function reportFinderInPossessionAction(
   if (pet.inCustodyDispute) {
     return {
       ok: false,
-      error:
-        "La titularidad de esta mascota está en revisión por la autoridad. " +
-        "Si tenés información, será dirigida a la autoridad competente, no a las partes.",
+      error: `${DISPUTE_TIP_NOTICE} Enviá tu aviso desde la credencial de la mascota.`,
     };
   }
 

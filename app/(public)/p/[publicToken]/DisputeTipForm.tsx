@@ -43,9 +43,12 @@ export function DisputeTipForm({ publicToken }: { publicToken: string }) {
 
   return (
     <form action={formAction} className="space-y-3">
+      {/* Says who reads it, never why the routing changed — see
+          lib/ui/dispute-copy.ts. "Nadie más" is literally true: the use-case
+          inserts a finder_tip case event and CaseDetailView filters those away
+          from every non-authority viewer, including both disputing parties. */}
       <p className="text-xs text-ln-mute">
-        Esta información quedará disponible para la autoridad que revisa la titularidad. No se
-        comparte con las partes.
+        Esta información la lee solamente la autoridad que revisa la credencial. Nadie más la ve.
       </p>
 
       <div className="space-y-1">

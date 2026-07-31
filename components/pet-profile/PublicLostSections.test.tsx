@@ -12,6 +12,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
+
 import { PublicLostSections } from "./PublicLostSections";
 
 const BASE_PROPS = {
@@ -29,8 +31,15 @@ const BASE_PROPS = {
   lostSince: new Date("2026-06-01T12:00:00Z"),
 };
 
-const NEUTRAL_NOTICE =
-  "La titularidad de esta mascota está en revisión por la autoridad. Si tenés información, será dirigida a la autoridad competente, no a las partes.";
+// PO decision 2026-07-30: the notice used to open with "La titularidad de esta
+// mascota está en revisión por la autoridad… no a las partes." — which told a
+// stranger who just found an animal that two people are fighting over it. The
+// finder is not a party and does not need the reason; what they need is the
+// truth about who receives their message. The wording now states the routing
+// and withholds the conflict, and lives in one place so the five surfaces that
+// render it cannot drift apart. Imported rather than duplicated on purpose: a
+// copy edit must break this test, not slip past it.
+const NEUTRAL_NOTICE = DISPUTE_TIP_NOTICE;
 
 afterEach(cleanup);
 

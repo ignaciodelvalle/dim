@@ -25,8 +25,10 @@ import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { DISPUTE_TIP_HEADING, DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
 import { foundPossessivePhrase } from "@/lib/utils/format";
 
+import { DisputeTipForm } from "../DisputeTipForm";
 import { FinderInPossessionForm } from "./FinderInPossessionForm";
 
 export const dynamic = "force-dynamic";
@@ -50,28 +52,36 @@ export default async function FinderInPossessionPage({
   const { pet, photo } = petRow;
   const photoUrl = petPhotoUrl(photo?.storagePath);
 
-  // Gate 0 (D2 hardening, red-team 2026-07): custody dispute — the finder flow
-  // relays the finder's contact to the contested owner, so the whole route is
-  // replaced by the neutral authority notice while titularidad is under
-  // review. The action is gated server-side too (encontre/action.ts).
+  // Gate 0 — custody dispute: the CHANNEL is kept, the DESTINATION moves (PO
+  // decision 2026-07-30). Same reasoning as the sighting route, and this one
+  // matters more: whoever reaches /encontre is holding the animal. D2 was
+  // right that the relay must not run (it hands the finder's name and phone to
+  // a contested owner); it was wrong to leave a promise of routing with no
+  // form to write in. The neutral tip form goes here, and the submission lands
+  // on the dispute case where only the reviewing authority reads it.
+  // encontre/action.ts still refuses server-side — defense-in-depth for a
+  // hand-rolled POST, since no UI here points at it anymore.
   if (pet.inCustodyDispute) {
     return (
       // Landing shell (AppShell variant=landing) owns #main-content + min-height.
-      <div className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
-        <div className="mx-auto max-w-md space-y-4 text-center">
-          <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
-            Titularidad en revisión
-          </h1>
-          <p className="text-sm text-[var(--color-ln-mute)]">
-            La titularidad de esta mascota está en revisión por la autoridad. Si tenés información,
-            será dirigida a la autoridad competente, no a las partes.
-          </p>
-          <Link
-            href={`/p/${publicToken}`}
-            className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm"
-          >
-            Ver el perfil público
-          </Link>
+      <div className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-6">
+        <div className="mx-auto max-w-md space-y-5">
+          <header className="space-y-1">
+            <Link
+              href={`/p/${publicToken}`}
+              className="text-sm text-[var(--color-ln-ink)] underline underline-offset-4"
+            >
+              ← Volver al perfil
+            </Link>
+            <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
+              {DISPUTE_TIP_HEADING}
+            </h1>
+            <p className="text-sm text-[var(--color-ln-mute)]">{DISPUTE_TIP_INTRO}</p>
+          </header>
+
+          <section className="rounded-2xl bg-[var(--color-ln-card)] p-4">
+            <DisputeTipForm publicToken={publicToken} />
+          </section>
         </div>
       </div>
     );

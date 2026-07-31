@@ -44,6 +44,7 @@ import {
 } from "@/lib/reference/permanent-conditions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { BRANDING } from "@/lib/ui/branding";
+import { DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
 import { derivePetSituation } from "@/lib/ui/pet-situation";
 import {
   AR_TIME_ZONE,
@@ -837,10 +838,7 @@ export default async function PublicCredentialPage({
                     <p className="m-0 font-ln-serif text-md font-semibold text-ln-ink">
                       ¿Tenés información sobre esta mascota?
                     </p>
-                    <p className="mt-0.5 text-sm text-ln-mute">
-                      La titularidad de esta mascota está en revisión por la autoridad. Si tenés
-                      información, será dirigida a la autoridad competente, no a las partes.
-                    </p>
+                    <p className="mt-0.5 text-sm text-ln-mute">{DISPUTE_TIP_INTRO}</p>
                   </div>
                   <span
                     aria-hidden="true"

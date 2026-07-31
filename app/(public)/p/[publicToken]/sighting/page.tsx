@@ -12,8 +12,10 @@ import { notFound } from "next/navigation";
 
 import { db, pets } from "@/db";
 import { fetchLostEpisodeForPet, publicSightingMapCenter } from "@/lib/infra/lost-mode";
+import { DISPUTE_TIP_HEADING, DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
 import { sightingPhrase } from "@/lib/utils/format";
 
+import { DisputeTipForm } from "../DisputeTipForm";
 import { PetSightingForm } from "./PetSightingForm";
 
 export const dynamic = "force-dynamic";
@@ -41,28 +43,46 @@ export default async function PetSightingPage({
     .limit(1);
   if (!pet) notFound();
 
-  // D2 hardening (red-team 2026-07): the sighting flow notifies the contested
-  // owner and its payload can carry the finder's contact — replaced by the
-  // neutral authority notice while titularidad is under review. The action is
-  // gated server-side too (report-pet-sighting.ts).
+  // Custody dispute — the CHANNEL is kept, the DESTINATION moves (PO decision
+  // 2026-07-30).
+  //
+  // D2 hardening (red-team 2026-07) was right that this flow must not run: it
+  // notifies the contested owner and its payload can carry the finder's
+  // contact, which takes sides in a legal dispute. What it got wrong was the
+  // replacement — a notice that told the finder their information "será
+  // dirigida a la autoridad competente" and then handed them a link back to
+  // the profile, with nowhere to write it. A person standing over a strange
+  // animal read a promise and hit a dead end. The neutral form (DisputeTipForm
+  // → report-dispute-tip.ts) already existed one route away, on the credential
+  // page; it just was not here.
+  //
+  // So the sighting route keeps its form and swaps its recipient: the
+  // submission lands as a finder_tip on the open dispute case, where only the
+  // reviewing authority reads it — never a notification, never either party.
+  // report-pet-sighting.ts still refuses a disputed pet server-side; that gate
+  // is now purely defense-in-depth for a hand-rolled POST, because no UI on
+  // this page points at it anymore.
   if (pet.inCustodyDispute) {
     return (
       // Landing shell (AppShell variant=landing) owns #main-content + min-height.
-      <div className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-10">
-        <div className="mx-auto max-w-md space-y-4 text-center">
-          <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
-            Titularidad en revisión
-          </h1>
-          <p className="text-sm text-[var(--color-ln-mute)]">
-            La titularidad de esta mascota está en revisión por la autoridad. Si tenés información,
-            será dirigida a la autoridad competente, no a las partes.
-          </p>
-          <Link
-            href={`/p/${publicToken}`}
-            className="inline-block px-4 py-2 rounded-lg bg-[var(--color-ln-azul)] text-white text-sm"
-          >
-            Ver el perfil público
-          </Link>
+      <div className="min-h-screen bg-[var(--color-ln-paper)] px-4 py-6">
+        <div className="mx-auto max-w-md space-y-5">
+          <header className="space-y-1">
+            <Link
+              href={`/p/${publicToken}`}
+              className="text-sm text-[var(--color-ln-ink)] underline underline-offset-4"
+            >
+              ← Volver al perfil
+            </Link>
+            <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">
+              {DISPUTE_TIP_HEADING}
+            </h1>
+            <p className="text-sm text-[var(--color-ln-mute)]">{DISPUTE_TIP_INTRO}</p>
+          </header>
+
+          <section className="rounded-2xl bg-[var(--color-ln-card)] p-4">
+            <DisputeTipForm publicToken={publicToken} />
+          </section>
         </div>
       </div>
     );

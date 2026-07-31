@@ -22,6 +22,7 @@
 
 import { db, notifications, ownerships, pets } from "@/db";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
 import { and, eq, isNull } from "drizzle-orm";
 import { headers } from "next/headers";
 
@@ -58,12 +59,16 @@ export async function notifyOwnerOfFoundPet(
   // system must not relay the finder's name/contact to the contested owner —
   // that takes sides in a legal dispute. Server-side gate, not just UI: the
   // credential page hides the form, but the action is anon-callable.
+  //
+  // The finder is NOT left without a channel (PO decision 2026-07-30): both
+  // the credential and the two standalone finder routes now render the
+  // neutral tip form, whose submission lands on the dispute case for the
+  // reviewing authority only (report-dispute-tip.ts). This refusal is what a
+  // hand-rolled POST hits — no UI points at it anymore.
   if (pet.inCustodyDispute) {
     return {
       ok: false,
-      error:
-        "La titularidad de esta mascota está en revisión por la autoridad. " +
-        "Si tenés información, será dirigida a la autoridad competente, no a las partes.",
+      error: `${DISPUTE_TIP_NOTICE} Enviá tu aviso desde la credencial de la mascota.`,
     };
   }
 

@@ -17,6 +17,7 @@
 import { Icon } from "@/components/Icon";
 import { lostTimeLabel } from "@/lib/infra/lost-listing";
 import { tattooLocationLabel } from "@/lib/reference/lookups";
+import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
 import {
   foundPossessivePhrase,
   lastSeenHeadingLabel,
@@ -215,8 +216,7 @@ export function PublicLostSections({
             data-section="lost-custody-dispute-notice"
             className="mt-3 rounded-lg bg-[var(--color-ln-warn-050)] px-3 py-2 text-xs text-ln-ink-2"
           >
-            La titularidad de esta mascota está en revisión por la autoridad. Si tenés información,
-            será dirigida a la autoridad competente, no a las partes.
+            {DISPUTE_TIP_NOTICE}
           </p>
         )}
 

@@ -48,6 +48,7 @@ import { validateEventPayload } from "@/lib/events/event-schemas";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { DISPUTE_TIP_NOTICE } from "@/lib/ui/dispute-copy";
 import { parseArDatetimeLocal } from "@/lib/utils/format";
 
 import type { SightingActionState } from "./types";
@@ -124,12 +125,16 @@ export async function reportPetSighting(
   // notification AND an owner-visible timeline payload that can carry the
   // finder's contact — it cannot be cleanly separated from the relay, so a
   // disputed pet blocks the whole submission server-side.
+  //
+  // The finder is NOT left without a channel (PO decision 2026-07-30): both
+  // the credential and the two standalone finder routes now render the
+  // neutral tip form, whose submission lands on the dispute case for the
+  // reviewing authority only (report-dispute-tip.ts). This refusal is what a
+  // hand-rolled POST hits — no UI points at it anymore.
   if (pet.inCustodyDispute) {
     return {
       ok: false,
-      error:
-        "La titularidad de esta mascota está en revisión por la autoridad. " +
-        "Si tenés información, será dirigida a la autoridad competente, no a las partes.",
+      error: `${DISPUTE_TIP_NOTICE} Enviá tu aviso desde la credencial de la mascota.`,
     };
   }
 

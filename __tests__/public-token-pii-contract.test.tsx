@@ -30,6 +30,7 @@
 // states (treatment, pregnancy, adoption, transit) must NEVER tint the public
 // card — a Tier-0 medical-state leak. Case 4 guards it.
 
+import { DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -456,7 +457,15 @@ describe("/p/[publicToken] — Tier-0 PII contract (task #33)", () => {
     // lost-sections spy proves the page threads the dispute state + nulled
     // relay hrefs into PublicLostSections (which renders its own notice —
     // covered by its colocated test).
-    expect(html).toContain("La titularidad de esta mascota está en revisión por la autoridad.");
+    // PO decision 2026-07-30: this used to assert "La titularidad de esta
+    // mascota está en revisión por la autoridad." — copy that handed a passing
+    // stranger the fact that two people are fighting over the animal. The
+    // finder is not a party. The sentence now states where their message goes
+    // (they must never be left believing the owner was notified) and says
+    // nothing about why. Imported from the single source so a copy edit breaks
+    // this assertion instead of silently diverging from the other surfaces.
+    expect(html).toContain(DISPUTE_TIP_INTRO);
+    expect(html).not.toContain("titularidad");
     expect(html).toContain('data-section="found-form-disputed"');
     expect(html).toContain("&quot;custodyDisputed&quot;:true");
     expect(html).toContain("&quot;finderFormHref&quot;:null");
