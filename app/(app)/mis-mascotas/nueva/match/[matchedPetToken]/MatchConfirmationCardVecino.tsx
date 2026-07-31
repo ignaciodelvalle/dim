@@ -11,6 +11,13 @@ import { useState, useTransition } from "react";
 
 type Props = {
   matchedPetToken: string;
+  /**
+   * The code the actor typed into the alta, round-tripped through the page's
+   * `?chip=` param. It is this screen's authorization: the confirm action
+   * refuses unless it equals the matched pet's canonical chip. Nothing here
+   * discloses it — the value originated in this browser one step ago.
+   */
+  attemptedMicrochipId: string;
   petName: string;
   petSpecies: string | null;
   petBreed: string | null;
@@ -24,6 +31,7 @@ type Props = {
 
 export function MatchConfirmationCardVecino({
   matchedPetToken,
+  attemptedMicrochipId,
   petName,
   petSpecies,
   petBreed,
@@ -44,6 +52,7 @@ export function MatchConfirmationCardVecino({
       const result = await confirmChipMatchAction({
         matchedPetToken,
         actorMode: "vecino",
+        attemptedMicrochipId,
         decision,
       });
       if ("error" in result) {
@@ -62,14 +71,18 @@ export function MatchConfirmationCardVecino({
         // this page. The button promised "podés continuar con el registro" and
         // the flow made that impossible.
         //
-        // The receipt is the signed force token minted server-side from the
-        // matched pet's own chip; the alta posts it back and createPetAction
-        // registers the animal without the disputed code.
+        // The receipt is the signed force token; the alta posts it back and
+        // createPetAction registers the animal without the disputed code.
+        //
+        // The code in the return URL is OUR OWN attemptedMicrochipId, not
+        // something the server told us. The response used to carry the matched
+        // pet's canonical chip, which made this action a nationwide chip oracle
+        // for anyone who could name a public token.
         const conflict = "chipConflict" in result ? result.chipConflict : undefined;
         if (conflict) {
           const params = new URLSearchParams({
             chipConflict: conflict.forceToken,
-            microchipId: conflict.microchipId,
+            microchipId: attemptedMicrochipId,
           });
           router.push(`/mis-mascotas/nueva?${params.toString()}`);
         } else {

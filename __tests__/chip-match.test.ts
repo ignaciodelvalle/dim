@@ -28,7 +28,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { attemptedChipMatchesPet, lookupByChip } from "@/lib/infra/chip-lookup";
 import { generateIntakeMatchClaim } from "@/lib/infra/intake-match-claim";
 import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
 import { generatePublicToken } from "@/lib/infra/publicToken";
@@ -36,6 +36,7 @@ import { generatePublicToken } from "@/lib/infra/publicToken";
 // (impersonation triage, review 07).
 import { confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
 import { confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
+import { recordChipDisputeAgainstActivePet } from "@/src/modules/pets/application/chip-match/record-chip-dispute";
 import { createIntake } from "@/src/modules/pets/application/intake/create-intake";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -307,6 +308,44 @@ describe("lookupByChip", () => {
 // 2. Force-token utility
 // ---------------------------------------------------------------------------
 
+describe("attemptedChipMatchesPet", () => {
+  it("true only for the pet's own active chip — never another pet's, never a pet with none", async () => {
+    const a = await insertPetWithChip({
+      microchipId: `CHIP-PROOF-A-${Date.now()}`,
+      status: "lost",
+      ownerUserId,
+      tokenSuffix: "PROOFA",
+    });
+    const b = await insertPetWithChip({
+      microchipId: `CHIP-PROOF-B-${Date.now()}`,
+      status: "lost",
+      ownerUserId,
+      tokenSuffix: "PROOFB",
+    });
+
+    expect(await attemptedChipMatchesPet(a.petId, a.canonicalChip)).toBe(true);
+    // A valid code, just not this animal's — the cross-pet probe.
+    expect(await attemptedChipMatchesPet(a.petId, b.canonicalChip)).toBe(false);
+    expect(await attemptedChipMatchesPet(a.petId, "")).toBe(false);
+    expect(await attemptedChipMatchesPet(a.petId, "900000000000001")).toBe(false);
+
+    // A pet with no identification row at all answers the same "no" — the
+    // refusal must not double as a "does this pet have a chip?" oracle.
+    const [chipless] = await db
+      .insert(pets)
+      .values({
+        publicToken: `LF2-NOCHIP-${Date.now().toString(36).toUpperCase().slice(-4)}`,
+        name: "TestPet-NoChip",
+        species: "dog",
+        sex: "unknown",
+        status: "lost",
+      })
+      .returning();
+    insertedPetIds.push(chipless.id);
+    expect(await attemptedChipMatchesPet(chipless.id, a.canonicalChip)).toBe(false);
+  });
+});
+
 describe("force-token: generateForceToken / validateForceToken", () => {
   it("generates a token that validates immediately", () => {
     const chip = "CHIP-FORCE-TEST-001";
@@ -432,7 +471,11 @@ describe("confirmChipMatchAction", () => {
 
   it("vecino decision='same': creates shelter_custody + emits event + notifies owner", async () => {
     const chip = `CHIP-VEC-SAME-${Date.now()}`;
-    const { petId, publicToken: matchedToken } = await insertPetWithChip({
+    const {
+      petId,
+      publicToken: matchedToken,
+      canonicalChip,
+    } = await insertPetWithChip({
       microchipId: chip,
       status: "lost",
       ownerUserId: ownerUserId,
@@ -442,6 +485,7 @@ describe("confirmChipMatchAction", () => {
     const result = await confirmChipMatchAsVecinoWriter({
       userId: vecinoUserId,
       matchedPetToken: matchedToken,
+      attemptedMicrochipId: canonicalChip,
       decision: "same",
     });
 
@@ -650,6 +694,225 @@ describe("confirmChipMatchAction", () => {
         ),
       );
     expect(custodyRows.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3b. The vecino chip oracle — confirmChipMatchAsVecinoWriter
+// ---------------------------------------------------------------------------
+//
+// c626c3fb gave the `not_same` branch a `chipConflict.microchipId` read straight
+// out of the matched pet's canonical identification. Reaching it needed nothing
+// but a session (self-signup is free) and a public token, and /perdidas lists
+// those without a login. That made this writer a nationwide microchip lookup
+// service for a number /p/[publicToken] deliberately refuses to render, plus a
+// way to take custody of any lost animal and to write on its event spine.
+//
+// The fix makes the code the actor typed the capability. These tests call the
+// REAL writer against the REAL database — the RA-2 F6 walk-through test cannot
+// see any of this because it mocks confirmChipMatchAction, which is exactly the
+// boundary the leak lived behind.
+
+describe("vecino chip oracle — attemptedMicrochipId is the capability", () => {
+  /** The attack: a token harvested off /perdidas and nothing else. */
+  async function probe(matchedToken: string, attempt: string) {
+    return confirmChipMatchAsVecinoWriter({
+      userId: vecinoUserId,
+      matchedPetToken: matchedToken,
+      attemptedMicrochipId: attempt,
+      decision: "not_same",
+    });
+  }
+
+  it("blind probe (no chip attempt) → error, and the response contains no chip", async () => {
+    const { petId, publicToken, canonicalChip } = await insertPetWithChip({
+      microchipId: `CHIP-ORACLE-BLIND-${Date.now()}`,
+      status: "lost",
+      ownerUserId,
+      tokenSuffix: "ORCBLND",
+    });
+
+    const result = await probe(publicToken, "");
+
+    // Asserted FIRST so a regression names the leaked digits in its diff: the
+    // canonical code must not appear ANYWHERE in the payload that crosses the
+    // server-action boundary.
+    expect(JSON.stringify(result)).not.toContain(canonicalChip);
+    expect("error" in result).toBe(true);
+
+    // And the probe leaves no mark on the victim's append-only spine.
+    const notes = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
+    expect(notes.length).toBe(0);
+  });
+
+  it("wrong chip attempt → same error, no chip disclosed, no event written", async () => {
+    const { petId, publicToken, canonicalChip } = await insertPetWithChip({
+      microchipId: `CHIP-ORACLE-WRONG-${Date.now()}`,
+      status: "lost",
+      ownerUserId,
+      tokenSuffix: "ORCWRNG",
+    });
+
+    const result = await probe(publicToken, "900000000000001");
+
+    expect(JSON.stringify(result)).not.toContain(canonicalChip);
+    expect("error" in result).toBe(true);
+
+    const notes = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
+    expect(notes.length).toBe(0);
+  });
+
+  it("correct chip attempt → receipt minted, note written, still no chip echoed", async () => {
+    const { petId, publicToken, canonicalChip } = await insertPetWithChip({
+      microchipId: `CHIP-ORACLE-RIGHT-${Date.now()}`,
+      status: "lost",
+      ownerUserId,
+      tokenSuffix: "ORCRGHT",
+    });
+
+    const result = await probe(publicToken, canonicalChip);
+
+    if (!("ok" in result)) throw new Error(`Expected ok, got ${JSON.stringify(result)}`);
+    expect(result.chipConflict?.forceToken).toBeDefined();
+    // The receipt is usable for the code the caller already had…
+    expect(validateForceToken(canonicalChip, result.chipConflict?.forceToken ?? "")).toBe(true);
+    // …and the response still does not carry the code itself. The caller typed
+    // it; the server has no reason to say it back.
+    expect(result.chipConflict).not.toHaveProperty("microchipId");
+
+    const notes = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
+    expect(notes.length).toBe(1);
+  });
+
+  it("decision='same' without the chip → no custody grab, no owner notification", async () => {
+    // The oracle was not the only thing an unproven caller could do: 'same'
+    // inserted shelter_custody over any lost pet and pushed an urgent
+    // "Encontraron a X" notification to its owner.
+    const { petId, publicToken } = await insertPetWithChip({
+      microchipId: `CHIP-ORACLE-SAME-${Date.now()}`,
+      status: "lost",
+      ownerUserId,
+      tokenSuffix: "ORCSAME",
+    });
+
+    const result = await confirmChipMatchAsVecinoWriter({
+      userId: vecinoUserId,
+      matchedPetToken: publicToken,
+      attemptedMicrochipId: "",
+      decision: "same",
+    });
+
+    expect("error" in result).toBe(true);
+
+    const custody = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerUserId, vecinoUserId),
+          eq(ownerships.role, "shelter_custody"),
+        ),
+      );
+    expect(custody.length).toBe(0);
+
+    const notifs = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.notificationType, "chip_match_notification_owner"),
+          eq(notifications.relatedPetId, petId),
+        ),
+      );
+    expect(notifs.length).toBe(0);
+  });
+
+  it("deceased match with the correct chip → no receipt, keeping the alta's hard block honest", async () => {
+    // createPetAction's deceased branch claims no actor can hold a receipt for
+    // a deceased match. Knowing the chip was enough to mint one until the
+    // writer checked status: the block was a comment, not a rule.
+    const { petId, publicToken, canonicalChip } = await insertPetWithChip({
+      microchipId: `CHIP-ORACLE-DEAD-${Date.now()}`,
+      status: "deceased",
+      ownerUserId,
+      tokenSuffix: "ORCDEAD",
+    });
+
+    const result = await probe(publicToken, canonicalChip);
+
+    if (!("ok" in result)) throw new Error(`Expected ok, got ${JSON.stringify(result)}`);
+    expect(result.chipConflict).toBeUndefined();
+
+    const notes = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
+    expect(notes.length).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 3c. The ACTIVE-match escape hatch leaves a trace
+// ---------------------------------------------------------------------------
+//
+// The `lost` half of the escape hatch records its adjudication (the vecino
+// confirmation writes a dismissal note before minting a receipt). The `active`
+// half recorded NOTHING: the warning was returned, the token redeemed, the
+// animal registered chipless, and the credential whose globally-unique
+// identifier had just been disputed never heard about it. Invariant #2 says
+// corrections are new events — so this is one.
+
+describe("recordChipDisputeAgainstActivePet", () => {
+  it("appends a note to the ACTIVE record whose chip was disputed", async () => {
+    const { petId, canonicalChip } = await insertPetWithChip({
+      microchipId: `CHIP-DISPUTE-ACT-${Date.now()}`,
+      status: "active",
+      ownerUserId,
+      tokenSuffix: "DISPACT",
+    });
+
+    await recordChipDisputeAgainstActivePet({
+      disputedChipCode: canonicalChip,
+      actorUserId: vecinoUserId,
+    });
+
+    const notes = await db
+      .select({ payload: petEvents.payload, recordedBy: petEvents.recordedByUserId })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
+    expect(notes.length).toBe(1);
+    expect(notes[0].recordedBy).toBe(vecinoUserId);
+    expect((notes[0].payload as { text: string }).text).toMatch(/animal distinto/i);
+  });
+
+  it("stays silent for a LOST record — the confirmation page already noted that one", async () => {
+    const { petId, canonicalChip } = await insertPetWithChip({
+      microchipId: `CHIP-DISPUTE-LOST-${Date.now()}`,
+      status: "lost",
+      ownerUserId,
+      tokenSuffix: "DISPLST",
+    });
+
+    await recordChipDisputeAgainstActivePet({
+      disputedChipCode: canonicalChip,
+      actorUserId: vecinoUserId,
+    });
+
+    const notes = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
+    expect(notes.length).toBe(0);
   });
 });
 

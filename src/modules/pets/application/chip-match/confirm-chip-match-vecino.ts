@@ -9,24 +9,49 @@
 //   (post-tx, best-effort).
 // decision='not_same': emits a dismissal note_added event. No state change.
 //
+// AUTHORIZATION — attemptedMicrochipId is the capability, not the pet token.
+// Its sibling confirm-chip-match-refugio.ts binds actor↔pet with an HMAC intake
+// claim (review 24 HIGH #7). This path had NOTHING: actorMode='vecino' clears
+// requireUserOrRedirect and matchedPetToken came straight from the caller, so
+// any authenticated account — self-signup is free — could name any public token
+// harvested off /perdidas and (a) receive that animal's 15-digit chip in the
+// `not_same` response, (b) take shelter_custody of it with `same`, (c) append a
+// note to its event spine. The chip is a number /p/[publicToken] deliberately
+// refuses to render.
+//
+// The premise of this screen is that the actor TYPED the colliding code: they
+// cannot be here otherwise. So the code itself is the proof, and requiring it
+// turns an oracle into a verifier — you can only confirm what you already knew,
+// and a blind prober must guess 15 digits. attemptedChipMatchesPet answers
+// inside SQL and never selects the canonical code, so nothing downstream can
+// echo it back.
+//
 // §2.2: notifications accumulate in pendingNotifications[] inside the tx
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
-import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
+import { db, notifications, ownerships, petEvents, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { attemptedChipMatchesPet } from "@/lib/infra/chip-lookup";
 import { generateForceToken } from "@/lib/infra/microchip-force-token";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { ConfirmChipMatchResult } from "./types";
 
+/** Uniform refusal — says nothing about which precondition failed. */
+const NO_PROOF_ERROR =
+  "No pudimos verificar la coincidencia de microchip. Volvé a ingresar el número y reintentá.";
+
 export async function confirmChipMatchAsVecinoWriter({
   userId,
   matchedPetToken,
+  attemptedMicrochipId,
   decision,
   notes,
 }: {
   userId: string;
   matchedPetToken: string;
+  /** The code the actor typed into the alta. Proof they reached this screen legitimately. */
+  attemptedMicrochipId: string;
   decision: "same" | "not_same";
   notes?: string;
 }): Promise<ConfirmChipMatchResult> {
@@ -41,7 +66,22 @@ export async function confirmChipMatchAsVecinoWriter({
   if (!petRow) return { error: "Mascota no encontrada." };
   const matchedPet = petRow.pet;
 
+  // Gate BOTH decisions, before any read of the conflict and before any write:
+  // 'not_same' returned the chip, 'same' took custody and notified the owner.
+  if (!(await attemptedChipMatchesPet(matchedPet.id, attemptedMicrochipId))) {
+    return { error: NO_PROOF_ERROR };
+  }
+
   if (decision === "not_same") {
+    // A receipt is only ever issued against a LOST match, which is the only
+    // status that routes an actor here (createPetAction: active → inline
+    // warning + its own token, deceased → hard block). Checking it here is what
+    // makes the deceased block in createPetAction true rather than merely
+    // asserted: without this, naming a deceased pet's token minted a receipt
+    // for its code. A pet recovered between page load and click lands here too
+    // — no receipt, no note, and the alta re-runs its own cross-check.
+    if (matchedPet.status !== "lost") return { ok: true };
+
     const notePayload = validateEventPayload("note_added", {
       category: null,
       text: "Un vecino descartó posible coincidencia de chip al registrar una mascota encontrada. Sin cambios de estado.",
@@ -63,33 +103,15 @@ export async function confirmChipMatchAsVecinoWriter({
     // loop on the product's central use case: a neighbour who finds a lost
     // animal could never finish registering it.
     //
-    // The code is read from the MATCHED pet's canonical identification rather
-    // than taken from the caller, so this endpoint cannot be used to mint a
-    // bypass for an arbitrary chip: the token only ever signs a code that a
-    // confirmation page actually showed this user.
-    const [chipRow] = await db
-      .select({ code: petIdentifications.code })
-      .from(petIdentifications)
-      .where(
-        and(
-          eq(petIdentifications.petId, matchedPet.id),
-          eq(petIdentifications.kind, "microchip_iso"),
-          eq(petIdentifications.status, "active"),
-        ),
-      )
-      .limit(1);
-
-    // No canonical chip on the matched record → nothing to adjudicate, and
-    // nothing safe to sign. The vecino still lands back on the alta; the plain
-    // form works because there is no code to collide with.
-    const conflictingChip = chipRow?.code;
-    if (!conflictingChip) return { ok: true };
+    // We sign the code the CALLER supplied — and that is not a weakening,
+    // because the gate above already proved it equals this pet's canonical
+    // chip. The response therefore carries no code at all: the actor typed it,
+    // the client still has it, and a caller who cannot produce it never gets
+    // here. The old version read the canonical code out of the DB and returned
+    // it, which is precisely how the endpoint became a chip oracle.
     return {
       ok: true,
-      chipConflict: {
-        microchipId: conflictingChip,
-        forceToken: generateForceToken(conflictingChip),
-      },
+      chipConflict: { forceToken: generateForceToken(attemptedMicrochipId) },
     };
   }
 

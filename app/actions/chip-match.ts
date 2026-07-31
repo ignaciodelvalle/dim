@@ -35,6 +35,7 @@ export async function confirmChipMatchAction({
   actorMode,
   orgToken,
   claim,
+  attemptedMicrochipId,
   decision,
   notes,
 }: {
@@ -42,6 +43,12 @@ export async function confirmChipMatchAction({
   actorMode: "refugio" | "vecino";
   orgToken?: string;
   claim?: string;
+  /**
+   * Vecino mode only: the code the actor typed into the alta. It is that
+   * mode's actor↔pet binding — the counterpart of `claim` in refugio mode,
+   * which has an org identity to sign against and a vecino does not.
+   */
+  attemptedMicrochipId?: string;
   decision: "same" | "not_same";
   notes?: string;
 }) {
@@ -71,10 +78,16 @@ export async function confirmChipMatchAction({
   }
 
   if (actorMode === "vecino") {
+    // A live session is ALL this branch used to require, and self-signup is
+    // free — see the authorization note in confirm-chip-match-vecino.ts. The
+    // writer refuses without a matching attemptedMicrochipId; passing it
+    // through unvalidated is deliberate, the comparison belongs next to the
+    // canonical row.
     const session = await requireUserOrRedirect();
     return _confirmChipMatchAsVecinoWriter({
       userId: session.user.id,
       matchedPetToken,
+      attemptedMicrochipId: attemptedMicrochipId ?? "",
       decision,
       notes,
     });

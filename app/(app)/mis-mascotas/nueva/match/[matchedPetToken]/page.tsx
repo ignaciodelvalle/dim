@@ -7,16 +7,21 @@ import { notFound } from "next/navigation";
 import { LnButton } from "@/components/ui/Button";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { attemptedChipMatchesPet } from "@/lib/infra/chip-lookup";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { MatchConfirmationCardVecino } from "./MatchConfirmationCardVecino";
 
 export default async function VecinoMatchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ matchedPetToken: string }>;
+  searchParams: Promise<{ chip?: string }>;
 }) {
   const { matchedPetToken } = await params;
+  const { chip } = await searchParams;
+  const attemptedMicrochipId = chip?.trim() ?? "";
 
   await requireUserOrRedirect();
 
@@ -29,6 +34,16 @@ export default async function VecinoMatchPage({
 
   if (!petResult) notFound();
   const { pet, photo } = petResult;
+
+  // Same gate as the confirm action, applied before a single field is read.
+  // This page renders the owner's first name and the last-seen location the
+  // /perdidas board withholds when the owner opted out of disclosure — and a
+  // live session was its only requirement, for ANY lost pet's public token.
+  // The refugio twin gates on an HMAC intake claim (review 24 HIGH #6/#7); the
+  // vecino equivalent is knowing the code that produced the collision. Note
+  // this is defence in depth, not the authorization: the action is callable
+  // directly, so it re-checks.
+  if (!(await attemptedChipMatchesPet(pet.id, attemptedMicrochipId))) notFound();
 
   if (pet.status !== "lost") {
     return (
@@ -96,6 +111,7 @@ export default async function VecinoMatchPage({
 
       <MatchConfirmationCardVecino
         matchedPetToken={matchedPetToken}
+        attemptedMicrochipId={attemptedMicrochipId}
         petName={pet.name}
         petSpecies={pet.species}
         petBreed={pet.breed}

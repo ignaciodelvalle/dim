@@ -109,6 +109,12 @@ vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn().mockResolvedValue({ microchip: null, tattoo: null }),
 }));
 
+// Append-only trace for a redeemed ACTIVE-match receipt. A use-case like any
+// other here — mocked so these orchestration tests stay DB-free.
+vi.mock("@/src/modules/pets/application/chip-match/record-chip-dispute", () => ({
+  recordChipDisputeAgainstActivePet: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock("@/lib/infra/microchip-force-token", () => ({
   generateForceToken: vi.fn().mockReturnValue("force-tok-abc"),
   validateForceToken: vi.fn().mockReturnValue(false),
@@ -241,7 +247,9 @@ describe("createPetAction", () => {
         { error: null },
         makeCreateFormData({ acquisitionMethod: "found_stray", microchipId: "724123456789012" }),
       );
-      expect(state.redirectTo).toBe("/mis-mascotas/nueva/match/DIM-LOST-0001");
+      // ?chip= is the match page's authorization (chip-oracle fix): that page
+      // and its confirm action both require proof the caller knows the code.
+      expect(state.redirectTo).toBe("/mis-mascotas/nueva/match/DIM-LOST-0001?chip=724123456789012");
     });
 
     it("returns CHIP_MATCH_ACTIVE warning when match status=active and no forceToken", async () => {
@@ -284,6 +292,16 @@ describe("createPetAction", () => {
 
       expect(result.redirectTo).toBe("/mis-mascotas/nueva/DIM-TEST-0001/credencial");
       expect(registerPet).toHaveBeenCalledOnce();
+
+      // Redeeming the receipt is an adjudication against an existing
+      // credential's globally-unique identifier — it must reach the spine.
+      const { recordChipDisputeAgainstActivePet } = await import(
+        "@/src/modules/pets/application/chip-match/record-chip-dispute"
+      );
+      expect(recordChipDisputeAgainstActivePet).toHaveBeenCalledWith({
+        disputedChipCode: "724123456789012",
+        actorUserId: "user-1",
+      });
     });
 
     it("returns deceased chip error when match status=deceased", async () => {

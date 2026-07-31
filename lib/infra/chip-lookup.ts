@@ -9,7 +9,7 @@
 // The legacy fallback that existed here (compliance PR 0 transition shim) has
 // been removed in ARCH-Q now that canonical completeness is verified.
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, ownerships, petIdentifications, pets, profiles } from "@/db";
 
@@ -69,4 +69,41 @@ export async function lookupByChip(microchipId: string): Promise<ChipLookupResul
     },
     ownerFirstName: row.ownerDisplayName ? row.ownerDisplayName.split(" ")[0] : null,
   };
+}
+
+/**
+ * Proof-of-knowledge check: does `attemptedCode` equal the pet's canonical
+ * active microchip?
+ *
+ * This is the inverse of lookupByChip and it exists so that the chip-match
+ * confirmation surfaces can gate on "the caller already knows this code"
+ * WITHOUT ever handling the code themselves. The comparison happens inside the
+ * SQL predicate and the projection is a constant — the canonical code is never
+ * selected, so no caller of this function can leak it, deliberately or by
+ * accident, and there is no string comparison in JS to time.
+ *
+ * Returns false for an empty attempt and for a pet with no active chip: a
+ * uniform "no" that says nothing about which of the two it was.
+ */
+export async function attemptedChipMatchesPet(
+  petId: string,
+  attemptedCode: string,
+): Promise<boolean> {
+  const code = attemptedCode?.trim();
+  if (!petId || !code) return false;
+
+  const [row] = await db
+    .select({ present: sql<number>`1` })
+    .from(petIdentifications)
+    .where(
+      and(
+        eq(petIdentifications.petId, petId),
+        eq(petIdentifications.kind, "microchip_iso"),
+        eq(petIdentifications.status, "active"),
+        eq(petIdentifications.code, code),
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
 }

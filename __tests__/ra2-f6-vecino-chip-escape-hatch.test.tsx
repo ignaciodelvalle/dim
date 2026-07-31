@@ -139,6 +139,13 @@ vi.mock("@/src/modules/pets/infrastructure/pets-repository", () => ({
   PetsRepository: { generatePublicToken: vi.fn(), insertPetRegistered: vi.fn() },
 }));
 
+// Redeeming a receipt appends a dispute note to the matched ACTIVE record.
+// Its own DB access is out of scope here (this file walks the LOST path); the
+// note itself is covered in __tests__/chip-match.test.ts.
+vi.mock("@/src/modules/pets/application/chip-match/record-chip-dispute", () => ({
+  recordChipDisputeAgainstActivePet: vi.fn().mockResolvedValue(undefined),
+}));
+
 // The chip cross-check is the thing under test — it stays REAL except for the
 // DB lookup, which decides what the chip "matches".
 const lookupByChipMock = vi.fn();
@@ -214,14 +221,21 @@ describe("RA-2 F6 — vecino chip-match escape hatch, walked end to end", () => 
     // ---- STEP 1. The match card. "No es la misma" → where does it send us? --
     // The writer mints the receipt; here the action boundary is mocked, but the
     // token itself is produced by the real signer, exactly as the writer does.
+    //
+    // The response carries the token ONLY. It used to carry the matched pet's
+    // canonical chip too, which is what turned the writer into a chip oracle —
+    // the card now re-uses the code this browser typed. Tests for the server
+    // side of that live in __tests__/chip-match.test.ts against the real
+    // writer; this file mocks the action and therefore cannot see it.
     confirmChipMatchMock.mockResolvedValue({
       ok: true,
-      chipConflict: { microchipId: CHIP, forceToken: generateForceToken(CHIP) },
+      chipConflict: { forceToken: generateForceToken(CHIP) },
     });
 
     render(
       <MatchConfirmationCardVecino
         matchedPetToken={LOST_PET_TOKEN}
+        attemptedMicrochipId={CHIP}
         petName="Rocco"
         petSpecies="dog"
         petBreed={null}
@@ -236,6 +250,12 @@ describe("RA-2 F6 — vecino chip-match escape hatch, walked end to end", () => 
 
     fireEvent.click(screen.getByRole("button", { name: /no es la misma/i }));
     await waitFor(() => expect(pushMock).toHaveBeenCalled());
+
+    // The card must present the typed code to the action: it is the vecino
+    // mode's actor↔pet binding, the counterpart of the refugio claim.
+    expect(confirmChipMatchMock).toHaveBeenCalledWith(
+      expect.objectContaining({ actorMode: "vecino", attemptedMicrochipId: CHIP }),
+    );
 
     const pushedUrl: string = pushMock.mock.calls[0][0];
     // The old destination — a flag nobody read — must be gone for good.
@@ -322,7 +342,9 @@ describe("RA-2 F6 — vecino chip-match escape hatch, walked end to end", () => 
     submitted.set("acquisitionMethod", "found_stray");
     const state = await createPetAction({ error: null }, submitted);
 
-    expect(state.redirectTo).toBe(`/mis-mascotas/nueva/match/${LOST_PET_TOKEN}`);
+    // The chip rides along because the match page and its confirm action both
+    // demand proof the caller knows the colliding code (chip-oracle fix).
+    expect(state.redirectTo).toBe(`/mis-mascotas/nueva/match/${LOST_PET_TOKEN}?chip=${CHIP}`);
     expect(registerPetMock).not.toHaveBeenCalled();
   });
 
@@ -345,7 +367,7 @@ describe("RA-2 F6 — vecino chip-match escape hatch, walked end to end", () => 
 
     const state = await createPetAction({ error: null }, fd);
 
-    expect(state.redirectTo).toBe(`/mis-mascotas/nueva/match/${LOST_PET_TOKEN}`);
+    expect(state.redirectTo).toBe(`/mis-mascotas/nueva/match/${LOST_PET_TOKEN}?chip=${CHIP}`);
     expect(registerPetMock).not.toHaveBeenCalled();
   });
 });

@@ -456,10 +456,25 @@ describe("confirmChipMatchAsVecinoWriter — idempotency guard", () => {
     const pet = await insertPet("ChipMatch Vecino", "lost");
     await db.insert(ownerships).values({ petId: pet.id, ownerUserId, role: "owner" });
 
+    // The vecino writer now demands the code the actor typed as its actor↔pet
+    // binding (chip-oracle fix), so the fixture needs a canonical chip.
+    const chip = `900${String(Date.now()).slice(-12)}`; // 15 digits — chip_requires_iso_fields
+    await db.insert(petIdentifications).values({
+      petId: pet.id,
+      kind: "microchip_iso",
+      code: chip,
+      status: "active",
+      recordedAt: new Date().toISOString().slice(0, 10),
+      isoCountryCode: chip.slice(0, 3),
+      isoManufacturerCode: chip.slice(3, 7),
+      isoNationalId: chip.slice(7, 15),
+    });
+
     const call = () =>
       confirmChipMatchAsVecinoWriter({
         userId: helperUserId,
         matchedPetToken: pet.publicToken,
+        attemptedMicrochipId: chip,
         decision: "same",
       });
 

@@ -47,6 +47,7 @@ function parseEstimatedWeightKg(raw: string | null): number | null {
   return Number.isNaN(n) ? null : n;
 }
 
+import { recordChipDisputeAgainstActivePet } from "./application/chip-match/record-chip-dispute";
 import { recordMovementWriter } from "./application/movement/record-movement";
 import { registerPet } from "./application/register-pet";
 import { updatePet } from "./application/update-pet";
@@ -201,9 +202,15 @@ export async function createPetAction(
   // Hoisted above BOTH gates on purpose: scoping it to the found_stray branch
   // left the returning finder blocked by the P3 gate below the moment they
   // picked any other acquisition method.
+  //
+  // Redeeming one is itself a fact about the OTHER record, so the code is kept
+  // here and written to that record's spine once the alta commits — see
+  // recordChipDisputeAgainstActivePet below.
+  let adjudicatedChipCode: string | null = null;
   if (parsed.microchipId) {
     const forceToken = String(formData.get("forceToken") ?? "").trim();
     if (forceToken && validateForceToken(parsed.microchipId, forceToken)) {
+      adjudicatedChipCode = parsed.microchipId;
       parsed.microchipId = null;
       parsed.microchipCountryCode = null;
       parsed.microchipImplantedAt = null;
@@ -225,13 +232,26 @@ export async function createPetAction(
         // The match page's "No es la misma" mints the adjudication receipt this
         // branch checks above, so the neighbour who finds a stray is no longer
         // bounced back to a form that can only send them here again.
+        //
+        // The code travels in the query string because it is the match page's
+        // authorization: that page renders owner PII and its confirm action
+        // adjudicates the chip, and both now demand proof the caller knows the
+        // colliding code. It is this actor's own input going back to this
+        // actor's own browser — no disclosure, and the same shape the return
+        // leg already used.
         return {
           error: null,
-          redirectTo: `/mis-mascotas/nueva/match/${match.pet.publicToken}`,
+          redirectTo: `/mis-mascotas/nueva/match/${match.pet.publicToken}?chip=${encodeURIComponent(parsed.microchipId)}`,
         };
       }
 
       if (match.pet.status === "active") {
+        // Signed over caller input — which is safe here, and only here,
+        // because lookupByChip just matched this exact string against the
+        // canonical active identification: parsed.microchipId IS the matched
+        // pet's chip. (The vecino writer reaches the same guarantee by
+        // comparing before it signs.) A token is never minted for a code the
+        // server has not first tied to a real record.
         return {
           error: null,
           warning: "CHIP_MATCH_ACTIVE",
@@ -241,10 +261,13 @@ export async function createPetAction(
       }
 
       if (match.pet.status === "deceased") {
-        // Still a hard block, and deliberately NOT escapable: there is no
-        // confirmation card for a deceased match, so no actor can hold a
-        // receipt for one (the hoisted check above only clears a token an
-        // actual confirmation page minted).
+        // Still a hard block, and deliberately NOT escapable. Two things
+        // enforce that, neither of them the absence of a UI: the `active`
+        // branch above is the only mint site reachable with a deceased pet's
+        // code and it never fires for one, and the vecino writer refuses to
+        // mint unless the matched pet is 'lost'. Before that status check the
+        // claim here was false — naming a deceased pet's token to the confirm
+        // action produced a perfectly valid receipt for its code.
         return {
           error:
             "Este chip está asociado a una mascota registrada como fallecida en miMAR. Pedile a un admin que revise el caso antes de continuar.",
@@ -336,6 +359,15 @@ export async function createPetAction(
   }
 
   await flushNotifications(result.notifications);
+
+  // The ACTIVE-match escape hatch used to leave no trace anywhere. Written
+  // after the alta commits so the note describes something that happened.
+  if (adjudicatedChipCode) {
+    await recordChipDisputeAgainstActivePet({
+      disputedChipCode: adjudicatedChipCode,
+      actorUserId: user.id,
+    });
+  }
 
   const newPublicToken = registered.publicToken;
   // Onboarding aha: show the QR credential success screen (Item 13).
