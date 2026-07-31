@@ -69,16 +69,38 @@ async function tryInsert(
 // Resolve stable parent IDs (real rows needed for FK validity)
 // ---------------------------------------------------------------------------
 
-/** Resolve an existing pet id for FK use. */
-async function resolvePetId(): Promise<string | null> {
+/**
+ * Resolve an existing pet id for FK use.
+ *
+ * THROWS on an empty table. It used to return null, and the two callers below
+ * turned that into `console.warn("SKIP: ...")` + `return` — a pass. The ALLOWED
+ * half of this file is what proves the CHECK constraint is not simply refusing
+ * everything, so an empty `pets` table silently deleted the positive controls
+ * and left only the negative ones, which a constraint that rejects all inserts
+ * also satisfies. `pnpm db:bootstrap` seeds pets; if there are none, the
+ * fixture is broken and the run must say so.
+ */
+async function resolvePetId(): Promise<string> {
   const rows = await db.select({ id: pets.id }).from(pets).limit(1);
-  return rows[0]?.id ?? null;
+  const id = rows[0]?.id;
+  if (!id) {
+    throw new Error(
+      "No pets in the database — the ALLOWED-parent cases cannot run, and skipping them would leave only the negative cases (which an always-rejecting constraint also passes). Run pnpm db:bootstrap.",
+    );
+  }
+  return id;
 }
 
-/** Resolve an existing pet_event id for FK use. */
-async function resolvePetEventId(): Promise<string | null> {
+/** Resolve an existing pet_event id for FK use. Throws for the same reason. */
+async function resolvePetEventId(): Promise<string> {
   const rows = await db.select({ id: petEvents.id }).from(petEvents).limit(1);
-  return rows[0]?.id ?? null;
+  const id = rows[0]?.id;
+  if (!id) {
+    throw new Error(
+      "No pet_events in the database — the pet_id + event_id ALLOWED case cannot run. Run pnpm db:bootstrap.",
+    );
+  }
+  return id;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,28 +130,23 @@ describe("attachments XOR constraint — zero parents (staging)", () => {
 describe("attachments XOR constraint — single parent (allowed)", () => {
   it("allows pet_id only", async () => {
     const petId = await resolvePetId();
-    if (!petId) {
-      console.warn("SKIP: no pets in DB for pet_id-only insert test");
-      return;
-    }
     const id = await tryInsert({ petId });
     expect(id).toBeTruthy();
   });
 
   it("allows pet_id + event_id together (event attachment with de-normalised pet_id)", async () => {
-    const petId = await resolvePetId();
     const eventId = await resolvePetEventId();
-    if (!petId || !eventId) {
-      console.warn("SKIP: no pets/events in DB for petId+eventId insert test");
-      return;
-    }
     // The event FK references a specific pet — use the event's own pet_id.
     const [eventRow] = await db
       .select({ petId: petEvents.petId })
       .from(petEvents)
       .where(sql`id = ${eventId}::uuid`)
       .limit(1);
-    if (!eventRow) return;
+    if (!eventRow) {
+      // Unreachable: resolvePetEventId just read this row. A `return` here would
+      // be the same silent pass this file is being cleaned of.
+      throw new Error(`pet_event ${eventId} vanished between two reads`);
+    }
     const id = await tryInsert({ petId: eventRow.petId, eventId });
     expect(id).toBeTruthy();
   });
