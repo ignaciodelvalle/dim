@@ -101,7 +101,11 @@ export const ownershipRoleEnum = pgEnum("ownership_role", [
 // `owner` in v1 self-serve flows.
 // `scanner` is for credential_scanned events when an anonymous or non-owner user
 // loads the public credential page.
-// `finder` is for finder_in_possession events submitted via /p/[token]/encontre.
+// `finder` is for events authored by someone who found an animal they do not
+// own: finder_in_possession via /p/[token]/encontre, and the note_added rows
+// the chip-collision adjudication writes onto a third party's record. The test
+// is who the author IS, not which event type they reached for — signing those
+// notes "owner" showed the real owner a note apparently written by themselves.
 // `shelter` activates when refugios author events on pets they hold in custody.
 // `vet`, `govt`, `system` activate in later phases.
 export const authorRoleEnum = pgEnum("author_role", [

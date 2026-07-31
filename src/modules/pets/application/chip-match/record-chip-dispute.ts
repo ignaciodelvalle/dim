@@ -63,7 +63,10 @@ export async function recordChipDisputeAgainstActivePet({
       occurredAt: now,
       recordedAt: now,
       recordedByUserId: actorUserId,
-      authorRole: "owner",
+      // NOT "owner" — see the twin note in confirm-chip-match-vecino.ts. The
+      // actor here is a stranger registering a found animal; this note lands on
+      // a THIRD PARTY's active pet.
+      authorRole: "finder",
       payload,
     });
   } catch (e) {

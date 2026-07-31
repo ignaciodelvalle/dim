@@ -92,7 +92,13 @@ export async function confirmChipMatchAsVecinoWriter({
       occurredAt: now,
       recordedAt: now,
       recordedByUserId: userId,
-      authorRole: "owner",
+      // NOT "owner". This writer runs on a pet the actor does NOT own — a
+      // neighbour adjudicating a chip collision on someone else's record. The
+      // timeline renders author_role verbatim ("Dueño/a"), so signing it owner
+      // showed the real owner a note about their own pet apparently written by
+      // themselves. Events are append-only: a false attribution here cannot be
+      // edited later, only apologised for in a second event.
+      authorRole: "finder",
       payload: notePayload,
     });
 
@@ -198,7 +204,8 @@ export async function confirmChipMatchAsVecinoWriter({
         occurredAt: now,
         recordedAt: now,
         recordedByUserId: userId,
-        authorRole: "owner",
+        // NOT "owner" — same reason as the note_added above.
+        authorRole: "finder",
         payload: intakePayload,
       })
       .returning({ id: petEvents.id });

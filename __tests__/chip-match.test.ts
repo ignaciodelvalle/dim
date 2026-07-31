@@ -518,6 +518,18 @@ describe("confirmChipMatchAction", () => {
         ),
       );
     expect(ownerNotifs.length).toBeGreaterThan(0);
+
+    // Attribution. The vecino does NOT own this pet, and the timeline renders
+    // author_role verbatim as "Dueño/a", so signing these events "owner" showed
+    // the real owner a note about their own animal apparently written by
+    // themselves. The spine is append-only: a false attribution cannot be
+    // edited later, only contradicted by a second event.
+    const vecinoEvents = await db
+      .select()
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.recordedByUserId, vecinoUserId)));
+    expect(vecinoEvents.length).toBeGreaterThan(0);
+    for (const ev of vecinoEvents) expect(ev.authorRole).toBe("finder");
   });
 
   it("refugio decision='not_same': emits note_added, no ownership created", async () => {
@@ -554,6 +566,11 @@ describe("confirmChipMatchAction", () => {
       .from(petEvents)
       .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "note_added")));
     expect(notes.length).toBeGreaterThan(0);
+    // A refugio authored these, so "shelter" is the truthful attribution. The
+    // vecino twin of this assertion lives below and expects "finder" — the two
+    // together are what stop either writer from drifting onto "owner", which is
+    // what both of them used to sign on a pet the author does not own.
+    for (const note of notes) expect(note.authorRole).toBe("shelter");
   });
 
   it("decision='same' with non-lost pet returns error", async () => {
