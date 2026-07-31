@@ -59,15 +59,24 @@ test("logged-in owner on /adoptar is NOT stranded — keeps a role return (D4)",
 
   // The stranded-user fix: a guaranteed ≤1-click return to the role home.
   // Wave-3 P6 (PO decision #645 point 5) dropped the separate "Volver a mi
-  // app" affordance for this exact citizen+owner case — OWNER_NAV's own
-  // "Inicio" nav item (pointing at /inicio, NOT the public landing /) now
-  // covers it on its own. Keep matching BOTH labels via .or(): a discreet
-  // "Volver a mi app" return still renders for other roles/surfaces (D13
-  // token-landing, operator stranded on a public page), so this assertion
-  // stays true regardless of which affordance a given session gets.
+  // app" affordance for this exact citizen+owner case because a nav item
+  // already covered it.
+  //
+  // CORRECTED 2026-07-31 (PO): that item is **"Mis mascotas"**, not "Inicio".
+  // "Inicio" was deliberately retired and `/mis-mascotas` IS the owner's home
+  // now — it carries the pet list, open cases and the rest. The old comment
+  // here named `/inicio` and this assertion waited for a nav label that
+  // OWNER_NAV has not contained since. A CI run read that as "the D4 role
+  // return is gone" and reported a product defect; there is none — the return
+  // exists, the test was describing a retired IA.
+  //
+  // Keep matching BOTH labels via .or(): a discreet "Volver a mi app" return
+  // still renders for other roles/surfaces (D13 token-landing, operator
+  // stranded on a public page), so this stays true whichever affordance a
+  // given session gets.
   const banner = page.getByRole("banner");
   const returnLink = banner.getByRole("link", { name: /volver a mi app/i });
-  const inicioLink = banner.getByRole("link", { name: /^inicio$/i });
-  // At least one role-return path must be present and resolve to /inicio.
-  await expect(returnLink.or(inicioLink).first()).toBeVisible();
+  const homeLink = banner.getByRole("link", { name: /^mis mascotas$/i });
+  // At least one role-return path must be present.
+  await expect(returnLink.or(homeLink).first()).toBeVisible();
 });
