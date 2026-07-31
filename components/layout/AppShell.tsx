@@ -19,10 +19,14 @@ import { ScrollReset } from "./ScrollReset";
  *                  brand + stripe + "Credencial registrada en miMAR", and NO
  *                  browse nav / footer. Protects the scan→action moment.
  *
- * STRANGLER (Phase A): this component defines the structural contract for all
- * three variants and is wired on a LIMITED surface alongside the old chromes.
- * The legacy layouts are migrated onto it in Phases B/C, and the old chromes
- * are deleted in Phase D. AppShell is intentionally presentational: the
+ * STRANGLER — COMPLETE (Item 7, PRs #630-#634, docs/superpowers/README.md).
+ * This component defined the structural contract for all three variants and
+ * shipped in 4 phases: build the shell (A), migrate operators (B), migrate
+ * citizen/public (C), delete the old chromes (D). All four phases have
+ * landed — `LnOwnerNav` / `AppHeader` / `OpShell` no longer exist in this
+ * codebase; AppShell is the only chrome, wired on every surface (app/(app),
+ * /gob, /admin, /org, /(public), /p, /r/invite, /libreta/compartir).
+ * AppShell is intentionally presentational: the
  * auth-aware decision of WHICH variant + nav to render lives in
  * `lib/shell-nav.ts` (`resolveShellNav`), which the caller invokes first.
  *
