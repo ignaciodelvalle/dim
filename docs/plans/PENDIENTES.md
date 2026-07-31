@@ -3,9 +3,16 @@
 > **Solo lo que falta.** Lo cerrado vive en los planes del 29, 30, 31 y 01-08.
 > Actualizado 2026-07-31 tras cerrar la primera tanda de la cola.
 >
-> **Marcador**: ~95 hallazgos confirmados · **62 cerrados** · **33 abiertos**.
-> La tanda de hoy cerró las 7 barreras de a11y, el fence de CSS, 6 flujos rotos
-> de RA-2, 5 comentarios que mienten y los 4 rojos de `final-seams`.
+> **Marcador**: **~40 abiertos**. La tanda de hoy cerró 68: las 7 barreras de
+> a11y (+1 octava encontrada persiguiendo el patrón), el fence de CSS, 6 flujos
+> rotos de RA-2, 5 comentarios que mienten, los 4 rojos de `final-seams`, tres
+> fences que no chequeaban lo que decían, y **dos vulnerabilidades alcanzables
+> desde cualquier cuenta gratuita** que introdujo esta misma ola y cerró antes
+> de salir.
+>
+> 34 commits pusheados el 31/07 (`ec098654..4b09b445`). **CI: el veredicto real
+> vive en la corrida hermana** — cada push dispara dos (una por `push`, otra por
+> `pull_request`) y una cancela a la otra. Leer `cancelled` no es leer CI.
 
 ---
 
@@ -84,6 +91,9 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 ### Tests que no guardan nada
 | # | Qué |
 |---|---|
+| **E2E `a11y-operator-auth`** | Dos tests describen una **IA retirada**, mismo patrón que `owner-shell`: esperan que un operador sin permisos caiga en `/` y en `/mis-mascotas`, y cae en `/mis-mascotas/DIM-…` y en `/acceso-denegado`. **Rojos en CI desde antes de esta ola** — hay que decidir cuál es el destino correcto y después arreglar el test |
+| **E2E `crisis-seams` (d)** | La adopción no transfiere fuera de la custodia del refugio, o el test no lo ve. Rojo en CI desde antes de esta ola |
+| **`PanoramaConsole` "finding 1"** | `waitFor` con el presupuesto por defecto de 1s; en CI tardó 1541 ms y se pasó. **47 `waitFor` sin timeout explícito en ese archivo.** No subir uno suelto: o se decide un presupuesto para el archivo, o se acepta el flake declarado |
 | **RA-4 F8** | Un test de scope de gobierno que **nunca ejecutó una aserción** desde que se escribió: el primer test del archivo deja al usuario en un estado que hace fallar su `submit`, y el `if (!submit.ok) return` se traga todo |
 | **RA-4 F9** | Un guard cross-org que **nunca llama a la acción que guarda** — la aserción de cierre es tautológica por construcción |
 | **RA-4 F5-F7** | El `pet-carousel-dots` muerto, el chequeo de "cero disfrazado de supresión" que nunca inspecciona un numérico, y warn-and-skip en tests de constraint |
@@ -116,6 +126,9 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 | **CSS ratchet** | **19 tamaños por debajo del piso**, ya itemizados en su propia categoría `fontBelowFloor` para que se retiren de a uno. No son one-liners: subir `.ln-qr-cap` de 8px a 10px cambia el layout de la credencial |
 | **`lint:buttons` a CSS** | El botón de 8px de la landing era un **token equivocado**, no un valor crudo — ninguna regla del ratchet de CSS lo habría cazado. Esa clase se cierra extendiendo `lint:buttons` a hojas de estilo |
 | **RA-10** | ~20 hallazgos de estética. Los que se ven: la **libreta de vacunas clipea a 390px** (sin `overflow-x-auto` en toda la cadena) · **"Luna · Hembra · PERDIDO"** en la home del dueño · la micro-tipografía de la credencial pública a **8px** · el botón "Crear cuenta" es un rectángulo de 8px a un click de píldoras · `CaseStatus.open` se dice de **cinco maneras** · **22 diccionarios de estado** hechos a mano · 5 radios de chip conviviendo |
+| **18 lecturas de `petIdentifications.code`** | `omnibox-search`, `gob-pet-subview`, `lookup-for-claim` y 15 más seleccionan el chip canónico. Tienen pinta de estar gateadas por rol, pero **nadie lo verificó**. Es la misma pregunta que destapó el oráculo del vecino: ¿qué actor puede llegar a cada una? |
+| **`role="img"` tragándose subárboles** | Quedan `<figure role="img"><ul>` en `gob/mortalidad` (×2), `gob/adopciones`, `admin/adopciones`, `gob/censo`, `admin/censo`. Todos preexistentes. El de `StaticFirstMap` ya se cerró; estos hay que mirarlos de a uno |
+| **`searchParams` repetido → 500** | `?chip=a&chip=b` hace que Next pase `string[]` y revienta en `.trim()`. Falla cerrado, sin fuga. Mismo patrón en `nueva/page.tsx` |
 | **P2.6** | El worker de Windows (`0xC0000409`). **No bloquea** — no reproduce en Linux |
 | **P2.7** | El limpiador de huérfanos cubre 4 de ~20 prefijos. Propuesta escrita, **sin implementar a propósito**: cambia un script que BORRA |
 | **P3.2** | `jurisdictionProvince` sin `z.enum` → error crudo de Postgres al usuario |
