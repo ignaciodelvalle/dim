@@ -24,7 +24,14 @@ import { useActionState, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
-import { LnField, LnInput, LnRadio, LnSelect, LnTextarea } from "@/components/ui/Field";
+import {
+  LnField,
+  LnInput,
+  LnRadio,
+  LnRadioGroup,
+  LnSelect,
+  LnTextarea,
+} from "@/components/ui/Field";
 import type { WelfareReportFormState } from "@/src/modules/welfare/actions";
 import {
   WELFARE_REPORT_KINDS,
@@ -219,28 +226,27 @@ export function WelfareReportForm({
         )}
       </LnField>
 
-      {/* Subject kind */}
-      <fieldset className="mb-7">
-        <legend className="mb-2.5 text-[0.88em] font-semibold text-ln-mute">
-          ¿Sobre quién?
-          <span className="ml-1 text-ln-err" aria-hidden="true">
-            *
-          </span>
-        </legend>
-        <div className="space-y-2 mt-1">
-          {WELFARE_REPORT_SUBJECT_KINDS.map((sk) => (
-            <LnRadio
-              key={sk}
-              name="subjectKind"
-              value={sk}
-              checked={subjectKind === sk}
-              onChange={() => setSubjectKind(sk)}
-            >
-              {welfareReportSubjectKindLabel(sk)}
-            </LnRadio>
-          ))}
-        </div>
-      </fieldset>
+      {/* Subject kind — RA-9 BR-6: requiredness now reaches assistive tech via
+          the LnRadioGroup primitive (role="radiogroup" + aria-required + an
+          sr-only "(obligatorio)"), instead of an aria-hidden asterisk only. */}
+      <LnRadioGroup
+        legend="¿Sobre quién?"
+        required
+        className="mb-7"
+        optionsClassName="space-y-2 mt-1"
+      >
+        {WELFARE_REPORT_SUBJECT_KINDS.map((sk) => (
+          <LnRadio
+            key={sk}
+            name="subjectKind"
+            value={sk}
+            checked={subjectKind === sk}
+            onChange={() => setSubjectKind(sk)}
+          >
+            {welfareReportSubjectKindLabel(sk)}
+          </LnRadio>
+        ))}
+      </LnRadioGroup>
 
       {/* Conditional subject fields */}
       {subjectKind === "registered_pet" && (

@@ -17,7 +17,7 @@ import dynamic from "next/dynamic";
 import { useRef, useState, useTransition } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnCheckbox, LnInput, LnRadioGroup, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
 import { OpButton } from "@/components/ui/dashboard";
@@ -311,42 +311,43 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           )}
         </div>
 
-        <fieldset className="space-y-1.5 border-0 m-0 p-0">
-          <legend className="block text-xs font-medium text-ln-op-ink-2 p-0">
-            Tipo de víctima
-            <span className="ml-0.5 text-ln-op-danger" aria-hidden="true">
-              *
-            </span>
-          </legend>
-          <div className="grid grid-cols-3 gap-2">
-            {(
-              [
-                { value: "human", label: "Persona" },
-                { value: "animal", label: "Otro animal" },
-                { value: "unknown", label: "No sé" },
-              ] as const
-            ).map((opt) => (
-              <label
-                key={opt.value}
-                className={`flex items-center justify-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-[13px] cursor-pointer transition-colors ${
-                  victimKind === opt.value
-                    ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-ink"
-                    : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
-                }`}
-              >
-                <input
-                  type="radio"
-                  name="victimKind"
-                  value={opt.value}
-                  checked={victimKind === opt.value}
-                  onChange={() => setVictimKind(opt.value)}
-                  className="sr-only"
-                />
-                {opt.label}
-              </label>
-            ))}
-          </div>
-        </fieldset>
+        {/* RA-9 BR-6: requiredness reaches assistive tech via LnRadioGroup
+            (role="radiogroup" + aria-required + sr-only "(obligatorio)") instead
+            of an aria-hidden asterisk. */}
+        <LnRadioGroup
+          legend="Tipo de víctima"
+          required
+          className="space-y-1.5 border-0 m-0 p-0"
+          legendClassName="block text-xs font-medium text-ln-op-ink-2 p-0"
+          optionsClassName="grid grid-cols-3 gap-2"
+        >
+          {(
+            [
+              { value: "human", label: "Persona" },
+              { value: "animal", label: "Otro animal" },
+              { value: "unknown", label: "No sé" },
+            ] as const
+          ).map((opt) => (
+            <label
+              key={opt.value}
+              className={`flex items-center justify-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-[13px] cursor-pointer transition-colors ${
+                victimKind === opt.value
+                  ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-ink"
+                  : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
+              }`}
+            >
+              <input
+                type="radio"
+                name="victimKind"
+                value={opt.value}
+                checked={victimKind === opt.value}
+                onChange={() => setVictimKind(opt.value)}
+                className="sr-only"
+              />
+              {opt.label}
+            </label>
+          ))}
+        </LnRadioGroup>
 
         {victimKind === "human" && (
           <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4 space-y-3">

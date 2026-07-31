@@ -150,6 +150,98 @@ export function LnField({
   );
 }
 
+// ---------- Radio group ----------------------------------------------------
+//
+// RA-9 BR-6 — hand-rolled `<fieldset><legend>… <span aria-hidden>*</span>` markup
+// marked required radio groups with COLOUR + a GLYPH THAT IS HIDDEN FROM AT, and
+// the radios carried neither `required` nor `aria-required`. On the anonymous
+// public denuncia flow that means a screen-reader user cannot tell a mandatory
+// question from an optional one until submit fails (WCAG 3.3.2).
+//
+// LnField cannot serve a radio GROUP: it renders one `<label htmlFor>` and clones
+// the id/aria onto a SINGLE control, whereas a radio group needs a
+// fieldset/legend and the requiredness on the group, not on each input. This is
+// the group-shaped sibling of that primitive — same requiredness contract, same
+// `*` + "opcional" affordances, applied to the container.
+
+export type LnRadioGroupProps = {
+  /** Group question, rendered as the `<legend>` — the AT group name. */
+  legend: string;
+  required?: boolean;
+  /** Optional helper text below the legend, wired via aria-describedby. */
+  hint?: string;
+  /** Error text; sets aria-invalid on the group and renders a role="alert". */
+  error?: string;
+  className?: string;
+  /** Extra classes for the `<legend>` (callers keep their own type scale). */
+  legendClassName?: string;
+  /** Extra classes for the options wrapper. */
+  optionsClassName?: string;
+  children: ReactNode;
+};
+
+export function LnRadioGroup({
+  legend,
+  required,
+  hint,
+  error,
+  className,
+  legendClassName,
+  optionsClassName,
+  children,
+}: LnRadioGroupProps) {
+  const id = useId();
+  const hintId = hint ? `${id}-hint` : undefined;
+  const errorId = error ? `${id}-error` : undefined;
+  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
+
+  return (
+    <fieldset
+      // role="radiogroup" + aria-required is what carries requiredness to AT.
+      // A native <fieldset> maps to `group`, which has no required state, so the
+      // explicit radiogroup role is not redundant here.
+      role="radiogroup"
+      aria-required={required || undefined}
+      aria-invalid={error ? true : undefined}
+      aria-describedby={describedBy}
+      className={className}
+    >
+      <legend
+        className={
+          legendClassName ?? "mb-2.5 text-[0.88em] font-semibold text-[var(--color-ln-mute)]"
+        }
+      >
+        {legend}
+        {required && (
+          <>
+            {/* The glyph is decoration; the sr-only word is the actual signal. */}
+            <span className="ml-1 text-[var(--color-ln-err)]" aria-hidden="true">
+              *
+            </span>
+            <span className="sr-only"> (obligatorio)</span>
+          </>
+        )}
+        {!required && (
+          <span className="ml-1 font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
+            opcional
+          </span>
+        )}
+      </legend>
+      {hint && !error && (
+        <p id={hintId} className="mb-2 text-[11px] leading-[1.45] text-[var(--color-ln-mute)]">
+          {hint}
+        </p>
+      )}
+      <div className={optionsClassName ?? "space-y-2"}>{children}</div>
+      {error && (
+        <p id={errorId} className="mt-[5px] text-[11px] text-[var(--color-ln-err)]" role="alert">
+          {error}
+        </p>
+      )}
+    </fieldset>
+  );
+}
+
 // ---------- Localized native validation ------------------------------------
 //
 // Native HTML5 constraint bubbles ("Please fill out this field.") follow the

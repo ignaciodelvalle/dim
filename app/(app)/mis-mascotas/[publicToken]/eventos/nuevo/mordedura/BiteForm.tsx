@@ -4,7 +4,7 @@ import { useActionState, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
-import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { LnField, LnInput, LnRadioGroup, LnSelect, LnTextarea } from "@/components/ui/Field";
 import {
   LnSheetAccordion,
   LnSheetBody,
@@ -100,46 +100,46 @@ export function BiteForm({
             <LocationFields mode="l2" />
           </LnSheetAccordion>
 
-          {/* Victim kind — pill radio group wrapped in fieldset for SR grouping */}
-          <fieldset className="flex flex-col gap-1.5 border-0 m-0 p-0">
-            <legend className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-1.5">
-              ¿A quién mordió {petName}?{" "}
-              <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
-                *
-              </span>
-            </legend>
-            <div className="grid grid-cols-3 gap-1.5">
-              {(
-                [
-                  { value: "human", label: "Persona" },
-                  { value: "animal", label: "Otro animal" },
-                  { value: "unknown", label: "No sé" },
-                ] as const
-              ).map((opt) => (
-                <label
-                  key={opt.value}
-                  className={[
-                    "flex cursor-pointer items-center justify-center rounded-[3px] border px-2.5 py-2",
-                    "font-ln-mono text-[11px] font-semibold transition-colors",
-                    victimKind === opt.value
-                      ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]"
-                      : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)]",
-                  ].join(" ")}
-                >
-                  <input
-                    type="radio"
-                    name="victimKind"
-                    value={opt.value}
-                    checked={victimKind === opt.value}
-                    onChange={() => setVictimKind(opt.value)}
-                    aria-required="true"
-                    className="sr-only"
-                  />
-                  {opt.label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          {/* Victim kind — pill radio group. RA-9 BR-6: requiredness reaches
+              assistive tech via LnRadioGroup (role="radiogroup" + aria-required +
+              sr-only "(obligatorio)") instead of an aria-hidden asterisk. */}
+          <LnRadioGroup
+            legend={`¿A quién mordió ${petName}?`}
+            required
+            className="flex flex-col gap-1.5 border-0 m-0 p-0"
+            legendClassName="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-1.5"
+            optionsClassName="grid grid-cols-3 gap-1.5"
+          >
+            {(
+              [
+                { value: "human", label: "Persona" },
+                { value: "animal", label: "Otro animal" },
+                { value: "unknown", label: "No sé" },
+              ] as const
+            ).map((opt) => (
+              <label
+                key={opt.value}
+                className={[
+                  "flex cursor-pointer items-center justify-center rounded-[3px] border px-2.5 py-2",
+                  "font-ln-mono text-[11px] font-semibold transition-colors",
+                  victimKind === opt.value
+                    ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]"
+                    : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)]",
+                ].join(" ")}
+              >
+                <input
+                  type="radio"
+                  name="victimKind"
+                  value={opt.value}
+                  checked={victimKind === opt.value}
+                  onChange={() => setVictimKind(opt.value)}
+                  aria-required="true"
+                  className="sr-only"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </LnRadioGroup>
 
           {victimKind === "human" && (
             <LnSubCard heading="Datos de la persona (opcionales)">

@@ -8,7 +8,7 @@
 import { useState } from "react";
 
 import { LocationFields, type LocationFieldsChange } from "@/components/LocationFields";
-import { LnTextarea } from "@/components/ui/Field";
+import { LnRadioGroup, LnTextarea } from "@/components/ui/Field";
 import { parseDateInput, todayIsoInAr } from "@/lib/utils/format";
 
 export type WhenOption = "now" | "today_yesterday" | "several_days_ago";
@@ -140,17 +140,15 @@ export function Step3Where({
         </p>
       </div>
 
-      {/* When */}
-      <fieldset className="space-y-2">
-        <legend
-          className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
-          style={{ fontFamily: "var(--font-ln-mono)" }}
-        >
-          ¿Cuándo pasó?{" "}
-          <span className="text-[var(--color-ln-seal)] ml-0.5" aria-hidden="true">
-            *
-          </span>
-        </legend>
+      {/* When — RA-9 BR-6: requiredness reaches assistive tech via LnRadioGroup
+          (role="radiogroup" + aria-required + sr-only "(obligatorio)") instead of
+          an aria-hidden asterisk. */}
+      <LnRadioGroup
+        legend="¿Cuándo pasó?"
+        required
+        legendClassName="block font-ln-mono text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
+        optionsClassName="space-y-2"
+      >
         {WHEN_OPTIONS.map((opt) => {
           const isSelected = when === opt.value;
           return (
@@ -189,7 +187,7 @@ export function Step3Where({
             </label>
           );
         })}
-      </fieldset>
+      </LnRadioGroup>
 
       {/* Location — uses the shared LocationFields component in L2 mode
           (jurisdiction + postal address + map; see AGENTS.md "Design rules"
