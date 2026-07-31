@@ -210,6 +210,6 @@ Es para ESTA corrida, no permanente.
 | P3.1 nominatim hardcodeado | **CERRADA** (env override + timeout con budget compartido + fallback D.11 al texto del formulario, marcado y VISIBLE en la cola de triage) | `937a4007` |
 | P3.2 jurisdictionProvince sin enum | pendiente | |
 | P3.3 A2c aviso enterrado | bloqueada por el fence | |
-| P4.1 B2 los 703 | pendiente | |
+| P4.1 B2 los 703 | **CERRADA** — 702 usos / 207 archivos al utility nombrado; `deadTextVar` 703 → 0; `text-[var(--color-*)]` intacto (1874/263 antes y después); 107 elementos medidos en píxeles computados, 103 cambiaron de tamaño, 17 de color (la corrección del cascade); contraste re-medido 4.53-5.19:1, sigue AA; capturas en `docs/reviews/results/2026-08-01-703-pass/` con README que explica el caveat de color | `b39d9d2f` · `435fa426` |
 | P4.2 SC-7 los 521 | pendiente | |
 | RA-1..RA-10 | pendientes | |
