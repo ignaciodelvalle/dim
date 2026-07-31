@@ -54,8 +54,27 @@ export function MatchConfirmationCardVecino({
         // Vecino does NOT add the pet; original owner regains visibility.
         router.push("/mis-mascotas");
       } else {
-        // Continue creating the pet but mark that the chip didn't match.
-        router.push("/mis-mascotas/nueva?chipMismatched=true");
+        // Carry the adjudication receipt back to the alta (RA-2 F6).
+        //
+        // This used to push "?chipMismatched=true" — a flag NOTHING read
+        // (nueva/page.tsx takes no props at all), so the vecino landed on a
+        // blank form, re-entered the same chip, and was bounced right back to
+        // this page. The button promised "podés continuar con el registro" and
+        // the flow made that impossible.
+        //
+        // The receipt is the signed force token minted server-side from the
+        // matched pet's own chip; the alta posts it back and createPetAction
+        // registers the animal without the disputed code.
+        const conflict = "chipConflict" in result ? result.chipConflict : undefined;
+        if (conflict) {
+          const params = new URLSearchParams({
+            chipConflict: conflict.forceToken,
+            microchipId: conflict.microchipId,
+          });
+          router.push(`/mis-mascotas/nueva?${params.toString()}`);
+        } else {
+          router.push("/mis-mascotas/nueva");
+        }
       }
     });
   }

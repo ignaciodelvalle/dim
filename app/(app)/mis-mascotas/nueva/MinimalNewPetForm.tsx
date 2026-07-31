@@ -36,6 +36,7 @@ import {
 import { CustodyKindToggle } from "@/components/CustodyKindToggle";
 import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
+import { LnButton } from "@/components/ui/Button";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRadio, LnSelect } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
@@ -86,9 +87,19 @@ const TOTAL_STEPS = 2;
 export function MinimalNewPetForm({
   action,
   isFirstPet = false,
+  chipConflict,
 }: {
   action: FormAction;
   isFirstPet?: boolean;
+  /**
+   * Adjudication receipt carried back from the vecino chip-match card after
+   * the finder answered "No es la misma" (RA-2 F6). Pre-fills the disputed
+   * code and posts the signed force token, so createPetAction registers the
+   * animal without that code instead of running the same cross-check and
+   * bouncing the finder to the match page again — the closed loop that made
+   * the product's central use case impossible to complete.
+   */
+  chipConflict?: { microchipId: string; forceToken: string };
 }) {
   // PO bug 2026-07-18, "se salta la foto" second cause: React 19 resets
   // uncontrolled fields after EVERY action return — the photo <input
@@ -184,7 +195,14 @@ export function MinimalNewPetForm({
   const [custodyKind, setCustodyKind] = useState<"owner" | "foster_in_transit">("owner");
   // Acquisition method (V8 fix): optional, left blank/null unless picked — the
   // alta must stay just as easy to complete as before this field existed.
-  const [acquisitionMethod, setAcquisitionMethod] = useState("");
+  // A chip-conflict return arrives from the "encontré una mascota" path by
+  // definition, so pre-select it (RA-2 F6).
+  const [acquisitionMethod, setAcquisitionMethod] = useState(chipConflict ? "found_stray" : "");
+
+  // Everything the chip cross-check needs — the field itself and both escape
+  // hatches — lives in one hook (RA-2 F6). See useChipConflict below.
+  const { microchipId, setMicrochipId, postedForceToken, chipMatchActive, registerWithoutChip } =
+    useChipConflict({ chipConflict, state, formRef });
 
   // Resolved species string as parsePetForm expects it.
   const species = speciesPick === "other" ? otherSpecies : (speciesPick ?? "");
@@ -263,6 +281,8 @@ export function MinimalNewPetForm({
       {/* Data-quality gates: stable idempotency key (P1) + soft-dedupe override (P2). */}
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <input type="hidden" name="duplicateOverride" value={overrideDuplicate ? "1" : "0"} />
+      {/* Chip-conflict adjudication receipt (RA-2 F6) — see chipConflict prop. */}
+      {postedForceToken && <input type="hidden" name="forceToken" value={postedForceToken} />}
       <LnWizardShell
         currentStep={step}
         totalSteps={TOTAL_STEPS}
@@ -416,58 +436,27 @@ export function MinimalNewPetForm({
 
         {/* ── Paso 2 — Foto y más ────────────────────────────────────── */}
         <div hidden={step !== 2} className="flex flex-col gap-5">
+          {/* Chip-conflict return (RA-2 F6): say plainly what is about to
+              happen, so "registrar igual" is not a leap of faith. */}
+          {chipConflict && (
+            <LnCallout tone="azul" title="Seguimos con el registro">
+              Confirmaste que no es la misma mascota. Ese número de chip ya figura asignado a otro
+              animal, así que vamos a registrarla <strong>sin el chip</strong>. Una vez creada la
+              ficha vas a poder cargar el número correcto.
+            </LnCallout>
+          )}
+
           <PhotoField file={photoFile} onFileChange={setPhotoFile} />
 
-          <details className="group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
-            <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-3 text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
-              <span>Más datos (opcional)</span>
-              <span
-                aria-hidden="true"
-                className="text-[var(--color-ln-faint)] transition-transform group-open:rotate-180"
-              >
-                ▾
-              </span>
-            </summary>
-            <div className="flex flex-col gap-3 border-t border-[var(--color-ln-line)] px-3.5 py-3">
-              <LnField label="Color / señas">
-                {({ id, describedBy }) => (
-                  <LnInput
-                    id={id}
-                    name="color"
-                    type="text"
-                    placeholder="Atigrado, mancha blanca en el pecho…"
-                    value={color}
-                    onChange={(e) => setColor(e.target.value)}
-                    aria-describedby={describedBy}
-                    autoComplete="off"
-                  />
-                )}
-              </LnField>
-
-              {/* Acquisition method (V8 fix) — optional; feeds the /gob
-                  acquisition dashboard. Left blank = not specified, same as
-                  before this field existed. */}
-              <LnField label="¿Cómo te encontraste con esta mascota?">
-                {({ id, describedBy }) => (
-                  <LnSelect
-                    id={id}
-                    name="acquisitionMethod"
-                    value={acquisitionMethod}
-                    onChange={(e) => setAcquisitionMethod(e.target.value)}
-                    aria-describedby={describedBy}
-                  >
-                    <option value="">No especificar</option>
-                    <option value="adopted">Adoptado/a</option>
-                    <option value="purchased">Comprado/a</option>
-                    <option value="found_stray">Encontrado/a en la calle</option>
-                    <option value="gift">Regalado/a</option>
-                    <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
-                    <option value="other">Otro</option>
-                  </LnSelect>
-                )}
-              </LnField>
-            </div>
-          </details>
+          <MoreDetailsFields
+            color={color}
+            onColorChange={setColor}
+            microchipId={microchipId}
+            onMicrochipIdChange={setMicrochipId}
+            microchipReadOnly={chipConflict !== undefined}
+            acquisitionMethod={acquisitionMethod}
+            onAcquisitionMethodChange={setAcquisitionMethod}
+          />
         </div>
 
         {/* ── Error ──────────────────────────────────────────────────── */}
@@ -479,30 +468,15 @@ export function MinimalNewPetForm({
 
         {/* ── Soft same-owner dedupe confirm (gate P2) ───────────────── */}
         {step === 2 && duplicatePrompt && (
-          <div className="mt-4" role="alert">
-            <LnCallout tone="azul" title="¿Es la misma mascota?">
-              <p className="m-0">
-                Ya tenés registrada a <strong>{duplicatePrompt.name}</strong> (
-                {SPECIES_LABEL[duplicatePrompt.species] ?? duplicatePrompt.species},{" "}
-                {SEX_LABEL[duplicatePrompt.sex] ?? duplicatePrompt.sex}). ¿Es la misma?
-              </p>
-              <div className="mt-3 flex flex-col gap-2">
-                <Link
-                  href={`/mis-mascotas/${duplicatePrompt.publicToken}`}
-                  className="inline-flex w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-md font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
-                >
-                  Ver a {duplicatePrompt.name}
-                </Link>
-                <button
-                  type="button"
-                  onClick={createAnyway}
-                  className="inline-flex w-full cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 text-md font-semibold text-[var(--color-ln-ink-2)] transition-colors hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)]"
-                >
-                  No, es otra — crear igual
-                </button>
-              </div>
-            </LnCallout>
-          </div>
+          <DuplicateOwnerPrompt prompt={duplicatePrompt} onCreateAnyway={createAnyway} />
+        )}
+
+        {/* ── Chip matches an ACTIVE pet (RA-2 F6) ───────────────────── */}
+        {step === 2 && chipMatchActive && (
+          <ChipMatchActivePrompt
+            matchedPetToken={state.matchedPetToken}
+            onRegisterWithoutChip={registerWithoutChip}
+          />
         )}
 
         {/* ── Footer actions ─────────────────────────────────────────── */}
@@ -515,7 +489,7 @@ export function MinimalNewPetForm({
             >
               Continuar
             </button>
-          ) : duplicatePrompt ? null : (
+          ) : duplicatePrompt || chipMatchActive ? null : (
             <button
               type="submit"
               disabled={busy}
@@ -540,6 +514,255 @@ export function MinimalNewPetForm({
         </div>
       </LnWizardShell>
     </form>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// DuplicateOwnerPrompt — soft same-owner dedupe confirm (gate P2).
+//
+// Extracted verbatim from MinimalNewPetForm alongside ChipMatchActivePrompt
+// below: the two are the same shape (a callout offering "open the existing
+// record" or "no, it's another — continue"), and pulling both out keeps the
+// form function under the complexity fence.
+// ---------------------------------------------------------------------------
+
+function DuplicateOwnerPrompt({
+  prompt,
+  onCreateAnyway,
+}: {
+  prompt: NonNullable<NewPetFormState["duplicatePrompt"]>;
+  onCreateAnyway: () => void;
+}) {
+  return (
+    <div className="mt-4" role="alert">
+      <LnCallout tone="azul" title="¿Es la misma mascota?">
+        <p className="m-0">
+          Ya tenés registrada a <strong>{prompt.name}</strong> (
+          {SPECIES_LABEL[prompt.species] ?? prompt.species}, {SEX_LABEL[prompt.sex] ?? prompt.sex}).
+          ¿Es la misma?
+        </p>
+        <div className="mt-3 flex flex-col gap-2">
+          <Link
+            href={`/mis-mascotas/${prompt.publicToken}`}
+            className="inline-flex w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-md font-semibold text-white no-underline transition-colors hover:border-[var(--color-ln-azul-700)] hover:bg-[var(--color-ln-azul-700)]"
+          >
+            Ver a {prompt.name}
+          </Link>
+          <button
+            type="button"
+            onClick={onCreateAnyway}
+            className="inline-flex w-full cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 text-md font-semibold text-[var(--color-ln-ink-2)] transition-colors hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)]"
+          >
+            No, es otra — crear igual
+          </button>
+        </div>
+      </LnCallout>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// useChipConflict — the microchip field and both of its escape hatches (RA-2 F6)
+//
+// One hook because the three concerns are one concern: the chip the alta posts,
+// the receipt that says a conflict on it was already adjudicated, and the two
+// ways an actor can obtain that receipt —
+//
+//   1. carried in from the vecino match card ("No es la misma" on a LOST match);
+//   2. minted inline by createPetAction when the chip matches an ACTIVE pet.
+//
+// Both resolve to the same posted `forceToken`, which createPetAction reads as
+// "register this animal WITHOUT the disputed code". Kept out of the form
+// function so the component stays under the complexity fence.
+// ---------------------------------------------------------------------------
+
+function useChipConflict({
+  chipConflict,
+  state,
+  formRef,
+}: {
+  chipConflict?: { microchipId: string; forceToken: string };
+  state: NewPetFormState;
+  formRef: React.RefObject<HTMLFormElement | null>;
+}) {
+  const [microchipId, setMicrochipId] = useState(chipConflict?.microchipId ?? "");
+
+  // Same resubmit-with-a-hidden-field shape as the duplicate prompt: flip the
+  // token into state, then let the effect fire the submit once the hidden input
+  // has re-rendered with it.
+  const [activeMatchToken, setActiveMatchToken] = useState<string | null>(null);
+  const resubmitAfterOverride = useRef(false);
+
+  useEffect(() => {
+    if (activeMatchToken && resubmitAfterOverride.current) {
+      resubmitAfterOverride.current = false;
+      formRef.current?.requestSubmit();
+    }
+  }, [activeMatchToken, formRef]);
+
+  function registerWithoutChip() {
+    if (!state.forceToken) return;
+    resubmitAfterOverride.current = true;
+    setActiveMatchToken(state.forceToken);
+  }
+
+  return {
+    microchipId,
+    setMicrochipId,
+    /** Receipt posted with the NEXT submit — from the card, or just accepted here. */
+    postedForceToken: activeMatchToken ?? chipConflict?.forceToken ?? "",
+    /** Server state: stops showing (and stops gating submit) once accepted. */
+    chipMatchActive: state.warning === "CHIP_MATCH_ACTIVE" && !activeMatchToken,
+    registerWithoutChip,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// ChipMatchActivePrompt — the chip belongs to an ACTIVE pet (RA-2 F6).
+//
+// createPetAction answers that case with warning:"CHIP_MATCH_ACTIVE" plus a
+// signed force token. Before this existed the form rendered nothing for that
+// warning: a silent no-op with no affirmative action on screen. The override
+// registers the animal WITHOUT the disputed code — pet_identifications
+// chip_unique (migration 0056) makes a second active claim impossible, so
+// "register it anyway with the same chip" was never a real option.
+// ---------------------------------------------------------------------------
+
+function ChipMatchActivePrompt({
+  matchedPetToken,
+  onRegisterWithoutChip,
+}: {
+  matchedPetToken: string | undefined;
+  onRegisterWithoutChip: () => void;
+}) {
+  return (
+    <div className="mt-4" role="alert">
+      <LnCallout tone="warn" title="Ese chip ya está registrado">
+        <p className="m-0">
+          El número de microchip que cargaste figura asignado a otra mascota activa en miMAR. Si es
+          la misma, no hace falta que la registres de nuevo. Si es otro animal, registrala sin el
+          chip y cargá el número correcto después.
+        </p>
+        <div className="mt-3 flex flex-col gap-2">
+          {/* LnButton rather than the hand-rolled element pair the sibling
+              duplicate prompt still uses: check-raw-buttons.mjs allows exactly
+              two button radii in the app, and a new raw one here would have
+              pushed the citizen count past its baseline. */}
+          {matchedPetToken && (
+            <LnButton href={`/p/${matchedPetToken}`} variant="primary" size="lg" block>
+              Ver la mascota de ese chip
+            </LnButton>
+          )}
+          <LnButton type="button" variant="ghost" size="lg" block onClick={onRegisterWithoutChip}>
+            Es otro animal — registrar sin el chip
+          </LnButton>
+        </div>
+      </LnCallout>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// MoreDetailsFields — the collapsible "Más datos (opcional)" block of paso 2.
+//
+// Extracted from MinimalNewPetForm when the microchip field (RA-2 F6) pushed
+// that function past the complexity fence. Pure presentation over controlled
+// values; the form still owns every piece of state.
+// ---------------------------------------------------------------------------
+
+function MoreDetailsFields({
+  color,
+  onColorChange,
+  microchipId,
+  onMicrochipIdChange,
+  microchipReadOnly,
+  acquisitionMethod,
+  onAcquisitionMethodChange,
+}: {
+  color: string;
+  onColorChange: (v: string) => void;
+  microchipId: string;
+  onMicrochipIdChange: (v: string) => void;
+  /** True on the chip-conflict return path: the code is the one already adjudicated. */
+  microchipReadOnly: boolean;
+  acquisitionMethod: string;
+  onAcquisitionMethodChange: (v: string) => void;
+}) {
+  return (
+    <details className="group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-3 text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
+        <span>Más datos (opcional)</span>
+        <span
+          aria-hidden="true"
+          className="text-[var(--color-ln-faint)] transition-transform group-open:rotate-180"
+        >
+          ▾
+        </span>
+      </summary>
+      <div className="flex flex-col gap-3 border-t border-[var(--color-ln-line)] px-3.5 py-3">
+        <LnField label="Color / señas">
+          {({ id, describedBy }) => (
+            <LnInput
+              id={id}
+              name="color"
+              type="text"
+              placeholder="Atigrado, mancha blanca en el pecho…"
+              value={color}
+              onChange={(e) => onColorChange(e.target.value)}
+              aria-describedby={describedBy}
+              autoComplete="off"
+            />
+          )}
+        </LnField>
+
+        {/* Microchip (RA-2 F6) — optional. This is the field the whole
+            found_stray chip cross-check in createPetAction was written for;
+            without it the alta posted no microchipId, so the cross-check, the
+            vecino match page and its escape hatch were all unreachable from
+            the only form that renders at /mis-mascotas/nueva. */}
+        <LnField
+          label="Número de microchip"
+          hint="15 dígitos (ISO). Si la encontraste en la calle, buscá que la lean en una veterinaria."
+        >
+          {({ id, describedBy }) => (
+            <LnInput
+              id={id}
+              name="microchipId"
+              type="text"
+              inputMode="numeric"
+              placeholder="Opcional"
+              value={microchipId}
+              onChange={(e) => onMicrochipIdChange(e.target.value)}
+              readOnly={microchipReadOnly}
+              aria-describedby={describedBy}
+              autoComplete="off"
+            />
+          )}
+        </LnField>
+
+        {/* Acquisition method (V8 fix) — optional; feeds the /gob acquisition
+            dashboard. Left blank = not specified, same as before it existed. */}
+        <LnField label="¿Cómo te encontraste con esta mascota?">
+          {({ id, describedBy }) => (
+            <LnSelect
+              id={id}
+              name="acquisitionMethod"
+              value={acquisitionMethod}
+              onChange={(e) => onAcquisitionMethodChange(e.target.value)}
+              aria-describedby={describedBy}
+            >
+              <option value="">No especificar</option>
+              <option value="adopted">Adoptado/a</option>
+              <option value="purchased">Comprado/a</option>
+              <option value="found_stray">Encontrado/a en la calle</option>
+              <option value="gift">Regalado/a</option>
+              <option value="born_in_litter">Nacido/a en casa (camada propia)</option>
+              <option value="other">Otro</option>
+            </LnSelect>
+          )}
+        </LnField>
+      </div>
+    </details>
   );
 }
 

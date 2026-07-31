@@ -18,7 +18,11 @@ import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createPetAction } from "@/src/modules/pets/actions";
 import { MinimalNewPetForm } from "./MinimalNewPetForm";
 
-export default async function NewPetPage() {
+export default async function NewPetPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ chipConflict?: string; microchipId?: string }>;
+}) {
   // Auth is enforced by the (app) layout above us, but we need the user id to
   // count their existing pets — a single SQL COUNT, never loads pet rows.
   const { user } = await requireUserOrRedirect();
@@ -30,8 +34,32 @@ export default async function NewPetPage() {
 
   const isFirstPet = petCount === 0;
 
+  // Chip-conflict return path (RA-2 F6). The vecino match card sends the finder
+  // back here after they answer "No es la misma", carrying the disputed code
+  // plus the signed force token that createPetAction accepts as the receipt for
+  // that decision. Until this page read searchParams it took NO props at all,
+  // so the card's "?chipMismatched=true" was read by nobody and the finder of a
+  // lost animal could never complete the registration.
+  //
+  // Both halves or neither: a code with no token would just re-trigger the
+  // cross-check, and a token with no code cannot be validated (the HMAC is
+  // bound to the code).
+  const sp = await searchParams;
+  const conflictToken = sp.chipConflict?.trim();
+  const conflictChip = sp.microchipId?.trim();
+  const chipConflict =
+    conflictToken && conflictChip
+      ? { microchipId: conflictChip, forceToken: conflictToken }
+      : undefined;
+
   // The wizard chrome (step counter, progress bar, back navigation) and the
   // heading now live inside the client form, which owns the paso-1/paso-2 step
   // state. See MinimalNewPetForm.
-  return <MinimalNewPetForm action={createPetAction} isFirstPet={isFirstPet} />;
+  return (
+    <MinimalNewPetForm
+      action={createPetAction}
+      isFirstPet={isFirstPet}
+      chipConflict={chipConflict}
+    />
+  );
 }

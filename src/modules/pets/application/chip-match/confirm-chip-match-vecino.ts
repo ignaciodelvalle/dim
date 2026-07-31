@@ -12,8 +12,9 @@
 // §2.2: notifications accumulate in pendingNotifications[] inside the tx
 // and are inserted AFTER the transaction commits (best-effort, logged on failure).
 
-import { db, notifications, ownerships, petEvents, pets } from "@/db";
+import { db, notifications, ownerships, petEvents, petIdentifications, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { generateForceToken } from "@/lib/infra/microchip-force-token";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 import type { ConfirmChipMatchResult } from "./types";
@@ -54,7 +55,42 @@ export async function confirmChipMatchAsVecinoWriter({
       authorRole: "owner",
       payload: notePayload,
     });
-    return { ok: true };
+
+    // Mint the adjudication receipt (RA-2 F6). Until this existed, "No es la
+    // misma" wrote this note and returned bare `ok` — the vecino was sent back
+    // to /mis-mascotas/nueva, re-entered the same chip, and createPetAction ran
+    // the identical cross-check and bounced them straight back here. A closed
+    // loop on the product's central use case: a neighbour who finds a lost
+    // animal could never finish registering it.
+    //
+    // The code is read from the MATCHED pet's canonical identification rather
+    // than taken from the caller, so this endpoint cannot be used to mint a
+    // bypass for an arbitrary chip: the token only ever signs a code that a
+    // confirmation page actually showed this user.
+    const [chipRow] = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, matchedPet.id),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      )
+      .limit(1);
+
+    // No canonical chip on the matched record → nothing to adjudicate, and
+    // nothing safe to sign. The vecino still lands back on the alta; the plain
+    // form works because there is no code to collide with.
+    const conflictingChip = chipRow?.code;
+    if (!conflictingChip) return { ok: true };
+    return {
+      ok: true,
+      chipConflict: {
+        microchipId: conflictingChip,
+        forceToken: generateForceToken(conflictingChip),
+      },
+    };
   }
 
   // decision === 'same'

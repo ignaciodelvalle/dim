@@ -179,6 +179,39 @@ export async function createPetAction(
     parsed.microchipId = chipValidation.normalized;
   }
 
+  // Chip-conflict adjudication receipt (RA-2 F6) — checked BEFORE either chip
+  // gate below, because both of them would otherwise dead-end an actor who has
+  // already answered the question they ask.
+  //
+  // A valid forceToken means: this actor was shown the conflicting record and
+  // said "no es la misma". It does NOT mean "insert the chip anyway" —
+  // pet_identifications_chip_unique (migration 0056) is a partial UNIQUE on
+  // code WHERE kind='microchip_iso' AND status='active', so a second active
+  // claim on the same code cannot exist. The old `active`-branch comment
+  // "Force token valid — fall through to insert" fell through WITH
+  // parsed.microchipId still set, so the insert died on that index with an
+  // opaque Postgres error.
+  //
+  // What the escape hatch actually promises is what the match card's own copy
+  // says — "Si no es la misma, podés continuar con el registro de tu mascota":
+  // register THIS animal. The disputed code stays with the record that already
+  // holds it; the new pet is registered without a chip and its owner can add
+  // the correct one afterwards.
+  //
+  // Hoisted above BOTH gates on purpose: scoping it to the found_stray branch
+  // left the returning finder blocked by the P3 gate below the moment they
+  // picked any other acquisition method.
+  if (parsed.microchipId) {
+    const forceToken = String(formData.get("forceToken") ?? "").trim();
+    if (forceToken && validateForceToken(parsed.microchipId, forceToken)) {
+      parsed.microchipId = null;
+      parsed.microchipCountryCode = null;
+      parsed.microchipImplantedAt = null;
+      parsed.microchipImplantedBy = null;
+      parsed.microchipLocation = null;
+    }
+  }
+
   // Chip cross-check (found_stray + chip set) — request-edge: redirect stays here.
   if (parsed.acquisitionMethod === "found_stray" && parsed.microchipId) {
     const match = await lookupByChip(parsed.microchipId);
@@ -188,6 +221,10 @@ export async function createPetAction(
         // that once sat here ("request-edge: redirect stays here") was the only
         // thing defending it — and it never said why this call would be immune
         // to a defect that hits every other one (X1-F3).
+        //
+        // The match page's "No es la misma" mints the adjudication receipt this
+        // branch checks above, so the neighbour who finds a stray is no longer
+        // bounced back to a form that can only send them here again.
         return {
           error: null,
           redirectTo: `/mis-mascotas/nueva/match/${match.pet.publicToken}`,
@@ -195,21 +232,19 @@ export async function createPetAction(
       }
 
       if (match.pet.status === "active") {
-        const forceToken = String(formData.get("forceToken") ?? "").trim();
-        const forceValid = forceToken ? validateForceToken(parsed.microchipId, forceToken) : false;
-
-        if (!forceValid) {
-          return {
-            error: null,
-            warning: "CHIP_MATCH_ACTIVE",
-            matchedPetToken: match.pet.publicToken,
-            forceToken: generateForceToken(parsed.microchipId),
-          };
-        }
-        // Force token valid — fall through to insert.
+        return {
+          error: null,
+          warning: "CHIP_MATCH_ACTIVE",
+          matchedPetToken: match.pet.publicToken,
+          forceToken: generateForceToken(parsed.microchipId),
+        };
       }
 
       if (match.pet.status === "deceased") {
+        // Still a hard block, and deliberately NOT escapable: there is no
+        // confirmation card for a deceased match, so no actor can hold a
+        // receipt for one (the hoisted check above only clears a token an
+        // actual confirmation page minted).
         return {
           error:
             "Este chip está asociado a una mascota registrada como fallecida en miMAR. Pedile a un admin que revise el caso antes de continuar.",
