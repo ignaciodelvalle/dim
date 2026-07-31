@@ -53,10 +53,10 @@ vi.mock("../atender-declared-events", () => ({
 
 import AtenderSignPage from "./page";
 
-async function renderPage() {
+async function renderPage(searchParams: { evento?: string; firmado?: string } = {}) {
   const node = await AtenderSignPage({
     params: Promise.resolve({ orgToken: "org-token", publicToken: "DIM-TEST-0001" }),
-    searchParams: Promise.resolve({}),
+    searchParams: Promise.resolve(searchParams),
   });
   return renderToStaticMarkup(node);
 }
@@ -77,5 +77,34 @@ describe("atender sign page — #43 provenance copy", () => {
     const html = await renderPage();
     expect(html).toContain("· verificado por profesional");
     expect(html).not.toContain("Queda registrado a nombre de la organización");
+  });
+});
+
+// RA-2 F2 — the success receipt. A non-matriculated signer's write lands as
+// `org_registered`, which is a record and NOT a signature, so the page claiming
+// "Evento clínico firmado." was false for that entire signer tier — and, next
+// to a pending-signature card that correctly did not clear, it read as a broken
+// write and invited the duplicate that permanently pollutes the health record.
+describe("atender sign page — ?firmado=1 receipt must match the signer's tier", () => {
+  it("does NOT claim a signature when the signer has no validated matrícula", async () => {
+    resolveAtenderPetMock.mockResolvedValueOnce(fixtureAccess(false));
+    const html = await renderPage({ firmado: "1" });
+    expect(html).not.toContain("Evento clínico firmado.");
+    expect(html).toContain("Evento registrado a nombre de la organización.");
+    expect(html).toContain("no lleva firma profesional");
+  });
+
+  it("claims the signature only for a matriculated signer", async () => {
+    resolveAtenderPetMock.mockResolvedValueOnce(fixtureAccess(true));
+    const html = await renderPage({ firmado: "1" });
+    expect(html).toContain("Evento clínico firmado.");
+    expect(html).not.toContain("Evento registrado a nombre de la organización.");
+  });
+
+  it("shows no receipt at all while a capture form is open", async () => {
+    resolveAtenderPetMock.mockResolvedValueOnce(fixtureAccess(false));
+    const html = await renderPage({ firmado: "1", evento: "chip" });
+    expect(html).not.toContain("Evento registrado a nombre de la organización.");
+    expect(html).not.toContain("Evento clínico firmado.");
   });
 });

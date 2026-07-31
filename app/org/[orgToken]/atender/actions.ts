@@ -623,7 +623,12 @@ export async function atenderMicrochipAction(
   if (plausibility) return plausibility;
 
   if (confirmEventId) {
-    const rejected = await rejectIfAlreadySigned(pet.id, "microchip_implanted", confirmEventId);
+    const rejected = await rejectIfAlreadySigned(
+      pet.id,
+      "microchip_implanted",
+      confirmEventId,
+      eventAuthorship,
+    );
     if (rejected) return rejected;
   }
 
@@ -718,7 +723,12 @@ export async function atenderSterilizationAction(
   if (plausibility) return plausibility;
 
   if (confirmEventId) {
-    const rejected = await rejectIfAlreadySigned(pet.id, "sterilization_performed", confirmEventId);
+    const rejected = await rejectIfAlreadySigned(
+      pet.id,
+      "sterilization_performed",
+      confirmEventId,
+      eventAuthorship,
+    );
     if (rejected) return rejected;
   }
 

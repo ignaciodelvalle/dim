@@ -97,9 +97,17 @@ export default async function AtenderSignPage({
           </div>
         </header>
 
+        {/* RA-2 F2: the receipt must state what actually happened. A signer
+            without a validated matrícula produces an `org_registered` row —
+            a valid record, NOT a signature — so telling them "firmado" is
+            false for EVERY event type here, and next to a pending-signature
+            card that (correctly) did not clear it reads as a broken write and
+            invites the duplicate. Same flag the header above already uses. */}
         {justSigned && !activeEvento && (
           <output className="block rounded-[var(--radius-sm)] border border-ln-op-ok bg-ln-op-card px-3 py-2 text-sm text-ln-op-ink">
-            Evento clínico firmado. Podés registrar otro o volver al inicio.
+            {signer.matriculaVerified
+              ? "Evento clínico firmado. Podés registrar otro o volver al inicio."
+              : "Evento registrado a nombre de la organización. Quedó guardado, pero no lleva firma profesional: para eso lo tiene que registrar alguien con matrícula validada."}
           </output>
         )}
 
@@ -107,6 +115,7 @@ export default async function AtenderSignPage({
           orgToken={orgToken}
           publicToken={pet.publicToken}
           pending={pendingSignatures}
+          signerMatriculaVerified={signer.matriculaVerified}
         />
 
         <OpCard>

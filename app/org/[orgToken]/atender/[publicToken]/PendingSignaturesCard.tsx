@@ -29,17 +29,30 @@ export function PendingSignaturesCard({
   orgToken,
   publicToken,
   pending,
+  /** RA-2 F2: only a validated matrícula produces a SIGNATURE. Without one the
+   * submission is an `org_registered` record, so the CTA must not promise a
+   * signature the signer cannot give — the card will still be here afterwards. */
+  signerMatriculaVerified,
 }: {
   orgToken: string;
   publicToken: string;
   pending: PendingDeclaredEvent[];
+  signerMatriculaVerified: boolean;
 }) {
   if (pending.length === 0) return null;
+
+  const ctaLabel = signerMatriculaVerified ? "Confirmar y firmar →" : "Confirmar y registrar →";
 
   return (
     <OpCard>
       <OpCardHead title="Declarado por el dueño · pendiente de firma" />
       <OpCardBody>
+        {!signerMatriculaVerified && (
+          <p className="mb-2 text-[13px] text-ln-op-ink-2">
+            Podés dejar el registro a nombre de la organización, pero la firma seguirá pendiente
+            hasta que lo confirme alguien con matrícula validada.
+          </p>
+        )}
         <ul className="space-y-2">
           {pending.map((item) => {
             const params = new URLSearchParams({
@@ -57,7 +70,7 @@ export function PendingSignaturesCard({
                   href={`/org/${orgToken}/atender/${publicToken}?${params.toString()}`}
                   className="text-sm font-semibold text-ln-op-azul no-underline hover:underline"
                 >
-                  Confirmar y firmar →
+                  {ctaLabel}
                 </Link>
               </li>
             );

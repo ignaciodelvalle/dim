@@ -264,10 +264,15 @@ describe("atenderMicrochipAction — declared-by-owner sign-off (#3)", () => {
       formData({ chipNumber: "985141004321456", occurredAt: TODAY_AR }),
     );
     expect(result.error).toBeNull();
+    // RA-2 F2: the SIGNER's provenance is part of the guard's question — a
+    // non-matriculated member's record can be a duplicate at their own tier
+    // even though it never reaches the professional bar. Forwarding it is not
+    // optional; without it the guard cannot tell the two signer tiers apart.
     expect(mockRejectIfAlreadySigned).toHaveBeenCalledWith(
       "pet-1",
       "microchip_implanted",
       "declared-evt-1",
+      { authorRole: "vet", authorOrganizationId: "org-1", authorVerified: true },
     );
     expect(mockCreateMicrochip).toHaveBeenCalledOnce();
   });

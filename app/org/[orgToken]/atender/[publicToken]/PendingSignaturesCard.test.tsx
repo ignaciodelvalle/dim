@@ -106,7 +106,12 @@ const STERILIZATION_DECLARATION: PendingDeclaredEvent = {
 /** Renders the card and returns the CTA href exactly as a user would follow it. */
 function ctaHrefFromCard(pending: PendingDeclaredEvent[]): string {
   const { unmount } = render(
-    <PendingSignaturesCard orgToken={ORG_TOKEN} publicToken={PET_TOKEN} pending={pending} />,
+    <PendingSignaturesCard
+      orgToken={ORG_TOKEN}
+      publicToken={PET_TOKEN}
+      pending={pending}
+      signerMatriculaVerified
+    />,
   );
   const link = screen.getByRole("link");
   const href = link.getAttribute("href") ?? "";
@@ -179,9 +184,48 @@ describe("PendingSignaturesCard — the declared event id reaches the action", (
     expect(atenderMicrochipAction.bind).toHaveBeenCalledWith(null, ORG_TOKEN, PET_TOKEN, null);
   });
 
+  // RA-2 F2 — a signer without a validated matrícula cannot produce a
+  // signature, so the CTA must not promise one. The id must still travel:
+  // the guard is what stops their retry from duplicating the row.
+  it("does not promise a signature to a signer without a validated matrícula", () => {
+    render(
+      <PendingSignaturesCard
+        orgToken={ORG_TOKEN}
+        publicToken={PET_TOKEN}
+        pending={[CHIP_DECLARATION]}
+        signerMatriculaVerified={false}
+      />,
+    );
+    const link = screen.getByRole("link");
+    // Exact text, not /firmar/i — "Confirmar" contains "firmar".
+    expect(link.textContent).toBe("Confirmar y registrar →");
+    expect(queryOf(link.getAttribute("href") ?? "").get("confirmEventId")).toBe(
+      CHIP_DECLARATION.id,
+    );
+    expect(screen.getByText(/la firma seguirá pendiente/i)).toBeTruthy();
+  });
+
+  it("promises the signature only to a matriculated signer", () => {
+    render(
+      <PendingSignaturesCard
+        orgToken={ORG_TOKEN}
+        publicToken={PET_TOKEN}
+        pending={[CHIP_DECLARATION]}
+        signerMatriculaVerified
+      />,
+    );
+    expect(screen.getByRole("link").textContent).toBe("Confirmar y firmar →");
+    expect(screen.queryByText(/la firma seguirá pendiente/i)).toBeNull();
+  });
+
   it("renders nothing when there is nothing pending", () => {
     const { container } = render(
-      <PendingSignaturesCard orgToken={ORG_TOKEN} publicToken={PET_TOKEN} pending={[]} />,
+      <PendingSignaturesCard
+        orgToken={ORG_TOKEN}
+        publicToken={PET_TOKEN}
+        pending={[]}
+        signerMatriculaVerified
+      />,
     );
     expect(container.innerHTML).toBe("");
   });

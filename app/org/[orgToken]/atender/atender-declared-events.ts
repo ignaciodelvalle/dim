@@ -57,7 +57,7 @@
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { type EventType, db, petEvents } from "@/db";
-import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
+import { type ConfidenceTier, computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import type { EventFormState } from "@/src/modules/events/actions";
 
@@ -129,17 +129,17 @@ type ProvenanceRow = Pick<
   "payload" | "authorRole" | "authorVerified" | "authorOrganizationId"
 >;
 
-/** True when THIS row's own provenance reached professional verification.
- * Note `org_registered` (org member without a validated matrícula) is
- * deliberately below the bar — it is a record, not a professional signature. */
-function isProfessionallyVerified(row: ProvenanceRow): boolean {
-  const tier = computeConfidence({
+/** The confidence tier THIS row's own provenance produces. Note that
+ * `org_registered` (org member without a validated matrícula) sits
+ * deliberately below `professional_verified` — it is a record, not a
+ * professional signature. */
+function confidenceOf(row: ProvenanceRow): ConfidenceTier {
+  return computeConfidence({
     authorRole: row.authorRole,
     authorVerified: row.authorVerified,
     authorOrganizationId: row.authorOrganizationId,
     payload: (row.payload ?? {}) as Record<string, unknown>,
   });
-  return isAtLeast(tier, "professional_verified");
 }
 
 /** Identity of the concrete act a row records, or null when the type is
@@ -165,15 +165,32 @@ function occurrenceKeyOf(row: DeclaredEventRow, eventType: SignableEventType): s
  * itself and the answer is still "signed".
  */
 function isDeclarationSigned(declared: DeclaredEventRow, petRows: DeclaredEventRow[]): boolean {
+  return findRecordOfSameAct(declared, petRows, "professional_verified") !== null;
+}
+
+/**
+ * The first row on the pet that records the SAME ACT as `declared` with
+ * confidence at least `minimumTier`, or null. `excludeId` drops one row from
+ * the scan — used by the duplicate guard so the declaration cannot match
+ * itself (see rejectIfAlreadySigned).
+ */
+function findRecordOfSameAct(
+  declared: DeclaredEventRow,
+  petRows: DeclaredEventRow[],
+  minimumTier: ConfidenceTier,
+  excludeId?: string,
+): DeclaredEventRow | null {
   const eventType = declared.eventType as SignableEventType;
   const declaredKey = occurrenceKeyOf(declared, eventType);
-  return petRows.some((row) => {
+  const found = petRows.find((row) => {
+    if (excludeId !== undefined && row.id === excludeId) return false;
     if (row.eventType !== declared.eventType) return false;
-    if (!isProfessionallyVerified(row)) return false;
+    if (!isAtLeast(confidenceOf(row), minimumTier)) return false;
     // One-shot act: the type is the identity, no further scoping.
     if (declaredKey === null) return true;
     return occurrenceKeyOf(row, eventType) === declaredKey;
   });
+  return found ?? null;
 }
 
 /** Every signable row on the pet — owner declarations AND professional
@@ -264,22 +281,61 @@ export async function fetchPendingDeclaredEvents(petId: string): Promise<Pending
   return out;
 }
 
+/** The provenance a submission will be stamped with — `eventAuthorship` from
+ * resolveAtenderPet, structurally. */
+export type SignerAuthorship = {
+  authorRole: string;
+  authorVerified: boolean;
+  authorOrganizationId: string | null;
+};
+
 /**
  * Guard for the sign-off actions (atenderMicrochipAction /
  * atenderSterilizationAction): rejects — a no-op, not an edit — when the
  * declared event `confirmEventId` points at no longer exists on this pet, is
- * a different event type, or is ALREADY SIGNED by the same rule the card uses
- * (isDeclarationSigned). Returns null when it's safe to proceed and sign.
+ * a different event type, or when THIS SIGNER's submission would add nothing
+ * the pet's spine does not already hold. Returns null when it's safe to write.
  *
  * Consistency is structural, not a convention: this reads the SAME row set and
- * calls the SAME predicate as fetchPendingDeclaredEvents. The card and the
- * guard cannot drift apart. This is also the last line of defence for the
+ * scopes the act with the SAME rule as fetchPendingDeclaredEvents. The card and
+ * the guard cannot drift apart. This is also the last line of defence for the
  * duplicate-signature damage when a post-action navigation is dropped.
+ *
+ * ---------------------------------------------------------------------------
+ * What "already signed" means for a NON-MATRICULATED signer (RA-2 F2)
+ * ---------------------------------------------------------------------------
+ * An org member without a validated matrícula is stamped
+ * shelter/authorVerified:false (atender-access.ts) → confidence
+ * `org_registered`, which event-confidence.ts defines as "a valid institutional
+ * RECORD, NOT professional verification". So the honest answer is: THEIR ENTRY
+ * IS NOT A SIGNATURE. The professional bar in isDeclarationSigned stays where
+ * it is, and the pending card keeps standing after they write — the act really
+ * does still need a matriculated signature.
+ *
+ * The alternative — counting `org_registered` as "signed" so the card clears —
+ * was rejected: a receptionist's entry would permanently silence the nudge and
+ * the libreta would read as complete while the compliance gate still says it
+ * isn't. That destroys information; it does not add any.
+ *
+ * But "not signed" must NOT mean "write again, forever". That was the measured
+ * damage: the page claimed success, the card stayed, and every retry appended
+ * another permanent row to a legally-weighted health record. So the guard's
+ * question is not "is this act signed?" but "would this submission ADD
+ * anything?" — reject when a row for the same act already carries confidence
+ * at least equal to the tier this signer produces. Consequences:
+ *   - matriculated vet — unchanged: an existing professional row rejects, an
+ *     `org_registered` row does NOT (their tier is strictly higher, so their
+ *     signature still adds the thing the card is asking for);
+ *   - non-matriculated member — a second attempt at an act the org has already
+ *     recorded is rejected instead of duplicated.
+ * The other half of the fix is UI-side: page.tsx must stop telling a
+ * non-matriculated signer that the event was "firmado".
  */
 export async function rejectIfAlreadySigned(
   petId: string,
   eventType: SignableEventType,
   confirmEventId: string,
+  signer: SignerAuthorship,
 ): Promise<EventFormState | null> {
   const rows = await fetchSignableRows(petId);
   const target = rows.find((r) => r.id === confirmEventId);
@@ -290,6 +346,20 @@ export async function rejectIfAlreadySigned(
 
   if (isDeclarationSigned(target, rows)) {
     return { error: "Este registro ya fue firmado por un profesional." };
+  }
+
+  // Below the professional bar the act can still be already-recorded at this
+  // signer's own tier — a duplicate that adds nothing. The declaration row
+  // itself is excluded: it is what is being confirmed, not a prior record of it.
+  const signerTier = computeConfidence({ ...signer, payload: {} });
+  if (!isAtLeast(signerTier, "professional_verified")) {
+    const equivalent = findRecordOfSameAct(target, rows, signerTier, target.id);
+    if (equivalent) {
+      return {
+        error:
+          "Este acto ya está registrado a nombre de la organización. Falta la firma de un profesional matriculado, que no podés hacer sin matrícula validada.",
+      };
+    }
   }
 
   return null;

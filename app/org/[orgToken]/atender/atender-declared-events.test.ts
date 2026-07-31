@@ -42,7 +42,20 @@ vi.mock("@/db", () => ({
   },
 }));
 
-import { fetchPendingDeclaredEvents, rejectIfAlreadySigned } from "./atender-declared-events";
+import {
+  type SignerAuthorship,
+  fetchPendingDeclaredEvents,
+  rejectIfAlreadySigned,
+} from "./atender-declared-events";
+
+// The matriculated signer — the only tier that produces a SIGNATURE. The
+// org_registered arm is pinned against the real spine in the .db.test.ts
+// sibling (RA-2 F2), where the row relationships are not a mock's opinion.
+const VET_SIGNER: SignerAuthorship = {
+  authorRole: "vet",
+  authorVerified: true,
+  authorOrganizationId: "org-1",
+};
 
 function ownerRow(overrides: Record<string, unknown> = {}) {
   return {
@@ -161,13 +174,13 @@ describe("fetchPendingDeclaredEvents", () => {
 describe("rejectIfAlreadySigned — append-only sign-off guard", () => {
   it("returns null (safe to sign) for a still-pending declared event", async () => {
     queue([ownerRow()]);
-    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1", VET_SIGNER);
     expect(result).toBeNull();
   });
 
   it("rejects (no-op) an already professional_verified event", async () => {
     queue([ownerRow({ authorRole: "vet", authorVerified: true })]);
-    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1", VET_SIGNER);
     expect(result?.error).toMatch(/ya fue firmado/i);
   });
 
@@ -176,7 +189,7 @@ describe("rejectIfAlreadySigned — append-only sign-off guard", () => {
       ownerRow({ id: "vet-signature", authorRole: "vet", authorVerified: true }),
       ownerRow({ id: "evt-1" }),
     ]);
-    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1", VET_SIGNER);
     expect(result?.error).toMatch(/ya fue firmado/i);
   });
 
@@ -190,25 +203,30 @@ describe("rejectIfAlreadySigned — append-only sign-off guard", () => {
         occurredAt: new Date("2024-01-01T12:00:00Z"),
       }),
     ]);
-    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1", VET_SIGNER);
     expect(result).toBeNull();
   });
 
   it("rejects when the target event belongs to a different pet", async () => {
     queue([ownerRow({ petId: "other-pet" })]);
-    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1", VET_SIGNER);
     expect(result?.error).toMatch(/ya no está disponible/i);
   });
 
   it("rejects when the target event is a different event type", async () => {
     queue([ownerRow({ eventType: "sterilization_performed" })]);
-    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1");
+    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-1", VET_SIGNER);
     expect(result?.error).toMatch(/ya no está disponible/i);
   });
 
   it("rejects when the target event no longer exists", async () => {
     queue([]);
-    const result = await rejectIfAlreadySigned("pet-1", "microchip_implanted", "evt-missing");
+    const result = await rejectIfAlreadySigned(
+      "pet-1",
+      "microchip_implanted",
+      "evt-missing",
+      VET_SIGNER,
+    );
     expect(result?.error).toMatch(/ya no está disponible/i);
   });
 });
