@@ -217,10 +217,17 @@ export const ARBITRARY_TEXT_PX = /\btext-\[\d+\.?\d*px\]/g;
 // font-size namespace. Same token, same single source of truth, and it actually
 // applies.
 //
-// Ratcheted rather than fixed in one sweep: unbreaking 703 declarations means
-// 703 elements suddenly rendering at their INTENDED size, which is a visible
-// change across the whole app and belongs to a deliberate pass with the PO,
-// not to a silent codemod.
+// Was ratcheted rather than fixed in one sweep, because unbreaking 703
+// declarations meant 703 elements suddenly rendering at their INTENDED size —
+// a visible change across the whole app that needed a deliberate pass with
+// the PO, not a silent codemod. That pass ran (P4.1 "los 703", plan
+// 2026-08-01): the codemod moved 702 declarations to the named utility
+// (703→702 is a benign drift, see the plan entry), `deadTextVar` is 0 across
+// the baseline, and 85 elements changed COLOUR as a documented correction of
+// the alphabetical-cascade bug, not a regression (commits b39d9d2f,
+// 435fa426; captures in docs/reviews/results/2026-08-01-703-pass/). Kept as a
+// ratchet rule (like rule 10 below) so a new dead declaration is a build
+// failure, not new inherited debt.
 export const DEAD_TEXT_VAR = /\btext-\[var\(--text-[a-z0-9-]+\)\]/g;
 
 // Rule 10: font-[var(--font-*)] — a DEAD font-family (measured 2026-07-31).
