@@ -117,7 +117,7 @@ export default async function WelfareReportDetailPage({
   const attachments = await Promise.all(
     attachmentRows.map(async (a) => ({
       ...a,
-      signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath),
+      signedUrl: await welfareAttachmentSignedUrl(a.storagePath),
     })),
   );
 

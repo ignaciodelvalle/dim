@@ -39,7 +39,6 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
-import { createClient } from "@/lib/supabase/server";
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
 import {
   isValidReferenceCodeFormat,
@@ -221,13 +220,12 @@ export async function loadWelfareInspectorDetail(
     .select()
     .from(welfareReportAttachments)
     .where(eq(welfareReportAttachments.welfareReportId, report.id));
-  const supabase = await createClient();
   const attachments: WelfareInspectorAttachment[] = await Promise.all(
     attachmentRows.map(async (a) => ({
       id: a.id,
       originalFilename: a.originalFilename,
       storagePath: a.storagePath,
-      signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath),
+      signedUrl: await welfareAttachmentSignedUrl(a.storagePath),
     })),
   );
 

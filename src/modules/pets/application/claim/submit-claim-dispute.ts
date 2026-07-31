@@ -10,8 +10,7 @@ import { attachments, auditLog, db, notifications, ownerships, petEvents, pets }
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { openCase } from "@/lib/infra/case-helpers";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
-import { uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
-import { createClient } from "@/lib/supabase/server";
+import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
 import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 
 import type { ClaimDisputeInput, ClaimDisputeResult } from "./types";
@@ -72,9 +71,8 @@ export async function submitClaimDisputeForUser(
   }
 
   // Evidence upload — happens BEFORE the tx so failures don't dangle.
-  const supabase = await createClient();
   const reportId = crypto.randomUUID();
-  const upload = await uploadWelfareEvidence(supabase, `claims/${reportId}`, files);
+  const upload = await uploadWelfareEvidence(`claims/${reportId}`, files);
   if (upload.error) return { error: upload.error };
 
   let disputeToken = "";
@@ -194,12 +192,7 @@ export async function submitClaimDisputeForUser(
     });
   } catch (err) {
     // Roll back uploaded files if the tx failed.
-    if (upload.uploadedPaths.length > 0) {
-      await supabase.storage
-        .from("welfare-evidence")
-        .remove(upload.uploadedPaths)
-        .catch(() => {});
-    }
+    await removeWelfareEvidence(upload.uploadedPaths);
     const message = err instanceof Error ? err.message : "Error desconocido.";
     return { error: `No se pudo enviar el reclamo: ${message}` };
   }

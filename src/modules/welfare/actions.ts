@@ -57,7 +57,7 @@ import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text"
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
-import { uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
+import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
 import { createClient } from "@/lib/supabase/server";
 import { parseDateInput } from "@/lib/utils/format";
 import { canReceiveDerivedWelfare } from "@/src/modules/welfare/domain/derivation-eligibility";
@@ -866,7 +866,7 @@ export async function generateMpfExportAction(
         const attachments = await Promise.all(
           attachmentRows.map(async (a) => ({
             filename: a.originalFilename ?? a.storagePath.split("/").pop() ?? "adjunto",
-            signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath, 7 * 24 * 60 * 60),
+            signedUrl: await welfareAttachmentSignedUrl(a.storagePath, 7 * 24 * 60 * 60),
           })),
         );
         const exportGeneratedAt = new Date(dto.exportGeneratedAt);
@@ -1175,7 +1175,7 @@ export async function createWelfareReportAction(
 
   // Upload files (after insert, before tx — parity)
   if (files.length > 0) {
-    uploadResult = await uploadWelfareEvidence(supabase, insertedId, files);
+    uploadResult = await uploadWelfareEvidence(insertedId, files);
     if (uploadResult.error) {
       return { error: uploadResult.error };
     }
@@ -1241,13 +1241,8 @@ export async function createWelfareReportAction(
   );
 
   if (!result.ok) {
-    // Tx failed — clean up uploaded files
-    if (uploadResult?.uploadedPaths?.length) {
-      await supabase.storage
-        .from("welfare-evidence")
-        .remove(uploadResult.uploadedPaths)
-        .catch(() => {});
-    }
+    // Tx failed — clean up uploaded files.
+    await removeWelfareEvidence(uploadResult?.uploadedPaths ?? []);
     return { error: result.error };
   }
 
@@ -1428,8 +1423,7 @@ export async function createOrgWelfareReportAction(
   const { id: insertedId, referenceCode: orgReferenceCode } = insertResult;
 
   // Upload evidence files
-  const supabase = await createClient();
-  const uploadResult = await uploadWelfareEvidence(supabase, insertedId, files);
+  const uploadResult = await uploadWelfareEvidence(insertedId, files);
   if (uploadResult.error) return { error: uploadResult.error };
 
   // Resolve pet at the action level (org reporters are always "witnesses" — no ownership check)
@@ -1486,12 +1480,7 @@ export async function createOrgWelfareReportAction(
   );
 
   if (!result.ok) {
-    if (uploadResult.uploadedPaths.length > 0) {
-      await supabase.storage
-        .from("welfare-evidence")
-        .remove(uploadResult.uploadedPaths)
-        .catch(() => {});
-    }
+    await removeWelfareEvidence(uploadResult.uploadedPaths);
     return { error: result.error };
   }
 

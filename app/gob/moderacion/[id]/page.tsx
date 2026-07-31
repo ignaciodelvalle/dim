@@ -29,7 +29,6 @@ import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { welfareReportParamCondition } from "@/lib/infra/welfare-inspector-detail";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
-import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
@@ -142,11 +141,10 @@ export default async function GobModeracionDetailPage({
     .select()
     .from(welfareReportAttachments)
     .where(eq(welfareReportAttachments.welfareReportId, report.id));
-  const supabase = await createClient();
   const attachments = await Promise.all(
     attachmentRows.map(async (a) => ({
       ...a,
-      signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath),
+      signedUrl: await welfareAttachmentSignedUrl(a.storagePath),
     })),
   );
 

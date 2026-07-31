@@ -2,7 +2,6 @@ import { db, welfareReportAttachments, welfareReports } from "@/db";
 import { coarsenPoint, readPoint } from "@/lib/domain/location";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
-import { createClient } from "@/lib/supabase/server";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
 import { maskEmail, maskPhone } from "@/lib/utils/mask-contact";
 import {
@@ -163,11 +162,10 @@ export default async function WelfareReportByCodePage({
     .from(welfareReportAttachments)
     .where(eq(welfareReportAttachments.welfareReportId, report.id));
 
-  const supabase = await createClient();
   const attachments = await Promise.all(
     attachmentRows.map(async (a) => ({
       ...a,
-      signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath),
+      signedUrl: await welfareAttachmentSignedUrl(a.storagePath),
     })),
   );
 

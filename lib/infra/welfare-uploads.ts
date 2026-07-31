@@ -2,8 +2,21 @@
 //
 // Kept separate from lib/uploads.ts — different bucket, different lifecycle
 // (anonymous-capable), different MIME set, and multi-file semantics.
-
-import type { createClient } from "@/lib/supabase/server";
+//
+// STORAGE IDENTITY (RA-8 R2, migration 0164): the `welfare-evidence` bucket has
+// no anon/authenticated policy. It used to grant `anon` unrestricted INSERT and
+// a SELECT that named no caller at all, which made the whole national corpus of
+// cruelty-complaint evidence anonymously listable and downloadable. Both legs
+// now run as service role from here.
+//
+// The anonymous denuncia still works: "anonymous" describes the REPORTER, not
+// the storage caller. The upload has always happened inside a server action
+// (createWelfareReportAction and friends) after that action validated the
+// submission — the browser never touched the bucket.
+//
+// Side effect worth naming: rollback actually works now. The bucket had no
+// DELETE policy, so every `.remove()` in the failure paths was silently denied
+// and leaked orphaned objects.
 
 const BUCKET = "welfare-evidence";
 const MAX_FILES = 5;
@@ -49,8 +62,27 @@ export type WelfareUploadResult = {
   uploadedPaths: string[];
 };
 
+/** Service-role storage handle for the private welfare-evidence bucket. */
+async function evidenceBucket() {
+  const { createAdminClient } = await import("@/lib/supabase/admin");
+  return createAdminClient().storage.from(BUCKET);
+}
+
+/**
+ * Delete welfare-evidence objects. Used by the transaction-rollback paths so a
+ * failed denuncia does not leave orphaned evidence in the bucket.
+ * Best-effort: never throws.
+ */
+export async function removeWelfareEvidence(storagePaths: string[]): Promise<void> {
+  if (storagePaths.length === 0) return;
+  try {
+    await (await evidenceBucket()).remove(storagePaths);
+  } catch (err) {
+    console.warn("[welfare-uploads] evidence cleanup failed (non-fatal):", err);
+  }
+}
+
 export async function uploadWelfareEvidence(
-  supabase: Awaited<ReturnType<typeof createClient>>,
   reportId: string,
   files: File[],
 ): Promise<WelfareUploadResult> {
@@ -83,6 +115,21 @@ export async function uploadWelfareEvidence(
   const uploaded: WelfareUploadResult["uploaded"] = [];
   const uploadedPaths: string[] = [];
 
+  let bucket: Awaited<ReturnType<typeof evidenceBucket>>;
+  try {
+    bucket = await evidenceBucket();
+  } catch (err) {
+    // Fail closed and loud: a missing service-role key means evidence cannot
+    // be stored at all, and silently accepting a denuncia with no evidence is
+    // worse than telling the reporter to retry.
+    console.error("[welfare-uploads] service-role storage client unavailable:", err);
+    return {
+      error: "No se pudo guardar la evidencia. Intentá de nuevo en unos minutos.",
+      uploaded: [],
+      uploadedPaths: [],
+    };
+  }
+
   for (const f of real) {
     const ext = inferExtension(f.name, f.type);
     const attachmentId = crypto.randomUUID();
@@ -105,18 +152,13 @@ export async function uploadWelfareEvidence(
       }
     }
 
-    const { error } = await supabase.storage.from(BUCKET).upload(path, uploadBody, {
+    const { error } = await bucket.upload(path, uploadBody, {
       contentType: f.type,
       upsert: false,
     });
     if (error) {
       // Roll back what we already uploaded.
-      if (uploadedPaths.length) {
-        await supabase.storage
-          .from(BUCKET)
-          .remove(uploadedPaths)
-          .catch(() => {});
-      }
+      await removeWelfareEvidence(uploadedPaths);
       return {
         error: `No se pudo subir "${f.name}": ${error.message}`,
         uploaded: [],
