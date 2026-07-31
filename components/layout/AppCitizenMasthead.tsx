@@ -23,7 +23,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Drawer } from "vaul";
 
 import { logoutAction } from "@/app/actions/auth";
@@ -219,6 +219,8 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
 
   // Close on navigation.
   // biome-ignore lint/correctness/useExhaustiveDependencies: pathname is the trigger; setOpen is React-stable
@@ -236,12 +238,25 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
 
+  // RA-9 BR-4: Escape closes and returns focus to the trigger.
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
   return (
     <div ref={ref} className="relative border-l border-white/[0.18] pl-4">
       <button
+        ref={triggerRef}
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
+        aria-controls={panelId}
         aria-label="Menú de cuenta"
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-[9px] rounded-full no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
@@ -253,13 +268,15 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
       </button>
 
       {open && (
+        // RA-9 BR-4: a disclosure panel, not an application menu. role="menu"
+        // contracts arrow-key roving + typeahead that this popover never had;
+        // the honest shape for two navigation-ish actions is a plain list.
         <div
-          role="menu"
+          id={panelId}
           className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-[var(--radius-md)] border border-ln-line bg-white py-1 shadow-md"
         >
           <Link
             href="/cuenta"
-            role="menuitem"
             onClick={() => setOpen(false)}
             className="flex items-center gap-2 px-3 py-[7px] text-[12.5px] text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
           >
@@ -269,7 +286,6 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
           <form action={logoutAction}>
             <button
               type="submit"
-              role="menuitem"
               className="flex w-full items-center gap-2 px-3 py-[7px] text-left text-[12.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-ln-stripe"
             >
               Cerrar sesión
@@ -290,6 +306,8 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
 function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
 
   // "Where am I" affordance (task #17): name the current org portal in the
   // trigger when the user is inside one they belong to; otherwise "Portales".
@@ -304,12 +322,25 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
     setOpen(false);
   }, [pathname]);
 
+  // RA-9 BR-4: Escape closes and returns focus to the trigger.
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
   return (
     <div className="relative hidden md:block">
       <button
+        ref={triggerRef}
         type="button"
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-[12.5px] font-medium text-white/85 transition-colors hover:border-white/50 hover:text-white"
       >
@@ -317,21 +348,26 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
         <Icon name="chevron-down" size="sm" decorative className="opacity-70" />
       </button>
       {open && (
-        <div
-          role="menu"
+        // RA-9 BR-4: disclosure listing navigation links — see CitizenUserMenu.
+        <nav
+          id={panelId}
+          aria-label="Cambiar de portal"
           className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-[var(--radius-md)] border border-ln-line bg-white py-1 shadow-md"
         >
-          {switcher.map((t) => (
-            <Link
-              key={t.key + t.href}
-              href={t.href}
-              onClick={() => setOpen(false)}
-              className="flex items-center gap-2 px-3 py-[7px] text-[12.5px] text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
-            >
-              {t.label}
-            </Link>
-          ))}
-        </div>
+          <ul>
+            {switcher.map((t) => (
+              <li key={t.key + t.href}>
+                <Link
+                  href={t.href}
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 px-3 py-[7px] text-[12.5px] text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
+                >
+                  {t.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </nav>
       )}
     </div>
   );

@@ -13,7 +13,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import type { ShellSession, SwitcherTarget } from "@/lib/ui/shell-nav";
@@ -32,13 +32,15 @@ function SwitcherItem({
   onClick: () => void;
 }) {
   return (
-    <Link
-      href={target.href}
-      onClick={onClick}
-      className="flex items-center gap-2 rounded-[var(--radius-sm)] px-3 py-[7px] text-[12.5px] text-ln-op-ink no-underline transition-colors hover:bg-ln-op-page"
-    >
-      {target.label}
-    </Link>
+    <li>
+      <Link
+        href={target.href}
+        onClick={onClick}
+        className="flex items-center gap-2 rounded-[var(--radius-sm)] px-3 py-[7px] text-[12.5px] text-ln-op-ink no-underline transition-colors hover:bg-ln-op-page"
+      >
+        {target.label}
+      </Link>
+    </li>
   );
 }
 
@@ -55,6 +57,8 @@ export function ContextSwitcher({ session }: Props) {
   const targets = buildSwitcher(session, pathname);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelId = useId();
 
   // "Where am I" affordance (task #17): when the current path is an org portal
   // the user belongs to, name that org in the trigger instead of a generic
@@ -84,15 +88,29 @@ export function ContextSwitcher({ session }: Props) {
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
 
+  // RA-9 BR-4: Escape closes the popover and returns focus to the trigger. A
+  // keyboard user who opened it previously had no way out but Tab-through.
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      setOpen(false);
+      triggerRef.current?.focus();
+    }
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
+  }, [open]);
+
   // D6: single-context user — render nothing.
   if (targets.length === 0) return null;
 
   return (
     <div ref={ref} className="relative">
       <button
+        ref={triggerRef}
         type="button"
-        aria-haspopup="true"
         aria-expanded={open}
+        aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-ln-op-line px-2.5 py-[5px] text-sm text-ln-op-ink-2 transition-colors hover:border-ln-op-line-2 hover:text-ln-op-ink"
       >
@@ -101,14 +119,22 @@ export function ContextSwitcher({ session }: Props) {
       </button>
 
       {open && (
-        <div
-          role="menu"
+        // RA-9 BR-4: this is a DISCLOSURE listing navigation links, not an
+        // application menu. It used to carry role="menu" over bare <Link>
+        // children, which fails axe `aria-required-children` (critical, wcag2a)
+        // and promises arrow-key roving the component never implemented. A nav
+        // popover of links is honestly a list of links.
+        <nav
+          id={panelId}
+          aria-label="Cambiar de portal"
           className="absolute right-0 top-full z-50 mt-1 min-w-[160px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card py-1 shadow-md"
         >
-          {targets.map((t) => (
-            <SwitcherItem key={t.key + t.href} target={t} onClick={() => setOpen(false)} />
-          ))}
-        </div>
+          <ul>
+            {targets.map((t) => (
+              <SwitcherItem key={t.key + t.href} target={t} onClick={() => setOpen(false)} />
+            ))}
+          </ul>
+        </nav>
       )}
     </div>
   );
