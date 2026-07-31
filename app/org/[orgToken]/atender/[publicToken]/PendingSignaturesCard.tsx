@@ -3,6 +3,16 @@
 // read-only, no client state. Each row links into the SAME AtenderCaptureMounter
 // surface (?evento=chip|esterilizacion) with the declared values prefilled —
 // the actual sign-off is a normal atender form submit, no separate mechanism.
+//
+// The href MUST carry `confirmEventId` (RA-2 F1). It is the only channel by
+// which the declared row's id reaches atenderMicrochipAction /
+// atenderSterilizationAction: AtenderCaptureMounter reads it from the query
+// string and binds it as a server-action argument, and the actions call
+// rejectIfAlreadySigned only when it is present. Without it the duplicate-
+// signature guard — the last line of defence when a post-action navigation is
+// dropped — is dead code on every user path. `item.id` used as a React key
+// ONLY is exactly the shape of that defect; PendingSignaturesCard.test.tsx
+// pins the id all the way from this href into the bound action argument.
 
 import Link from "next/link";
 
@@ -34,6 +44,7 @@ export function PendingSignaturesCard({
           {pending.map((item) => {
             const params = new URLSearchParams({
               evento: EVENTO_BY_TYPE[item.eventType],
+              confirmEventId: item.id,
               ...item.prefill,
             });
             return (
