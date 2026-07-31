@@ -1,5 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { type Page, expect, test } from "@playwright/test";
+
+import { BRANDED_NOT_FOUND_TESTID } from "./_page-identity";
 
 /**
  * Public smoke tests — no auth required.
@@ -176,29 +178,64 @@ for (const path of A11Y_ROUTES) {
 }
 
 // A11y on token-gated public pages using a fake/nonexistent token.
-// When the token is invalid/expired, the page must render a friendly error state
-// (not a 500), and that error state must itself be axe-clean (Ley 26.653).
-for (const { path, description } of [
+// When the token is invalid/expired the page must render a surface a human can
+// read, and that surface must itself be axe-clean (Ley 26.653).
+//
+// EACH ROUTE DECLARES WHICH SURFACE IT OWES. This block used to end with
+//
+//     if (response?.status() === 404) return;   // "no content to audit"
+//
+// which disarmed the scan for exactly the case it was written to cover. It was
+// not hypothetical: /libreta/compartir/[shareToken] calls notFound() on an
+// unknown token, so that route took the early return on EVERY run and its axe
+// audit has never executed. Worse, the same line is a silent kill switch — a
+// change turning /r/invite's friendly state into a bare notFound() would remove
+// both the surface AND its audit, and this file would stay green.
+//
+// A 404 page is still a page, and Ley 26.653 still applies to it. So the 404 is
+// asserted as the DECLARED outcome and audited, rather than treated as an
+// excuse to measure nothing.
+// Route-specific copy. The shared boundary identity comes from
+// e2e/_page-identity.ts (kept honest by __tests__/e2e-page-identity.test.ts) —
+// do not re-derive it here.
+const INVITE_INVALID_HEADING = /Invitación (no encontrada|ya aceptada|revocada|vencida)/i;
+
+for (const { path, description, expectedStatus, surface } of [
   {
     path: "/libreta/compartir/axe-test-invalid-token",
     description: "/libreta/compartir/[shareToken] — expired/invalid state",
+    // page.tsx: `if (!share) notFound()` — the branded boundary IS this route's
+    // invalid-token surface. Keyed on the testid, not the copy, so a wording
+    // change cannot disarm it.
+    expectedStatus: 404,
+    surface: (page: Page) => page.getByTestId(BRANDED_NOT_FOUND_TESTID),
   },
   {
     path: "/r/invite/axe-test-invalid-token",
     description: "/r/invite/[token] — expired/invalid invite state",
+    // page.tsx documents "Invalid/expired/revoked tokens render a friendly
+    // error, NOT notFound()" — so a 404 here is a regression, not an
+    // acceptable alternative.
+    expectedStatus: 200,
+    surface: (page: Page) => page.getByText(INVITE_INVALID_HEADING).first(),
   },
 ]) {
   test(`a11y(axe) ${description} — WCAG 2.1 AA`, async ({ page }) => {
     const response = await page.goto(path);
 
-    // Must not be a 500; an expired/invalid token renders a friendly UI.
-    // A 404 is also acceptable (some implementations throw notFound()).
-    expect(response?.status()).toBeLessThan(500);
+    expect(
+      response?.status(),
+      `${path}: the invalid-token surface changed shape — update the declaration above, do not widen the assertion`,
+    ).toBe(expectedStatus);
 
     await page.waitForLoadState("networkidle");
 
-    // Skip axe if the page returned a hard 404 (no content to audit).
-    if (response?.status() === 404) return;
+    // Prove WHICH surface axe is about to measure. Without this, a blank body
+    // scores critical=0 and the audit reports clean.
+    await expect(
+      surface(page),
+      `${path}: the declared invalid-token surface never rendered — axe would audit nothing`,
+    ).toBeVisible();
 
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
