@@ -17,6 +17,7 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox } from "@/components/ui/Field";
 import { type GenerateExportResult, generateExportAction } from "./actions";
+import { EXPORT_DEFAULT_PRESET } from "./export-period";
 
 type ExportState =
   | { status: "idle" }
@@ -80,7 +81,7 @@ export function ExportFormClient({
       {/* Period selector */}
       <section className="space-y-2">
         <h2 className="text-[13px] font-medium text-ln-op-ink">Periodo</h2>
-        <PeriodPicker defaultPreset="30d" />
+        <PeriodPicker defaultPreset={EXPORT_DEFAULT_PRESET} />
       </section>
 
       {/* Jurisdiction selector */}

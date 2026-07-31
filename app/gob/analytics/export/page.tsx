@@ -15,6 +15,7 @@ import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashb
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { ExportFormClient } from "./ExportFormClient";
+import { EXPORT_DEFAULT_PRESET } from "./export-period";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +49,10 @@ export default async function GobAnalyticsExportPage({
   }
 
   const params = await searchParams;
-  const period = params.period ?? "30d";
+  // Single-sourced with the picker's defaultPreset and the action's resolver
+  // (RA-2 F11) — three independent "30d" literals is how the vocabularies
+  // drifted apart in the first place.
+  const period = params.period ?? EXPORT_DEFAULT_PRESET;
   const from = params.from ?? "";
   const to = params.to ?? "";
   const province = params.province ?? "";

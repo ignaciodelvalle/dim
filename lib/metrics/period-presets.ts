@@ -27,6 +27,38 @@
 // and friends) are unaffected.
 export type PeriodPresetId = "7d" | "30d" | "90d" | "ytd" | "trailing12m" | "3y" | "5y" | "custom";
 
+/**
+ * The SAME vocabulary as `PeriodPresetId`, at runtime (RA-2 F11).
+ *
+ * A type union alone cannot stop a consumer from hand-rolling its own branch
+ * set — `/gob/analytics/export` did exactly that, recognised `"1y"` (a value
+ * NOTHING emits), silently defaulted `"trailing12m"` and `"ytd"` to 30 days,
+ * and then persisted that wrong window into the export's audit_log row as if
+ * it were the requested one. Any consumer that must reject an unrecognised
+ * value instead of guessing validates against this array.
+ *
+ * Derived from an exhaustive `Record<PeriodPresetId, true>` so the two CANNOT
+ * drift: a new member of the union fails the typecheck here until it is listed,
+ * and a listed id that is not in the union fails too.
+ */
+const PERIOD_PRESET_PRESENCE: Record<PeriodPresetId, true> = {
+  "7d": true,
+  "30d": true,
+  "90d": true,
+  ytd: true,
+  trailing12m: true,
+  "3y": true,
+  "5y": true,
+  custom: true,
+};
+
+export const PERIOD_PRESET_IDS = Object.keys(PERIOD_PRESET_PRESENCE) as readonly PeriodPresetId[];
+
+/** Runtime membership test for the canonical preset vocabulary. */
+export function isPeriodPresetId(value: unknown): value is PeriodPresetId {
+  return typeof value === "string" && (PERIOD_PRESET_IDS as readonly string[]).includes(value);
+}
+
 export type PeriodPresetOption = {
   value: PeriodPresetId;
   label: string;
