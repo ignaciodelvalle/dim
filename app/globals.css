@@ -737,7 +737,16 @@ body {
   font-weight: 600;
   font-size: 15px;
   padding: 13px 22px;
-  border-radius: var(--radius-lg);
+  /* Canon D.1: citizen surfaces are pills, operator surfaces are 6px. This was
+     var(--radius-lg) (8px) until 2026-07-31 — the exact value e23ebca1 named in
+     its own message ("LnButton shipped 3px, the landing 8px and the operator
+     6px. Four surfaces, one compliant") and then did not change, because the
+     fence it added reads `rounded-*` utilities in JSX and .lp-btn is CSS. The
+     result: "Crear cuenta" was a rectangle while /signup, one click away, was
+     all pills. Not an exemption — the commit's own "NOT IN THIS COMMIT" list
+     never mentioned the landing, and this layer's header states it is
+     "remapped onto the repo's ln-* tokens". */
+  border-radius: var(--radius-pill);
   border: 1px solid transparent;
   cursor: pointer;
   text-decoration: none;

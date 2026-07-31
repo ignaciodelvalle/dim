@@ -30,6 +30,8 @@
 //
 // Run: pnpm tsx scripts/check-design-tokens.ts
 // Or:  pnpm lint:tokens
+//   … --list-css            print every current CSS violation with file:line:col
+//   … --write-css-baseline  regenerate scripts/design-tokens-css-baseline.json
 //
 // Exits 1 with file:line:col on each hit. Exits 0 if clean.
 //
@@ -38,13 +40,33 @@
 // scripts/codemod-status-tints.cjs (hex tints → ln-* tokens).
 // Add new mappings to those scripts when this guard catches a pattern they don't yet cover.
 //
-// Note: app/globals.css is .css, not .ts/.tsx, so it's never globbed in.
+// Rules C1-C7 apply the same idea to .css files (see scripts/css-token-scan.ts),
+// under their own ratchet baseline: scripts/design-tokens-css-baseline.json.
+//
+// Note: .css files USED to be outside every fence, and this comment used to say
+// "app/globals.css is .css, so it's never globbed in" as though that were a
+// property of the file rather than a hole in the guard. It was a hole: the file
+// that DEFINES the typographic scale ignored it in 96% of its own font-size
+// declarations, and three measured defects came in through it (RA-10,
+// 2026-07-31). Rules C1-C7 close it. Regenerate the CSS baseline with:
+//   pnpm tsx scripts/check-design-tokens.ts --write-css-baseline
+//
 // components/ui/** is now INCLUDED — the exclusion was removed per Wave-3 audit
 // (§6.5) because 90% of arbitrary values live there.
 
-import { globSync, readFileSync } from "node:fs";
+import { globSync, readFileSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { sep } from "node:path";
+
+import {
+  CSS_CATEGORIES,
+  CSS_CATEGORY_HINTS,
+  type CssCounts,
+  ZERO_CSS_COUNTS,
+  loadFontWeightSets,
+  scanCss,
+  tallyCss,
+} from "./css-token-scan";
 
 // ---------------------------------------------------------------------------
 // File set — no components/ui/ exclusion (removed per Wave-3 audit §6.5)
@@ -59,6 +81,14 @@ const FILES = globSync("{app,components}/**/*.{ts,tsx}").filter((f) => {
   if (p.includes(".test.") || p.includes(".spec.")) return false;
   return !EXCLUDE_PATH_PREFIXES.some((prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`));
 });
+
+// Every stylesheet in the repo. Four files, all previously unfenced:
+// app/globals.css plus the three per-document print sheets.
+const CSS_FILES = globSync("{app,components}/**/*.css").filter(
+  (f) => !f.replaceAll("\\", "/").includes("node_modules/"),
+);
+
+const CSS_BASELINE_PATH = "scripts/design-tokens-css-baseline.json";
 
 // ---------------------------------------------------------------------------
 // Rules 1–3 (pre-existing hard rules — no ratchet, always fail on any hit)
@@ -286,6 +316,130 @@ function loadBaseline(): BaselineFile["files"] {
 }
 
 // ---------------------------------------------------------------------------
+// CSS ratchet (rules C1–C7) — scripts/design-tokens-css-baseline.json
+//
+// A SEPARATE file from design-tokens-baseline.json on purpose. The JSX baseline
+// is rewritten wholesale by scripts/generate-design-tokens-baseline.mjs, which
+// knows nothing about CSS; sharing one file would let a routine JSX regenerate
+// silently delete the CSS baseline and un-ratchet all of rules C1–C7.
+//
+// Keys are `<path>#<bucket>` — `app/globals.css#lp` and `app/globals.css#core`
+// are counted independently. See the CssBucket docstring in css-token-scan.ts
+// for why the landing gets its own bucket.
+// ---------------------------------------------------------------------------
+
+type CssBaselineFile = {
+  _meta: { generatedAt: string; totalViolations: number; description: string };
+  buckets: Record<string, CssCounts>;
+};
+
+function loadCssBaseline(): Record<string, CssCounts> {
+  try {
+    const data = JSON.parse(readFileSync(CSS_BASELINE_PATH, "utf8")) as CssBaselineFile;
+    return data.buckets ?? {};
+  } catch {
+    console.warn(
+      `[warn] ${CSS_BASELINE_PATH} not found — all CSS ratchet rules will be strict (no grandfather). Regenerate with: pnpm tsx scripts/check-design-tokens.ts --write-css-baseline`,
+    );
+    return {};
+  }
+}
+
+/** Scan every stylesheet and tally per `<file>#<bucket>` key. */
+function scanAllCss(): Record<string, CssCounts> {
+  const fontWeightSets = loadFontWeightSets();
+  const all = CSS_FILES.flatMap((f) =>
+    scanCss(readFileSync(f, "utf8"), {
+      file: f.replaceAll("\\", "/"),
+      fontWeightSets,
+    }),
+  );
+  return tallyCss(all);
+}
+
+function writeCssBaseline(): void {
+  const buckets = scanAllCss();
+  const total = Object.values(buckets).reduce(
+    (sum, c) => sum + CSS_CATEGORIES.reduce((s, k) => s + c[k], 0),
+    0,
+  );
+  const output: CssBaselineFile = {
+    _meta: {
+      generatedAt: new Date().toISOString().slice(0, 10),
+      totalViolations: total,
+      description:
+        "Ratchet baseline for the CSS half of the design-token fence (rules C1–C7 in " +
+        "scripts/css-token-scan.ts). Keys are `<path>#<bucket>`; `.lp` (the landing) is " +
+        "counted separately from the rest of the sheet. These counts are GRANDFATHERED " +
+        "debt, not a target — lower them as declarations migrate to tokens, never raise " +
+        "them. Regenerate: pnpm tsx scripts/check-design-tokens.ts --write-css-baseline",
+    },
+    buckets: Object.fromEntries(
+      Object.keys(buckets)
+        .sort()
+        .map((k) => [k, buckets[k]]),
+    ),
+  };
+  writeFileSync(CSS_BASELINE_PATH, `${JSON.stringify(output, null, 2)}\n`);
+  console.log(
+    `CSS baseline written: ${total} grandfathered violation(s) across ${Object.keys(buckets).length} bucket(s).`,
+  );
+}
+
+/** Returns the number of ratchet failures (0 = clean). */
+function checkCssRatchet(): number {
+  const baseline = loadCssBaseline();
+  const actual = scanAllCss();
+  let failures = 0;
+  let grandfathered = 0;
+
+  // Union of both key sets: a bucket that has been fully migrated disappears
+  // from `actual`, and a brand-new stylesheet is absent from `baseline` (which
+  // makes it strict at 0 — exactly what a new file should be).
+  for (const key of new Set([...Object.keys(actual), ...Object.keys(baseline)])) {
+    const seen = { ...ZERO_CSS_COUNTS, ...(actual[key] ?? {}) };
+    // Spread ZERO_CSS_COUNTS FIRST so a category the baseline file predates is
+    // strict rather than `undefined` — `seen > undefined` is always false, which
+    // would silently switch the rule off for that bucket. Same trap the JSX
+    // ratchet documents at ZERO_COUNTS.
+    const allowed = { ...ZERO_CSS_COUNTS, ...(baseline[key] ?? {}) };
+    for (const category of CSS_CATEGORIES) {
+      grandfathered += Math.min(seen[category], allowed[category]);
+      if (seen[category] > allowed[category]) {
+        const [label, hint] = CSS_CATEGORY_HINTS[category];
+        console.error(
+          `${key}: css ratchet — ${seen[category]} ${label} violation(s) (baseline allows ${allowed[category]}). ${hint}. To grandfather, run: pnpm tsx scripts/check-design-tokens.ts --write-css-baseline`,
+        );
+        failures += 1;
+      }
+    }
+  }
+
+  cssRatchetSummary = `  CSS ratchet: ${grandfathered} grandfathered raw values across ${Object.keys(baseline).length} bucket(s) in ${CSS_FILES.length} stylesheet(s) (rules C1–C7). New violations will fail.`;
+  return failures;
+}
+
+/** Filled in by checkCssRatchet, printed with the other summary lines. */
+let cssRatchetSummary = "";
+
+/**
+ * Print every current CSS violation with file:line:col. Not part of the ratchet
+ * — this is the "show me the debt" view, since a ratchet that only reports
+ * counts makes the individual declarations unfindable.
+ */
+function reportCssViolations(): void {
+  const fontWeightSets = loadFontWeightSets();
+  for (const f of CSS_FILES) {
+    const rel = f.replaceAll("\\", "/");
+    for (const v of scanCss(readFileSync(f, "utf8"), { file: rel, fontWeightSets })) {
+      console.log(
+        `${rel}:${v.line}:${v.col}: [${v.bucket}/${v.category}] ${v.selector} { ${v.prop}: ${v.value} }`,
+      );
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Ratchet counter — counts per-file hits for rules 4–10, compares to baseline
 // ---------------------------------------------------------------------------
 
@@ -450,6 +604,9 @@ function runChecks(): void {
     }
   }
 
+  // --- Rules C1–C7 (CSS ratchet) ---
+  hits += checkCssRatchet();
+
   if (hits > 0) {
     console.error(
       `\n✗ ${hits} design-token violation(s). Autofix: pnpm tsx scripts/codemod-poncho-tokens.ts && pnpm tsx scripts/codemod-purge-dark.ts && node scripts/codemod-status-tints.cjs`,
@@ -467,6 +624,7 @@ function runChecks(): void {
   console.log(
     `  Ratchet: ${totalBaselined} grandfathered arbitrary values across ${Object.keys(baseline).length} files (rules 4–10). New violations will fail.`,
   );
+  if (cssRatchetSummary) console.log(cssRatchetSummary);
 }
 
 // Only scan the repo when invoked as a CLI (pnpm lint:tokens / tsx). Importing
@@ -478,5 +636,16 @@ const isMain =
     import.meta.url === `file:///${process.argv[1].replaceAll("\\", "/")}`);
 
 if (isMain) {
-  runChecks();
+  if (process.argv.includes("--write-css-baseline")) {
+    // The CSS baseline is generated by the CHECKER itself rather than by a
+    // sibling script. The JSX half keeps its regexes duplicated in
+    // generate-design-tokens-baseline.mjs and the comments there warn twice
+    // that "both must be updated together" — a sync hazard the CSS half simply
+    // does not have, because generator and checker call the same scanCss().
+    writeCssBaseline();
+  } else if (process.argv.includes("--list-css")) {
+    reportCssViolations();
+  } else {
+    runChecks();
+  }
 }

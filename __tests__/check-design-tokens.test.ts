@@ -18,6 +18,14 @@ import {
   STATUS_COMPONENTS,
   parseDefinedOpTokens,
 } from "@/scripts/check-design-tokens";
+import {
+  type CssCategory,
+  parseFontWeightSets,
+  resolveFontVar,
+  scanCss,
+  stripCssComments,
+  tallyCss,
+} from "@/scripts/css-token-scan";
 
 describe("RAW_CITIZEN_STATUS — recall (catches the CaseBadge regression)", () => {
   const BAD = [
@@ -191,5 +199,312 @@ describe("undefined ln-op-* token guard — silent-invisible class", () => {
     expect(
       undefinedOpTokens("text-ln-op-ok bg-ln-op-verde border-ln-op-danger", allowlist),
     ).toEqual(["verde"]);
+  });
+});
+
+// ===========================================================================
+// Rules C1–C7 — the CSS half of the fence (scripts/css-token-scan.ts).
+//
+// Until 2026-07-31 the fence globbed only {app,components}/**/*.{ts,tsx}, so
+// all four stylesheets in the repo — including the 4184-line app/globals.css
+// that DEFINES the typographic scale — were outside every guard. These tests
+// pin the reader's behaviour on fixtures; the ratchet itself is exercised by
+// live mutation of the real sheet.
+// ===========================================================================
+
+/** Categories flagged for a one-rule fixture, in source order. */
+function categoriesOf(css: string, opts?: Parameters<typeof scanCss>[1]): CssCategory[] {
+  return scanCss(css, opts).map((v) => v.category);
+}
+
+describe("stripCssComments — the fence has been fooled by comments twice", () => {
+  it("blanks comment bodies but preserves line AND column positions", () => {
+    const css = "a {\n  /* font-size: 8px; */\n  color: red;\n}\n";
+    const out = stripCssComments(css);
+    expect(out.split("\n").length).toBe(css.split("\n").length);
+    expect(out.length).toBe(css.length);
+    expect(out).not.toContain("font-size");
+    expect(out).toContain("color: red;");
+  });
+
+  it("preserves newlines inside a MULTI-line comment so later line numbers stay true", () => {
+    const css = ".a {\n  /* one\n     two\n     three */\n  font-size: 13px;\n}\n";
+    const hits = scanCss(css);
+    expect(hits.map((h) => h.category)).toEqual(["fontSize"]);
+    // The declaration is on source line 5 — only correct if the three comment
+    // lines were preserved as newlines rather than collapsed.
+    expect(hits[0].line).toBe(5);
+  });
+
+  it("does NOT count a font-size quoted inside a comment", () => {
+    // This is app/globals.css:570 in miniature — "iOS Safari zooms into any
+    // input whose computed font-size is below 16px" is prose, and a line-wise
+    // `rg font-size` counts it. That single comment is the whole difference
+    // between RA-10's reported 130 raw font-sizes and the executable 129.
+    const css =
+      ".a {\n  /* font-size: 8px is too small, and #ff0000 is not a token */\n  color: red;\n}\n";
+    expect(scanCss(css)).toEqual([]);
+  });
+
+  it("does NOT count a border-radius or box-shadow quoted inside a comment", () => {
+    const css = "/* border-radius: 8px; box-shadow: 0 1px 2px #000; */\n.a { color: red; }\n";
+    expect(scanCss(css)).toEqual([]);
+  });
+});
+
+describe("rule C1 — raw font-size", () => {
+  it("flags a raw px size and does NOT flag the token form", () => {
+    expect(categoriesOf(".a { font-size: 13px; }")).toEqual(["fontSize"]);
+    expect(categoriesOf(".a { font-size: var(--text-md); }")).toEqual([]);
+  });
+
+  it("flags rem/em literals — they are raw values too, just in another unit", () => {
+    expect(categoriesOf(".a { font-size: 1.125rem; }")).toEqual(["fontSize"]);
+  });
+
+  it("does NOT flag keywords or relative percentages", () => {
+    expect(categoriesOf(".a { font-size: inherit; }")).toEqual([]);
+    expect(categoriesOf(".a { font-size: 100%; }")).toEqual([]);
+  });
+
+  it("does NOT flag declarations inside @theme — that is where tokens are DEFINED", () => {
+    expect(categoriesOf("@theme { --text-sm: 12px; --radius-lg: 8px; }")).toEqual([]);
+  });
+});
+
+describe("rule C2 — half-pixel font-size gets its own counter", () => {
+  it("flags 12.5px as BOTH fontSize and fontHalfPx (overlapping, not partitioned)", () => {
+    // Overlap is deliberate. If half-px PARTITIONED fontSize instead, then
+    // consolidating 12.5px -> 13px would decrement fontHalfPx and INCREMENT
+    // fontSize, so the ratchet would fail on a genuine improvement.
+    expect(categoriesOf(".a { font-size: 12.5px; }")).toEqual(["fontSize", "fontHalfPx"]);
+  });
+
+  it("does not treat a whole-pixel size as half-pixel", () => {
+    expect(categoriesOf(".a { font-size: 12px; }")).toEqual(["fontSize"]);
+  });
+
+  it("counts a below-floor half-pixel in all three counters", () => {
+    // 8.5px is .ln-prov — the verificado/autodeclarado chip on the public
+    // credential, i.e. the trust signal of the whole document.
+    expect(categoriesOf(".a { font-size: 8.5px; }", { floorPx: 10 })).toEqual([
+      "fontSize",
+      "fontHalfPx",
+      "fontBelowFloor",
+    ]);
+  });
+});
+
+describe("rule C3 — font-size below the scale's own floor", () => {
+  it("reads the floor from --text-xs in the sheet itself", () => {
+    const css = "@theme { --text-xs: 10px; }\n.ln-qr-cap { font-size: 8px; }\n";
+    expect(categoriesOf(css)).toEqual(["fontSize", "fontBelowFloor"]);
+  });
+
+  it("does not flag a size sitting exactly on the floor", () => {
+    expect(categoriesOf(".a { font-size: 10px; }", { floorPx: 10 })).toEqual(["fontSize"]);
+  });
+});
+
+describe("rule C1/C3 — clamp() is a deliberate fluid choice, but not an escape hatch", () => {
+  it("does NOT flag a fluid ramp as a raw size", () => {
+    // The scale is a ladder of fixed px steps with no fluid token, so flagging
+    // this would push the author toward a WORSE fixed value.
+    expect(categoriesOf(".a { font-size: clamp(17px, 1.7vw, 21px); }", { floorPx: 10 })).toEqual(
+      [],
+    );
+  });
+
+  it("DOES flag a fluid ramp whose minimum is below the floor", () => {
+    // Otherwise `clamp(8px, 8px, 8px)` would be an open door through the floor.
+    expect(categoriesOf(".a { font-size: clamp(8px, 1vw, 14px); }", { floorPx: 10 })).toEqual([
+      "fontBelowFloor",
+    ]);
+  });
+});
+
+describe("rule C4 — border-radius", () => {
+  it("flags raw px, including the pill written out longhand", () => {
+    expect(categoriesOf(".a { border-radius: 8px; }")).toEqual(["radius"]);
+    // --radius-pill exists precisely for this.
+    expect(categoriesOf(".a { border-radius: 999px; }")).toEqual(["radius"]);
+  });
+
+  it("does NOT flag the token form, zero, or a percentage SHAPE", () => {
+    expect(categoriesOf(".a { border-radius: var(--radius-pill); }")).toEqual([]);
+    expect(categoriesOf(".a { border-radius: 0; }")).toEqual([]);
+    // 50% is a circle. No --radius-* token can express it and none ever will,
+    // so flagging it would emit advice with no valid target.
+    expect(categoriesOf(".a { border-radius: 50%; }")).toEqual([]);
+  });
+
+  it("covers the per-corner longhands", () => {
+    expect(categoriesOf(".a { border-top-left-radius: 6px; }")).toEqual(["radius"]);
+    expect(categoriesOf(".a { border-end-end-radius: 6px; }")).toEqual(["radius"]);
+  });
+});
+
+describe("rules C5/C6 — box-shadow and raw hex", () => {
+  it("flags a raw shadow but not the token form or none", () => {
+    expect(categoriesOf(".a { box-shadow: 0 1px 2px rgba(0,0,0,.1); }")).toEqual(["shadow"]);
+    expect(categoriesOf(".a { box-shadow: var(--shadow-md); }")).toEqual([]);
+    expect(categoriesOf(".a { box-shadow: none; }")).toEqual([]);
+  });
+
+  it("flags a hex literal in a normal declaration", () => {
+    expect(categoriesOf(".a { color: #fff; }")).toEqual(["hex"]);
+  });
+
+  it("does NOT flag a hex in a CUSTOM PROPERTY — that is the token definition", () => {
+    // `.op-surface { --color-ln-op-page: #0a0f1c }` is the single source of
+    // truth for the operator skin, not drift.
+    expect(categoriesOf(".op-surface { --color-ln-op-page: #0a0f1c; }")).toEqual([]);
+  });
+
+  it("counts every hex in a multi-stop gradient", () => {
+    expect(categoriesOf(".a { background: linear-gradient(#fff 0%, #000 100%); }")).toEqual([
+      "hex",
+      "hex",
+    ]);
+  });
+});
+
+describe("rule C7 — a font-weight the family never loaded", () => {
+  // next/font downloads ONLY the listed weights. The browser then remaps a
+  // missing weight to the nearest available face, so the declaration reads as
+  // intent and renders as something else — the CSS shape of the same
+  // silently-dead-declaration class that JSX rules 9 and 10 exist for.
+  const LAYOUT = `
+    const ibmPlexMono = IBM_Plex_Mono({
+      subsets: ["latin"],
+      weight: ["400", "600"],
+      variable: "--a-mono-font",
+      display: "swap",
+    });
+    const encodeSans = Encode_Sans({
+      subsets: ["latin"],
+      weight: ["400", "500", "600", "700"],
+      variable: "--encode-sans-font",
+      display: "swap",
+    });
+  `;
+  const fontWeightSets = parseFontWeightSets(LAYOUT);
+
+  const THEME = `@theme {
+    --font-ln-mono: var(--a-mono-font, "IBM Plex Mono"), "Menlo", monospace;
+    --font-sans: var(--encode-sans-font, "Encode Sans"), system-ui;
+  }
+  `;
+
+  it("parses the weight sets out of the next/font calls", () => {
+    expect([...(fontWeightSets.get("--a-mono-font") ?? [])].sort()).toEqual([400, 600]);
+    expect([...(fontWeightSets.get("--encode-sans-font") ?? [])].sort()).toEqual([
+      400, 500, 600, 700,
+    ]);
+  });
+
+  it("resolves a font-family through the sheet's own alias chain", () => {
+    const vars = new Map([
+      ["--lp-mono", "var(--font-ln-mono)"],
+      ["--font-ln-mono", 'var(--a-mono-font, "IBM Plex Mono"), monospace'],
+    ]);
+    expect(resolveFontVar("var(--lp-mono)", vars)).toBe("--a-mono-font");
+    expect(resolveFontVar("Georgia, serif", vars)).toBeNull();
+  });
+
+  it("flags .ln-band-title asking for 500 on a 400/600 family", () => {
+    // The line naming the credential: 10px, 0.24em tracking, white on navy.
+    // It asks for medium and draws regular.
+    const css = `${THEME}
+      .ln-band-title { font-family: var(--font-ln-mono); font-weight: 500; }`;
+    expect(categoriesOf(css, { fontWeightSets })).toEqual(["deadWeight"]);
+  });
+
+  it("flags 700 on the same family — 700 is not loaded either", () => {
+    const css = `${THEME}.ln-ledlbl { font-family: var(--font-ln-mono); font-weight: 700; }`;
+    expect(categoriesOf(css, { fontWeightSets })).toEqual(["deadWeight"]);
+  });
+
+  it("does NOT flag a weight the family actually loaded", () => {
+    const css = `${THEME}.a { font-family: var(--font-ln-mono); font-weight: 600; }`;
+    expect(categoriesOf(css, { fontWeightSets })).toEqual([]);
+    const css2 = `${THEME}.b { font-family: var(--font-sans); font-weight: 500; }`;
+    expect(categoriesOf(css2, { fontWeightSets })).toEqual([]);
+  });
+
+  it("fails OPEN on anything it cannot resolve", () => {
+    // Unknown family, literal stack, keyword weight, and no layout data at all
+    // must never produce a violation — a fence that guesses is worse than none.
+    const unknown = `${THEME}.a { font-family: var(--font-mystery); font-weight: 500; }`;
+    expect(categoriesOf(unknown, { fontWeightSets })).toEqual([]);
+    const literal = ".a { font-family: Georgia, serif; font-weight: 500; }";
+    expect(categoriesOf(literal, { fontWeightSets })).toEqual([]);
+    const keyword = `${THEME}.a { font-family: var(--font-ln-mono); font-weight: lighter; }`;
+    expect(categoriesOf(keyword, { fontWeightSets })).toEqual([]);
+    const noLayout = `${THEME}.a { font-family: var(--font-ln-mono); font-weight: 500; }`;
+    expect(categoriesOf(noLayout)).toEqual([]);
+  });
+});
+
+describe("bucketing — the landing is its own ratchet, not an exemption", () => {
+  it("files a .lp rule under lp and everything else under core", () => {
+    const css = ".lp .lp-btn { font-size: 15px; }\n.ln-prov { font-size: 11px; }\n";
+    const t = tallyCss(scanCss(css, { file: "app/globals.css" }));
+    expect(t["app/globals.css#lp"].fontSize).toBe(1);
+    expect(t["app/globals.css#core"].fontSize).toBe(1);
+  });
+
+  it("files a .lp-prefixed top-level selector under lp (`.lp-nav`, not just `.lp x`)", () => {
+    const t = tallyCss(scanCss(".lp-nav { font-size: 14px; }", { file: "f.css" }));
+    expect(t["f.css#lp"].fontSize).toBe(1);
+  });
+
+  it("does not mistake a class merely starting with the letters lp", () => {
+    const t = tallyCss(scanCss(".lpx-thing { font-size: 14px; }", { file: "f.css" }));
+    expect(t["f.css#core"].fontSize).toBe(1);
+  });
+
+  it("files a .lp rule nested in @media under lp", () => {
+    const css = "@media (max-width: 560px) {\n  .lp .lp-h-hero { font-size: 30px; }\n}\n";
+    const t = tallyCss(scanCss(css, { file: "f.css" }));
+    expect(t["f.css#lp"].fontSize).toBe(1);
+  });
+
+  it("bucketing survives the block-close path used by rule C7", () => {
+    // Regression guard: closeBlock() pops the selector stack, so computing the
+    // bucket from the SURVIVING ancestors would file every single-level `.lp x`
+    // rule under core.
+    const fontWeightSets = parseFontWeightSets(
+      'const f = IBM_Plex_Mono({ weight: ["400","600"], variable: "--a-mono-font" });',
+    );
+    const css = `@theme { --lp-mono: var(--a-mono-font, "IBM Plex Mono"); }
+      .lp .lp-ch-num { font-family: var(--lp-mono); font-weight: 500; }`;
+    const t = tallyCss(scanCss(css, { file: "f.css", fontWeightSets }));
+    expect(t["f.css#lp"]?.deadWeight).toBe(1);
+    expect(t["f.css#core"]?.deadWeight ?? 0).toBe(0);
+  });
+});
+
+describe("walker robustness", () => {
+  it("does not split a declaration on a semicolon inside parentheses", () => {
+    const css = '.a { background: url("data:image/svg+xml;utf8,<svg/>"); color: #fff; }';
+    expect(categoriesOf(css)).toEqual(["hex"]);
+  });
+
+  it("catches a final declaration with no trailing semicolon", () => {
+    expect(categoriesOf(".a { font-size: 13px }")).toEqual(["fontSize"]);
+  });
+
+  it("ignores top-level at-rule statements", () => {
+    expect(
+      categoriesOf('@import "tailwindcss";\n@variant dark (&:where(.dark, .dark *));'),
+    ).toEqual([]);
+  });
+
+  it("reports the line and column of the property, on the stripped source", () => {
+    const css = ".a {\n  color: red;\n  font-size: 8px;\n}\n";
+    const [hit] = scanCss(css, { floorPx: 10 });
+    expect(hit.line).toBe(3);
+    expect(hit.col).toBe(3);
   });
 });
