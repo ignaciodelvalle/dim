@@ -15,7 +15,7 @@
 // The single-item RevokeUserActions / RevokeOrgActions remain on the
 // row for one-off revocations; this component is additive.
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-actions";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
@@ -150,6 +150,61 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
   const fileInputRef = useRef<HTMLInputElement>(null);
   const evidenciaInputId = useId();
   const modalHeadingId = useId();
+  const modalDescId = useId();
+  // RA-9 BR-2 — the panel used to be a plain <div role="dialog" aria-modal="true">:
+  // it TOLD assistive tech the rest of the page was inert while nothing was inert
+  // and nothing trapped, focus never moved in and never restored on close, and the
+  // outcome ("N revocaciones aplicadas · M fallaron") of an irreversible bulk act
+  // replaced the form with no live region and no focus move — announced to nobody.
+  // Native <dialog>.showModal() supplies the top layer, the inertness, the focus
+  // trap and the Escape/`cancel` event; the refs below add the two things the
+  // platform does NOT: initial focus into the modal, and the result announcement.
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const motivoRef = useRef<HTMLTextAreaElement>(null);
+  const resultHeadingRef = useRef<HTMLParagraphElement>(null);
+
+  // Open as a MODAL dialog (top layer + inert background + native focus trap).
+  // jsdom does not implement showModal(); fall back to the `open` attribute there
+  // so tests can still read the tree — production browsers always take the first
+  // branch.
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    // Remember who opened us so focus can go back there on close — the modal is
+    // mounted/unmounted by the parent, so "close" is this effect's cleanup.
+    const opener = document.activeElement as HTMLElement | null;
+    if (!el.open) {
+      if (typeof el.showModal === "function") el.showModal();
+      else el.setAttribute("open", "");
+    }
+    // Initial focus lands on the first control the operator must fill, not on the
+    // dialog box itself — showModal() alone focuses the dialog, which announces
+    // the name but leaves the operator a Tab away from the form.
+    motivoRef.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+
+  // Escape (native `cancel`) must sync back to React state, or the dialog closes
+  // in the DOM while the parent still believes it is open.
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    const handleCancel = (e: Event) => {
+      e.preventDefault();
+      onClose();
+    };
+    el.addEventListener("cancel", handleCancel);
+    return () => el.removeEventListener("cancel", handleCancel);
+  }, [onClose]);
+
+  // Move focus onto the outcome sentence once the bulk action reports back. The
+  // <output aria-live="polite"> announces it; the focus move means a keyboard
+  // user's next Tab starts from the result, not from the top of the page.
+  useEffect(() => {
+    if (result) resultHeadingRef.current?.focus();
+  }, [result]);
 
   const motivoTrimmed = motivo.trim();
   const motivoValid = motivoTrimmed.length >= MOTIVO_MIN;
@@ -226,14 +281,15 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
   }
 
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
-      // biome-ignore lint/a11y/useSemanticElements: native <dialog> requires imperative showModal() which doesn't fit this controlled isOpen pattern; tracked as a follow-up to migrate to a Headless UI modal primitive.
-      role="dialog"
-      aria-modal="true"
+    <dialog
+      ref={dialogRef}
+      onClose={onClose}
       aria-labelledby={modalHeadingId}
+      aria-describedby={modalDescId}
+      aria-modal="true"
+      className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl backdrop:bg-black/50"
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl">
+      <div>
         <header className="mb-4 flex items-baseline justify-between gap-3">
           <h2 id={modalHeadingId} className="text-lg font-semibold text-ln-op-danger">
             Revocar {selectedItems.length} {targetKindLabel(targetKind, selectedItems.length)}
@@ -246,10 +302,20 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
             Cerrar
           </button>
         </header>
+        <p id={modalDescId} className="sr-only">
+          Revocación masiva irreversible sobre {selectedItems.length}{" "}
+          {targetKindLabel(targetKind, selectedItems.length)}. Cada afectado recibe una notificación
+          con el motivo. Requiere un motivo de al menos {MOTIVO_MIN} caracteres y al menos un
+          archivo de evidencia.
+        </p>
 
         {result ? (
-          <div className="space-y-3">
-            <p className="text-sm">
+          <output aria-live="polite" className="block space-y-3">
+            <p
+              ref={resultHeadingRef}
+              tabIndex={-1}
+              className="text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
+            >
               <strong className="text-ln-op-ok">
                 {result.succeeded.length} revocaciones aplicadas
               </strong>
@@ -277,7 +343,7 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
             >
               Recargar lista
             </button>
-          </div>
+          </output>
         ) : (
           <div className="space-y-4">
             <details className="rounded-lg border border-ln-op-line bg-ln-op-stripe p-3 text-sm">
@@ -301,6 +367,8 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
               </label>
               <textarea
                 id="bulk-revoke-motivo"
+                ref={motivoRef}
+                aria-required="true"
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
                 rows={4}
@@ -349,7 +417,11 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
               recibir una notificación con el motivo.
             </LnCheckbox>
 
-            {error && <p className="text-sm text-ln-op-danger">{error}</p>}
+            {error && (
+              <p role="alert" className="text-sm text-ln-op-danger">
+                {error}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 border-t border-ln-op-line pt-3">
               <button
@@ -371,7 +443,7 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
           </div>
         )}
       </div>
-    </div>
+    </dialog>
   );
 }
 
