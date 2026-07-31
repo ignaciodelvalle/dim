@@ -12,8 +12,21 @@
 // Supabase stack with the canonical test users (owner@dim.test,
 // vet@dim.test, admin@dim.test). The CI test job runs db:bootstrap →
 // seed:test as part of its setup; locally `pnpm seed:test` is manual.
-// If the users are missing, the suite skips with a clear marker rather
-// than failing — the matrix is contract-level, not seed-level.
+//
+// **A SETUP FAILURE FAILS THE SUITE (P2.8, 2026-07-31).** This header used to
+// say the suite "skips with a clear marker rather than failing — the matrix is
+// contract-level, not seed-level", and the code backed that up: `setupError`
+// was `console.warn`ed and every matrix cell `return`ed before asserting. The
+// consequence was measured on 2026-07-30 — the whole file printed GREEN while
+// asserting NOTHING about RLS (the skipped cells run in 0 ms, a real probe
+// takes 3-4 ms). A security matrix that passes without probing is worse than no
+// matrix: it is a gate that reports "authorization verified" when nothing was.
+//
+// There is deliberately NO CI-vs-local split. "Only local degrades to a skip"
+// is exactly how the 2026-07-30 fixture collision survived: the only gate a
+// human runs before pushing was the one that stopped checking. Missing env,
+// missing seed users, or a fixture that cannot be provisioned now throw out of
+// `beforeAll` with the cause in the message.
 
 import { type SupabaseClient, createClient } from "@supabase/supabase-js";
 import { and, eq, inArray } from "drizzle-orm";
@@ -61,6 +74,33 @@ const ROLE_USERS: Record<Exclude<RlsRole, "anon">, { email: string; password: st
 // PostgREST table names (snake_case) — `RLS_MATRIX` keys MUST match.
 const ALL_TABLES = Object.keys(RLS_MATRIX);
 
+// How many (table × role × operation) probes the generated block below runs.
+// Derived, not hardcoded: the number was 44 on 2026-07-31 and moves the moment
+// a table joins RLS_MATRIX or a second operation is wired.
+const MATRIX_CELL_COUNT = ALL_TABLES.length * 4 * OPERATIONS_UNDER_TEST.length;
+
+/**
+ * The single message a setup failure produces.
+ *
+ * ONE loud failure, not `MATRIX_CELL_COUNT` of them, is the deliberate choice:
+ * a red matrix cell means "the live policy disagrees with the declared
+ * contract", which is a security regression and a completely different
+ * diagnosis from "the fixtures never got built". Printing the second as
+ * dozens of copies of the first buries the actual cause under a wall of
+ * identical "expected allow, saw deny" and trains readers to skim the file
+ * that is supposed to be unskimmable. So the failure is raised once, out of
+ * `beforeAll`, and it NAMES the cause.
+ *
+ * The per-cell guards still throw this same message rather than returning
+ * (see the probe block). That costs nothing when `beforeAll` already threw —
+ * those tests never run — and it is the backstop that matters: `setupError` is
+ * mutable module state, so if a future edit reintroduces a soft path into it,
+ * no cell can go back to passing without probing.
+ */
+function setupFailureMessage(cause: string): string {
+  return `RLS matrix setup FAILED — refusing to report ${MATRIX_CELL_COUNT} green cells that probed nothing. Cause: ${cause}`;
+}
+
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
@@ -102,6 +142,10 @@ let fixtureAchievementViewId: string | null = null;
 // candidate and the suite would degrade to a 44-cell silent skip — green, and
 // asserting nothing. Deleting the demo transfer is worse still: that is
 // mutating data to fit a test.
+//
+// (P2.8 has since removed the silent-skip half of that outcome: a setup error
+// now throws. The fixture reasoning is unchanged and still preferable — a suite
+// that goes red because a filter found no candidate is a suite nobody can run.)
 //
 // So the transfer fixture self-provisions a DEDICATED pet, exactly like the
 // welfare-bridge and clean-events fixtures below do for their own drift
@@ -212,10 +256,17 @@ async function provisionTransferFixture(): Promise<string | null> {
   return null;
 }
 
-beforeAll(async () => {
+/**
+ * Provision every fixture. Records the first blocking problem in `setupError`
+ * and returns; the `beforeAll` wrapper below turns that into a thrown failure.
+ * Split out so each guard can keep its early `return` (there is nothing left to
+ * provision once one fails) without any of them being able to decide that the
+ * run is allowed to continue quietly.
+ */
+async function runSetup(): Promise<void> {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
     setupError =
-      "NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY missing — skipping RLS matrix.";
+      "NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY missing — the harness cannot reach PostgREST, so no policy can be probed. Load the local env before running this file.";
     return;
   }
 
@@ -458,6 +509,15 @@ beforeAll(async () => {
       .returning({ id: petEvents.id });
     cleanEventsEventId = cleanEventRow.id;
   }
+}
+
+beforeAll(async () => {
+  await runSetup();
+  // P2.8 — the whole point. A setup failure USED to be a console.warn, and the
+  // file then printed a full green while every cell returned before asserting.
+  // Throwing here fails the file at the source, with the reason attached, and
+  // makes it impossible for the matrix to report a pass it did not earn.
+  if (setupError) throw new Error(setupFailureMessage(setupError));
 });
 
 afterAll(async () => {
@@ -615,13 +675,11 @@ async function probeSelect(
 // ---------------------------------------------------------------------------
 
 describe("RLS matrix (§4.4 — D7 doctrine)", () => {
-  it("setup ran without errors (otherwise the rest of the suite skips)", () => {
-    if (setupError) {
-      console.warn(`[RLS matrix] SKIPPING: ${setupError}`);
-    }
-    // We don't fail the suite on missing seed — only when seed exists and
-    // a probe disagrees with the matrix.
-    expect(true).toBe(true);
+  it("setup ran without errors — otherwise every cell below is meaningless", () => {
+    // Unreachable while beforeAll throws (this test never runs in that case).
+    // Kept as an ASSERTION, not a console.warn: it was `expect(true).toBe(true)`
+    // next to a warning nobody reads, which is what made the green believable.
+    expect(setupError, setupError ? setupFailureMessage(setupError) : undefined).toBeNull();
   });
 
   it("every role × table cell in the matrix declares all 4 operations", () => {
@@ -646,7 +704,9 @@ describe("RLS matrix (§4.4 — D7 doctrine)", () => {
         for (const op of OPERATIONS_UNDER_TEST) {
           const expectedCell = RLS_MATRIX[table][role][op];
           it(`${role} ${op}: expects ${expectedCell.outcome} — ${expectedCell.reason ?? "(no reason given)"}`, async () => {
-            if (setupError) return; // skip body when seed missing
+            // Backstop, not the primary gate — beforeAll already threw. Never
+            // a `return`: a cell that cannot probe must not report a pass.
+            if (setupError) throw new Error(setupFailureMessage(setupError));
 
             const ctx = contexts.get(role);
             if (!ctx) {
@@ -695,7 +755,13 @@ describe("RLS matrix (§4.4 — D7 doctrine)", () => {
 // ---------------------------------------------------------------------------
 describe("pet_events welfare-bridge event (migration 0115 — REQ-1.2/1.3)", () => {
   it("owner SELECT on the welfare-bridge event (maltreatment_reported) = deny", async () => {
-    if (setupError || !fixtureWelfareBridgeEventId) return; // skip when seed/fixture missing
+    if (setupError) throw new Error(setupFailureMessage(setupError));
+    // Setup succeeded, so the fixture MUST exist — a missing id here means the
+    // insert silently produced nothing, and the privacy assertion below would
+    // otherwise "pass" against a row that was never written.
+    if (!fixtureWelfareBridgeEventId) {
+      throw new Error("welfare-bridge fixture event was not created despite a clean setup");
+    }
     const ctx = contexts.get("owner");
     if (!ctx) throw new Error("No client for role owner");
 
@@ -712,7 +778,10 @@ describe("pet_events welfare-bridge event (migration 0115 — REQ-1.2/1.3)", () 
   });
 
   it("owner SELECT on their own normal pet_event (no case_id) = allow (regression)", async () => {
-    if (setupError || !fixtureNormalEventId) return; // skip when seed/fixture missing
+    if (setupError) throw new Error(setupFailureMessage(setupError));
+    if (!fixtureNormalEventId) {
+      throw new Error("normal-event fixture was not created despite a clean setup");
+    }
     const ctx = contexts.get("owner");
     if (!ctx) throw new Error("No client for role owner");
 
