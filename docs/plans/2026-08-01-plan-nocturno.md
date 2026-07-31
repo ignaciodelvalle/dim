@@ -1,3 +1,40 @@
+# 🔴 VEREDICTO DE LAS 10 REVIEWS — **NO APTO PARA STAGING**
+
+Las diez corrieron. **Dos vulnerabilidades alcanzables HOY, a escala nacional**, más
+un gate de deploy y ~60 hallazgos confirmados. El detalle por review está abajo;
+esto es lo que decide.
+
+## Lo que bloquea, en orden
+
+| # | Qué | Estado |
+|---|---|---|
+| **RA-8 R1** | **Auto-otorgamiento de tenencia: toma de control de CUALQUIER mascota, a nivel nacional.** La política de INSERT de `ownerships` exige `owner_user_id = auth.uid()` y **nada ata `pet_id` al que llama**. El índice único cubre solo `role='owner'`, así que `co_owner`/`foster`/`caretaker` quedan libres. Todas las políticas río abajo (pets, pet_events, attachments) chequean una fila de tenencia **sin filtrar por rol**, y la capa de aplicación también la honra. Camino: un miembro de org con `pet.read_held` recibe UUIDs crudos de `pets.id` en su navegador, hace un POST a `/rest/v1/ownerships` con su propio JWT, y obtiene **acceso completo de dueño en la UI**. Las escrituras al spine son **irreversibles**, y el acceso **sobrevive a que se vaya de la organización** | arreglo en curso |
+| **RA-8 R2** | **El bucket `welfare-evidence` permite enumerar y descargar TODA la evidencia de denuncias de maltrato, anónimamente.** La política de SELECT es `TO anon, authenticated` con un `USING` que solo verifica que *alguna* fila tenga ese prefijo — **sin identidad del que llama en ningún lado**. El endpoint de listado usa la misma política, así que un LIST anónimo en la raíz devuelve todo. Y la línea 24 le da a anon **INSERT sin restricción**. La migración `0123` arregló exactamente esta clase para `pet-photos`; este bucket nunca recibió el hermano | arreglo en curso |
+| **RA-8 R3** | Las mutaciones de decomiso **saltean la valla jurisdiccional**: la lista y las mutaciones autorizan por membresía de org, no por `session.jurisdictions` — mientras CREATE y DETAIL sí usan la valla. Un operador de Buenos Aires con una membresía vieja en un organismo de Mendoza puede **reasignar custodia o devolver un animal** allá | arreglo en curso |
+| **Migración 0162** | **Debe aplicarse antes de shipear** o toda query de welfare da 500 | pendiente de aplicar |
+
+## La corrección más importante a lo que reportaron las reviews
+
+**RA-4 afirmó que la capa de RLS nunca se había ejercitado en CI. Es empíricamente falso**, y el agente que lo fue a arreglar lo midió de tres formas antes de tocar nada: el gateway local **no valida el header `apikey`**, así que la clave dummy igual obtiene un JWT real y PostgREST lo acepta. Los tests corren de verdad (874 ms, no 0 ms).
+
+**El hueco real es más chico y más preciso**: el rol `anon` no tiene sesión, así que supabase-js manda el placeholder *como bearer token*, PostgREST responde `PGRST301` **antes de consultar RLS**, y el harness leyó eso como "cero filas" y lo anotó como denegación. **Las 10 celdas anon pasaron durante meses sin evaluar una sola política.** Con la clave real: **61/61, sin hueco de política.**
+
+Y descubrió un segundo bug que RA-4 no vio: **el paso de e2e que le dije que reutilizara estaba roto** — `supabase status -o env` emite valores con comillas y `$GITHUB_ENV` las conserva. GoTrue las tolera, así que el login de e2e funcionaba mientras **toda lectura de PostgREST del lado cliente daba 401**.
+
+## Lo que la ola hizo bien, y hay que decirlo
+
+`tsc --noEmit` en 0 mata toda la clase "cambió un prop y quedó un caller sin actualizar". **Ningún flujo de ciudadano quedó bloqueado** — las cinco regresiones de RA-1 golpean a operador o admin. La clase de crash de arranque en frío (NaN, `reduce` sobre vacío) está **genuinamente limpia**. El motor de k-anon está bien construido; sus defectos fueron de **alcance**, no de diseño.
+
+## La lección estructural de las tres noches
+
+**Los arreglos se aplicaron archivo por archivo, no forma por forma.** Cada patrón que matamos sobrevivió textual en un hermano:
+- axe midiendo un 404 → arreglado en un archivo, vivo en otros **tres** (`/casos` y `/anotar` **ni siquiera son rutas**)
+- warn-and-skip → matado en la matriz de RLS, vivo en **13 tests de aislamiento cross-tenant**
+- la supresión que se apaga con `?province=` → **cuatro** instancias, cada una en un lugar que el barrido anterior no listaba
+- `"province cells are large"` → **14 sitios**, y el 14º estaba en el dispatcher
+
+Y el corolario que lo explica: **una enumeración mantenida a mano falla ABIERTA.** La lista `CONSUMERS` de la suite de paridad *era* el barrido, y el defecto sobrevivió dos olas porque no nombraba esos archivos.
+
 # 🚨 GATE DE DEPLOY — LEER ANTES DE SUBIR NADA
 
 **La migración `db/migrations/0162_welfare_reports_jurisdiction_unverified.sql`
