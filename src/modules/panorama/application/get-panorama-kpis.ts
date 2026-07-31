@@ -38,6 +38,10 @@ import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { applyCensusCoverageGuard } from "@/lib/metrics/presentation-guards";
+// D.10 scope-headline verdict (RA-3 finding C1). The wording lives in ONE
+// helper so this tile cannot invent a phrasing of its own — the same reason
+// /gob/censo, /gob/poblacion and both /programa pages call it.
+import { scopeTotalSuppressionNotice } from "@/lib/metrics/province-disclosure";
 import { TARGETS, toneForTarget } from "@/lib/metrics/targets";
 // v+1 rail — the SAME generic/typed trend fetchers /gob home wires into its
 // KPI tiles (app/gob/page.tsx: rabiesVaxTrend/bitesTrend/zoonosisTrend). No
@@ -593,7 +597,23 @@ export async function getPanoramaKpis(
   // PRIMARY value is the scope-signal total [16]. Null → drop sub/secondary.
   const zoonosis = opt(settled[4]);
   const welfare = opt(settled[5]) ?? { count: 0, inPeriod: 0 };
-  const sterilization = opt(settled[6]) ?? { rate: 0, sterilized: 0, total: 0, byProvince: [] };
+  // FAIL-CLOSED FALLBACK. `scopeTotalPublishable: false` here is deliberate and
+  // is never seen by an operator: index 6 IS this tile's PRIMARY (PRIMARY_INDEX
+  // .esterilizacion), so a rejected fetcher is replaced by the `unavailable`
+  // placeholder in the post-pass below — which carries no `sub`, no `bar` and no
+  // number at all. The `false` only matters if that post-pass ever stops
+  // covering this tile, and in that case withholding is the safe direction. A
+  // privacy flag that defaults to "publish" is the failure this whole wave is
+  // about.
+  const sterilization = opt(settled[6]) ?? {
+    rate: 0,
+    sterilized: 0,
+    total: 0,
+    byProvince: [],
+    byProvinceSuppressedCount: 0,
+    byProvinceAssignedTotal: null,
+    scopeTotalPublishable: false,
+  };
   const priorCoverage = opt(settled[7]); // enrichment (delta)
   const priorBites = opt(settled[8]); // enrichment (delta)
   const ingestAt = opt(settled[9]);
@@ -645,6 +665,42 @@ export async function getPanoramaKpis(
   // zero-denominator + census-coverage-floor guards; this tile painted raw
   // value/tone, so a 0-dog padrón showed a confident "0%"/warn and a sliver-thin
   // padrón kept its ok/warn verdict. Same descriptor ⇒ same guards.
+  // RA-3 finding C1, FOURTH SURFACE. `?province=AR-V` on the Panorama console
+  // threads `adminProvince` into the ctx above, and `petsScopeClause` narrows the
+  // WHOLE scope to that one province — so `fetchSterilizationCoverage(ctx)`
+  // returns a `rate` computed over a single unit. At that point "Cobertura de
+  // esterilización" is not a whole-scope aggregate the operator is entitled to:
+  // it IS that province's withheld cell wearing a KPI label, published in the
+  // same request in which /gob/poblacion hatches the province and
+  // /gob/padron?vista=censo prints "suprimido por privacidad" for it.
+  //
+  // ONE decision point, consumed not re-derived: the verdict arrives from the
+  // SAME `planProvinceDisclosure` call that decided `byProvince`, so this tile
+  // and the poblacion screen it links to (`href: "/gob/poblacion"`) cannot
+  // disagree. Re-deriving `sterilization.total >= 5` here would be the second
+  // decision point this class of bug keeps producing.
+  //
+  // NOT the divergence `province-disclosure.ts` documents. That one is about a
+  // govt operator's OWN province being hatched by the #40 Panorama LAYER loaders
+  // (`provinceCell`, which decides on the denominator and never asks who is
+  // looking) while /gob/censo shows them the real number. This is the opposite
+  // direction and cannot touch it: `planProvinceDisclosure` drops own-jurisdiction
+  // provinces from the candidate set BEFORE k is applied
+  // (`isOwnJurisdictionProvince`), so a withheld sole unit is by construction a
+  // FOREIGN one. D.10 survives — a govt operator scoped to their own 3-pet
+  // province keeps `scopeTotalPublishable === true` and keeps the real number.
+  // Pinned by a named test in __tests__/get-panorama-kpis.test.ts.
+  //
+  // KNOWN, NOT FIXED HERE (reported, own change): the sibling tiles counted over
+  // the same active-pet base (microchip, PPP, reunificación) and the
+  // `coverageDenominator` footer still publish at a withheld scope. Their
+  // fetchers do not carry this verdict, and the tiles whose base is NOT the pet
+  // padrón (mordeduras/10k hab., zoonosis signals, denuncias) must NOT inherit it
+  // — withholding a metric whose denominator is the human census under a verdict
+  // computed on registered pets is the RA-1 over-correction. That triage is a
+  // change of its own, not a rider on this one.
+  const sterilizationScopeNotice = scopeTotalSuppressionNotice(sterilization.scopeTotalPublishable);
+
   const coverageGuard = coverage.hasData
     ? applyCensusCoverageGuard(KPI_CATALOG.rabies_coverage_dogs_12m, {
         censusCoveragePct: coverage.censusCoveragePct,
@@ -699,11 +755,23 @@ export async function getPanoramaKpis(
     {
       id: "esterilizacion",
       label: "Cobertura de esterilización",
-      value: formatPercent(sterilization.rate),
-      sub: `meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`,
-      bar: sterilization.rate,
+      // Withheld ⇒ NO number, in any encoding. `value` is the em dash (never
+      // "0%": a false zero reads as a measured value AND asserts something
+      // untrue), `bar` is dropped because a progress bar's WIDTH is the rate —
+      // publishing the figure geometrically instead of typographically is still
+      // publishing it — and `tone` goes neutral, because an ok/warn verdict is a
+      // claim about a number this tile refuses to state. `sub` carries the
+      // shared disclosure line so the operator reads WHY, and reads the same
+      // words here as on /gob/poblacion.
+      value: sterilizationScopeNotice ? "—" : formatPercent(sterilization.rate),
+      sub: sterilizationScopeNotice ?? `meta ${TARGETS.STERILIZATION_COVERAGE_PCT}%`,
+      bar: sterilizationScopeNotice ? undefined : sterilization.rate,
       currentState: true,
-      tone: sterilization.rate >= TARGETS.STERILIZATION_COVERAGE_PCT ? "ok" : "warn",
+      tone: sterilizationScopeNotice
+        ? "neutral"
+        : sterilization.rate >= TARGETS.STERILIZATION_COVERAGE_PCT
+          ? "ok"
+          : "warn",
       href: "/gob/poblacion",
       source: "metrics.fetchSterilizationCoverage",
       info: {

@@ -58,8 +58,17 @@ import {
   fetchRabiesCoverage,
 } from "@/lib/analytics/govt-home-kpis";
 import type { AnalyticsPeriod } from "@/lib/metrics";
+import { buildProjectionContext } from "@/lib/metrics/context";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
+// NOT mocked on purpose: the two C1 tests below derive the verdict from the REAL
+// rule, so a fixture cannot assert a `scopeTotalPublishable` the rule would not
+// produce. Re-deriving the rule as `total >= 5` inside the SUT kills the D.10
+// test alone; hardcoding `true` in the SUT kills the withholding test alone.
+import {
+  planProvinceDisclosure,
+  scopeTotalSuppressionNotice,
+} from "@/lib/metrics/province-disclosure";
 import { fetchBitesTrend, fetchKpiTrend, fetchRabiesVaccinationTrend } from "@/lib/metrics/trends";
 import {
   loadMortalityByProvince,
@@ -345,6 +354,110 @@ describe("getPanoramaKpis", () => {
     const kpi = kpis.find((k) => k.id === "esterilizacion")!;
     expect(kpi.tone).toBe("ok");
     expect(kpi.value).toBe("75,3%");
+  });
+
+  // -------------------------------------------------------------------------
+  // RA-3 finding C1, FOURTH SURFACE — the drilled scope headline
+  // -------------------------------------------------------------------------
+  //
+  // Both tests build the verdict with the REAL `planProvinceDisclosure` and hand
+  // it to the mocked fetcher, exactly as production does. Asserting the plan
+  // first is not ceremony: it is what stops the pair from degenerating into "the
+  // SUT echoes whatever boolean the fixture chose".
+
+  const TDF_SUB_K = { province: "Tierra del Fuego", denominator: 3 } as const;
+
+  it("a drilled admin's esterilización KPI is WITHHELD when the drill leaves one sub-k province", async () => {
+    // `?province=Tierra del Fuego` narrows the WHOLE scope (petsScopeClause), so
+    // the "whole-scope rate" IS that province's withheld cell under a KPI label.
+    const drilled = buildProjectionContext({ role: "admin" }, [], period, {
+      adminProvince: "Tierra del Fuego",
+    });
+    const plan = planProvinceDisclosure(drilled, [TDF_SUB_K]);
+    expect(plan.scopeTotalPublishable).toBe(false);
+
+    vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
+      rate: 33.3,
+      sterilized: 1,
+      total: 3,
+      byProvince: [
+        {
+          province: "Tierra del Fuego",
+          suppressed: true,
+          ratePct: null,
+          sterilized: null,
+          total: null,
+        },
+      ],
+      byProvinceSuppressedCount: plan.suppressedCount,
+      byProvinceAssignedTotal: plan.publishableRowTotal,
+      scopeTotalPublishable: plan.scopeTotalPublishable,
+    });
+
+    const { kpis } = await getPanoramaKpis(
+      { role: "admin" },
+      [],
+      period,
+      "Tierra del Fuego",
+      undefined,
+    );
+    const kpi = kpis.find((k) => k.id === "esterilizacion")!;
+
+    // No number, in ANY encoding: not the text, not the bar's width.
+    expect(kpi.value).toBe("—");
+    expect(kpi.value).not.toContain("33");
+    expect(kpi.bar).toBeUndefined();
+    // Never a false zero — a withheld value is ABSENT, not zero.
+    expect(kpi.value).not.toBe("0%");
+    expect(kpi.value).not.toBe("0,0%");
+    // No verdict about a number we refuse to state.
+    expect(kpi.tone).toBe("neutral");
+    // It DISCLOSES, in the shared wording — hiding without saying so is worse
+    // than publishing, because absence reads as "no pasa nada acá".
+    expect(kpi.sub).toBe(scopeTotalSuppressionNotice(false));
+    expect(kpi.sub).toContain("una sola jurisdicción");
+    // A withholding is NOT an outage: `unavailable` would badge a deliberate
+    // privacy decision as a broken fetcher.
+    expect(kpi.unavailable).toBeFalsy();
+  });
+
+  it("D.10 SURVIVES: a govt operator viewing their OWN 3-pet province keeps the real number", async () => {
+    // An own cell is never a suppression candidate (isOwnJurisdictionProvince),
+    // so a single-unit OWN scope still publishes its headline. Over-suppressing
+    // here would blind a jurisdiction about its own administrados — the RA-1
+    // over-correction, in the other direction.
+    const own = [{ province: "Tierra del Fuego", locality: "" }];
+    const ownCtx = buildProjectionContext({ role: "govt" }, own, period);
+    const plan = planProvinceDisclosure(ownCtx, [TDF_SUB_K]);
+    expect(plan.scopeTotalPublishable).toBe(true);
+    expect(plan.suppressedCount).toBe(0);
+
+    vi.mocked(fetchSterilizationCoverage).mockResolvedValue({
+      rate: 33.3,
+      sterilized: 1,
+      total: 3,
+      byProvince: [
+        {
+          province: "Tierra del Fuego",
+          suppressed: false,
+          ratePct: 33.3,
+          sterilized: 1,
+          total: 3,
+        },
+      ],
+      byProvinceSuppressedCount: plan.suppressedCount,
+      byProvinceAssignedTotal: plan.publishableRowTotal,
+      scopeTotalPublishable: plan.scopeTotalPublishable,
+    });
+
+    const { kpis } = await getPanoramaKpis({ role: "govt" }, own, period);
+    const kpi = kpis.find((k) => k.id === "esterilizacion")!;
+
+    expect(kpi.value).toBe("33,3%");
+    expect(kpi.bar).toBe(33.3);
+    expect(kpi.tone).toBe("warn");
+    expect(kpi.sub).toBe("meta 70%");
+    expect(kpi.sub).not.toContain("privacidad");
   });
 
   it("PPP KPI reflects the C7 registry-adoption rate (estado actual, benchmark 80%)", async () => {
