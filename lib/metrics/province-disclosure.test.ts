@@ -166,17 +166,66 @@ describe("planProvinceDisclosure — differencing defence", () => {
     expect(plan.publishableRowTotal).toBe(1000);
   });
 
-  it("publishes the row total when TWO or more cells are hidden (no cell isolable)", () => {
-    const plan = planProvinceDisclosure(nationalAdmin(), [
+  it(`publishes the row total when the withheld MASS is >= k (${ANONYMITY_K})`, () => {
+    // THE INVARIANT IS Σ(withheld) >= k — not "two or more cells are hidden".
+    // The old name for this case claimed "no cell isolable", which its own
+    // fixture disproved: 1000 − 993 = 7 over two cells each in [1, 4] pins the
+    // pair to {3, 4}. What actually makes the residual publishable is that the
+    // 7 animals behind it cannot be attributed to fewer than k of them.
+    const rows = [
       { province: "Tierra del Fuego", denominator: 3 },
       { province: "Santa Cruz", denominator: 4 },
       { province: "Buenos Aires", denominator: 993 },
-    ]);
+    ];
+    const plan = planProvinceDisclosure(nationalAdmin(), rows);
 
     expect(plan.suppressedCount).toBe(2);
-    // The Σ covers withheld cells too — recomputing it from the visible rows is
-    // what would BOTH overstate the residual and isolate the hidden ones.
     expect(plan.publishableRowTotal).toBe(1000);
+
+    // The property the publication actually rests on, asserted rather than
+    // assumed: the residual the published Σ exposes is itself >= k.
+    const visibleSum = rows
+      .filter((r) => !plan.withheld.has(r.province))
+      .reduce((s, r) => s + r.denominator, 0);
+    expect((plan.publishableRowTotal ?? 0) - visibleSum).toBeGreaterThanOrEqual(ANONYMITY_K);
+  });
+
+  it("withholds the row total when TWO hidden cells still sum to less than k", () => {
+    // The C2 leak (RA-3): `withheld.size === 1` let this through. 1000 − 998 = 2
+    // spread over two cells that are each >= 1 forces BOTH to exactly 1 — one
+    // animal, one household, per province. Two hidden cells, zero protection.
+    const rows = [
+      { province: "Tierra del Fuego", denominator: 1 },
+      { province: "Santa Cruz", denominator: 1 },
+      { province: "Buenos Aires", denominator: 998 },
+    ];
+    const plan = planProvinceDisclosure(nationalAdmin(), rows);
+
+    expect([...plan.withheld].sort()).toEqual(["Santa Cruz", "Tierra del Fuego"]);
+    expect(plan.suppressedCount).toBe(2);
+    expect(plan.publishableRowTotal).toBeNull();
+  });
+
+  it(`withholds the row total whenever the withheld mass is under k (${ANONYMITY_K})`, () => {
+    // The general form, swept across every mass a hidden set can carry: below k
+    // the Σ must be withheld, at k and above it may publish. One rule, no
+    // special case for "how many cells".
+    for (const [a, b] of [
+      [1, 1],
+      [1, 2],
+      [2, 2],
+      [1, 3],
+      [2, 3],
+      [3, 3],
+    ] as const) {
+      const plan = planProvinceDisclosure(nationalAdmin(), [
+        { province: "Tierra del Fuego", denominator: a },
+        { province: "Santa Cruz", denominator: b },
+        { province: "Buenos Aires", denominator: 1000 - a - b },
+      ]);
+      const expectPublished = a + b >= ANONYMITY_K;
+      expect(plan.publishableRowTotal, `mass ${a}+${b}`).toBe(expectPublished ? 1000 : null);
+    }
   });
 });
 
@@ -249,7 +298,10 @@ describe("screen/export parity is structural", () => {
     expect(code).toMatch(/planProvinceDisclosure\(/);
   });
 
-  it("the four value-publishing consumers branch on the fetcher's verdict", () => {
+  // The name carries no COUNT on purpose: it iterates the live list, and a
+  // number written into an it() name goes stale the next time a surface joins
+  // (it already had, saying "four" while iterating five).
+  it("every value-publishing consumer branches on the fetcher's verdict", () => {
     // /gob/poblacion is excluded on purpose: it publishes NO per-province value
     // (its map is the Panorama embed, which carries its own k-anon + legend), so
     // it has nothing to branch on. Its CSV export is in the list below.

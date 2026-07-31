@@ -78,11 +78,13 @@ export type ProvinceDisclosurePlan = {
    * visible rows alone (that would overstate the residual AND turn the footnote
    * into the subtraction channel).
    *
-   * `null` when publishing it would isolate a single withheld cell by
-   * subtraction. `complementarySuppress` already guarantees 0 or ≥2 withheld
-   * cells in every group that HAS a visible sibling; this covers the one residual
-   * it documents as un-complementable — a lone foreign cell with no visible
-   * foreign sibling. Callers must render nothing when this is null.
+   * `null` when publishing it would let the withheld cells be recovered by
+   * subtraction. THE RULE IS Σ(withheld) ≥ k, NOT "two or more cells hidden":
+   * with `[TdF 1, SC 1, BA 998]` and a published Σ of 1000, `1000 − 998 = 2`
+   * spread over two cells that are each ≥ 1 pins BOTH at exactly 1 — two hidden
+   * cells, zero protection. What k protects is the MASS behind the residual, so
+   * that is what the test has to be. Callers must render nothing when this is
+   * null.
    */
   publishableRowTotal: number | null;
 };
@@ -106,6 +108,10 @@ export type ProvinceDisclosurePlan = {
  *     from a published total. Own cells are never promoted — D.10 says the
  *     operator sees their own number, and a rule that hides it to protect a
  *     stranger's cell has picked the wrong cell.
+ *  5. THE RESIDUAL: a Σ over the whole grouping is publishable only while the
+ *     withheld MASS it exposes (`Σ − Σ(visible)`) is itself ≥ k. Complementary
+ *     suppression guarantees ≥2 hidden cells, which is NOT the same guarantee —
+ *     see `publishableRowTotal`.
  *
  * ADMIN (scope.kind === "global") — decided on the merits, per the brief:
  * an admin owns NO province at this grain, so every cell is foreign and the
@@ -163,18 +169,31 @@ export function planProvinceDisclosure(
   );
 
   const withheld = new Set(suppressed.map((r) => r.province));
+
+  // (5) THE RESIDUAL RULE. A published Σ hands the attacker
+  // `Σ(withheld) = rowTotal − Σ(visible)`; k must protect that residual exactly
+  // as it protects a single cell, so the same `>= ANONYMITY_K` comparison the
+  // per-cell pass uses is applied to the withheld MASS. Counting cells instead
+  // (`withheld.size === 1`) was the leak: `[1, 1, 998]` hides two cells and
+  // still pins each at 1, because 2 animals cannot be spread over two ≥1 cells
+  // any other way.
+  const withheldMass = suppressed.reduce((sum, r) => sum + r.denominator, 0);
+  const residualProtected = withheld.size === 0 || withheldMass >= ANONYMITY_K;
+
   return {
     withheld,
     suppressedCount: withheld.size,
-    // A single withheld cell is recoverable from a published Σ; withhold the Σ too.
-    publishableRowTotal: withheld.size === 1 ? null : rowTotal,
+    publishableRowTotal: residualProtected ? rowTotal : null,
   };
 }
 
 /**
  * The Spanish disclosure line every surface renders when `suppressedCount > 0`,
- * so the four consumers cannot drift into four different wordings (and so a
- * reviewer greps ONE string). Returns `null` when there is nothing to disclose —
+ * so no consumer can drift into a wording of its own (and so a reviewer greps
+ * ONE string). The count of consumers is deliberately NOT written down here —
+ * baked-in counts in this family have gone stale four times; `CONSUMERS` in
+ * province-disclosure.test.ts is the live list. Returns `null` when there is
+ * nothing to disclose —
  * a surface must never announce a suppression this frame does not carry (the
  * inverse failure: a legend promising a hatch the map never paints).
  */

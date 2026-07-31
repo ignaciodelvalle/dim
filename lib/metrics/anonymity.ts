@@ -91,20 +91,44 @@ export function suppressSmallCells<Row>(
  * Complementary suppression (statistical-disclosure control) against a
  * differencing attack.
  *
- * When a coarser aggregate is published UNSUPPRESSED (the Panorama province
- * choropleth totals, spec §U5) while its finer breakdown is k-anon suppressed,
- * a group with EXACTLY ONE suppressed cell leaks that cell's exact count by
- * subtraction: `hidden = groupTotal − Σ(visible cells)`. Suppressing the small
- * cell alone is not enough — its value is recoverable from the siblings.
+ * When a group total is published while its finer breakdown is k-anon
+ * suppressed, a group with EXACTLY ONE suppressed cell leaks that cell's exact
+ * count by subtraction: `hidden = groupTotal − Σ(visible cells)`. Suppressing
+ * the small cell alone is not enough — its value is recoverable from the
+ * siblings.
  *
  * The textbook fix is COMPLEMENTARY (a.k.a. secondary) suppression: whenever a
  * group has exactly one primary-suppressed cell AND at least one visible
- * sibling, ALSO suppress the next-smallest visible cell in that group, so no
- * single hidden value can be isolated by subtraction. After this pass every
- * group holds 0 or ≥2 suppressed cells — EXCEPT a group with a lone suppressed
- * cell and NO visible sibling (a single-cell group), which has nothing to
- * complement: its exposure is the published group total itself (the accepted
- * §U5 province-total disclosure), not a finer-tier differencing leak.
+ * sibling, ALSO suppress the next-smallest visible cell in that group. After
+ * this pass every group holds 0 or ≥2 suppressed cells — EXCEPT a group with a
+ * lone suppressed cell and NO visible sibling, which has nothing to complement.
+ *
+ * ⚠️ WHAT THIS FUNCTION DOES **NOT** GUARANTEE. Read this before relying on it:
+ * "0 or ≥2 suppressed cells" is NOT "no hidden value can be isolated", and this
+ * docblock used to promise the second while delivering only the first (RA-3
+ * finding C2; independently logged as KA1, docs/reviews/tier1-decisions.md).
+ * Counterexample: cells `[1, 1, 998]` with a published total of 1000. Two cells
+ * are hidden, yet the residual `1000 − 998 = 2` spread over two cells that are
+ * each ≥ 1 pins BOTH at exactly 1 — one animal, one household, per cell.
+ *
+ * THE GUARANTEE, precisely: after this pass no single cell is the ONLY unknown
+ * in the subtraction. That is a statement about the number of unknowns, not
+ * about how tightly they are bounded.
+ *
+ * THE OTHER HALF IS THE CALLER'S: publish a group total only while the withheld
+ * MASS is itself protected — `Σ(suppressed) >= k`, the same comparison
+ * `suppressSmallCells` applies per cell, applied to the residual the total
+ * exposes. `planProvinceDisclosure` (./province-disclosure.ts,
+ * `publishableRowTotal`) is the reference implementation; every caller that
+ * publishes a group total beside suppressed cells owes the same check.
+ *
+ * RETIRED PREMISE, recorded so it is not re-imported: this block used to justify
+ * itself with "the Panorama province choropleth totals are published
+ * UNSUPPRESSED (spec §U5)" and called that an accepted disclosure. Task #40
+ * retired it — `provinceCell` (src/modules/panorama/…/build-features.ts) routes
+ * every province cell's DENOMINATOR through `suppressSmallCells` at
+ * `PROVINCE_K === ANONYMITY_K`. §U5 is not a live accepted risk and must not be
+ * cited as one.
  *
  * Pure and generic: `group` extracts the aggregation group (e.g. province) and
  * `count` the cell population. Returns re-partitioned visible/suppressed arrays;
