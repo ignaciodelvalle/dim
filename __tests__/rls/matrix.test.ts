@@ -30,6 +30,10 @@ import {
   pets,
 } from "@/db";
 import { generateUniqueCasePublicCode } from "@/lib/infra/case-helpers";
+import {
+  findBlockingTransfers,
+  selectPetsWithoutPendingTransfer,
+} from "../../scripts/seed-transfer-guards";
 import { withMutationOverride } from "../_helpers/db-overrides";
 import { RLS_MATRIX, type RlsOperation, type RlsRole } from "./matrix.data";
 
@@ -79,6 +83,43 @@ let fixtureAchievementViewId: string | null = null;
 // cell whose verdict depends on whether rows happen to exist is not measuring a
 // policy. Self-provisioned here, like the cases / achievement-view /
 // identification fixtures above, and cleaned up in afterAll.
+//
+// A15 / P2.2 — IT NEEDS ITS OWN PET, not `ownerPetId`.
+//
+// migration 0054 declares a PARTIAL UNIQUE index,
+//   pet_transfers_one_pending_per_pet ON pet_transfers(pet_id) WHERE status='pending',
+// and this fixture inserts a PENDING row. Attaching it to the shared
+// `ownerPetId` made the whole matrix die in beforeAll on any database where
+// something else had already opened a transfer on that pet — measured
+// 2026-07-30: the demo seed's PTR-D2TZ-JGR4 on DIM-DEMO-0001. CI never saw it
+// (it bootstraps clean and creates no transfers), so the only gate that broke
+// was the one a human runs before pushing, which is how work gets pushed
+// unverified.
+//
+// "Pick a different owner pet" is NOT a fix here, and the measurement says so:
+// on a bootstrapped+demo local database owner@dim.test owns exactly ONE active
+// pet, the one carrying the transfer. A filter would correctly find no
+// candidate and the suite would degrade to a 44-cell silent skip — green, and
+// asserting nothing. Deleting the demo transfer is worse still: that is
+// mutating data to fit a test.
+//
+// So the transfer fixture self-provisions a DEDICATED pet, exactly like the
+// welfare-bridge and clean-events fixtures below do for their own drift
+// problems. The pet is created here, used only here, and dropped in afterAll,
+// which makes "no pending transfer on it" true by construction.
+//
+// The `NOT EXISTS` guard from scripts/seed-transfer-guards.ts still runs over
+// that pet before the insert. It is not ceremony: afterAll's deletes are
+// `.catch(() => {})`, so a crashed run CAN leave a fixture transfer behind, and
+// the guard turns that into a named setup error instead of a raw unique-index
+// violation. `findBlockingTransfers` then re-checks through a different query
+// shape, so the guard cannot certify its own bugs.
+//
+// NOT ordering — A8's lesson: adding an ORDER BY to a colliding pick converts
+// an intermittent failure into a 100% one. Deterministic ≠ correct. The
+// exclusion is the guard.
+let transferFixturePetId: string | null = null;
+let transferFixtureOwnershipId: string | null = null;
 let fixtureTransferId: string | null = null;
 let fixtureIdentificationId: string | null = null;
 // pet-document-redesign REQ-1.2/1.3 (migration 0115) fixtures. Uses a
@@ -105,6 +146,71 @@ let fixtureNormalEventId: string | null = null;
 let cleanEventsPetId: string | null = null;
 let cleanEventsOwnershipId: string | null = null;
 let cleanEventsEventId: string | null = null;
+
+/**
+ * Provision the pet_transfers fixture: a DEDICATED pet owned by the owner, plus
+ * ONE pending transfer owner → admin. Returns a setup-error string, or null on
+ * success. See the `transferFixturePetId` docblock for the full rationale.
+ */
+async function provisionTransferFixture(): Promise<string | null> {
+  const ownerCtxForTransfer = contexts.get("owner");
+  const adminCtxForTransfer = contexts.get("admin");
+  if (!ownerCtxForTransfer?.userId || !adminCtxForTransfer?.userId) return null;
+
+  const [transferPetRow] = await db
+    .insert(pets)
+    .values({
+      publicToken: `DIM-RLSTRF-${Date.now().toString(36).toUpperCase()}`,
+      name: "RLS Matrix Transfer Fixture Pet",
+      species: "dog",
+      sex: "male",
+      potentiallyDangerousBreed: false,
+    })
+    .returning({ id: pets.id });
+  transferFixturePetId = transferPetRow.id;
+
+  const [transferOwnershipRow] = await db
+    .insert(ownerships)
+    .values({
+      petId: transferFixturePetId,
+      ownerUserId: ownerCtxForTransfer.userId,
+      role: "owner",
+    })
+    .returning({ id: ownerships.id });
+  transferFixtureOwnershipId = transferOwnershipRow.id;
+
+  // NOT EXISTS over pet_transfers_one_pending_per_pet's own predicate. A pet
+  // created two statements ago cannot have one — unless a previous crashed run
+  // leaked a fixture row onto a recycled id, which is precisely the case worth
+  // NAMING instead of hitting as a raw unique-index violation.
+  const legalTargets = await selectPetsWithoutPendingTransfer([transferFixturePetId]);
+  if (legalTargets.length === 0) {
+    return "the transfer fixture's own pet already carries a pending transfer — pet_transfers_one_pending_per_pet would reject the insert. Leftovers from a crashed run: DELETE FROM pet_transfers WHERE public_token LIKE 'TRF-RLSFIX-%'.";
+  }
+  // Independent oracle — a different query shape, so the guard cannot certify
+  // its own bugs.
+  const blocking = await findBlockingTransfers(transferFixturePetId);
+  if (blocking.length > 0) {
+    return `scripts/seed-transfer-guards.ts offered a pet that already has a pending transfer (${blocking
+      .map((t) => t.publicToken)
+      .join(", ")}) — it is out of sync with pet_transfers_one_pending_per_pet.`;
+  }
+
+  const [transferRow] = await db
+    .insert(petTransfers)
+    .values({
+      publicToken: `TRF-RLSFIX-${Date.now().toString(36).toUpperCase()}`,
+      petId: transferFixturePetId,
+      fromOwnerId: ownerCtxForTransfer.userId,
+      toOwnerId: adminCtxForTransfer.userId,
+      toOwnerEmail: ROLE_USERS.admin.email,
+      status: "pending",
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    })
+    .returning({ id: petTransfers.id });
+  fixtureTransferId = transferRow?.id ?? null;
+  return null;
+}
 
 beforeAll(async () => {
   if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
@@ -145,10 +251,14 @@ beforeAll(async () => {
     // widen visibility (public credential, finder flows), which flips the
     // deny probes for other_user/admin — the matrix asserts the BASELINE
     // posture, so the fixture pet must be in the baseline state.
+    //
+    // Ordered so the candidate WINDOW is stable too: an unordered LIMIT is
+    // answered in physical heap order, which moves as other suites UPDATE pets.
     const { data } = await ownerCtx.client
       .from("pets")
-      .select("id,status")
+      .select("id,status,public_token")
       .eq("status", "active")
+      .order("public_token", { ascending: true })
       .limit(20);
     const candidateIds = (data ?? []).map((r) => r.id as string);
     if (candidateIds.length === 0) {
@@ -212,26 +322,10 @@ beforeAll(async () => {
     fixtureAchievementViewId = avRow?.id ?? null;
   }
 
-  // Fixture pet_transfers row — sender is the owner, receiver is the admin, so
-  // the matrix's three verdicts are all exercised by ONE row: owner reads it as
-  // sender (allow), admin reads it as admin (allow), and other_user is neither
-  // party (deny) — the isolation assertion this table exists to make.
-  const ownerCtxForTransfer = contexts.get("owner");
-  const adminCtxForTransfer = contexts.get("admin");
-  if (ownerPetId && ownerCtxForTransfer?.userId && adminCtxForTransfer?.userId) {
-    const [transferRow] = await db
-      .insert(petTransfers)
-      .values({
-        publicToken: `TRF-RLSFIX-${Date.now().toString(36).toUpperCase()}`,
-        petId: ownerPetId,
-        fromOwnerId: ownerCtxForTransfer.userId,
-        toOwnerId: adminCtxForTransfer.userId,
-        toOwnerEmail: ROLE_USERS.admin.email,
-        status: "pending",
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
-      })
-      .returning({ id: petTransfers.id });
-    fixtureTransferId = transferRow?.id ?? null;
+  const transferSetupError = await provisionTransferFixture();
+  if (transferSetupError) {
+    setupError = transferSetupError;
+    return;
   }
 
   // Fixture pet_identifications row — the probe used to rely on SEEDED
@@ -383,6 +477,21 @@ afterAll(async () => {
     await db
       .delete(petTransfers)
       .where(eq(petTransfers.id, fixtureTransferId))
+      .catch(() => {});
+  }
+  // Ordered: the transfer row FKs the pet (ON DELETE CASCADE would take it, but
+  // deleting explicitly keeps the intent readable and survives a schema change
+  // that drops the cascade).
+  if (transferFixtureOwnershipId) {
+    await db
+      .delete(ownerships)
+      .where(eq(ownerships.id, transferFixtureOwnershipId))
+      .catch(() => {});
+  }
+  if (transferFixturePetId) {
+    await db
+      .delete(pets)
+      .where(eq(pets.id, transferFixturePetId))
       .catch(() => {});
   }
   if (fixtureAchievementViewId) {
