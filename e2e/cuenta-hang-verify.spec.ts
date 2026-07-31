@@ -43,7 +43,11 @@ test("Cerrar sesión is reachable from the masthead avatar menu", async ({ page 
 
   // Open the avatar menu in the global chrome (not /cuenta).
   await page.getByRole("button", { name: "Menú de cuenta" }).click();
-  const logout = page.getByRole("menuitem", { name: "Cerrar sesión" });
+  // RA-9 BR-4 removed role="menu"/"menuitem" from this popover: it is a list of
+  // links and a logout form, and role="menu" contracts arrow-key roving and
+  // typeahead that were never implemented. Logout has always been a <form>'s
+  // submit button, so its real role is `button`.
+  const logout = page.getByRole("button", { name: "Cerrar sesión" });
   await expect(logout).toBeVisible();
 
   // Actually sign out and confirm we leave the authenticated area.
