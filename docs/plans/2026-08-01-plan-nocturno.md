@@ -60,6 +60,13 @@
 | **P2.6** | **El worker de Windows** — `0xC0000409`, crash NATIVO, **no reproduce en Linux**. NO bloquea. Siguiente candidato razonado: `pool: "threads"`, con el parche de stderr-tail primero | abierta, no bloqueante |
 | **P2.7** | **A2b — el limpiador de huérfanos cubre 4 de ~20 prefijos.** Propuesta escrita y **deliberadamente sin implementar**: cambia un script que BORRA. Necesita revisión humana | abierta |
 
+### Hallazgos de P1.1 que quedan abiertos
+
+- **`pnpm lint` (biome) falla** en `app/org/[orgToken]/atender/[publicToken]/page.tsx:78` (`useTemplate` sobre un `String.fromCharCode`). Territorio vivo de P1.2 — **rompe `verify` hasta que se arregle**.
+- **Divergencia aceptada, para ratificación del PO**: un operador govt en jurisdicción sub-k ahora ve su número REAL en `/gob/censo` (D.10) y la MISMA provincia hachurada en `/gob/panorama` (regla ciega de #40). D.10 se acotó a #40c a propósito; **realinear Panorama a la regla de propiedad es otra decisión** y se señala en vez de colarse.
+- **Comentario que se volvió mentira** (material de RA-5): el header de `lib/open-data/province-suppression.ts` sigue afirmando que *"the authenticated Panorama province choropleth publishes province aggregates UNSUPPRESSED"* — falso desde #40.
+- Cerrado de paso: el pie de "sin provincia asignada" se recalculaba desde las filas visibles, lo que **sobreestimaba el residual y recuperaba la celda oculta por resta**. Ahora sale del Σ que incluye las ocultas.
+
 ### Prioridad 3 — Robustez y defectos de producto
 
 | # | Unidad | Estado |
@@ -184,7 +191,7 @@ Es para ESTA corrida, no permanente.
 
 | Unidad | Estado | Commit |
 |---|---|---|
-| P1.1 #40c censo/población | **cerrada** (datos + render + divulgación + tests) | `9305f942` · `4ff4d55c` |
+| P1.1 #40c censo/población | **CERRADA** (datos + render + divulgación + tests) | `9305f942` · `4ff4d55c` · `bf5c9edf` |
 | P1.2 A14 nav drop | pendiente | |
 | P2.1 los 4 de final-seams | pendiente | |
 | P2.2 A15 fixture RLS | pendiente | |
