@@ -17,18 +17,42 @@
 // atoms, so they cannot drift apart again. A per-component test could not have
 // caught the original defect — each one was internally consistent.
 
+import { readFileSync } from "node:fs";
+
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
 import { LegendPill } from "@/components/panorama/LegendPill";
 import { MapLegends } from "@/components/panorama/MapLegends";
 import type { ActiveLayer, DivisionLegendDescriptor } from "@/components/panorama/SituationalMap";
+import type { GraduatedScale } from "@/components/panorama/graduated-scale";
 import { frameHasSuppressedMark, layerPaintsHatch } from "@/components/panorama/hatch-pattern";
+import { hasSuppressedProvince } from "@/components/panorama/province-choropleth-style";
 import type { BivariateCell } from "@/src/modules/panorama/domain/bivariate";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
-const K_ANON_ROW = "Protegido por privacidad";
+// EVERY wording MapLegends uses to name the k-anon mark. RA-7 F3: this file
+// used to grep for the hatch row alone, so the FOURTH key — the graduated
+// block's muted-dot row, which says something else entirely — was invisible to
+// the parity check that exists precisely so no key can drift from the canvas.
+// A legend key added with new copy and no entry here is caught by
+// `every rendered k-anon key is one this test knows about`, below.
+const K_ANON_KEYS = ["Protegido por privacidad", "Datos insuficientes (privacidad)"] as const;
 const PILL_CHIP = "k&lt;5 protegido";
+
+/** The suppressed DOT the graduated bubble layers paint (COLOR_SUPPRESSED). */
+const GRADUATED_SCALE: GraduatedScale = {
+  maxValue: 40,
+  bins: [
+    { value: 1, label: "1", r: 3 },
+    { value: 10, label: "10", r: 6 },
+    { value: 40, label: "40", r: 10 },
+  ],
+  radiusStops: [
+    [0, 3],
+    [40, 10],
+  ],
+};
 
 function provinceFC(
   cells: Array<{ provinceCode: string; value: number | null; suppressed?: boolean }>,
@@ -87,6 +111,39 @@ function bivariateLayer(cells: BivariateCell[]): ActiveLayer {
   } as unknown as ActiveLayer;
 }
 
+/** A GRADUATED point layer — síntomas / zoonosis / denuncias / mordeduras /
+ *  pérdidas. Its features carry `place` / `locality` / `province` and NEVER a
+ *  `provinceCode`: that absence is exactly what made `hasSuppressedProvince`
+ *  skip every one of them and answer false for the whole family (RA-7 F3). The
+ *  fixture keeps the missing code, or it would not reproduce the defect. */
+function graduatedLayer(
+  units: Array<{ place: string; count: number | null; suppressed?: boolean }>,
+): ActiveLayer {
+  return {
+    id: "sintomas",
+    color: "#f28e2b",
+    label: "Síntomas reportados",
+    geomType: "point",
+    renderMode: "graduated",
+    level: "locality",
+    dataType: "signal",
+    features: {
+      type: "FeatureCollection",
+      features: units.map((u) => ({
+        type: "Feature",
+        geometry: null,
+        properties: {
+          place: u.place,
+          locality: u.place,
+          province: "Buenos Aires",
+          count: u.count,
+          suppressed: u.suppressed === true,
+        },
+      })),
+    },
+  } as unknown as ActiveLayer;
+}
+
 function divisionLegend(suppressed: boolean): DivisionLegendDescriptor {
   return {
     label: "Cobertura antirrábica (perros, 12m)",
@@ -102,9 +159,17 @@ function divisionLegend(suppressed: boolean): DivisionLegendDescriptor {
 
 /** Render BOTH surfaces over ONE frame, exactly as PanoramaConsole wires them:
  *  the pill's gate is `frameHasSuppressedMark` over the same layers + lifted
- *  division legend MapLegends receives. */
+ *  division legend MapLegends receives.
+ *
+ *  RA-7 F3 — the graduated scale is DERIVED from the frame, never hardcoded.
+ *  This helper used to pass `graduatedScale={null}` unconditionally, which made
+ *  the whole graduated legend block unreachable: the one k-anon key in this file
+ *  with no gate at all could not be rendered by the very test whose purpose is
+ *  that no key drifts from the canvas. A frame with graduated layers now gets a
+ *  resolved scale, exactly as the console gives it one. */
 function renderFrame(layers: ActiveLayer[], division: DivisionLegendDescriptor | null) {
   const suppressedInFrame = frameHasSuppressedMark(layers, division);
+  const graduatedScale = layers.some((l) => l.renderMode === "graduated") ? GRADUATED_SCALE : null;
   const pill = renderToStaticMarkup(
     <LegendPill
       baseLabel="Cobertura antirrábica (perros, 12m)"
@@ -119,14 +184,17 @@ function renderFrame(layers: ActiveLayer[], division: DivisionLegendDescriptor |
     <MapLegends
       layers={layers}
       divisionLegend={division}
-      graduatedScale={null}
+      graduatedScale={graduatedScale}
       provinceSeqLegend={{}}
     />,
   );
   return {
     suppressedInFrame,
     pillClaims: pill.includes(PILL_CHIP),
-    legendsClaim: legends.includes(K_ANON_ROW),
+    // ANY of the four keys counts as "the legend named the mark" — the surfaces
+    // must agree about the CLAIM, not about which glyph carries it.
+    legendsClaim: K_ANON_KEYS.some((k) => legends.includes(k)),
+    legendsHtml: legends,
   };
 }
 
@@ -166,6 +234,31 @@ describe("a frame with ZERO suppressed features names the k-anon mark NOWHERE", 
     expect(frame.suppressedInFrame).toBe(false);
     expect(frame.pillClaims).toBe(false);
     expect(frame.legendsClaim).toBe(false);
+  });
+
+  it("graduated bubbles with no suppressed unit — neither surface claims a mark", () => {
+    // RA-7 F3, direction ONE. The graduated block's k-anon key had no gate at
+    // all, so it announced the protected dot on every graduated frame. This test
+    // could not see it: renderFrame hardcoded `graduatedScale={null}`, which
+    // made the entire block unreachable.
+    const frame = renderFrame(
+      [
+        graduatedLayer([
+          { place: "Lanús", count: 31 },
+          { place: "Quilmes", count: 12 },
+        ]),
+      ],
+      null,
+    );
+    expect(frame.suppressedInFrame).toBe(false);
+    expect(frame.pillClaims).toBe(false);
+    expect(frame.legendsClaim).toBe(false);
+    // Named explicitly: the graduated key's wording is NOT the hatch row's, and
+    // grepping for the hatch row alone is how this key hid for so long.
+    expect(frame.legendsHtml).not.toContain("Datos insuficientes (privacidad)");
+    // ...while the block itself IS rendering (otherwise the assertion above is
+    // vacuous — the exact way the old `graduatedScale={null}` faked a pass).
+    expect(frame.legendsHtml).toContain("Eventos por unidad");
   });
 
   it("empty frame (nothing painting at all) — neither surface claims a hatch", () => {
@@ -208,6 +301,29 @@ describe("a frame that DOES paint a hatch names it on BOTH surfaces", () => {
     expect(frame.pillClaims).toBe(true);
     expect(frame.legendsClaim).toBe(true);
   });
+
+  it("a suppressed GRADUATED bubble (a muted dot is a mark too)", () => {
+    // RA-7 F3, direction TWO — the opposite failure, same encoding. The map DOES
+    // publish a protected mark here: SituationalMap paints the dot
+    // COLOR_SUPPRESSED at 0.6 opacity with its own stroke and collapses it to
+    // BUBBLE_R_MIN. `layerPaintsHatch` fell through to `hasSuppressedProvince`,
+    // which skips every feature without a `provinceCode` — graduated features
+    // have none — so the pill's gate was false and the pill stayed silent over a
+    // frame that was marking protected units on screen.
+    const frame = renderFrame(
+      [
+        graduatedLayer([
+          { place: "Lanús", count: 31 },
+          { place: "Tandil", count: null, suppressed: true },
+        ]),
+      ],
+      null,
+    );
+    expect(frame.suppressedInFrame).toBe(true);
+    expect(frame.pillClaims).toBe(true);
+    expect(frame.legendsClaim).toBe(true);
+    expect(frame.legendsHtml).toContain("Datos insuficientes (privacidad)");
+  });
 });
 
 describe("layerPaintsHatch reads each surface's OWN carrier", () => {
@@ -231,5 +347,48 @@ describe("layerPaintsHatch reads each surface's OWN carrier", () => {
     expect(
       layerPaintsHatch(provinceLayer([{ provinceCode: "AR-Z", value: null, suppressed: true }])),
     ).toBe(true);
+  });
+
+  it("graduated suppression is read off the feature flag DESPITE no provinceCode", () => {
+    const layer = graduatedLayer([{ place: "Tandil", count: null, suppressed: true }]);
+    expect(
+      layer.features.features.every(
+        (f) => (f.properties as { provinceCode?: string }).provinceCode === undefined,
+      ),
+      "fixture: graduated features carry no provinceCode — the reason the old rule skipped them",
+    ).toBe(true);
+    // The pre-fix rule (hasSuppressedProvince) answers false on this exact layer.
+    expect(hasSuppressedProvince(layer.features)).toBe(false);
+    // The fixed rule reads the carrier the graduated renderer actually paints.
+    expect(layerPaintsHatch(layer)).toBe(true);
+    expect(layerPaintsHatch(graduatedLayer([{ place: "Lanús", count: 31 }]))).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The check that keeps this file honest as MapLegends grows.
+//
+// RA-7 F3's root cause was not a missing gate — it was that the parity test
+// COULD NOT SEE the ungated key: it grepped for one wording and rendered a frame
+// in which the block carrying the other wording was unreachable. A fifth key
+// added tomorrow with fresh copy would hide the same way. So the wordings are
+// enumerated, and the enumeration is checked against the component's source.
+// ---------------------------------------------------------------------------
+describe("K_ANON_KEYS covers every k-anon key MapLegends can render", () => {
+  it("no rendered privacy copy escapes the enumeration", () => {
+    const source = readFileSync(new URL("../MapLegends.tsx", import.meta.url), "utf8");
+    const rendered = source
+      .split(/\r?\n/)
+      .filter((line) => /privacidad/i.test(line))
+      .filter((line) => !line.trimStart().startsWith("//"));
+    // Sanity: the four keys are actually in there (a zero-length list would make
+    // the loop below vacuously pass — the failure mode this whole file is about).
+    expect(rendered.length).toBeGreaterThanOrEqual(4);
+    for (const line of rendered) {
+      expect(
+        K_ANON_KEYS.some((k) => line.includes(k)),
+        `MapLegends renders privacy copy this parity test does not know about: ${line.trim()}`,
+      ).toBe(true);
+    }
   });
 });

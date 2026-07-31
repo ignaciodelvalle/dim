@@ -67,6 +67,9 @@ export type HatchableLayer = {
   /** Present only on a bivariate province layer; its cells carry the k-anon
    *  propagation, NOT `features` (see bivariate.ts). */
   bivariateCells?: readonly BivariateCell[] | null;
+  /** `"graduated"` marks a per-unit CIRCLE layer, whose protected mark is a
+   *  muted dot rather than a polygon hatch — a fourth carrier (RA-7 F3). */
+  renderMode?: string;
 };
 
 /**
@@ -74,14 +77,36 @@ export type HatchableLayer = {
  *
  * Delegates per surface to the helper that already owns that surface's rule —
  * `bivariateSuppressedCodes` for the 3×3 matrix (whose suppression lives on the
- * cells) and `hasSuppressedProvince` for an ordinary province choropleth
- * (whose suppression lives on the feature flag). No third rule is invented
- * here; a locality/point layer has no province cell to hatch and correctly
- * answers false — its hatch, if any, is the division fill, reported separately
- * by the lifted `divisionLegend.suppressed`.
+ * cells), `cellsPaintHatch` over the features of a GRADUATED circle layer, and
+ * `hasSuppressedProvince` for an ordinary province choropleth (whose suppression
+ * lives on the feature flag joined by province code). No fifth rule is invented
+ * here; a locality/point layer with no province cell correctly answers false —
+ * its hatch, if any, is the division fill, reported separately by the lifted
+ * `divisionLegend.suppressed`.
+ *
+ * ⚠️ RA-7 F3 — WHY THE GRADUATED BRANCH EXISTS. Without it this function fell
+ * through to `hasSuppressedProvince`, which `continue`s any feature carrying no
+ * string `provinceCode` (province-choropleth-style.ts). Graduated point features
+ * carry `place` / `locality` / `province` and NEVER a `provinceCode`, so a
+ * graduated-only frame — síntomas, zoonosis, denuncias, mordeduras, pérdidas —
+ * answered FALSE unconditionally, no matter how many protected units were on
+ * screen. And those layers absolutely do paint a protected mark: SituationalMap
+ * colours a suppressed dot COLOR_SUPPRESSED at 0.6 opacity with its own stroke
+ * and collapses it to BUBBLE_R_MIN so no count can be read off the radius. The
+ * mark was painted and the pill could not announce it.
+ *
+ * The mark is a DOT, not a 45° hatch, and the name says "hatch" — but the
+ * question every caller asks is "does this frame publish a k-anon-protected
+ * unit the legend must name", and the answer must not depend on which glyph the
+ * renderer chose. One question, one answer, every carrier.
  */
 export function layerPaintsHatch(layer: HatchableLayer): boolean {
   if (layer.bivariateCells) return bivariateSuppressedCodes(layer.bivariateCells).length > 0;
+  if (layer.renderMode === "graduated") {
+    return cellsPaintHatch(
+      layer.features.features.map((f) => (f.properties ?? {}) as { suppressed?: boolean }),
+    );
+  }
   return hasSuppressedProvince(layer.features);
 }
 

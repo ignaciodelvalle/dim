@@ -157,6 +157,16 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
     .filter((l) => l.renderMode === "graduated")
     .map((l) => l.label)
     .join(" · ");
+  // RA-7 F3 — the FOURTH k-anon key in this file, and the last one with no gate
+  // at all: the graduated block announced "Datos insuficientes (privacidad)" on
+  // every graduated frame, painted or not. Exact residue of the defect closed
+  // one block above it on 2026-07-30. Reads the same shared `layerPaintsHatch`
+  // the other three do — over the GRADUATED layers only, because that is the
+  // block's own surface (a suppressed province cell on a co-active choropleth is
+  // announced by that layer's own key, not by the bubble key).
+  const graduatedPaintsSuppressed = layers.some(
+    (l) => l.renderMode === "graduated" && layerPaintsHatch(l),
+  );
 
   // UX audit 2026-07-26 (finding 5): this used to `return null`, and since the
   // dock renders the pane slot verbatim, "Referencias" became a NAMED TAB THAT
@@ -409,14 +419,19 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   <span className="tabular-nums text-ln-op-ink-2">{b.label}</span>
                 </div>
               ))}
-              <div className="mt-0.5 flex items-center gap-2">
-                <span
-                  className="flex-none rounded-full border border-ln-op-ink-2/40"
-                  style={{ width: 10, height: 10, background: COLOR_SUPPRESSED }}
-                  aria-hidden="true"
-                />
-                <span className="text-ln-op-mute">Datos insuficientes (privacidad)</span>
-              </div>
+              {/* RA-7 F3: the protected DOT is a real mark (COLOR_SUPPRESSED at
+                  0.6 opacity, own stroke, collapsed to BUBBLE_R_MIN) — so this
+                  key is named when it is painted, and only then. */}
+              {graduatedPaintsSuppressed && (
+                <div className="mt-0.5 flex items-center gap-2">
+                  <span
+                    className="flex-none rounded-full border border-ln-op-ink-2/40"
+                    style={{ width: 10, height: 10, background: COLOR_SUPPRESSED }}
+                    aria-hidden="true"
+                  />
+                  <span className="text-ln-op-mute">Datos insuficientes (privacidad)</span>
+                </div>
+              )}
             </div>
           </div>
         )}
