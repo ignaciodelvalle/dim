@@ -36,9 +36,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ ok: false, error: authError.error }, { status: authError.status });
   }
 
+  // Telemetry FIRST, before anything that can bail (cold-start review RA-6,
+  // finding 2). This insert used to sit BELOW the system-actor lookup, which
+  // returned HTTP 500 when no active admin existed. The run therefore failed
+  // every single day while writing zero rows to cron_runs, so cron-health
+  // reported `never_ran` — indistinguishable from "never scheduled". A daily
+  // failure that looks exactly like a missing schedule is a silent failure.
+  const [run] = await db
+    .insert(cronRuns)
+    .values({ cronName: CRON_NAME, status: "running" })
+    .returning();
+
   // Pick the oldest active admin as the system actor. audit_log.actor_user_id
   // is a nullable SET NULL FK (migration 0080) — a real profile is no longer
   // required, but using a real admin actor produces more meaningful audit rows.
+  //
+  // Absent on a cold-start DB, and also the moment a single-admin deployment
+  // deactivates its only admin. Neither is a reason to stop expiring stale
+  // approvals: we log an actor-less audit row and carry on, exactly as
+  // lib/infra/outbox-drainer.ts already does for the identical lookup.
   const [systemActor] = await db
     .select({ id: profiles.id })
     .from(profiles)
@@ -53,16 +69,10 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .limit(1);
 
   if (!systemActor) {
-    return NextResponse.json(
-      { ok: false, error: "no_active_admin_for_system_actor" },
-      { status: 500 },
+    console.warn(
+      `[cron/${CRON_NAME}] no active institutional admin — audit rows will carry a null actor`,
     );
   }
-
-  const [run] = await db
-    .insert(cronRuns)
-    .values({ cronName: CRON_NAME, status: "running" })
-    .returning();
 
   const cutoff = new Date(Date.now() - EXPIRY_DAYS * DAY_MS);
   const start = Date.now();
@@ -115,7 +125,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
             if (updated.length === 0) return;
 
             await tx.insert(auditLog).values({
-              actorUserId: systemActor.id,
+              actorUserId: systemActor?.id ?? null,
               action: "approval_request_withdrawn_by_system",
               approvalRequestId: r.id,
               payload: {

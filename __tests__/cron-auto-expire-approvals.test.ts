@@ -14,9 +14,12 @@
 // cron-expire-foster-proposals-route.test.ts — but with real DB fixtures and
 // no mocking so we exercise the actual expiry logic end-to-end.
 //
-// The handler requires at least one `admin` + `institutional` profile to serve
-// as the system actor for audit_log. We rely on the seeded admin@dim.test user
-// (created by scripts/seed-test-users.ts / db:bootstrap).
+// The handler PREFERS an `admin` + `institutional` profile as the system actor
+// for audit_log, and these cases run with the seeded admin@dim.test user
+// (created by scripts/seed-test-users.ts / db:bootstrap). It no longer REQUIRES
+// one: on a database with no active admin it logs an actor-less audit row and
+// still records the run — see cron-auto-expire-approvals-no-admin.test.ts
+// (RA-6 finding 2).
 
 import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
