@@ -307,4 +307,31 @@ Es para ESTA corrida, no permanente.
 | P3.3 A2c aviso enterrado | bloqueada por el fence | |
 | P4.1 B2 los 703 | **CERRADA** — 702 usos / 207 archivos al utility nombrado; `deadTextVar` 703 → 0; `text-[var(--color-*)]` intacto (1874/263 antes y después); 107 elementos medidos en píxeles computados, 103 cambiaron de tamaño, 17 de color (la corrección del cascade); contraste re-medido 4.53-5.19:1, sigue AA; capturas en `docs/reviews/results/2026-08-01-703-pass/` con README que explica el caveat de color | `b39d9d2f` · `435fa426` |
 | P4.2 SC-7 los 521 | **CERRADA** — la población real era **520 usos \ 143 archivos** (mono 348, serif 135, sans 37), no 521\144: drift -1\-1, igual de benigno que el 703→702 de P4.1. Los otros 2 que aparecen en un `rg` del repo son prosa en `docs/`. **Sitios fuera de `className=`: 2** (`Badge.tsx` `base`, `Field.tsx` `controlBase`) — esta población NO tiene la trampa del `summaryClassName` de P4.1; se verificó con el AST y se validó que el walker SÍ ve props custom. Diff probado byte a byte contra HEAD+sustitución (0 discrepancias, 143 archivos, 520 sustituciones); tras el reflow de Biome quedan 2 archivos que difieren sólo por dos reescrituras sintácticas (`{" "}` → espacio literal, paréntesis JSX redundantes). **113 de 113** elementos medidos en píxeles computados cambiaron de familia, 0 sin conciliar, 0 sin explicar; +116 por herencia; `/gob/perdidas` y `/gob/panorama` (sin usos muertos) dan **0 píxeles de diferencia**. Fence nuevo: regla 10 `DEAD_FONT_VAR` + baseline `deadFontVar` en 0 para los 456 archivos, dientes verificados, `totalViolations` intacto (1751). **Un hallazgo de producto**: la chapita "AL DÍA" del teléfono del landing se partía en dos renglones (mono es más ancha; perdía por 0,9 px) → `whitespace-nowrap` en `StatusFlag`, 0 de 17 chips se parten. Capturas en `docs/reviews/results/2026-08-01-sc7-pass/` | `8525a10b` · `b164e623` |
-| RA-1..RA-10 | pendientes | |
+| P1.2 A14 nav drop | **CERRADA** — causa raíz: un listener `onSubmitCapture` sobre el form corta el wedge (16/16 vs 0/16). Mecanismo del *por qué* declarado como no establecido, a propósito | `55bcebad` |
+| RA-1..RA-10 | **las 10 CORRIERON** | ver marcador abajo |
+
+## MARCADOR REAL DE LAS 10 REVIEWS (2026-08-01)
+
+**~95 hallazgos confirmados. 34 arreglados. 61 abiertos.** El desglose honesto:
+
+| Review | Confirmados | Arreglados | Abiertos |
+|---|---|---|---|
+| RA-1 regresión cero | 5 + 1 gate | 3 (C1a/b/c, C2) | **C3** (triage perdió la edad de una denuncia no vencida), **C5** (pesos inertes) |
+| RA-2 no-ops | 22 | 3 (F1-F3, tier 1) | **19** — incluye F6 (el que encuentra un animal perdido **no puede registrarlo nunca**), F7 (a govt le muestran controles que lo patean a `/`), F11-F16 |
+| RA-3 divulgación | 8 | 8 | 0 |
+| RA-4 tests | 9 | 4 (F1-F4) | 5 |
+| RA-5 comentarios | 9 | 3 urgentes | 6 |
+| RA-6 arranque en frío | 7 | 5 | 2 (elevados al PO) |
+| RA-7 panorama | 10 | 3 (F1-F3) | **7** — incluye F4 (un cambio de nivel fallido vacía el canvas y dice "sin datos" en vez de "no pudimos calcular") |
+| RA-8 authz | 3 alcanzables + 5 puntos ciegos | 3 | **5 puntos ciegos estructurales** (10 archivos `"use server"` invisibles a los 3 linters de authz) |
+| **RA-9 a11y** | 6 evidencia + 7 barreras | **6 de evidencia** | **LAS 7 BARRERAS — NUNCA SE DESPACHARON** |
+| RA-10 estética | 7 defectos + 7 incoherencias + 6 oportunidades | 0 | **20** |
+
+### ⚠ LO QUE FALTÓ Y ES MI ERROR: las 7 barreras de accesibilidad de RA-9
+
+Despaché la mitad de RA-9 (integridad de la evidencia) y **no despaché las barreras**. Dos son graves:
+
+- **BR-1 (BLOQUEA)** — `DecomisoForm.tsx:857-920` usa `<dialog open>` **el atributo, no `showModal()`**: es no-modal. Sin top layer, sin inertizar el resto, sin Escape nativo. El foco **nunca se mueve**, un lector de pantalla **no dice nada**, Tab recorre el formulario detrás y **se puede re-enviar desde atrás del diálogo**. El acto es **quitarle la custodia legal de un animal a su dueño bajo Ley 14.346**. Es el único `<dialog>` del repo que no usa `showModal()`, y viola la regla que el propio `ConfirmDialog.tsx:12-35` escribe contra "un tercer patrón sin peso".
+- **BR-3 (una línea)** — `ConfirmDialog` no tiene `aria-describedby`, así que **los cuatro modales que esta ola agregó para EXPLICITAR la consecuencia nunca la anuncian**. El lector de pantalla dice el título y el botón enfocado; la frase que justifica el modal la escucha nadie.
+
+Las otras cinco: BR-2 (bulk revoke sin manejo de foco ni resultado anunciado), BR-4 (dos `role="menu"` cuyos hijos no son `menuitem` — `aria-required-children` es **critical** en axe), BR-5 (dos gráficos sin nombre accesible en 8 pantallas), BR-6 (grupos de radio obligatorios marcados con un asterisco `aria-hidden`, en el flujo anónimo de denuncia), BR-7.
