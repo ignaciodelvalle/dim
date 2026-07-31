@@ -87,6 +87,15 @@ export async function bulkRevoke(input: BulkRevokeInput): Promise<BulkResult> {
   revalidatePath("/admin/directorio");
   revalidatePath("/gob/directorio");
   revalidatePath("/admin/govts");
+  // RA-2 F12 — the pages that actually HOST the bulk-revoke control. The three
+  // paths above are the read-only hub views; the <BulkRevokeList> checkbox
+  // queue lives on /gob/usuarios and /gob/organizaciones. Because neither was
+  // revalidated, the RSC patch that Next applies after this action returned the
+  // SAME rows the operator had just revoked — still rendered as active, still
+  // offering a live "Revocar" button — and the modal's "Recargar lista" button
+  // (which only closes the modal) could not correct it either.
+  revalidatePath("/gob/usuarios");
+  revalidatePath("/gob/organizaciones");
   // targetKind === "org" revocations drop orgs from the public /refugios
   // directory (Data Cache, tag "org-directory") — invalidate rather than
   // serving the stale roster for the 300s window.
