@@ -86,6 +86,26 @@ describe("<StaticFirstMap> — static-first embed", () => {
     expect(mapOptionsSeen).toHaveLength(0);
   });
 
+  it("keeps the activation button OUTSIDE the role='img' node", () => {
+    // role="img" makes its entire subtree presentational. The role used to sit
+    // on the container holding this button and its sr-only help text, so a
+    // screen-reader user could not reach the only control that activates the
+    // map. The existing tests all used getByText, which walks the DOM and not
+    // the accessibility tree — they could never have seen it.
+    const { container } = render(<StaticFirstMap lat={-34.6} lng={-58.4} label="Plaza Italia" />);
+
+    const img = container.querySelector('[role="img"]');
+    expect(img).not.toBeNull();
+    const button = screen.getByText("Activar mapa interactivo");
+    expect(img?.contains(button)).toBe(false);
+
+    // The role must still be SOMEWHERE — deleting it outright would also pass
+    // the assertion above while dropping the map's text alternative.
+    expect(img).toHaveAttribute("aria-label", expect.stringContaining("Mapa estático"));
+    // And the picture it names has to be inside it, or the label describes nothing.
+    expect(img?.textContent).toContain("Plaza Italia");
+  });
+
   it("shows 'Ubicación aproximada' as text (not a bare color swatch) when precision=approx", () => {
     render(<StaticFirstMap lat={-34.6} lng={-58.4} precision="approx" />);
     expect(screen.getByText("Ubicación aproximada")).toBeInTheDocument();

@@ -134,14 +134,25 @@ export function StaticFirstMap({
           aria-label={`Mapa interactivo${label ? ` de ${label}` : ""}, latitud ${lat}, longitud ${lng}. ${precisionLabel}.`}
         />
       ) : (
+        // role="img" makes its ENTIRE subtree presentational. It used to sit on
+        // this container, which holds the only control that activates the map
+        // AND the sr-only text explaining it — so a screen-reader user could
+        // not reach either, and the interactive map was unreachable to them
+        // outright. Same defect class as RA-9 BR-7 in ForecastChart; the fix is
+        // the same: the role wraps the picture only, and everything actionable
+        // is a sibling.
         <div
-          role="img"
-          aria-label={`Mapa estático${label ? ` de ${label}` : ""}, latitud ${lat}, longitud ${lng}. ${precisionLabel}.`}
           className={`${heightClassName} relative flex w-full flex-col items-center justify-center gap-2 bg-ln-op-stripe px-4 text-center text-ln-op-mute`}
         >
-          <Icon name="ubicacion" size={28} decorative />
-          {label && <p className="text-sm font-semibold text-ln-op-ink">{label}</p>}
-          <p className="text-xs text-ln-op-mute">{precisionLabel}</p>
+          <div
+            role="img"
+            aria-label={`Mapa estático${label ? ` de ${label}` : ""}, latitud ${lat}, longitud ${lng}. ${precisionLabel}.`}
+            className="flex flex-col items-center gap-2"
+          >
+            <Icon name="ubicacion" size={28} decorative />
+            {label && <p className="text-sm font-semibold text-ln-op-ink">{label}</p>}
+            <p className="text-xs text-ln-op-mute">{precisionLabel}</p>
+          </div>
           <button
             type="button"
             onClick={() => setActivated(true)}
