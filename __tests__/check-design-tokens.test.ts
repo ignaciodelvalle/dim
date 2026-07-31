@@ -321,6 +321,26 @@ describe("rule C1/C3 — clamp() is a deliberate fluid choice, but not an escape
       "fontBelowFloor",
     ]);
   });
+
+  it("DOES flag it when the minimum is spelled in rem", () => {
+    // The px case above was the only one covered, so the entire rem spelling of
+    // the defect went unmeasured: 0.5rem is 8px on screen, and the rule is
+    // about legibility, not notation. A test that covers one spelling of a
+    // value reads as covering the value.
+    expect(categoriesOf(".a { font-size: clamp(0.5rem, 1vw, 2rem); }", { floorPx: 10 })).toEqual([
+      "fontBelowFloor",
+    ]);
+  });
+
+  it("does NOT flag a rem ramp that clears the floor", () => {
+    // The control: without it, converting rem at any multiplier at all — or
+    // flagging every rem outright — would pass the test above.
+    expect(categoriesOf(".a { font-size: clamp(1rem, 1vw, 2rem); }", { floorPx: 10 })).toEqual([]);
+  });
+
+  it("does NOT convert em — it resolves against the parent, which no static scan knows", () => {
+    expect(categoriesOf(".a { font-size: clamp(0.5em, 1vw, 2em); }", { floorPx: 10 })).toEqual([]);
+  });
 });
 
 describe("rule C4 — border-radius", () => {

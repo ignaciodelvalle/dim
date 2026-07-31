@@ -22,6 +22,14 @@
 // inside a string can be real emitted markup, so removing them would make the
 // fence blind to a genuine violation.
 //
+// KNOWN GAP — regex literals are not tracked. `/foo\/\/bar/` contains `//`,
+// which this reads as a line comment and blanks to end of line. Distinguishing
+// a regex literal from division needs the preceding-token context a real lexer
+// has and this does not, and a heuristic that guesses wrong would silently eat
+// live code — strictly worse than the current, stated limitation. Zero
+// occurrences across the globs any caller scans today (checked 2026-07-31). If
+// a fence ever scans a file with regex-heavy source, verify this first.
+//
 // CONSOLIDATION DEBT: four TypeScript fences carry their own byte-identical
 // copy of this state machine (check-copy-contract, check-scope-discipline,
 // check-event-payload-parity, check-confused-deputy). They predate this module

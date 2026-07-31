@@ -198,7 +198,12 @@ describe("RA-2 F13 — service-dog revoke revalidates both directorio routes", (
       const src = source(rel);
       const gob = src.includes('revalidatePath("/gob/directorio")');
       const admin = src.includes('revalidatePath("/admin/directorio")');
-      expect(gob, `${rel} revalidates /gob/directorio`).toBe(admin);
+      // Asserting gob === admin is satisfied by BOTH being absent, so a shim
+      // that stopped revalidating either one passed this test — the exact
+      // regression it was written to catch. Require both, and name which side
+      // is missing so the failure says what to do.
+      expect(gob, `${rel} revalidates /gob/directorio`).toBe(true);
+      expect(admin, `${rel} revalidates /admin/directorio`).toBe(true);
     }
   });
 });

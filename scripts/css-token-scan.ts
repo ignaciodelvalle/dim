@@ -268,7 +268,17 @@ export function classifyDecl(prop: string, value: string, floorPx: number): CssC
 
   // --- Rules C1 / C2 / C3: font-size ---------------------------------------
   if (prop === "font-size" && !ignorable && !/^\d+(\.\d+)?%$/.test(value)) {
-    const pxs = [...value.matchAll(/(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1]));
+    // rem is converted at the 16px root, because the floor is about legibility
+    // and 0.5rem is 8px on screen exactly as 8px is. Collecting only `px` left
+    // the whole rem spelling of the defect unmeasured — `clamp(0.5rem, 1vw,
+    // 2rem)` bottoms out at 8px and used to pass this rule clean, in direct
+    // contradiction of the comment below claiming the floor covers the ramp's
+    // minimum. `em` is deliberately NOT converted: it resolves against the
+    // parent's computed size, which no static scan can know.
+    const pxs = [
+      ...[...value.matchAll(/(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1])),
+      ...[...value.matchAll(/(\d+(?:\.\d+)?)rem/g)].map((m) => Number(m[1]) * 16),
+    ];
     // clamp()/min()/max()/calc() is a DELIBERATE fluid-type choice. The scale
     // is a ladder of fixed px steps with no fluid token, so flagging these
     // would push authors toward a WORSE fixed value. Exempt from the raw-size
