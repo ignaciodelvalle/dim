@@ -24,6 +24,8 @@
 
 import { globSync, readFileSync } from "node:fs";
 
+import { stripComments } from "./lib/strip-comments.mjs";
+
 // ---------------------------------------------------------------------------
 // Configuration
 // ---------------------------------------------------------------------------
@@ -53,7 +55,11 @@ import { globSync, readFileSync } from "node:fs";
  *  modals onto ConfirmDialog (focus trap + Escape + focus-restore); each
  *  trigger carries a `ref` for ConfirmDialog's focus-restore, which OpButton
  *  cannot forward (+2). Same change converted OrgBiteForm.tsx's victim-type
- *  button trio into native radio inputs (-3). Net: baseline lowered 51 → 52.
+ *  button trio into native radio inputs (-3). Baseline moved 51 → 52.
+ *  (That line used to read "Net: baseline lowered 51 → 52". 51 to 52 is a
+ *  RISE, and -3+2 is -1, so neither the direction nor the arithmetic matched
+ *  what the constant actually did. Corrected 2026-07-31; the constant itself
+ *  was not touched, only the sentence describing it.)
  *  2026-07-21: audit-3-feedback §C2 — IncomingTransferActions.tsx converted
  *  its accept/reject inline mode-switch panel onto ConfirmDialog (matching
  *  friction to the citizen-facing AcceptTransferActions.tsx equivalent for
@@ -76,7 +82,9 @@ import { globSync, readFileSync } from "node:fs";
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const OPERATOR_BASELINE = 55;
+// 2026-07-31: counting moved onto comment-stripped source. 55 → 54; the one
+// that vanished was never shipped chrome, only prose naming a `<button`.
+const OPERATOR_BASELINE = 54;
 const OPERATOR_SCAN_GLOB = "{app/gob,app/admin,app/org}/**/*.tsx";
 const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 
@@ -108,7 +116,12 @@ const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <button> reintroduces inconsistent touch targets,
  *  focus rings, and loading/disabled states). */
-const CITIZEN_BASELINE = 323;
+// 2026-07-31: counting moved onto comment-stripped source. 323 → 309. FOURTEEN
+// of the tracked "raw buttons" on this surface were comments. That is not a
+// tidy-up: the phantoms were headroom. Until this change, up to 14 genuinely
+// new raw <button>s could land on the citizen surface and the ratchet would
+// still report clean, because it was holding budget for prose.
+const CITIZEN_BASELINE = 309;
 const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
 const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
 
@@ -195,11 +208,15 @@ function openingTagSpans(src, tag) {
   }
 }
 
+// Same comment-stripping as countRawButtons, for the same reason: a commented-out
+// `<button className="rounded-[6px]">` is not shipped chrome. Stripping preserves
+// offsets, so the spans this walks still line up with the original file.
 export function findUntokenizedButtonRadii(src) {
+  const stripped = stripComments(src);
   const found = [];
   for (const tag of RADIUS_TAGS) {
-    for (const [start, end] of openingTagSpans(src, tag)) {
-      for (const m of src.slice(start, end).matchAll(RADIUS_UTILITY)) found.push(m[0]);
+    for (const [start, end] of openingTagSpans(stripped, tag)) {
+      for (const m of stripped.slice(start, end).matchAll(RADIUS_UTILITY)) found.push(m[0]);
     }
   }
   return found;
@@ -209,8 +226,13 @@ export function findUntokenizedButtonRadii(src) {
 // Core logic (exported for unit tests)
 // ---------------------------------------------------------------------------
 
+// Counted on comment-stripped source. Before that, a comment that merely NAMED
+// a raw <button> was tallied as one — so writing an accurate note about the
+// hand-rolled button you were replacing pushed the surface over its baseline,
+// and the cheapest way out was to reword the comment or re-baseline upward.
+// Both make the fence worse. Strings are still counted (see strip-comments).
 export function countRawButtons(src) {
-  return [...src.matchAll(RAW_BUTTON)].length;
+  return [...stripComments(src).matchAll(RAW_BUTTON)].length;
 }
 
 // ---------------------------------------------------------------------------

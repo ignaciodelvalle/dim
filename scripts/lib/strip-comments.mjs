@@ -1,0 +1,76 @@
+// Shared comment stripper for the ratchet fences.
+//
+// WHY THIS EXISTS: a fence that counts occurrences in raw source counts them
+// inside comments too. That is not a cosmetic bug — it makes the instrument
+// react to documentation. Two ways it goes wrong, and this repo has hit both:
+//
+//   - Fails OPEN: a review counted `globals.css:570` — a comment reading
+//     "computed font-size is below 16px" — as one of the raw font-sizes it was
+//     measuring. The prose describing the defect was tallied as an instance.
+//   - Fails CLOSED: writing an accurate comment that names the thing the fence
+//     forbids trips the fence. An agent working on RA-2 had to reword a true
+//     comment ("the hand-rolled `<button>`/`<Link>` pair") to get past
+//     check-raw-buttons. A fence that penalises correct documentation teaches
+//     authors to write worse comments, or to re-baseline — which loosens it
+//     for real violations.
+//
+// Whitespace is substituted 1:1 for stripped characters and newlines are
+// preserved, so byte offsets and line numbers survive stripping and any
+// reported location still points at the right place in the ORIGINAL file.
+//
+// String and template literal contents are deliberately KEPT: a tag or token
+// inside a string can be real emitted markup, so removing them would make the
+// fence blind to a genuine violation.
+//
+// CONSOLIDATION DEBT: four TypeScript fences carry their own byte-identical
+// copy of this state machine (check-copy-contract, check-scope-discipline,
+// check-event-payload-parity, check-confused-deputy). They predate this module
+// and should import it — tsx resolves .mjs from .ts without ceremony. Not done
+// in the same change that introduced this file, to keep the diff auditable.
+
+/**
+ * Replace every comment in `src` with equivalent whitespace.
+ * @param {string} src
+ * @returns {string}
+ */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character-by-character string/template/comment state machine — the same ignore the four TypeScript copies carry.
+export function stripComments(src) {
+  let out = "";
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    const next = src[i + 1];
+    if (ch === "/" && next === "/") {
+      let j = i;
+      while (j < src.length && src[j] !== "\n") j++;
+      out += " ".repeat(j - i);
+      i = j - 1;
+      continue;
+    }
+    if (ch === "/" && next === "*") {
+      let j = i + 2;
+      while (j < src.length && !(src[j] === "*" && src[j + 1] === "/")) j++;
+      j = Math.min(j + 2, src.length);
+      out += src
+        .slice(i, j)
+        .split("")
+        .map((c) => (c === "\n" ? "\n" : " "))
+        .join("");
+      i = j - 1;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === "`") {
+      const quote = ch;
+      let j = i + 1;
+      while (j < src.length && src[j] !== quote) {
+        if (src[j] === "\\") j++;
+        j++;
+      }
+      j = Math.min(j + 1, src.length);
+      out += src.slice(i, j);
+      i = j - 1;
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}

@@ -295,34 +295,53 @@ describe("ENGLISH_UI_WORDS", () => {
 
 import { RAW_BUTTON_BASELINE } from "@/scripts/check-ui-invariants";
 
+// These used to re-implement `line.includes("<button")` inline and assert on
+// their own reimplementation — countRawButtons was never imported, so the
+// describe block was named after a function it did not exercise. The excuse in
+// the old comment ("countRawButtons reads from disk") was untrue: it takes a
+// source string. A test that reimplements the thing it guards passes forever,
+// including after the real implementation is deleted.
+import { countRawButtons } from "@/scripts/check-raw-buttons.mjs";
+
 describe("countRawButtons — unit", () => {
-  it("counts each line containing <button as one occurrence", () => {
-    // Simulate a file set via the counting helper with synthetic content.
-    // countRawButtons reads from disk, so we test it indirectly by verifying
-    // its logic: one <button per line, regardless of attributes.
-    const lines = [
+  it("counts each <button tag open, regardless of attributes", () => {
+    const src = [
       '    <button type="button" onClick={onClear}>Limpiar</button>',
       '    <button type="submit" disabled>Guardar</button>',
       '    <div className="container">no button here</div>',
-    ];
-    let count = 0;
-    for (const line of lines) {
-      if (line.includes("<button")) count += 1;
-    }
-    expect(count).toBe(2);
+    ].join("\n");
+    expect(countRawButtons(src)).toBe(2);
   });
 
-  it("does NOT count <OpButton or <LnButton (only literal <button)", () => {
-    const lines = [
+  it("does NOT count <OpButton or <LnButton (only the literal lowercase tag)", () => {
+    const src = [
       "    <OpButton variant='primary'>Acción</OpButton>",
       "    <LnButton>Citizen</LnButton>",
-    ];
-    let count = 0;
-    for (const line of lines) {
-      if (line.includes("<button")) count += 1;
-    }
-    // Neither line contains the literal substring "<button" (lowercase, no capital B)
-    expect(count).toBe(0);
+    ].join("\n");
+    expect(countRawButtons(src)).toBe(0);
+  });
+
+  it("does NOT count a <button that only appears in a comment", () => {
+    // The defect this guards: prose naming the tag was tallied as shipped
+    // chrome. Fourteen of the citizen surface's tracked buttons were comments,
+    // and that phantom count was headroom — real new buttons could land under
+    // it without the ratchet reacting.
+    const src = [
+      "// migrated the hand-rolled <button>/<Link> pair onto LnButton",
+      '/* was: <button className="rounded-[6px]"> */',
+      "    <LnButton>Guardar</LnButton>",
+    ].join("\n");
+    expect(countRawButtons(src)).toBe(0);
+  });
+
+  it("still counts a real <button that sits next to a commented one", () => {
+    // The control for the test above. Without it, a stripper that ate the
+    // whole file would pass both.
+    const src = [
+      '// old markup: <button type="submit">',
+      '    <button type="submit">Guardar</button>',
+    ].join("\n");
+    expect(countRawButtons(src)).toBe(1);
   });
 });
 
