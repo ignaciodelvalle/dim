@@ -13,7 +13,7 @@ import {
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { isTestAccount } from "@/lib/infra/test-accounts";
+import { isHiddenTestAccount } from "@/lib/infra/test-accounts";
 import { buildAuthEmailMap, createAdminClient } from "@/lib/supabase/admin";
 import { pluralizeEs } from "@/lib/utils/format";
 import { normalizeText } from "@/lib/utils/text-normalize";
@@ -70,12 +70,17 @@ export default async function AdminsPage({
   // This console alone lacked the filter its sibling /admin/govts already ships;
   // mirror that pattern (UI-only filter — production carries no such rows). The
   // toggle below reveals them.
-  const hiddenTestCount = showTestAccounts
-    ? 0
-    : admins.filter((a) => isTestAccount(a.displayName, a.email)).length;
-  const visibleAdmins = showTestAccounts
-    ? admins
-    : admins.filter((a) => !isTestAccount(a.displayName, a.email));
+  //
+  // NEVER filter out the person reading the page (cold-start review RA-6,
+  // finding 4). `-gen-` is deliberately broad — lib/infra/test-accounts.ts names
+  // it "genesis cold-start churn" — so the very first admin of a cold-start
+  // deployment matches it. That admin then opened this console and was told
+  // "No hay administradores activos", plus an instruction to go bootstrap one
+  // in Supabase Studio, while logged in as one. A false positive is only
+  // "fully recoverable via the toggle" if you are still visible enough to
+  // believe the toggle is about somebody else.
+  const hiddenTestCount = showTestAccounts ? 0 : admins.filter(isHiddenTestAccount).length;
+  const visibleAdmins = showTestAccounts ? admins : admins.filter((a) => !isHiddenTestAccount(a));
 
   // Toggle for the test-account filter — preserves the active query.
   const testToggleHref = (() => {
@@ -139,12 +144,35 @@ export default async function AdminsPage({
       )}
 
       {humanActive.length === 0 ? (
+        // Honest empty copy, mirroring the sibling /admin/govts roster: say
+        // WHICH emptiness this is. The old single line claimed "No hay
+        // administradores activos" and sent the reader to Supabase Studio —
+        // told to an admin who is logged in, on a page with a "+ Crear admin"
+        // button, that is false twice over (RA-6 finding 4).
         <LnEmptyState
-          title={normalizedQuery ? "Sin resultados" : "No hay administradores activos"}
+          title={
+            hiddenTestCount > 0
+              ? "Solo hay cuentas de prueba en esta vista"
+              : normalizedQuery
+                ? "Sin resultados"
+                : "No hay administradores humanos activos"
+          }
           description={
-            normalizedQuery
-              ? "Ajustá la búsqueda por nombre o email."
-              : "Para el bootstrap inicial, usá Supabase Studio para asignar el primer admin manualmente."
+            hiddenTestCount > 0
+              ? undefined
+              : normalizedQuery
+                ? "Ajustá la búsqueda por nombre o email."
+                : "Estás operando con una cuenta de sistema. Creá un administrador con «+ Crear admin»."
+          }
+          action={
+            hiddenTestCount > 0 ? (
+              <Link
+                href={testToggleHref}
+                className="text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
+              >
+                Mostrar {hiddenTestCount} {pluralizeEs(hiddenTestCount, "cuenta")} de prueba
+              </Link>
+            ) : undefined
           }
         />
       ) : (

@@ -34,3 +34,24 @@ export function isTestAccount(...values: (string | null | undefined)[]): boolean
     (v) => typeof v === "string" && TEST_ACCOUNT_PATTERNS.some((re) => re.test(v)),
   );
 }
+
+/**
+ * Roster-filter variant: same detection, but a console NEVER hides the person
+ * reading it (cold-start review RA-6, finding 4).
+ *
+ * The `-gen-` pattern above is deliberately broad because it names genesis
+ * cold-start churn — which is exactly what the FIRST admin of a cold-start
+ * deployment is. That admin opened /admin/admins and was told "No hay
+ * administradores activos", while logged in as one. The comment above argues a
+ * false positive is "fully recoverable via the toggle"; that only holds for
+ * OTHER people's rows. Hide the reader and the toggle reads as being about
+ * somebody else, so nobody clicks it.
+ */
+export function isHiddenTestAccount(account: {
+  isSelf?: boolean;
+  displayName?: string | null;
+  email?: string | null;
+}): boolean {
+  if (account.isSelf) return false;
+  return isTestAccount(account.displayName, account.email);
+}
