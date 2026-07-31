@@ -30,6 +30,18 @@ import { NO_BROWSER_AUTOFILL } from "@/lib/ui/no-browser-autofill";
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
 
+// Institutional inbox for "my locality is missing from the INDEC catalog".
+//
+// This used to be a maintainer's personal Gmail address (cold-start review
+// RA-6, finding 3), and this component is not an internal tool: the zero-result
+// state renders on the PUBLIC /adoptar and /perdidas filters, on citizen
+// registration, and on /admin/govts/new — the screen where a jurisdiction is
+// onboarded. A funcionario creating a government account was being asked to
+// email a personal address. Same inbox the other institutional escalations
+// already use (/gob/perdidas' locality-assignment link, /gob/analytics' access
+// request, /terminos).
+const CATALOG_CONTACT_EMAIL = "hola@mimar.ar";
+
 type DefaultValue = {
   provinceCode?: string | null;
   provinceName?: string | null;
@@ -213,7 +225,7 @@ export function LocalityPickerAcross({
         <p className="text-xs text-ln-mute  mt-1">
           Sin resultados.{" "}
           <a
-            href={`mailto:ignaciodelvalle2014@gmail.com?subject=miMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
+            href={`mailto:${CATALOG_CONTACT_EMAIL}?subject=miMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
             className="underline"
           >
             Sugerí esta localidad
