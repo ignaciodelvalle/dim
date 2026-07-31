@@ -309,8 +309,11 @@ async function resolveLayerFeatures(
     // -----------------------------------------------------------------------
     // F1: DENSITY point layers — per-unit aggregated (province or locality).
     // The toggle axis now drives the GROUP BY granularity; reference layers keep
-    // their discrete-pin path below. Province level has no k-anon; locality
-    // level applies suppressSmallCells (k=5).
+    // their discrete-pin path below. BOTH levels apply suppressSmallCells (k=5,
+    // #40b) — see repository-by-unit.ts, which these loaders dispatch to: the
+    // "province level has no k-anon" premise was retired there because a
+    // province's POPULATION being large does not make its DENOMINATOR large,
+    // and the denominator is what k-anonymity actually protects.
     // -----------------------------------------------------------------------
     case "perdidas": {
       // panorama-event-points Slice 1: at server-authorized points mode, plot

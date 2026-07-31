@@ -93,11 +93,17 @@ function toChoroplethCells(rollup: RollupRow[]): {
     key: (r) => r.key,
     k: 5,
   });
-  // Complementary suppression (differencing-attack defense): the province total
-  // (§U5) is published unsuppressed, so a province with exactly ONE suppressed
-  // department leaks it by subtraction. Also suppress the next-smallest visible
-  // department in that province so no lone hidden cell survives. Grouped by
-  // province — the published unsuppressed aggregate.
+  // Complementary suppression (differencing-attack defense): when the SEPARATE
+  // province-level choropleth's own total for this province is VISIBLE (not
+  // itself k-anon suppressed — see ProvinceChoroplethRows below and
+  // `provinceCell` in build-features.ts, task #40), a lone suppressed
+  // department here leaks its exact count by subtraction against that total.
+  // (The retired premise — "the province total is published unsuppressed,
+  // full stop" — must not be re-cited; lib/metrics/anonymity.ts's
+  // complementarySuppress docblock records why.) Also suppress the
+  // next-smallest visible department in that province so no lone hidden cell
+  // survives. Grouped by province — the coarser aggregate an attacker could
+  // subtract against.
   const { visible, suppressed } = complementarySuppress(
     primary.visible as unknown as readonly RollupRow[],
     primary.suppressed,
