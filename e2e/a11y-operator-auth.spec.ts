@@ -1,8 +1,22 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
+import { assertRealPage } from "./demo/_helpers";
+
 /**
  * A11y e2e tests for operator + authenticated surfaces (Wave 2 Item 11).
+ *
+ * EVERY AXE SCAN HERE IS PRECEDED BY assertRealPage (e2e/demo/_helpers.ts).
+ * Until 2026-07-31 none of them were, and this file was the only axe spec in
+ * the tree that never imported it (a11y-regression.spec.ts has used it for six
+ * scans; A7 fixed that file and not this one). The defect it exists to prevent
+ * was live here: the login step below swallowed its own failure with
+ * `.catch(() => {})`, so a refused or slow sign-in left the browser on /login
+ * or on a branded 404 — and axe measured THAT. A not-found boundary is a small,
+ * clean, correct page: `critical/serious = 0`, green, route never loaded. The
+ * only guard was `not.toBeVisible(/application error/i)`, which is trivially
+ * true on a 404. The /anotar test's own comment admitted it did not know what
+ * page it had measured.
  *
  * Scope:
  *   - /gob, /admin, /org/*  — require institutional role (govt/admin) or
@@ -44,11 +58,18 @@ test.describe("authenticated operator surfaces — axe-clean (WCAG 2.1 AA, WS-C)
       await page.getByLabel(/contraseña/i).fill(SHARED_PASSWORD);
       await page.getByRole("button", { name: /iniciar sesión/i }).click();
       // Institutional accounts land on their portal (not /inicio).
-      await page.waitForURL(landing, { timeout: 15_000 }).catch(() => {});
+      //
+      // NO `.catch(() => {})` HERE. Swallowing this is what let the scan run
+      // against the login page: a failed sign-in became "we are somewhere, axe
+      // it". If an institutional account cannot reach its portal, that is the
+      // finding — report it as one instead of measuring the consolation prize.
+      await page.waitForURL(landing, { timeout: 15_000 });
 
       await page.goto(path);
       await page.waitForLoadState("networkidle");
-      await expect(page.getByText(/application error/i)).not.toBeVisible();
+      // Prove WHICH page we are about to measure. `application error` alone was
+      // no guard at all — a branded 404 does not contain that string.
+      await assertRealPage(page, path);
 
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -89,6 +110,9 @@ test.describe("operator routes — redirect targets are axe-clean (WCAG 2.1 AA)"
         { timeout: 10_000 },
       );
       await page.waitForLoadState("networkidle");
+      // The redirect TARGET is the subject here, so name it as such — landing on
+      // a 404 would otherwise be scored as "the redirect target is axe-clean".
+      await assertRealPage(page, `${path} -> redirect target`);
 
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
@@ -111,13 +135,13 @@ test.describe("owner route /anotar — axe-clean (WCAG 2.1 AA)", () => {
   });
 
   test("a11y(axe) /anotar — WCAG 2.1 AA (no critical violations)", async ({ page }) => {
-    // /anotar requires a petToken — without one it may redirect or show a picker.
-    // Navigate and let the page settle.
+    // /anotar requires a petToken — without one it redirects or shows a picker.
+    // Either is a real surface and worth auditing; a not-found boundary is not,
+    // and the old comment here ("let the page settle") was the whole problem:
+    // the test did not know what it had measured, and said so.
     await page.goto("/anotar");
     await page.waitForLoadState("networkidle");
-
-    // The page must load without a 500.
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
+    await assertRealPage(page, "/anotar");
 
     const results = await new AxeBuilder({ page })
       .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
