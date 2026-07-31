@@ -67,7 +67,11 @@ const mocks = vi.hoisted(() => ({
     isoValid: 6,
     scanned: 4,
   })),
-  registryByProvince: vi.fn(async (_ctx: unknown, _opts?: { species?: string }) => []),
+  registryByProvince: vi.fn(async (_ctx: unknown, _opts?: { species?: string }) => ({
+    rows: [],
+    suppressedCount: 0,
+    assignedTotal: 0,
+  })),
 }));
 
 vi.mock("@/lib/metrics/census", async (importOriginal) => {

@@ -142,6 +142,60 @@ describe("buildDataset — suppression end-to-end (real buildDataset, fetcher mo
   });
 });
 
+describe("buildDataset — a row the AUTHENTICATED tier already withheld (#40c)", () => {
+  it("still ships the province, as the marker in every numeric column", async () => {
+    // fetchSterilizationCoverage now applies the D.10 rule before returning, so
+    // a national/admin build can receive rows with every number already null.
+    // The public tier must NOT drop them (absence is a disclosure channel) and
+    // must NOT publish a 0 — it must reach "protected" from its own rule.
+    fetchSterilizationCoverage.mockResolvedValue({
+      rate: 0,
+      sterilized: 0,
+      total: 0,
+      byProvince: [
+        {
+          province: "Tierra del Fuego",
+          suppressed: true,
+          sterilized: null,
+          total: null,
+          ratePct: null,
+        },
+        { province: "Santa Cruz", suppressed: true, sterilized: null, total: null, ratePct: null },
+        {
+          province: "Buenos Aires",
+          suppressed: false,
+          sterilized: 4000,
+          total: 9000,
+          ratePct: 44.4,
+        },
+        { province: "Córdoba", suppressed: false, sterilized: 4500, total: 9000, ratePct: 50 },
+      ],
+      byProvinceSuppressedCount: 2,
+      byProvinceAssignedTotal: 18_007,
+    });
+    // The joint-base pass reads microchip too (shared mascotas_activas column).
+    fetchMicrochipPenetrationByProvince.mockResolvedValue([
+      { province: "Buenos Aires", chipped: 4000, active: 9000, ratePct: 44.4 },
+      { province: "Córdoba", chipped: 4500, active: 9000, ratePct: 50 },
+    ]);
+
+    const built = await buildDataset(
+      "cobertura-esterilizacion",
+      new Date("2026-07-15T00:00:00.000Z"),
+    );
+
+    expect(built.rows.map((r) => r.provincia)).toContain("Tierra del Fuego");
+    const tdf = built.rows.find((r) => r.provincia === "Tierra del Fuego");
+    expect(tdf?.mascotas_activas).toBe(SUPPRESSED_MARKER);
+    expect(tdf?.cobertura_esterilizacion_pct).toBe(SUPPRESSED_MARKER);
+    expect(tdf?.mascotas_activas).not.toBe(0);
+    expect(tdf?.cobertura_esterilizacion_pct).not.toBe(0);
+
+    // The rows that were NOT withheld upstream are published normally.
+    expect(built.rows.find((r) => r.provincia === "Córdoba")?.mascotas_activas).toBe(9000);
+  });
+});
+
 describe("buildDataset — joint suppression of the shared mascotas_activas base", () => {
   // The attack the adversarial review confirmed: cobertura-esterilizacion and
   // cobertura-microchip publish the SAME base column (mascotas_activas) from the
@@ -161,11 +215,25 @@ describe("buildDataset — joint suppression of the shared mascotas_activas base
       sterilized: 0,
       total: 0,
       byProvince: [
-        { province: "CABA", sterilized: 4500, total: 9000, ratePct: 50 },
-        { province: "Tierra del Fuego", sterilized: 4000, total: 8000, ratePct: 50 },
-        { province: "Buenos Aires", sterilized: 4000, total: 9000, ratePct: 44.4 },
-        { province: "Córdoba", sterilized: 4500, total: 9000, ratePct: 50 },
+        { province: "CABA", suppressed: false, sterilized: 4500, total: 9000, ratePct: 50 },
+        {
+          province: "Tierra del Fuego",
+          suppressed: false,
+          sterilized: 4000,
+          total: 8000,
+          ratePct: 50,
+        },
+        {
+          province: "Buenos Aires",
+          suppressed: false,
+          sterilized: 4000,
+          total: 9000,
+          ratePct: 44.4,
+        },
+        { province: "Córdoba", suppressed: false, sterilized: 4500, total: 9000, ratePct: 50 },
       ],
+      byProvinceSuppressedCount: 0,
+      byProvinceAssignedTotal: 35000,
     });
     // microchip: CABA + Tierra del Fuego suppressed (numerator 1-4 is protected).
     fetchMicrochipPenetrationByProvince.mockResolvedValue([

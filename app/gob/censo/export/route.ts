@@ -13,8 +13,10 @@ import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,
+  SUPPRESSED_CELL_TEXT,
   buildProjectionContext,
   identificationFunnel,
+  provinceSuppressionNotice,
   registryByProvince,
   registryCounts,
 } from "@/lib/metrics";
@@ -68,7 +70,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   // species narrows all three sub-queries identically to the page (domain-axes
   // export parity fix) so the exported summary + province breakdown match the
   // on-screen KPI row/funnel/map exactly under the same filter.
-  const [counts, funnel, provinceRows] = await Promise.all([
+  const [counts, funnel, registry] = await Promise.all([
     registryCounts(ctx, DORMANT_MONTHS_DEFAULT, { species }),
     identificationFunnel(ctx, { species }),
     registryByProvince(ctx, { species }),
@@ -86,19 +88,33 @@ export async function GET(request: NextRequest): Promise<Response> {
     },
   ];
 
-  const provinceRowsOut = provinceRows.map((r) => ({
+  // D.10 — THE EXPORT MATCHES THE SCREEN BECAUSE IT CANNOT DO OTHERWISE.
+  // `registryByProvince(ctx)` already applied the disclosure rule from the same
+  // ctx /gob/censo and /admin/censo build, so this route never holds a raw count
+  // to leak. The only thing left here is FORMATTING the verdict; there is no
+  // second decision to keep in sync, which is the whole point (an export that
+  // differs from the screen becomes the documented way around the protection).
+  const provinceRowsOut = registry.rows.map((r) => ({
     provincia: r.province,
-    mascotas_registradas: r.count,
+    mascotas_registradas: r.suppressed ? SUPPRESSED_CELL_TEXT : r.count,
   }));
+
+  // The suppression is DECLARED in the file, not just performed. A CSV that
+  // silently omits cells is the "hid the data, told nobody" failure in its most
+  // durable form — the file outlives the screen that would have explained it.
+  const privacyNotice = provinceSuppressionNotice(registry.suppressedCount);
+  const privacyRows = privacyNotice ? [{ aviso: privacyNotice }] : [];
 
   const csvContent = buildSectionedCsv([
     { title: "resumen", rows: summaryRows },
     { title: "registro_por_provincia", rows: provinceRowsOut },
+    { title: "privacidad", rows: privacyRows },
   ]);
 
   await logGobDashboardExport(user.id, "censo", {
     resumen: summaryRows.length,
     registro_por_provincia: provinceRowsOut.length,
+    provincias_suprimidas: registry.suppressedCount,
   });
 
   const filename = `censo-${new Date().toISOString().slice(0, 10)}.csv`;

@@ -24,7 +24,14 @@ import type { SubregionCaseCount } from "./subregion-redaction";
  * (components/charts/MapChoropleth.tsx `ChoroplethRegionDatum`). Declared
  * locally — structurally identical — so this lib module stays framework-free.
  */
-export type ChoroplethCell = { code: string; value: number; label: string };
+export type ChoroplethCell = {
+  code: string;
+  value: number;
+  label: string;
+  /** True when the cell's value was WITHHELD by k-anon. MapChoropleth reads this
+   *  flag before any code path that could paint a number, so `value` is inert. */
+  suppressed?: boolean;
+};
 
 /** A ChoroplethCell that may carry the k-anon suppressed flag (department/barrio drill). */
 export type ScopedChoroplethCell = Pick<ChoroplethCell, "code" | "value"> & {
@@ -41,16 +48,26 @@ export type ScopedChoroplethCell = Pick<ChoroplethCell, "code" | "value"> & {
  *
  * Shared by /gob/poblacion (`coverage.byProvince`, value = `ratePct`) and
  * /gob/censo (`provinceRows`, value = `count`).
+ *
+ * NULL IS THE WITHHELD SIGNAL. `getValue` returning null means the row's value
+ * was suppressed upstream (k-anon — the fetchers now hand back `number | null`
+ * exactly so the absence survives the mapping). Such a cell is still EMITTED,
+ * carrying `suppressed: true`, because a cell that DISAPPEARS at k makes absence
+ * the disclosure channel and the map would stipple it "sin datos" — false, and a
+ * tell that this province is different. Its `value: 0` is a placeholder the
+ * renderer never reaches: MapChoropleth branches on the flag first.
  */
 export function toChoroplethData<T extends { province: string }>(
   rows: T[],
-  getValue: (row: T) => number,
+  getValue: (row: T) => number | null,
 ): ChoroplethCell[] {
-  return rows.map((r) => ({
-    code: PROVINCE_ISO_MAP[r.province] ?? r.province,
-    value: getValue(r),
-    label: r.province,
-  }));
+  return rows.map((r) => {
+    const code = PROVINCE_ISO_MAP[r.province] ?? r.province;
+    const value = getValue(r);
+    return value === null
+      ? { code, value: 0, suppressed: true, label: r.province }
+      : { code, value, label: r.province };
+  });
 }
 
 /**

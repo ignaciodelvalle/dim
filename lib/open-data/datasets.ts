@@ -290,17 +290,37 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
       const { byProvince } = await fetchSterilizationCoverage(nationalContext());
       return byProvince.flatMap((r) => {
         const code = isoOf(r.province);
-        return code
-          ? [
-              {
-                provinceCode: code,
-                provinceName: r.province,
-                numerator: r.sterilized,
-                denominator: r.total,
-                ratePct: r.ratePct,
-              },
-            ]
-          : [];
+        if (!code) return [];
+        // A row the AUTHENTICATED tier already withheld (D.10, lib/metrics/
+        // province-disclosure.ts) carries no numbers to pass on. It is protected
+        // in the public tier too, by construction: this builder runs on a
+        // national/admin context, where D.10 withholds exactly the provinces
+        // whose base is sub-k, and `isRateCellProtected` protects every one of
+        // those under its own first clause (`denominator < k`). Feed a zero base
+        // so `suppressRateProvinces` reaches that verdict from ITS OWN rule
+        // instead of trusting an upstream flag — and the row still SHIPS, as
+        // SUPPRESSED_MARKER in every numeric column: never dropped (absence is a
+        // disclosure channel), never a 0 (a false zero asserts).
+        if (r.suppressed) {
+          return [
+            {
+              provinceCode: code,
+              provinceName: r.province,
+              numerator: 0,
+              denominator: 0,
+              ratePct: 0,
+            },
+          ];
+        }
+        return [
+          {
+            provinceCode: code,
+            provinceName: r.province,
+            numerator: r.sterilized,
+            denominator: r.total,
+            ratePct: r.ratePct,
+          },
+        ];
       });
     },
   },

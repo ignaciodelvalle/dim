@@ -752,6 +752,17 @@ export async function loadSterilizationCoverageByProvince(
   for (const r of byProvince) {
     const code = PROVINCE_ISO[r.province];
     if (!code) continue;
+    // The fetcher already applied the D.10 viewer-aware rule (lib/metrics/
+    // province-disclosure.ts) and a withheld row has no numbers left to hand
+    // `provinceCell` — carry that decision through instead of re-deriving it.
+    // Panorama's verdict is UNCHANGED: D.10 only withholds a FOREIGN province
+    // whose `total` is sub-k, and `provinceCell` withholds exactly that same
+    // cell from that same denominator. Rows the fetcher kept are still decided
+    // here, on `total`.
+    if (r.suppressed) {
+      cells.push(provinceCellPreDecided(code, r.province, null, true));
+      continue;
+    }
     // k-anon denominator = `total` (ACTIVE pets in scope), never `ratePct`.
     cells.push(provinceCell(code, r.province, r.ratePct, r.total));
   }

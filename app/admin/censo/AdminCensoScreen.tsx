@@ -39,10 +39,12 @@ import { adminProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
   DORMANT_MONTHS_DEFAULT,
+  SUPPRESSED_CELL_TEXT,
   TARGETS,
   buildProjectionContext,
   funnelPercents,
   identificationFunnel,
+  provinceSuppressionNotice,
   registrationTrend,
   registryByProvince,
   registryCounts,
@@ -52,6 +54,22 @@ import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatPercent } from "@/lib/utils/format";
+
+/**
+ * A cell whose value the D.10 disclosure rule withheld. An em dash for sighted
+ * users, the full reason for assistive tech and on hover — never a 0 (a false
+ * zero asserts) and never blank (blank reads as "no aplica"). Local to this
+ * screen so the twin at /admin/poblacion can diverge in layout without a shared
+ * component pretending they are the same widget.
+ */
+function SuppressedCellText() {
+  return (
+    <span className="text-ln-op-mute" title={SUPPRESSED_CELL_TEXT}>
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{SUPPRESSED_CELL_TEXT}</span>
+    </span>
+  );
+}
 
 // Species domain axis — mirrors /gob/censo's SPECIES_OPTIONS exactly (twin
 // port, Fase B "regalos olvidados"). pets.species is free text ('dog' | 'cat'
@@ -139,7 +157,13 @@ export async function AdminCensoScreen({
     );
   }
 
-  const [counts, trend, funnel, provinceRows] = load.value;
+  const [counts, trend, funnel, registry] = load.value;
+
+  // D.10: the suppression verdict is made ONCE, inside registryByProvince, and
+  // this screen consumes it — it never sees a withheld count, so it cannot
+  // publish one and cannot disagree with /gob/censo/export for the same viewer.
+  const provinceRows = registry.rows;
+  const provinceNotice = provinceSuppressionNotice(registry.suppressedCount);
 
   const hasData = counts.total > 0;
   const hasTrend = trend.points.length > 0;
@@ -446,8 +470,13 @@ export async function AdminCensoScreen({
                 </thead>
                 <tbody>
                   {provinceRows.map((row, i) => {
+                    // A withheld cell has NO share either — publishing a share
+                    // over a published national total is the same disclosure
+                    // wearing a percent sign.
                     const sharePct =
-                      counts.total > 0 ? Math.round((row.count / counts.total) * 1000) / 10 : 0;
+                      row.suppressed || counts.total === 0
+                        ? null
+                        : Math.round((row.count / counts.total) * 1000) / 10;
                     const drillHref = adminProvinceHref(row.province);
                     return (
                       <tr
@@ -475,18 +504,30 @@ export async function AdminCensoScreen({
                           )}
                         </td>
                         <td className="py-2 text-right tabular-nums">
-                          {row.count.toLocaleString("es-AR")}
+                          {row.suppressed ? (
+                            <SuppressedCellText />
+                          ) : (
+                            row.count.toLocaleString("es-AR")
+                          )}
                         </td>
                         <td className="py-2 pl-4 text-right tabular-nums text-ln-op-mute">
-                          {sharePct}%
+                          {sharePct === null ? <SuppressedCellText /> : `${sharePct}%`}
                         </td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
+              {provinceNotice && <p className="mt-2 text-xs text-ln-op-mute">{provinceNotice}</p>}
               {(() => {
-                const assignedTotal = provinceRows.reduce((sum, r) => sum + r.count, 0);
+                // registry.assignedTotal is the sum over ALL provinces, withheld
+                // ones included — recomputing it from the visible rows would both
+                // overstate the residual AND turn this footnote into the
+                // subtraction channel that recovers a hidden cell. It is null
+                // exactly when publishing it would isolate one; then we say
+                // nothing rather than say something recoverable.
+                const assignedTotal = registry.assignedTotal;
+                if (assignedTotal === null) return null;
                 const unassigned = counts.total - assignedTotal;
                 const unassignedPct =
                   counts.total > 0 ? Math.round((unassigned / counts.total) * 1000) / 10 : 0;

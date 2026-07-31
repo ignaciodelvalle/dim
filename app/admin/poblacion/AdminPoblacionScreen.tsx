@@ -45,6 +45,7 @@ import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { adminProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
+  SUPPRESSED_CELL_TEXT,
   TARGETS,
   buildProjectionContext,
   fetchActivePregnancies,
@@ -56,12 +57,92 @@ import {
   fetchSterilizationTrend,
   futureBucketLabel,
   projectSeries,
+  provinceSuppressionNotice,
   toneForTarget,
 } from "@/lib/metrics";
+import type { ProvinceSterlizationRow } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatPercent, formatRate } from "@/lib/utils/format";
+
+/**
+ * A cell whose value the D.10 disclosure rule withheld. An em dash for sighted
+ * users, the full reason for assistive tech and on hover — never a 0 (a false
+ * zero asserts) and never blank (blank reads as "no aplica").
+ */
+function SuppressedCellText() {
+  return (
+    <span className="text-ln-op-mute" title={SUPPRESSED_CELL_TEXT}>
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{SUPPRESSED_CELL_TEXT}</span>
+    </span>
+  );
+}
+
+/**
+ * Ranking order for the per-province table. Withheld rows have no rate to rank
+ * on, so they sort to the BOTTOM as an alphabetical block — never dropped: a row
+ * that vanishes at k makes absence the disclosure channel.
+ */
+function sortForRanking(rows: ProvinceSterlizationRow[]): ProvinceSterlizationRow[] {
+  return [...rows].sort((a, b) => {
+    if (a.suppressed && b.suppressed) return a.province.localeCompare(b.province);
+    if (a.suppressed) return 1;
+    if (b.suppressed) return -1;
+    return b.ratePct - a.ratePct;
+  });
+}
+
+/** Tailwind text color for a coverage rate against its target; muted when the
+ *  cell is withheld (there is no performance to signal). */
+function rateColorFor(row: ProvinceSterlizationRow): string {
+  if (row.suppressed) return "text-ln-op-mute";
+  const tone = toneForTarget(row.ratePct, TARGETS.STERILIZATION_COVERAGE_PCT);
+  if (tone === "ok") return "text-ln-op-ok";
+  if (tone === "warn") return "text-ln-op-warn";
+  return "text-ln-op-danger";
+}
+
+/**
+ * One row of the per-province coverage ranking. Extracted so the table body
+ * stays under the cognitive-complexity fence AND so the three numeric cells
+ * share ONE withheld branch — a row that hid the rate but printed the base would
+ * leak the numerator by multiplication.
+ */
+function ProvinceCoverageRow({ row, rank }: { row: ProvinceSterlizationRow; rank: number }) {
+  const drillHref = adminProvinceHref(row.province);
+  return (
+    <tr
+      className={[
+        "border-b border-ln-op-line last:border-0",
+        // Only signal interactivity when the row actually links out — an
+        // unresolvable province is not clickable (C4).
+        drillHref ? "hover:bg-ln-op-stripe/50 transition-colors" : "",
+      ].join(" ")}
+    >
+      <td className="py-2 pr-4">
+        <span className="text-[11px] tabular-nums text-ln-op-mute mr-2">{rank}.</span>
+        {drillHref ? (
+          <a href={drillHref} className="text-ln-op-azul underline-offset-2 hover:underline">
+            {row.province}
+          </a>
+        ) : (
+          row.province
+        )}
+      </td>
+      <td className="py-2 pl-4 text-right tabular-nums">
+        {row.suppressed ? <SuppressedCellText /> : row.sterilized.toLocaleString("es-AR")}
+      </td>
+      <td className="py-2 pl-4 text-right tabular-nums">
+        {row.suppressed ? <SuppressedCellText /> : row.total.toLocaleString("es-AR")}
+      </td>
+      <td className={`py-2 pl-4 text-right tabular-nums font-semibold ${rateColorFor(row)}`}>
+        {row.suppressed ? <SuppressedCellText /> : formatPercent(row.ratePct)}
+      </td>
+    </tr>
+  );
+}
 
 // Species domain axis — mirrors /gob/poblacion's SPECIES_OPTIONS exactly
 // (twin port, Fase B "regalos olvidados"). pets.species is free text ('dog' |
@@ -162,6 +243,12 @@ export async function AdminPoblacionScreen({
     sterilTrend,
     prevRegisteredBirths,
   ] = load.value;
+
+  // D.10: the verdict was made ONCE inside fetchSterilizationCoverage, so this
+  // screen never holds a withheld number and cannot disagree with
+  // /gob/poblacion/export for the same viewer. Announcing it is mandatory —
+  // hiding cells without saying so is the failure #40's follow-up shipped.
+  const coverageNotice = provinceSuppressionNotice(coverage.byProvinceSuppressedCount);
 
   const registeredBirthsDelta = formatDelta(
     outcomes.registeredBirths,
@@ -413,60 +500,20 @@ export async function AdminPoblacionScreen({
                   </tr>
                 </thead>
                 <tbody>
-                  {[...coverage.byProvince]
-                    .sort((a, b) => b.ratePct - a.ratePct)
-                    .map((row, i) => {
-                      const tone = toneForTarget(row.ratePct, TARGETS.STERILIZATION_COVERAGE_PCT);
-                      const rateColor =
-                        tone === "ok"
-                          ? "text-ln-op-ok"
-                          : tone === "warn"
-                            ? "text-ln-op-warn"
-                            : "text-ln-op-danger";
-                      const drillHref = adminProvinceHref(row.province);
-                      return (
-                        <tr
-                          key={row.province}
-                          className={[
-                            "border-b border-ln-op-line last:border-0",
-                            // Only signal interactivity when the row actually links
-                            // out — an unresolvable province is not clickable (C4).
-                            drillHref ? "hover:bg-ln-op-stripe/50 transition-colors" : "",
-                          ].join(" ")}
-                        >
-                          <td className="py-2 pr-4">
-                            <span className="text-[11px] tabular-nums text-ln-op-mute mr-2">
-                              {i + 1}.
-                            </span>
-                            {drillHref ? (
-                              <a
-                                href={drillHref}
-                                className="text-ln-op-azul underline-offset-2 hover:underline"
-                              >
-                                {row.province}
-                              </a>
-                            ) : (
-                              row.province
-                            )}
-                          </td>
-                          <td className="py-2 pl-4 text-right tabular-nums">
-                            {row.sterilized.toLocaleString("es-AR")}
-                          </td>
-                          <td className="py-2 pl-4 text-right tabular-nums">
-                            {row.total.toLocaleString("es-AR")}
-                          </td>
-                          <td
-                            className={`py-2 pl-4 text-right tabular-nums font-semibold ${rateColor}`}
-                          >
-                            {formatPercent(row.ratePct)}
-                          </td>
-                        </tr>
-                      );
-                    })}
+                  {sortForRanking(coverage.byProvince).map((row, i) => (
+                    <ProvinceCoverageRow key={row.province} row={row} rank={i + 1} />
+                  ))}
                 </tbody>
               </table>
+              {coverageNotice && <p className="mt-2 text-xs text-ln-op-mute">{coverageNotice}</p>}
               {(() => {
-                const assignedTotal = coverage.byProvince.reduce((sum, r) => sum + r.total, 0);
+                // byProvinceAssignedTotal sums ALL provinces, withheld included —
+                // recomputing from the visible rows would overstate the residual
+                // AND make this footnote the subtraction channel that recovers a
+                // hidden cell. It is null exactly when publishing it would isolate
+                // one, and then this says nothing at all.
+                const assignedTotal = coverage.byProvinceAssignedTotal;
+                if (assignedTotal === null) return null;
                 const unassigned = coverage.total - assignedTotal;
                 if (unassigned <= 0) return null;
                 return (

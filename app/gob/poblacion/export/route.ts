@@ -19,12 +19,14 @@ import {
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
+  SUPPRESSED_CELL_TEXT,
   buildProjectionContext,
   fetchActivePregnancies,
   fetchNetGrowth,
   fetchReproductiveOutcomes,
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
+  provinceSuppressionNotice,
 } from "@/lib/metrics";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 
@@ -98,21 +100,46 @@ export async function GET(request: NextRequest): Promise<Response> {
     },
   ];
 
-  const provinceRows = coverage.byProvince.map((r) => ({
-    provincia: r.province,
-    mascotas_total: r.total,
-    esterilizadas: r.sterilized,
-    cobertura_pct: r.ratePct,
-  }));
+  // D.10 — THE EXPORT MATCHES THE SCREEN BECAUSE IT CANNOT DO OTHERWISE.
+  // `fetchSterilizationCoverage(ctx)` already applied the disclosure rule from
+  // the same ctx /gob/poblacion and /admin/poblacion build, so this route never
+  // holds a raw per-province number. Only formatting happens here — there is no
+  // second decision that could drift out of sync with the screen.
+  //
+  // All three numeric columns are withheld together: a rate published beside its
+  // base leaks the numerator by multiplication, so hiding one and keeping the
+  // others would be no protection at all.
+  const provinceRows = coverage.byProvince.map((r) =>
+    r.suppressed
+      ? {
+          provincia: r.province,
+          mascotas_total: SUPPRESSED_CELL_TEXT,
+          esterilizadas: SUPPRESSED_CELL_TEXT,
+          cobertura_pct: SUPPRESSED_CELL_TEXT,
+        }
+      : {
+          provincia: r.province,
+          mascotas_total: r.total,
+          esterilizadas: r.sterilized,
+          cobertura_pct: r.ratePct,
+        },
+  );
+
+  // The suppression is DECLARED in the file, not just performed — a CSV outlives
+  // the screen that would have explained it.
+  const privacyNotice = provinceSuppressionNotice(coverage.byProvinceSuppressedCount);
+  const privacyRows = privacyNotice ? [{ aviso: privacyNotice }] : [];
 
   const csvContent = buildSectionedCsv([
     { title: "resumen", rows: summaryRows },
     { title: "cobertura_por_provincia", rows: provinceRows },
+    { title: "privacidad", rows: privacyRows },
   ]);
 
   await logGobDashboardExport(user.id, "poblacion", {
     resumen: summaryRows.length,
     cobertura_por_provincia: provinceRows.length,
+    provincias_suprimidas: coverage.byProvinceSuppressedCount,
   });
 
   const filename = `poblacion-${new Date().toISOString().slice(0, 10)}.csv`;

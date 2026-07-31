@@ -115,6 +115,28 @@ export function petsScopeClause(ctx: ProjectionContext) {
 }
 
 /**
+ * Is `province` part of the viewer's OWN jurisdiction?
+ *
+ * THE SAME scope model `petsScopeClause` compiles to SQL, read as a predicate
+ * instead of a WHERE clause — deliberately NOT a second notion of scope. Every
+ * branch of `jurisdictionPairClause` keeps province equality (the whole-province
+ * branch tests province ALONE; the specific-locality branch tests
+ * `province = X AND locality = Y`), so the set of provinces a scoped row can
+ * possibly come from is exactly `scope.jurisdictions.map(j => j.province)`.
+ * A locality-grain operator (CABA / Palermo) therefore OWNS the province row
+ * labelled "CABA" — that row only ever aggregates their own Palermo animals,
+ * because the clause already fenced it.
+ *
+ * `false` for `scope.kind === "global"` (admin). That is the deliberate reading
+ * of D.10 (PO, 2026-07-31), not an oversight — see the ADMIN note on
+ * `planProvinceDisclosure` (lib/metrics/province-disclosure.ts).
+ */
+export function isOwnJurisdictionProvince(ctx: ProjectionContext, province: string): boolean {
+  if (ctx.scope.kind === "global") return false;
+  return ctx.scope.jurisdictions.some((j) => j.province === province);
+}
+
+/**
  * Returns a Drizzle SQL clause that restricts a `pet_events`-based query to the
  * viewer's jurisdiction scope, using the JSONB payload fields
  * `pet_jurisdiction_province` / `pet_jurisdiction_locality`.

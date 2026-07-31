@@ -51,6 +51,8 @@ const mocks = vi.hoisted(() => ({
     sterilized: 5,
     total: 10,
     byProvince: [],
+    byProvinceSuppressedCount: 0,
+    byProvinceAssignedTotal: 0,
   })),
   fetchActivePregnancies: vi.fn(async (_ctx: unknown, _opts?: { species?: string }) => 2),
   fetchReproductiveOutcomes: vi.fn(async (_ctx: unknown, _opts?: { species?: string }) => ({

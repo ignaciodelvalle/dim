@@ -168,7 +168,23 @@ export {
   registryByProvince,
   resetCensusPopulationsCache,
 } from "./census";
-export type { CensusCoverage, FunnelStages, ProvinceRegistryRow, RegistryCounts } from "./census";
+
+// D.10 disclosure rule for per-province aggregates (censo + control poblacional).
+// The ONE place the "own jurisdiction real, foreign sub-k withheld" verdict is
+// made — screens and CSV exports consume already-decided rows, never raw values.
+export {
+  SUPPRESSED_CELL_TEXT,
+  planProvinceDisclosure,
+  provinceSuppressionNotice,
+} from "./province-disclosure";
+export type { ProvinceDenominatorRow, ProvinceDisclosurePlan } from "./province-disclosure";
+export type {
+  CensusCoverage,
+  FunnelStages,
+  ProvinceRegistryResult,
+  ProvinceRegistryRow,
+  RegistryCounts,
+} from "./census";
 
 // Paquete F — pipeline de custodia & adopción.
 export {

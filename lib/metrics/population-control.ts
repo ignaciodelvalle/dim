@@ -38,6 +38,7 @@ import { amendedPayloadText } from "@/lib/infra/amendment-sql";
 
 import type { ProjectionContext } from "./context";
 import { activePetsCondition } from "./population";
+import { planProvinceDisclosure } from "./province-disclosure";
 import { petsScopeClause } from "./scope";
 import type { SingleSeriesTrend } from "./trends";
 import { fetchKpiTrend } from "./trends";
@@ -105,16 +106,36 @@ function isEmptyScope(ctx: ProjectionContext): boolean {
 // Sterilization coverage
 // ---------------------------------------------------------------------------
 
-export type ProvinceSterlizationRow = {
-  /** Province name as stored in pets.jurisdiction_province. */
-  province: string;
-  /** Sterilization coverage rate (0–100). */
-  ratePct: number;
-  /** Count of sterilized active pets in the province. */
-  sterilized: number;
-  /** Total active pets in the province (denominator). */
-  total: number;
-};
+/**
+ * One province coverage row. A DISCRIMINATED UNION on `suppressed`, not
+ * independent nullable fields: a consumer cannot reach `ratePct`/`total`/
+ * `sterilized` without first proving the cell is published, which is what stops
+ * a `?? 0` from publishing a confident zero. A withheld cell carries `null` in
+ * every numeric field — protected values are ABSENT, never zero.
+ *
+ * All three numbers travel together on purpose: a rate published beside its base
+ * leaks the numerator by multiplication, so withholding one and keeping the
+ * others would be no protection at all.
+ */
+export type ProvinceSterlizationRow =
+  | {
+      /** Province name as stored in pets.jurisdiction_province. */
+      province: string;
+      suppressed: false;
+      /** Sterilization coverage rate (0–100). */
+      ratePct: number;
+      /** Count of sterilized active pets in the province. */
+      sterilized: number;
+      /** Total active pets in the province (denominator). */
+      total: number;
+    }
+  | {
+      province: string;
+      suppressed: true;
+      ratePct: null;
+      sterilized: null;
+      total: null;
+    };
 
 export type SterilizationCoverageResult = {
   /**
@@ -128,24 +149,31 @@ export type SterilizationCoverageResult = {
   /** Count of active/lost pets in scope (denominator). */
   total: number;
   /**
-   * Per-province breakdown. RAW — carries `total` (the denominator), `sterilized`
-   * and `ratePct` with NO k-anon applied.
+   * Per-province breakdown, already carrying the D.10 disclosure verdict
+   * (`planProvinceDisclosure`): the operator's OWN provinces keep their real
+   * numbers, foreign provinces with a sub-k `total` are withheld (all three
+   * numeric fields null). Withheld rows are KEPT in the array so absence never
+   * becomes the disclosure channel.
    *
-   * ⚠️ KNOWN GAP (#40b triage), do NOT read the absence of suppression here as a
-   * policy exemption. The old wording ("cell sizes are always large enough to be
-   * non-identifying") is the premise task #40 retired: it is true of a province's
-   * POPULATION and false of its DENOMINATOR.
+   * The premise that used to justify raw rows here — "cell sizes are always
+   * large enough to be non-identifying" — is the one task #40 retired: true of a
+   * province's POPULATION, false of its DENOMINATOR, and this is a rate, so it
+   * reveals its denominator.
    *
-   * Suppression state of each consumer:
-   *   · Panorama esterilizacion province layer — SAFE. repository-choropleth.ts
-   *     routes these rows through `provinceCell(code, label, ratePct, total)`,
-   *     which suppresses on `total`.
-   *   · /admin/poblacion ranked table + /gob/poblacion/export CSV — UNSUPPRESSED.
-   *     They print `total` and `ratePct` per province verbatim.
-   * Closing the second group means nulling values at those render sites, which is
-   * why the raw rows survive here rather than being suppressed at the source.
+   * Deciding in the fetcher is what makes screen/export parity STRUCTURAL:
+   * /admin/poblacion's ranked table, /gob/poblacion, /gob/poblacion/export and
+   * the Panorama esterilizacion loader all read THESE rows, so none of them can
+   * hold a raw value another one hides.
    */
   byProvince: ProvinceSterlizationRow[];
+  /** Provinces withheld from `byProvince`. Every surface that renders those rows
+   *  MUST announce this number — a hidden cell nobody mentions is worse than a
+   *  published one. */
+  byProvinceSuppressedCount: number;
+  /** Σ `total` over ALL provinces (withheld included), or null when publishing it
+   *  would isolate a lone withheld cell by subtraction. Feeds the "sin provincia
+   *  asignada" footnote; render nothing when null. */
+  byProvinceAssignedTotal: number | null;
 };
 
 /**
@@ -156,9 +184,9 @@ export type SterilizationCoverageResult = {
  * Uses the same EXISTS subquery pattern as fetchMicrochipPenetration in
  * lib/compliance-metrics.ts — guaranteed same denominator, no fan-out.
  *
- * byProvince: RAW per-province coverage — no k-anon here; see the KNOWN GAP note
- * on SterilizationCoverageResult.byProvince for which consumers suppress and
- * which do not.
+ * byProvince: per-province coverage with the D.10 disclosure rule already
+ * applied (own jurisdiction real, foreign sub-k withheld) — see
+ * SterilizationCoverageResult.byProvince and ./province-disclosure.ts.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
@@ -170,7 +198,10 @@ export type SterilizationCoverageResult = {
  * DENOMINATOR: COUNT active/lost pets in scope.
  * SOURCE:      pets, pet_events (sterilization_performed).
  * CADENCE:     point-in-time snapshot ("ever sterilized", not "in period").
- * SUPPRESSION: none.
+ * SUPPRESSION: none on the headline rate (a whole-scope aggregate the operator
+ *              is entitled to); k=5 on the per-province breakdown for provinces
+ *              OUTSIDE the viewer's jurisdiction (D.10, planProvinceDisclosure),
+ *              reported via `byProvinceSuppressedCount`.
  *
  * @param ctx - ProjectionContext (actor + scope + period).
  */
@@ -178,7 +209,14 @@ export async function fetchSterilizationCoverage(
   ctx: ProjectionContext,
   opts?: { species?: string },
 ): Promise<SterilizationCoverageResult> {
-  const empty: SterilizationCoverageResult = { rate: 0, sterilized: 0, total: 0, byProvince: [] };
+  const empty: SterilizationCoverageResult = {
+    rate: 0,
+    sterilized: 0,
+    total: 0,
+    byProvince: [],
+    byProvinceSuppressedCount: 0,
+    byProvinceAssignedTotal: 0,
+  };
   if (isEmptyScope(ctx)) return empty;
 
   const activeCond = activePetsCondition(ctx);
@@ -221,20 +259,59 @@ export async function fetchSterilizationCoverage(
   const total = totalRows[0]?.n ?? 0;
   const sterilized = sterilizedRows[0]?.n ?? 0;
 
-  const byProvince: ProvinceSterlizationRow[] = provinceRows
+  const rawProvinces = provinceRows
     .filter((r): r is typeof r & { province: string } => r.province !== null)
     .map((r) => ({
       province: r.province,
       total: r.total,
       sterilized: Number(r.sterilized),
-      ratePct: coverageRate(Number(r.sterilized), r.total),
     }));
+
+  const disclosure = applyCoverageDisclosure(ctx, rawProvinces);
 
   return {
     rate: coverageRate(sterilized, total),
     sterilized,
     total,
+    ...disclosure,
+  };
+}
+
+/**
+ * The pure half of `fetchSterilizationCoverage`'s province breakdown — raw rows
+ * in, D.10 verdict out. Exported so the rule is unit-testable without Postgres
+ * and so a test pins the SAME function production runs.
+ */
+export function applyCoverageDisclosure(
+  ctx: ProjectionContext,
+  raw: readonly { province: string; total: number; sterilized: number }[],
+): Pick<
+  SterilizationCoverageResult,
+  "byProvince" | "byProvinceSuppressedCount" | "byProvinceAssignedTotal"
+> {
+  // k protects the BASE (active pets), never the rate — the rate is the thing
+  // the base makes safe to publish.
+  const plan = planProvinceDisclosure(
+    ctx,
+    raw.map((r) => ({ province: r.province, denominator: r.total })),
+  );
+
+  const byProvince: ProvinceSterlizationRow[] = raw.map((r) =>
+    plan.withheld.has(r.province)
+      ? { province: r.province, suppressed: true, ratePct: null, sterilized: null, total: null }
+      : {
+          province: r.province,
+          suppressed: false,
+          total: r.total,
+          sterilized: r.sterilized,
+          ratePct: coverageRate(r.sterilized, r.total),
+        },
+  );
+
+  return {
     byProvince,
+    byProvinceSuppressedCount: plan.suppressedCount,
+    byProvinceAssignedTotal: plan.publishableRowTotal,
   };
 }
 

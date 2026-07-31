@@ -13,8 +13,11 @@
 
 import { describe, expect, it } from "vitest";
 
+import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { ANONYMITY_K } from "./anonymity";
 import {
   ESTIMATED_DOGS_PER_INHABITANT,
+  applyRegistryDisclosure,
   assertFunnelMonotonic,
   classifyDormant,
   computeCensusCoverage,
@@ -22,6 +25,7 @@ import {
   funnelPercents,
   isIncompleteProfile,
 } from "./census";
+import { buildProjectionContext } from "./context";
 
 // ---------------------------------------------------------------------------
 // 1. isIncompleteProfile — truth table
@@ -254,5 +258,97 @@ describe("computeCensusCoverage", () => {
   it("returns null when no census estimate is available (no census row → graceful)", () => {
     expect(computeCensusCoverage(12_480, 0)).toBeNull();
     expect(computeCensusCoverage(12_480, -5)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5. applyRegistryDisclosure — the D.10 rule as registryByProvince applies it
+// ---------------------------------------------------------------------------
+//
+// This is the EXACT function the fetcher calls after its query, so the tests pin
+// production behaviour, not a re-implementation of it. On a density projection
+// the published count IS the protected population, which is why every consumer
+// of registryByProvince (the /admin/censo ranked table, the /gob/censo
+// choropleth, the /gob/censo/export CSV) reads these rows and never a raw one.
+
+const disclosurePeriod = {
+  since: new Date("2025-08-01T00:00:00.000Z"),
+  until: new Date("2026-08-01T00:00:00.000Z"),
+} as unknown as AnalyticsPeriod;
+
+const chubutOperator = () =>
+  buildProjectionContext(
+    { role: "govt" },
+    [{ province: "Chubut", locality: "" }],
+    disclosurePeriod,
+  );
+const censoAdmin = () => buildProjectionContext({ role: "admin" }, [], disclosurePeriod);
+
+describe("applyRegistryDisclosure", () => {
+  it("keeps the operator's OWN province at its real count, below k", () => {
+    const out = applyRegistryDisclosure(chubutOperator(), [{ province: "Chubut", count: 2 }]);
+
+    expect(out.rows).toEqual([{ province: "Chubut", suppressed: false, count: 2 }]);
+    expect(out.suppressedCount).toBe(0);
+  });
+
+  it("withholds a foreign sub-k province as NULL — never 0", () => {
+    // A false zero is worse than a gap: it asserts "no hay mascotas acá".
+    const out = applyRegistryDisclosure(censoAdmin(), [
+      { province: "Tierra del Fuego", count: 3 },
+      { province: "Santa Cruz", count: 4 },
+      { province: "Buenos Aires", count: 90_000 },
+    ]);
+
+    const tdf = out.rows.find((r) => r.province === "Tierra del Fuego");
+    expect(tdf).toEqual({ province: "Tierra del Fuego", suppressed: true, count: null });
+    expect(tdf?.count).not.toBe(0);
+  });
+
+  it(`does NOT withhold at exactly k (${ANONYMITY_K})`, () => {
+    const out = applyRegistryDisclosure(censoAdmin(), [
+      { province: "Santa Cruz", count: ANONYMITY_K },
+      { province: "Buenos Aires", count: 90_000 },
+    ]);
+
+    expect(out.suppressedCount).toBe(0);
+    expect(out.rows.every((r) => r.suppressed === false)).toBe(true);
+  });
+
+  it("keeps withheld rows IN the array — absence must not become the channel", () => {
+    const out = applyRegistryDisclosure(censoAdmin(), [
+      { province: "Tierra del Fuego", count: 3 },
+      { province: "Santa Cruz", count: 4 },
+      { province: "Buenos Aires", count: 90_000 },
+    ]);
+
+    expect(out.rows).toHaveLength(3);
+    expect(out.rows.map((r) => r.province)).toContain("Tierra del Fuego");
+  });
+
+  it("suppressedCount reflects reality (the #40 follow-up failure: hid data, reported 0)", () => {
+    const out = applyRegistryDisclosure(censoAdmin(), [
+      { province: "Tierra del Fuego", count: 3 },
+      { province: "Santa Cruz", count: 4 },
+      { province: "Buenos Aires", count: 90_000 },
+    ]);
+
+    expect(out.suppressedCount).toBe(2);
+    expect(out.suppressedCount).toBe(out.rows.filter((r) => r.suppressed).length);
+  });
+
+  it("withholds the row total when a single hidden cell would be recoverable from it", () => {
+    const out = applyRegistryDisclosure(chubutOperator(), [
+      { province: "Chubut", count: 40 },
+      { province: "Santa Cruz", count: 3 },
+    ]);
+
+    expect(out.suppressedCount).toBe(1);
+    expect(out.assignedTotal).toBeNull();
+  });
+
+  it("empty input is a clean zero, not a suppression", () => {
+    const out = applyRegistryDisclosure(censoAdmin(), []);
+    expect(out).toEqual({ rows: [], suppressedCount: 0, assignedTotal: 0 });
   });
 });

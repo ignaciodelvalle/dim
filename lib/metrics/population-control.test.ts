@@ -14,7 +14,15 @@
 
 import { describe, expect, it } from "vitest";
 
-import { computeNetGrowth, coverageRate, safeRatio } from "./population-control";
+import type { AnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import { ANONYMITY_K } from "./anonymity";
+import { buildProjectionContext } from "./context";
+import {
+  applyCoverageDisclosure,
+  computeNetGrowth,
+  coverageRate,
+  safeRatio,
+} from "./population-control";
 
 // ---------------------------------------------------------------------------
 // 1. computeNetGrowth
@@ -187,3 +195,89 @@ describe("coverageRate", () => {
 //     expect(typeof r.suppressedCount).toBe("number");
 //   });
 // });
+
+// ---------------------------------------------------------------------------
+// 4. applyCoverageDisclosure — the D.10 rule as fetchSterilizationCoverage
+//    applies it to byProvince
+// ---------------------------------------------------------------------------
+//
+// The EXACT function the fetcher calls, so these tests pin production. k protects
+// the BASE (`total`, active pets): a rate reveals its denominator, which is the
+// premise #40 retired and #40b confirmed for this family. All three numeric
+// fields travel together — a rate published beside its base leaks the numerator
+// by multiplication, so withholding one and keeping the others is no protection.
+
+const covPeriod = {
+  since: new Date("2025-08-01T00:00:00.000Z"),
+  until: new Date("2026-08-01T00:00:00.000Z"),
+} as unknown as AnalyticsPeriod;
+
+const laRiojaOperator = () =>
+  buildProjectionContext({ role: "govt" }, [{ province: "La Rioja", locality: "" }], covPeriod);
+const poblacionAdmin = () => buildProjectionContext({ role: "admin" }, [], covPeriod);
+
+describe("applyCoverageDisclosure", () => {
+  it("keeps the operator's OWN province at its real numbers, below k", () => {
+    const out = applyCoverageDisclosure(laRiojaOperator(), [
+      { province: "La Rioja", total: 3, sterilized: 1 },
+    ]);
+
+    expect(out.byProvince).toEqual([
+      { province: "La Rioja", suppressed: false, total: 3, sterilized: 1, ratePct: 33.3 },
+    ]);
+    expect(out.byProvinceSuppressedCount).toBe(0);
+  });
+
+  it("withholds rate, numerator AND base together for a foreign sub-k province", () => {
+    const out = applyCoverageDisclosure(poblacionAdmin(), [
+      { province: "Tierra del Fuego", total: 3, sterilized: 1 },
+      { province: "Santa Cruz", total: 4, sterilized: 2 },
+      { province: "Buenos Aires", total: 9000, sterilized: 4000 },
+    ]);
+
+    const tdf = out.byProvince.find((r) => r.province === "Tierra del Fuego");
+    expect(tdf).toEqual({
+      province: "Tierra del Fuego",
+      suppressed: true,
+      total: null,
+      sterilized: null,
+      ratePct: null,
+    });
+    // Never a confident zero in any of the three.
+    expect(tdf?.total).not.toBe(0);
+    expect(tdf?.sterilized).not.toBe(0);
+    expect(tdf?.ratePct).not.toBe(0);
+  });
+
+  it(`does NOT withhold at exactly k (${ANONYMITY_K}) active pets`, () => {
+    const out = applyCoverageDisclosure(poblacionAdmin(), [
+      { province: "Santa Cruz", total: ANONYMITY_K, sterilized: 2 },
+      { province: "Buenos Aires", total: 9000, sterilized: 4000 },
+    ]);
+
+    expect(out.byProvinceSuppressedCount).toBe(0);
+    expect(out.byProvince.every((r) => r.suppressed === false)).toBe(true);
+  });
+
+  it("keeps withheld rows IN the array and reports the real count", () => {
+    const out = applyCoverageDisclosure(poblacionAdmin(), [
+      { province: "Tierra del Fuego", total: 3, sterilized: 1 },
+      { province: "Santa Cruz", total: 4, sterilized: 2 },
+      { province: "Buenos Aires", total: 9000, sterilized: 4000 },
+    ]);
+
+    expect(out.byProvince).toHaveLength(3);
+    expect(out.byProvinceSuppressedCount).toBe(2);
+    expect(out.byProvinceSuppressedCount).toBe(out.byProvince.filter((r) => r.suppressed).length);
+  });
+
+  it("withholds the base total when a single hidden cell would be recoverable", () => {
+    const out = applyCoverageDisclosure(laRiojaOperator(), [
+      { province: "La Rioja", total: 40, sterilized: 10 },
+      { province: "Santa Cruz", total: 3, sterilized: 1 },
+    ]);
+
+    expect(out.byProvinceSuppressedCount).toBe(1);
+    expect(out.byProvinceAssignedTotal).toBeNull();
+  });
+});

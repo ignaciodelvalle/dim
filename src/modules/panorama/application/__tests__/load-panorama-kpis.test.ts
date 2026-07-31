@@ -117,6 +117,8 @@ function seedDefaults() {
     sterilized: 657,
     total: 1000,
     byProvince: [],
+    byProvinceSuppressedCount: 0,
+    byProvinceAssignedTotal: 0,
   });
   vi.mocked(lastIngestAt).mockResolvedValue(new Date("2026-06-19T18:30:00.000Z"));
   vi.mocked(fetchReunificationRate).mockResolvedValue({

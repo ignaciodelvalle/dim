@@ -43,6 +43,7 @@ import {
   buildProjectionContext,
   funnelPercents,
   identificationFunnel,
+  provinceSuppressionNotice,
   registrationTrend,
   registryByProvince,
   registryCounts,
@@ -223,7 +224,13 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
     );
   }
 
-  const [counts, trend, funnel, provinceRows] = load.value;
+  const [counts, trend, funnel, registry] = load.value;
+
+  // D.10: the verdict was made ONCE inside registryByProvince. This screen and
+  // /gob/censo/export both read those already-decided rows, which is what makes
+  // the CSV incapable of publishing a cell the map hatches.
+  const provinceRows = registry.rows;
+  const provinceNotice = provinceSuppressionNotice(registry.suppressedCount);
 
   const hasData = counts.total > 0;
   const hasTrend = trend.points.length > 0;
@@ -234,7 +241,12 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
 
   const fPct = funnelPercents(funnel);
 
-  // task #31c dedup: shared toChoroplethData (same shaping as /gob/poblacion)
+  // task #31c dedup: shared toChoroplethData (same shaping as /gob/poblacion).
+  // A withheld cell is EMITTED with the `suppressed` flag MapChoropleth already
+  // renders as the hatch + "DATOS INSUFICIENTES" tooltip + the "— (suprimido)"
+  // fallback-table row. It is never dropped (absence would stipple it "nadie
+  // registró acá", which is false) and its `value` is inert: every code path in
+  // MapChoropleth that could paint a number reads the flag first.
   const choroplethData = toChoroplethData(provinceRows, (r) => r.count);
 
   // Camera lockdown (gob/map-zoom-lockdown, 2026-07-21): censo has no
@@ -527,6 +539,11 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
               height={GOB_MAP_HEIGHT}
               {...mapScopeProps}
             />
+            {/* Rule 7 / #40 follow-up: wherever we suppress, the surface SAYS SO.
+                The map's own legend carries a permanent "datos insuficientes"
+                swatch, which cannot tell the operator whether THIS frame hides
+                anything — this line can, and renders only when it does. */}
+            {provinceNotice && <p className="mt-2 text-xs text-ln-op-mute">{provinceNotice}</p>}
           </OpCardBody>
         </OpCard>
       )}

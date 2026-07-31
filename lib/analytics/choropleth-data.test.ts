@@ -47,6 +47,28 @@ describe("toChoroplethData", () => {
   it("returns an empty array for an empty input", () => {
     expect(toChoroplethData([], (r: { province: string; count: number }) => r.count)).toEqual([]);
   });
+
+  it("a NULL value marks the cell suppressed and STILL emits it (k-anon, #40c)", () => {
+    // The fetchers hand back `count: number | null` so a withheld cell survives
+    // the mapping. Dropping it would stipple the province "sin datos" — false,
+    // and a tell that this province is different from its neighbours.
+    const rows: { province: string; count: number | null }[] = [
+      { province: "Santa Fe", count: 12 },
+      { province: "Tierra del Fuego", count: null },
+    ];
+
+    expect(toChoroplethData(rows, (r) => r.count)).toEqual([
+      { code: "AR-S", value: 12, label: "Santa Fe" },
+      { code: "AR-V", value: 0, suppressed: true, label: "Tierra del Fuego" },
+    ]);
+  });
+
+  it("a suppressed cell's value is a placeholder the renderer never reads", () => {
+    // MapChoropleth branches on `suppressed` before every path that could paint
+    // a number, so 0 here is inert — but it must never be reported as data.
+    const [cell] = toChoroplethData([{ province: "Santa Cruz", count: null }], (r) => r.count);
+    expect(cell.suppressed).toBe(true);
+  });
 });
 
 describe("aggregateChoroplethData", () => {

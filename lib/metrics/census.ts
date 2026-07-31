@@ -40,6 +40,7 @@ import { analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import { suppressedMetric } from "./anonymity";
 import type { ProjectionContext } from "./context";
 import { activePetsCondition } from "./population";
+import { planProvinceDisclosure } from "./province-disclosure";
 import { petsScopeClause } from "./scope";
 import {
   bucketGranularityFor,
@@ -642,43 +643,70 @@ export async function identificationFunnel(
 }
 
 // ---------------------------------------------------------------------------
-// Province-level choropleth — RAW counts, see the KNOWN GAP on registryByProvince
+// Province-level density — k-anon per D.10 (see ./province-disclosure.ts)
 // ---------------------------------------------------------------------------
 
-export type ProvinceRegistryRow = {
-  /** Province name as stored in pets.jurisdiction_province. */
-  province: string;
-  /** Count of distinct active/lost pets in the province. */
-  count: number;
+/**
+ * One province row. A DISCRIMINATED UNION on `suppressed`, not two independent
+ * fields: it makes `count` unreachable without first proving the cell is
+ * published, so no consumer can write `count ?? 0` and publish a confident zero
+ * (task #40 found three such coercions). A withheld cell carries `null` — a
+ * protected value is ABSENT, never zero.
+ */
+export type ProvinceRegistryRow =
+  | {
+      /** Province name as stored in pets.jurisdiction_province. */
+      province: string;
+      suppressed: false;
+      /** Count of distinct active/lost pets in the province. */
+      count: number;
+    }
+  | { province: string; suppressed: true; count: null };
+
+export type ProvinceRegistryResult = {
+  /** One row per province, withheld cells INCLUDED (value null) — never dropped:
+   *  a cell that disappears when it crosses k makes absence the disclosure
+   *  channel and the map then stipples it as "nadie registró acá". */
+  rows: ProvinceRegistryRow[];
+  /** Provinces withheld. Every surface MUST announce this — see the plan type. */
+  suppressedCount: number;
+  /** Σ count over ALL provinces (withheld included), or null when publishing it
+   *  would isolate a lone withheld cell. Feeds the "sin provincia asignada"
+   *  footnote; render nothing when null. */
+  assignedTotal: number | null;
 };
 
 /**
- * Count distinct active/lost pets grouped by province — RAW, no k-anon.
+ * Count distinct active/lost pets grouped by province, then apply the D.10
+ * disclosure rule (`planProvinceDisclosure`).
  *
- * ⚠️ KNOWN GAP (#40b triage). The old wording ("cell sizes are always large enough
- * to be non-identifying") is the premise task #40 retired. Here it is at its most
- * direct: this is a DENSITY projection, so the published count IS the protected
- * population — "Tierra del Fuego: 3 mascotas registradas" is a group of three
- * identifiable animals, exactly what `provinceCell` suppresses on the Panorama
- * density layers. Consumers — /admin/censo and /gob/censo (choropleth + ranked
- * table) and /gob/censo/export — publish the count verbatim.
+ * This is a DENSITY projection, so the published count IS the protected
+ * population: "Tierra del Fuego: 3 mascotas registradas" is a group of three
+ * identifiable animals. The premise that used to sit here — "cell sizes are
+ * always large enough to be non-identifying" — is the one task #40 retired; it
+ * was true of a province's population and false of its denominator, and on a
+ * density layer they are the same number.
  *
- * NOT fixed here on purpose: suppression has to null the value at those render
- * sites too (data + render + disclosure together), so suppressing at the source
- * alone would produce the "hid the data, told nobody" outcome #40's own follow-up
- * flagged. Tracked as a follow-up unit.
+ * WHY THE DECISION LIVES HERE and not at the render sites: /admin/censo,
+ * /gob/censo and /gob/censo/export all consume this fetcher. Deciding once, in
+ * the fetcher, is what makes screen/export parity STRUCTURAL — no consumer ever
+ * holds the raw value, so no consumer can diverge from another. (D.10: an export
+ * that differs from the screen is the way around the protection.)
  *
  * Does NOT extend Panorama's ChoroplethMetric — it's a standalone projection.
  *
  * KPI tags: NUMERATOR = COUNT DISTINCT active/lost pets per province.
- * DENOMINATOR = n/a (absolute count per province). SOURCE = pets. CADENCE =
- * point-in-time. SUPPRESSION = none — see the KNOWN GAP above.
+ * DENOMINATOR = n/a (absolute count per province — on a density layer the count
+ * IS its own denominator, and that is what k protects). SOURCE = pets.
+ * CADENCE = point-in-time. SUPPRESSION = k=5 on foreign provinces
+ * (planProvinceDisclosure), reported via `suppressedCount`.
  */
 export async function registryByProvince(
   ctx: ProjectionContext,
   opts?: { species?: string },
-): Promise<ProvinceRegistryRow[]> {
-  if (isEmptyScope(ctx)) return [];
+): Promise<ProvinceRegistryResult> {
+  const empty: ProvinceRegistryResult = { rows: [], suppressedCount: 0, assignedTotal: 0 };
+  if (isEmptyScope(ctx)) return empty;
 
   const activeCond = activePetsCondition(ctx);
   const populationCond = opts?.species
@@ -695,7 +723,38 @@ export async function registryByProvince(
     .groupBy(pets.jurisdictionProvince)
     .orderBy(sql`count(distinct ${pets.id}) desc`);
 
-  return rows
+  const raw = rows
     .filter((r): r is typeof r & { province: string } => r.province !== null)
     .map((r) => ({ province: r.province, count: r.n }));
+
+  return applyRegistryDisclosure(ctx, raw);
+}
+
+/**
+ * The pure half of `registryByProvince` — raw rows in, D.10 verdict out.
+ * Exported so the rule is unit-testable without Postgres and so a test can pin
+ * the SAME function the fetcher runs (a test against a re-implementation proves
+ * nothing about production).
+ */
+export function applyRegistryDisclosure(
+  ctx: ProjectionContext,
+  raw: readonly { province: string; count: number }[],
+): ProvinceRegistryResult {
+  // On a density layer the count IS the denominator k protects.
+  const plan = planProvinceDisclosure(
+    ctx,
+    raw.map((r) => ({ province: r.province, denominator: r.count })),
+  );
+
+  const out: ProvinceRegistryRow[] = raw.map((r) =>
+    plan.withheld.has(r.province)
+      ? { province: r.province, suppressed: true, count: null }
+      : { province: r.province, suppressed: false, count: r.count },
+  );
+
+  return {
+    rows: out,
+    suppressedCount: plan.suppressedCount,
+    assignedTotal: plan.publishableRowTotal,
+  };
 }
