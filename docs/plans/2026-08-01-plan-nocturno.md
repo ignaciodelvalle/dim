@@ -1,3 +1,33 @@
+# ⛔ VEREDICTO RA-3 — NO APTO PARA STAGING HASTA CERRAR C1-C4
+
+**La review de privacidad volvió NOT CLEAN: 8 confirmados, 4 de severidad alta.**
+Regla 7 y D.13 aplican. **No se pushea nada nuevo hasta que C1-C4 cierren.**
+
+**La causa estructural, y es la lección de toda la ola**: los tres barridos de
+k-anon (#40, #40b, #40c) se acotaron **por PIPELINE**, no por superficie. Existe
+un SEGUNDO pipeline por unidad, al mismo grano, **sin ninguna supresión**:
+`lib/analytics/dashboards/surveillance.ts` + `lib/analytics/choropleth-data.ts`,
+alimentando **`/gob/analytics`, `/gob/vigilancia` y `/gob/perdidas`**. Esa es la
+familia que nadie barrió, y los 8 hallazgos viven ahí o en su borde.
+
+| # | Sev | Qué |
+|---|---|---|
+| **C1** | ALTA | **El drill de admin apaga D.10 con un parámetro de URL.** `?province=AR-V` angosta el scope entero a esa provincia: la tabla oculta la celda y **el KPI de al lado publica el mismo número, en la misma página y el mismo request**. Los dos CSV lo heredan. El propio código había argumentado el caso — *"una supresión que cualquiera puede apagar no es una supresión"* — y el KPI vecino la apaga |
+| **C2** | ALTA | **Diferenciación con DOS celdas suprimidas.** `complementarySuppress` solo dispara con `n === 1`. Con `[TdF 1, SC 1, BA 998]` y total 1000: `1000 − 998 = 2` repartido en dos celdas de ≥1 ⇒ **cada provincia tiene exactamente 1**. Y el test guard afirma *"no cell isolable"*, una propiedad que no se cumple — su propio fixture ya fija cada celda |
+| **C3** | ALTA | **`fetchOutbreakHistory` publica conteos de enfermedad a grano LOCALIDAD, sin k-anon.** Una sola señal renderiza *"Rabia · Ushuaia · Tierra del Fuego · 12 mar 2026 · 1"* — un animal, una localidad, una fecha. La re-identificabilidad más alta del informe. **La misma página k-anonimiza y ANUNCIA su tarjeta de acceso veterinario**: el estándar está probado presente y salteado acá |
+| **C4** | ALTA | **`fetchCasesPerCapita`: conteo crudo + tasa por provincia, sin k-anon.** Amplificador: **la tabla ordena por tasa per cápita, que sistemáticamente sube las provincias más chicas al tope** — las celdas sub-k son justo las más mostradas |
+| C5 | MED | Los coropletas nacionales de `/gob/vigilancia` y `/gob/perdidas` pintan polígono y tooltip con 1 caso. El drill de departamento SÍ está suprimido; solo el tier de provincia está desnudo |
+| C6 | MED | `MapChoropleth` renderiza la leyenda **"Datos insuficientes (privacidad)" incondicionalmente**, en todos los callers, pinte o no una trama. Espejo exacto de la falla que la ola ya cazó una vez |
+| C7 | MED | `fetchRegionRanking` publica una tasa por unidad sin denominador en la decisión. 3 perros / 1 vacunado ⇒ `33%`. `bottom` ordena ascendente, así que las provincias más chicas salen primero |
+| C8 | MED | **Diferenciación cruzada por denominadores ANIDADOS en datos abiertos.** El agrupamiento conjunto compara el NOMBRE de la columna base, pero `perros_registrados` es subconjunto estricto de `mascotas_activas`: la resta da las mascotas no-perro de la provincia. Ambas celdas pasan su propio k-check; la regla conjunta nunca ve el par |
+
+Lo bueno, y hay que decirlo: **el motor está bien construido.** `anonymity.ts`,
+`province-suppression.ts`, `province-disclosure.ts` y los tiers de censo,
+población y datos abiertos están sólidos y guardados. El defecto es de ALCANCE,
+no de diseño.
+
+---
+
 # Plan de ejecución nocturno — 2026-08-01 · **Corrida de aptitud para staging**
 
 > **Este archivo es el estado.** Consolida TODO lo que quedó abierto de las
