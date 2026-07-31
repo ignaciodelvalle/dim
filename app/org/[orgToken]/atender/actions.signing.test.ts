@@ -30,8 +30,14 @@ vi.mock("./atender-access", () => ({
 }));
 
 const mockRejectIfAlreadySigned = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+// Proof-of-scan matcher. The real SQL-predicate implementation is pinned
+// against the live spine in atender-declared-events.db.test.ts; what the action
+// owes is the WIRING — call it whenever a declaration is being confirmed, and
+// refuse without writing when it says no.
+const mockAttemptedChipMatchesDeclaration = vi.hoisted(() => vi.fn().mockResolvedValue(true));
 vi.mock("./atender-declared-events", () => ({
   rejectIfAlreadySigned: mockRejectIfAlreadySigned,
+  attemptedChipMatchesDeclaration: mockAttemptedChipMatchesDeclaration,
 }));
 
 vi.mock("@/db", () => ({
@@ -224,6 +230,7 @@ describe("atenderMicrochipAction — declared-by-owner sign-off (#3)", () => {
     vi.clearAllMocks();
     mockResolveAtenderPet.mockResolvedValue(makeAccess());
     mockRejectIfAlreadySigned.mockResolvedValue(null);
+    mockAttemptedChipMatchesDeclaration.mockResolvedValue(true);
     mockFetchActiveIdentifications.mockResolvedValue({ microchip: null, tattoo: null });
     mockUploadAttachmentIfPresent.mockResolvedValue({
       uploadedPath: null,
@@ -290,6 +297,81 @@ describe("atenderMicrochipAction — declared-by-owner sign-off (#3)", () => {
     );
     expect(result.error).toMatch(/ya fue firmado/i);
     // No new event is written — the guard short-circuits before the writer call.
+    expect(mockCreateMicrochip).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // Proof of scan — the other half of not disclosing the declared number
+  // -------------------------------------------------------------------------
+  //
+  // The pending-signatures card no longer prefills the declared chip, so the
+  // signer types what the scanner read. Removing the prefill WITHOUT this gate
+  // would have been worse than the leak it closed: a typo (or a deliberate
+  // substitution) would still mark the declaration named by confirmEventId
+  // professionally verified, stamping a number that declaration never
+  // contained onto an append-only record.
+
+  it("refuses to sign when the typed number does not match the declaration", async () => {
+    mockAttemptedChipMatchesDeclaration.mockResolvedValue(false);
+    const result = await actions.atenderMicrochipAction(
+      "ORG-1",
+      "DIM-TEST-0001",
+      "declared-evt-1",
+      { error: null },
+      formData({ chipNumber: "985141009999999", occurredAt: TODAY_AR }),
+    );
+    expect(result.error).toMatch(/no coincide con el microchip declarado/i);
+    // Nothing is written: no signature attaches to a number the owner never
+    // declared.
+    expect(mockCreateMicrochip).not.toHaveBeenCalled();
+  });
+
+  it("passes the pet, the declaration id and the TYPED number to the matcher", async () => {
+    await actions.atenderMicrochipAction(
+      "ORG-1",
+      "DIM-TEST-0001",
+      "declared-evt-1",
+      { error: null },
+      formData({ chipNumber: "985141004321456", occurredAt: TODAY_AR }),
+    );
+    expect(mockAttemptedChipMatchesDeclaration).toHaveBeenCalledWith(
+      "pet-1",
+      "declared-evt-1",
+      "985141004321456",
+    );
+  });
+
+  it("does not consult the matcher for a fresh entry — there is no declaration to match", async () => {
+    // A walk-in chip entry with no confirmEventId is not confirming anything,
+    // so demanding a match would block the legitimate first registration.
+    const result = await actions.atenderMicrochipAction(
+      "ORG-1",
+      "DIM-TEST-0001",
+      null,
+      { error: null },
+      formData({ chipNumber: "985141004321456", occurredAt: TODAY_AR }),
+    );
+    expect(result.error).toBeNull();
+    expect(mockAttemptedChipMatchesDeclaration).not.toHaveBeenCalled();
+    expect(mockCreateMicrochip).toHaveBeenCalledOnce();
+  });
+
+  it("checks the signature guard BEFORE the scan match — an already-signed act says so", async () => {
+    // Ordering matters for the message the signer gets: if a vet already
+    // signed, "ya fue firmado" is the useful answer, not "no coincide".
+    mockRejectIfAlreadySigned.mockResolvedValue({
+      error: "Este registro ya fue firmado por un profesional.",
+    });
+    mockAttemptedChipMatchesDeclaration.mockResolvedValue(false);
+    const result = await actions.atenderMicrochipAction(
+      "ORG-1",
+      "DIM-TEST-0001",
+      "declared-evt-1",
+      { error: null },
+      formData({ chipNumber: "985141009999999", occurredAt: TODAY_AR }),
+    );
+    expect(result.error).toMatch(/ya fue firmado/i);
+    expect(mockAttemptedChipMatchesDeclaration).not.toHaveBeenCalled();
     expect(mockCreateMicrochip).not.toHaveBeenCalled();
   });
 });

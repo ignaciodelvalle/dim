@@ -88,9 +88,19 @@ describe("fetchPendingDeclaredEvents", () => {
     expect(pending[0]).toMatchObject({
       id: "evt-1",
       eventType: "microchip_implanted",
-      summary: "Microchip 985141004321456",
+      // These two lines used to read
+      //   summary: "Microchip 985141004321456"
+      //   expect(pending[0].prefill.chipNumber).toBe("985141004321456")
+      // — the third and last place that asserted the defect. Both the summary
+      // and the prefill reach the browser (the prefill via the confirm link's
+      // query string), and reaching the atender page needs only event.write in
+      // ANY org plus a DIM token, which /perdidas publishes for every lost
+      // animal with no login. The card says a declaration is WAITING; the
+      // number stays server-side and the signer proves it by scanning.
+      summary: "Microchip declarado",
     });
-    expect(pending[0].prefill.chipNumber).toBe("985141004321456");
+    expect(pending[0].prefill.chipNumber).toBeUndefined();
+    expect(JSON.stringify(pending[0])).not.toContain("985141004321456");
   });
 
   it("surfaces an owner-declared, unverified sterilization event", async () => {

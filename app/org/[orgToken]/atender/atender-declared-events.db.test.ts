@@ -21,6 +21,7 @@ import { db, organizations, petEvents, pets } from "@/db";
 import {
   type SignableEventType,
   type SignerAuthorship,
+  attemptedChipMatchesDeclaration,
   fetchPendingDeclaredEvents,
   rejectIfAlreadySigned,
 } from "./atender-declared-events";
@@ -234,7 +235,12 @@ describe("fetchPendingDeclaredEvents — against the real spine", () => {
   it("surfaces an owner declaration nobody has signed", async () => {
     const pending = await fetchPendingDeclaredEvents(pet.pending);
     expect(pending.map((p) => p.id)).toEqual([ids.pendingChip]);
-    expect(pending[0].summary).toBe(`Microchip ${CHIP_A}`);
+    // This line used to read: expect(pending[0].summary).toBe(`Microchip ${CHIP_A}`)
+    // — it asserted the defect. The summary is rendered to anyone who reaches
+    // the atender page, which needs event.write in ANY org plus a DIM token,
+    // and /perdidas publishes those. The card's job is to say a declaration is
+    // WAITING, not to disclose the number. See the dedicated describe below.
+    expect(pending[0].summary).toBe("Microchip declarado");
   });
 
   it("DROPS the declaration once a vet has signed it (the reported defect)", async () => {
@@ -250,7 +256,15 @@ describe("fetchPendingDeclaredEvents — against the real spine", () => {
   it("DOES surface a RECURRING act's genuinely new declaration a year later", async () => {
     const pending = await fetchPendingDeclaredEvents(pet.recurring);
     expect(pending.map((p) => p.id)).toEqual([ids.recurringNewDeclaration]);
-    expect(pending[0].prefill.chipNumber).toBe(CHIP_B);
+    // This line used to read: expect(pending[0].prefill.chipNumber).toBe(CHIP_B)
+    // — the second place that asserted the defect. The prefill is spread into
+    // the confirm link's query string by PendingSignaturesCard, so a
+    // chipNumber key there shipped the value straight into a URL. What this
+    // test is actually about is WHICH declaration surfaces, and the id above
+    // says that; the identity of the row no longer depends on leaking its
+    // contents.
+    expect(pending[0].prefill.chipNumber).toBeUndefined();
+    expect(JSON.stringify(pending[0])).not.toContain(CHIP_B);
   });
 });
 
@@ -377,5 +391,91 @@ describe("rejectIfAlreadySigned — the non-matriculated signer (org_registered)
       ORG_SIGNER(),
     );
     expect(result?.error).toMatch(/ya fue firmado/i);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The declared chip number never leaves the server, and the signer must scan it
+// ---------------------------------------------------------------------------
+//
+// Reaching the pending-signatures card needs `event.write` in ANY org plus a
+// DIM token, and /perdidas publishes the token of every lost animal with no
+// login. The card used to render `Microchip ${chip}` and spread the value into
+// the confirm link's query string, handing out the exact number that
+// app/(public)/p/[publicToken] deliberately renders as "Microchip: Sí/No".
+//
+// Removing the prefill alone would have been worse than the leak: the signer
+// types the number they scanned, and without a server-side match a typo would
+// still mark THAT declaration professionally verified, stamping a number the
+// declaration never contained onto an append-only record. Both halves live or
+// die together, so both are pinned here against the real spine.
+
+describe("declared chip number — not disclosed, and matched server-side", () => {
+  it("fetchPendingDeclaredEvents exposes neither the number nor a chipNumber prefill", async () => {
+    const pending = await fetchPendingDeclaredEvents(pet.pending);
+    const card = pending.find((p) => p.eventType === "microchip_implanted");
+    expect(card).toBeDefined();
+
+    // The nudge still has to say a chip declaration is waiting — "has a chip"
+    // is already public. It is the NUMBER that is out of scope.
+    expect(card?.summary).toBe("Microchip declarado");
+    expect(card?.summary).not.toContain(CHIP_A);
+    expect(card?.prefill.chipNumber).toBeUndefined();
+    expect(JSON.stringify(card?.prefill)).not.toContain(CHIP_A);
+  });
+
+  it("matches only the exact declared number on the exact declaration", async () => {
+    // The scanner read the same number the owner declared.
+    await expect(
+      attemptedChipMatchesDeclaration(pet.pending, ids.pendingChip, CHIP_A),
+    ).resolves.toBe(true);
+    // Whitespace off a scanner field is not a mismatch.
+    await expect(
+      attemptedChipMatchesDeclaration(pet.pending, ids.pendingChip, `  ${CHIP_A} `),
+    ).resolves.toBe(true);
+
+    // A real chip, just not the one this declaration named — the substitution
+    // the removed prefill would otherwise have waved through.
+    await expect(
+      attemptedChipMatchesDeclaration(pet.pending, ids.pendingChip, CHIP_B),
+    ).resolves.toBe(false);
+    // A single transposed digit.
+    await expect(
+      attemptedChipMatchesDeclaration(pet.pending, ids.pendingChip, "985141004321465"),
+    ).resolves.toBe(false);
+    await expect(attemptedChipMatchesDeclaration(pet.pending, ids.pendingChip, "")).resolves.toBe(
+      false,
+    );
+    await expect(
+      attemptedChipMatchesDeclaration(pet.pending, ids.pendingChip, "   "),
+    ).resolves.toBe(false);
+  });
+
+  it("refuses a declaration that belongs to a DIFFERENT pet, even with the right number", async () => {
+    // ids.pendingChip is pet.pending's declaration. Naming it while acting on
+    // another pet must not authorize anything: the petId is part of the
+    // predicate, not decoration.
+    await expect(
+      attemptedChipMatchesDeclaration(pet.signed, ids.pendingChip, CHIP_A),
+    ).resolves.toBe(false);
+  });
+
+  it("refuses a non-existent declaration and a non-microchip declaration alike", async () => {
+    await expect(
+      attemptedChipMatchesDeclaration(pet.pending, "99999999-9999-4999-8999-999999999999", CHIP_A),
+    ).resolves.toBe(false);
+    // A sterilization row is not a chip declaration; a uniform "no". Pet and
+    // event id genuinely belong together here.
+    //
+    // Honest note, found by mutation: it is the chip_number leg that refuses
+    // this, not the event_type leg. A sterilization payload has no
+    // `chip_number` key, so `payload->>'chip_number'` is NULL and the equality
+    // is never true. Deleting `eq(petEvents.eventType, …)` leaves this test
+    // green. The leg is kept as defence in depth — see the note on the
+    // function — but this assertion does not pin it, and an earlier draft of
+    // this comment claimed it did.
+    await expect(
+      attemptedChipMatchesDeclaration(pet.oneShot, ids.oneShotRedeclaration, CHIP_A),
+    ).resolves.toBe(false);
   });
 });

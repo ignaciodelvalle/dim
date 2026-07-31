@@ -44,7 +44,7 @@ import { CLINICAL_SUB_KINDS } from "@/src/modules/events/domain/enums";
 import { EventsRepository } from "@/src/modules/events/infrastructure/events-repository";
 
 import { ATENDER_TOKEN_PATTERN, normalizeAtenderToken, resolveAtenderPet } from "./atender-access";
-import { rejectIfAlreadySigned } from "./atender-declared-events";
+import { attemptedChipMatchesDeclaration, rejectIfAlreadySigned } from "./atender-declared-events";
 import { hasUncataloguedVaccineFlag } from "./atender-vaccine-gate";
 
 export type { EventFormState } from "@/src/modules/events/actions";
@@ -630,6 +630,21 @@ export async function atenderMicrochipAction(
       eventAuthorship,
     );
     if (rejected) return rejected;
+
+    // Proof of scan. The pending-signatures card no longer shows or prefills
+    // the declared number (see toPendingDeclaredEvent), so the signer types
+    // what they read off the scanner. Without this the typed value and the
+    // declaration could diverge and we would still mark THAT declaration
+    // professionally verified — stamping a number it never contained onto an
+    // append-only record. The comparison lives in the SQL predicate; the
+    // declared value is never selected.
+    const matches = await attemptedChipMatchesDeclaration(pet.id, confirmEventId, chipNumber);
+    if (!matches) {
+      return {
+        error:
+          "El número no coincide con el microchip declarado por la persona responsable. Verificá la lectura del escáner.",
+      };
+    }
   }
 
   const attachmentFile = formData.get("attachment") as File | null;

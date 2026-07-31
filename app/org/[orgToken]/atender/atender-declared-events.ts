@@ -54,7 +54,7 @@
 //   3. The chip number is ALREADY in the payload and is a stronger
 //      discriminator than a link that only exists going forward.
 
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 import { type EventType, db, petEvents } from "@/db";
 import { type ConfidenceTier, computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
@@ -226,12 +226,29 @@ function toPendingDeclaredEvent(
   const occurredAtStr = toDateInputValue(new Date(row.occurredAt));
 
   if (eventType === "microchip_implanted") {
-    const chipNumber = typeof p.chip_number === "string" ? p.chip_number : "";
+    // The declared chip number is NOT disclosed here, and NOT prefilled.
+    //
+    // Two reasons, and they are the same fix. Security: resolveAtenderPet's
+    // consent proxy is "holds event.write on this org AND knows the DIM code",
+    // and its own header notes the code is public — /perdidas publishes the
+    // token of every lost animal with no login. The resolver's contract is
+    // "resolves ONLY pet identity (name/species/status) — never owner PII";
+    // this card used to render `Microchip ${chip}` and put the value in a
+    // query string, disclosing the exact number app/(public)/p/[publicToken]
+    // deliberately renders as "Microchip: Sí/No". Data quality: prefilling the
+    // value the professional is supposed to independently verify invites a
+    // rubber stamp — the whole point of the signature is that a matriculated
+    // signer SCANNED the animal.
+    //
+    // The signer now types what they scanned and the server matches it against
+    // the declaration (attemptedChipMatchesDeclaration), so a mismatch cannot
+    // silently attach professional verification to a number the declaration
+    // never contained.
     return {
       id: row.id,
       eventType,
-      summary: chipNumber ? `Microchip ${chipNumber}` : "Microchip",
-      prefill: { chipNumber, occurredAt: occurredAtStr },
+      summary: "Microchip declarado",
+      prefill: { occurredAt: occurredAtStr },
     };
   }
 
@@ -331,6 +348,66 @@ export type SignerAuthorship = {
  * The other half of the fix is UI-side: page.tsx must stop telling a
  * non-matriculated signer that the event was "firmado".
  */
+/**
+ * Proof-of-scan check: does `attemptedChipNumber` equal the chip number the
+ * OWNER declared in event `confirmEventId` on this pet?
+ *
+ * This is the other half of removing the number from the pending-signatures
+ * card. The card no longer shows or prefills it, so the signer types the
+ * number they read off the scanner; without this check a typo (or a deliberate
+ * substitution) would still SIGN the declaration `confirmEventId` names,
+ * attaching professional verification to a value that declaration never
+ * contained — a disclosure bug traded for a worse integrity bug on an
+ * append-only spine.
+ *
+ * The comparison happens INSIDE the SQL predicate and the projection is a
+ * constant, so the declared number is never selected, never reaches
+ * application memory, and no caller of this function can echo it back — the
+ * same shape as attemptedChipMatchesPet in lib/infra/chip-lookup.ts (a7a53d17).
+ * There is no string comparison in JS to time.
+ *
+ * `microchip_implanted` has no registered upcaster (lib/events/event-upcasters.ts
+ * only registers adoption_application_submitted), so reading `chip_number`
+ * straight out of the stored JSON is exactly equivalent to the upcast read the
+ * rest of this file does. Revisit if an upcaster is ever added for this type.
+ *
+ * Returns false for an empty attempt and for an event that does not exist, is
+ * not this pet's, or is not a microchip declaration — a uniform "no" that says
+ * nothing about which of those it was.
+ *
+ * The `event_type` leg is DEFENCE IN DEPTH and is not observable today: no
+ * other event schema carries a bare `chip_number` key (microchip_replaced uses
+ * previous_/new_chip_number), so `payload->>'chip_number'` is already NULL for
+ * every other type, and rejectIfAlreadySigned has separately proven the target
+ * is a microchip_implanted row before this ever runs. Deleting the leg keeps
+ * every test green — verified by mutation. It stays because it makes this
+ * function correct standing alone, rather than correct because of a guard in
+ * another file; if a future schema adds `chip_number`, this is what refuses it.
+ */
+export async function attemptedChipMatchesDeclaration(
+  petId: string,
+  confirmEventId: string,
+  attemptedChipNumber: string,
+): Promise<boolean> {
+  const attempted = attemptedChipNumber?.trim();
+  if (!petId || !confirmEventId || !attempted) return false;
+
+  const [row] = await db
+    .select({ present: sql<number>`1` })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.id, confirmEventId),
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "microchip_implanted"),
+        sql`${petEvents.payload}->>'chip_number' = ${attempted}`,
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
+}
+
 export async function rejectIfAlreadySigned(
   petId: string,
   eventType: SignableEventType,

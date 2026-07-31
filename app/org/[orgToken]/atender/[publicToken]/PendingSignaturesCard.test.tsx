@@ -89,11 +89,26 @@ const { atenderMicrochipAction, atenderSterilizationAction } = actionDoubles;
 const ORG_TOKEN = "DIM-A9PJ-B5T7";
 const PET_TOKEN = "DIM-DEMO-0002";
 
+// The chip declaration carries NO chip number — not in the summary, not in the
+// prefill. This fixture used to read
+//
+//   summary: "Microchip 985141004321456",
+//   prefill: { chipNumber: "985141004321456", occurredAt: "2026-03-04" },
+//
+// and a test below asserted `params.get("chipNumber")` came back equal to it,
+// under the title "keeps the declared prefill alongside the id". That test
+// asserted the defect. Reaching this card needs event.write in ANY org plus a
+// DIM token, and /perdidas publishes the token of every lost animal with no
+// login — so the card handed the exact microchip number that
+// app/(public)/p/[publicToken] deliberately renders as "Microchip: Sí/No" to
+// anyone who scraped a token. The number now stays server-side; the signer
+// types what they scanned and atenderMicrochipAction matches it against the
+// declaration inside a SQL predicate (attemptedChipMatchesDeclaration).
 const CHIP_DECLARATION: PendingDeclaredEvent = {
   id: "11111111-1111-4111-8111-111111111111",
   eventType: "microchip_implanted",
-  summary: "Microchip 985141004321456",
-  prefill: { chipNumber: "985141004321456", occurredAt: "2026-03-04" },
+  summary: "Microchip declarado",
+  prefill: { occurredAt: "2026-03-04" },
 };
 
 const STERILIZATION_DECLARATION: PendingDeclaredEvent = {
@@ -172,10 +187,35 @@ describe("PendingSignaturesCard — the declared event id reaches the action", (
     );
   });
 
-  it("keeps the declared prefill alongside the id (the id must not displace it)", () => {
+  it("keeps the non-secret prefill alongside the id (the id must not displace it)", () => {
     const params = queryOf(ctaHrefFromCard([CHIP_DECLARATION]));
-    expect(params.get("chipNumber")).toBe("985141004321456");
     expect(params.get("occurredAt")).toBe("2026-03-04");
+  });
+
+  it("never puts the declared microchip number in the CTA href", () => {
+    const href = ctaHrefFromCard([CHIP_DECLARATION]);
+    const params = queryOf(href);
+    // The query string is the leak surface: PendingSignaturesCard spreads
+    // `item.prefill` into it, so a chipNumber key here ships the value to any
+    // caller who reached the page with a scraped token.
+    expect(params.get("chipNumber")).toBeNull();
+    expect(href).not.toContain("985141004321456");
+  });
+
+  it("never renders the declared microchip number as visible text", () => {
+    const { container, unmount } = render(
+      <PendingSignaturesCard
+        orgToken={ORG_TOKEN}
+        publicToken={PET_TOKEN}
+        pending={[CHIP_DECLARATION]}
+        signerMatriculaVerified={true}
+      />,
+    );
+    // The nudge must still say a chip declaration is waiting — "has a chip" is
+    // already public on /p/[publicToken]. It is the NUMBER that is out of scope.
+    expect(container.textContent).toContain("Microchip declarado");
+    expect(container.textContent).not.toContain("985141004321456");
+    unmount();
   });
 
   it("binds null when the surface is opened WITHOUT a declaration (fresh chip entry)", () => {
