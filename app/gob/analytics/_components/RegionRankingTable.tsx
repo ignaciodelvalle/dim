@@ -10,6 +10,8 @@
 // carries the species + window so the difference is legible on this surface.
 
 import type { RegionRankingRow } from "@/lib/analytics/analytics-ranking";
+import { SUPPRESSED_CELL_TEXT, provinceSuppressionNotice } from "@/lib/metrics/province-disclosure";
+import { formatCount } from "@/lib/utils/format";
 
 type Props = {
   top: RegionRankingRow[];
@@ -27,8 +29,17 @@ type Props = {
    * resolve to — rendering it as simultaneously "Mayor" and "Menor" is not a
    * ranking, it's the same number twice. Below 3 provinces, best/worst
    * framing is dropped in favor of a plain per-province value list.
+   *
+   * RA-3 C7: counts PUBLISHABLE provinces only, so a scope whose rankable set
+   * shrank below 3 because the rest were withheld drops the framing too.
    */
   totalProvinces: number;
+  /**
+   * Provinces withheld by the D.10 rule (`fetchRegionRanking`'s
+   * `suppressedCount`). Rendered as a notice: a table that quietly drops rows
+   * teaches the operator that the scope is smaller than it is.
+   */
+  suppressedCount: number;
 };
 
 /** Cursor red-team 2026-07-23 (claim #2) — the minimum distinct provinces a
@@ -36,7 +47,16 @@ type Props = {
  *  (a 1-province scope shows the SAME province as both "best" and "worst"). */
 const MIN_PROVINCES_FOR_RANKING = 3;
 
-function CoverageBar({ pct }: { pct: number }) {
+/**
+ * RA-3 C7: `pct` is nullable and there is NO `?? 0`. A false zero reads as a
+ * measured value and asserts something untrue — and here it would also have
+ * painted a zero-width bar, which is a claim about the rate rendered
+ * geometrically instead of typographically.
+ */
+function CoverageBar({ pct }: { pct: number | null }) {
+  if (pct === null) {
+    return <span className="text-sm text-ln-op-mute italic">{SUPPRESSED_CELL_TEXT}</span>;
+  }
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 h-2 rounded bg-ln-op-stripe overflow-hidden">
@@ -79,8 +99,15 @@ function RankingHalf({
           <th scope="col" className="text-left py-1.5 pr-4 font-semibold text-ln-op-mute">
             Provincia
           </th>
-          <th scope="col" className="text-left py-1.5 font-semibold text-ln-op-mute">
+          <th scope="col" className="text-left py-1.5 pr-4 font-semibold text-ln-op-mute">
             {columnLabel}
+          </th>
+          {/* RA-3 C7: the denominator was fetched and thrown away, so "33%"
+              arrived with no way to tell 1-of-3 from 400-of-1.212. A rate whose
+              base is invisible is not a comparable number — and the base is the
+              very quantity k had to clear for the rate to be publishable at all. */}
+          <th scope="col" className="text-right py-1.5 font-semibold text-ln-op-mute">
+            Padrón
           </th>
         </tr>
       </thead>
@@ -89,8 +116,11 @@ function RankingHalf({
           <tr key={row.code || row.province} className="border-b border-ln-op-line last:border-0">
             <td className="py-2 pr-2 tabular-nums text-ln-op-mute">{row.rank}</td>
             <td className="py-2 pr-4 text-ln-op-ink">{row.province}</td>
-            <td className="py-2 min-w-[120px]">
-              <CoverageBar pct={row.coveragePct ?? 0} />
+            <td className="py-2 pr-4 min-w-[120px]">
+              <CoverageBar pct={row.coveragePct} />
+            </td>
+            <td className="py-2 text-right tabular-nums text-ln-op-mute">
+              {formatCount(row.count)}
             </td>
           </tr>
         ))}
@@ -99,10 +129,28 @@ function RankingHalf({
   );
 }
 
-export function RegionRankingTable({ top, bottom, coverageLabel, totalProvinces }: Props) {
+export function RegionRankingTable({
+  top,
+  bottom,
+  coverageLabel,
+  totalProvinces,
+  suppressedCount,
+}: Props) {
   const hasData = top.length > 0 || bottom.length > 0;
+  // ONE wording, shared with every other tier that withholds a province — an
+  // operator reads the same sentence here, on /gob/censo and in an open-data
+  // download. Null when nothing was withheld: never announce a mark this frame
+  // does not carry.
+  const suppressionNotice = provinceSuppressionNotice(suppressedCount);
 
   if (!hasData) {
+    // Everything in scope was withheld. Returning null here was the RA-3 C7
+    // failure mode turned inside out: the table would vanish and the operator
+    // would read the empty space as "no hay datos" rather than "we are
+    // protecting them". Say which one it is.
+    if (suppressionNotice) {
+      return <p className="text-sm text-ln-op-mute">{suppressionNotice}</p>;
+    }
     return null;
   }
 
@@ -122,10 +170,17 @@ export function RegionRankingTable({ top, bottom, coverageLabel, totalProvinces 
           {top.map((row) => (
             <li key={row.code || row.province} className="text-md text-ln-op-ink">
               {row.province}: {coverageLabel}{" "}
-              <span className="font-semibold tabular-nums">{row.coveragePct ?? 0}%</span>
+              {/* No `?? 0` — see CoverageBar. The padrón rides along for the
+                  same reason it does in the table: a rate without its base is
+                  not a comparable number. */}
+              <span className="font-semibold tabular-nums">
+                {row.coveragePct === null ? SUPPRESSED_CELL_TEXT : `${row.coveragePct}%`}
+              </span>{" "}
+              <span className="text-ln-op-mute">({formatCount(row.count)} en el padrón)</span>
             </li>
           ))}
         </ul>
+        {suppressionNotice ? <p className="text-sm text-ln-op-mute">{suppressionNotice}</p> : null}
       </div>
     );
   }
@@ -163,6 +218,7 @@ export function RegionRankingTable({ top, bottom, coverageLabel, totalProvinces 
         Métrica histórica de toda especie con ≥1 dosis registrada. Distinta de la cobertura de
         cumplimiento del Panel/Panorama (perros con dosis en los últimos 12 meses, Ley 22.953).
       </p>
+      {suppressionNotice ? <p className="text-sm text-ln-op-mute">{suppressionNotice}</p> : null}
     </div>
   );
 }

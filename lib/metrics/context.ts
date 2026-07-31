@@ -64,6 +64,30 @@ export type ProjectionContext = {
 };
 
 /**
+ * The scope half of a ProjectionContext, on its own.
+ *
+ * Exists for the disclosure rule (`planProvinceDisclosure`,
+ * `isOwnJurisdictionProvince`), which reads NOTHING but `scope`. A fetcher that
+ * has an (actor, jurisdictions) pair but no period — `fetchRegionRanking` is the
+ * one — used to have two bad options: invent a period the rule never reads, or
+ * re-derive "is this province mine?" locally. The second is how a codebase ends
+ * up with two scope models that disagree; this is the first one, factored out.
+ *
+ * `buildProjectionContext` delegates here, so there is still exactly ONE place
+ * that decides admin ⇒ global / govt ⇒ jurisdictions.
+ */
+export function buildProjectionScope(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+): ProjectionScope {
+  return actor.role === "admin" ? { kind: "global" } : { kind: "jurisdictions", jurisdictions };
+}
+
+/** The minimum a caller must hand the D.10 disclosure rule. Any full
+ *  `ProjectionContext` satisfies it structurally. */
+export type ScopedForDisclosure = Pick<ProjectionContext, "scope">;
+
+/**
  * Build a ProjectionContext from the three values already available at any
  * dashboard page boundary:
  *  - actor       — from requireAdminOrGovtOrRedirect
@@ -81,8 +105,7 @@ export function buildProjectionContext(
   period: AnalyticsPeriod,
   opts?: { adminProvince?: string; adminLocality?: string; verifiedOnly?: boolean },
 ): ProjectionContext {
-  const scope: ProjectionScope =
-    actor.role === "admin" ? { kind: "global" } : { kind: "jurisdictions", jurisdictions };
+  const scope: ProjectionScope = buildProjectionScope(actor, jurisdictions);
 
   return {
     actor,

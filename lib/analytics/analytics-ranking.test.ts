@@ -10,7 +10,7 @@
 import { PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 
-import { rankByField, regionRankingPetsScope } from "./analytics-ranking";
+import { applyRankingDisclosure, rankByField, regionRankingPetsScope } from "./analytics-ranking";
 
 // ---------------------------------------------------------------------------
 // Pure unit tests — no DB
@@ -118,5 +118,85 @@ describe("regionRankingPetsScope — CABA whole-province subsumption", () => {
 
   it("returns null for admin (universal scope unchanged)", () => {
     expect(regionRankingPetsScope({ role: "admin" }, [])).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RA-3 finding C7 — a per-unit RATE reveals its denominator
+// ---------------------------------------------------------------------------
+//
+// `applyRankingDisclosure` is the pure half production runs (fetchRegionRanking
+// delegates to it), so these pin the SAME code path, not a restatement.
+
+describe("applyRankingDisclosure — RA-3 C7", () => {
+  // The finding's own example: 3 dogs / 1 vaccinated used to ship "33%", and
+  // `bottom` sorts ASCENDING, so it surfaced FIRST.
+  const TDF = { province: "Tierra del Fuego", code: "AR-V", value: 33, count: 3 };
+  const LA_RIOJA = { province: "La Rioja", code: "AR-F", value: 61, count: 1204 };
+  const BA = { province: "Buenos Aires", code: "AR-B", value: 45, count: 90_000 };
+
+  it("withholds a foreign sub-k province from an admin and announces it", () => {
+    const r = applyRankingDisclosure({ role: "admin" }, [], [TDF, LA_RIOJA, BA]);
+
+    expect(r.suppressedCount).toBe(1);
+    const named = [...r.top, ...r.bottom].map((x) => x.province);
+    expect(named).not.toContain("Tierra del Fuego");
+    // The rate is gone in every encoding — not published as 0 somewhere else.
+    expect([...r.top, ...r.bottom].map((x) => x.coveragePct)).not.toContain(33);
+    // The above-k siblings are UNTOUCHED. Blanking La Rioja's real 1.204 to
+    // protect Tierra del Fuego's 3 is the RA-1 over-correction.
+    expect(named).toContain("La Rioja");
+    expect(named).toContain("Buenos Aires");
+  });
+
+  it("`bottom` no longer leads with the sub-k cell", () => {
+    const r = applyRankingDisclosure({ role: "admin" }, [], [TDF, LA_RIOJA, BA]);
+    expect(r.bottom[0]?.province).not.toBe("Tierra del Fuego");
+    expect(r.bottom[0]?.province).toBe("Buenos Aires"); // 45 < 61
+  });
+
+  it("counts only PUBLISHABLE provinces in totalProvinces (the <3 honesty gate)", () => {
+    // 3 provinces in scope, 2 of them sub-k ⇒ 1 rankable. Best/worst framing over
+    // one row is the same dishonesty claim #2 named, so the count must not be
+    // propped up by rows nobody can see.
+    const alsoTiny = { province: "Santa Cruz", code: "AR-Z", value: 50, count: 2 };
+    const r = applyRankingDisclosure({ role: "admin" }, [], [TDF, alsoTiny, BA]);
+    expect(r.suppressedCount).toBe(2);
+    expect(r.totalProvinces).toBe(1);
+  });
+
+  it("D.10 SURVIVES: a govt operator's OWN 3-pet province keeps its real rate", () => {
+    // An own cell is never a suppression candidate. Blanket k here would blind an
+    // operator about their own administrados AND put this surface at odds with
+    // /gob/censo for the same viewer in the same session.
+    const r = applyRankingDisclosure(
+      { role: "govt" },
+      [{ province: "Tierra del Fuego", locality: "" }],
+      [TDF],
+    );
+    expect(r.suppressedCount).toBe(0);
+    expect(r.totalProvinces).toBe(1);
+    expect(r.top[0].province).toBe("Tierra del Fuego");
+    expect(r.top[0].coveragePct).toBe(33);
+    expect(r.top[0].count).toBe(3);
+  });
+
+  it("an admin DRILL is a query param, not an assignment — it does not turn k off", () => {
+    // `?province=Tierra del Fuego` narrows the row set to one; the verdict is
+    // unchanged, so the drill cannot be used to read the cell the national view
+    // hides.
+    const r = applyRankingDisclosure({ role: "admin" }, [], [TDF]);
+    expect(r.suppressedCount).toBe(1);
+    expect(r.top).toHaveLength(0);
+    expect(r.bottom).toHaveLength(0);
+    expect(r.totalProvinces).toBe(0);
+  });
+
+  it("an EMPTY province (0 pets) is a coverage gap, not a withholding", () => {
+    // Same nuance as provinceCell/suppressDelta: badging an empty group
+    // "protegido por privacidad" dresses a real gap as a deliberate secret.
+    // Zero-pet provinces are filtered upstream; the rule must agree.
+    const r = applyRankingDisclosure({ role: "admin" }, [], [LA_RIOJA, BA]);
+    expect(r.suppressedCount).toBe(0);
   });
 });

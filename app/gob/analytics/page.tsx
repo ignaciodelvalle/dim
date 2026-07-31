@@ -393,7 +393,13 @@ export default async function GobAnalyticsPage({
           review; the underlying metric (fetchCasesPerCapita) was reinstated
           below as a compact ranking table (E1, 2026-07-21 facades harvest) —
           raw counts remain visible on /gob/vigilancia. */}
-      {(regionRanking.top.length > 0 || regionRanking.bottom.length > 0) && (
+      {/* RA-3 C7: `suppressedCount > 0` keeps the card mounted when EVERY
+          province in scope was withheld. Gating on rows alone made the whole
+          panel vanish silently — the operator reads a missing panel as "this
+          metric has no data", which is the one thing a withholding is not. */}
+      {(regionRanking.top.length > 0 ||
+        regionRanking.bottom.length > 0 ||
+        regionRanking.suppressedCount > 0) && (
         <OpCard aria-labelledby={panelRankingId}>
           <OpCardHead
             title={
@@ -409,6 +415,9 @@ export default async function GobAnalyticsPage({
               bottom={regionRanking.bottom}
               coverageLabel={RABIES_VACCINATION_RATE_LABEL_ES}
               totalProvinces={regionRanking.totalProvinces}
+              // RA-3 C7 — the fetcher decided; this page only hands the verdict
+              // to the render. A literal here would be the second decision point.
+              suppressedCount={regionRanking.suppressedCount}
             />
           </OpCardBody>
         </OpCard>

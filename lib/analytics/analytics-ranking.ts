@@ -12,6 +12,8 @@ import { type SQL, and, count, countDistinct, eq, inArray, sql } from "drizzle-o
 // serves it normally. Locally analyticsDb falls back to DATABASE_URL (identical dev/test).
 import { analyticsDb as db, petEvents, pets } from "@/db";
 import { amendedPayloadText } from "@/lib/infra/amendment-sql";
+import { buildProjectionScope } from "@/lib/metrics/context";
+import { planProvinceDisclosure } from "@/lib/metrics/province-disclosure";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import {
   type DashboardActor,
@@ -102,6 +104,11 @@ export type RegionRankingRow = RankedRow & {
    * Rabies vaccination coverage as a percentage (0-100).
    * Computed as (petsWithRabiesVaccine / totalPets) * 100, rounded to integer.
    * Null if totalPets = 0 for this province.
+   *
+   * A row that REACHES a consumer always has this populated: withheld provinces
+   * never enter `top`/`bottom` (see `fetchRegionRanking`). The nullability is the
+   * historical zero-denominator case, kept so a renderer must still confront it
+   * instead of `?? 0`-ing a confident zero onto the screen.
    */
   coveragePct: number | null;
 };
@@ -120,8 +127,21 @@ export type RegionRankingResult = {
    * simultaneously "best" AND "worst", which is not a ranking at all. The
    * render site (RegionRankingTable) uses this to decide whether best/worst
    * framing is honest for the current scope.
+   *
+   * RA-3 finding C7: this counts PUBLISHABLE provinces only. A scope holding 5
+   * provinces of which 3 are withheld can rank 2, and "Mayor"/"Menor" over 2 rows
+   * is the same dishonesty claim #2 named — so the withheld ones must not prop
+   * the count up.
    */
   totalProvinces: number;
+  /**
+   * Provinces withheld by the D.10 rule (RA-3 finding C7). The render site MUST
+   * announce this number via `provinceSuppressionNotice` — #40's own follow-up
+   * shipped a fully hatched map with `suppressedCount: 0`, hiding the data and
+   * telling nobody, which is strictly worse than publishing it because an
+   * operator reads absence as "no pasa nada acá".
+   */
+  suppressedCount: number;
 };
 
 /**
@@ -136,6 +156,32 @@ export type RegionRankingResult = {
  * Scope: admin sees all provinces; govt sees only their assigned provinces.
  * When a province has 0 active/lost pets it is excluded from the ranking
  * (coveragePct would be undefined / divide-by-zero).
+ *
+ * SUPPRESSION (RA-3 finding C7, fixed 2026-07-31). This fetcher published
+ * `coveragePct` per province with no k-anon and no notice, and threw the
+ * denominator away: 3 dogs / 1 vaccinated shipped a confident "33%", 1 dog / 0
+ * doses shipped "0%". A RATE REVEALS ITS DENOMINATOR — the retired premise
+ * ("province cells are large") is true of a province's population and false of
+ * its padrón, which is exactly why `provinceCell`'s denominator parameter is
+ * obligatory and why `ProvinceDenominatorRow` demands one here too. `bottom`
+ * sorts ASCENDING, so the smallest padrones surfaced FIRST: the sub-k cells were
+ * the ones most likely to be on screen.
+ *
+ * The rule is `planProvinceDisclosure` — the SAME decider /gob/censo and
+ * /gob/poblacion use, not a second k. Consequences, in order:
+ *  · k is applied to the DENOMINATOR (`count`), never to the rate. The rate is
+ *    the thing the denominator makes safe to publish.
+ *  · D.10 SURVIVES: a govt operator's own province is never a candidate, so a
+ *    3-pet jurisdiction still sees its own row. Blanket k here would have blinded
+ *    an operator about their own administrados AND put this surface at odds with
+ *    /gob/censo for the same viewer in the same session.
+ *  · An admin — including one drilled in via `?province=` — owns no province at
+ *    this grain, so every cell is foreign and ordinary k applies.
+ *  · A withheld province is EXCLUDED from `top`/`bottom` rather than ranked with
+ *    a null: a rank is a statement about a value, and there is no value to state.
+ *    Its absence is not a channel because `suppressedCount` announces it out
+ *    loud, in the same words every other tier uses, and the notice's stated
+ *    reason ("menos de k mascotas") is exactly why it left.
  */
 export async function fetchRegionRanking(
   actor: DashboardActor,
@@ -143,7 +189,7 @@ export async function fetchRegionRanking(
   opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<RegionRankingResult> {
   if (actor.role === "govt" && jurisdictions.length === 0) {
-    return { top: [], bottom: [], totalProvinces: 0 };
+    return { top: [], bottom: [], totalProvinces: 0, suppressedCount: 0 };
   }
 
   // Build scope filter for the pets table (whole-province subsumption included).
@@ -164,7 +210,7 @@ export async function fetchRegionRanking(
     .where(and(...totalConditions))
     .groupBy(pets.jurisdictionProvince);
 
-  if (totalRows.length === 0) return { top: [], bottom: [], totalProvinces: 0 };
+  if (totalRows.length === 0) return { top: [], bottom: [], totalProvinces: 0, suppressedCount: 0 };
 
   const provinceNames = totalRows
     .filter((r) => r.province !== null)
@@ -192,8 +238,8 @@ export async function fetchRegionRanking(
     if (r.province) rabiesByProvince.set(r.province, r.n);
   }
 
-  // 3. Build ranked rows — only provinces with totalPets > 0.
-  const unranked: UnrankedRow[] = totalRows
+  // 3. Build candidate rows — only provinces with totalPets > 0.
+  const candidates: UnrankedRow[] = totalRows
     .filter((r) => r.province !== null && r.n > 0)
     .map((r) => {
       const prov = r.province as string;
@@ -208,8 +254,41 @@ export async function fetchRegionRanking(
       };
     });
 
-  const topRanked = rankByField(unranked, "value", "desc", 5);
-  const bottomRanked = rankByField(unranked, "value", "asc", 5);
+  // 4. Apply the D.10 verdict and rank what survives.
+  return applyRankingDisclosure(actor, jurisdictions, candidates);
+}
+
+/**
+ * The pure half of `fetchRegionRanking` — raw per-province (rate, padrón) rows
+ * in, D.10 verdict + ranked result out.
+ *
+ * Exported for the same two reasons `applyCoverageDisclosure` and
+ * `applyRegistryDisclosure` are: the rule becomes unit-testable without Postgres,
+ * and the test pins the SAME function production runs rather than a re-statement
+ * of it that can drift.
+ */
+export function applyRankingDisclosure(
+  actor: DashboardActor,
+  jurisdictions: DashboardJurisdiction[],
+  candidates: readonly UnrankedRow[],
+): RegionRankingResult {
+  // THE D.10 VERDICT (RA-3 C7), decided on the DENOMINATOR by the shared rule.
+  // `count` is the province's active/lost padrón: the base
+  // `ProvinceDenominatorRow.denominator` is contracted to carry, and the exact
+  // quantity a published rate hands back. `buildProjectionScope` is the one scope
+  // model (context.ts) — this file does not define a second one, and deliberately
+  // does not consult `adminProvince`: an admin drill is a URL parameter, not an
+  // assignment, so it narrows the rows and changes nothing about the verdict.
+  const plan = planProvinceDisclosure(
+    { scope: buildProjectionScope(actor, jurisdictions) },
+    candidates.map((r) => ({ province: r.province, denominator: r.count })),
+  );
+
+  // Withheld provinces leave the ranking entirely — see the fetcher docblock.
+  const unranked = candidates.filter((r) => !plan.withheld.has(r.province));
+
+  const topRanked = rankByField([...unranked], "value", "desc", 5);
+  const bottomRanked = rankByField([...unranked], "value", "asc", 5);
 
   function toResult(rows: RankedRow[]): RegionRankingRow[] {
     return rows.map((r) => ({ ...r, coveragePct: r.value }));
@@ -219,5 +298,6 @@ export async function fetchRegionRanking(
     top: toResult(topRanked),
     bottom: toResult(bottomRanked),
     totalProvinces: unranked.length,
+    suppressedCount: plan.suppressedCount,
   };
 }

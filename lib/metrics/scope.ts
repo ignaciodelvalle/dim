@@ -14,7 +14,7 @@ import { petEvents, pets } from "@/db";
 import { isWholeProvinceLocality } from "@/lib/domain/jurisdiction-canonical";
 
 import type { DashboardJurisdiction } from "./context";
-import type { ProjectionContext } from "./context";
+import type { ProjectionContext, ScopedForDisclosure } from "./context";
 
 /**
  * Builds the OR-of-(province=X AND locality=Y) disjunction for a list of
@@ -131,7 +131,7 @@ export function petsScopeClause(ctx: ProjectionContext) {
  * of D.10 (PO, 2026-07-31), not an oversight — see the ADMIN note on
  * `planProvinceDisclosure` (lib/metrics/province-disclosure.ts).
  */
-export function isOwnJurisdictionProvince(ctx: ProjectionContext, province: string): boolean {
+export function isOwnJurisdictionProvince(ctx: ScopedForDisclosure, province: string): boolean {
   if (ctx.scope.kind === "global") return false;
   return ctx.scope.jurisdictions.some((j) => j.province === province);
 }

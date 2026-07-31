@@ -21,11 +21,16 @@
 // denominator while a per-province COUNT *is* the denominator. Both families
 // route through here now.
 //
-// Pure and DB-free: `ProjectionContext` is only read for its scope, so the rule
-// is unit-testable without Postgres.
+// Pure and DB-free: the context is only read for its SCOPE, which is why the
+// parameter is `ScopedForDisclosure` (`Pick<ProjectionContext, "scope">`) and not
+// the whole context. Every existing caller passes a full ProjectionContext and is
+// unchanged (structural typing); what the narrower type buys is that
+// `fetchRegionRanking` — which holds an (actor, jurisdictions) pair and no period
+// — can consult the SAME rule instead of inventing a period the rule never reads
+// or re-deriving "is this province mine?" locally. Unit-testable without Postgres.
 
 import { ANONYMITY_K, suppressSmallCells } from "./anonymity";
-import type { ProjectionContext } from "./context";
+import type { ScopedForDisclosure } from "./context";
 import { isOwnJurisdictionProvince } from "./scope";
 
 /**
@@ -181,7 +186,7 @@ export type ProvinceDisclosurePlan = {
  * separate decision, flagged rather than smuggled in here.
  */
 export function planProvinceDisclosure(
-  ctx: ProjectionContext,
+  ctx: ScopedForDisclosure,
   rows: readonly ProvinceDenominatorRow[],
 ): ProvinceDisclosurePlan {
   const rowTotal = rows.reduce((sum, r) => sum + r.denominator, 0);
