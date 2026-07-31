@@ -1,3 +1,12 @@
+# 🚨 GATE DE DEPLOY — LEER ANTES DE SUBIR NADA
+
+**La migración `db/migrations/0162_welfare_reports_jurisdiction_unverified.sql`
+DEBE aplicarse antes de que esto shipee.** `db/schema.ts:1680` ya declara
+`jurisdictionUnverified` y `MaltratoQueueScreen` hace un `.select()` pelado sobre
+`welfareReports`: contra una base sin migrar, **toda query de welfare da 500 y el
+circuito de denuncias entero se cae**. Numeración verificada (0160/0161/0162,
+forward-only, idempotente). Aplicada SOLO en local.
+
 # ⛔ VEREDICTO RA-3 — NO APTO PARA STAGING HASTA CERRAR C1-C4
 
 **La review de privacidad volvió NOT CLEAN: 8 confirmados, 4 de severidad alta.**
