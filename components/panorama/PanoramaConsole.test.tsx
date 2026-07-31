@@ -1157,6 +1157,14 @@ describe("PanoramaConsole — reflow composition (panorama-vista-redesign Phases
     expect(container.querySelector("input[type='range']")).toBeNull();
     openTimeline();
     // The scrubber's range input mounts, not behind any details disclosure.
+    //
+    // ANTI-RESURRECTION GUARD, intentional (documented 2026-07-31 by PO after
+    // a sweep for tests that assert dead literals flagged this one). "Reproducir
+    // en el tiempo" was the <summary> of a <details> that used to WRAP the
+    // scrubber. The literal exists nowhere in source precisely because the
+    // disclosure was removed — that absence IS the assertion, and it fails the
+    // day someone puts the scrubber back behind a collapsed disclosure. It only
+    // LOOKS vacuous; the next sweep should leave it alone.
     expect(screen.queryByText("Reproducir en el tiempo")).not.toBeInTheDocument();
     const range = container.querySelector("input[type='range']");
     expect(range).not.toBeNull();
