@@ -102,6 +102,25 @@ export default async function SuscripcionesPage({
     );
   }
 
+  // RA-2 F7 — who may WRITE here, not just who may read.
+  //
+  // All three write actions (create / delete / toggle) are gated by
+  // requireAdminOrRedirect (app/actions/alert-subscriptions.ts:52,72,83), which
+  // ends in redirect("/") with no try/catch. The page, however, admits govt.
+  // So a govt operator saw the "Crear suscripción" form, filled it, submitted —
+  // and landed on the home page with no error and the input gone.
+  //
+  // Resolved by HIDING, not by granting. Widening requireAdminOrRedirect to
+  // govt is an authorization change (alert subscriptions drive notification
+  // fan-out and are keyed per actor_user_id), and an authz boundary is a PO
+  // decision, not something a bug fix quietly expands. Matching the UI to the
+  // guard that already exists is the reversible half.
+  //
+  // Same shape as the /gob/reglas precedent (admin lens vs
+  // GovtReglasReadOnlyView) and the isAdmin prop on /gob/maltrato's
+  // AssignmentActions.
+  const canManage = profile.role === "admin";
+
   const supabase = await createClient();
   const {
     data: { user: currentUser },
@@ -234,7 +253,13 @@ export default async function SuscripcionesPage({
         <OpCardBody>
           {alertEvals.length === 0 ? (
             <p className="text-md text-ln-op-mute">
-              Sin suscripciones configuradas. Creá una abajo.
+              {canManage
+                ? "Sin suscripciones configuradas. Creá una abajo."
+                : // Subscriptions are keyed per actor_user_id and only admins can
+                  // create them, so this list is structurally empty for govt.
+                  // "Creá una abajo" pointed at a form that is no longer there
+                  // (RA-2 F7) — and, before that, at one that redirected home.
+                  "Sin suscripciones configuradas. Las alertas las administra un admin: pedile que cree la suscripción que necesitás."}
             </p>
           ) : filteredEvals.length === 0 ? (
             <p className="text-md text-ln-op-mute">
@@ -261,20 +286,28 @@ export default async function SuscripcionesPage({
                       <span className="ml-2 text-sm text-ln-op-mute italic">(inactiva)</span>
                     )}
                   </div>
-                  <form action={toggleAlertSubscriptionAction}>
-                    <input type="hidden" name="id" value={a.id} />
-                    <input type="hidden" name="isActive" value={a.isActive ? "false" : "true"} />
-                    <OpButton
-                      type="submit"
-                      variant="ghost"
-                      size="sm"
-                      aria-label={a.isActive ? "Desactivar suscripción" : "Activar suscripción"}
-                      className="h-11 px-3"
-                    >
-                      {a.isActive ? "Pausar" : "Activar"}
-                    </OpButton>
-                  </form>
-                  <DeleteAlertSubscriptionButton subscriptionId={a.id} />
+                  {canManage && (
+                    <>
+                      <form action={toggleAlertSubscriptionAction}>
+                        <input type="hidden" name="id" value={a.id} />
+                        <input
+                          type="hidden"
+                          name="isActive"
+                          value={a.isActive ? "false" : "true"}
+                        />
+                        <OpButton
+                          type="submit"
+                          variant="ghost"
+                          size="sm"
+                          aria-label={a.isActive ? "Desactivar suscripción" : "Activar suscripción"}
+                          className="h-11 px-3"
+                        >
+                          {a.isActive ? "Pausar" : "Activar"}
+                        </OpButton>
+                      </form>
+                      <DeleteAlertSubscriptionButton subscriptionId={a.id} />
+                    </>
+                  )}
                 </li>
               ))}
             </ul>
@@ -282,13 +315,15 @@ export default async function SuscripcionesPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Crear suscripción */}
-      <OpCard aria-labelledby={panelCrearId}>
-        <OpCardHead title={<span id={panelCrearId}>Crear suscripción</span>} />
-        <OpCardBody>
-          <AlertSubscriptionForm />
-        </OpCardBody>
-      </OpCard>
+      {/* Crear suscripción — admin only; see the canManage note above (RA-2 F7). */}
+      {canManage && (
+        <OpCard aria-labelledby={panelCrearId}>
+          <OpCardHead title={<span id={panelCrearId}>Crear suscripción</span>} />
+          <OpCardBody>
+            <AlertSubscriptionForm />
+          </OpCardBody>
+        </OpCard>
+      )}
     </div>
   );
 }
