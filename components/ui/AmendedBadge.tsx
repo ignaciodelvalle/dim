@@ -22,7 +22,7 @@ export type AmendedBadgeProps = {
 export function AmendedBadge({ amendedAt, originalHref }: AmendedBadgeProps) {
   return (
     <output
-      className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-bg,var(--color-ln-stripe))] px-2 py-0.5 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ink-2)]"
+      className="inline-flex items-center gap-[5px] rounded-full border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-bg,var(--color-ln-stripe))] px-2 py-0.5 font-ln-mono text-xs text-[var(--color-ln-ink-2)]"
       aria-label={`Registro corregido el ${formatDateShort(amendedAt)}`}
     >
       <Icon name="editar" size={14} decorative />

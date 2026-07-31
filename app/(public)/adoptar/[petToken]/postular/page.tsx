@@ -136,7 +136,7 @@ export default async function PostularPage({
         {/* Back link */}
         <Link
           href={`/adoptar/${petToken}`}
-          className="inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
           style={{ color: "var(--color-ln-mute)" }}
         >
           ← Volver a la ficha
@@ -168,7 +168,7 @@ export default async function PostularPage({
               />
             ) : (
               <div
-                className="w-full h-full grid place-items-center font-[var(--font-ln-serif)] text-title font-semibold"
+                className="w-full h-full grid place-items-center font-ln-serif text-title font-semibold"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 {pet.name.charAt(0).toUpperCase()}
@@ -177,13 +177,13 @@ export default async function PostularPage({
           </div>
           <div>
             <p
-              className="mb-1 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em]"
+              className="mb-1 font-ln-mono text-xs font-semibold uppercase tracking-[.14em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Postulación de adopción
             </p>
             <p
-              className="m-0 font-[var(--font-ln-serif)] font-semibold text-title tracking-[-0.015em]"
+              className="m-0 font-ln-serif font-semibold text-title tracking-[-0.015em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Adoptar a {pet.name}
@@ -203,7 +203,7 @@ export default async function PostularPage({
           }}
         >
           <p
-            className="mb-1.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em]"
+            className="mb-1.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Lo que verá el refugio de vos
@@ -264,7 +264,7 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
+          className="font-ln-serif font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           Esta cuenta no puede postularse
@@ -301,7 +301,7 @@ function NoLongerAvailable({ name }: { name: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
+          className="font-ln-serif font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           {name} ya no está disponible
@@ -338,7 +338,7 @@ function AlreadyApplied({ name }: { name: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
+          className="font-ln-serif font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           Ya postulaste para {name}

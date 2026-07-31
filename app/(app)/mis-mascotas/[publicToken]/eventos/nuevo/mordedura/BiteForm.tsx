@@ -102,7 +102,7 @@ export function BiteForm({
 
           {/* Victim kind — pill radio group wrapped in fieldset for SR grouping */}
           <fieldset className="flex flex-col gap-1.5 border-0 m-0 p-0">
-            <legend className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-1.5">
+            <legend className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)] mb-1.5">
               ¿A quién mordió {petName}?{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
@@ -120,7 +120,7 @@ export function BiteForm({
                   key={opt.value}
                   className={[
                     "flex cursor-pointer items-center justify-center rounded-[3px] border px-2.5 py-2",
-                    "font-[var(--font-ln-mono)] text-[11px] font-semibold transition-colors",
+                    "font-ln-mono text-[11px] font-semibold transition-colors",
                     victimKind === opt.value
                       ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]"
                       : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)]",
@@ -249,7 +249,7 @@ export function BiteForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

@@ -271,7 +271,7 @@ export function MinimalNewPetForm({
       >
         {/* ── Header ─────────────────────────────────────────────────── */}
         <div className="mb-6">
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-2xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             {isFirstPet ? "Registrar tu primera mascota" : "Registrar mascota"}
           </h1>
           <p className="mt-1 text-md text-[var(--color-ln-mute)]">
@@ -365,7 +365,7 @@ export function MinimalNewPetForm({
 
           {/* Sex */}
           <div className="flex flex-col gap-1.5">
-            <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+            <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Sexo
             </p>
             <div className="flex flex-col gap-1.5">
@@ -408,7 +408,7 @@ export function MinimalNewPetForm({
           {/* Location — REQUIRED. Province-first cascade (commit 38fb1f44). */}
           <div className="flex flex-col gap-1.5">
             <LocationFields mode="l1" required cascade />
-            <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+            <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
               Requerido. Ayuda a las campañas regionales de salud animal.
             </p>
           </div>
@@ -472,10 +472,7 @@ export function MinimalNewPetForm({
 
         {/* ── Error ──────────────────────────────────────────────────── */}
         {errorText && (
-          <p
-            className="mt-4 font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
-            role="alert"
-          >
+          <p className="mt-4 font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
             {errorText}
           </p>
         )}
@@ -570,7 +567,7 @@ function SpeciesField({
 
   return (
     <div className="flex flex-col gap-2.5">
-      <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+      <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Especie{" "}
         <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
           *
@@ -673,7 +670,7 @@ function PhotoField({
 
   return (
     <div className="flex flex-col gap-1.5">
-      <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+      <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Foto{" "}
         <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
           opcional
@@ -700,7 +697,7 @@ function PhotoField({
           <p className="text-md font-medium text-[var(--color-ln-ink-2)]">
             {preview ? "Cambiar foto" : "Tomar o elegir una foto"}
           </p>
-          <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+          <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
             Cámara o galería. JPG o PNG, hasta 5 MB.
           </p>
         </div>
@@ -718,7 +715,7 @@ function PhotoField({
         <button
           type="button"
           onClick={removePhoto}
-          className="self-start font-[var(--font-ln-mono)] text-sm tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+          className="self-start font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
         >
           Quitar foto
         </button>

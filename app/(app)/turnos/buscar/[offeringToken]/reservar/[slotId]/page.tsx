@@ -86,14 +86,14 @@ export default async function ReservarTurnoPage({
       {/* Back */}
       <Link
         href={`/turnos/buscar/${offeringToken}`}
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver a los turnos
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Confirmar reserva
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -108,7 +108,7 @@ export default async function ReservarTurnoPage({
           <dl className="flex flex-col gap-3">
             <DetailRow label="Servicio">
               <span className="font-medium">{offering.displayName}</span>
-              <span className="ml-1.5 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+              <span className="ml-1.5 font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
                 {kindDef?.label ?? offering.serviceKind}
               </span>
             </DetailRow>
@@ -149,7 +149,7 @@ export default async function ReservarTurnoPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>

@@ -11,6 +11,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEAD_FONT_VAR,
+  DEAD_TEXT_VAR,
   OP_TOKEN_UTILITY,
   RAW_CITIZEN_STATUS,
   STATUS_COMPONENTS,
@@ -57,6 +59,71 @@ describe("RAW_CITIZEN_STATUS — precision (no false positives)", () => {
       expect(cls).not.toMatch(RAW_CITIZEN_STATUS);
     });
   }
+});
+
+// Rule 10 (SC-7). `font-` is the prefix for font-family, font-weight AND
+// font-style, so Tailwind v4 cannot type a bare CSS variable and resolves it to
+// font-WEIGHT: `.font-\[var\(--font-ln-mono\)\]{font-weight:var(--font-ln-mono)}`.
+// A font stack is not a valid <font-weight>, the declaration is dropped, and the
+// element silently keeps its INHERITED family. 520 of these across 143 files
+// went unguarded because DEAD_TEXT_VAR is anchored on the `text-` prefix.
+describe("DEAD_FONT_VAR — recall (catches the dead font-family form)", () => {
+  const BAD = [
+    "font-[var(--font-ln-mono)]",
+    "font-[var(--font-ln-serif)]",
+    "font-[var(--font-ln-sans)]",
+    // Must not be limited to the three families that exist today — a token
+    // added later has to be caught by the same rule.
+    "font-[var(--font-ln-display)]",
+    // Variant-prefixed forms are still dead.
+    "sm:font-[var(--font-ln-mono)]",
+    "hover:font-[var(--font-ln-serif)]",
+    // Real-world shape: one class among many.
+    "m-0 font-[var(--font-ln-serif)] text-3xl font-semibold",
+  ];
+  for (const cls of BAD) {
+    it(`flags "${cls}"`, () => {
+      DEAD_FONT_VAR.lastIndex = 0;
+      expect(cls).toMatch(DEAD_FONT_VAR);
+    });
+  }
+});
+
+describe("DEAD_FONT_VAR — precision (no false positives)", () => {
+  const GOOD = [
+    // The correct, working form — compiles to a real font-family.
+    "font-ln-mono",
+    "font-ln-serif",
+    "font-ln-sans",
+    // Weight and style utilities share the prefix but are unambiguous.
+    "font-semibold",
+    "font-medium",
+    "font-bold",
+    "font-italic",
+    // Rule 9's territory, not rule 10's.
+    "text-[var(--text-sm)]",
+    // Other arbitrary token forms that are correct and must stay untouched.
+    "bg-[var(--color-ln-card)]",
+    "rounded-[var(--radius-sm)]",
+    "shadow-[var(--shadow-md)]",
+  ];
+  for (const cls of GOOD) {
+    it(`does NOT flag "${cls}"`, () => {
+      DEAD_FONT_VAR.lastIndex = 0;
+      expect(cls).not.toMatch(DEAD_FONT_VAR);
+    });
+  }
+});
+
+describe("DEAD_FONT_VAR and DEAD_TEXT_VAR do not overlap", () => {
+  it("each rule owns exactly its own prefix", () => {
+    DEAD_FONT_VAR.lastIndex = 0;
+    DEAD_TEXT_VAR.lastIndex = 0;
+    expect("font-[var(--font-ln-mono)]").not.toMatch(DEAD_TEXT_VAR);
+    DEAD_TEXT_VAR.lastIndex = 0;
+    DEAD_FONT_VAR.lastIndex = 0;
+    expect("text-[var(--text-sm)]").not.toMatch(DEAD_FONT_VAR);
+  });
 });
 
 describe("STATUS_COMPONENTS — guarded set includes the CaseBadge holdout", () => {

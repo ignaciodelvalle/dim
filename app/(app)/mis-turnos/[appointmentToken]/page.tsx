@@ -97,18 +97,18 @@ export default async function AppointmentDetailPage({
       {/* Back */}
       <Link
         href="/mis-turnos"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis turnos
       </Link>
 
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-3">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {offering.displayName}
         </h1>
         <span
-          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
         >
           {statusConfig.label}
         </span>
@@ -160,7 +160,7 @@ export default async function AppointmentDetailPage({
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <p className="select-all text-center font-[var(--font-ln-mono)] text-lg font-bold tracking-widest text-[var(--color-ln-ink)]">
+            <p className="select-all text-center font-ln-mono text-lg font-bold tracking-widest text-[var(--color-ln-ink)]">
               {appointmentToken}
             </p>
           </LnCardBody>
@@ -200,7 +200,7 @@ export default async function AppointmentDetailPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>

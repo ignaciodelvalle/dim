@@ -98,14 +98,14 @@ export default async function BuscarHogarPage({
       {/* Back */}
       <Link
         href={`/mis-mascotas/${publicToken}`}
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Buscar nuevo hogar para {pet.name}
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -126,7 +126,7 @@ export default async function BuscarHogarPage({
             !province ? (
               <Link
                 href={`/mis-mascotas/${publicToken}/editar`}
-                className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="font-ln-mono text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 Editar mascota →
               </Link>
@@ -141,10 +141,10 @@ export default async function BuscarHogarPage({
               className="flex flex-col gap-2.5 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
+                <p className="font-ln-serif text-md font-semibold text-[var(--color-ln-ink)]">
                   {org.displayName}
                 </p>
-                <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] capitalize text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 font-ln-mono text-[10.5px] capitalize text-[var(--color-ln-mute)]">
                   {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {" · "}
                   {org.jurisdictionLocality ?? org.jurisdictionProvince}

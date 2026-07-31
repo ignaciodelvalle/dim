@@ -18,8 +18,11 @@
 //   6. Arbitrary rounded-[Npx] radius — use --radius-xs/sm/md/lg tokens instead.
 //   7. Arbitrary shadow-[...] — use --shadow-sm/md/lg tokens instead.
 //   8. Hex literals in style=/inline CSS props — replace with CSS vars.
+//   9. text-[var(--text-*)] — a DEAD font-size (compiles to `color`).
+//  10. font-[var(--font-*)] — a DEAD font-family (compiles to `font-weight`).
+//      Use the named family utility (font-ln-mono/serif/sans).
 //
-// Rules 4-8 use a RATCHET baseline (scripts/design-tokens-baseline.json):
+// Rules 4-10 use a RATCHET baseline (scripts/design-tokens-baseline.json):
 //   - Existing violations in baselined files are grandfathered (pass today).
 //   - Any NEW violation (new file or count above baseline) FAILS.
 //   - To clear debt: migrate a file, lower its count in the baseline, or
@@ -158,7 +161,7 @@ export const OP_TOKEN_UTILITY =
   /\b(?:bg|text|border|ring|divide|from|to|via|outline|fill|stroke|placeholder|caret|decoration|accent)-ln-op-([a-z0-9]+(?:-[a-z0-9]+)*)/g;
 
 // ---------------------------------------------------------------------------
-// Rules 4–8 (new ratchet rules — fail only on NEW violations above baseline)
+// Rules 4–10 (new ratchet rules — fail only on NEW violations above baseline)
 // ---------------------------------------------------------------------------
 
 // Rule 4: Arbitrary text sizes — text-[Npx] or text-[N.Npx].
@@ -189,6 +192,38 @@ export const ARBITRARY_TEXT_PX = /\btext-\[\d+\.?\d*px\]/g;
 // change across the whole app and belongs to a deliberate pass with the PO,
 // not to a silent codemod.
 export const DEAD_TEXT_VAR = /\btext-\[var\(--text-[a-z0-9-]+\)\]/g;
+
+// Rule 10: font-[var(--font-*)] — a DEAD font-family (measured 2026-07-31).
+//
+// The exact twin of rule 9, and it went unguarded for the same reason rule 9
+// went unnoticed: DEAD_TEXT_VAR above is anchored on the `text-` prefix, so
+// this population had no fence at all and grew to 520 uses across 143 files.
+//
+// `font-` is as ambiguous to Tailwind v4 as `text-` is — it is the prefix for
+// font-family, font-weight AND font-style — and for a bare CSS variable
+// Tailwind resolves it to font-WEIGHT. Read straight out of the compiled
+// stylesheet:
+//
+//   .font-\[var\(--font-ln-mono\)\]{--tw-font-weight:var(--font-ln-mono);
+//                                   font-weight:var(--font-ln-mono)}
+//
+// `--font-ln-mono` is a font STACK, not a <font-weight>, so the declaration is
+// invalid, the browser drops it, and the element keeps the font-family it
+// INHERITED — the body's "Encode Sans", never the intended IBM Plex face. 349
+// of the 520 were asking for the monospace face and none of them got it.
+//
+// The working form is the NAMED family utility (`font-ln-mono`,
+// `font-ln-serif`, `font-ln-sans`), which compiles to a real `font-family`
+// because --font-* IS Tailwind v4's font-family namespace. Same token, same
+// single source of truth, and it actually applies.
+//
+// Driven to 0 across the whole baseline by the SC-7 pass
+// (scripts/codemod-dead-font-var.mjs). Unlike rule 9 this rule was born at
+// zero, so any hit is a NEW regression, not inherited debt.
+//
+// Deliberately NOT limited to the three ln-* families: a fourth token added
+// later must not be able to reintroduce the same dead form.
+export const DEAD_FONT_VAR = /\bfont-\[var\(--font-[a-z0-9-]+\)\]/g;
 
 // Rule 5: Arbitrary spacing — p/m/gap/space etc. with [Npx] or [Nrem].
 // Also matches Tailwind's compound shorthand (2-4 underscore-separated values,
@@ -225,6 +260,7 @@ export const HEX_IN_STYLE =
 type BaselineCounts = {
   text: number;
   deadTextVar: number;
+  deadFontVar: number;
   space: number;
   rounded: number;
   shadow: number;
@@ -250,8 +286,22 @@ function loadBaseline(): BaselineFile["files"] {
 }
 
 // ---------------------------------------------------------------------------
-// Ratchet counter — counts per-file hits for rules 4–8, compares to baseline
+// Ratchet counter — counts per-file hits for rules 4–10, compares to baseline
 // ---------------------------------------------------------------------------
+
+// Every ratchet category at zero. Spread FIRST under a baseline entry so a
+// category the baseline file predates (e.g. deadFontVar before SC-7) is strict
+// rather than `undefined`, which would make every `seen > allowed` comparison
+// false and silently switch the rule off for that file.
+const ZERO_COUNTS: BaselineCounts = {
+  text: 0,
+  deadTextVar: 0,
+  deadFontVar: 0,
+  space: 0,
+  rounded: 0,
+  shadow: 0,
+  hexStyle: 0,
+};
 
 function countMatches(src: string, re: RegExp): number {
   return [...src.matchAll(re)].length;
@@ -274,7 +324,7 @@ function runChecks(): void {
 
   let hits = 0;
 
-  // Ratchet per-file totals for rules 4–8
+  // Ratchet per-file totals for rules 4–10
   const ratchetResults: Array<{
     file: string;
     category: keyof BaselineCounts;
@@ -286,13 +336,13 @@ function runChecks(): void {
     const relPath = file.replaceAll("\\", "/");
     const src = readFileSync(file, "utf8");
     const lines = src.split(/\r?\n/);
-    const baselineCounts: BaselineCounts = baseline[relPath] ?? {
-      text: 0,
-      deadTextVar: 0,
-      space: 0,
-      rounded: 0,
-      shadow: 0,
-      hexStyle: 0,
+    // A file absent from the baseline is strict on every category. A file
+    // PRESENT in the baseline but missing a category key would otherwise
+    // compare `seen > undefined` — always false — and silently disable the
+    // rule for that file, so ZERO_COUNTS backfills every key it omits.
+    const baselineCounts: BaselineCounts = {
+      ...ZERO_COUNTS,
+      ...(baseline[relPath] ?? {}),
     };
 
     // --- Rules 1–3 (line-level, no ratchet) ---
@@ -350,10 +400,11 @@ function runChecks(): void {
       }
     });
 
-    // --- Rules 4–8 (file-level ratchet) ---
+    // --- Rules 4–10 (file-level ratchet) ---
     const actual = {
       text: countMatches(src, ARBITRARY_TEXT_PX),
       deadTextVar: countMatches(src, DEAD_TEXT_VAR),
+      deadFontVar: countMatches(src, DEAD_FONT_VAR),
       space: countMatches(src, ARBITRARY_SPACING_PX),
       rounded: countMatches(src, ARBITRARY_RADIUS_PX),
       shadow: countMatches(src, ARBITRARY_SHADOW),
@@ -370,6 +421,11 @@ function runChecks(): void {
         "deadTextVar",
         "text-[var(--text-*)]",
         "DEAD font-size: Tailwind v4 compiles this to `color:var(--text-*)`, so the element keeps its inherited size. Use the named utility instead (text-sm, text-3xl, …).",
+      ],
+      [
+        "deadFontVar",
+        "font-[var(--font-*)]",
+        "DEAD font-family: Tailwind v4 compiles this to `font-weight:var(--font-*)`, which is not a valid <font-weight>, so the element keeps its inherited family. Use the named utility instead (font-ln-mono, font-ln-serif, font-ln-sans). Autofix: node scripts/codemod-dead-font-var.mjs",
       ],
       [
         "space",
@@ -409,7 +465,7 @@ function runChecks(): void {
     `✓ Design tokens clean — 0 raw palette, 0 dark: prefix, 0 arbitrary hex across ${FILES.length} files.`,
   );
   console.log(
-    `  Ratchet: ${totalBaselined} grandfathered arbitrary values across ${Object.keys(baseline).length} files (rules 4–8). New violations will fail.`,
+    `  Ratchet: ${totalBaselined} grandfathered arbitrary values across ${Object.keys(baseline).length} files (rules 4–10). New violations will fail.`,
   );
 }
 

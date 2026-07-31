@@ -29,7 +29,7 @@ export default async function PropuestasInboxPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -37,7 +37,7 @@ export default async function PropuestasInboxPage() {
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Propuestas de tránsito
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -47,7 +47,7 @@ export default async function PropuestasInboxPage() {
         </div>
         <Link
           href="/cuenta/ofrecerme-como-transito"
-          className="mt-1 flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+          className="mt-1 flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-ln-sans text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
         >
           Ofrecerme como tránsito
         </Link>
@@ -83,7 +83,7 @@ export default async function PropuestasInboxPage() {
                       {org.displayName}{" "}
                       <span className="font-normal text-[var(--color-ln-mute)]">→ {pet.name}</span>
                     </p>
-                    <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                       {speciesLabel(pet.species)}
                       {proposal.proposedDurationWeeks &&
                         ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
@@ -116,7 +116,7 @@ export default async function PropuestasInboxPage() {
                     {org.displayName} · {pet.name}
                   </p>
                   <span
-                    className={`flex-shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] ${
+                    className={`flex-shrink-0 font-ln-mono text-xs uppercase tracking-[.06em] ${
                       proposal.status === "accepted"
                         ? "text-[var(--color-ln-ok)]"
                         : "text-[var(--color-ln-mute)]"

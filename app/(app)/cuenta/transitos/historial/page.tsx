@@ -52,14 +52,14 @@ export default async function TransitosHistorialPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
       <div className="mb-7">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Historial de tránsitos
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -89,7 +89,7 @@ export default async function TransitosHistorialPage() {
                     >
                       {pet.name}
                     </Link>
-                    <p className="mt-px font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-px font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                       {ownership.startedAt ? formatDateShort(ownership.startedAt) : ""}
                       {ownership.endedAt && ` → ${formatDateShort(ownership.endedAt)}`}
                     </p>
@@ -127,7 +127,7 @@ export default async function TransitosHistorialPage() {
                       </p>
                     )}
                   </div>
-                  <span className="flex-shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
+                  <span className="flex-shrink-0 font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
                     {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
                       proposal.status}
                   </span>
@@ -142,7 +142,7 @@ export default async function TransitosHistorialPage() {
       <div className="mt-8 border-t border-[var(--color-ln-line-2)] pt-3.5">
         <Link
           href="/cuenta/transitos/activos"
-          className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Tránsitos activos
         </Link>

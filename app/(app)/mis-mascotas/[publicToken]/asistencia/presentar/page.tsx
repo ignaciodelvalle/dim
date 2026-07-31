@@ -69,7 +69,7 @@ export default async function AsistenciaPresentarPage({
       <div className="px-4 pt-4">
         <Link
           href={`/mis-mascotas/${publicToken}/asistencia`}
-          className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="font-ln-mono text-[11px] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
         >
           ← Volver
         </Link>
@@ -79,10 +79,10 @@ export default async function AsistenciaPresentarPage({
       <div className="mx-auto flex w-full max-w-lg flex-1 flex-col items-center justify-center gap-6 px-6 py-8">
         {/* Credential title */}
         <div className="text-center">
-          <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
+          <p className="font-ln-mono text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
             Credencial de perro de asistencia
           </p>
-          <p className="mt-[3px] font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
+          <p className="mt-[3px] font-ln-mono text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
             Ley 26.858
           </p>
         </div>
@@ -103,7 +103,7 @@ export default async function AsistenciaPresentarPage({
 
         {/* Pet name and service type */}
         <div className="text-center">
-          <h1 className="font-[var(--font-ln-serif)] text-5xl font-semibold tracking-tight text-[var(--color-ln-ink)]">
+          <h1 className="font-ln-serif text-5xl font-semibold tracking-tight text-[var(--color-ln-ink)]">
             {pet.name}
           </h1>
           <p className="mt-1 text-lg text-[var(--color-ln-ok)]">{serviceTypeLabel}</p>
@@ -114,7 +114,7 @@ export default async function AsistenciaPresentarPage({
           {canonicalIds.microchip && (
             <div className="flex justify-between py-2.5">
               <dt className="text-[13px] text-[var(--color-ln-mute)]">Microchip</dt>
-              <dd className="font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)]">
+              <dd className="font-ln-mono text-[13px] text-[var(--color-ln-ink)]">
                 {canonicalIds.microchip.code}
               </dd>
             </div>
@@ -122,7 +122,7 @@ export default async function AsistenciaPresentarPage({
           {serviceDog.rupgaCredential && (
             <div className="flex justify-between py-2.5">
               <dt className="text-[13px] text-[var(--color-ln-mute)]">RUPGA</dt>
-              <dd className="font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)]">
+              <dd className="font-ln-mono text-[13px] text-[var(--color-ln-ink)]">
                 {serviceDog.rupgaCredential}
               </dd>
             </div>
@@ -159,7 +159,7 @@ export default async function AsistenciaPresentarPage({
 
         {/* QR toggle — server-rendered SVG, native disclosure */}
         <details className="w-full text-center">
-          <summary className="cursor-pointer font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
+          <summary className="cursor-pointer font-ln-mono text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
             Mostrar QR de verificación
           </summary>
           <div className="mt-3 flex flex-col items-center gap-2">
@@ -169,7 +169,7 @@ export default async function AsistenciaPresentarPage({
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-generated SVG from the qrcode library
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <p className="max-w-xs break-all font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
+            <p className="max-w-xs break-all font-ln-mono text-xs text-[var(--color-ln-mute)]">
               {publicVerifyUrl}
             </p>
           </div>

@@ -61,7 +61,7 @@ export function LnLinkButton({
     <Link
       {...rest}
       className={[
-        "inline-flex min-h-11 no-underline transition-colors font-[var(--font-ln-sans)]",
+        "inline-flex min-h-11 no-underline transition-colors font-ln-sans",
         hasSubtitle ? "flex-col items-start justify-center gap-0.5" : "items-center justify-center",
         SHAPE_CLASSES[shape],
         FILL_CLASSES[fill],

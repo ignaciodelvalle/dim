@@ -17,7 +17,7 @@ import { LnLinkButton } from "@/components/ui/LinkButton";
 export function TurnoAntirrabicaSheet({ petToken }: { petToken: string }) {
   return (
     <div className="flex flex-col gap-3 p-4">
-      <p className="font-[var(--font-ln-sans)] text-sm text-[var(--color-ln-ink-2)]">
+      <p className="font-ln-sans text-sm text-[var(--color-ln-ink-2)]">
         ¿Cómo querés ponerte al día con la vacuna antirrábica?
       </p>
 
@@ -37,7 +37,7 @@ export function TurnoAntirrabicaSheet({ petToken }: { petToken: string }) {
         Solo recordármelo
       </LnLinkButton>
 
-      <p className="font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-faint)]">
+      <p className="font-ln-sans text-xs text-[var(--color-ln-faint)]">
         Un recordatorio solo te avisa; no reemplaza la vacuna ni pone la obligación al día.
       </p>
     </div>

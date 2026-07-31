@@ -55,14 +55,14 @@ export default async function TransitosActivosPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Tránsitos activos
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -96,11 +96,11 @@ export default async function TransitosActivosPage() {
                 <div className="px-4 py-3.5">
                   <Link
                     href={`/mis-mascotas/${pet.publicToken}`}
-                    className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)] no-underline hover:underline"
+                    className="font-ln-serif text-base font-semibold text-[var(--color-ln-ink)] no-underline hover:underline"
                   >
                     {pet.name}
                   </Link>
-                  <p className="mt-0.5 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                  <p className="mt-0.5 font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
                     {speciesLabel(pet.species)}
                     {pet.breed && ` · ${pet.breed}`}
                     {org && ` · refugio: ${org.displayName}`}
@@ -119,7 +119,7 @@ export default async function TransitosActivosPage() {
       )}
 
       {/* Nav footer */}
-      <div className="mt-8 flex gap-5 border-t border-[var(--color-ln-line-2)] pt-3.5 font-[var(--font-ln-mono)] text-[11px]">
+      <div className="mt-8 flex gap-5 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-[11px]">
         <Link
           href="/cuenta/transitos/propuestas"
           className="text-[var(--color-ln-azul)] no-underline hover:underline"

@@ -57,7 +57,7 @@ export function OwnerInitiateReturnForm({
         className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 space-y-[10px]"
         role="alert"
       >
-        <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ok)]">
+        <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ok)]">
           Devolución iniciada
         </p>
         <p className="text-[13px] text-[var(--color-ln-ink-2)]">
@@ -80,7 +80,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="reason"
-          className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Razón de la devolución <span className="text-[var(--color-ln-seal)]">*</span>
         </label>
@@ -89,7 +89,7 @@ export function OwnerInitiateReturnForm({
           name="reason"
           required
           defaultValue=""
-          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-[var(--font-ln-sans)] text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] appearance-none"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] appearance-none"
         >
           <option value="" disabled>
             Elegí un motivo…
@@ -106,7 +106,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="notes"
-          className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Notas{" "}
           <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
@@ -121,7 +121,7 @@ export function OwnerInitiateReturnForm({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Contale al refugio detalles sobre la situación, el estado de la mascota, disponibilidad horaria…"
-          className="resize-y rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-[var(--font-ln-sans)] text-[13px] text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="resize-y rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-[13px] text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>
 
@@ -129,7 +129,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="proposedAt"
-          className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Fecha sugerida para la entrega
         </label>
@@ -139,7 +139,7 @@ export function OwnerInitiateReturnForm({
           type="date"
           value={proposedAt}
           onChange={(e) => setProposedAt(e.target.value)}
-          className="w-[200px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-[200px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-mono text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>
 
@@ -157,7 +157,7 @@ export function OwnerInitiateReturnForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-4 py-2.5 font-[var(--font-ln-sans)] text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-4 py-2.5 font-ln-sans text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {isPending ? "Enviando…" : `Confirmar devolución de ${petName}`}
       </button>

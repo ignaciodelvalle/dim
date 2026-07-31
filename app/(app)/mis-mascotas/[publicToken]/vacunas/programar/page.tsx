@@ -23,14 +23,14 @@ export default async function ScheduleVaccinePage({
       {/* Back */}
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Programar vacuna
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -43,12 +43,12 @@ export default async function ScheduleVaccinePage({
 
       {/* Secondary CTA */}
       <div className="mt-7 border-t border-[var(--color-ln-line-2)] pt-5">
-        <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+        <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
           ¿Preferís ir directo a una clínica o campaña?
         </p>
         <Link
           href="/turnos/buscar?service_kind=vaccination_rabies"
-          className="mt-1 inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mt-1 inline-block font-ln-mono text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           Buscar turno con veterinario en mi zona →
         </Link>

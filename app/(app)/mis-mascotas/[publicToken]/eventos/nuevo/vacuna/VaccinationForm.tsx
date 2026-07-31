@@ -190,7 +190,7 @@ export function VaccinationForm({
                   >
                     <span>{v.name}</span>
                     {v.isCore && (
-                      <span className="font-[var(--font-ln-mono)] text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
+                      <span className="font-ln-mono text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
                         Núcleo
                       </span>
                     )}
@@ -305,7 +305,7 @@ export function VaccinationForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
               // Wave 2 Item 9: tabIndex={-1} makes the element programmatically focusable
               tabIndex={-1}

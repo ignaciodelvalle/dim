@@ -165,7 +165,7 @@ export function ClinicalInfoForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

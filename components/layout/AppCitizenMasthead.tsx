@@ -103,11 +103,11 @@ export function AppCitizenMasthead({
         className="flex flex-shrink-0 items-center gap-3 no-underline transition-opacity hover:opacity-90"
         aria-label={`${BRANDING.appName} — ${BRANDING.appNameLong}, ir al inicio`}
       >
-        <span className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-full border-[2px] border-white/50 bg-white/[0.06] font-[var(--font-ln-serif)] text-[17px] font-semibold tracking-[-0.02em]">
+        <span className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-full border-[2px] border-white/50 bg-white/[0.06] font-ln-serif text-[17px] font-semibold tracking-[-0.02em]">
           m
         </span>
         <span className="leading-[1.1]">
-          <span className="block font-[var(--font-ln-serif)] text-[19px] font-semibold tracking-[-0.01em]">
+          <span className="block font-ln-serif text-[19px] font-semibold tracking-[-0.01em]">
             {BRANDING.appName}
           </span>
           {/* Hidden below md: the wide letter-spacing (tracking-[.22em]) makes this
@@ -117,7 +117,7 @@ export function AppCitizenMasthead({
           {/* celeste-100 (not celeste): on the azul-900 band, base celeste
               is ~4.0:1 at this 9.5px size — below WCAG 1.4.3's 4.5:1 (a11y
               audit 2026-07-04 §4). celeste-100 clears ~10:1 on the same bg. */}
-          <span className="hidden font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.22em] text-[var(--color-ln-celeste-100)] md:block">
+          <span className="hidden font-ln-mono text-[9.5px] uppercase tracking-[.22em] text-[var(--color-ln-celeste-100)] md:block">
             MI MASCOTA ARGENTINA
           </span>
         </span>
@@ -179,7 +179,7 @@ export function AppCitizenMasthead({
               {unreadCount > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-1 text-center font-[var(--font-ln-mono)] text-[9px] font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
+                  className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-1 text-center font-ln-mono text-[9px] font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
                 >
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
@@ -246,7 +246,7 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
         onClick={() => setOpen((v) => !v)}
         className="flex items-center gap-[9px] rounded-full no-underline transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/50"
       >
-        <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-[var(--font-ln-mono)] text-sm font-semibold text-[var(--color-ln-azul-900)]">
+        <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-ln-mono text-sm font-semibold text-[var(--color-ln-azul-900)]">
           {user.initials}
         </span>
         <span className="hidden text-[12.5px] font-medium md:block">{user.name}</span>
@@ -380,14 +380,12 @@ function CitizenMobileDrawer({
         >
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5">
-            <span className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-full border border-white/30 bg-white/[0.06] font-[var(--font-ln-serif)] text-[15px] font-semibold">
+            <span className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-full border border-white/30 bg-white/[0.06] font-ln-serif text-[15px] font-semibold">
               m
             </span>
             <span className="flex flex-col leading-tight">
-              <span className="font-[var(--font-ln-serif)] text-[15px] font-semibold">
-                {BRANDING.appName}
-              </span>
-              <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[0.2em] text-[var(--color-ln-celeste-100)]">
+              <span className="font-ln-serif text-[15px] font-semibold">{BRANDING.appName}</span>
+              <span className="font-ln-mono text-[9px] uppercase tracking-[0.2em] text-[var(--color-ln-celeste-100)]">
                 MI MASCOTA ARGENTINA
               </span>
             </span>

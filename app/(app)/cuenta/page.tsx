@@ -177,7 +177,7 @@ export default async function CuentaPage() {
       {/* Page header                                                         */}
       {/* ------------------------------------------------------------------ */}
       <div className="mb-7">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mi cuenta
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -201,19 +201,17 @@ export default async function CuentaPage() {
                 className="h-[64px] w-[64px] flex-shrink-0 rounded-full border border-[var(--color-ln-line-strong)] object-cover"
               />
             ) : (
-              <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] font-[var(--font-ln-serif)] text-title font-semibold text-[var(--color-ln-ink-2)]">
+              <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] font-ln-serif text-title font-semibold text-[var(--color-ln-ink-2)]">
                 {initials}
               </div>
             )}
 
             <div className="min-w-0 flex-1">
-              <p className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight text-[var(--color-ln-ink)]">
+              <p className="font-ln-serif text-lg font-semibold leading-tight text-[var(--color-ln-ink)]">
                 {profile.displayName}
               </p>
               {email && (
-                <p className="mt-0.5 font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
-                  {email}
-                </p>
+                <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">{email}</p>
               )}
               <div className="mt-2 flex flex-wrap gap-1.5">
                 <LnBadge variant="info">{roleLabel}</LnBadge>
@@ -240,8 +238,7 @@ export default async function CuentaPage() {
               <div className="flex items-center gap-2.5">
                 <VerificationBadge verified={profile.dniVerified} />
                 <span className="text-[13px] text-[var(--color-ln-ink-2)]">
-                  DNI{" "}
-                  <span className="font-[var(--font-ln-mono)]">{`••••${profile.dniLast4}`}</span>{" "}
+                  DNI <span className="font-ln-mono">{`••••${profile.dniLast4}`}</span>{" "}
                   {/* DNI verification is self-declared (trust-on-input) until the Mi Argentina
                       integration lands. Use "declarado" to avoid overclaiming identity assurance. */}
                   {profile.dniVerified ? "declarado" : "no declarado"}
@@ -301,7 +298,7 @@ export default async function CuentaPage() {
             </div>
             <Link
               href="/cuenta/crear-consultorio"
-              className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+              className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-ln-sans text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
             >
               Crear consultorio →
             </Link>
@@ -425,12 +422,12 @@ export default async function CuentaPage() {
           {/* Custom error-tone section heading — not using LnSectionHead      */}
           {/* because we need the error color variant.                          */}
           <div className="mb-4 flex items-baseline gap-3.5 border-b-2 border-[var(--color-ln-err)] pb-2.5">
-            <span className="font-[var(--font-ln-mono)] text-sm font-semibold tracking-[.04em] text-[var(--color-ln-err)]">
+            <span className="font-ln-mono text-sm font-semibold tracking-[.04em] text-[var(--color-ln-err)]">
               04
             </span>
             <h2
               id="zona-riesgo-heading"
-              className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-err)]"
+              className="m-0 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-err)]"
             >
               Zona de riesgo
             </h2>
@@ -445,14 +442,14 @@ export default async function CuentaPage() {
       <form action={logoutAction} className="mt-1 mb-7">
         <button
           type="submit"
-          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] font-ln-sans text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
         >
           Cerrar sesión
         </button>
       </form>
 
       {/* Footer */}
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Documento sincronizado</span>
         <span>miMAR · Registro Nacional de Mascotas</span>
       </div>
@@ -551,7 +548,7 @@ function ActionRow({
       </div>
       <div className="flex flex-shrink-0 items-center gap-2">
         {badge !== undefined && (
-          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-1.5 font-[var(--font-ln-mono)] text-xs font-semibold text-white">
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-1.5 font-ln-mono text-xs font-semibold text-white">
             {badge}
           </span>
         )}

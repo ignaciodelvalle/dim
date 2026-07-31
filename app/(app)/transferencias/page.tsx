@@ -82,14 +82,14 @@ export default async function TransferenciasHubPage() {
       {/* Back */}
       <Link
         href="/mis-mascotas"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis mascotas
       </Link>
 
       {/* Header */}
       <div className="mb-7">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Transferencias
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -104,7 +104,7 @@ export default async function TransferenciasHubPage() {
         <section aria-labelledby="recibidas-heading">
           <h2
             id="recibidas-heading"
-            className="mb-4 font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
+            className="mb-4 font-ln-mono text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
           >
             Recibidas
           </h2>
@@ -132,9 +132,9 @@ export default async function TransferenciasHubPage() {
                         className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                       >
                         <div className="min-w-0">
-                          <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold text-[var(--color-ln-ink)]">
+                          <p className="font-ln-serif text-[15px] font-semibold text-[var(--color-ln-ink)]">
                             {petName}{" "}
-                            <span className="font-[var(--font-ln-sans)] text-[13px] font-normal text-[var(--color-ln-mute)]">
+                            <span className="font-ln-sans text-[13px] font-normal text-[var(--color-ln-mute)]">
                               ({speciesLabel(petSpecies)})
                             </span>
                           </p>
@@ -143,12 +143,12 @@ export default async function TransferenciasHubPage() {
                               De: {fromDisplayName}
                             </p>
                           )}
-                          <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                          <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                             Vence {formatDate(transfer.expiresAt)}
                           </p>
                         </div>
                         <div className="flex flex-shrink-0 items-center gap-2">
-                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
                             Pendiente
                           </span>
                           <span
@@ -212,7 +212,7 @@ export default async function TransferenciasHubPage() {
         <section aria-labelledby="enviadas-heading">
           <h2
             id="enviadas-heading"
-            className="mb-4 font-[var(--font-ln-mono)] text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
+            className="mb-4 font-ln-mono text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-ink-2)]"
           >
             Enviadas
           </h2>
@@ -241,7 +241,7 @@ export default async function TransferenciasHubPage() {
                         </span>
                       )}
                     </p>
-                    <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                       {formatDateShort(transfer.initiatedAt)}
                     </p>
                   </div>
@@ -249,10 +249,10 @@ export default async function TransferenciasHubPage() {
                     <span
                       className={
                         transfer.status === "pending"
-                          ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]"
+                          ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-warn)]"
                           : transfer.status === "accepted"
-                            ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
-                            : "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+                            ? "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]"
+                            : "inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
                       }
                     >
                       {STATUS_LABELS[transfer.status] ?? transfer.status}

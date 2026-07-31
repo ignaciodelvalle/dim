@@ -185,13 +185,13 @@ export function CredentialFace({
             <span className="flex shrink-0 gap-3">
               <Link
                 href={serviceDog.manageHref}
-                className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                className="font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
               >
                 Gestionar →
               </Link>
               <Link
                 href={serviceDog.presentHref}
-                className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                className="font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
               >
                 Presentar →
               </Link>

@@ -33,7 +33,7 @@ export default async function VecinoMatchPage({
   if (pet.status !== "lost") {
     return (
       <div className="mx-auto max-w-md px-8 py-7 pb-12 text-center">
-        <p className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
+        <p className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
           Mascota ya no está perdida
         </p>
         <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
@@ -86,7 +86,7 @@ export default async function VecinoMatchPage({
     <div className="mx-auto max-w-xl px-8 py-7 pb-12">
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Coincidencia de microchip
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -110,7 +110,7 @@ export default async function VecinoMatchPage({
       <div className="mt-6 border-t border-[var(--color-ln-line-2)] pt-4">
         <Link
           href="/mis-mascotas/nueva"
-          className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Cancelar y volver al registro
         </Link>

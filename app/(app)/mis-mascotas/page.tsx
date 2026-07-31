@@ -218,7 +218,7 @@ export default async function MisMascotasPage({
       {/* ------------------------------------------------------------------ */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis mascotas
           </h1>
           <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
@@ -454,7 +454,7 @@ export default async function MisMascotasPage({
       {/* ------------------------------------------------------------------ */}
       <section className="mt-8">
         <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4">
-          <h2 className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight text-[var(--color-ln-ink)]">
+          <h2 className="m-0 font-ln-serif text-lg font-semibold leading-tight text-[var(--color-ln-ink)]">
             Reclamar una mascota
           </h2>
           <p className="mt-1 text-md text-[var(--color-ln-mute)]">
@@ -505,7 +505,7 @@ function MemorialRow({
           <Image src={photoSrc} alt={name} fill sizes="64px" className="object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-[repeating-linear-gradient(135deg,#e7e2d6_0_6px,#f3f0e7_6px_12px)]">
-            <span className="font-[var(--font-ln-mono)] text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">
+            <span className="font-ln-mono text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">
               foto
             </span>
           </div>
@@ -514,14 +514,14 @@ function MemorialRow({
 
       {/* Info */}
       <div className="min-w-0">
-        <span className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
+        <span className="font-ln-serif text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-memorial-sepia)]">
           {name}
         </span>
         {breed && <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{breed}</p>}
       </div>
 
       {/* Right */}
-      <div className="flex items-center gap-1.5 font-[var(--font-ln-mono)] text-sm whitespace-nowrap text-[var(--color-ln-mute)]">
+      <div className="flex items-center gap-1.5 font-ln-mono text-sm whitespace-nowrap text-[var(--color-ln-mute)]">
         <span>Ver memorial</span>
         <span aria-hidden="true">›</span>
       </div>

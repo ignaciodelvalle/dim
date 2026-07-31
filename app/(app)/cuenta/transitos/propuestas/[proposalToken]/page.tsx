@@ -43,17 +43,17 @@ export default async function ProposalDetailPage({
       {/* Back */}
       <Link
         href="/cuenta/transitos/propuestas"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Propuestas
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <p className="mb-1 font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        <p className="mb-1 font-ln-mono text-[11px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
           {org.displayName} te propone cuidar a
         </p>
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           {pet.name}
         </h1>
         <p className="mt-1 text-[13px] text-[var(--color-ln-mute)]">
@@ -128,7 +128,7 @@ function DetailRow({
 }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>

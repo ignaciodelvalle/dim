@@ -65,7 +65,7 @@ export default async function MisDenunciasPage() {
           not the pet roster (QA 2026-07-03). */}
       <Link
         href="/inicio"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Inicio
       </Link>
@@ -73,7 +73,7 @@ export default async function MisDenunciasPage() {
       {/* Header */}
       <div className="mb-7 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis denuncias
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -104,10 +104,10 @@ export default async function MisDenunciasPage() {
               className="flex items-start justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
             >
               <div className="min-w-0 flex-1">
-                <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
+                <p className="font-ln-serif text-md font-semibold text-[var(--color-ln-ink)]">
                   {welfareReportKindLabel(report.kind)}
                 </p>
-                <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                   {welfareReportSeverityLabel(report.severity)}
                   {" · "}
                   {report.referenceCode}
@@ -117,7 +117,7 @@ export default async function MisDenunciasPage() {
                     ? `${report.description.slice(0, 150)}…`
                     : report.description}
                 </p>
-                <p className="mt-1 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
+                <p className="mt-1 font-ln-mono text-xs text-[var(--color-ln-mute)]">
                   {formatDateTime(report.createdAt)}
                   {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                     <>
@@ -131,7 +131,7 @@ export default async function MisDenunciasPage() {
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <span
-                  className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
+                  className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
                 >
                   {welfareReportStatusLabel(report.status)}
                 </span>

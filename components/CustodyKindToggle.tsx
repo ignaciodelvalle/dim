@@ -23,7 +23,7 @@ export function CustodyKindToggle({
 }) {
   return (
     <div className="flex flex-col gap-2.5">
-      <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+      <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         ¿Es tu mascota o la estás cuidando?
       </p>
       <input type="hidden" name="custodyKind" value={value} />

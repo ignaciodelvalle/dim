@@ -48,7 +48,7 @@ export function AmendEventButton({
         className={[
           "inline-flex items-center gap-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)]",
           "bg-[var(--color-ln-card)] px-3.5 py-2",
-          "font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ink-2)]",
+          "font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ink-2)]",
           "hover:bg-[var(--color-ln-stripe)] transition-colors",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]",
           "min-h-[44px]",

@@ -91,7 +91,7 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
       <div className="mb-3 flex items-baseline justify-between">
         <h3
           id="lp-discl-h"
-          className="m-0 font-[var(--font-ln-serif)] text-md font-semibold"
+          className="m-0 font-ln-serif text-md font-semibold"
           style={{ color: "var(--color-ln-ink)" }}
         >
           Qué se muestra al público
@@ -100,7 +100,7 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
           href={publicHref}
           target="_blank"
           rel="noreferrer"
-          className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] no-underline hover:underline"
+          className="font-ln-mono text-[11px] tracking-[.04em] no-underline hover:underline"
           style={{ color: "var(--color-ln-azul)" }}
         >
           Ver como público →
@@ -127,7 +127,7 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
       />
 
       <p
-        className="mt-2.5 font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em]"
+        className="mt-2.5 font-ln-mono text-[10.5px] uppercase tracking-[.04em]"
         style={{ color: "var(--color-ln-mute)" }}
       >
         {prefs.discloseFirstNameWhenLost

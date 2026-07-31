@@ -82,7 +82,7 @@ export async function CredentialTier2Medical({
         data-section="tier2-degraded"
         className="block border-t border-ln-line-2 bg-ln-warn-050 px-4 py-3"
       >
-        <p className="m-0 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-ln-warn">
+        <p className="m-0 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-warn">
           Datos incompletos
         </p>
         <p className="mt-1 text-sm text-ln-ink-2">
@@ -250,7 +250,7 @@ export async function CredentialOriginOrg({ petId }: { petId: string }) {
         />
       )}
       <div className="min-w-0">
-        <p className="m-0 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-ln-mute">
+        <p className="m-0 font-ln-mono text-[9px] uppercase tracking-[.06em] text-ln-mute">
           Refugio de origen
         </p>
         <p className="m-0 truncate text-[13px] font-medium text-ln-ink">{originOrg.displayName}</p>

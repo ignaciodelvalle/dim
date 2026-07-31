@@ -60,7 +60,7 @@ export function CompartirOrgSheet({ orgToken, orgDisplayName }: Props) {
           Compartí este link con quien quieras: vecinos, redes, grupos de WhatsApp.
         </p>
 
-        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-xs font-[var(--font-ln-mono)] break-all text-[var(--color-ln-ink)]">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-3 text-xs font-ln-mono break-all text-[var(--color-ln-ink)]">
           {url}
         </div>
 

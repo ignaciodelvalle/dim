@@ -76,7 +76,7 @@ export default async function NewMedicationEndPage({
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}`}
-              className="inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
+              className="inline-block font-ln-mono text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
             >
               ← Volver al perfil
             </Link>

@@ -113,7 +113,7 @@ export function LnSuccessScreen({
         {/* Confirmation code block */}
         {code ? (
           <div className="rounded-[var(--radius-sm)] border-2 border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-6 py-6 space-y-3">
-            <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-widest text-[var(--color-ln-mute)] font-medium">
+            <p className="font-ln-mono text-xs uppercase tracking-widest text-[var(--color-ln-mute)] font-medium">
               {codeLabel ?? "Tu código de seguimiento"}
             </p>
             <button
@@ -122,7 +122,7 @@ export function LnSuccessScreen({
               aria-label={copied ? "Código copiado" : "Tocar para copiar el código"}
               className="block w-full focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] rounded-[var(--radius-pill)]"
             >
-              <span className="block font-[var(--font-ln-mono)] text-3xl font-bold tracking-widest tabular-nums text-[var(--color-ln-ink)] break-all">
+              <span className="block font-ln-mono text-3xl font-bold tracking-widest tabular-nums text-[var(--color-ln-ink)] break-all">
                 {code}
               </span>
               <span className="block text-xs text-[var(--color-ln-mute)] mt-2">
@@ -174,7 +174,7 @@ export function LnSuccessScreen({
               <rect x="3" y="11" width="18" height="11" rx="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <span className="font-[var(--font-ln-mono)] text-xs uppercase tracking-widest text-[var(--color-ln-mute)] font-medium">
+            <span className="font-ln-mono text-xs uppercase tracking-widest text-[var(--color-ln-mute)] font-medium">
               Comprobante oficial e inmutable
             </span>
           </div>

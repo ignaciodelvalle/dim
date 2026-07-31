@@ -29,7 +29,7 @@ export function DegradedCredentialCard({
 }) {
   return (
     // Landing shell (AppShell variant=landing) owns #main-content + min-height.
-    <div className="min-h-screen bg-ln-paper font-[var(--font-ln-sans)]">
+    <div className="min-h-screen bg-ln-paper font-ln-sans">
       {/* Guilloché band — kept so the page still reads as the credential. */}
       <div
         aria-hidden="true"
@@ -51,19 +51,17 @@ export function DegradedCredentialCard({
           <div className="flex flex-wrap items-center gap-2 border-b border-ln-line-2 px-4 py-2.5">
             <div
               aria-hidden="true"
-              className="grid h-[26px] w-[26px] flex-shrink-0 place-items-center rounded-full border-[1.5px] border-ln-azul bg-ln-celeste-050 font-[var(--font-ln-serif)] text-sm font-semibold text-ln-azul"
+              className="grid h-[26px] w-[26px] flex-shrink-0 place-items-center rounded-full border-[1.5px] border-ln-azul bg-ln-celeste-050 font-ln-serif text-sm font-semibold text-ln-azul"
             >
               m
             </div>
             <div className="min-w-0 flex-1">
-              <span className="font-[var(--font-ln-serif)] text-sm font-semibold text-ln-ink">
-                miMAR
-              </span>
-              <span className="block font-[var(--font-ln-mono)] text-xs uppercase tracking-[.14em] text-ln-mute">
+              <span className="font-ln-serif text-sm font-semibold text-ln-ink">miMAR</span>
+              <span className="block font-ln-mono text-xs uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
               </span>
             </div>
-            <span className="rounded-full border border-ln-warn-100 bg-ln-warn-050 px-2 py-0.5 font-[var(--font-ln-mono)] text-xs font-semibold tracking-[.08em] text-ln-warn">
+            <span className="rounded-full border border-ln-warn-100 bg-ln-warn-050 px-2 py-0.5 font-ln-mono text-xs font-semibold tracking-[.08em] text-ln-warn">
               DATOS INCOMPLETOS
             </span>
           </div>
@@ -72,7 +70,7 @@ export function DegradedCredentialCard({
             {/* Always render a real h1 — even when the pet row itself failed
                 to resolve, a screen-reader user landing on this fail-soft
                 state still needs page orientation. */}
-            <h1 className="m-0 font-[var(--font-ln-serif)] text-xl font-semibold text-ln-ink">
+            <h1 className="m-0 font-ln-serif text-xl font-semibold text-ln-ink">
               {petName ?? "Credencial"}
             </h1>
             <p className="mt-2 text-md leading-[1.6] text-ln-ink-2">
@@ -117,7 +115,7 @@ export function DegradedCredentialCard({
             </div>
           )}
 
-          <div className="px-4 py-3 text-center font-[var(--font-ln-mono)] text-xs leading-[1.7] tracking-[.02em] text-ln-faint">
+          <div className="px-4 py-3 text-center font-ln-mono text-xs leading-[1.7] tracking-[.02em] text-ln-faint">
             CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
             <br />
             {publicToken.toUpperCase()} · República Argentina

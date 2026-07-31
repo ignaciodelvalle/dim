@@ -80,7 +80,7 @@ export default async function MisTurnosPage() {
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis turnos
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -139,7 +139,7 @@ export default async function MisTurnosPage() {
       </div>
 
       {/* Footer */}
-      <div className="mt-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Agenda de turnos</span>
         <Link
           href="/mis-mascotas"

@@ -73,7 +73,16 @@ export function LnStatusFlag({ status, className = "" }: LnStatusFlagProps) {
     <span
       className={[
         "inline-flex items-center gap-[5px] rounded-[var(--radius-xs)] border px-[7px] py-0.5",
-        "font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.12em]",
+        // whitespace-nowrap: a status pill is a single token and must never
+        // break across two lines. It never wrapped while the font-family
+        // utility was dead (SC-7) because the flag rendered in the inherited
+        // Encode Sans; IBM Plex Mono is wider, and the narrowest caller — the
+        // "AL DÍA" flag in the landing phone mock — lost by 0.9px and broke
+        // into a two-line pill (measured 70x34.8 vs 70.9x20.4 for its
+        // identical siblings). Nowrap fixes the whole primitive rather than
+        // that one caller.
+        "whitespace-nowrap",
+        "font-ln-mono text-[9px] font-semibold uppercase tracking-[.12em]",
         cfg.bg,
         cfg.text,
         cfg.border,
@@ -136,7 +145,7 @@ export function LnVstamp({ variant, className = "" }: LnVstampProps) {
     <span
       className={[
         "inline-flex items-center gap-[5px] rounded-[var(--radius-xs)] border px-2 py-[3px]",
-        "font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.08em]",
+        "font-ln-mono text-xs font-semibold uppercase tracking-[.08em]",
         cfg.bg,
         cfg.text,
         cfg.border,
@@ -165,7 +174,7 @@ export function LnMemorialChip({
     <span
       className={[
         "inline-flex items-center gap-1.5 rounded-full border border-[var(--color-ln-memorial-chip-bd)] bg-[var(--color-ln-memorial-chip-bg)] px-2.5 py-[3px]",
-        "font-[var(--font-ln-mono)] text-xs uppercase tracking-[.1em] text-[var(--color-ln-memorial-chip-text)]",
+        "font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-memorial-chip-text)]",
         className,
       ]
         .filter(Boolean)

@@ -171,7 +171,7 @@ export function UrlTabs({
                   (tab.badgeTone === "neutral" ? (
                     <span
                       className={[
-                        "ml-1 rounded-full px-1.5 py-px font-[var(--font-ln-mono)] text-xs leading-none",
+                        "ml-1 rounded-full px-1.5 py-px font-ln-mono text-xs leading-none",
                         isActive
                           ? "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
                           : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
@@ -182,7 +182,7 @@ export function UrlTabs({
                   ) : (
                     <span
                       className={[
-                        "ml-1 rounded-full px-1.5 py-px font-[var(--font-ln-mono)] text-xs leading-none",
+                        "ml-1 rounded-full px-1.5 py-px font-ln-mono text-xs leading-none",
                         tab.badge > 0
                           ? "bg-[var(--color-ln-seal)] text-white"
                           : "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",

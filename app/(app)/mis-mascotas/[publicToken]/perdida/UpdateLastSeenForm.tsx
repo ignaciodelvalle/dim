@@ -93,10 +93,7 @@ export function UpdateLastSeenForm({
           </LnField>
 
           {state.error && (
-            <p
-              className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-err)]"
-              role="alert"
-            >
+            <p className="font-ln-mono text-sm text-[var(--color-ln-err)]" role="alert">
               {state.error}
             </p>
           )}

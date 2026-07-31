@@ -41,7 +41,7 @@ export function LnLedger<T>({ columns, rows, rowKey, className = "" }: LnLedgerP
             {columns.map((col) => (
               <th
                 key={col.key}
-                className="border-b border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-2.5 text-left font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+                className="border-b border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-2.5 text-left font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
                 style={col.width ? { width: col.width } : undefined}
               >
                 {col.header}
@@ -104,11 +104,9 @@ export function LnVaccineLedger({
       header: "Fecha",
       render: (r) => (
         <div>
-          <p className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-ink-2)]">
-            {r.appliedAt}
-          </p>
+          <p className="font-ln-mono text-sm text-[var(--color-ln-ink-2)]">{r.appliedAt}</p>
           {r.nextDue && (
-            <p className="mt-px font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+            <p className="mt-px font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
               próx: {r.nextDue}
             </p>
           )}
@@ -128,7 +126,7 @@ export function LnVaccineLedger({
         <div>
           <p className="text-[11.5px] text-[var(--color-ln-ink-2)]">{r.vet}</p>
           {r.vetLicense && (
-            <p className="mt-px font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+            <p className="mt-px font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
               {r.vetLicense}
             </p>
           )}

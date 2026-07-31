@@ -248,7 +248,7 @@ export default async function PublicLibretaPage({
           vista="agrupada"
         />
 
-        <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+        <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
           <p>Generada por miMAR · {formatDateTime(new Date())}</p>
           {share.expiresAt && <p>El enlace vence el {formatDateTime(share.expiresAt)}.</p>}
           <p className="mt-1 text-xs">Token: {shareToken}</p>
@@ -306,7 +306,7 @@ function TerminalShell({
         {/* a11y: h1 is the first meaningful content; focus lands here
             naturally since it's the page heading (no JS focus-trap needed). */}
         <div className="space-y-2">
-          <h1 className="font-[var(--font-ln-serif)] text-3xl font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-ln-serif text-3xl font-semibold text-[var(--color-ln-ink)]">
             {title}
           </h1>
           <p className="text-[13px] text-[var(--color-ln-mute)]">
@@ -390,7 +390,7 @@ function ThrottleNotice() {
   return (
     <div className="flex min-h-[70vh] items-center justify-center bg-[var(--color-ln-paper)] p-6">
       <div className="mx-auto max-w-[400px] px-6 py-12 text-center">
-        <p className="mb-3 font-[var(--font-ln-serif)] text-lg font-semibold text-[var(--color-ln-ink)]">
+        <p className="mb-3 font-ln-serif text-lg font-semibold text-[var(--color-ln-ink)]">
           Demasiadas consultas
         </p>
         <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">

@@ -78,14 +78,14 @@ export default async function CrearConsultorioPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
       <div className="mb-7">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Crear consultorio
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -123,7 +123,7 @@ function RoleGateNotice({
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>

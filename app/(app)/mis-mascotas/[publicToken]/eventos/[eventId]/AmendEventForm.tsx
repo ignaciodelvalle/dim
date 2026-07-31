@@ -162,10 +162,10 @@ export function AmendEventForm({
         {/* Header */}
         <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-5 py-4">
           <div>
-            <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
+            <p className="font-ln-mono text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
               Corrección por enmienda
             </p>
-            <h2 className="mt-0.5 font-[var(--font-ln-serif)] text-lg font-semibold text-[var(--color-ln-ink)]">
+            <h2 className="mt-0.5 font-ln-serif text-lg font-semibold text-[var(--color-ln-ink)]">
               Corregir registro
             </h2>
           </div>
@@ -186,7 +186,7 @@ export function AmendEventForm({
             className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-2.5"
             role="note"
           >
-            <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)] leading-relaxed">
+            <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)] leading-relaxed">
               La libreta es inmutable. Esta corrección agrega un nuevo registro que reemplaza el
               valor mostrado. El registro original queda visible en el historial.
             </p>
@@ -214,12 +214,12 @@ export function AmendEventForm({
                   key={key}
                   className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-3"
                 >
-                  <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-1.5">
+                  <p className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-1.5">
                     {formatFieldLabel(key)}
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div>
-                      <p className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
+                      <p className="font-ln-mono text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
                         Valor actual
                       </p>
                       <p className="rounded-[3px] bg-[var(--color-ln-stripe)] px-2.5 py-2 text-sm text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
@@ -229,7 +229,7 @@ export function AmendEventForm({
                       </p>
                     </div>
                     <div>
-                      <p className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
+                      <p className="font-ln-mono text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
                         Nuevo valor
                       </p>
                       <LnInput

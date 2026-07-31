@@ -183,7 +183,7 @@ export default async function NotificacionesPage({
     <>
       {rows.length === 0 ? (
         <div className="py-8 text-center">
-          <p className="font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink-2)]">
+          <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ink-2)]">
             {EMPTY_CATEGORY_TITLES[activeCat]}
           </p>
           <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
@@ -211,7 +211,7 @@ export default async function NotificacionesPage({
                   relatedPet={entry.leader.pet}
                 />
                 <details className="mt-2 ml-3 border-l-2 border-[var(--color-ln-line)] pl-3">
-                  <summary className="cursor-pointer font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
+                  <summary className="cursor-pointer font-ln-mono text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
                     + {entry.rest.length} más del mismo tipo
                   </summary>
                   <ul className="mt-2.5 flex flex-col gap-2">
@@ -238,7 +238,7 @@ export default async function NotificacionesPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -248,7 +248,7 @@ export default async function NotificacionesPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>
@@ -264,7 +264,7 @@ export default async function NotificacionesPage({
       {/* Header */}
       <div className="mb-5 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Notificaciones
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">

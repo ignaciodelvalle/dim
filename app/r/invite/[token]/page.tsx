@@ -120,7 +120,7 @@ export default async function InviteAcceptPage({
             </svg>
           </span>
           {/* a11y: h1 is the focus target; keyboard users Tab here first. */}
-          <h1 className="font-[var(--font-ln-serif)] text-[19px] font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-ln-serif text-[19px] font-semibold text-[var(--color-ln-ink)]">
             {heading}
           </h1>
           <p className="text-sm text-[var(--color-ln-ink-2)]">{reason}</p>
@@ -170,7 +170,7 @@ export default async function InviteAcceptPage({
             <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
               Invitación
             </p>
-            <h1 className="font-[var(--font-ln-serif)] text-title font-semibold text-[var(--color-ln-ink)]">
+            <h1 className="font-ln-serif text-title font-semibold text-[var(--color-ln-ink)]">
               {org.displayName}
             </h1>
           </div>
@@ -226,7 +226,7 @@ export default async function InviteAcceptPage({
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
           </span>
-          <h1 className="font-[var(--font-ln-serif)] text-[19px] font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-ln-serif text-[19px] font-semibold text-[var(--color-ln-ink)]">
             Cuenta incorrecta
           </h1>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
@@ -253,7 +253,7 @@ export default async function InviteAcceptPage({
           <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
             Invitación
           </p>
-          <h1 className="font-[var(--font-ln-serif)] text-title font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-ln-serif text-title font-semibold text-[var(--color-ln-ink)]">
             {org.displayName}
           </h1>
         </div>

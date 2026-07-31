@@ -43,7 +43,7 @@ export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnP
       {src ? (
         <Image src={src} alt={alt} fill sizes={`${size}px`} className="object-cover" />
       ) : (
-        <span className="font-[var(--font-ln-mono)] text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">
+        <span className="font-ln-mono text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">
           foto
         </span>
       )}
@@ -125,7 +125,7 @@ export function LnRegRow({
       {/* Info column */}
       <div className="min-w-0">
         <div className="flex items-center gap-2.5">
-          <span className="font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <span className="font-ln-serif text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {name}
           </span>
           {status && <LnStatusFlag status={status} />}
@@ -139,7 +139,7 @@ export function LnRegRow({
       </div>
 
       {/* Right column */}
-      <div className="flex items-center gap-1.5 font-[var(--font-ln-mono)] text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
+      <div className="flex items-center gap-1.5 font-ln-mono text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
         {species && <span>{species}</span>}
         <span aria-hidden="true">›</span>
       </div>

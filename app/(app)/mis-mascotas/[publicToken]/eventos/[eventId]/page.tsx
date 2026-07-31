@@ -100,17 +100,17 @@ export default async function EventDetailPage({
       {/* Back */}
       <Link
         href={`/mis-mascotas/${pet.publicToken}?tab=historial`}
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Historial de {pet.name}
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
+        <p className="font-ln-mono text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
           {eventTypeLabel(eventType)}
         </p>
-        <h1 className="mt-1 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="mt-1 font-ln-serif text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {heading}
         </h1>
         {summary.secondary && (
@@ -133,7 +133,7 @@ export default async function EventDetailPage({
         className="mb-4 flex flex-col gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-2.5"
         role="note"
       >
-        <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+        <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
           Este registro no se puede editar ni borrar — la libreta es un historial inmutable. Si hay
           un dato incorrecto, podés registrar una corrección que queda acreditada en el historial.
         </p>
@@ -200,7 +200,7 @@ export default async function EventDetailPage({
                     key={row.label}
                     className="grid grid-cols-1 gap-1 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-3 sm:gap-3"
                   >
-                    <dt className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                    <dt className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                       {row.label}
                     </dt>
                     <dd className="text-[13px] text-[var(--color-ln-ink-2)] break-words sm:col-span-2">
@@ -261,7 +261,7 @@ export default async function EventDetailPage({
 function Detail({ label, value }: { label: string; value: string | null | undefined }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>

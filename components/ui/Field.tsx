@@ -112,7 +112,7 @@ export function LnField({
       {/* mono uppercase label */}
       <label
         htmlFor={controlId}
-        className="mb-1.5 flex items-center gap-[5px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+        className="mb-1.5 flex items-center gap-[5px] font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
       >
         {label}
         {required && (
@@ -132,7 +132,7 @@ export function LnField({
       {hint && !error && (
         <p
           id={hintId}
-          className="mt-[5px] font-[var(--font-ln-mono)] text-[10.5px] leading-[1.45] text-[var(--color-ln-mute)]"
+          className="mt-[5px] font-ln-mono text-[10.5px] leading-[1.45] text-[var(--color-ln-mute)]"
         >
           {hint}
         </p>
@@ -140,7 +140,7 @@ export function LnField({
       {error && (
         <p
           id={errorId}
-          className="mt-[5px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-err)]"
+          className="mt-[5px] font-ln-mono text-[10.5px] text-[var(--color-ln-err)]"
           role="alert"
         >
           {error}
@@ -244,7 +244,7 @@ function withMobileFocusScroll<E extends ValidatableControl>(rest: {
 const controlBase =
   "w-full min-h-[44px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] " +
   "bg-[var(--color-ln-card)] px-3 py-2.5 " +
-  "font-[var(--font-ln-sans)] text-base sm:text-[13.5px] text-[var(--color-ln-ink)] " +
+  "font-ln-sans text-base sm:text-[13.5px] text-[var(--color-ln-ink)] " +
   "placeholder:text-[var(--color-ln-faint)] outline-none " +
   "focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] " +
   "aria-[invalid=true]:border-[var(--color-ln-err)]";
@@ -261,7 +261,7 @@ export function LnInput({ invalid = false, mono = false, className = "", ...rest
   return (
     <input
       aria-invalid={invalid || undefined}
-      className={[controlBase, mono ? "font-[var(--font-ln-mono)] tracking-[.02em]" : "", className]
+      className={[controlBase, mono ? "font-ln-mono tracking-[.02em]" : "", className]
         .filter(Boolean)
         .join(" ")}
       {...rest}
@@ -351,7 +351,7 @@ export function LnSuffixWrap({ suffix, children, className = "" }: LnSuffixWrapP
       <div className="min-w-0 flex-1 [&>input]:border-0 [&>input]:shadow-none [&>input]:focus:border-0 [&>input]:focus:shadow-none">
         {children}
       </div>
-      <span className="grid place-items-center border-l border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[13px] font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
+      <span className="grid place-items-center border-l border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[13px] font-ln-mono text-sm text-[var(--color-ln-mute)]">
         {suffix}
       </span>
     </div>

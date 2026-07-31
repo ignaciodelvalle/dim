@@ -36,7 +36,7 @@ export function MasSheet(props: MasSheetInput) {
             >
               {item.label}
               {item.badge && (
-                <span className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.04em]">
+                <span className="shrink-0 font-ln-mono text-xs uppercase tracking-[.04em]">
                   {item.badge}
                 </span>
               )}

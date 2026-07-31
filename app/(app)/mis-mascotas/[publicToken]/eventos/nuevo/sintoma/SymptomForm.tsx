@@ -94,7 +94,7 @@ export function SymptomForm({
               />
             )}
           </LnField>
-          <p className="font-[var(--font-ln-mono)] text-[10.5px] text-center text-[var(--color-ln-mute)]">
+          <p className="font-ln-mono text-[10.5px] text-center text-[var(--color-ln-mute)]">
             Si los síntomas persisten o empeoran, consultá al veterinario.
           </p>
         </form>

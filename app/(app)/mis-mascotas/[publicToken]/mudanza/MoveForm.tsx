@@ -53,7 +53,7 @@ export function MoveForm({
       </p>
 
       <div className="flex flex-col gap-1.5">
-        <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+        <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
           Localidad actual:{" "}
           <strong>
             {[currentLocality, currentProvince].filter(Boolean).join(", ") || "Sin localidad"}
@@ -83,10 +83,7 @@ export function MoveForm({
       </LnField>
 
       {(clientError ?? state.error) && (
-        <p
-          className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
-          role="alert"
-        >
+        <p className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
           {clientError ?? state.error}
         </p>
       )}

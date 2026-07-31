@@ -69,7 +69,7 @@ function FirstStepRow({
       <span className="flex shrink-0 items-center gap-3">
         <SheetTriggerLink
           href={item.actionHref}
-          className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           {item.actionLabel} →
         </SheetTriggerLink>

@@ -98,7 +98,7 @@ export function DonarSheet({ orgDisplayName, methods }: Props) {
                     </a>
                   ) : (
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-[var(--font-ln-mono)] text-[var(--color-ln-ink)] break-all flex-1">
+                      <p className="text-sm font-ln-mono text-[var(--color-ln-ink)] break-all flex-1">
                         {row.value}
                       </p>
                       {row.copyable && (

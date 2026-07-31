@@ -313,7 +313,7 @@ function LnTimelineSection({
                 <ConfidenceBadge tier={confidenceTier} />
                 {isEno && (
                   <span
-                    className="rounded-full border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-[7px] py-px font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.08em]"
+                    className="rounded-full border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-[7px] py-px font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.08em]"
                     style={{ color: "var(--color-ln-warn)" }}
                     title="Notificable ENO (Enfermedades de Notificación Obligatoria, Ley 15.465)"
                   >
@@ -323,7 +323,7 @@ function LnTimelineSection({
               </div>
               {senasaNorma && (
                 <p
-                  className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px]"
+                  className="mt-0.5 font-ln-mono text-[10.5px]"
                   style={{ color: "var(--color-ln-mute)" }}
                 >
                   {senasaNorma}
@@ -340,7 +340,7 @@ function LnTimelineSection({
                 </p>
               )}
               <div
-                className="mt-2 flex flex-wrap items-center gap-3 font-[var(--font-ln-mono)] text-[10.5px]"
+                className="mt-2 flex flex-wrap items-center gap-3 font-ln-mono text-[10.5px]"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 <time dateTime={date.toISOString()}>{formatDate(event.occurredAt)}</time>

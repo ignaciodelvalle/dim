@@ -489,7 +489,7 @@ export function ApplicationForm({
           style={CARD_STYLE}
         >
           <p
-            className="font-[var(--font-ln-serif)] text-[15px] font-semibold"
+            className="font-ln-serif text-[15px] font-semibold"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Resumen
@@ -498,55 +498,37 @@ export function ApplicationForm({
             className="grid gap-x-3.5 gap-y-1.5 text-sm"
             style={{ gridTemplateColumns: "auto 1fr" }}
           >
-            <dt
-              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
-              style={HINT_STYLE}
-            >
+            <dt className="font-ln-mono text-xs uppercase tracking-[.06em]" style={HINT_STYLE}>
               Por qué adoptás
             </dt>
             <dd className="m-0 line-clamp-2" style={{ color: "var(--color-ln-ink)" }}>
               {motivation.trim() || "—"}
             </dd>
-            <dt
-              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
-              style={HINT_STYLE}
-            >
+            <dt className="font-ln-mono text-xs uppercase tracking-[.06em]" style={HINT_STYLE}>
               Experiencia con mascotas
             </dt>
             <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
               {PRIOR_PETS_OPTIONS.find((o) => o.value === priorPets)?.label ?? "—"}
             </dd>
-            <dt
-              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
-              style={HINT_STYLE}
-            >
+            <dt className="font-ln-mono text-xs uppercase tracking-[.06em]" style={HINT_STYLE}>
               Vivienda
             </dt>
             <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
               {HOUSING_OPTIONS.find((o) => o.value === housingType)?.label ?? "—"}
             </dd>
-            <dt
-              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
-              style={HINT_STYLE}
-            >
+            <dt className="font-ln-mono text-xs uppercase tracking-[.06em]" style={HINT_STYLE}>
               Otras mascotas
             </dt>
             <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
               {otherPets || "—"}
             </dd>
-            <dt
-              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
-              style={HINT_STYLE}
-            >
+            <dt className="font-ln-mono text-xs uppercase tracking-[.06em]" style={HINT_STYLE}>
               Día a día
             </dt>
             <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
               {dailyRoutine || "—"}
             </dd>
-            <dt
-              className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em]"
-              style={HINT_STYLE}
-            >
+            <dt className="font-ln-mono text-xs uppercase tracking-[.06em]" style={HINT_STYLE}>
               Notas
             </dt>
             <dd className="m-0" style={{ color: "var(--color-ln-ink)" }}>
@@ -600,7 +582,7 @@ export function ApplicationForm({
         >
           <h2
             id="privacy-modal-title"
-            className="font-[var(--font-ln-serif)] text-[17px] font-semibold mb-3.5"
+            className="font-ln-serif text-[17px] font-semibold mb-3.5"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Información sobre privacidad — Ley 25.326

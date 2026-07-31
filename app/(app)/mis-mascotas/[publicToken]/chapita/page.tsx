@@ -38,7 +38,7 @@ export default async function ChapitaPage({
   if (!channels.printable_qr) {
     return (
       <div className="mx-auto max-w-md px-8 py-12 text-center">
-        <p className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
+        <p className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
           El QR imprimible no está habilitado en tu zona.
         </p>
         <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">

@@ -53,7 +53,7 @@ export default async function BuscarTurnosPage({
     return (
       <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
         <div className="mb-6">
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Buscar turno
           </h1>
           <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -64,7 +64,7 @@ export default async function BuscarTurnosPage({
         <div className="mt-8">
           <Link
             href="/mis-mascotas"
-            className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             ← Mis mascotas
           </Link>
@@ -143,13 +143,11 @@ export default async function BuscarTurnosPage({
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Header */}
       <div className="mb-5">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           {kindDef?.label ?? serviceKind}
         </h1>
         {locationLabel && (
-          <p className="mt-1 font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
-            {locationLabel}
-          </p>
+          <p className="mt-1 font-ln-mono text-sm text-[var(--color-ln-mute)]">{locationLabel}</p>
         )}
       </div>
 
@@ -189,10 +187,10 @@ export default async function BuscarTurnosPage({
                 className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold text-[var(--color-ln-ink)]">
+                  <p className="font-ln-serif text-[15px] font-semibold text-[var(--color-ln-ink)]">
                     {offering.displayName}
                   </p>
-                  <p className="mt-0.5 font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                  <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                     {providerLabel}
                     {offering.priceArs !== null
                       ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
@@ -231,7 +229,7 @@ export default async function BuscarTurnosPage({
       <div className="mt-8">
         <Link
           href="/mis-mascotas"
-          className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Mis mascotas
         </Link>

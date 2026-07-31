@@ -111,7 +111,7 @@ function ObligationCardView({
           <span className="flex size-8 flex-shrink-0 items-center justify-center rounded-[var(--radius-lg)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]">
             <Icon name={ICON_FOR[card.key]} size="sm" decorative />
           </span>
-          <p className="font-[var(--font-ln-sans)] text-md font-semibold leading-tight text-[var(--color-ln-ink)]">
+          <p className="font-ln-sans text-md font-semibold leading-tight text-[var(--color-ln-ink)]">
             {card.label}
           </p>
         </div>
@@ -119,9 +119,7 @@ function ObligationCardView({
       </div>
 
       {card.detail && (
-        <p className="font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-mute)]">
-          {card.detail}
-        </p>
+        <p className="font-ln-mono text-xs text-[var(--color-ln-mute)]">{card.detail}</p>
       )}
 
       {/* DUAL honest vaccine state (task #78 / #4): what the owner HAS (dose on
@@ -156,7 +154,7 @@ function ObligationCardView({
         </div>
       )}
 
-      <p className="font-[var(--font-ln-sans)] text-xs leading-relaxed text-[var(--color-ln-faint)]">
+      <p className="font-ln-sans text-xs leading-relaxed text-[var(--color-ln-faint)]">
         {card.legalFootnote}
       </p>
 
@@ -179,7 +177,7 @@ function ObligationCardView({
       )}
 
       {isReserved && (
-        <p className="mt-1 font-[var(--font-ln-sans)] text-xs text-[var(--color-ln-ink-2)]">
+        <p className="mt-1 font-ln-sans text-xs text-[var(--color-ln-ink-2)]">
           Cuando el veterinario la aplique, se registra como evento y el estado pasa a Al día solo.
         </p>
       )}
@@ -234,10 +232,10 @@ export function ComplianceObligationsPanel({
   const header = (
     <div className="mb-3 flex items-center justify-between gap-3">
       <div>
-        <p className="font-[var(--font-ln-mono)] text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
+        <p className="font-ln-mono text-xs uppercase tracking-wide text-[var(--color-ln-mute)]">
           Cumplimiento
         </p>
-        <h2 className="mt-0.5 font-[var(--font-ln-serif)] text-base font-semibold text-[var(--color-ln-ink)]">
+        <h2 className="mt-0.5 font-ln-serif text-base font-semibold text-[var(--color-ln-ink)]">
           Estado de cumplimiento
         </h2>
       </div>

@@ -38,7 +38,7 @@ export function CaptureOptionsList({ petPublicToken }: { petPublicToken: string 
         const items = optionsWithHref.filter((o) => o.category === category);
         return (
           <section key={category}>
-            <h2 className="mb-2 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+            <h2 className="mb-2 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               {category}
             </h2>
             <ul className="divide-y divide-[var(--color-ln-stripe)] overflow-hidden rounded-sm border border-[var(--color-ln-line-strong)]">

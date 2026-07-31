@@ -62,7 +62,7 @@ export function LnHero({
         aria-hidden="true"
       >
         {/* Watermark */}
-        <span className="absolute bottom-[8px] right-[16px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.24em] text-white/60">
+        <span className="absolute bottom-[8px] right-[16px] font-ln-mono text-[9px] uppercase tracking-[.24em] text-white/60">
           LIBRETA SANITARIA NACIONAL
         </span>
       </div>
@@ -81,7 +81,7 @@ export function LnHero({
         {/* Info */}
         <div className="min-w-0 flex-1 pb-1">
           <div className="flex flex-wrap items-center gap-3.5">
-            <h1 className="m-0 font-[var(--font-ln-serif)] text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
               {name}
             </h1>
             {status && <LnStatusFlag status={status} />}

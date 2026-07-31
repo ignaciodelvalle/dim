@@ -69,13 +69,13 @@ export function LnCardHead({ title, label, icon, actions, className = "" }: LnCa
         .join(" ")}
     >
       {icon && <span className="text-[var(--color-ln-mute)]">{icon}</span>}
-      <h3 className="m-0 font-[var(--font-ln-serif)] text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
+      <h3 className="m-0 font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
         {title}
       </h3>
       {(label || actions) && (
         <div className="ml-auto flex items-center gap-2">
           {label && (
-            <span className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
+            <span className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
               {label}
             </span>
           )}
@@ -141,7 +141,7 @@ export function LnSheet({
     <div
       className={[
         "relative flex min-h-full w-full items-start justify-center overflow-auto px-6 py-7",
-        "font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]",
+        "font-ln-sans text-[var(--color-ln-ink)]",
         // Dotted backdrop pattern
         "[background:radial-gradient(circle_at_12px_12px,var(--color-ln-line)_1.2px,transparent_1.2px)_0_0/22px_22px,var(--color-ln-paper)]",
         className,
@@ -151,7 +151,7 @@ export function LnSheet({
     >
       {/* Route chip */}
       {routeChip && (
-        <span className="absolute left-[var(--space-sheet)] top-3 rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-1 font-[var(--font-ln-mono)] text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
+        <span className="absolute left-[var(--space-sheet)] top-3 rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-1 font-ln-mono text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
           {routeChip}
         </span>
       )}
@@ -190,7 +190,7 @@ export function LnSheet({
 
           {/* Title */}
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+            <h2 className="m-0 font-ln-serif text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
               {title}
             </h2>
             {subtitle && <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{subtitle}</p>}
@@ -258,7 +258,7 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <p className="m-0 font-[var(--font-ln-serif)] text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <p className="m-0 font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
         {meta && <p className="mt-px text-sm text-[var(--color-ln-mute)]">{meta}</p>}
@@ -269,7 +269,7 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
         <button
           type="button"
           onClick={onChangePet}
-          className="flex-shrink-0 cursor-pointer font-[var(--font-ln-mono)] text-xs tracking-[.04em] text-[var(--color-ln-azul)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+          className="flex-shrink-0 cursor-pointer font-ln-mono text-xs tracking-[.04em] text-[var(--color-ln-azul)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
         >
           CAMBIAR
         </button>

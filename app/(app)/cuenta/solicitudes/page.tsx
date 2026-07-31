@@ -133,17 +133,17 @@ export default async function SolicitudesPage({
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
       <div className="mb-6 flex items-baseline gap-3.5">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis solicitudes
         </h1>
-        <span className="font-[var(--font-ln-mono)] text-sm text-[var(--color-ln-mute)]">
+        <span className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
           {totalCount === 0
             ? "ninguna"
             : totalCount === 1
@@ -164,21 +164,21 @@ export default async function SolicitudesPage({
                 <LnCardBody>
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="font-[var(--font-ln-serif)] text-[14.5px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
+                      <p className="font-ln-serif text-[14.5px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
                         {inv.orgDisplayName}
                       </p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
+                        <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-ln-mono text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
                           {INVITED_ROLE_LABELS[inv.invitedRole] ?? inv.invitedRole}
                         </span>
-                        <span className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                        <span className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                           Expira {formatDate(inv.expiresAt)}
                         </span>
                       </div>
                     </div>
                     <Link
                       href={`/r/invite/${inv.invitationToken}`}
-                      className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-[var(--font-ln-sans)] text-sm font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+                      className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-ln-sans text-sm font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
                     >
                       Ver invitación
                     </Link>
@@ -249,18 +249,18 @@ export default async function SolicitudesPage({
                 <LnCardBody>
                   {/* Type + status */}
                   <div className="mb-2.5 flex flex-wrap items-center gap-[7px]">
-                    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+                    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-ln-mono text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
                       {REQUEST_TYPE_LABELS[req.type] ?? req.type}
                     </span>
                     <span
-                      className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${style.bg} ${style.text} ${style.border}`}
+                      className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${style.bg} ${style.text} ${style.border}`}
                     >
                       {STATUS_LABELS[req.status]}
                     </span>
                   </div>
 
                   {/* Dates */}
-                  <div className="mb-2.5 flex flex-col gap-0.5 font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                  <div className="mb-2.5 flex flex-col gap-0.5 font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
                     <span>Enviada el {formatDate(req.createdAt)}</span>
                     {req.decidedAt && <span>Decidida el {formatDate(req.decidedAt)}</span>}
                   </div>
@@ -304,7 +304,7 @@ function FilterChip({
       href={href}
       aria-current={active ? "page" : undefined}
       className={[
-        "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] font-[var(--font-ln-sans)] text-sm font-medium transition-colors no-underline",
+        "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] font-ln-sans text-sm font-medium transition-colors no-underline",
         active
           ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
           : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]",

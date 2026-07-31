@@ -1012,7 +1012,7 @@ export default async function PetDetailPage({
       {accessPath === "org" && organization && (
         <Link
           href={`/org/${organization.publicToken}/mascotas`}
-          className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="mb-[18px] mt-4 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
           data-section="back-link"
         >
           ← Animales en custodia
@@ -1183,7 +1183,7 @@ function FormerOwnerCustodyReadOnlyView({
     >
       <Link
         href="/mis-mascotas"
-        className="mb-[18px] mt-4 inline-block font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+        className="mb-[18px] mt-4 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
         data-section="back-link"
       >
         ← Mis mascotas
@@ -1263,7 +1263,7 @@ function RabiesObservationBanner({ pet, events }: RabiesObservationBannerProps) 
         >
           <button
             type="submit"
-            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-white px-3 py-1.5 font-[var(--font-ln-sans)] text-md font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
+            className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-white px-3 py-1.5 font-ln-sans text-md font-medium text-[var(--color-ln-warn)] transition-opacity hover:opacity-80"
           >
             Confirmar fin de observación
           </button>

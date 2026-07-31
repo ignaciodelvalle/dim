@@ -195,7 +195,7 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
         <span>Los eventos no se editan ni se borran. Una corrección es un evento nuevo.</span>
       </p>
 
-      <footer className="ln-libfoot font-[var(--font-ln-mono)] text-xs uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <footer className="ln-libfoot font-ln-mono text-xs uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Asientos firmados digitalmente · inmutables</span>
         <span className="ln-fspace" />
         <ExportLibretaButton petPublicToken={petPublicToken} />
@@ -268,7 +268,7 @@ function EmergenciaBlock({
       data-section="libreta-emergencia"
       className="border-t border-[var(--color-ln-line-2)] pt-4"
     >
-      <p className="mb-1.5 font-[var(--font-ln-mono)] text-sm uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
+      <p className="mb-1.5 font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
         Emergencia
       </p>
       {hasAnyContact && (

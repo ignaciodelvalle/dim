@@ -247,7 +247,7 @@ export default async function AdoptarFichaPage({
         {/* Back link — mono eyebrow style */}
         <Link
           href="/adoptar"
-          className="inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
           style={{ color: "var(--color-ln-mute)" }}
         >
           ← Volver al listado
@@ -358,7 +358,7 @@ export default async function AdoptarFichaPage({
             }}
           >
             <span
-              className="font-[var(--font-ln-serif)] text-hero font-semibold"
+              className="font-ln-serif text-hero font-semibold"
               style={{ color: "var(--color-ln-mute)" }}
             >
               {pet.name.charAt(0).toUpperCase()}
@@ -375,7 +375,7 @@ export default async function AdoptarFichaPage({
           }}
         >
           <h1
-            className="m-0 font-[var(--font-ln-serif)] font-semibold leading-[1.04] tracking-[-0.025em]"
+            className="m-0 font-ln-serif font-semibold leading-[1.04] tracking-[-0.025em]"
             style={{ fontSize: 34, color: "var(--color-ln-ink)" }}
           >
             {pet.name}
@@ -442,13 +442,13 @@ export default async function AdoptarFichaPage({
             }}
           >
             <p
-              className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+              className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Su historia
             </p>
             <h2
-              className="m-0 mb-3 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+              className="m-0 mb-3 font-ln-serif font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Sobre {pet.name}
@@ -468,13 +468,13 @@ export default async function AdoptarFichaPage({
           style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
         >
           <p
-            className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+            className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Estado médico
           </p>
           <h2
-            className="m-0 mb-3.5 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+            className="m-0 mb-3.5 font-ln-serif font-semibold text-lg tracking-[-0.01em]"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Salud
@@ -507,13 +507,13 @@ export default async function AdoptarFichaPage({
             style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
           >
             <p
-              className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+              className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               Cómo es en el día a día
             </p>
             <h2
-              className="m-0 mb-3 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+              className="m-0 mb-3 font-ln-serif font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Qué necesita su nuevo hogar
@@ -543,13 +543,13 @@ export default async function AdoptarFichaPage({
             style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
           >
             <p
-              className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+              className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.12em]"
               style={{ color: "var(--color-ln-mute)" }}
             >
               A tener en cuenta
             </p>
             <h2
-              className="m-0 mb-2 font-[var(--font-ln-serif)] font-semibold text-lg tracking-[-0.01em]"
+              className="m-0 mb-2 font-ln-serif font-semibold text-lg tracking-[-0.01em]"
               style={{ color: "var(--color-ln-ink)" }}
             >
               Necesidades especiales
@@ -589,21 +589,21 @@ export default async function AdoptarFichaPage({
           style={{ background: "var(--color-ln-card)", borderColor: "var(--color-ln-line)" }}
         >
           <p
-            className="mb-1.5 font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em]"
+            className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Refugio responsable
           </p>
           <div className="flex items-flex-start gap-3.5">
             <div
-              className="flex-shrink-0 w-[56px] h-[56px] rounded-[var(--radius-lg)] grid place-items-center font-[var(--font-ln-serif)] text-2xl font-semibold text-white"
+              className="flex-shrink-0 w-[56px] h-[56px] rounded-[var(--radius-lg)] grid place-items-center font-ln-serif text-2xl font-semibold text-white"
               style={{ background: "var(--color-ln-azul)" }}
             >
               {org.displayName.charAt(0).toUpperCase()}
             </div>
             <div>
               <p
-                className="font-[var(--font-ln-serif)] text-[17px] font-semibold"
+                className="font-ln-serif text-[17px] font-semibold"
                 style={{ color: "var(--color-ln-ink)" }}
               >
                 {org.displayName}
@@ -614,7 +614,7 @@ export default async function AdoptarFichaPage({
                 </p>
               )}
               <p
-                className="mt-1.5 font-[var(--font-ln-mono)] text-[11px]"
+                className="mt-1.5 font-ln-mono text-[11px]"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 En custodia desde {formatDate(row.ownerStartedAt)}
@@ -733,7 +733,7 @@ function RecentlyAdopted({ name }: { name: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
+          className="font-ln-serif font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           ¡{name} ya encontró su hogar!
@@ -779,7 +779,7 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
           No disponible por ahora
         </div>
         <h1
-          className="font-[var(--font-ln-serif)] font-semibold text-3xl tracking-[-0.02em]"
+          className="font-ln-serif font-semibold text-3xl tracking-[-0.02em]"
           style={{ color: "var(--color-ln-ink)" }}
         >
           {name} no está disponible en este momento

@@ -44,7 +44,7 @@ export function BookingFormClient({
       <div>
         <label
           htmlFor="pet_select"
-          className="mb-1.5 block font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 block font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           ¿Para qué mascota?
         </label>
@@ -52,7 +52,7 @@ export function BookingFormClient({
           id="pet_select"
           name="petId"
           required
-          className="w-full appearance-none rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2.5 font-[var(--font-ln-sans)] text-[13.5px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full appearance-none rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2.5 font-ln-sans text-[13.5px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         >
           <option value="">Elegí una mascota…</option>
           {userPets.map((pet) => (

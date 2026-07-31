@@ -62,7 +62,7 @@ export function CodeEntryForm({ action }: { action: FormAction }) {
             autoComplete="off"
             spellCheck={false}
             placeholder="DIM-XXXX-XXXX"
-            className="font-[var(--font-ln-mono)] uppercase tracking-wider"
+            className="font-ln-mono uppercase tracking-wider"
             aria-describedby={describedBy}
             aria-invalid={showError || undefined}
             onChange={() => setErrorDismissed(true)}

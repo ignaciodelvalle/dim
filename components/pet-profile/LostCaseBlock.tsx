@@ -176,14 +176,14 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
             {photoUrl ? (
               <Image src={photoUrl} alt={pet.name} fill sizes="40px" className="object-cover" />
             ) : (
-              <div className="flex h-full w-full items-center justify-center font-[var(--font-ln-serif)] text-lg font-bold text-[var(--color-ln-err)]">
+              <div className="flex h-full w-full items-center justify-center font-ln-serif text-lg font-bold text-[var(--color-ln-err)]">
                 {pet.name.charAt(0).toUpperCase()}
               </div>
             )}
           </div>
 
           <div className="min-w-0 flex-1">
-            <p className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight text-[var(--color-ln-err)]">
+            <p className="m-0 font-ln-serif text-lg font-semibold leading-tight text-[var(--color-ln-err)]">
               {pet.name} {lostThirdPersonPhrase(pet.sex)}
             </p>
             <p className="mt-0.5 text-sm text-[var(--color-ln-ink-2)]">

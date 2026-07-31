@@ -39,7 +39,7 @@ export function LnDocCode({ children, className = "" }: LnDocCodeProps) {
   return (
     <span
       className={[
-        "ml-auto font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-faint)]",
+        "ml-auto font-ln-mono text-[11px] tracking-[.04em] text-[var(--color-ln-faint)]",
         className,
       ]
         .filter(Boolean)
@@ -72,7 +72,7 @@ export function LnSeal({
       style={{ width: size, height: size }}
       className={[
         "grid flex-shrink-0 place-items-center rounded-full border-2 border-[var(--color-ln-azul)] text-center",
-        "font-[var(--font-ln-mono)] text-[7px] uppercase leading-[1.25] tracking-[.06em] text-[var(--color-ln-azul)]",
+        "font-ln-mono text-[7px] uppercase leading-[1.25] tracking-[.06em] text-[var(--color-ln-azul)]",
         "-rotate-9 opacity-82",
         className,
       ]
@@ -98,7 +98,7 @@ export function LnLabel({ children, className = "" }: { children: ReactNode; cla
   return (
     <span
       className={[
-        "font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]",
+        "font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]",
         className,
       ]
         .filter(Boolean)
@@ -129,15 +129,15 @@ export function LnSectionHead({ num, title, meta, className = "" }: LnSectionHea
         .join(" ")}
     >
       {num && (
-        <span className="font-[var(--font-ln-mono)] text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
+        <span className="font-ln-mono text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
           {num}
         </span>
       )}
-      <h2 className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
+      <h2 className="m-0 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
         {title}
       </h2>
       {meta && (
-        <span className="ml-auto self-center font-[var(--font-ln-mono)] text-[11px] tracking-[.02em] text-[var(--color-ln-mute)]">
+        <span className="ml-auto self-center font-ln-mono text-[11px] tracking-[.02em] text-[var(--color-ln-mute)]">
           {meta}
         </span>
       )}

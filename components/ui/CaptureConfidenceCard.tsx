@@ -102,7 +102,7 @@ export function CaptureConfidenceCard({
       <div className="flex items-center gap-2 border-b border-[var(--color-ln-line-2)] px-4 py-3">
         <h3
           id={titleId}
-          className="m-0 min-w-0 flex-1 font-[var(--font-ln-serif)] text-base font-semibold leading-tight text-[var(--color-ln-ink)]"
+          className="m-0 min-w-0 flex-1 font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)]"
         >
           {eventTypeLabel}
         </h3>

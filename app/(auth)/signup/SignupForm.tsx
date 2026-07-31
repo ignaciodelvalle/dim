@@ -79,7 +79,7 @@ export function SignupForm({
           <h2
             ref={stepFocusRef}
             tabIndex={-1}
-            className="font-[var(--font-ln-serif)] text-title font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)] focus:outline-none"
+            className="font-ln-serif text-title font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)] focus:outline-none"
           >
             Contanos quién sos
           </h2>

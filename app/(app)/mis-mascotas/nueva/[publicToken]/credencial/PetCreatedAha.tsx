@@ -144,7 +144,7 @@ export function PetCreatedAha({
 
         {/* Credential URL — small, readable, below the QR */}
         <p
-          className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)] break-all"
+          className="font-ln-mono text-[11px] text-[var(--color-ln-mute)] break-all"
           aria-hidden="true"
         >
           {credentialUrl}

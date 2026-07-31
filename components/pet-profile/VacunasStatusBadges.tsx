@@ -144,7 +144,7 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
     return (
       <section aria-label="Estado de vacunación">
         <p
-          className="mb-2 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] font-semibold"
+          className="mb-2 font-ln-mono text-xs uppercase tracking-[.06em] font-semibold"
           style={{ color: "var(--color-ln-mute)" }}
         >
           Estado de vacunación
@@ -166,7 +166,7 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
   return (
     <section aria-label="Estado de vacunación">
       <p
-        className="mb-2 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] font-semibold"
+        className="mb-2 font-ln-mono text-xs uppercase tracking-[.06em] font-semibold"
         style={{ color: "var(--color-ln-mute)" }}
       >
         Estado de vacunación

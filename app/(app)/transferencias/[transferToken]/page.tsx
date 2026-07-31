@@ -39,7 +39,7 @@ export default async function TransferPage({
       <div className="mx-auto max-w-md px-8 py-7 pb-12">
         <Link
           href="/transferencias"
-          className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Transferencias
         </Link>
@@ -66,7 +66,7 @@ export default async function TransferPage({
       {/* Back */}
       <Link
         href="/transferencias"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Transferencias
       </Link>
@@ -74,7 +74,7 @@ export default async function TransferPage({
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-3">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {transfer.isRecipient
               ? `Recibiste a ${transfer.petName}`
               : `Transferencia de ${transfer.petName}`}
@@ -86,7 +86,7 @@ export default async function TransferPage({
           )}
         </div>
         <span
-          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass}`}
+          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass}`}
         >
           {statusLabel}
         </span>
@@ -101,7 +101,7 @@ export default async function TransferPage({
             {transfer.note && <DetailRow label="Comentario">{transfer.note}</DetailRow>}
             <DetailRow label="Vence">{formatDateTime(transfer.expiresAt)}</DetailRow>
             <DetailRow label="Email del receptor">
-              <span className="font-[var(--font-ln-mono)] text-[12.5px]">{transfer.toEmail}</span>
+              <span className="font-ln-mono text-[12.5px]">{transfer.toEmail}</span>
             </DetailRow>
           </dl>
         </LnCardBody>
@@ -128,7 +128,7 @@ export default async function TransferPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
       <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>

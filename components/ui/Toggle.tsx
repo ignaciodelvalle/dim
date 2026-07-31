@@ -140,7 +140,7 @@ export function LnToggleGroup({ heading, items, onChange, className = "" }: LnTo
   return (
     <div className={["flex flex-col gap-2", className].filter(Boolean).join(" ")}>
       {heading && (
-        <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+        <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
           {heading}
         </p>
       )}

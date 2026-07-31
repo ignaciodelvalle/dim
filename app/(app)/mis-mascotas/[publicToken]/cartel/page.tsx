@@ -40,7 +40,7 @@ export default async function CartelPage({
   if (pet.status !== "lost") {
     return (
       <div className="mx-auto max-w-md px-8 py-12 text-center">
-        <p className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
+        <p className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
           {pet.name} no {lostThirdPersonPhrase(pet.sex)}.
         </p>
         <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
@@ -48,7 +48,7 @@ export default async function CartelPage({
         </p>
         <Link
           href={`/mis-mascotas/${publicToken}?sheet=marcar-perdida`}
-          className="mt-5 inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
+          className="mt-5 inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-[9px] font-ln-sans text-[13px] font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
         >
           {markLostActionLabel(pet.sex)}
         </Link>

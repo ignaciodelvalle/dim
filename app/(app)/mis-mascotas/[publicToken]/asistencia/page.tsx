@@ -25,11 +25,11 @@ function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver al perfil
       </Link>
-      <h1 className="m-0 mb-4 font-[var(--font-ln-serif)] text-2xl font-semibold text-[var(--color-ln-ink)]">
+      <h1 className="m-0 mb-4 font-ln-serif text-2xl font-semibold text-[var(--color-ln-ink)]">
         Perro de asistencia · {pet.name}
       </h1>
       <LnCallout
@@ -103,14 +103,14 @@ export default async function AsistenciaPage({
       {/* Back */}
       <Link
         href={`/mis-mascotas/${publicToken}`}
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
 
       {/* Header */}
       <div className="mb-6">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Perro de asistencia · {pet.name}
         </h1>
         <p className="mt-[5px] text-[13px] text-[var(--color-ln-mute)]">
@@ -142,7 +142,7 @@ export default async function AsistenciaPage({
                   .
                 </p>
                 <span
-                  className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(serviceDog.credentialStatus)}`}
+                  className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(serviceDog.credentialStatus)}`}
                 >
                   {STATUS_LABELS[serviceDog.credentialStatus] ?? serviceDog.credentialStatus}
                 </span>
@@ -173,7 +173,7 @@ export default async function AsistenciaPage({
                   </p>
                   <Link
                     href={`/mis-mascotas/${publicToken}/asistencia/presentar`}
-                    className="mt-1.5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                    className="mt-1.5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
                   >
                     Presentar credencial →
                   </Link>

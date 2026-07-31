@@ -27,7 +27,7 @@ export function ChapitaSheet({ petName, publicToken, qrSvg }: Props) {
     <div className="mx-auto max-w-2xl px-4 py-8">
       <div className="chapita-no-print mb-6 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="font-[var(--font-ln-serif)] text-xl font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
             Chapita de {petName}
           </h1>
           <p className="mt-1 text-md text-[var(--color-ln-mute)]">

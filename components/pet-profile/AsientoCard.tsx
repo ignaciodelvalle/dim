@@ -160,7 +160,7 @@ export function AsientoCard({
           </span>
         )}
         {view.amended && (
-          <span className="font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
+          <span className="font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-faint)]">
             · corregido
           </span>
         )}
@@ -169,7 +169,7 @@ export function AsientoCard({
           <Link
             href={view.verifyHref}
             prefetch={false}
-            className="font-[var(--font-ln-mono)] text-sm font-semibold uppercase tracking-[.04em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="font-ln-mono text-sm font-semibold uppercase tracking-[.04em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             Pedir verificación →
           </Link>

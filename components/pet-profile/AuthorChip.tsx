@@ -22,7 +22,7 @@ export const AUTHOR_ROLE_LABELS: Record<string, string> = {
 export function AuthorChip({ role, verified }: { role: string; verified: boolean }) {
   const label = AUTHOR_ROLE_LABELS[role] ?? role;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2 py-0.5 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ink-2)]">
+    <span className="inline-flex items-center gap-1 rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2 py-0.5 font-ln-mono text-xs text-[var(--color-ln-ink-2)]">
       {label}
       {verified && (
         <span

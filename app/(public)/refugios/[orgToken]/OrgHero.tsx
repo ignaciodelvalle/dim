@@ -78,7 +78,7 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
             <div
               role="img"
               aria-label={`Logo de ${org.displayName}`}
-              className="h-[88px] w-[88px] rounded-[14px] border-[3px] border-[var(--color-ln-card)] bg-[var(--color-ln-azul)] text-white text-5xl font-semibold flex items-center justify-center font-[var(--font-ln-serif)]"
+              className="h-[88px] w-[88px] rounded-[14px] border-[3px] border-[var(--color-ln-card)] bg-[var(--color-ln-azul)] text-white text-5xl font-semibold flex items-center justify-center font-ln-serif"
             >
               {initial}
             </div>
@@ -90,7 +90,7 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
           {/* Name + chips */}
           <div className="space-y-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-[var(--font-ln-serif)] text-3xl font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)] leading-tight">
+              <h1 className="font-ln-serif text-3xl font-semibold tracking-[-0.02em] text-[var(--color-ln-ink)] leading-tight">
                 {org.displayName}
               </h1>
               {/* Verified chip (inline with name) */}
@@ -149,14 +149,14 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
       {showStats && (
         <div className="grid grid-cols-2 border-t border-[var(--color-ln-line)] sm:grid-cols-4">
           <div className="border-r border-[var(--color-ln-line-2)] px-[18px] py-[15px]">
-            <div className="font-[var(--font-ln-serif)] text-3xl font-semibold leading-none text-[var(--color-ln-azul)]">
+            <div className="font-ln-serif text-3xl font-semibold leading-none text-[var(--color-ln-azul)]">
               {adoptionCount}
             </div>
             <div className="mt-[5px] text-sm text-[var(--color-ln-mute)]">En adopción ahora</div>
           </div>
           {serviceCount > 0 && (
             <div className="border-r border-[var(--color-ln-line-2)] px-[18px] py-[15px] sm:border-r-0 md:border-r">
-              <div className="font-[var(--font-ln-serif)] text-3xl font-semibold leading-none text-[var(--color-ln-azul)]">
+              <div className="font-ln-serif text-3xl font-semibold leading-none text-[var(--color-ln-azul)]">
                 {serviceCount}
               </div>
               <div className="mt-[5px] text-sm text-[var(--color-ln-mute)]">Servicios</div>

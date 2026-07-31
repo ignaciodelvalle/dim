@@ -38,10 +38,8 @@ function RollupCell({
         <Icon name={icon} size={16} decorative />
       </span>
       <div className="min-w-0">
-        <p className={`font-[var(--font-ln-serif)] text-lg font-semibold leading-none ${emphasis}`}>
-          {value}
-        </p>
-        <p className="mt-1 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
+        <p className={`font-ln-serif text-lg font-semibold leading-none ${emphasis}`}>{value}</p>
+        <p className="mt-1 font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
           {label}
         </p>
       </div>

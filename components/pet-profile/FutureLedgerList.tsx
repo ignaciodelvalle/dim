@@ -60,7 +60,7 @@ function MarkDoseForm({ reminderId }: { reminderId: string }) {
       <button
         type="submit"
         disabled={isPending}
-        className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-2.5 py-1.5 font-[var(--font-ln-sans)] text-sm font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80 disabled:opacity-50"
+        className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-2.5 py-1.5 font-ln-sans text-sm font-medium text-[var(--color-ln-azul)] transition-opacity hover:opacity-80 disabled:opacity-50"
       >
         {isPending ? "Guardando…" : "Marcar dada"}
       </button>
@@ -157,7 +157,7 @@ function FutureLedgerRowAction({
         // in-flight navigation (see EventTimeline.tsx for the full
         // incident writeup).
         prefetch={false}
-        className="shrink-0 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="shrink-0 font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         Ver turno →
       </Link>
@@ -191,7 +191,7 @@ export function FutureLedgerList({
 
   return (
     <div data-section="future-ledger">
-      <p className="mb-2 font-[var(--font-ln-mono)] text-xs uppercase tracking-[.06em] font-semibold text-[var(--color-ln-mute)]">
+      <p className="mb-2 font-ln-mono text-xs uppercase tracking-[.06em] font-semibold text-[var(--color-ln-mute)]">
         Próximo
       </p>
       <ul className="divide-y divide-[var(--color-ln-line)]">

@@ -49,7 +49,7 @@ export function SterilizationForm({
         <form id={FORM_ID} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           <div className="flex flex-col gap-1.5">
-            <p className="font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+            <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Procedimiento{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
@@ -122,7 +122,7 @@ export function SterilizationForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

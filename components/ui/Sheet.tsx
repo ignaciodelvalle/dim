@@ -147,7 +147,7 @@ export function LnSheetWrap({ children }: { children: ReactNode }) {
         "relative flex min-h-screen w-full items-start justify-center overflow-auto",
         "bg-[radial-gradient(circle_at_12px_12px,var(--color-ln-line)_1.2px,transparent_1.2px)_0_0_/_22px_22px,var(--color-ln-paper)]",
         "px-6 py-7",
-        "font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]",
+        "font-ln-sans text-[var(--color-ln-ink)]",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -187,7 +187,7 @@ export function LnSheetCard({
 
 export function LnSheetRouteChip({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-[3px] font-[var(--font-ln-mono)] text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
+    <div className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-[3px] font-ln-mono text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
       {children}
     </div>
   );
@@ -236,7 +236,7 @@ export function LnSheetHeader({
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {title}
         </h1>
         {subtitle && <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{subtitle}</p>}
@@ -364,7 +364,7 @@ export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetR
       </div>
       {/* Name + meta */}
       <div className="min-w-0 flex-1">
-        <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <p className="font-ln-serif text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
         {meta && <p className="mt-px text-[11.5px] text-[var(--color-ln-mute)]">{meta}</p>}
@@ -374,7 +374,7 @@ export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetR
         <button
           type="button"
           onClick={onChangePet}
-          className="ml-auto cursor-pointer font-[var(--font-ln-mono)] text-xs tracking-[.04em] text-[var(--color-ln-azul)]"
+          className="ml-auto cursor-pointer font-ln-mono text-xs tracking-[.04em] text-[var(--color-ln-azul)]"
         >
           CAMBIAR
         </button>
@@ -405,7 +405,7 @@ export function LnSubCard({ heading, children, className = "" }: LnSubCardProps)
         .join(" ")}
     >
       {heading && (
-        <p className="border-b border-[var(--color-ln-line-2)] pb-[7px] font-[var(--font-ln-mono)] text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-azul)]">
+        <p className="border-b border-[var(--color-ln-line-2)] pb-[7px] font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-azul)]">
           {heading}
         </p>
       )}
@@ -418,7 +418,7 @@ export function LnSubCard({ heading, children, className = "" }: LnSubCardProps)
 
 export function LnGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+    <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
       {children}
     </p>
   );
@@ -452,7 +452,7 @@ export function LnSheetAccordion({
     >
       <summary className="flex cursor-pointer select-none list-none items-center gap-3 px-3.5 py-[11px] hover:bg-[var(--color-ln-stripe)]">
         {/* Number */}
-        <span className="font-[var(--font-ln-mono)] text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
+        <span className="font-ln-mono text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
           {num}
         </span>
         {/* Title */}
@@ -461,7 +461,7 @@ export function LnSheetAccordion({
         </span>
         {/* Complete badge — hidden when open */}
         {complete && (
-          <span className="inline-flex items-center gap-1 font-[var(--font-ln-mono)] text-xs text-[var(--color-ln-ok)] group-open:hidden">
+          <span className="inline-flex items-center gap-1 font-ln-mono text-xs text-[var(--color-ln-ok)] group-open:hidden">
             <Icon name="check" size={14} decorative /> completo
           </span>
         )}

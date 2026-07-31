@@ -65,10 +65,7 @@ export function CorrectSpeciesForm({
       </LnField>
 
       {state.error && (
-        <p
-          className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
-          role="alert"
-        >
+        <p className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
           {state.error}
         </p>
       )}

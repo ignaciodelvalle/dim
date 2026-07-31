@@ -169,7 +169,7 @@ export function EventLedgerRow({ row }: Props) {
                         <ul className="space-y-0.5">
                           {a.changes.map((c, i) => (
                             <li key={`${a.id}-${c.field}-${i}`} className="text-ln-op-ink-2">
-                              <span className="font-[var(--font-ln-mono)] text-[11px] text-ln-op-mute">
+                              <span className="font-ln-mono text-[11px] text-ln-op-mute">
                                 {c.field}
                               </span>
                               : {formatChangeValue(c.old)} → {formatChangeValue(c.new)}

@@ -235,14 +235,14 @@ export default async function MisPostulacionesPage({
       {/* Back */}
       <Link
         href="/mis-mascotas"
-        className="mb-5 inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis mascotas
       </Link>
 
       {/* Header */}
       <div className="mb-7">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis postulaciones para adoptar
         </h1>
         <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
@@ -274,7 +274,7 @@ export default async function MisPostulacionesPage({
           action={
             <Link
               href="/adoptar"
-              className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-2 font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
+              className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-2 font-ln-sans text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
             >
               Ver mascotas en adopción
             </Link>
@@ -291,19 +291,19 @@ export default async function MisPostulacionesPage({
                 className={`flex flex-col gap-1.5 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 last:border-b-0 ${isHighlight ? "bg-[var(--color-ln-celeste-050)]" : ""}`}
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <p className="font-[var(--font-ln-serif)] text-md font-semibold text-[var(--color-ln-ink)]">
+                  <p className="font-ln-serif text-md font-semibold text-[var(--color-ln-ink)]">
                     {app.petName}
                   </p>
                   <span
-                    className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-[var(--font-ln-mono)] text-[9px] font-semibold uppercase tracking-[.1em] ${config.cls}`}
+                    className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] ${config.cls}`}
                   >
                     {config.label}
                   </span>
                 </div>
-                <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+                <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
                   Refugio: {app.orgDisplayName}
                 </p>
-                <p className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
                   Enviada el {formatDateShort(app.submittedAt)}
                   {app.decisionAt && (
                     <>
