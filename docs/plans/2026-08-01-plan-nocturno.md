@@ -77,7 +77,7 @@
 
 | # | Unidad | Estado |
 |---|---|---|
-| **P3.1** | **`nominatim.openstreetmap.org` hardcodeado.** Fetch server-side sin override por env, en el ruteo de jurisdicción. Desde una IP compartida de Actions puede fallar, y **un caso sin jurisdicción es invisible para toda cola de gobierno** | abierta |
+| **P3.1** | **`nominatim.openstreetmap.org` hardcodeado.** Fetch server-side sin override por env, en el ruteo de jurisdicción. Desde una IP compartida de Actions puede fallar, y **un caso sin jurisdicción es invisible para toda cola de gobierno** | **cerrada** |
 | **P3.2** | **`jurisdictionProvince` sin `z.enum`** (`CreateAlertSubscriptionSchema`) — a diferencia de `metricKey`/`direction`. Una provincia no canónica se escapa de Zod y llega al usuario como error crudo de Postgres. Ya hay un test que documenta el estado y se pondrá rojo al arreglarlo | abierta |
 | **P3.3** | **A2c — el aviso de capa desconocida está enterrado** en la pestaña "Línea de tiempo" de un dock colapsado, así que en el aterrizaje no se ve. **Bloqueada**: `PanoramaConsole.tsx` está exactamente en su fence de 5089 líneas — hay que partirlo primero | abierta |
 
@@ -207,7 +207,7 @@ Es para ESTA corrida, no permanente.
 | P2.6 worker de Windows | pendiente (no bloquea) | |
 | **P2.8 (NUEVA)** rls/matrix skip-es-aprobado | pendiente — 44 celdas retornan temprano; la suite imprime verde sin afirmar nada | |
 | P2.7 A2b limpiador | pendiente (necesita revisión) | |
-| P3.1 nominatim hardcodeado | en curso | |
+| P3.1 nominatim hardcodeado | **CERRADA** (env override + timeout con budget compartido + fallback D.11 al texto del formulario, marcado y VISIBLE en la cola de triage) | `937a4007` |
 | P3.2 jurisdictionProvince sin enum | pendiente | |
 | P3.3 A2c aviso enterrado | bloqueada por el fence | |
 | P4.1 B2 los 703 | pendiente | |
