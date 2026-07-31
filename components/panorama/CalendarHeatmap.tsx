@@ -237,8 +237,10 @@ export function CalendarHeatmap({
           INPUT series (days with data); each date filters when onDayClick is set. */}
       {tableData.length > 0 && (
         <details className="text-sm">
+          {/* RA-9 BR-7: the sr-only suffix disambiguates N "Ver datos" toggles on
+              a multi-chart dashboard (WCAG 2.4.6). */}
           <summary className="cursor-pointer text-xs font-medium text-ln-op-azul hover:underline">
-            Ver datos
+            Ver datos<span className="sr-only"> — {title}</span>
           </summary>
           <table className="mt-2 w-full border-collapse text-xs">
             <caption className="sr-only">

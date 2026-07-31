@@ -1126,10 +1126,13 @@ export function MapChoropleth({
         {caption && <p className="text-xs text-ln-op-mute">{caption}</p>}
       </figure>
 
-      {/* Tabla a11y */}
+      {/* Tabla a11y.
+          RA-9 BR-7: the sr-only suffix disambiguates N "Ver datos" toggles on a
+          multi-chart dashboard (WCAG 2.4.6) — the <caption> below cannot, it is
+          inside the still-collapsed table. */}
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer text-ln-op-azul hover:underline text-xs font-medium">
-          Ver datos
+          Ver datos<span className="sr-only"> — {fallbackTableLabel}</span>
         </summary>
         <table className="mt-2 w-full border-collapse text-xs">
           <caption className="sr-only">{fallbackTableLabel}</caption>

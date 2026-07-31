@@ -114,9 +114,23 @@ export function StackedTimeSeriesChart({
       ? "Datos ocultos por privacidad (k<5)."
       : "Sin datos para el período seleccionado.";
 
+  // RA-9 BR-5: the recharts SVG used to sit in a bare <div> — no accessible
+  // name, not aria-hidden, so a screen reader met an unnamed graphic. Mirrors
+  // the ForecastChart / MapChoropleth / CalendarHeatmap contract.
+  const summaryLabel = isEmpty
+    ? `${fallbackTableLabel}: ${emptyMessage}`
+    : `${fallbackTableLabel}: gráfico de áreas apiladas, ${seriesKeys.length} ${
+        seriesKeys.length === 1 ? "serie" : "series"
+      } (${seriesKeys.map(labelFor).join(", ")}) sobre ${points.length} ${
+        points.length === 1 ? "período" : "períodos"
+      }. Los valores exactos están en la tabla "Ver datos".`;
+
   return (
     <div className={className}>
-      <div className="relative">
+      {/* role="img" wraps the PLOT ONLY — the "Ver datos" table below stays a
+          sibling, because everything inside a role="img" node is presentational
+          to assistive tech (mirrors MapChoropleth). */}
+      <figure role="img" aria-label={summaryLabel} className="relative m-0">
         <ChartSizingBox height={height}>
           <AreaChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -157,12 +171,14 @@ export function StackedTimeSeriesChart({
             {emptyMessage}
           </p>
         )}
-      </div>
+      </figure>
 
-      {/* Accessibility data table — períodos (rows) × series (cols) matrix. */}
+      {/* Accessibility data table — períodos (rows) × series (cols) matrix.
+          RA-9 BR-7: the sr-only suffix disambiguates N "Ver datos" toggles on a
+          multi-chart dashboard (WCAG 2.4.6). */}
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer text-ln-azul hover:underline text-xs font-medium">
-          Ver datos
+          Ver datos<span className="sr-only"> — {fallbackTableLabel}</span>
         </summary>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full border-collapse text-xs">

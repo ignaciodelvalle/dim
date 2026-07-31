@@ -166,9 +166,20 @@ export function TimeSeriesChart({
   const tooltip = <Tooltip />;
   const legend = isEmpty ? null : <Legend wrapperStyle={{ fontSize: 12 }} />;
 
+  // RA-9 BR-5: the recharts SVG used to live in a bare <div> — no accessible
+  // name, not aria-hidden, so a screen reader met an unnamed graphic. Its
+  // siblings (ForecastChart, MapChoropleth, CalendarHeatmap) already wrap in
+  // figure[role="img"] + aria-label; this copies that contract.
+  const summaryLabel = isEmpty
+    ? `${seriesLabel}: ${emptyMessage}`
+    : `${seriesLabel}: ${variant === "area" ? "gráfico de área" : "gráfico de línea"} con ${data.length} ${data.length === 1 ? "período" : "períodos"}${yLabel ? `, eje Y ${yLabel}` : ""}. Los valores exactos están en la tabla "Ver datos".`;
+
   return (
     <div className={className}>
-      <div className="relative">
+      {/* role="img" wraps the PLOT ONLY — the "Ver datos" table below stays a
+          sibling, because everything inside a role="img" node is presentational
+          to assistive tech (mirrors MapChoropleth). */}
+      <figure role="img" aria-label={summaryLabel} className="relative m-0">
         <ChartSizingBox height={height}>
           {variant === "area" ? (
             <AreaChart {...commonProps}>
@@ -217,12 +228,17 @@ export function TimeSeriesChart({
             {emptyMessage}
           </p>
         )}
-      </div>
+      </figure>
 
-      {/* Tabla de accesibilidad */}
+      {/* Tabla de accesibilidad.
+          RA-9 BR-7: the accessible name of this toggle used to be the bare
+          string "Ver datos" — on a dashboard with N charts a screen-reader user
+          got N identical controls (WCAG 2.4.6), and the only disambiguator was
+          the sr-only <caption> INSIDE the still-collapsed table. The sr-only
+          suffix names the dataset in the control itself. */}
       <details className="mt-3 text-sm">
         <summary className="cursor-pointer text-ln-azul hover:underline text-xs font-medium">
-          Ver datos
+          Ver datos<span className="sr-only"> — {fallbackTableLabel}</span>
         </summary>
         <table className="mt-2 w-full border-collapse text-xs">
           <caption className="sr-only">{fallbackTableLabel}</caption>

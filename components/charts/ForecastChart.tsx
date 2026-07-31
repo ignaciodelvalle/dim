@@ -150,102 +150,104 @@ export function ForecastChart({
   const footnote = `Proyección de tendencia — no es una garantía. n=${n}, método=${method}.`;
 
   return (
-    <figure
-      role="img"
-      aria-label={ariaLabel}
-      className={`m-0 ${className}`}
-      data-forecast-insufficient={cannotPlot ? "true" : "false"}
-      data-forecast-has-band={!cannotPlot && forecast.length > 0 ? "true" : "false"}
-      data-forecast-has-target={target ? "true" : "false"}
-    >
-      <figcaption className="sr-only">
-        Gráfico de línea con proyección de tendencia. El tramo sólido son datos observados; el tramo
-        punteado con banda es la proyección. {ariaLabel}
-      </figcaption>
+    // RA-9 BR-7 fallout: role="img" makes its whole subtree presentational, so
+    // the "Ver datos" table, the crossing callout and the honesty footnote were
+    // all UNREACHABLE by assistive tech while nested inside the figure. The
+    // figure now wraps the PLOT ONLY (mirrors MapChoropleth); everything a
+    // screen reader must actually reach is a sibling of it.
+    <div className={className}>
+      <figure
+        role="img"
+        aria-label={ariaLabel}
+        className="m-0"
+        data-forecast-insufficient={cannotPlot ? "true" : "false"}
+        data-forecast-has-band={!cannotPlot && forecast.length > 0 ? "true" : "false"}
+        data-forecast-has-target={target ? "true" : "false"}
+      >
+        {cannotPlot ? (
+          // Insufficient: actuals only, NO band, explicit message (no invented line).
+          <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-6 text-center">
+            <p className="text-[13px] font-medium text-ln-op-ink-2">
+              Datos insuficientes para proyectar
+            </p>
+            <p className="mt-1 text-[11px] text-ln-op-mute">
+              Se necesitan al menos 4 períodos con datos para estimar una tendencia confiable.
+            </p>
+          </div>
+        ) : (
+          // B1 — the shared ChartSizingBox gives recharts a concrete-height,
+          // full-width box so ResponsiveContainer can never measure 0 (empty SVG
+          // on first mount under the ssr:false dynamic wrapper). See #14.
+          <ChartSizingBox height={height} className="w-full" data-forecast-chart="true">
+            <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+              <XAxis dataKey="x" tick={{ fontSize: 11 }} />
+              <YAxis tick={{ fontSize: 11 }} />
+              <Tooltip />
+              <Legend wrapperStyle={{ fontSize: 12 }} />
 
-      {cannotPlot ? (
-        // Insufficient: actuals only, NO band, explicit message (no invented line).
-        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-6 text-center">
-          <p className="text-[13px] font-medium text-ln-op-ink-2">
-            Datos insuficientes para proyectar
-          </p>
-          <p className="mt-1 text-[11px] text-ln-op-mute">
-            Se necesitan al menos 4 períodos con datos para estimar una tendencia confiable.
-          </p>
-        </div>
-      ) : (
-        // B1 — the shared ChartSizingBox gives recharts a concrete-height,
-        // full-width box so ResponsiveContainer can never measure 0 (empty SVG
-        // on first mount under the ssr:false dynamic wrapper). See #14.
-        <ChartSizingBox height={height} className="w-full" data-forecast-chart="true">
-          <ComposedChart data={chartData} margin={{ top: 8, right: 16, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-            <XAxis dataKey="x" tick={{ fontSize: 11 }} />
-            <YAxis tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-
-            {/* Confidence band — low-opacity area between lo and hi of the tail. */}
-            <Area
-              type="monotone"
-              dataKey="hi"
-              name="Banda de confianza"
-              stroke="none"
-              fill={FORECAST_COLOR}
-              fillOpacity={0.12}
-              isAnimationActive={!reducedMotion}
-              activeDot={false}
-              legendType="none"
-            />
-            <Area
-              type="monotone"
-              dataKey="lo"
-              name="Banda de confianza (mín.)"
-              stroke="none"
-              fill="#ffffff"
-              fillOpacity={1}
-              isAnimationActive={!reducedMotion}
-              activeDot={false}
-              legendType="none"
-            />
-
-            {/* Actual segment — SOLID. */}
-            <Line
-              type="monotone"
-              dataKey="actual"
-              name={seriesLabel}
-              stroke={ACTUAL_COLOR}
-              strokeWidth={2}
-              dot={false}
-              connectNulls={false}
-              isAnimationActive={!reducedMotion}
-            />
-
-            {/* Forecast segment — DASHED (distinct by style, not colour alone). */}
-            <Line
-              type="monotone"
-              dataKey="forecast"
-              name="Proyección"
-              stroke={FORECAST_COLOR}
-              strokeWidth={2}
-              strokeDasharray="6 4"
-              dot={false}
-              connectNulls={false}
-              isAnimationActive={!reducedMotion}
-            />
-
-            {/* Target reference line — ONLY when a same-unit target is provided. */}
-            {target ? (
-              <ReferenceLine
-                y={target.value}
-                stroke={CHART_COLORS.orange}
-                strokeDasharray="4 4"
-                label={{ value: target.label, position: "insideTopRight", fontSize: 10 }}
+              {/* Confidence band — low-opacity area between lo and hi of the tail. */}
+              <Area
+                type="monotone"
+                dataKey="hi"
+                name="Banda de confianza"
+                stroke="none"
+                fill={FORECAST_COLOR}
+                fillOpacity={0.12}
+                isAnimationActive={!reducedMotion}
+                activeDot={false}
+                legendType="none"
               />
-            ) : null}
-          </ComposedChart>
-        </ChartSizingBox>
-      )}
+              <Area
+                type="monotone"
+                dataKey="lo"
+                name="Banda de confianza (mín.)"
+                stroke="none"
+                fill="#ffffff"
+                fillOpacity={1}
+                isAnimationActive={!reducedMotion}
+                activeDot={false}
+                legendType="none"
+              />
+
+              {/* Actual segment — SOLID. */}
+              <Line
+                type="monotone"
+                dataKey="actual"
+                name={seriesLabel}
+                stroke={ACTUAL_COLOR}
+                strokeWidth={2}
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={!reducedMotion}
+              />
+
+              {/* Forecast segment — DASHED (distinct by style, not colour alone). */}
+              <Line
+                type="monotone"
+                dataKey="forecast"
+                name="Proyección"
+                stroke={FORECAST_COLOR}
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                dot={false}
+                connectNulls={false}
+                isAnimationActive={!reducedMotion}
+              />
+
+              {/* Target reference line — ONLY when a same-unit target is provided. */}
+              {target ? (
+                <ReferenceLine
+                  y={target.value}
+                  stroke={CHART_COLORS.orange}
+                  strokeDasharray="4 4"
+                  label={{ value: target.label, position: "insideTopRight", fontSize: 10 }}
+                />
+              ) : null}
+            </ComposedChart>
+          </ChartSizingBox>
+        )}
+      </figure>
 
       {/* Crossing callout — sales beat for the executive. */}
       {!cannotPlot && crossingText ? (
@@ -258,15 +260,16 @@ export function ForecastChart({
         </p>
       ) : null}
 
-      {/* Honesty footnote — band + n + method (acceptance requirement). */}
-      <figcaption className="mt-2 text-xs italic leading-snug text-ln-op-mute">
-        {footnote}
-      </figcaption>
+      {/* Honesty footnote — band + n + method (acceptance requirement). Was a
+          <figcaption> inside the role="img" figure, i.e. never announced. */}
+      <p className="mt-2 text-xs italic leading-snug text-ln-op-mute">{footnote}</p>
 
-      {/* Accessible data table — recharts SVG is decorative. */}
+      {/* Accessible data table — recharts SVG is decorative.
+          RA-9 BR-7: the sr-only suffix disambiguates N "Ver datos" toggles on a
+          multi-chart dashboard (WCAG 2.4.6). */}
       <details className="mt-2 text-sm">
         <summary className="cursor-pointer text-[11px] font-medium text-ln-op-azul hover:underline">
-          Ver datos
+          Ver datos<span className="sr-only"> — {seriesLabel}, observado y proyectado</span>
         </summary>
         <table className="mt-2 w-full border-collapse text-[11px]">
           <caption className="sr-only">
@@ -311,6 +314,6 @@ export function ForecastChart({
           </tbody>
         </table>
       </details>
-    </figure>
+    </div>
   );
 }
