@@ -59,6 +59,7 @@ import {
   formatTopImpactLine,
   rankByImpact,
   resourceGap,
+  scopeTotalSuppressionNotice,
   summarizeTopImpact,
   toneForTarget,
   totalImpactByJurisdiction,
@@ -246,6 +247,42 @@ export default async function GobProgramaPage({
     piiOversight,
     censusPopulations,
   ] = load.value;
+
+  // THE HEADLINE OBEYS THE SAME VERDICT AS THE ROWS (RA-3 finding C1, third
+  // instance). This page accepts `?province=` (above), and for an admin that
+  // drill narrows `ctx` through `petsScopeClause` — so with
+  // `/gob/programa?province=AR-V` EVERY figure below is counted over a single
+  // foreign jurisdiction: "Total registradas" IS that province's withheld cell,
+  // the esterilización tile is its rate over the same base (and `forecast`
+  // multiplies the two back into the numerator), microchip/SLA/cola/calidad are
+  // the same three animals seen from other angles. So the page withholds them
+  // together rather than tile by tile — an executive summary with one honest
+  // tile and five withheld ones is not a summary.
+  //
+  // ONE decision point: `fetchSterilizationCoverage` handed down
+  // `scopeTotalPublishable` from the same `planProvinceDisclosure` call that
+  // decided its province rows, and its per-province denominator is `count(pets)`
+  // over `activePetsCondition` — the SAME base `registryCounts(ctx).total`
+  // counts. Nothing is re-derived here; a second decision point is the bug this
+  // class keeps producing.
+  //
+  // D.10 SURVIVES: a govt operator's own province is never a suppression
+  // candidate (`isOwnJurisdictionProvince`), so their scope total is never
+  // withheld — they keep their real number at 3 pets.
+  const scopeNotice = scopeTotalSuppressionNotice(sterilization.scopeTotalPublishable);
+  if (scopeNotice) {
+    return (
+      <div className="space-y-6">
+        {header}
+        {filtersRow}
+        <LnEmptyState
+          icon="lock"
+          title="Datos insuficientes (privacidad)"
+          description={scopeNotice}
+        />
+      </div>
+    );
+  }
 
   // outlierCount is a COMBINATION count (provincia × métrica) — correct for the
   // outliers table caption below ("N de M combinaciones bajo meta"), but NOT

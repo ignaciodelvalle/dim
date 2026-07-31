@@ -62,6 +62,7 @@ import {
   projectSeries,
   rankByImpact,
   resourceGap,
+  scopeTotalSuppressionNotice,
   summarizeTopImpact,
   toneForTarget,
   totalImpactByJurisdiction,
@@ -200,6 +201,33 @@ export default async function AdminProgramaPage({
     rabiesTrend,
     censusPopulations,
   ] = load.value;
+
+  // Same single verdict as /gob/programa (RA-3 finding C1), and the same guard
+  // /admin/censo and /admin/poblacion carry.
+  //
+  // SCOPE NOTE, because it is the reason this guard looks redundant and is not:
+  // unlike its /gob twin this screen does NOT accept `?province=` — its
+  // searchParams are period-only and `adminCtx` is built with no
+  // `adminProvince`, so the grouping is always national. What still trips the
+  // rule is a sparse deployment where the whole national grouping holds ONE
+  // withheld province: then "Total registradas" and the esterilización rate are
+  // that province's protected numbers wearing a national label. Wiring the
+  // verdict in now also means a future province drill on this page cannot
+  // reintroduce C1 by omission — the failure mode that put this defect on three
+  // separate screens.
+  const scopeNotice = scopeTotalSuppressionNotice(sterilization.scopeTotalPublishable);
+  if (scopeNotice) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <LnEmptyState
+          icon="lock"
+          title="Datos insuficientes (privacidad)"
+          description={scopeNotice}
+        />
+      </div>
+    );
+  }
 
   // Paquete J — forward projection over the antirrábica vaccination FLOW series
   // (distinct dogs vaccinated/bucket). §J-D3: the LEGAL target is COVERAGE %

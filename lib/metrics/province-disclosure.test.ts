@@ -388,7 +388,32 @@ const CONSUMERS = [
   "app/admin/poblacion/AdminPoblacionScreen.tsx",
   "app/gob/poblacion/PoblacionScreen.tsx",
   "app/gob/poblacion/export/route.ts",
+  // The executive summaries. They joined this list LATE, and that is the point:
+  // the censo/población sweep enumerated the surfaces it could see, both of
+  // these call `registryCounts` + `fetchSterilizationCoverage`, and /gob/programa
+  // accepts `?province=` — so it carried the identical C1 shape for as long as
+  // the list did not name it. THIS LIST IS THE SWEEP. A new consumer of either
+  // decider belongs here in the same commit that adds the call.
+  "app/gob/programa/page.tsx",
+  "app/admin/programa/page.tsx",
 ];
+
+/**
+ * Consumers that publish the HEADLINE but no per-province row from these
+ * deciders — they have no ROW to branch on or to announce, so the two row-level
+ * guards below skip them. They are NOT skipped by the headline guard: the KPI
+ * beside the row is where C1 lived on every one of them.
+ *
+ * /gob/poblacion's map is the Panorama embed (its own k-anon + legend); the two
+ * programa pages render no province breakdown from these fetchers at all (their
+ * outliers table comes from `fetchCrossJurisdictionOutliers`, a different tier
+ * with its own suppression).
+ */
+const HEADLINE_ONLY = new Set([
+  "app/gob/poblacion/PoblacionScreen.tsx",
+  "app/gob/programa/page.tsx",
+  "app/admin/programa/page.tsx",
+]);
 
 /** The two fetchers that own the decision — the only sanctioned callers. */
 const DECIDERS = ["lib/metrics/census.ts", "lib/metrics/population-control.ts"];
@@ -412,11 +437,10 @@ describe("screen/export parity is structural", () => {
   // number written into an it() name goes stale the next time a surface joins
   // (it already had, saying "four" while iterating five).
   it("every per-row publisher branches on the fetcher's verdict", () => {
-    // /gob/poblacion is excluded on purpose: it publishes NO per-province value
-    // (its map is the Panorama embed, which carries its own k-anon + legend), so
-    // it has no ROW to branch on. It is NOT excluded from the headline guard
-    // below — its KPI row was RA-3 finding C1.
-    const publishers = CONSUMERS.filter((c) => !c.endsWith("PoblacionScreen.tsx"));
+    // HEADLINE_ONLY consumers are excluded on purpose — see its docblock. They
+    // are NOT excluded from the headline guard below, which is where every one
+    // of them actually leaked.
+    const publishers = CONSUMERS.filter((c) => !HEADLINE_ONLY.has(c));
     for (const rel of publishers) {
       const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
       expect(code, rel).toMatch(/\.suppressed|suppressedCount|SuppressedCount/);
@@ -427,7 +451,7 @@ describe("screen/export parity is structural", () => {
     // #40's own follow-up suppressed the values and left suppressedCount at 0 —
     // a fully hatched map that told nobody. Hiding without disclosing is the
     // failure mode, not the fix.
-    const announcing = CONSUMERS.filter((c) => !c.endsWith("PoblacionScreen.tsx"));
+    const announcing = CONSUMERS.filter((c) => !HEADLINE_ONLY.has(c));
     for (const rel of announcing) {
       const code = stripComments(readFileSync(join(REPO_ROOT, rel), "utf8"));
       expect(code, rel).toMatch(/provinceSuppressionNotice\(/);
@@ -445,7 +469,15 @@ describe("screen/export parity is structural", () => {
     // The verdict must ARRIVE FROM the fetcher — a literal `true`, or a rule
     // re-derived here, is the second decision point this whole file exists to
     // prevent.
-    expect(code).toMatch(/(registry|coverage)\.scopeTotalPublishable/);
+    //
+    // The pattern is a PROPERTY ACCESS on whatever the consumer named the
+    // fetcher result (`registry`, `coverage`, `sterilization`, …), not an
+    // enumeration of those names: the enumeration went stale the first time a
+    // surface joined with a fourth name, and a stale allow-list here fails
+    // OPEN — it stops asserting anything about the file it skipped. What must
+    // never appear is a literal, which the second assertion pins directly.
+    expect(code).toMatch(/[A-Za-z_$][\w$]*\.scopeTotalPublishable\b/);
+    expect(code).not.toMatch(/scopeTotalPublishable\s*[:=]\s*(true|false)\b/);
     expect(code).toMatch(/scopeTotalSuppressionNotice\(|scopeSummaryRow\(/);
   });
 
