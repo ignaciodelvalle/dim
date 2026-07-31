@@ -51,18 +51,18 @@ describe("OutbreakHistoryTable — a11y: scope + caption", () => {
       locality: "Palermo",
       province: "CABA",
       peakDate: "2024-03-15",
-      totalSignals: 3,
+      totalSignals: 6,
       lastSeen: "2024-03-18",
     },
   ];
 
   it("has scope='col' on all header cells", () => {
-    const html = renderToStaticMarkup(<OutbreakHistoryTable rows={rows} />);
+    const html = renderToStaticMarkup(<OutbreakHistoryTable rows={rows} suppressedCount={0} />);
     assertThHaveScope(html);
   });
 
   it("has a <caption>", () => {
-    const html = renderToStaticMarkup(<OutbreakHistoryTable rows={rows} />);
+    const html = renderToStaticMarkup(<OutbreakHistoryTable rows={rows} suppressedCount={0} />);
     assertHasCaption(html);
   });
 });

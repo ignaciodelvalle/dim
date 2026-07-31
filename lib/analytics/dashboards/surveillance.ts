@@ -12,6 +12,7 @@ import { type SQL, and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
+import { suppressSmallCells } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
 import { aggregateRowsByDepartment } from "../subregion-aggregate";
@@ -543,14 +544,30 @@ export type ProvinceCasesPerCapita = {
    * Empty string if the province is not in PROVINCE_ISO_MAP.
    */
   code: string;
-  /** Raw count of open cases in this province. */
-  count: number;
+  /**
+   * Count of open cases in this province, or `null` when the cell is WITHHELD
+   * by k-anonymity (RA-3 C4). NEVER 0 for a withheld cell: a false zero is
+   * itself a disclosure (it says "sub-k" just as loudly as the real number,
+   * and reads as real data) — see SUPPRESSED_MARKER's own note in
+   * lib/open-data/province-suppression.ts.
+   */
+  count: number | null;
   /**
    * Cases per 10,000 inhabitants (count / population * 10_000), rounded to
    * one decimal. `null` when there is no census row for the province (avoids
-   * divide-by-zero; the UI falls back to showing the raw count in that case).
+   * divide-by-zero; the UI falls back to showing the raw count in that case)
+   * — OR when the cell is k-anon suppressed. Branch on `suppressed` FIRST:
+   * the two nulls mean different things and must render differently ("sin
+   * censo, conteo bruto N" vs "protegido por privacidad").
    */
   ratePer10k: number | null;
+  /**
+   * k-anonymity (k = ANONYMITY_K = 5, AGENTS.md "Aggregation & privacy
+   * policy"): true when this province has 1..k-1 open cases. A rate is not
+   * exempt — it publishes its own numerator once the denominator (INDEC 2022
+   * population, public) is known, so the rate is suppressed with the count.
+   */
+  suppressed: boolean;
 };
 
 /**
@@ -566,6 +583,39 @@ export type ProvinceCasesPerCapita = {
  *
  * Fallback: provinces with no census row get ratePer10k = null so callers
  * can display the raw count as a safe fallback.
+ *
+ * k-ANONYMITY (RA-3 C4, 2026-07-31). Every returned province is routed through
+ * `suppressSmallCells` at the shared ANONYMITY_K before it leaves this module.
+ * A province with 1..4 open cases publishes `count: null, ratePer10k: null,
+ * suppressed: true` — the row survives (a row that VANISHES at k makes absence
+ * the disclosure channel, the same trap `toChoroplethData` documents) but
+ * carries no number on either side.
+ *
+ * Why the RATE is suppressed too and not just the count: the denominator is
+ * INDEC 2022, a published national census. `count = rate × population / 10_000`
+ * is a one-line inversion, so publishing the rate publishes the count. This is
+ * the same "a rate reveals its denominator" finding that made #40c non-exempt.
+ *
+ * Suppressed rows are NOT dropped from the return value on purpose: the render
+ * has to be able to say HOW MANY provinces it is withholding (the disclosure
+ * half of the rule), and it can only count what it receives.
+ *
+ * PRIMARY suppression only — no complementary (differencing) pass. The
+ * complementary rule exists to protect a lone suppressed cell against
+ * subtraction from a coarser PUBLISHED total over the same partition
+ * (`complementarySuppress` jsdoc); /gob/analytics publishes no national
+ * open-case total, so there is nothing to subtract from. This matches the
+ * proven standard already on that same page — `fetchVetAccessByLocality` is
+ * primary-only for the same reason. If a national open-case KPI is ever added
+ * to this screen, this fetcher MUST gain the complementary pass with it.
+ *
+ * NOT scoped by `case_kind` — deliberate, see the note in `fetchCasesPerLocality`'s
+ * sibling render (`CasesPerCapitaTable`): "casos abiertos" means every open case
+ * kind on BOTH this table and /gob/vigilancia's choropleth, and narrowing one of
+ * the two would put two different numbers under one name across two screens.
+ * Narrowing would also SHRINK every cell, which raises re-identifiability rather
+ * than lowering it. The honesty gap (a maltrato case and a custody dispute in one
+ * bucket) is closed on the render side, by naming what is counted.
  */
 export async function fetchCasesPerCapita(
   actor: DashboardActor,
@@ -596,7 +646,7 @@ export async function fetchCasesPerCapita(
     .where(and(...conditions))
     .groupBy(cases.jurisdictionProvince);
 
-  return rows
+  const raw = rows
     .filter((r) => r.province !== null)
     .map((r) => {
       const pop = r.population !== null ? Number(r.population) : null;
@@ -609,6 +659,20 @@ export async function fetchCasesPerCapita(
         ratePer10k,
       };
     });
+
+  // k-anon at the shared ANONYMITY_K — the SAME primitive the locality,
+  // department and open-data tiers use. No second k is defined here.
+  const { suppressed } = suppressSmallCells(raw, {
+    count: (r) => r.count,
+    key: (r) => r.province,
+  });
+  const suppressedProvinces = new Set(suppressed.map((r) => r.province));
+
+  return raw.map((r) =>
+    suppressedProvinces.has(r.province)
+      ? { province: r.province, code: r.code, count: null, ratePer10k: null, suppressed: true }
+      : { ...r, suppressed: false },
+  );
 }
 
 // ============================================================================
@@ -710,6 +774,22 @@ export type OutbreakHistoryRow = {
 };
 
 /**
+ * The k-anonymised outbreak history: the rows that may be published, plus the
+ * count of the ones that may not.
+ *
+ * `suppressedCount` is NOT decoration — it is the disclosure half of the rule.
+ * Without it the table cannot tell "nobody ever reported an outbreak here" from
+ * "every outbreak here is a group of fewer than k", and it renders the former,
+ * which is a lie in the direction that matters (an all-clear that was never
+ * measured).
+ */
+export type OutbreakHistoryResult = {
+  rows: OutbreakHistoryRow[];
+  /** (disease, locality, province) groups withheld by k-anon — counted, never listed. */
+  suppressedCount: number;
+};
+
+/**
  * Historical outbreaks grouped by (disease_code, disease_label, locality, province),
  * ordered by most-recent signal descending.
  *
@@ -723,13 +803,35 @@ export type OutbreakHistoryRow = {
  *
  * Scope via outbreak_signal payload fields pet_jurisdiction_province/locality
  * (same as fetchSurveillanceSignals). No time restriction — full history.
+ *
+ * k-ANONYMITY (RA-3 C3, 2026-07-31 — the highest-re-identifiability finding in
+ * that report). A row here is a (disease, LOCALITY, province, peak DAY) tuple.
+ * At `totalSignals = 1` the row reads "Rabia · Ushuaia · Tierra del Fuego ·
+ * 12 mar 2026 · 1": one animal, one locality, one date, a reportable disease.
+ * Every attribute of the row is a quasi-identifier of the same small group, so
+ * blanking only the number is not enough — the ROW is the disclosure. Sub-k
+ * groups are therefore DROPPED and COUNTED, not blanked.
+ *
+ * This is the standard already proven on the very page that renders this table:
+ * `fetchVetAccessByLocality` (lib/metrics/vet-access.ts) drops sub-k localities
+ * and hands back `suppressedCount`, and /gob/analytics announces it in the
+ * card header. Same primitive (`suppressSmallCells`), same k (ANONYMITY_K),
+ * same disclosure shape — no second mechanism.
+ *
+ * PRIMARY suppression only, deliberately: complementary (differencing)
+ * suppression defends a lone hidden cell against subtraction from a coarser
+ * PUBLISHED total over the SAME partition. Nothing on this page publishes a
+ * per-disease or per-province lifetime signal total (the trend card is
+ * period-bounded, all-disease, and separately suppressed), so there is no
+ * subtraction to defend against. Add the pass together with any future
+ * lifetime total, not before — see `complementarySuppress`'s jsdoc.
  */
 export async function fetchOutbreakHistory(
   actor: DashboardActor,
   jurisdictions: DashboardJurisdiction[],
   opts: { adminProvince?: string; adminLocality?: string } = {},
-): Promise<OutbreakHistoryRow[]> {
-  if (actor.role === "govt" && jurisdictions.length === 0) return [];
+): Promise<OutbreakHistoryResult> {
+  if (actor.role === "govt" && jurisdictions.length === 0) return { rows: [], suppressedCount: 0 };
 
   // Build the jurisdiction scope clause once; reused in both CTEs. The pets
   // guard (EXISTS on the pet's CURRENT jurisdiction) closes the payload-drift
@@ -816,7 +918,7 @@ export async function fetchOutbreakHistory(
     LIMIT 100
   `)) as RawRow[];
 
-  return rows.map((r) => ({
+  const mapped: OutbreakHistoryRow[] = rows.map((r) => ({
     diseaseCode: r.disease_code,
     diseaseName: findDisease(r.disease_code)?.label ?? (r.disease_label || null) ?? r.disease_code,
     locality: r.locality,
@@ -827,4 +929,15 @@ export async function fetchOutbreakHistory(
     totalSignals: r.total_signals,
     lastSeen: new Date(r.last_seen).toISOString(),
   }));
+
+  // k-anon at the shared ANONYMITY_K (no `k` override — the policy number has
+  // exactly one home, lib/metrics/anonymity.ts). No rollup: folding sub-k
+  // groups into a coarser bucket would have to name a disease or a province to
+  // be useful, and either one re-opens the leak this suppression closes.
+  const { visible, suppressedCount } = suppressSmallCells(mapped, {
+    count: (r) => r.totalSignals,
+    key: (r) => `${r.diseaseCode}::${r.province}::${r.locality}`,
+  });
+
+  return { rows: visible as unknown as OutbreakHistoryRow[], suppressedCount };
 }

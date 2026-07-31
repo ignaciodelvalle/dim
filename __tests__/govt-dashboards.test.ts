@@ -20,6 +20,7 @@ import {
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
   fetchCasesForExport,
+  fetchCasesPerCapita,
   fetchCasesPerLocality,
   fetchDeathCauses,
   fetchDiseaseSummary,
@@ -36,6 +37,7 @@ import {
 import { fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
 import { generatePublicToken } from "@/lib/infra/publicToken";
 import { buildProjectionContext } from "@/lib/metrics";
+import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { assertKpiListParity } from "./helpers/kpi-list-parity";
@@ -397,20 +399,42 @@ describe("jurisdiction drift — payload vs pets.jurisdiction", () => {
     expect(total).toBe(1);
   });
 
+  // RA-3 C3: fetchOutbreakHistory now k-anonymises its (disease, locality,
+  // province) groups, so a ONE-signal fixture is withheld for privacy reasons
+  // and a drift assertion built on it would pass without testing drift at all.
+  // These two tests top the fixture up to the k floor so the only thing that can
+  // hide a group is the SCOPE rule they are actually about.
+  async function topUpToKSignals(petId: string): Promise<void> {
+    for (let i = 1; i < ANONYMITY_K; i++) {
+      await emitOutbreakSignal({
+        petId,
+        diseaseCode: DISEASE,
+        province: DRIFT_PROV,
+        locality: DRIFT_LOC,
+        hoursAgo: 1 + i,
+      });
+    }
+  }
+
   it("fetchOutbreakHistory: govt history excludes signals from pets that moved out of scope", async () => {
-    await insertMovedPetWithSignal();
+    const moved = await insertMovedPetWithSignal();
+    await topUpToKSignals(moved);
 
     const r = await fetchOutbreakHistory({ role: "govt" }, DRIFT_SCOPE);
-    expect(r.filter((row) => row.diseaseCode === DISEASE)).toEqual([]);
+    expect(r.rows.filter((row) => row.diseaseCode === DISEASE)).toEqual([]);
+    // Excluded by SCOPE, not by k — the group is at the k floor, so a non-zero
+    // suppressedCount here would mean the test is measuring the wrong rule.
+    expect(r.suppressedCount).toBe(0);
   });
 
   it("fetchOutbreakHistory: resident pet's signals still appear for govt", async () => {
-    await insertResidentPetWithSignal();
+    const resident = await insertResidentPetWithSignal();
+    await topUpToKSignals(resident);
 
     const r = await fetchOutbreakHistory({ role: "govt" }, DRIFT_SCOPE);
-    const group = r.find((row) => row.diseaseCode === DISEASE);
+    const group = r.rows.find((row) => row.diseaseCode === DISEASE);
     expect(group).toBeDefined();
-    expect(group?.totalSignals).toBe(1);
+    expect(group?.totalSignals).toBe(ANONYMITY_K);
   });
 });
 
@@ -2630,9 +2654,29 @@ describe("fetchDeathCauses", () => {
 // ============================================================================
 
 describe("fetchOutbreakHistory", () => {
-  it("returns empty array for govt with no assignments", async () => {
+  /** Emit `n` signals of one disease into one (province, locality). */
+  async function emitSignalBurst(input: {
+    petId: string;
+    diseaseCode: string;
+    province: string;
+    locality: string;
+    n: number;
+  }) {
+    for (let i = 0; i < input.n; i++) {
+      await emitOutbreakSignal({
+        petId: input.petId,
+        diseaseCode: input.diseaseCode,
+        province: input.province,
+        locality: input.locality,
+        hoursAgo: 2 + i,
+      });
+    }
+  }
+
+  it("returns no rows for govt with no assignments", async () => {
     const r = await fetchOutbreakHistory({ role: "govt" }, []);
-    expect(r).toEqual([]);
+    expect(r.rows).toEqual([]);
+    expect(r.suppressedCount).toBe(0);
   });
 
   it("returns rows with required shape", async () => {
@@ -2642,17 +2686,17 @@ describe("fetchOutbreakHistory", () => {
       province: "Buenos Aires",
       locality: "Tigre",
     });
-    await emitOutbreakSignal({
+    await emitSignalBurst({
       petId: pet,
       diseaseCode: "rabies_suspected",
       province: "Buenos Aires",
       locality: "Tigre",
-      hoursAgo: 2,
+      n: ANONYMITY_K,
     });
 
     const r = await fetchOutbreakHistory({ role: "admin" }, []);
-    expect(Array.isArray(r)).toBe(true);
-    for (const row of r) {
+    expect(Array.isArray(r.rows)).toBe(true);
+    for (const row of r.rows) {
       expect(typeof row.diseaseCode).toBe("string");
       expect(typeof row.diseaseName).toBe("string");
       expect(typeof row.locality).toBe("string");
@@ -2671,29 +2715,75 @@ describe("fetchOutbreakHistory", () => {
       province: prov,
       locality: loc,
     });
-    // Two signals of the same disease in the same locality.
-    await emitOutbreakSignal({
+    // Signals of the same disease in the same locality. At the k floor, not
+    // below it — below it the group is withheld and this test would be
+    // asserting the privacy rule instead of the grouping rule (RA-3 C3).
+    await emitSignalBurst({
       petId: pet,
       diseaseCode: "leptospirosis_suspected",
       province: prov,
       locality: loc,
-      hoursAgo: 10,
-    });
-    await emitOutbreakSignal({
-      petId: pet,
-      diseaseCode: "leptospirosis_suspected",
-      province: prov,
-      locality: loc,
-      hoursAgo: 5,
+      n: ANONYMITY_K,
     });
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const lepto = r.find(
+    const lepto = r.rows.find(
       (row) => row.diseaseCode === "leptospirosis_suspected" && row.locality === loc,
     );
     expect(lepto).toBeDefined();
     if (!lepto) return;
-    expect(lepto.totalSignals).toBeGreaterThanOrEqual(2);
+    expect(lepto.totalSignals).toBeGreaterThanOrEqual(ANONYMITY_K);
+  });
+
+  // RA-3 C3 — THE finding. A single reportable-disease signal used to render
+  // "Rabia · Ushuaia · Tierra del Fuego · 12 mar 2026 · 1": one animal, one
+  // locality, one date. Pinned both ways: the sub-k group must be ABSENT from
+  // `rows` AND present in `suppressedCount`, because dropping it silently would
+  // make the table say "nothing was ever reported here".
+  it("k-anon: a sub-k (disease, locality) group is withheld and COUNTED, never published", async () => {
+    const prov = "Tierra del Fuego";
+    const loc = "Ushuaia";
+    const pet = await insertFixturePet({
+      name: "KanonHistoryPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await emitSignalBurst({
+      petId: pet,
+      diseaseCode: "rabies_suspected",
+      province: prov,
+      locality: loc,
+      n: ANONYMITY_K - 1,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    expect(r.rows.find((x) => x.locality === loc)).toBeUndefined();
+    expect(r.suppressedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("k-anon: the SAME group crossing the k floor becomes publishable", async () => {
+    const prov = "Tierra del Fuego";
+    const loc = "Río Grande";
+    const pet = await insertFixturePet({
+      name: "KanonHistoryPetAtFloor",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await emitSignalBurst({
+      petId: pet,
+      diseaseCode: "rabies_suspected",
+      province: prov,
+      locality: loc,
+      n: ANONYMITY_K,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const row = r.rows.find((x) => x.locality === loc);
+    expect(row).toBeDefined();
+    expect(row?.totalSignals).toBe(ANONYMITY_K);
+    expect(r.suppressedCount).toBe(0);
   });
 
   it("scope-bound: govt only sees signals in their jurisdictions", async () => {
@@ -2713,26 +2803,29 @@ describe("fetchOutbreakHistory", () => {
       province: prov2,
       locality: loc2,
     });
-    await emitOutbreakSignal({
+    // Both bursts sit AT the k floor: neither can be hidden by k-anon, so the
+    // only rule that can keep loc2 out of loc1's view is the scope rule.
+    await emitSignalBurst({
       petId: pet1,
       diseaseCode: "rabies_suspected",
       province: prov1,
       locality: loc1,
-      hoursAgo: 1,
+      n: ANONYMITY_K,
     });
-    await emitOutbreakSignal({
+    await emitSignalBurst({
       petId: pet2,
       diseaseCode: "rabies_suspected",
       province: prov2,
       locality: loc2,
-      hoursAgo: 1,
+      n: ANONYMITY_K,
     });
 
     const govtR = await fetchOutbreakHistory({ role: "govt" }, [
       { province: prov1, locality: loc1 },
     ]);
+    expect(govtR.rows.some((row) => row.locality === loc1)).toBe(true);
     // Must not contain rows from prov2/loc2.
-    for (const row of govtR) {
+    for (const row of govtR.rows) {
       expect(row.locality).not.toBe(loc2);
     }
   });
@@ -2804,7 +2897,7 @@ describe("fetchOutbreakHistory", () => {
     });
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const row = r.find((x) => x.diseaseCode === "brucellosis_suspected" && x.locality === loc);
+    const row = r.rows.find((x) => x.diseaseCode === "brucellosis_suspected" && x.locality === loc);
     expect(row).toBeDefined();
     if (!row) return;
 
@@ -2831,38 +2924,29 @@ describe("fetchOutbreakHistory", () => {
     const newer = new Date(now - 2 * 24 * 60 * 60 * 1000);
     const midnightOf = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T12:00:00.000Z`);
 
-    // 2 signals each on older and newer days — tied count; newer should win.
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: midnightOf(older),
-    });
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: new Date(midnightOf(older).getTime() + 1000),
-    });
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: midnightOf(newer),
-    });
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: new Date(midnightOf(newer).getTime() + 1000),
-    });
+    // 3 signals each on older and newer days — tied count; newer should win.
+    // THREE, not two: 2+2 = 4 is below ANONYMITY_K, so after RA-3 C3 the group
+    // would be withheld and this tie-break assertion would never run. The tie
+    // is what matters, not the size, so both days grew by one.
+    for (const offsetMs of [0, 1000, 2000]) {
+      await emitOutbreakSignalAt({
+        petId: pet,
+        diseaseCode: "hantavirus_suspected",
+        province: prov,
+        locality: loc,
+        occurredAt: new Date(midnightOf(older).getTime() + offsetMs),
+      });
+      await emitOutbreakSignalAt({
+        petId: pet,
+        diseaseCode: "hantavirus_suspected",
+        province: prov,
+        locality: loc,
+        occurredAt: new Date(midnightOf(newer).getTime() + offsetMs),
+      });
+    }
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const row = r.find((x) => x.diseaseCode === "hantavirus_suspected" && x.locality === loc);
+    const row = r.rows.find((x) => x.diseaseCode === "hantavirus_suspected" && x.locality === loc);
     expect(row).toBeDefined();
     if (!row) return;
 
@@ -2879,64 +2963,46 @@ describe("fetchOutbreakHistory", () => {
       province: prov,
       locality: loc,
     });
-    // Emit an outbreak_signal with NO disease_label in the payload.
+    // Emit outbreak_signals with NO disease_label in the payload.
     // The COALESCE fix must prevent this group from being dropped by the JOIN.
-    await db.insert(petEvents).values({
-      petId: pet,
-      eventType: "outbreak_signal",
-      occurredAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      payload: {
-        payload_version: 1,
-        source_symptom_event_id: "00000000-0000-0000-0000-000000000000",
-        disease_code: "null_label_disease",
-        // disease_label intentionally omitted — simulates a NULL in the DB column
-        match_strength: {
-          high_count: 1,
-          medium_count: 0,
-          low_count: 0,
-          matched_symptom_codes: ["s_test"],
+    // ANONYMITY_K of them, not two: below the k floor the group is withheld for
+    // PRIVACY and this test could no longer tell that apart from the JOIN drop
+    // it exists to catch (RA-3 C3).
+    for (let i = 0; i < ANONYMITY_K; i++) {
+      await db.insert(petEvents).values({
+        petId: pet,
+        eventType: "outbreak_signal",
+        occurredAt: new Date(Date.now() - (i + 1) * 60 * 60 * 1000),
+        payload: {
+          payload_version: 1,
+          source_symptom_event_id: `00000000-0000-0000-0000-00000000000${i}`,
+          disease_code: "null_label_disease",
+          // disease_label intentionally omitted — simulates a NULL in the DB column
+          match_strength: {
+            high_count: 1,
+            medium_count: 0,
+            low_count: 0,
+            matched_symptom_codes: ["s_test"],
+          },
+          pet_jurisdiction_country: "AR",
+          pet_jurisdiction_province: prov,
+          pet_jurisdiction_locality: loc,
+          pet_species: "dog",
         },
-        pet_jurisdiction_country: "AR",
-        pet_jurisdiction_province: prov,
-        pet_jurisdiction_locality: loc,
-        pet_species: "dog",
-      },
-      authorRole: "system",
-      recordedByUserId: null,
-    });
-    await db.insert(petEvents).values({
-      petId: pet,
-      eventType: "outbreak_signal",
-      occurredAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-      payload: {
-        payload_version: 1,
-        source_symptom_event_id: "00000000-0000-0000-0000-000000000001",
-        disease_code: "null_label_disease",
-        // disease_label intentionally omitted
-        match_strength: {
-          high_count: 1,
-          medium_count: 0,
-          low_count: 0,
-          matched_symptom_codes: ["s_test"],
-        },
-        pet_jurisdiction_country: "AR",
-        pet_jurisdiction_province: prov,
-        pet_jurisdiction_locality: loc,
-        pet_species: "dog",
-      },
-      authorRole: "system",
-      recordedByUserId: null,
-    });
+        authorRole: "system",
+        recordedByUserId: null,
+      });
+    }
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const row = r.find((x) => x.diseaseCode === "null_label_disease" && x.locality === loc);
+    const row = r.rows.find((x) => x.diseaseCode === "null_label_disease" && x.locality === loc);
 
     // Without the COALESCE fix this group would be silently dropped by the JOIN.
     expect(row).toBeDefined();
     if (!row) return;
 
-    // Both signals must be counted.
-    expect(row.totalSignals).toBeGreaterThanOrEqual(2);
+    // Every signal must be counted.
+    expect(row.totalSignals).toBeGreaterThanOrEqual(ANONYMITY_K);
 
     // peakDate must be a valid ISO string.
     expect(typeof row.peakDate).toBe("string");
@@ -2955,12 +3021,108 @@ describe("fetchOutbreakHistory", () => {
   // Last-seen and peak-day are different quantities, so it only ever agreed by
   // luck; re-seeding shifted the RNG and exposed it (1 violating pair in 100).
   // A green test is not evidence the behaviour is right.
+  //
+  // Seeds its OWN two groups (2026-07-31, RA-3 C3). It used to rely on the
+  // ambient seed having >1 publishable group; once sub-k groups stopped being
+  // published that stopped being true, and a test whose precondition depends on
+  // seed volume is the "green-and-dead" shape this wave keeps finding.
   it("ordered by lastSeen desc — most recently active first", async () => {
-    const r = await fetchOutbreakHistory({ role: "admin" }, []);
-    expect(r.length).toBeGreaterThan(1);
-    for (let i = 1; i < r.length; i++) {
-      expect(r[i - 1].lastSeen >= r[i].lastSeen).toBe(true);
+    const recent = await insertFixturePet({
+      name: "OrderRecentPet",
+      species: "dog",
+      province: "Chubut",
+      locality: "Rawson",
+    });
+    const older = await insertFixturePet({
+      name: "OrderOlderPet",
+      species: "dog",
+      province: "Chubut",
+      locality: "Trelew",
+    });
+    // Both at the k floor so both are publishable; only their recency differs.
+    for (let i = 0; i < ANONYMITY_K; i++) {
+      await emitOutbreakSignal({
+        petId: recent,
+        diseaseCode: "rabies_suspected",
+        province: "Chubut",
+        locality: "Rawson",
+        hoursAgo: 1 + i,
+      });
+      await emitOutbreakSignal({
+        petId: older,
+        diseaseCode: "rabies_suspected",
+        province: "Chubut",
+        locality: "Trelew",
+        hoursAgo: 200 + i,
+      });
     }
+
+    const r = await fetchOutbreakHistory({ role: "admin" }, []);
+    const rawsonAt = r.rows.findIndex((x) => x.locality === "Rawson");
+    const trelewAt = r.rows.findIndex((x) => x.locality === "Trelew");
+    expect(rawsonAt).toBeGreaterThanOrEqual(0);
+    expect(trelewAt).toBeGreaterThanOrEqual(0);
+    expect(rawsonAt).toBeLessThan(trelewAt);
+
+    expect(r.rows.length).toBeGreaterThan(1);
+    for (let i = 1; i < r.rows.length; i++) {
+      expect(r.rows[i - 1].lastSeen >= r.rows[i].lastSeen).toBe(true);
+    }
+  });
+});
+
+// ============================================================================
+// RA-3 C4 — fetchCasesPerCapita k-anonymity (data side).
+//
+// The render side is pinned in CasesPerCapitaTable.test.tsx against hand-built
+// rows; without THIS block the fetcher could hand back raw sub-k counts and
+// every existing test would stay green (the per-capita test file only exercises
+// the rate FORMULA, not the query).
+// ============================================================================
+
+describe("fetchCasesPerCapita — k-anonymity", () => {
+  const PROV = "Tierra del Fuego";
+  // A synthetic locality: the seeded demo data has open cases in every real
+  // TdF locality, and an ambient row pushing the cell over k would make these
+  // tests pass for the wrong reason. Province stays canonical so the INDEC 2022
+  // census join (province-level) still resolves and the rate is exercised.
+  const LOC = "GD-TEST-Localidad-Kanon";
+  const SCOPE = [{ province: PROV, locality: LOC }];
+
+  async function openCasesHere(n: number) {
+    for (let i = 0; i < n; i++) {
+      await insertFixtureCase({ caseKind: "welfare_denuncia", province: PROV, locality: LOC });
+    }
+  }
+
+  it("fixture precondition: no ambient open cases in this jurisdiction", async () => {
+    // Guards the two tests below from a seeded row silently pushing the cell
+    // over k (which would make them pass for the wrong reason).
+    const rows = await fetchCasesPerCapita({ role: "govt" }, SCOPE);
+    expect(rows).toEqual([]);
+  });
+
+  it("a sub-k province publishes NEITHER the count NOR the rate — and null, not 0", async () => {
+    await openCasesHere(ANONYMITY_K - 1);
+
+    const rows = await fetchCasesPerCapita({ role: "govt" }, SCOPE);
+    const tdf = rows.find((r) => r.province === PROV);
+    expect(tdf).toBeDefined();
+    expect(tdf?.suppressed).toBe(true);
+    // A false zero is itself a disclosure and reads as real data.
+    expect(tdf?.count).toBeNull();
+    // The rate is not exempt: INDEC 2022 is public, so count = rate × pop / 10k.
+    expect(tdf?.ratePer10k).toBeNull();
+  });
+
+  it("the SAME province at the k floor publishes both", async () => {
+    await openCasesHere(ANONYMITY_K);
+
+    const rows = await fetchCasesPerCapita({ role: "govt" }, SCOPE);
+    const tdf = rows.find((r) => r.province === PROV);
+    expect(tdf?.suppressed).toBe(false);
+    expect(tdf?.count).toBe(ANONYMITY_K);
+    expect(tdf?.ratePer10k).not.toBeNull();
   });
 });
 

@@ -15,25 +15,60 @@
 // Provinces with no census row (ratePer10k === null) are never silently
 // dropped — they're listed in a footnote with their raw count instead, per
 // the project's no-silent-omission convention.
+//
+// k-ANON (RA-3 C4, 2026-07-31). The fetcher now withholds any province with
+// fewer than ANONYMITY_K open cases (count AND rate both null, `suppressed`
+// true). This render is where that withholding gets SAID. The amplifier the
+// review named is why it matters here specifically: the table ranks by
+// per-capita RATE, and a rate divides by population — so the smallest
+// provinces are systematically sorted to the top, which means the sub-k cells
+// were exactly the ones most likely to be on screen. The footnote lists
+// no-census provinces by name WITH their raw count, so it must skip suppressed
+// rows or it becomes the bypass.
 
 import type { ProvinceCasesPerCapita } from "@/lib/analytics/govt-dashboards";
+import { ANONYMITY_K } from "@/lib/metrics/anonymity";
 
 type Props = {
   rows: ProvinceCasesPerCapita[];
 };
 
+/** A row that survived k-anon — its `count` is a real number, not a withheld null. */
+type PublishedRow = ProvinceCasesPerCapita & { count: number };
+
+function isPublished(r: ProvinceCasesPerCapita): r is PublishedRow {
+  return !r.suppressed && r.count !== null && r.count > 0;
+}
+
 export function CasesPerCapitaTable({ rows }: Props) {
-  const ranked = rows
-    .filter((r) => r.ratePer10k !== null && r.count > 0)
+  const published = rows.filter(isPublished);
+  const ranked = published
+    .filter((r) => r.ratePer10k !== null)
     .sort((a, b) => (b.ratePer10k as number) - (a.ratePer10k as number))
     .slice(0, 5);
-  const noCensus = rows.filter((r) => r.ratePer10k === null && r.count > 0);
+  const noCensus = published.filter((r) => r.ratePer10k === null);
+  const suppressedCount = rows.filter((r) => r.suppressed).length;
+
+  // The k-anon rule, stated once and reused by every branch below so the
+  // wording cannot drift between the empty state and the populated footnote.
+  const suppressionNote =
+    suppressedCount > 0
+      ? `${suppressedCount} ${suppressedCount === 1 ? "provincia oculta" : "provincias ocultas"} con menos de ${ANONYMITY_K} casos abiertos — se ocultan por k-anonimato (conteo y tasa), no se muestran como cero.`
+      : null;
 
   if (ranked.length === 0 && noCensus.length === 0) {
     return (
-      <p className="text-md text-ln-op-mute italic">
-        Sin casos abiertos en la cobertura seleccionada.
-      </p>
+      <div className="space-y-2">
+        <p className="text-md text-ln-op-mute italic">
+          {suppressedCount > 0
+            ? // NOT "sin casos abiertos": there ARE open cases, every province
+              // holding them is just below the threshold. Saying "sin casos"
+              // would be a measured-zero claim we did not measure.
+              "Todas las provincias con casos abiertos están por debajo del umbral de privacidad."
+            : "Sin casos abiertos en la cobertura seleccionada."}
+        </p>
+        {suppressionNote && <p className="text-sm text-ln-op-mute">{suppressionNote}</p>}
+      </div>
     );
   }
 
@@ -83,6 +118,18 @@ export function CasesPerCapitaTable({ rows }: Props) {
           {noCensus.map((r) => `${r.province} (${r.count})`).join(", ")}.
         </p>
       )}
+      {suppressionNote && <p className="text-sm text-ln-op-mute">{suppressionNote}</p>}
+      {/* Honesty note (RA-3 C4, second half): `cases` is NOT filtered by
+          case_kind, so this bucket mixes maltrato, disputas de custodia,
+          observación antirrábica and lost-pet episodes. The number stays
+          unnarrowed on purpose — /gob/vigilancia's choropleth counts the same
+          population under the same name, and splitting one of the two would
+          publish two different "casos abiertos" on two screens. What was
+          missing was saying so. */}
+      <p className="text-xs text-ln-op-mute">
+        Incluye todos los tipos de caso abierto (maltrato, disputas de custodia, observación
+        antirrábica, episodios de pérdida) — la misma población que el mapa de /gob/vigilancia.
+      </p>
     </div>
   );
 }

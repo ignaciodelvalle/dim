@@ -41,6 +41,7 @@ import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
 import { CasesPerCapitaTable } from "./_components/CasesPerCapitaTable";
 import { OutbreakHistoryTable } from "./_components/OutbreakHistoryTable";
 import { RegionRankingTable } from "./_components/RegionRankingTable";
+import { SuppressionChip } from "./_components/SuppressionChip";
 
 export const dynamic = "force-dynamic";
 
@@ -357,13 +358,11 @@ export default async function GobAnalyticsPage({
             <span id="panel-signals-trend-titulo">Señales de brote por {signalsBucketWord}</span>
           }
           actions={
-            signalsTrend.suppressedCount > 0 ? (
-              <span className="text-sm font-normal text-ln-op-mute">
-                {signalsTrend.suppressedCount}{" "}
-                {signalsTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
-                (privacidad)
-              </span>
-            ) : null
+            <SuppressionChip
+              count={signalsTrend.suppressedCount}
+              singular="período oculto"
+              plural="períodos ocultos"
+            />
           }
         />
         <OpCardBody>
@@ -439,13 +438,11 @@ export default async function GobAnalyticsPage({
         <OpCardHead
           title={<span id={panelVetAccessId}>Acceso veterinario por localidad</span>}
           actions={
-            vetAccess.suppressedCount > 0 ? (
-              <span className="text-sm font-normal text-ln-op-mute">
-                {vetAccess.suppressedCount}{" "}
-                {vetAccess.suppressedCount === 1 ? "localidad oculta" : "localidades ocultas"}{" "}
-                (privacidad)
-              </span>
-            ) : null
+            <SuppressionChip
+              count={vetAccess.suppressedCount}
+              singular="localidad oculta"
+              plural="localidades ocultas"
+            />
           }
         />
         <OpCardBody>
@@ -547,11 +544,25 @@ export default async function GobAnalyticsPage({
         </OpCardBody>
       </OpCard>
 
-      {/* Outbreak history table */}
+      {/* Outbreak history table. RA-3 C3: the k-anon count is announced in the
+          card header, the SAME shape as the vet-access card above — that card
+          is the proven standard on this very page and this one was skipped. */}
       <OpCard aria-labelledby={panelOutbreakId}>
-        <OpCardHead title={<span id={panelOutbreakId}>Brotes históricos</span>} />
+        <OpCardHead
+          title={<span id={panelOutbreakId}>Brotes históricos</span>}
+          actions={
+            <SuppressionChip
+              count={outbreakHistory.suppressedCount}
+              singular="agrupamiento oculto"
+              plural="agrupamientos ocultos"
+            />
+          }
+        />
         <OpCardBody>
-          <OutbreakHistoryTable rows={outbreakHistory} />
+          <OutbreakHistoryTable
+            rows={outbreakHistory.rows}
+            suppressedCount={outbreakHistory.suppressedCount}
+          />
         </OpCardBody>
       </OpCard>
 
