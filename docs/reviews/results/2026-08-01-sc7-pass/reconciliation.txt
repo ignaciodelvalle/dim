@@ -1,0 +1,89 @@
+
+==============================================================================
+01-landing   /
+  elements: before=1003 after=1003
+  TRACKED (had the dead class): 33   changed family: 33   unchanged: 0   unmatched path: 0
+  INHERITED (no dead class, family still changed): 53
+      svg "" Encode Sans -> IBM Plex Mono
+      path "" Encode Sans -> IBM Plex Mono
+      path "" Encode Sans -> IBM Plex Mono
+      svg "" Encode Sans -> IBM Plex Mono
+      path "" Encode Sans -> IBM Plex Mono
+      path "" Encode Sans -> IBM Plex Mono
+  FAMILY CENSUS  before mono=81 serif=38 sans=884  ->  after mono=161 serif=43 sans=799
+  EVIDENCE (computed font-family, per element, matched by DOM path):
+      want=sans      input  "                                  "  Encode Sans    -> IBM Plex Sans
+      want=mono      span   "foto                              "  Encode Sans    -> IBM Plex Mono
+      want=serif     span   "Pampa                             "  Encode Sans    -> IBM Plex Serif
+
+==============================================================================
+02-credencial-publica   /p/DIM-PAMP-0001
+  elements: before=159 after=159
+  TRACKED (had the dead class): 29   changed family: 29   unchanged: 0   unmatched path: 0
+  INHERITED (no dead class, family still changed): 59
+      div "" Encode Sans -> IBM Plex Sans
+      div "mmiMARCredencial públicaNIVEL 2 · DATOS " Encode Sans -> IBM Plex Sans
+      div "mmiMARCredencial públicaNIVEL 2 · DATOS " Encode Sans -> IBM Plex Sans
+      div "" Encode Sans -> IBM Plex Sans
+      div "mmiMARCredencial públicaNIVEL 2 · DATOS " Encode Sans -> IBM Plex Sans
+      div "miMARCredencial pública" Encode Sans -> IBM Plex Sans
+  FAMILY CENSUS  before mono=0 serif=0 sans=159  ->  after mono=21 serif=8 sans=130
+  EVIDENCE (computed font-family, per element, matched by DOM path):
+      want=sans      div    "mmiMARCredencial públicaNIVEL 2 · "  Encode Sans    -> IBM Plex Sans
+      want=serif     div    "m                                 "  Encode Sans    -> IBM Plex Serif
+      want=mono      span   "Credencial pública                "  Encode Sans    -> IBM Plex Mono
+
+==============================================================================
+03-adoptar-listado   /adoptar
+  elements: before=275 after=275
+  TRACKED (had the dead class): 13   changed family: 13   unchanged: 0   unmatched path: 0
+  INHERITED (no dead class, family still changed): 2
+      span "miMAR" Encode Sans -> IBM Plex Serif
+      strong "4 mascotas" Encode Sans -> IBM Plex Mono
+  FAMILY CENSUS  before mono=0 serif=0 sans=275  ->  after mono=10 serif=4 sans=261
+  EVIDENCE (computed font-family, per element, matched by DOM path):
+      want=serif     span   "m                                 "  Encode Sans    -> IBM Plex Serif
+      want=mono      span   "MI MASCOTA ARGENTINA              "  Encode Sans    -> IBM Plex Mono
+      want=sans      input  "                                  "  Encode Sans    -> IBM Plex Sans
+
+==============================================================================
+04-cuenta   /cuenta
+  elements: before=252 after=252
+  TRACKED (had the dead class): 23   changed family: 23   unchanged: 0   unmatched path: 0
+  INHERITED (no dead class, family still changed): 2
+      span "Documento sincronizado" Encode Sans -> IBM Plex Mono
+      span "miMAR · Registro Nacional de Mascotas" Encode Sans -> IBM Plex Mono
+  FAMILY CENSUS  before mono=0 serif=0 sans=252  ->  after mono=13 serif=11 sans=228
+  EVIDENCE (computed font-family, per element, matched by DOM path):
+      want=serif     span   "m                                 "  Encode Sans    -> IBM Plex Serif
+      want=mono      span   "MI MASCOTA ARGENTINA              "  Encode Sans    -> IBM Plex Mono
+      want=sans      button "Cerrar sesión                     "  Encode Sans    -> IBM Plex Sans
+
+==============================================================================
+05-transferencias   /transferencias
+  elements: before=154 after=154
+  TRACKED (had the dead class): 15   changed family: 15   unchanged: 0   unmatched path: 0
+  INHERITED (no dead class, family still changed): 0
+  FAMILY CENSUS  before mono=0 serif=0 sans=154  ->  after mono=10 serif=5 sans=139
+  EVIDENCE (computed font-family, per element, matched by DOM path):
+      want=serif     span   "m                                 "  Encode Sans    -> IBM Plex Serif
+      want=mono      span   "MI MASCOTA ARGENTINA              "  Encode Sans    -> IBM Plex Mono
+
+==============================================================================
+06-gob-perdidas   /gob/perdidas
+  elements: before=372 after=372
+  TRACKED (had the dead class): 0   changed family: 0   unchanged: 0   unmatched path: 0
+  INHERITED (no dead class, family still changed): 0
+  FAMILY CENSUS  before mono=7 serif=10 sans=355  ->  after mono=7 serif=10 sans=355
+  EVIDENCE (computed font-family, per element, matched by DOM path):
+
+==============================================================================
+07-panorama   /gob/panorama
+  elements: before=332 after=332
+  TRACKED (had the dead class): 0   changed family: 0   unchanged: 0   unmatched path: 0
+  INHERITED (no dead class, family still changed): 0
+  FAMILY CENSUS  before mono=4 serif=1 sans=327  ->  after mono=4 serif=1 sans=327
+  EVIDENCE (computed font-family, per element, matched by DOM path):
+
+==============================================================================
+TOTALS  tracked=113  changedFamily=113  inheritedChanges=116  unmatchedPaths=0  unexplained=0
