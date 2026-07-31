@@ -66,6 +66,14 @@ jobs:
         # notifications consistency review.
         run: pnpm lint:notifications
 
+      - name: Lint (atender walk-in owner alerts)
+        # The Atender walk-in writes clinical events with NO custody check — the
+        # PO's accepted mitigation is that the owner is always told. This derives
+        # the writer set from the module's own imports (a hand-written list would
+        # fail open on writer #8) and fails if any of them can reach success
+        # without completeAtenderSignature(). See scripts/check-atender-owner-alerts.ts.
+        run: pnpm lint:atender-alerts
+
       - name: Lint (jurisdiction scope + authorization derivation)
         # The scope layer's offline fences. Every one of these ran in `pnpm
         # verify` and none had ever run in CI — see the parity note on the
