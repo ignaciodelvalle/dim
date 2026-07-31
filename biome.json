@@ -14,7 +14,8 @@
       "out",
       "supabase/.temp",
       "supabase/.branches",
-      "docs/design/handoffs/**"
+      "docs/design/handoffs/**",
+      "docs/reviews/results/**"
     ]
   },
   "formatter": {
