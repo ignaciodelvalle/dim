@@ -37,6 +37,47 @@ import {
  *  LnRadio      — native uncontrolled radio with LN styling
  */
 
+// ---------- Hint / error typography ---------------------------------------
+//
+// One definition, used by every field-like wrapper in this file. LnField and
+// LnRadioGroup used to render these inline with DIFFERENT values — 10.5px mono
+// against 11px sans — so the same hint changed typeface depending on whether
+// the control it described happened to be a radio group. Callers pass only the
+// margin, because that genuinely differs: LnField's hint sits under the
+// control, LnRadioGroup's sits above the options.
+
+type FieldNoteProps = {
+  id: string | undefined;
+  className?: string;
+  children: ReactNode;
+};
+
+function FieldHint({ id, className = "", children }: FieldNoteProps) {
+  return (
+    <p
+      id={id}
+      className={`font-ln-mono text-[10.5px] leading-[1.45] text-[var(--color-ln-mute)] ${className}`}
+    >
+      {children}
+    </p>
+  );
+}
+
+// The error's top margin is baked in rather than passed: every caller wants the
+// same gap under the control, and duplicating it at each call site is how the
+// two renderers drifted apart in the first place.
+function FieldError({ id, className = "", children }: FieldNoteProps) {
+  return (
+    <p
+      id={id}
+      className={`mt-[5px] font-ln-mono text-[10.5px] text-[var(--color-ln-err)] ${className}`}
+      role="alert"
+    >
+      {children}
+    </p>
+  );
+}
+
 // ---------- Field wrapper -------------------------------------------------
 
 export type LnFieldRenderProps = {
@@ -130,21 +171,14 @@ export function LnField({
       {control}
 
       {hint && !error && (
-        <p
-          id={hintId}
-          className="mt-[5px] font-ln-mono text-[10.5px] leading-[1.45] text-[var(--color-ln-mute)]"
-        >
+        <FieldHint id={hintId} className="mt-[5px]">
           {hint}
-        </p>
+        </FieldHint>
       )}
       {error && (
-        <p
-          id={errorId}
-          className="mt-[5px] font-ln-mono text-[10.5px] text-[var(--color-ln-err)]"
-          role="alert"
-        >
+        <FieldError id={errorId}>
           {error}
-        </p>
+        </FieldError>
       )}
     </div>
   );
@@ -228,15 +262,15 @@ export function LnRadioGroup({
         )}
       </legend>
       {hint && !error && (
-        <p id={hintId} className="mb-2 text-[11px] leading-[1.45] text-[var(--color-ln-mute)]">
+        <FieldHint id={hintId} className="mb-2">
           {hint}
-        </p>
+        </FieldHint>
       )}
       <div className={optionsClassName ?? "space-y-2"}>{children}</div>
       {error && (
-        <p id={errorId} className="mt-[5px] text-[11px] text-[var(--color-ln-err)]" role="alert">
+        <FieldError id={errorId}>
           {error}
-        </p>
+        </FieldError>
       )}
     </fieldset>
   );
