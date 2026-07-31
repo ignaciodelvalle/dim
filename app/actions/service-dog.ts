@@ -83,7 +83,14 @@ export async function revokeServiceDogCredentialAction(
     // tab (F3+F7 fusion, 2026-07-22 — formerly /gob/rupga) via server-side
     // revalidate, mirroring the org/vet revocation shims, rather than a
     // client router.refresh() — keeps the nav-pattern fence green.
+    //
+    // BOTH paths, not just /gob (RA-2 F13): app/admin/directorio/page.tsx is a
+    // re-export of app/gob/directorio/page.tsx, but revalidatePath is keyed on
+    // the ROUTE PATH, not on the module. Revalidating only /gob left an admin
+    // who revoked from /admin/directorio looking at a cached "Vigente" pill
+    // directly above the "Credencial revocada" they had just produced.
     revalidatePath("/gob/directorio");
+    revalidatePath("/admin/directorio");
   }
   return result;
 }
