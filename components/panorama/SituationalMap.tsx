@@ -59,6 +59,7 @@ import {
 import { AllSuppressedNoticeCard } from "@/components/panorama/all-suppressed-notice";
 import {
   type DivisionLevel,
+  divisionClassScaleForLayer,
   divisionFillForLayer,
   divisionPaintsNoData,
   divisionSuppressedFilter,
@@ -1463,9 +1464,7 @@ export function SituationalMap({
         // frozen breaks, so swatch and map agree). MAP-1 fix: freeze the live-edge
         // QUANTILE breaks, not a min/max domain — classing stays quantile-balanced
         // on skew AND frame-stable.
-        const liveDivBreaks = computeClassScale([...join.values.values()], {
-          lockedBreaks: null,
-        }).breaks;
+        const liveDivBreaks = computeClassScale([...join.values.values()]).breaks;
         const divLock = resolveScrubDomain({
           live: liveDivBreaks.length > 0 ? liveDivBreaks : null,
           scrubbing,
@@ -1487,11 +1486,11 @@ export function SituationalMap({
         const bounds = divisionValueBounds(join.values);
         const hasSuppressed = join.suppressed.size > 0;
         if (bounds || hasSuppressed) {
-          // Theme 3: resolve the SAME classed scale the fill expression renders
-          // (same values + frozen breaks) so the legend swatches match the map.
-          const divScale = computeClassScale([...join.values.values()], {
-            lockedBreaks: divLock.domain ?? null,
-          });
+          // Theme 3 + PO 2026-08-01: the SAME object divisionFillForLayer paints
+          // from — values, frozen breaks AND polarity. A bare computeClassScale
+          // here dropped `higherIsBetter` and ran the legend backwards (see
+          // divisionClassScaleForLayer).
+          const divScale = divisionClassScaleForLayer(layer, join.values, divLock.domain);
           nextDivisionLegend = {
             // Claim #3 (cursor red-team 2026-07-23): this is the COUNT
             // fallback fill (raw per-unit sums, not the rate `label` names) —

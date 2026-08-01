@@ -5,8 +5,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/domain/types";
 import {
   __resetDivisionJoinCache,
+  divisionClassScaleForLayer,
   divisionCodeForCell,
   divisionFillColorExpr,
+  divisionFillForLayer,
   divisionNoDataFilter,
   divisionPaintsNoData,
   divisionSuppressedFilter,
@@ -426,6 +428,79 @@ describe("divisionFillColorExpr — polarity (D4: dark = alarm, always)", () => 
     const colours = (expr: string) => (expr.match(/#[0-9a-f]{6}/gi) ?? []).join(",");
     expect(colours(inverted)).not.toBe(colours(plain));
     expect(colours(inverted).split(",").sort()).toEqual(colours(plain).split(",").sort());
+  });
+});
+
+// PO 2026-08-01 — "las referencias de colores no son consistentes con lo
+// mostrado en el mapa, no solo en el estado colapsado, sino también en
+// expandido".
+//
+// The polarity fix above landed on the FILL only. SituationalMap's legend
+// descriptor kept its own `computeClassScale(values, { lockedBreaks })` — no
+// `invert` — so on the one drillable higher-is-better layer
+// (`acceso-veterinario`) the swatches ran EXACTLY BACKWARDS against the
+// polygons: legend darkest on the highest count, map darkest on the lowest.
+// The breaks matched (invert only reassigns colours), so the numbers looked
+// right and only the colours lied. Both legend surfaces inherited it — the
+// dock's "Referencias" swatches read `divisionLegend.colors` and so does the
+// collapsed pill's ramp fallback (`legendRampColors`), which is why the PO saw
+// it in both states.
+//
+// `divisionClassScaleForLayer` is now the ONE resolution both read.
+describe("divisionClassScaleForLayer — the legend's scale IS the fill's scale", () => {
+  const values = new Map<string, number>([
+    ["a", 1],
+    ["b", 5],
+    ["c", 9],
+    ["d", 14],
+    ["e", 20],
+    ["f", 31],
+  ]);
+  /** Colours the fill expression actually paints, in class order. */
+  function paintedColours(expr: unknown): string[] {
+    const step = (expr as unknown[])[3] as unknown[];
+    expect(step[0]).toBe("step");
+    // ["step", input, c0, t1, c1, t2, c2, …] — colours sit at 2 and every odd
+    // index after it.
+    const out = [String(step[2])];
+    for (let i = 4; i < step.length; i += 2) out.push(String(step[i]));
+    return out;
+  }
+
+  it("hands a higher-is-better layer the SAME colour order its fill paints", () => {
+    const layer = { higherIsBetter: true };
+    const scale = divisionClassScaleForLayer(layer, values, null);
+    expect(paintedColours(divisionFillForLayer(layer, values, null))).toEqual(scale.colors);
+  });
+
+  it("hands a default (higher-is-worse) layer the SAME colour order too", () => {
+    const layer = {};
+    const scale = divisionClassScaleForLayer(layer, values, null);
+    expect(paintedColours(divisionFillForLayer(layer, values, null))).toEqual(scale.colors);
+  });
+
+  it("actually reverses the swatch colours for a higher-is-better layer", () => {
+    // The regression this closes: the legend used to get the DEFAULT order for
+    // both polarities. Asserting only "legend === fill" would still pass if
+    // BOTH silently stopped inverting, so pin the inversion itself.
+    const plain = divisionClassScaleForLayer({}, values, null).colors;
+    const inverted = divisionClassScaleForLayer({ higherIsBetter: true }, values, null).colors;
+    expect(inverted).toEqual([...plain].reverse());
+    expect(inverted[0]).not.toBe(plain[0]);
+  });
+
+  it("leaves the BREAKS untouched by polarity — only the colours flip", () => {
+    // Why the defect survived review for so long: the numbers beside the
+    // swatches were right the whole time. A reader checking the ranges found
+    // nothing wrong; only the ink was reversed.
+    expect(divisionClassScaleForLayer({ higherIsBetter: true }, values, null).breaks).toEqual(
+      divisionClassScaleForLayer({}, values, null).breaks,
+    );
+  });
+
+  it("carries the scrub-locked breaks into the legend scale, like the fill", () => {
+    const frozen = [3, 8, 15, 25];
+    expect(divisionClassScaleForLayer({}, values, frozen).breaks).toEqual(frozen);
   });
 });
 

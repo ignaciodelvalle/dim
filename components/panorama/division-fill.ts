@@ -18,7 +18,11 @@
 
 import type { ExpressionSpecification, FilterSpecification } from "maplibre-gl";
 
-import { computeClassScale, stepColorExpr } from "@/components/panorama/class-scale";
+import {
+  type ClassScale,
+  computeClassScale,
+  stepColorExpr,
+} from "@/components/panorama/class-scale";
 import { normalizeBarioCode, normalizeDepartmentCode } from "@/lib/infra/geo-join";
 import type { FeatureCollection, PanoramaFeature } from "@/src/modules/panorama/domain/types";
 
@@ -255,24 +259,36 @@ export function divisionFillColorExpr(
   // attended pets (better) one zoom later, under the same legend (P1-F1).
   opts?: { invert?: boolean },
 ): ExpressionSpecification {
-  if (values.size === 0) return TRANSPARENT as unknown as ExpressionSpecification;
+  return divisionFillFromScale(
+    values,
+    computeClassScale([...values.values()], {
+      lockedBreaks: lockedBreaks ?? null,
+      invert: opts?.invert === true,
+    }),
+  );
+}
 
-  const pairs: Array<[string, number]> = [];
-  for (const [code, value] of values) {
-    pairs.push([code, value]);
-  }
+/**
+ * Assemble the division `fill-color` from an ALREADY-RESOLVED ClassScale — the
+ * province path's `classedProvinceFill` counterpart, and for the same reason:
+ * the scale is passed in, never recomputed here, so a caller that ALSO shows the
+ * scale (the legend) can hand the identical object to both surfaces.
+ *
+ * Returns a flat transparent expression when there are no values (nothing to
+ * fill — only outlines).
+ */
+export function divisionFillFromScale(
+  values: ReadonlyMap<string, number>,
+  scale: ClassScale,
+): ExpressionSpecification {
+  if (values.size === 0) return TRANSPARENT as unknown as ExpressionSpecification;
 
   const valueMatch = [
     "match",
     ["get", "code"],
-    ...pairs.flatMap(([code, value]) => [code, value] as [string, number]),
+    ...[...values].flatMap(([code, value]) => [code, value] as [string, number]),
     -1,
   ] as unknown as ExpressionSpecification;
-
-  const scale = computeClassScale(
-    pairs.map(([, v]) => v),
-    { lockedBreaks: lockedBreaks ?? null, invert: opts?.invert === true },
-  );
 
   return [
     "case",
@@ -375,8 +391,40 @@ export function filterDepartmentsByPrefix(
 }
 
 /**
- * The division fill for a LAYER — reads its declared polarity so the callers do
- * not each have to remember to (D4: dark = alarm, always).
+ * THE division ramp for a LAYER: the ONE resolved ClassScale that the drilled
+ * fill paints — polarity included (D4: dark = alarm, always).
+ *
+ * Read by the fill (`divisionFillForLayer`) AND by the legend descriptor
+ * SituationalMap lifts to MapLegends / LegendPill, so the swatches and the
+ * polygons come from the same object.
+ *
+ * WHY this exists (PO 2026-08-01, "las referencias de colores no son
+ * consistentes con lo mostrado en el mapa"): `divisionFillForLayer` honoured
+ * `higherIsBetter` (P1-F1) but the legend descriptor re-derived its own scale
+ * with a bare `computeClassScale(values, { lockedBreaks })` — the flag never
+ * crossed over. On `acceso-veterinario`, the only drillable higher-is-better
+ * layer, that printed the ramp EXACTLY BACKWARDS: the legend's darkest swatch
+ * sat on the highest count while the map painted its darkest polygons on the
+ * lowest. Both the dock's "Referencias" swatches and the collapsed pill's ramp
+ * (which falls back to these same `colors`) carried the reversal, which is why
+ * the PO saw it collapsed AND expanded. The breaks always matched — `invert`
+ * only reassigns colours — so the numbers were right and the colours lied,
+ * the least detectable form of the defect.
+ */
+export function divisionClassScaleForLayer(
+  layer: { higherIsBetter?: boolean },
+  values: ReadonlyMap<string, number>,
+  lockedBreaks?: readonly number[] | null,
+): ClassScale {
+  return computeClassScale([...values.values()], {
+    lockedBreaks: lockedBreaks ?? null,
+    invert: layer.higherIsBetter === true,
+  });
+}
+
+/**
+ * The division fill for a LAYER — built from {@link divisionClassScaleForLayer},
+ * so the callers do not each have to remember the polarity rule.
  *
  * The map had three call sites all passing `{ invert: layer.higherIsBetter }`
  * by hand; the polarity rule belongs beside the ramp it governs, not repeated
@@ -387,5 +435,5 @@ export function divisionFillForLayer(
   values: ReadonlyMap<string, number>,
   lockedBreaks?: readonly number[] | null,
 ): ExpressionSpecification {
-  return divisionFillColorExpr(values, lockedBreaks, { invert: layer.higherIsBetter === true });
+  return divisionFillFromScale(values, divisionClassScaleForLayer(layer, values, lockedBreaks));
 }
