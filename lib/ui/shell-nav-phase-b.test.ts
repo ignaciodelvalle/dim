@@ -25,7 +25,9 @@ import { describe, expect, it } from "vitest";
 
 const GOB_HREF_SNAPSHOT = new Set([
   "/gob",
-  "/gob/panorama", // Centro de Situación Nacional — flagship console
+  // Centro de Situación Nacional — flagship console. T1.5 (2026-08-01): href
+  // pins the canonical default vista — matches nav-presets.test.ts's snapshot.
+  "/gob/panorama?preset=sintomas&period=30d",
   "/gob/programa", // gov-vis — exec summary scoped to jurisdiction
   "/gob/cola",
   "/gob/vigilancia",
@@ -62,7 +64,9 @@ const GOB_HREF_SNAPSHOT = new Set([
 
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
-  "/admin/panorama", // Centro de Situación Nacional — flagship console
+  // Centro de Situación Nacional — flagship console. T1.5 (2026-08-01): href
+  // pins the canonical default vista — matches nav-presets.test.ts's snapshot.
+  "/admin/panorama?preset=bienestar&period=90d",
   // portal-follows-viewer (2026-07-02): the admin rail points at the /admin
   // copies of every shared surface — the earlier AC3 /gob/* repoints were
   // superseded when the shared pages got served under /admin too.

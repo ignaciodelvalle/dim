@@ -442,7 +442,18 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     // Situational/risk surfaces — "what does the map look like right now".
     label: "Situación",
     items: [
-      { href: "/gob/panorama", label: "Panorama", matchPrefix: "/gob/panorama" },
+      // T1.5 (2026-08-01): the menu entry names the CANONICAL default vista
+      // explicitly instead of a bare /gob/panorama. A bare URL lets the
+      // console's saved-board restore silently rewrite what "Panorama" opens —
+      // a menu click must always land on the same screen. Pinned to the gob
+      // role default ("sintomas", 30d — app/gob/panorama/page.tsx); an admin
+      // browsing /gob follows the gob-operator contract via the explicit
+      // deep-link semantics. Typed/bookmarked bare URLs keep the restore.
+      {
+        href: "/gob/panorama?preset=sintomas&period=30d",
+        label: "Panorama",
+        matchPrefix: "/gob/panorama",
+      },
       { href: "/gob/vigilancia", label: "Vigilancia", matchPrefix: "/gob/vigilancia" },
       { href: "/gob/perdidas", label: "Pérdidas", matchPrefix: "/gob/perdidas" },
     ],
@@ -603,7 +614,14 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
   {
     label: "Situación",
     items: [
-      { href: "/admin/panorama", label: "Panorama", matchPrefix: "/admin/panorama" },
+      // T1.5 (2026-08-01): explicit canonical default vista — same rationale as
+      // the /gob/panorama entry above. Admin's default is DEFAULT_PANORAMA_
+      // PRESET_ID ("bienestar", 90d — src/modules/panorama/domain/presets.ts).
+      {
+        href: "/admin/panorama?preset=bienestar&period=90d",
+        label: "Panorama",
+        matchPrefix: "/admin/panorama",
+      },
       { href: "/admin/observaciones", label: "Observaciones", matchPrefix: "/admin/observaciones" },
     ],
   },

@@ -2118,6 +2118,10 @@ export function PanoramaConsole({
   // clears itself the moment any preset re-derives. Dismissible.
   const prevPresetRef = useRef<PresetId | null>(null);
   const [personalizadaFrom, setPersonalizadaFrom] = useState<PresetId | null>(null);
+  // T1.6 — the honest "restored" moment (same visual pattern as personalizada):
+  // a genuinely bare URL restored the saved board from localStorage, silently
+  // rewriting the URL. One terse dismissible line says so.
+  const [restoredBoardNotice, setRestoredBoardNotice] = useState(false);
   useEffect(() => {
     if (activePresetId !== null) {
       prevPresetRef.current = activePresetId;
@@ -3014,6 +3018,7 @@ export function PanoramaConsole({
       setCommittedPeriod,
       setLevel,
       setStates,
+      onSavedBoardRestored: () => setRestoredBoardNotice(true),
     });
     // hasSeed/seededPresetId are mount-stable props; the effect is mount-only
     // (mountInitDoneRef guard), so their inclusion never re-runs it.
@@ -4588,6 +4593,25 @@ export function PanoramaConsole({
                   "state the view four times" era. The ContextBar above the map
                   states scope, period and layer count once; this line restated
                   the period and the layers beside truncated KPI numbers. */}
+              {/* T1.6 — the honest "restored" moment: a bare URL reopened the
+                  operator's last board from localStorage, not the canonical
+                  default. Same visual pattern as the personalizada note. */}
+              {restoredBoardNotice && (
+                <output
+                  aria-live="polite"
+                  className="flex items-center gap-x-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-xs text-ln-op-ink-2"
+                >
+                  <span>Continuando tu vista anterior.</span>
+                  <button
+                    type="button"
+                    aria-label="Descartar aviso"
+                    onClick={() => setRestoredBoardNotice(false)}
+                    className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
+                  >
+                    <Icon name="close" size="sm" decorative />
+                  </button>
+                </output>
+              )}
               {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
                   changes the board silently; one tap returns to the vista left. */}
               {personalizadaFrom !== null && activePresetId === null && (

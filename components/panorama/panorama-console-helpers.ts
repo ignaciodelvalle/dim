@@ -684,6 +684,14 @@ export type BoardMountIO = {
   setStates: (
     updater: (s: Record<LayerId, LayerPanelState>) => Record<LayerId, LayerPanelState>,
   ) => void;
+  /**
+   * T1.6 honesty: fired when the SAVED-BOARD restore branch actually commits —
+   * a genuinely bare URL (typed/bookmarked) whose board came from localStorage,
+   * not from the link. The console surfaces a one-line "Continuando tu vista
+   * anterior." so the silent rewrite is never silent. Menu clicks never reach
+   * this branch (their href pins the canonical vista — T1.5).
+   */
+  onSavedBoardRestored: () => void;
 };
 
 /**
@@ -838,6 +846,8 @@ function restoreSavedBoard(
   // a StrictMode dev-remount.
   if (toFetch.length > 0)
     void io.fetchLayersInto(toFetch, savedLevel, nextParams, { coalesce: true });
+  // T1.6: the board on screen came from localStorage, not from the URL — say so.
+  io.onSavedBoardRestored();
 }
 
 /**

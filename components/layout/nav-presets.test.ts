@@ -459,7 +459,10 @@ describe("OWNER_NAV", () => {
  */
 const GOB_HREF_SNAPSHOT = new Set([
   "/gob",
-  "/gob/panorama", // Centro de Situación Nacional — flagship console
+  // Centro de Situación Nacional — flagship console. T1.5 (2026-08-01): the
+  // nav href pins the canonical default vista (?preset&period) so a menu
+  // click can never be hijacked by the saved-board restore on a bare URL.
+  "/gob/panorama?preset=sintomas&period=30d",
   "/gob/programa", // gov-vis — exec summary scoped to jurisdiction
   "/gob/cola",
   "/gob/vigilancia",
@@ -637,7 +640,22 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
   it("names the top entry 'Briefing', distinct from the 'Panorama' entry below it", () => {
     expect(GOB_NAV_SECTIONS[0].items[0].label).toBe("Briefing");
     const situacion = GOB_NAV_SECTIONS.find((s) => s.label === "Situación");
-    expect(situacion?.items.find((i) => i.href === "/gob/panorama")?.label).toBe("Panorama");
+    expect(situacion?.items.find((i) => i.href.startsWith("/gob/panorama"))?.label).toBe(
+      "Panorama",
+    );
+  });
+
+  // T1.5 (2026-08-01): a bare /gob/panorama href let the console's saved-board
+  // restore silently rewrite what the menu entry opens (localStorage board over
+  // the canonical default, URL rewritten in place). The nav href now names the
+  // canonical default vista EXPLICITLY, hitting the mount effect's explicit-
+  // params early return — a menu click always lands on the same screen.
+  it("Panorama href pins the canonical default vista (menu clicks are never board-restored)", () => {
+    const situacion = GOB_NAV_SECTIONS.find((s) => s.label === "Situación");
+    const panorama = situacion?.items.find((i) => i.label === "Panorama");
+    expect(panorama?.href).toBe("/gob/panorama?preset=sintomas&period=30d");
+    // Highlighting still keys on the pathname prefix, not the query.
+    expect(panorama?.matchPrefix).toBe("/gob/panorama");
   });
 
   it("keeps /gob's href and matchPrefix untouched by the label rename", () => {
@@ -686,7 +704,10 @@ describe("GOB_NAV_FLAT — derived flat list", () => {
  */
 const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin",
-  "/admin/panorama", // Centro de Situación Nacional — flagship console
+  // Centro de Situación Nacional — flagship console. T1.5 (2026-08-01): the
+  // nav href pins the canonical default vista (?preset&period) — see the gob
+  // snapshot comment above.
+  "/admin/panorama?preset=bienestar&period=90d",
   // portal-follows-viewer (2026-07-02) — Cola exists under both /admin and
   // /gob; admin nav points at the /admin/* copy.
   "/admin/cola",
@@ -787,7 +808,18 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   it("names the top entry 'Briefing', distinct from the 'Panorama' entry below it", () => {
     expect(ADMIN_NAV_SECTIONS[0].items[0].label).toBe("Briefing");
     const situacion = ADMIN_NAV_SECTIONS.find((s) => s.label === "Situación");
-    expect(situacion?.items.find((i) => i.href === "/admin/panorama")?.label).toBe("Panorama");
+    expect(situacion?.items.find((i) => i.href.startsWith("/admin/panorama"))?.label).toBe(
+      "Panorama",
+    );
+  });
+
+  // T1.5 — admin twin of the gob assertion: the menu entry names the canonical
+  // default vista explicitly so the saved-board restore can never hijack it.
+  it("Panorama href pins the canonical default vista (menu clicks are never board-restored)", () => {
+    const situacion = ADMIN_NAV_SECTIONS.find((s) => s.label === "Situación");
+    const panorama = situacion?.items.find((i) => i.label === "Panorama");
+    expect(panorama?.href).toBe("/admin/panorama?preset=bienestar&period=90d");
+    expect(panorama?.matchPrefix).toBe("/admin/panorama");
   });
 
   it("keeps /admin's href and matchPrefix untouched by the label rename", () => {
@@ -799,7 +831,7 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   it("Situación holds Panorama + Observaciones (C6a — epidemiological surveillance judgment)", () => {
     const situSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Situación");
     expect(situSection?.items.map((i) => i.href)).toEqual([
-      "/admin/panorama",
+      "/admin/panorama?preset=bienestar&period=90d",
       "/admin/observaciones",
     ]);
   });

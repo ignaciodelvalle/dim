@@ -55,7 +55,8 @@ test("govt case detail keeps the operator shell", async ({ browser, page }) => {
   expect(new URL(page.url()).pathname).toBe(`/gob/casos/${IN_SCOPE_CASE}`);
 
   // 2. Operator rail is present (a /gob nav link only the operator shell renders).
-  await expect(page.locator('a[href="/gob/panorama"]').first()).toBeVisible();
+  // T1.5: the Panorama nav href now pins ?preset&period — match by prefix.
+  await expect(page.locator('a[href^="/gob/panorama"]').first()).toBeVisible();
 
   // 3. The public citizen browse nav is ABSENT — this is the exact chrome the
   //    bug exposed ("Adoptar / Mascotas perdidas / Refugios / Denuncias" plus

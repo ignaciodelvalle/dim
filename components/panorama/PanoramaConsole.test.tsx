@@ -627,6 +627,48 @@ describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () =
     expect(params.get("layers")).toBeNull();
   });
 
+  // T1.6: the restore used to be SILENT — the URL was rewritten in place and
+  // the operator had no way to tell this board came from localStorage rather
+  // than from the link they opened. The restore now announces itself once,
+  // dismissibly, in the same visual pattern as the "Editaste la vista" note.
+  it("announces the saved-board restore with 'Continuando tu vista anterior.' (dismissible)", async () => {
+    window.localStorage.setItem(
+      "panorama:board:v1",
+      JSON.stringify({
+        layers: "cobertura,zoonosis",
+        level: "province",
+        preset: "brotes-activos",
+        period: "90d",
+      }),
+    );
+    renderConsole();
+
+    expect(await screen.findByText("Continuando tu vista anterior.")).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Descartar aviso" }));
+    expect(screen.queryByText("Continuando tu vista anterior.")).not.toBeInTheDocument();
+  });
+
+  it("does NOT announce a restore when the URL pins the board explicitly (menu-click path, T1.5)", () => {
+    window.localStorage.setItem(
+      "panorama:board:v1",
+      JSON.stringify({
+        layers: "cobertura,zoonosis",
+        level: "province",
+        preset: "brotes-activos",
+        period: "90d",
+      }),
+    );
+    // The nav entry's canonical href (T1.5) — explicit params, no restore.
+    setUrl("/gob/panorama?preset=sintomas&period=30d");
+    renderConsole();
+
+    expect(screen.queryByText("Continuando tu vista anterior.")).not.toBeInTheDocument();
+    // The explicit URL stayed the source of truth.
+    const params = new URLSearchParams(window.location.search);
+    expect(params.get("preset")).toBe("sintomas");
+    expect(params.get("period")).toBe("30d");
+  });
+
   it("reading a pre-redesign v1 entry (no capasDetail/scrubDetail) restores cleanly, defaulting to Simple", async () => {
     // A `panorama:board:v1` entry saved BEFORE panorama-vista-redesign — the
     // exact pre-redesign shape (design Decision 5: no version bump, tolerant
