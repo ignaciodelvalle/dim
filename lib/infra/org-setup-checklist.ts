@@ -8,9 +8,33 @@
 //   2. members    — invite members (miembros/invitar)
 //   3. services   — load services (servicios/nuevo) — if service_offering.create granted
 //   4. capacity   — declare capacity (configuracion) — shelter only
-//   5. verification — submit verification docs
+//   5. verification — waiting on miMAR (NOT an org action, see below)
 //
-// The checklist auto-hides when all applicable steps are done.
+// The checklist auto-hides when every step the ORG can act on is done.
+//
+// ---------------------------------------------------------------------------
+// Why `verification` is `waitingOn: "mimar"` and carries no CTA
+// ---------------------------------------------------------------------------
+// It used to be `{ href: "configuracion", cta: "Enviar documentación", done:
+// input.isVerified }`. Every part of that was a promise the product cannot
+// keep:
+//   - /org/[orgToken]/configuracion has NO document upload. Its closing line
+//     is literally "el estado de verificación son gestionados por el equipo de
+//     miMAR" — the CTA sent the admin to a page that tells them it is not
+//     their job.
+//   - `done` can only flip when a miMAR admin presses Verify in the admin
+//     portal (src/modules/organizations/application/admin-org-verification/
+//     verify-org.ts). Nothing an org member does — no matter how correct —
+//     can check that box.
+//   - because `isSetupComplete` required EVERY step, an unverified org could
+//     never finish onboarding: the checklist stayed pinned to the panel
+//     forever, and OrgDailyLoopOrientation (which renders only once the
+//     checklist is gone) was unreachable for every unverified org.
+// Building a real upload flow is a product decision, not a copy fix, so the
+// honest shape is the other one the brief offers: the step stops pretending to
+// be an action and becomes a declared WAITING STATE. It still renders (the
+// admin should see why the row is unchecked) but with no button and no lie,
+// and it no longer holds the rest of onboarding hostage.
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,17 +42,30 @@
 
 export type SetupStepKey = "coverage" | "members" | "services" | "capacity" | "verification";
 
+/**
+ * Who has to act for a step to become done.
+ *   "org"   — someone inside the organization; `href`/`cta` are non-null.
+ *   "mimar" — the miMAR team, out of the org's hands; `href`/`cta` are null
+ *             and the step is excluded from `isSetupComplete` /
+ *             `firstPendingStep`.
+ */
+export type SetupStepWaitingOn = "org" | "mimar";
+
 export type SetupStep = {
   key: SetupStepKey;
   /** Short label shown in the checklist. */
   label: string;
   /** Longer hint shown when the step is pending. */
   hint: string;
-  /** Route (relative to /org/[orgToken]/) where the user completes the step. */
-  href: string;
-  /** CTA button label. */
-  cta: string;
+  /**
+   * Route (relative to /org/[orgToken]/) where the user completes the step.
+   * `null` when `waitingOn !== "org"` — there is nowhere to send them.
+   */
+  href: string | null;
+  /** CTA button label, or `null` when there is no action to offer. */
+  cta: string | null;
   done: boolean;
+  waitingOn: SetupStepWaitingOn;
 };
 
 /** Input state derived from org + membership data. No DB calls here. */
@@ -79,6 +116,7 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
       href: "cobertura",
       cta: "Definir zonas",
       done: input.hasCoverage,
+      waitingOn: "org",
     },
     {
       key: "members",
@@ -89,6 +127,7 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
       // Done when there's at least one non-admin member (memberCount > 1 means
       // someone besides the founding admin was invited).
       done: input.memberCount > 1,
+      waitingOn: "org",
     },
   ];
 
@@ -101,6 +140,7 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
       href: "servicios/nuevo",
       cta: "Cargar servicios",
       done: input.hasServices,
+      waitingOn: "org",
     });
   }
 
@@ -113,34 +153,42 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
       href: "configuracion",
       cta: "Declarar capacidad",
       done: input.hasCapacityDeclared,
+      waitingOn: "org",
     });
   }
 
-  // Verification step — always applicable; hidden when already verified.
+  // Verification — a WAITING STATE, not an action. See the header note.
   steps.push({
     key: "verification",
     label: "Verificación",
-    hint: "Enviá la documentación para que tu organización quede verificada en miMAR.",
-    href: "configuracion",
-    cta: "Enviar documentación",
+    hint: "La revisa el equipo de miMAR con los datos que ya cargaste. No hay nada que enviar desde acá: cuando la aprueben, el estado se actualiza solo.",
+    href: null,
+    cta: null,
     done: input.isVerified,
+    waitingOn: "mimar",
   });
 
   return steps;
 }
 
 /**
- * Returns true when all applicable setup steps are complete.
- * Use this to auto-hide the checklist.
+ * Returns true when every step the ORGANIZATION can act on is complete.
+ *
+ * Steps with `waitingOn !== "org"` are excluded on purpose: keeping them in
+ * the predicate is what made onboarding uncompletable for unverified orgs
+ * (see the header note). They still RENDER — they just cannot hold the
+ * checklist open forever.
  */
 export function isSetupComplete(steps: SetupStep[]): boolean {
-  return steps.length > 0 && steps.every((s) => s.done);
+  const actionable = steps.filter((s) => s.waitingOn === "org");
+  return actionable.length > 0 && actionable.every((s) => s.done);
 }
 
 /**
- * Returns the first pending (not done) step, or null when setup is complete.
- * Used to auto-focus the first actionable item.
+ * Returns the first pending step the org can actually act on, or null when
+ * there is nothing left for them to do. Used to auto-focus a CTA — so a step
+ * with no CTA to focus must never be returned.
  */
 export function firstPendingStep(steps: SetupStep[]): SetupStep | null {
-  return steps.find((s) => !s.done) ?? null;
+  return steps.find((s) => !s.done && s.waitingOn === "org") ?? null;
 }

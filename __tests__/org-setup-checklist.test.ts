@@ -5,8 +5,9 @@
 //   2. Services step omitted when canCreateServices=false; present when true.
 //   3. Capacity step present for shelter; absent for clinic, rescue_network, other.
 //   4. Each step's done/pending derived correctly from input fields.
-//   5. isSetupComplete — true only when ALL steps done; false when any pending.
-//   6. firstPendingStep — returns first pending step; null when all done.
+//   4b. waitingOn — which steps the org can act on vs. which wait on miMAR.
+//   5. isSetupComplete — true when every ORG-ACTIONABLE step is done.
+//   6. firstPendingStep — first pending ORG-ACTIONABLE step; null when none.
 //   7. Auto-hide: verified + configured org → all steps done.
 //
 // Pure unit tests — no DB access required.
@@ -161,6 +162,58 @@ describe("deriveSetupSteps — step done/pending derivation", () => {
 });
 
 // ---------------------------------------------------------------------------
+// 4b. waitingOn — the dead-end fix
+// ---------------------------------------------------------------------------
+//
+// Before this block, `verification` shipped as
+//   { href: "configuracion", cta: "Enviar documentación", done: isVerified }
+// and NOTHING in this file pinned it. That mattered twice:
+//   - /org/[orgToken]/configuracion has no upload; its own copy says the
+//     verification state "es gestionado por el equipo de miMAR". The CTA was a
+//     dead end by construction.
+//   - only verifyOrgForAuthority (admin portal) can flip `done`, so
+//     isSetupComplete — which required EVERY step — could never be true for an
+//     unverified org. The checklist was pinned to the panel permanently and
+//     OrgDailyLoopOrientation, which renders only after it clears, was dead
+//     code for every unverified org.
+// The old suite passed unchanged against the new behavior, which is exactly
+// why these tests exist: the defect was invisible, not defended.
+
+describe("deriveSetupSteps — waitingOn", () => {
+  it("verification declares itself as waiting on miMAR, with NO route and NO CTA", () => {
+    const verification = deriveSetupSteps(makeInput()).find((s) => s.key === "verification");
+    expect(verification?.waitingOn).toBe("mimar");
+    // Both nulls are load-bearing: OrgSetupChecklist renders the CTA <Link>
+    // only when href AND cta are non-null, so either one surviving would put
+    // the button back on screen.
+    expect(verification?.href).toBeNull();
+    expect(verification?.cta).toBeNull();
+  });
+
+  it("the hint says the org has nothing to send — it does not ask for documentation", () => {
+    const verification = deriveSetupSteps(makeInput()).find((s) => s.key === "verification");
+    // Positive assertion on the promise the copy now makes. A `not.toContain`
+    // on the old "Enviá la documentación" string would go tautological the
+    // moment anyone rewords the hint.
+    expect(verification?.hint).toMatch(/no hay nada que enviar/i);
+    expect(verification?.hint).toMatch(/miMAR/);
+  });
+
+  it("every other step is actionable BY THE ORG and carries both a route and a CTA", () => {
+    const steps = deriveSetupSteps(
+      makeInput({ orgType: "shelter", canCreateServices: true }),
+    ).filter((s) => s.key !== "verification");
+    // Guard the guard: an empty list would make the loop vacuous.
+    expect(steps.map((s) => s.key)).toEqual(["coverage", "members", "services", "capacity"]);
+    for (const step of steps) {
+      expect(step.waitingOn, `${step.key} should be actionable by the org`).toBe("org");
+      expect(step.href, `${step.key} needs a route`).toBeTruthy();
+      expect(step.cta, `${step.key} needs a CTA label`).toBeTruthy();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // 5. isSetupComplete
 // ---------------------------------------------------------------------------
 
@@ -220,6 +273,49 @@ describe("isSetupComplete", () => {
     expect(isSetupComplete(steps)).toBe(true);
   });
 
+  // THE test for the B2 fix. An org that has done literally everything within
+  // its power is complete, even though the verification row is still open —
+  // otherwise onboarding has no exit and the panel never moves on.
+  it("returns true for an UNVERIFIED org that finished every step it can act on", () => {
+    const steps = deriveSetupSteps(
+      makeInput({
+        orgType: "shelter",
+        hasCoverage: true,
+        memberCount: 2,
+        hasCapacityDeclared: true,
+        isVerified: false,
+      }),
+    );
+    // The row is still there and still pending — we did not fix this by
+    // deleting the information. It just stopped gating.
+    const verification = steps.find((s) => s.key === "verification");
+    expect(verification?.done).toBe(false);
+    expect(isSetupComplete(steps)).toBe(true);
+  });
+
+  it("still returns false when an org-actionable step is pending, verified or not", () => {
+    // Pin the other side: dropping verification from the predicate must not
+    // have widened it into "always true". Same input as above minus coverage.
+    for (const isVerified of [false, true]) {
+      const steps = deriveSetupSteps(
+        makeInput({
+          orgType: "shelter",
+          hasCoverage: false,
+          memberCount: 2,
+          hasCapacityDeclared: true,
+          isVerified,
+        }),
+      );
+      expect(isSetupComplete(steps), `isVerified=${isVerified}`).toBe(false);
+    }
+  });
+
+  it("returns false for an empty step list", () => {
+    // The `actionable.length > 0` guard: `[].every(...)` is true, so without
+    // it an org with no applicable steps would report itself complete.
+    expect(isSetupComplete([])).toBe(false);
+  });
+
   it("returns false when services step exists but hasServices=false", () => {
     const steps = deriveSetupSteps(
       makeInput({
@@ -265,6 +361,24 @@ describe("firstPendingStep", () => {
     );
     const first = firstPendingStep(steps);
     expect(first).toBeNull();
+  });
+
+  it("never returns the verification step — it has no CTA to focus", () => {
+    // The caller feeds this to autoFocus on the step's CTA <Link>. A
+    // waitingOn:"mimar" step renders a plain <span>, so returning it would
+    // either autoFocus nothing or (worse) trap a keyboard user on a row with
+    // no action. Unverified clinic with everything else already done: the
+    // verification row is the ONLY pending step here.
+    const steps = deriveSetupSteps(
+      makeInput({
+        orgType: "clinic",
+        hasCoverage: true,
+        memberCount: 2,
+        isVerified: false,
+      }),
+    );
+    expect(steps.filter((s) => !s.done).map((s) => s.key)).toEqual(["verification"]);
+    expect(firstPendingStep(steps)).toBeNull();
   });
 });
 

@@ -34,8 +34,12 @@ type Props = {
 };
 
 export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: Props) {
-  const doneCount = steps.filter((s) => s.done).length;
-  const total = steps.length;
+  // The counter measures what the ORG can finish. Including the
+  // waitingOn:"mimar" row would make the denominator unreachable — the same
+  // lie the row itself used to tell, moved into the progress indicator.
+  const actionable = steps.filter((s) => s.waitingOn === "org");
+  const doneCount = actionable.filter((s) => s.done).length;
+  const total = actionable.length;
 
   return (
     <OpCard accent={doneCount === total ? undefined : "warn"}>
@@ -58,8 +62,14 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
             className="divide-y divide-ln-op-line-2"
           >
             {steps.map((step, idx) => {
+              // Only steps the ORG can act on are focus targets — a
+              // waitingOn:"mimar" row has no CTA to focus, and autoFocus on a
+              // row without a link is a focus trap for keyboard users.
               const isFirstPending =
-                !step.done && autoFocusFirst && idx === steps.findIndex((s) => !s.done);
+                !step.done &&
+                step.waitingOn === "org" &&
+                autoFocusFirst &&
+                idx === steps.findIndex((s) => !s.done && s.waitingOn === "org");
 
               return (
                 <li
@@ -94,8 +104,11 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
                     {!step.done && <p className="text-sm text-ln-op-mute">{step.hint}</p>}
                   </div>
 
-                  {/* CTA — only shown when pending. */}
-                  {!step.done && (
+                  {/* CTA — only when the step is pending AND the org can act
+                      on it. A waitingOn:"mimar" step gets a status tag
+                      instead: it is information, not a task, and a button
+                      here would be the dead end this row used to be. */}
+                  {!step.done && step.href !== null && step.cta !== null && (
                     <Link
                       href={`/org/${orgToken}/${step.href}`}
                       className={[
@@ -108,6 +121,16 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
                     >
                       {step.cta}
                     </Link>
+                  )}
+                  {!step.done && step.waitingOn === "mimar" && (
+                    <span
+                      className={[
+                        "shrink-0 rounded-[var(--radius-sm)] border border-ln-op-line-2 px-3 py-1",
+                        "text-sm font-semibold text-ln-op-mute",
+                      ].join(" ")}
+                    >
+                      En revisión de miMAR
+                    </span>
                   )}
                 </li>
               );

@@ -23,6 +23,7 @@ const INCOMPLETE_STEPS: SetupStep[] = [
     href: "cobertura",
     cta: "Definir zonas",
     done: false,
+    waitingOn: "org",
   },
   {
     key: "services",
@@ -31,6 +32,7 @@ const INCOMPLETE_STEPS: SetupStep[] = [
     href: "servicios/nuevo",
     cta: "Cargar servicios",
     done: false,
+    waitingOn: "org",
   },
 ];
 
