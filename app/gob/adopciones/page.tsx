@@ -417,7 +417,10 @@ export default async function GobAdopcionesPage({
                   <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.reversed.toLocaleString("es-AR")}
                     {returnRatePct != null ? (
-                      <span className="ml-1 text-ln-op-mute">({returnRatePct}%)</span>
+                      <>
+                        {" "}
+                        <span className="ml-1 text-ln-op-mute">({returnRatePct}%)</span>
+                      </>
                     ) : null}
                   </span>
                 </li>
@@ -596,11 +599,14 @@ export default async function GobAdopcionesPage({
                       <>
                         de {shelterOccupancy.capacity.toLocaleString("es-AR")} cupos declarados
                         {shelterOccupancy.pct != null && (
-                          <span
-                            className={`ml-2 font-semibold ${shelterOccupancy.pct > 90 ? "text-ln-op-danger" : shelterOccupancy.pct > 70 ? "text-ln-op-warn" : "text-ln-op-ok"}`}
-                          >
-                            ({shelterOccupancy.pct}%)
-                          </span>
+                          <>
+                            {" "}
+                            <span
+                              className={`ml-2 font-semibold ${shelterOccupancy.pct > 90 ? "text-ln-op-danger" : shelterOccupancy.pct > 70 ? "text-ln-op-warn" : "text-ln-op-ok"}`}
+                            >
+                              ({shelterOccupancy.pct}%)
+                            </span>
+                          </>
                         )}
                       </>
                     ) : (
