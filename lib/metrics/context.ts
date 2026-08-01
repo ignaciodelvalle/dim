@@ -178,16 +178,11 @@ export function isSubProvincialScope(ctx: ProjectionContext): boolean {
 }
 
 /**
- * C3 (ONE VIEWSCOPE, plan-maestro-integridad §C3, red-team #2 PO-locked
- * direction): the province whose `jurisdictions_census` row may serve as a
- * per-cápita DENOMINATOR for this ctx — or `null` when no single census row
- * honestly covers it. This is a DIFFERENT question from `isSubProvincialScope`
- * ("is the numerator sub-provincial?") — it asks "may I divide by the
- * census?", and answering it from ASSIGNMENTS alone over-suppressed: a
- * multi-barrio govt (5 CABA barrios, each individually finer than the whole
- * province) never got a census denominator even when their VIEW aggregates
- * every one of their assigned barrios — i.e. the whole scope they can see,
- * which is exactly the grain the province census row describes.
+ * C3 (ONE VIEWSCOPE, plan-maestro-integridad §C3): the province whose
+ * `jurisdictions_census` row may serve as a per-cápita DENOMINATOR for this
+ * ctx — or `null` when no single census row honestly covers it. This is a
+ * DIFFERENT question from `isSubProvincialScope` ("is the numerator
+ * sub-provincial?") — it asks "may I divide by the census?".
  *
  * Eligibility considers the RESOLVED VIEW (ctx.scope.jurisdictions is already
  * the operator's EFFECTIVE set — every caller builds ctx from
@@ -198,12 +193,32 @@ export function isSubProvincialScope(ctx: ProjectionContext): boolean {
  *   - admin, national (no drill) or locality-drilled → null (no single
  *     province row applies to "todo el país"; a locality drill is finer than
  *     province grain, same principle as isSubProvincialScope).
- *   - govt, effective view spans ONE province AND is not narrowed to a single
- *     specific locality (a whole-province assignment, OR several localities
- *     that all share one province with no ?locality= drill down to just one
- *     of them) → that province.
- *   - govt, effective view spans multiple provinces, is empty, or IS narrowed
- *     to a single specific locality → null.
+ *   - govt, effective view covers ONE WHOLE province (at least one
+ *     whole-province assignment in it) → that province.
+ *   - govt, effective view spans multiple provinces, is empty, or covers only
+ *     part of a province → null.
+ *
+ * THE PARTIAL-PROVINCE CORRECTION (demo review 2026-08-01) — read this before
+ * loosening the rule again. A previous pass here reasoned that "multiple
+ * assignments (even all locality-grain) aggregate into a province-wide VIEW"
+ * and let a multi-barrio govt divide by the province census. It does not
+ * follow, and the arithmetic says so: an operator holding 5 of CABA's 48
+ * barrios has 662 registered dogs, and the tile read **0,1% del padrón sobre
+ * la población canina estimada** — because the numerator was 5 barrios and the
+ * denominator was all of CABA (≈3,12M inhabitants × 0.158 ≈ 493.000 dogs).
+ * The honest figure for those barrios is roughly an order of magnitude higher.
+ * The same gate gives fetchBitesPer10k its `percapitaEligible` flag, so the
+ * "Mordeduras / 10k hab." rate was understated by the same ratio.
+ *
+ * "The whole scope they can SEE" is not "the whole province". Only a
+ * whole-province assignment makes the numerator and the province census row
+ * describe the same territory. Everything narrower now degrades to "Sin
+ * estimación censal" and the absolute count — a missing estimate is a gap the
+ * reader can see; a 10×-understated one is a number they will quote.
+ *
+ * (A govt holding every barrio of a province as separate rows is suppressed
+ * too. Detecting that would need the locality catalog, and fail-closed is the
+ * right side to err on: the cost is a missing co-headline, not a false one.)
  *
  * SURGICAL SCOPE: this does NOT replace `isSubProvincialScope`. A numerator
  * that is itself locality-grain (e.g. a bite count scoped to one barrio) must
@@ -227,14 +242,12 @@ export function censusEligibleProvince(ctx: ProjectionContext): string | null {
   const provinces = [...new Set(jurisdictions.map((j) => j.province))];
   if (provinces.length !== 1) return null; // spans multiple provinces — no single census row applies.
 
-  // A SINGLE assignment that is NOT whole-province is a locality drill — the
-  // view names one barrio/department, not the province it sits in. Multiple
-  // assignments (even all locality-grain) aggregate into a province-wide VIEW,
-  // which is exactly the fix: the whole-province case below already covers
-  // the single-whole-province assignment (isWholeProvinceAssignment true).
-  if (jurisdictions.length === 1 && !isWholeProvinceAssignment(jurisdictions[0])) {
-    return null;
-  }
+  // The census row describes a WHOLE province, so the view has to cover one.
+  // Both storage forms of a whole-province assignment count (the generic
+  // `locality === ""` and the two-tier canonical `{CABA, Ciudad Autónoma de
+  // Buenos Aires}`) — isWholeProvinceAssignment mirrors the same subsumption
+  // the SQL scope clauses emit.
+  if (!jurisdictions.some(isWholeProvinceAssignment)) return null;
 
   return provinces[0];
 }

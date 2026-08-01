@@ -120,10 +120,16 @@ describe("censusEligibleProvince (C3, red-team #2 PO-locked direction)", () => {
     expect(censusEligibleProvince(ctx)).toBe("CABA");
   });
 
-  it("THE FIX — barrio-multi govt whose view aggregates one whole province → that province", () => {
-    // The verified over-suppression: 5 CABA barrios, none individually
-    // whole-province, but the AGGREGATE view covers exactly one province and
-    // is not drilled to a single locality — census-eligible for CABA.
+  // THE PARTIAL-PROVINCE CORRECTION (demo review 2026-08-01). This test used
+  // to assert the opposite — "barrio-multi govt whose view aggregates one
+  // whole province → that province" — on the reasoning that several barrios
+  // "aggregate into a province-wide VIEW". They do not: 5 of CABA's 48
+  // barrios is 5 barrios. Measured live with exactly this mandate: 662
+  // registered dogs over the whole-CABA canine estimate (≈3,12M × 0.158 ≈
+  // 493.000) rendered as "0,1% del padrón sobre la población canina
+  // estimada", roughly an order of magnitude under the truth, and the same
+  // gate understated "Mordeduras / 10k hab." by the same ratio.
+  it("a govt holding SOME barrios of a province is NOT census-eligible — 5 of 48 is not CABA", () => {
     const ctx = buildProjectionContext(
       { role: "govt" },
       [
@@ -132,6 +138,21 @@ describe("censusEligibleProvince (C3, red-team #2 PO-locked direction)", () => {
         { province: "CABA", locality: "Retiro" },
         { province: "CABA", locality: "San Nicolás" },
         { province: "CABA", locality: "Puerto Madero" },
+      ],
+      PERIOD,
+    );
+    expect(censusEligibleProvince(ctx)).toBeNull();
+  });
+
+  it("a whole-province assignment stays eligible even when barrios sit beside it", () => {
+    // The mandate covers all of CABA (the whole-city row) plus a redundant
+    // barrio entry — the view genuinely spans the province the census
+    // describes, so the denominator is honest.
+    const ctx = buildProjectionContext(
+      { role: "govt" },
+      [
+        { province: "CABA", locality: "Ciudad Autónoma de Buenos Aires" },
+        { province: "CABA", locality: "Palermo" },
       ],
       PERIOD,
     );
