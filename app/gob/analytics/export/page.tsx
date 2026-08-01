@@ -69,7 +69,10 @@ export default async function GobAnalyticsExportPage({
     <div className="space-y-6 max-w-2xl">
       {/* Breadcrumb */}
       <nav aria-label="Breadcrumb" className="text-sm text-ln-op-mute">
-        <Link href="/gob/analytics" className="hover:underline text-ln-op-azul">
+        {/* F9 (2026-08-01): the breadcrumb parent is the Programa hub's
+            Analítica vista — /gob/analytics is a redirect now, and a
+            breadcrumb that bounces is a breadcrumb that lies about depth. */}
+        <Link href="/gob/programa?vista=analitica" className="hover:underline text-ln-op-azul">
           Analítica
         </Link>
         <span aria-hidden="true" className="mx-1">

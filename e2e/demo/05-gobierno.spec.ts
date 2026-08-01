@@ -116,7 +116,8 @@ test("segmento 05 — gobierno", async ({ page }) => {
   // /gob/campanas is a performance dashboard — no create form exists, so it
   // is show-only (deviation from the draft script's "campanas ✎").
   await showScreen(page, "/gob/mortalidad");
-  await showScreen(page, "/gob/analytics");
+  // F9 (2026-08-01): Analítica is the Programa hub's second vista.
+  await showScreen(page, "/gob/programa?vista=analitica");
   await showScreen(page, "/gob/campanas");
   await showScreen(page, "/gob/outreach");
   await showScreen(page, "/gob/poblacion");

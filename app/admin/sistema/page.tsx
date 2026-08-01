@@ -170,8 +170,9 @@ export default async function AdminSistemaPage() {
                 métricas agregadas). El admin no tiene charts propios todavía; el
                 Centro de Situación es la superficie integradora pendiente. */}
             <div className="flex flex-wrap gap-4 pt-1">
+              {/* F9 (2026-08-01): Analítica is a vista of the Programa hub. */}
               <Link
-                href="/gob/analytics"
+                href="/gob/programa?vista=analitica"
                 className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
               >
                 Ver analítica nacional {"→"}

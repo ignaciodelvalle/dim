@@ -29,7 +29,7 @@ const COBERTURA_KPI: PanoramaKpi = {
   value: "72,4%",
   bar: 72.4,
   tone: "warn",
-  href: "/gob/analytics",
+  href: "/gob/programa?vista=resumen#gob-programa-outliers-titulo",
   source: "govt-home-kpis.fetchRabiesCoverage",
   info: { definition: "def" },
   sparkline: [60, 65, 68, 70, 72],

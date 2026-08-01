@@ -573,7 +573,8 @@ export function FeatureBody({
               }
             />
           </dl>
-          <DrillLink href="/gob/analytics">Ver analítica →</DrillLink>
+          {/* F9 (2026-08-01): Analítica is the Programa hub's second vista. */}
+          <DrillLink href="/gob/programa?vista=analitica">Ver analítica →</DrillLink>
         </>
       );
     }

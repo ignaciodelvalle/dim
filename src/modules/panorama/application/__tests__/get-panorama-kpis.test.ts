@@ -241,7 +241,14 @@ describe("getPanoramaKpis", () => {
     const result = await getPanoramaKpis({ role: "admin" }, [], period);
     // fetchAnalyticsMetrics.totalPets (12345) now rides `coverageDenominator`,
     // formatted as a footer caption by PanoramaKpiFooter — never a decision KPI.
-    expect(result.coverageDenominator).toEqual({ totalPets: 12345, href: "/gob/analytics" });
+    // F9 (2026-08-01): the href was "/gob/analytics" — which pointed at the one
+    // screen that no longer publishes this figure at all (the duplicate
+    // registry_total_pets tile was removed from the Analítica vista in the same
+    // change). The caption now points at its single publisher, the Resumen vista.
+    expect(result.coverageDenominator).toEqual({
+      totalPets: 12345,
+      href: "/gob/programa?vista=resumen",
+    });
     expect(result.kpis.some((k) => k.label === "Mascotas en cobertura")).toBe(false);
   });
 

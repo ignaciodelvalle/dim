@@ -610,7 +610,16 @@ export default async function GobiernoDashboardPage({
               )
             }
             sparkline={rabiesVaxTrend.points.map((p) => p.y)}
-            href="/gob/analytics"
+            // F9 (2026-08-01): was /gob/analytics — a generic destination that
+            // does not render this KPI at all. What it DOES render is
+            // rabies_vaccination_rate_all_species, the deliberately-distinct
+            // all-species/no-window metric; sending a "perros, 12 meses" tile
+            // there was the exact "same label, different number" confusion the
+            // catalog warns about. The province-vs-target breakdown of THIS
+            // definition (dogs only, 12m window — fetchCrossJurisdictionOutliers'
+            // `rabies` rows reuse rabiesVaccinatedExists with ctx.period, same
+            // predicate as fetchRabiesCoverage) is the Programa outliers table.
+            href="/gob/programa?vista=resumen#gob-programa-outliers-titulo"
             info={getKpiInfo("rabies_coverage_dogs_12m")}
             descriptorId="rabies_coverage_dogs_12m"
           />
@@ -630,7 +639,10 @@ export default async function GobiernoDashboardPage({
                 ? `${sterilizations.orgs} ${pluralizeEs(sterilizations.orgs, "organización", "organizaciones")} · ${formatPercent(sterilizations.signedPct)} firmado por matrícula`
                 : `${sterilizations.orgs} ${pluralizeEs(sterilizations.orgs, "organización", "organizaciones")}`
             }
-            href="/gob/analytics"
+            // F9: the monthly breakdown of the SAME sterilization_performed
+            // event stream this tile counts is the "Tendencia de
+            // esterilizaciones" panel of the Padrón hub's Población vista.
+            href="/gob/padron?vista=poblacion#panel-esterilizacion-titulo"
             descriptorId="sterilizations_per_month"
             guardInput={{ priorBase: sterilizations.prevCount }}
           />
@@ -715,7 +727,12 @@ export default async function GobiernoDashboardPage({
             tone={toneForTarget(microchipPenetration.ratePct, TARGETS.MICROCHIP_PENETRATION_PCT)}
             bar={microchipPenetration.ratePct}
             sub={`meta ${TARGETS.MICROCHIP_PENETRATION_PCT}% · ${microchipPenetration.chipped.toLocaleString("es-AR")} de ${microchipPenetration.active.toLocaleString("es-AR")} activas/perdidas${microchipLegalBasis ? ` · ${microchipLegalBasis}` : ""}`}
-            href="/gob/analytics"
+            // F9: the identification funnel ("Con chip ISO activo" measured
+            // against this same TARGETS.MICROCHIP_PENETRATION_PCT, then ISO
+            // validity and scan recency) lives in the Padrón hub's Censo
+            // vista — the drill target /gob/programa's own Microchip tile
+            // already uses.
+            href="/gob/padron?vista=censo#panel-embudo-titulo"
             descriptorId="microchip_penetration"
             // Red-team 2026-07 #3: 0-pet padrón (e.g. out-of-mandate locality
             // filter) renders "—", not a fabricated 0%.
@@ -740,7 +757,15 @@ export default async function GobiernoDashboardPage({
                 ? `sin PPP en cobertura${pppLegalBasis ? ` · ${pppLegalBasis}` : ""}`
                 : `${breedCompliance.attested} de ${breedCompliance.flaggedCount} atestadas en miMAR · no mide cumplimiento registral externo${pppLegalBasis ? ` · ${pppLegalBasis}` : ""}`
             }
-            href="/gob/analytics"
+            // F9: the weakest of the four re-points, and worth saying why.
+            // NOTHING renders a PPP attestation breakdown in a server-rendered
+            // panel — /gob/reglas configures the breed list and the accepted
+            // registries but publishes no rate, and /gob/analytics never
+            // mentioned PPP at all. The one surface that DOES break this exact
+            // metric down is the Panorama `ppp` choropleth, fed by the same
+            // fetchDangerousBreedCompliance this tile reads, opened by the
+            // "Riesgo PPP" vista (base: ppp).
+            href="/gob/panorama?preset=riesgo-ppp"
             descriptorId="ppp_registry_compliance"
           />
 

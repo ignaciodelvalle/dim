@@ -732,7 +732,15 @@ export async function getPanoramaKpis(
       // STOCK: a point-in-time coverage snapshot — does not vary with the scrub.
       currentState: true,
       tone: coverageGuard?.tone ?? "neutral",
-      href: "/gob/analytics",
+      // F9 (2026-08-01): was /gob/analytics, which renders
+      // rabies_vaccination_rate_all_species — a DIFFERENT metric (no species
+      // filter, no window). This tile is fetchRabiesCoverage (dogs, 12m); the
+      // province-vs-target breakdown of that same definition is the Programa
+      // outliers table (fetchCrossJurisdictionOutliers' `rabies` rows reuse
+      // the same rabiesVaccinatedExists predicate over ctx.period).
+      // `?vista=resumen` is explicit on purpose: the anchor only exists in the
+      // Resumen vista, so the link must not depend on which vista is default.
+      href: "/gob/programa?vista=resumen#gob-programa-outliers-titulo",
       source: "govt-home-kpis.fetchRabiesCoverage",
       // H9: cobertura is a PERCENTAGE — its period delta is percentage POINTS, not
       // a relative % of a % (which read as the implausible "+76%" the QA flagged).
@@ -1083,7 +1091,12 @@ export async function getPanoramaKpis(
     coverageDenominator: analytics
       ? {
           totalPets: analytics.totalPets,
-          href: "/gob/analytics",
+          // F9 (2026-08-01): registry_total_pets is published in exactly ONE
+          // place now — the Programa hub's Resumen vista ("Total registradas").
+          // The Analítica vista used to carry a second tile over the same
+          // predicate and no longer does, so this caption points at the single
+          // publisher instead of at the tab that stopped publishing it.
+          href: "/gob/programa?vista=resumen",
         }
       : null,
   };

@@ -96,7 +96,7 @@ describe("deriveOperatorCrumbs — gob portal", () => {
   });
 
   it("first crumb always links to /gob on any non-root page", () => {
-    const routes = ["/gob/casos", "/gob/vigilancia", "/gob/analytics", "/gob/usuarios"];
+    const routes = ["/gob/casos", "/gob/vigilancia", "/gob/programa", "/gob/usuarios"];
     for (const route of routes) {
       const crumbs = deriveOperatorCrumbs(route, "gob");
       expect(crumbs[0]).toEqual({ label: "Panel", href: "/gob" });

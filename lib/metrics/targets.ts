@@ -7,7 +7,8 @@
 //   - cobertura antirrábica 80 %  → lib/govt-home-kpis.ts fetchRabiesCoverage
 //                                    + src/modules/panorama/domain/layers.ts complianceTarget
 //   - microchip 80 %              → /gob dashboard
-//   - tasa de adopción 20 %       → /gob/analytics
+//   - tasa de adopción 20 %       → /gob/programa?vista=analitica (F9 2026-08-01;
+//                                    was /gob/analytics, now a redirect)
 //   - reunificación 39 %          → /gob/perdidas
 //   - completitud campañas 70 %   → /gob/campanas
 //   - trazabilidad disposición 75 % + unknown-breach 25 % → /gob/mortalidad
