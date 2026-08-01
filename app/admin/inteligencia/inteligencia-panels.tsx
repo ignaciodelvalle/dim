@@ -39,7 +39,7 @@ import {
   totalImpactByJurisdiction,
 } from "@/lib/metrics";
 import { estimateDogPopulation, type getCensusPopulationsCached } from "@/lib/metrics/census";
-import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, type KpiId } from "@/lib/metrics/kpi-catalog";
 import { formatDateShort } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
@@ -137,8 +137,15 @@ const ACTION_LABELS: Record<PolicyOutcomeRow["action"], string> = {
 };
 
 /** Honest degraded KPI tile — an explicit "sin datos" state, never a zero. */
-function DegradedKpi({ label }: { label: string }) {
-  return <OpKpi label={label} value="—" sub="Sin datos por demora — reintentá" />;
+function DegradedKpi({ label, descriptorId }: { label: string; descriptorId: KpiId }) {
+  return (
+    <OpKpi
+      label={label}
+      value="—"
+      sub="Sin datos por demora — reintentá"
+      descriptorId={descriptorId}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -150,8 +157,11 @@ export async function IntelIndexKpis({ load }: { load: IndexLoad }) {
   if (!result.ok) {
     return (
       <>
-        <DegradedKpi label="Provincias evaluadas" />
-        <DegradedKpi label="Índice promedio" />
+        <DegradedKpi
+          label="Provincias evaluadas"
+          descriptorId="territorial_index_provinces_evaluated"
+        />
+        <DegradedKpi label="Índice promedio" descriptorId="territorial_index_average_score" />
       </>
     );
   }
@@ -191,7 +201,9 @@ export async function IntelIndexKpis({ load }: { load: IndexLoad }) {
 export async function IntelPolicyKpi({ load }: { load: PolicyLoad }) {
   const result = await load;
   if (!result.ok) {
-    return <DegradedKpi label="Cambios de reglas" />;
+    return (
+      <DegradedKpi label="Cambios de reglas" descriptorId="policy_outcome_rule_changes_analyzed" />
+    );
   }
   const policyRows = result.value;
   return (
@@ -212,7 +224,12 @@ export async function IntelPolicyKpi({ load }: { load: PolicyLoad }) {
 export async function IntelQualityKpi({ load }: { load: QualityLoad }) {
   const result = await load;
   if (!result.ok) {
-    return <DegradedKpi label={KPI_CATALOG.ghost_records_count.label} />;
+    return (
+      <DegradedKpi
+        label={KPI_CATALOG.ghost_records_count.label}
+        descriptorId="ghost_records_count"
+      />
+    );
   }
   const quality = result.value;
   const totalGhosts = quality.rows.reduce((sum, r) => sum + r.ghosts, 0);

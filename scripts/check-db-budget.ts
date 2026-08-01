@@ -59,6 +59,14 @@ export const DASHBOARD_PAGES = [
   "app/admin/censo/AdminCensoScreen.tsx",
   "app/admin/poblacion/AdminPoblacionScreen.tsx",
   "app/admin/inteligencia/page.tsx",
+  // T3 platform budgets (2026-08-01): sistema/auditoría got the streamed-shell
+  // treatment; the heavy call sites live in the section/loader modules, so both
+  // the pages and those modules are enforced.
+  "app/admin/inteligencia/inteligencia-panels.tsx",
+  "app/admin/sistema/page.tsx",
+  "app/admin/sistema/_components/sistema-sections.tsx",
+  "app/admin/auditoria/page.tsx",
+  "app/admin/auditoria/_lib/load-audit-data.ts",
   "app/gob/programa/ProgramaResumenScreen.tsx",
   "app/gob/censo/CensoScreen.tsx",
   "app/gob/poblacion/PoblacionScreen.tsx",
