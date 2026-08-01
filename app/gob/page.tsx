@@ -354,8 +354,15 @@ export default async function GobiernoDashboardPage({
       ? `${row.count} búsquedas de información personal · ${relativeDayLabel(row.day)}`
       : auditActionLabel(row.action);
 
-  // Shape the bites trend for TimeSeriesChart (x/y points).
-  const bitesTrendPoints = bitesTrend.points.map((p) => ({ x: p.x, y: p.y }));
+  // Shape the bites trend for TimeSeriesChart. The `suppressed` flag rides
+  // ALONG — this map used to rebuild each point as a bare `{ x, y }`, dropping
+  // it, so a k-anonymity mask (1..k-1, carried as `y: 0` + `suppressed`) was
+  // republished as a measured zero: eleven "0 mordeduras" months in the "Ver
+  // datos" table under a header that already said "11 períodos ocultos
+  // (privacidad)", while the KPI above read 37 reportes. Suppressed ≠ cero —
+  // a zero is an epidemiological claim, "oculto" is the absence of one, and
+  // the Panorama CSV/PNG of the same fact already writes "Protegido (k<5)".
+  const bitesTrendPoints = bitesTrend.points;
   const bitesBucketWord = bitesTrend.granularity === "month" ? "mes" : "semana";
 
   const openCasesTotal = openCasesPreview.total;
@@ -832,6 +839,10 @@ export default async function GobiernoDashboardPage({
                 seriesLabel="Mordeduras"
                 variant="area"
                 fallbackTableLabel={`Mordeduras por ${bitesBucketWord}`}
+                // Without this the "todo suprimido" case renders an empty plot
+                // that reads as a render failure or as "no hubo mordeduras" —
+                // with it the chart states "Datos ocultos por privacidad (k<5)".
+                suppressedCount={bitesTrend.suppressedCount}
               />
             )}
           </OpCardBody>

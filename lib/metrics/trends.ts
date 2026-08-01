@@ -61,7 +61,19 @@ function isEmptyScope(ctx: ProjectionContext): boolean {
 /** Shared single-series trend return shape. */
 export type SingleSeriesTrend = {
   granularity: BucketGranularity;
-  points: Array<{ x: string; y: number }>;
+  /**
+   * SUPPRESSED ≠ ZERO. `suppressSmallBuckets` masks a 1..k-1 bucket to `y: 0`
+   * AND flags it `suppressed: true`; this type used to declare only
+   * `{ x, y }`, so the flag was structurally erased at the fetcher boundary
+   * and every consumer read a privacy mask as a measured zero. The /gob home
+   * chart published eleven "0 mordeduras" months under a header that said
+   * "11 períodos ocultos (privacidad)", while the SAME suppression in the
+   * Panorama CSV/PNG wrote "Protegido (k<5)" — three renderings of one fact,
+   * one of them a false epidemiological claim. Carrying the flag in the type
+   * is what lets TimeSeriesChart draw a gap and its "Ver datos" table print
+   * "oculto (privacidad)" instead of a number nobody measured.
+   */
+  points: Array<{ x: string; y: number; suppressed?: true }>;
   /** Number of per-bucket cells masked by k-anonymity. */
   suppressedCount: number;
 };

@@ -81,6 +81,24 @@ vi.mock("@/components/ui/dashboard/DashboardFreshnessFooter", () => ({
   DashboardFreshnessFooter: () => null,
 }));
 
+// TimeSeriesChartDynamic is next/dynamic with ssr:false — it renders only its
+// skeleton under renderToStaticMarkup, so the real chart's own honest
+// rendering of a masked bucket (a GAP in the line, "oculto (privacidad)" in
+// the "Ver datos" table) can never be observed from here. What CAN be
+// observed, and is exactly what broke, is the PROPS this page hands it: the
+// page rebuilt every point as a bare `{ x, y }`, dropping the `suppressed`
+// flag, so the chart was handed eleven honest-looking zeros. This stand-in
+// serializes the props it receives so the test can assert the contract.
+vi.mock("@/components/charts/TimeSeriesChartDynamic", () => ({
+  TimeSeriesChartDynamic: (props: { data: unknown; suppressedCount?: number }) => (
+    <div
+      data-testid="timeseries-props"
+      data-points={JSON.stringify(props.data)}
+      data-suppressed-count={String(props.suppressedCount)}
+    />
+  ),
+}));
+
 vi.mock("@/db", async () => {
   const actual = await vi.importActual<typeof import("@/db")>("@/db");
   return {
@@ -157,11 +175,19 @@ vi.mock("@/lib/analytics/govt-dashboards", () => ({
   fetchMyAssignedWelfareCount: vi.fn(async () => govtDashboardsFixture.myAssignedWelfareCount),
 }));
 
+// Mutable so the suppression block below can drive a masked series through the
+// SAME page render. Default stays the empty series every other test expects.
+const bitesTrendFixture: {
+  points: Array<{ x: string; y: number; suppressed?: true }>;
+  granularity: string;
+  suppressedCount: number;
+} = { points: [], granularity: "month", suppressedCount: 0 };
+
 vi.mock("@/lib/metrics", async () => {
   const actual = await vi.importActual<typeof import("@/lib/metrics")>("@/lib/metrics");
   return {
     ...actual,
-    fetchBitesTrend: vi.fn(async () => ({ points: [], granularity: "month", suppressedCount: 0 })),
+    fetchBitesTrend: vi.fn(async () => bitesTrendFixture),
     fetchKpiTrend: vi.fn(async () => ({ points: [] })),
   };
 });
@@ -349,6 +375,78 @@ describe("/gob (home) — the empty briefing states WHICH emptiness it is (A1)",
       Object.assign(govtHomeKpisFixture.bitesPer10k, prev.bites);
       Object.assign(mortalityFixture, prev.mortality);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SUPPRESSED ≠ CERO (demo review 2026-08-01).
+//
+// The "Mordeduras por mes" card headed itself "11 períodos ocultos
+// (privacidad)" and then published those eleven months as the VALUE 0 in its
+// "Ver datos" table, under a KPI reading 37 reportes — a total that cannot be
+// reconciled with the series beneath it. The same suppression, in the Panorama
+// CSV and PNG, already writes "Protegido (k<5)". A zero is an epidemiological
+// claim; a mask is the absence of one, and the whole privacy apparatus of this
+// project exists so the two are never confused.
+//
+// Two independent causes, both fixed: SingleSeriesTrend's `points` type erased
+// the `suppressed` flag suppressSmallBuckets emits, and this page then rebuilt
+// each point as a bare `{ x, y }` anyway.
+// ---------------------------------------------------------------------------
+
+describe("/gob (home) — a k-anon-masked bite bucket is never published as a measured zero", () => {
+  const MASKED_SERIES: Array<{ x: string; y: number; suppressed?: true }> = [
+    { x: "jul 25", y: 0, suppressed: true },
+    { x: "ago 25", y: 0 },
+    { x: "jun 26", y: 14 },
+  ];
+
+  async function renderWithMaskedTrend(): Promise<string> {
+    const prev = { ...bitesTrendFixture, points: bitesTrendFixture.points };
+    bitesTrendFixture.points = MASKED_SERIES;
+    bitesTrendFixture.suppressedCount = 1;
+    try {
+      const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+      return renderToStaticMarkup(node);
+    } finally {
+      Object.assign(bitesTrendFixture, prev);
+    }
+  }
+
+  /** The serialized `data` prop the page hands TimeSeriesChartDynamic. */
+  function chartPoints(html: string): Array<{ x: string; y: number; suppressed?: true }> {
+    const match = html.match(/data-points="([^"]*)"/);
+    expect(match, "expected the page to render a TimeSeriesChart with a data prop").not.toBeNull();
+    // renderToStaticMarkup escapes the JSON's quotes into the attribute.
+    const json = (match as RegExpMatchArray)[1].replace(/&quot;/g, '"').replace(/&amp;/g, "&");
+    return JSON.parse(json);
+  }
+
+  it("forwards the suppressed flag to the chart instead of a bare {x, y} zero", async () => {
+    const html = await renderWithMaskedTrend();
+    const points = chartPoints(html);
+    expect(points).toHaveLength(3);
+    // THE REGRESSION: this flag is what makes TimeSeriesChart draw a gap and
+    // print "oculto (privacidad)" in its accessible table. Stripping it turns
+    // a privacy mask into a measured zero.
+    expect(points[0]).toEqual({ x: "jul 25", y: 0, suppressed: true });
+  });
+
+  it("leaves a genuine measured zero unflagged — a real dip must stay visible", async () => {
+    const html = await renderWithMaskedTrend();
+    const points = chartPoints(html);
+    expect(points[1]).toEqual({ x: "ago 25", y: 0 });
+    expect(points[1]).not.toHaveProperty("suppressed");
+  });
+
+  it("passes suppressedCount so a fully masked series says so instead of reading as empty", async () => {
+    const html = await renderWithMaskedTrend();
+    expect(html).toContain('data-suppressed-count="1"');
+  });
+
+  it("still discloses the masked-period count in the card header", async () => {
+    const html = await renderWithMaskedTrend();
+    expect(html).toContain("1 período oculto (privacidad)");
   });
 });
 
