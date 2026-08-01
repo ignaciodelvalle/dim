@@ -365,7 +365,10 @@ export default async function AdminAdopcionesPage({
             <div className="overflow-x-auto">
               <table className="w-full text-[13px] text-ln-op-ink border-collapse">
                 <caption className="sr-only">
-                  Tiempo promedio y percentil 75 en estado de custodia o tránsito, en días.
+                  {/* "Mediana", not "promedio" — fetchTimeInState computes
+                      percentile_cont(0.5); the caption must name the statistic
+                      the table actually shows. */}
+                  Mediana y percentil 75 en estado de custodia o tránsito, en días.
                 </caption>
                 <thead>
                   <tr className="border-b border-ln-op-line">
