@@ -27,7 +27,7 @@ import {
   RULE_SOURCE_LABEL,
   type ResolvedRuleSource,
 } from "@/lib/domain/rule-types-registry";
-import { formatDate, formatDateTime, formatDateTimeLegal } from "@/lib/utils/format";
+import { formatDate, formatDateTime, formatDateTimeLegal, isoDateInAr } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -102,18 +102,64 @@ export type WelfareMpfDto = {
 };
 
 /**
+ * Whole days between two instants, counted in ARGENTINE CALENDAR DAYS.
+ *
+ * Not elapsed time. The sentence this feeds says "N días después de la FECHA
+ * del hecho", and the two values printed above it in the document are calendar
+ * dates, so the count has to be a difference of dates or the paragraph
+ * contradicts the fields it summarises.
+ *
+ * The old `Math.round(elapsedMs / 86_400_000)` was a rounded elapsed-time
+ * count wearing a calendar label. A hecho at 21:00 recorded at 03:00 the NEXT
+ * morning is 0.25 days elapsed, rounds to 0, and printed "el mismo día del
+ * hecho" directly under two different dates. Argentine plazos run in días
+ * corridos off the dates themselves, which is also what the reader will do.
+ *
+ * AR-pinned via isoDateInAr, the same pinning formatDate uses for the printed
+ * dates — a UTC-based day boundary would disagree with the page after 21:00
+ * local.
+ */
+function calendarDaysBetweenInAr(from: Date, to: Date): number {
+  const fromDay = Date.parse(`${isoDateInAr(from)}T00:00:00Z`);
+  const toDay = Date.parse(`${isoDateInAr(to)}T00:00:00Z`);
+  return Math.round((toDay - fromDay) / 86_400_000);
+}
+
+/**
  * task #77 bitemporal — human es-AR sentence naming the gap between WHEN the hecho
  * occurred (valid time) and WHEN the authority took knowledge of it (transaction
  * time = report intake). Null when no occurrence date was declared.
+ *
+ * WHY THE ZERO CASE IS ITS OWN BRANCH (2026-07-30)
+ * ---------------------------------------------------------------------------
+ * This block's stated purpose is "evaluar la diligencia y los plazos de
+ * actuación". It used to hedge on its own headline number: a `days <= 0` test
+ * collapsed "the same day" and "before the declared date" into one sentence
+ * ending "(o antes de la fecha declarada por el denunciante)".
+ *
+ * Those are not the same finding. One is a diligent intake; the other is a
+ * record that cannot be right. Printing both as one possibility left the key
+ * datum ambiguous in the one paragraph that exists to be unambiguous — and the
+ * parenthetical was false for every row in the database (2.837 reports, 2.740
+ * with occurrence exactly equal to intake, ZERO with occurrence after intake).
+ *
+ * So: zero says zero. A negative gap — intake recorded BEFORE the declared
+ * occurrence — is a genuine inconsistency and now says so plainly instead of
+ * being smuggled into a parenthesis. The fiscal is told there is something to
+ * check, which is the honest thing a document can do about bad data.
  */
 export function knowledgeGapLabel(occurredAt: Date | null, createdAt: Date): string | null {
   if (!occurredAt) return null;
-  const days = Math.round((createdAt.getTime() - occurredAt.getTime()) / 86_400_000);
-  if (days <= 0) {
-    return "La autoridad tomó conocimiento el mismo día del hecho (o antes de la fecha declarada por el denunciante).";
+  const days = calendarDaysBetweenInAr(occurredAt, createdAt);
+  if (days < 0) {
+    return "La denuncia fue registrada antes de la fecha del hecho declarada por el denunciante. La inconsistencia se informa sin corregir: el documento reproduce lo asentado en el registro.";
   }
-  if (days === 1)
+  if (days === 0) {
+    return "La autoridad tomó conocimiento el mismo día del hecho denunciado.";
+  }
+  if (days === 1) {
     return "La autoridad tomó conocimiento 1 día después de la fecha del hecho denunciado.";
+  }
   return `La autoridad tomó conocimiento ${days} días después de la fecha del hecho denunciado.`;
 }
 

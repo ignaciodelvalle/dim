@@ -16,6 +16,7 @@ import {
   COORDINATE_DECIMALS,
   MPF_EXPORT_SCHEMA_VERSION,
   formatCoordinate,
+  knowledgeGapLabel,
   welfareReportToMpfDto,
 } from "@/lib/analytics/welfare-exports";
 import * as authGuards from "@/lib/infra/auth-guards";
@@ -193,6 +194,92 @@ describe("welfareReportToMpfDto — knowledge chronology (task #77 bitemporal)",
       exportGeneratedAt: new Date(),
     });
     expect(dto.knowledgeGapLabel).toContain("1 día después");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// knowledgeGapLabel — the paragraph that must not hedge
+//
+// This block's stated purpose is "evaluar la diligencia y los plazos de
+// actuación", and it used to hedge on its own headline number: `days <= 0`
+// collapsed "the same day" and "before the declared date" into one sentence
+// ending "(o antes de la fecha declarada por el denunciante)".
+//
+// It is a CODE defect, not a data one. Verified against the database on
+// 2026-07-30: 2.837 welfare reports, 2.740 with occurrence EXACTLY equal to
+// intake, and ZERO with occurrence after intake. The parenthetical was false
+// for every row that has ever existed.
+// ---------------------------------------------------------------------------
+
+describe("knowledgeGapLabel — a same-day gap says same day, full stop", () => {
+  const AT_21 = new Date("2026-06-20T00:00:00Z"); // 2026-06-19 21:00 in AR (UTC-3)
+
+  it("states the same day without hedging when occurrence and intake are the same instant", () => {
+    // The overwhelmingly common shape in the data: occurred_at = created_at.
+    const label = knowledgeGapLabel(AT_21, AT_21);
+    expect(label).toBe("La autoridad tomó conocimiento el mismo día del hecho denunciado.");
+  });
+
+  it("never offers 'o antes' as a possibility on a same-day gap", () => {
+    // The exact ambiguity that ruined the diligence paragraph.
+    expect(knowledgeGapLabel(AT_21, AT_21)).not.toContain("o antes");
+  });
+
+  it("counts the same Argentine calendar day as zero even across the UTC midnight boundary", () => {
+    // 2026-06-19 21:00 AR is already 2026-06-20 in UTC. A UTC-based day
+    // boundary would call this a one-day gap and contradict the two dates
+    // printed above it, both of which are AR-pinned.
+    const occurred = new Date("2026-06-20T00:00:00Z"); // 19 Jun 21:00 AR
+    const intake = new Date("2026-06-20T02:00:00Z"); // 19 Jun 23:00 AR
+    expect(knowledgeGapLabel(occurred, intake)).toContain("el mismo día");
+  });
+
+  it("uses the ARGENTINE calendar day, not the UTC one, when the two disagree", () => {
+    // 19 Jun 17:00 AR and 19 Jun 22:00 AR — the same Argentine day, and the
+    // same date printed in both fields above this sentence. In UTC they fall
+    // on 19 and 20 June, so a UTC-based day boundary would announce a one-day
+    // gap under two identical printed dates.
+    const occurred = new Date("2026-06-19T20:00:00Z"); // 19 Jun 17:00 AR
+    const intake = new Date("2026-06-20T01:00:00Z"); // 19 Jun 22:00 AR
+    expect(knowledgeGapLabel(occurred, intake)).toContain("el mismo día");
+    expect(knowledgeGapLabel(occurred, intake)).not.toContain("1 día después");
+  });
+
+  it("counts the NEXT Argentine calendar day as one day, however few hours elapsed", () => {
+    // 6 hours apart, but two different printed dates. Elapsed-time rounding
+    // called this "el mismo día" directly under 19 de junio / 20 de junio.
+    const occurred = new Date("2026-06-20T00:00:00Z"); // 19 Jun 21:00 AR
+    const intake = new Date("2026-06-20T06:00:00Z"); // 20 Jun 03:00 AR
+    expect(knowledgeGapLabel(occurred, intake)).toContain("1 día después");
+    expect(knowledgeGapLabel(occurred, intake)).not.toContain("mismo día");
+  });
+
+  it("counts plural days off the calendar dates, not elapsed hours", () => {
+    const occurred = new Date("2026-06-20T00:00:00Z"); // 19 Jun 21:00 AR
+    const intake = new Date("2026-06-22T02:00:00Z"); // 21 Jun 23:00 AR (~2.1 días)
+    expect(knowledgeGapLabel(occurred, intake)).toContain("2 días después");
+  });
+
+  it("reports an intake recorded BEFORE the declared occurrence instead of hiding it", () => {
+    // A distinct finding from a same-day intake: this record cannot be right,
+    // and the fiscal is told there is something to verify.
+    const occurred = new Date("2026-06-25T12:00:00Z");
+    const intake = new Date("2026-06-19T12:00:00Z");
+    const label = knowledgeGapLabel(occurred, intake);
+    expect(label).toContain("registrada antes de la fecha del hecho");
+    expect(label).not.toContain("mismo día");
+  });
+
+  it("says the inconsistency is reported, not corrected — the export never edits the record", () => {
+    const label = knowledgeGapLabel(
+      new Date("2026-06-25T12:00:00Z"),
+      new Date("2026-06-19T12:00:00Z"),
+    );
+    expect(label).toContain("sin corregir");
+  });
+
+  it("returns null when no occurrence date was declared — there is no gap to compute", () => {
+    expect(knowledgeGapLabel(null, new Date("2026-06-19T12:00:00Z"))).toBeNull();
   });
 });
 
