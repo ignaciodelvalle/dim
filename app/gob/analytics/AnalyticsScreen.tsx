@@ -241,8 +241,14 @@ export async function AnalyticsScreen({
     vetAccess,
   ] = load.value;
 
-  // Shape the outbreak-signals trend for TimeSeriesChart.
-  const signalsTrendPoints = signalsTrend.points.map((p) => ({ x: p.x, y: p.y }));
+  // Shape the outbreak-signals trend for TimeSeriesChart. The `suppressed`
+  // flag rides ALONG — this used to rebuild each point as a bare `{ x, y }`,
+  // so a k-anonymity mask (carried as `y: 0` + `suppressed`) was republished
+  // as a measured zero: the header said "N períodos ocultos (privacidad)" and
+  // the "Ver datos" table underneath printed 0 for those same periods. Same
+  // defect the /gob home carried (demo review 2026-08-01); a zero is an
+  // epidemiological claim, "oculto" is the absence of one.
+  const signalsTrendPoints = signalsTrend.points;
   const signalsBucketWord = signalsTrend.granularity === "month" ? "mes" : "semana";
 
   // FORECAST-A-META: acquisition_adoption_rate is the ONE catalog KPI with a
@@ -410,6 +416,9 @@ export async function AnalyticsScreen({
               seriesLabel="Señales"
               variant="area"
               fallbackTableLabel={`Señales de brote por ${signalsBucketWord}`}
+              // A fully masked series must say "Datos ocultos por privacidad
+              // (k<5)" in the plot area, not read as an empty chart.
+              suppressedCount={signalsTrend.suppressedCount}
             />
           )}
         </OpCardBody>

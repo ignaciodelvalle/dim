@@ -501,6 +501,11 @@ export async function PoblacionScreen({
               yLabel="Eventos registrados"
               variant="area"
               fallbackTableLabel={`Esterilizaciones por ${sterilTrend.granularity === "month" ? "mes" : "semana"}`}
+              // A fully masked series must say "Datos ocultos por privacidad
+              // (k<5)" inside the plot; without this it falls back to "Sin
+              // datos para el período seleccionado", which claims a measured
+              // absence the data never established.
+              suppressedCount={sterilTrend.suppressedCount}
             />
           )}
         </OpCardBody>

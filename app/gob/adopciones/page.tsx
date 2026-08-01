@@ -687,6 +687,10 @@ export default async function GobAdopcionesPage({
               yLabel="Adopciones"
               variant="area"
               fallbackTableLabel={`Adopciones por ${adoptionTrend.granularity === "month" ? "mes" : "semana"}`}
+              // A fully masked series must say "Datos ocultos por privacidad
+              // (k<5)" inside the plot, not fall back to "Sin datos para el
+              // período seleccionado" — that copy claims a measured absence.
+              suppressedCount={adoptionTrend.suppressedCount}
             />
           )}
         </OpCardBody>
