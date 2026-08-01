@@ -2570,8 +2570,14 @@ async function seedVigilanceChain(
       slaDueAt,
       // onTime → delivered before the deadline; breach → still pending past it.
       status: onTime ? "delivered" : "pending",
+      // attempts: the drainer only ever marks delivered WITH attempts+1
+      // (app/api/cron/drain-outbox). A delivered row with the schema-default 0
+      // renders "ENTREGADO / Sin intentos" — a state production cannot produce.
       ...(onTime
-        ? { deliveredAt: new Date(createdAt.getTime() + (slaHours - 6) * 3600 * 1000) }
+        ? {
+            deliveredAt: new Date(createdAt.getTime() + (slaHours - 6) * 3600 * 1000),
+            attempts: 1,
+          }
         : {}),
       createdAt,
     } as Parameters<typeof db.insert<typeof eventNotificationOutbox>>[0] extends {
