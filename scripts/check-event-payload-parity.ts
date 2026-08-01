@@ -97,55 +97,19 @@
 
 import { globSync, readFileSync } from "node:fs";
 
+import { stripComments } from "./lib/strip-comments.mjs";
+
 const SCHEMAS_FILE = "lib/events/event-schemas.ts";
 const BASELINE_FILE = "scripts/event-parity-baseline.json";
 
 // ---------------------------------------------------------------------------
 // Shared: comment stripping (preserves newlines so line numbers stay valid).
+// Single source of truth: scripts/lib/strip-comments.mjs — re-exported here
+// so existing `import { stripComments } from "./check-event-payload-parity"`
+// call sites (including this file's own test) keep working unchanged.
 // ---------------------------------------------------------------------------
 
-export function stripComments(src: string): string {
-  let out = "";
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
-    const next = src[i + 1];
-    if (ch === "/" && next === "/") {
-      let j = i;
-      while (j < src.length && src[j] !== "\n") j++;
-      out += " ".repeat(j - i);
-      i = j - 1;
-      continue;
-    }
-    if (ch === "/" && next === "*") {
-      let j = i + 2;
-      while (j < src.length && !(src[j] === "*" && src[j + 1] === "/")) j++;
-      j = Math.min(j + 2, src.length);
-      out += src
-        .slice(i, j)
-        .split("")
-        .map((c) => (c === "\n" ? "\n" : " "))
-        .join("");
-      i = j - 1;
-      continue;
-    }
-    // Skip string/template literal contents so a quote inside a comment-like
-    // string can't desync the scan (defensive; not expected to matter here).
-    if (ch === "'" || ch === '"' || ch === "`") {
-      const quote = ch;
-      let j = i + 1;
-      while (j < src.length && src[j] !== quote) {
-        if (src[j] === "\\") j++;
-        j++;
-      }
-      j = Math.min(j + 1, src.length);
-      out += src.slice(i, j);
-      i = j - 1;
-      continue;
-    }
-    out += ch;
-  }
-  return out;
-}
+export { stripComments };
 
 // ---------------------------------------------------------------------------
 // WRITTEN keys — brace-depth-aware object-literal key extractor.

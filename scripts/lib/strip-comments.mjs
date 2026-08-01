@@ -30,11 +30,14 @@
 // occurrences across the globs any caller scans today (checked 2026-07-31). If
 // a fence ever scans a file with regex-heavy source, verify this first.
 //
-// CONSOLIDATION DEBT: four TypeScript fences carry their own byte-identical
-// copy of this state machine (check-copy-contract, check-scope-discipline,
-// check-event-payload-parity, check-confused-deputy). They predate this module
-// and should import it — tsx resolves .mjs from .ts without ceremony. Not done
-// in the same change that introduced this file, to keep the diff auditable.
+// CONSOLIDATED: check-copy-contract.ts, check-scope-discipline.ts, and
+// check-event-payload-parity.ts used to carry their own byte-identical copy
+// of this state machine; all three now re-export stripComments from here —
+// tsx resolves .mjs from .ts without ceremony. check-confused-deputy.ts is
+// NOT one of these: its stripComments diverged to a regex-replace
+// approximation (deletes comments outright rather than substituting
+// whitespace 1:1), so it does not preserve line numbers the way this
+// character-scanning version does and is intentionally left independent.
 
 /**
  * Replace every comment in `src` with equivalent whitespace.

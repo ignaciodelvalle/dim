@@ -61,56 +61,18 @@
 
 import { globSync, readFileSync } from "node:fs";
 
+import { stripComments } from "./lib/strip-comments.mjs";
+
 export const BASELINE_FILE = "scripts/copy-contract-baseline.json";
 
 // ---------------------------------------------------------------------------
-// Comment stripping (preserves newlines so line numbers stay valid) — mirrors
-// the identical stripComments in check-scope-discipline.ts /
-// check-event-payload-parity.ts. Duplicated deliberately (documented, shared
-// convention across these independent lint scripts) rather than cross-imported.
+// Comment stripping (preserves newlines so line numbers stay valid). Single
+// source of truth: scripts/lib/strip-comments.mjs — re-exported here so
+// existing `import { stripComments } from "./check-copy-contract"` call
+// sites keep working unchanged.
 // ---------------------------------------------------------------------------
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character-by-character string/template/comment state machine — mirrors the identical stripComments in scripts/check-scope-discipline.ts and scripts/check-event-payload-parity.ts.
-export function stripComments(src: string): string {
-  let out = "";
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
-    const next = src[i + 1];
-    if (ch === "/" && next === "/") {
-      let j = i;
-      while (j < src.length && src[j] !== "\n") j++;
-      out += " ".repeat(j - i);
-      i = j - 1;
-      continue;
-    }
-    if (ch === "/" && next === "*") {
-      let j = i + 2;
-      while (j < src.length && !(src[j] === "*" && src[j + 1] === "/")) j++;
-      j = Math.min(j + 2, src.length);
-      out += src
-        .slice(i, j)
-        .split("")
-        .map((c) => (c === "\n" ? "\n" : " "))
-        .join("");
-      i = j - 1;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === "`") {
-      const quote = ch;
-      let j = i + 1;
-      while (j < src.length && src[j] !== quote) {
-        if (src[j] === "\\") j++;
-        j++;
-      }
-      j = Math.min(j + 1, src.length);
-      out += src.slice(i, j);
-      i = j - 1;
-      continue;
-    }
-    out += ch;
-  }
-  return out;
-}
+export { stripComments };
 
 // ---------------------------------------------------------------------------
 // Offense extraction

@@ -93,59 +93,19 @@
 
 import { globSync, readFileSync, writeFileSync } from "node:fs";
 
+import { stripComments } from "./lib/strip-comments.mjs";
+
 export const SCOPE_FILE = "lib/analytics/dashboards/_scope.ts";
 export const BASELINE_FILE = "scripts/scope-discipline-baseline.json";
 
 // ---------------------------------------------------------------------------
 // Shared: comment stripping (preserves newlines so line numbers stay valid).
-// Mirrors check-event-payload-parity.ts's stripComments — a generic utility,
-// not domain logic, so it is safe to duplicate rather than cross-import
-// between independent lint scripts.
+// Single source of truth: scripts/lib/strip-comments.mjs — re-exported here
+// so existing `import { stripComments } from "./check-scope-discipline"`
+// call sites (including this file's own test) keep working unchanged.
 // ---------------------------------------------------------------------------
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: character-by-character string/template/comment state machine — mirrors the identical stripComments in scripts/check-event-payload-parity.ts (exempted there via a biome.json per-file override; duplicating that override entry is out of scope for this additive-only change).
-export function stripComments(src: string): string {
-  let out = "";
-  for (let i = 0; i < src.length; i++) {
-    const ch = src[i];
-    const next = src[i + 1];
-    if (ch === "/" && next === "/") {
-      let j = i;
-      while (j < src.length && src[j] !== "\n") j++;
-      out += " ".repeat(j - i);
-      i = j - 1;
-      continue;
-    }
-    if (ch === "/" && next === "*") {
-      let j = i + 2;
-      while (j < src.length && !(src[j] === "*" && src[j + 1] === "/")) j++;
-      j = Math.min(j + 2, src.length);
-      out += src
-        .slice(i, j)
-        .split("")
-        .map((c) => (c === "\n" ? "\n" : " "))
-        .join("");
-      i = j - 1;
-      continue;
-    }
-    // Skip string/template literal contents so a quote inside a comment-like
-    // string can't desync the scan (defensive; not expected to matter here).
-    if (ch === "'" || ch === '"' || ch === "`") {
-      const quote = ch;
-      let j = i + 1;
-      while (j < src.length && src[j] !== quote) {
-        if (src[j] === "\\") j++;
-        j++;
-      }
-      j = Math.min(j + 1, src.length);
-      out += src.slice(i, j);
-      i = j - 1;
-      continue;
-    }
-    out += ch;
-  }
-  return out;
-}
+export { stripComments };
 
 // ---------------------------------------------------------------------------
 // Offense extraction — see header comment for the exact rules.
