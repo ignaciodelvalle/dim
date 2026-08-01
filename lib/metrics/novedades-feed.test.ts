@@ -322,6 +322,34 @@ describe("fetchNovedadesFeedRows — authz scope", () => {
     const feed = await fetchNovedadesFeedRows(ctx, { watermark: WM, limit: 500 });
     expect(onlyFixtures(feed.rows)).toHaveLength(0);
   });
+
+  // H17 (external red-team 2026-07-30). "Sees nothing" above was the ONLY
+  // thing pinned, and it is satisfied identically by "we queried and found
+  // nothing" and by "we never queried". The card rendered the same
+  // "Sin novedades…" sentence for both — a claim about the world from a screen
+  // that had not looked. The grouped fetcher now carries WHICH it is.
+  it("reports an un-queried scope as scopeEmpty, distinct from a measured zero", async () => {
+    const noScope = buildProjectionContext({ role: "govt" }, [], period);
+    const unqueried = await fetchNovedadesGroups(noScope, { watermark: WM, limit: 500 });
+    expect(unqueried.groups).toHaveLength(0);
+    expect(unqueried.scopeEmpty).toBe(true);
+
+    // A REAL scope that was queried reports scopeEmpty=false whether or not it
+    // found anything — asserted on the same call shape so the flag cannot be
+    // passing by simply always being true.
+    const queried = await fetchNovedadesGroups(govtCtxA(), { watermark: WM, limit: 500 });
+    expect(queried.scopeEmpty).toBe(false);
+
+    // …including when the query legitimately comes back empty: a watermark far
+    // in the future excludes every row that exists.
+    const farFuture = new Date("2999-01-01T00:00:00Z");
+    const measuredZero = await fetchNovedadesGroups(govtCtxA(), {
+      watermark: farFuture,
+      limit: 500,
+    });
+    expect(measuredZero.groups).toHaveLength(0);
+    expect(measuredZero.scopeEmpty).toBe(false);
+  });
 });
 
 // ---------------------------------------------------------------------------

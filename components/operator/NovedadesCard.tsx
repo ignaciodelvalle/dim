@@ -25,6 +25,7 @@ import { useState } from "react";
 
 import { markNovedadesSeenAction } from "@/app/actions/novedades";
 import { Icon } from "@/components/Icon";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnListRow } from "@/components/ui/ListRow";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import type { NovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
@@ -53,14 +54,39 @@ export function NovedadesCard({
   defaultCollapsed?: boolean;
 }) {
   const [collapsed, setCollapsed] = useState(collapsible ? defaultCollapsed : false);
-  const { groups, sinceWatermark } = feed;
+  const { groups, sinceWatermark, scopeEmpty } = feed;
 
   // First visit (no watermark) shows the last 7 days and says so; otherwise the
   // window is "desde tu última visita".
   const subtitle = sinceWatermark ? "desde tu última visita" : "Últimos 7 días";
-  const emptyCopy = sinceWatermark
-    ? "Sin novedades desde tu última visita."
-    : "Sin novedades en los últimos 7 días.";
+
+  // H17 (external red-team 2026-07-30) — the empty state names WHICH emptiness
+  // it is instead of asserting "no news" in every case.
+  //
+  // `scopeEmpty` means the feed short-circuited before running any query (a
+  // govt actor with zero jurisdictions in scope). "Sin novedades" would then be
+  // a statement about the world made by a screen that never looked — the
+  // no-signal reading LnEmptyState's `nature` prop exists for. Note the
+  // asymmetry that makes this worth carrying: a MEASURED zero here is genuinely
+  // reassuring, so painting both the same colour is what destroys the signal.
+  const emptyState = scopeEmpty
+    ? {
+        icon: "alerta" as const,
+        title: "No se pudo calcular: tu usuario no tiene jurisdicciones asignadas",
+        description:
+          "El feed no consultó ningún alcance, así que esto no significa que no haya novedades. Pedile a un administrador que te asigne jurisdicciones.",
+        nature: "no-signal" as const,
+      }
+    : {
+        icon: "circle-dot" as const,
+        title: sinceWatermark
+          ? "Sin novedades desde tu última visita"
+          : "Sin novedades en los últimos 7 días",
+        description: sinceWatermark
+          ? "Se consultó tu alcance y no hubo eventos nuevos desde que marcaste el feed como visto."
+          : "Se consultó tu alcance y no hubo eventos en la ventana de 7 días.",
+        nature: "measured-zero" as const,
+      };
 
   const actions = (
     <div className="flex items-center gap-3">
@@ -98,7 +124,14 @@ export function NovedadesCard({
       {collapsed ? null : (
         <OpCardBody className="p-0">
           {groups.length === 0 ? (
-            <p className="px-4 py-3 text-md text-ln-op-mute">{emptyCopy}</p>
+            <div className="px-4 py-3">
+              <LnEmptyState
+                icon={emptyState.icon}
+                title={emptyState.title}
+                description={emptyState.description}
+                nature={emptyState.nature}
+              />
+            </div>
           ) : (
             <ul className="divide-y divide-ln-op-line-2">
               {groups.map((group) => (

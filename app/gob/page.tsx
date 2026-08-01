@@ -40,6 +40,7 @@ import Link from "next/link";
 
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   OpCard,
   OpCardBody,
@@ -885,9 +886,22 @@ export default async function GobiernoDashboardPage({
             />
             <OpCardBody className="p-0">
               {activityRows.length === 0 ? (
-                <p className="px-4 py-3 text-md text-ln-op-mute">
-                  No tenés acciones registradas en los últimos 7 días.
-                </p>
+                // H17 (2026-07-30): a bare muted sentence left the operator
+                // guessing whether the log was empty, unreachable, or simply
+                // out of scope. This one IS a measured zero and says so
+                // explicitly — the audit_log query runs unconditionally,
+                // filtered only by the viewer's own user id and 7 days, with no
+                // jurisdiction scope to come up empty. Declaring
+                // nature="measured-zero" is the claim that it was measured, not
+                // decoration (see components/ui/EmptyState.tsx).
+                <div className="px-4 py-3">
+                  <LnEmptyState
+                    icon="circle-dot"
+                    title="No tenés acciones registradas en los últimos 7 días"
+                    description="Se consultó tu registro de auditoría: no hay acciones tuyas en la ventana. No es un error de carga."
+                    nature="measured-zero"
+                  />
+                </div>
               ) : (
                 <ul className="divide-y divide-ln-op-line-2">
                   {activityRows.map((row) => (

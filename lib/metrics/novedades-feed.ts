@@ -217,6 +217,21 @@ export type NovedadesGroupedFeed = {
   sinceWatermark: boolean;
   /** The lower bound actually applied (the watermark, or now − 7d on first visit). */
   windowStart: Date;
+  /**
+   * H17 (external red-team 2026-07-30) — WHICH emptiness an empty `groups` is.
+   *
+   * A govt actor with zero jurisdictions in scope short-circuits below without
+   * ever running the query, and used to return the SAME `{ groups: [] }` as a
+   * jurisdiction that was queried and genuinely had no events. The card then
+   * said "Sin novedades en los últimos 7 días." — a claim about the world made
+   * by a screen that never looked at it. Same lie class as the briefing's
+   * blanket "dentro de rango" (see lib/metrics/briefing-alerts.ts's
+   * BriefingCoverage, 2026-07-31): the fix is to carry the reason, not to
+   * invent copy at the render site.
+   *
+   * true = nothing was queried (no scope). false = queried, answer was empty.
+   */
+  scopeEmpty: boolean;
 };
 
 function toDate(value: unknown): Date {
@@ -238,7 +253,8 @@ export async function fetchNovedadesGroups(
     opts.watermark ?? new Date(Date.now() - FIRST_VISIT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
 
   if (ctx.scope.kind === "jurisdictions" && ctx.scope.jurisdictions.length === 0) {
-    return { groups: [], sinceWatermark, windowStart };
+    // H17: flagged, not silent — see NovedadesGroupedFeed.scopeEmpty.
+    return { groups: [], sinceWatermark, windowStart, scopeEmpty: true };
   }
 
   const conditions = [
@@ -272,7 +288,7 @@ export async function fetchNovedadesGroups(
     latestRecordedAt: toDate(r.latestRecordedAt),
   }));
 
-  return { groups, sinceWatermark, windowStart };
+  return { groups, sinceWatermark, windowStart, scopeEmpty: false };
 }
 
 /**
