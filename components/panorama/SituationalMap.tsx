@@ -46,8 +46,11 @@ import {
 import {
   mountDivisionNoDataLayer,
   mountProvinceNoDataLayer,
+  syncProvinceNoDataOwnership,
 } from "@/components/panorama/no-data-overlay";
+
 import { buildExportFooter } from "@/components/panorama/panorama-export";
+import { mountProvinceChrome } from "@/components/panorama/province-chrome";
 import { resolveScrubDomain } from "@/components/panorama/scale-lock";
 import { useChoroplethMotion } from "@/components/panorama/use-choropleth-motion";
 import {
@@ -170,6 +173,7 @@ import {
   pointPopupHtml,
   provinceFillLayerId,
   provinceLineLayerId,
+  provinceNoDataLayerId,
   provinceSuppressLayerId,
   removeLayer,
   srcId,
@@ -1364,6 +1368,12 @@ export function SituationalMap({
     // division legend), instead of a live-edge recompute that diverges mid-scrub.
     const nextProvinceSeqLegend: ProvinceSeqLegend = {};
 
+    // ONE no-data stipple, owned by the TOP layer — last in `active`, which is
+    // the mount order. Why: syncProvinceNoDataOwnership in no-data-overlay.ts.
+    const topProvinceChoroplethId =
+      [...active].reverse().find((l) => l.geomType === "choropleth" && l.level === "province")
+        ?.id ?? null;
+
     // Add or update active layers.
     for (const layer of active) {
       const data = layer.features as unknown as GeoJSON.FeatureCollection;
@@ -1423,9 +1433,14 @@ export function SituationalMap({
           }
         }
         if (mountedRef.current.has(layer.id)) {
-          updateProvinceChoroplethLayer(map, layer, seqBreaks);
+          updateProvinceChoroplethLayer(
+            map,
+            layer,
+            seqBreaks,
+            layer.id === topProvinceChoroplethId,
+          );
         } else {
-          addProvinceChoroplethLayer(map, layer, seqBreaks);
+          addProvinceChoroplethLayer(map, layer, seqBreaks, layer.id === topProvinceChoroplethId);
           mountedRef.current.add(layer.id);
         }
         // task #63: keep the bivariate suppression hatch in sync (no-op otherwise).
@@ -2357,50 +2372,24 @@ export function SituationalMap({
     map: maplibregl.Map,
     layer: ActiveLayer,
     seqBreaks?: readonly number[] | null,
+    // Defaults true so the late-basemap retry path, which has no layer list to
+    // compare against, keeps the mark for the single-layer case.
+    isTopProvinceChoropleth = true,
   ) {
     if (!map.getSource("ar-provinces")) return;
-    const fillId = provinceFillLayerId(layer.id);
-    const lineId = provinceLineLayerId(layer.id);
-    // Z-order root cause (fix): anchor the fill + line BELOW the division chrome
-    // (DIVISION_LINE_ID, the lowest chrome layer) exactly as addDivisionFillLayer
-    // does. Without the anchor, a province choropleth mounted AFTER division chrome
-    // already exists lands at the ABSOLUTE top — above the outline/hover chrome AND
-    // above the raised outbreak/signal marks (raiseMarksAboveFills anchors marks to
-    // the same layer), so "brotes" briefly paints under the province fill. The
-    // anchor is undefined (→ top, unchanged) in the common national case where no
-    // division chrome is mounted; it only bites when chrome pre-exists.
-    const chromeAnchor = map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined;
-    if (!map.getLayer(fillId)) {
-      map.addLayer(
-        {
-          id: fillId,
-          type: "fill",
-          source: "ar-provinces",
-          paint: choroplethFillPaint(provinceColorExprForLayer(layer, seqBreaks)),
-        },
-        chromeAnchor,
-      );
-    }
+    const chromeAnchor = mountProvinceChrome(
+      map,
+      layer.id,
+      provinceColorExprForLayer(layer, seqBreaks),
+    );
     // D.5(b): stipple the provinces with no value, under the province line.
-    mountProvinceNoDataLayer(map, layer.id, layer.features, chromeAnchor);
-    if (!map.getLayer(lineId)) {
-      // cursor #1: admin-neutral stroke (NOT COLOR_CANVAS) so province edges read
-      // as boundaries over the fill, never as near-black cracks. Faded by
-      // updateChromeHierarchy when divisions are active (cursor #5).
-      map.addLayer(
-        {
-          id: lineId,
-          type: "line",
-          source: "ar-provinces",
-          paint: {
-            "line-color": COLOR_ADMIN_STROKE,
-            "line-width": PROV_LINE_WIDTH,
-            "line-opacity": PROV_LINE_OPACITY,
-          },
-        },
-        chromeAnchor,
-      );
-    }
+    syncProvinceNoDataOwnership(
+      map,
+      layer.id,
+      layer.features,
+      isTopProvinceChoropleth,
+      chromeAnchor,
+    );
     wireProvinceChoroplethInteractions(map, layer);
   }
 
@@ -2410,13 +2399,24 @@ export function SituationalMap({
     map: maplibregl.Map,
     layer: ActiveLayer,
     seqBreaks?: readonly number[] | null,
+    isTopProvinceChoropleth = true,
   ) {
     const fillId = provinceFillLayerId(layer.id);
     if (map.getLayer(fillId)) {
       map.setPaintProperty(fillId, "fill-color", provinceColorExprForLayer(layer, seqBreaks));
+      // Ownership can change WITHOUT a remount (a second choropleth demotes
+      // the incumbent), so it is re-resolved here too, not only on mount.
+      const chromeAnchor = map.getLayer(DIVISION_LINE_ID) ? DIVISION_LINE_ID : undefined;
+      syncProvinceNoDataOwnership(
+        map,
+        layer.id,
+        layer.features,
+        isTopProvinceChoropleth,
+        chromeAnchor,
+      );
     } else {
       // Basemap may have loaded after the first sync attempt — try to add now.
-      addProvinceChoroplethLayer(map, layer, seqBreaks);
+      addProvinceChoroplethLayer(map, layer, seqBreaks, isTopProvinceChoropleth);
     }
   }
 

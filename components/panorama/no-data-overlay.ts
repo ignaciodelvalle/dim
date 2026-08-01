@@ -91,3 +91,42 @@ export function mountProvinceNoDataLayer(
   }
   map.addLayer({ id, type: "fill", source: "ar-provinces", paint: STIPPLE_PAINT, filter }, before);
 }
+
+/**
+ * Resolve WHICH province choropleth owns the no-data stipple, and act on it.
+ *
+ * PO report 2026-08-01 ("los puntitos se ven por todos lados, en varios
+ * colores"). Every province choropleth used to mount its own stipple, so with
+ * two layers active, layer B's grey dots painted over layer A's coloured fill
+ * wherever B had no value — and grey at 45% over a saturated fill reads as dots
+ * IN that province's colour, which is why it looked like a multi-coloured
+ * texture instead of a mark.
+ *
+ * Worse than ugly. The stipple MEANS "nothing was reported here". Painting it
+ * over a province that reported perfectly well on the layer the operator is
+ * reading is the map contradicting itself — the same class of defect as a
+ * legend naming a mark the canvas does not paint, pointed the other way.
+ *
+ * The TOP layer is the one being read; its absence of data is the only one that
+ * answers "why is this province blank". The layers underneath contribute
+ * colour, not absence.
+ *
+ * The REMOVE branch is not symmetry for its own sake: ownership changes without
+ * a remount (activating a second choropleth demotes the incumbent), so a layer
+ * that stops being top has to give the mark back or it survives the swap and
+ * the bug returns looking like a caching problem.
+ */
+export function syncProvinceNoDataOwnership(
+  map: maplibregl.Map,
+  layerId: string,
+  features: FeatureCollection,
+  isTop: boolean,
+  before?: string,
+): void {
+  if (isTop) {
+    mountProvinceNoDataLayer(map, layerId, features, before);
+    return;
+  }
+  const id = provinceNoDataLayerId(layerId);
+  if (map.getLayer(id)) map.removeLayer(id);
+}
