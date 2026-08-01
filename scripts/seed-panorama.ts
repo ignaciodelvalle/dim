@@ -2495,13 +2495,32 @@ async function seedVigilanceChain(
     );
 
     // Open a case for in_progress observations so rabiesActiveCount + the map
-    // light up. caseKind='rabies_observation' is read literally by
-    // fetchVigilanciaMetrics; case_kind is unconstrained text in the DB.
-    if (rabiesStatus === "in_progress") {
+    // light up.
+    //
+    // The kind is 'bite_incident' — NOT the invented 'rabies_observation' this
+    // used to write. A rabies observation's expediente IS the bite_incident
+    // case: bite-incident.ts declares `terminalEvents: ["rabies_observation_
+    // ended"]` and `cronCloseRoute: "/api/cron/close-rabies-observations"`, and
+    // all three closers (owner-close, professional-close, the cron) resolve
+    // their case through `findOpenBiteCase`, hardcoded to case_kind=
+    // 'bite_incident'. Seeding any other kind produced a case NOTHING could
+    // ever close: measured on staging 2026-08-01, 12 'rabies_observation' rows
+    // stuck open against 1 pet actually under observation, each one already
+    // carrying its cron-written `rabies_observation_ended` event. `case_kind`
+    // is unconstrained text in the DB, so only __tests__/seed-case-kinds.test.ts
+    // stops that from happening again.
+    //
+    // Guarded against `cases_open_per_pet_kind_idx` (one open case per pet per
+    // kind): a pet that already has an open bite_incident — from the setpiece
+    // bite chain or a previous run — is skipped rather than crashing the seed.
+    if (
+      rabiesStatus === "in_progress" &&
+      (await findOpenCasesOfKind(petId, "bite_incident")).length === 0
+    ) {
       const prov = province ?? "Salta";
       await db.insert(cases).values({
         publicCode: `PANO-CASE-RABOBS-${String(t).padStart(4, "0")}`,
-        caseKind: "rabies_observation",
+        caseKind: "bite_incident",
         status: "open",
         primarySubjectKind: "registered_pet",
         primaryPetId: petId,
