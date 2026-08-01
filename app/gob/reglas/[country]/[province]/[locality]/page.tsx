@@ -201,7 +201,7 @@ export default async function JurisdictionReglasPage({
                         href={`${base}/reglas/${segCountry}/${segProvince}/${segLocality}/nueva?ruleType=${t}`}
                         className="shrink-0 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                       >
-                        {"Configurar ->"}
+                        {"Configurar →"}
                       </Link>
                     </div>
                   </OpCardBody>
