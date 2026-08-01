@@ -448,7 +448,14 @@ describe("hostile reader — vigilancia: casos de observación (cases) nunca se 
     const pets = KPI_CATALOG.open_rabies_observations;
     expect(cases.label).not.toBe(pets.label);
     expect(cases.fetcherName).not.toBe(pets.fetcherName);
-    expect(cases.exclusions ?? "").toMatch(/CASOS/);
+    // The invariant is that the case-side exclusions SHOUT BOTH units and
+    // contrast them — that is what stops a hostile reader adding the two rabies
+    // figures together. This used to match the literal word "CASOS"; the
+    // catalog now says "EXPEDIENTES" (the same word the tile's caveat uses,
+    // and the one that names a file rather than a row). Assert the two units
+    // are both present rather than one spelling of one of them.
+    expect(cases.exclusions ?? "").toMatch(/EXPEDIENTES/);
+    expect(cases.exclusions ?? "").toMatch(/MASCOTAS/);
     expect(cases.exclusions ?? "").toMatch(/tablas distintas/);
   });
 });
