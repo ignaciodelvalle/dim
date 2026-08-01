@@ -18,6 +18,7 @@ import {
   serviceOfferings,
 } from "@/db";
 import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
+import { checkChipMatchesCanonical } from "@/lib/domain/microchip-validation";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { matchesDbError } from "@/lib/infra/db-errors";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
@@ -134,8 +135,10 @@ export async function markAppointmentAttendedWriter(
 
     // Microchip pre-check: surface a friendly inline error when the chip is
     // already registered on a DIFFERENT active pet (the chip_unique partial
-    // index would otherwise raise a raw 500). A chip already active on THIS
-    // pet is a no-op re-sync handled by insertIdentification's guard below.
+    // index is UNIQUE(code) over active chip rows table-wide, so it would
+    // otherwise raise a raw 500). Runs first because "this chip belongs to
+    // another animal" is the more specific diagnosis; the same-pet check below
+    // handles what is left.
     if (payload.kind === "microchip") {
       const dupes = await db
         .select({ petId: petIdentifications.petId })
@@ -153,12 +156,23 @@ export async function markAppointmentAttendedWriter(
       }
     }
 
-    // Whether the pet already holds an active canonical microchip row — drives
-    // the dual-write guard below (same pattern as createMicrochip use-case).
-    const petHasCanonicalChip =
+    // The pet's active canonical chip, if any — drives the dual-write guard
+    // below (same pattern as the createMicrochip use-case). Held as the CODE,
+    // not a boolean: the pre-check above only rules out a chip active on
+    // ANOTHER pet, so a number that disagrees with THIS pet's own chip still
+    // has to be caught before the event is appended.
+    const canonicalChipNumber =
       payload.kind === "microchip"
-        ? (await fetchActiveIdentifications(pet.id)).microchip !== null
-        : false;
+        ? ((await fetchActiveIdentifications(pet.id)).microchip?.code ?? null)
+        : null;
+
+    // Same guard, same reason as createMicrochip: the attended-appointment path
+    // is a full microchip_implanted writer, so it could append a chip the
+    // credential does not carry and then skip the canonical row in step 4.
+    if (payload.kind === "microchip") {
+      const conflict = checkChipMatchesCanonical(canonicalChipNumber, payload.chip_number);
+      if (conflict) return conflict;
+    }
 
     await db.transaction(async (tx) => {
       // 1. CONDITIONALLY flip the appointment status (SC2). The status check
@@ -208,7 +222,7 @@ export async function markAppointmentAttendedWriter(
       // writer must insert the canonical pet_identifications row, mirroring
       // createMicrochip. Only when the pet had no prior active chip — the
       // pre-check above already rejected a chip active on another pet.
-      if (payload.kind === "microchip" && !petHasCanonicalChip) {
+      if (payload.kind === "microchip" && canonicalChipNumber === null) {
         const implantSite = chipImplantSiteFromLocation(payload.location_on_body);
         await tx.insert(petIdentifications).values({
           petId: pet.id,

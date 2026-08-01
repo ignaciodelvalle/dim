@@ -33,6 +33,7 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
+import { CHIP_CONFLICTS_WITH_CANONICAL_ERROR } from "@/lib/domain/microchip-validation";
 import {
   generateAppointmentToken,
   generateOfferingToken,
@@ -101,6 +102,8 @@ let microchipSlotId: string;
 let microchipApptId: string;
 let microchipDupSlotId: string;
 let microchipDupApptId: string;
+let microchipConflictSlotId: string;
+let microchipConflictApptId: string;
 
 // A second pet that already owns a chip, so the duplicate-chip guard can fire.
 let secondPetId: string;
@@ -108,6 +111,9 @@ let secondPetId: string;
 // Stable chip numbers for the microchip attendance tests.
 const ATTEND_CHIP = "982000900000001";
 const DUP_CHIP = "982000900000002";
+// Free on every pet — its only job is to disagree with the chip `petId` already
+// carries, which is the case a cross-pet duplicate scan cannot see.
+const CONFLICT_CHIP = "982000900000003";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -337,7 +343,7 @@ beforeAll(async () => {
   // --- Microchip-implantation attendance fixtures (Fix UI-5) ---
 
   // Clean up any leftover pets that own our test chip numbers from a prior run.
-  for (const chip of [ATTEND_CHIP, DUP_CHIP]) {
+  for (const chip of [ATTEND_CHIP, DUP_CHIP, CONFLICT_CHIP]) {
     const rows = (await db.execute(
       sql`SELECT DISTINCT pet_id FROM pet_identifications WHERE code = ${chip} AND kind = 'microchip_iso'`,
     )) as unknown as Array<{ pet_id: string }>;
@@ -387,6 +393,16 @@ beforeAll(async () => {
     offeringMicrochipId,
   );
   microchipDupApptId = mcDup.id;
+
+  microchipConflictSlotId = await createSlot(offeringMicrochipId, 10);
+  const mcConflict = await createAppointment(
+    microchipConflictSlotId,
+    petId,
+    ownerUserId,
+    orgId,
+    offeringMicrochipId,
+  );
+  microchipConflictApptId = mcConflict.id;
 
   // A second pet that already holds DUP_CHIP as an active canonical row — used
   // to trigger the friendly duplicate-chip guard.
@@ -1050,6 +1066,68 @@ describe("markAppointmentAttendedWriter (microchip implantation — Fix UI-5)", 
       .select({ status: appointments.status })
       .from(appointments)
       .where(eq(appointments.id, microchipDupApptId))
+      .limit(1);
+    expect(appt!.status).toBe("confirmed");
+  });
+
+  // This is the case the cross-pet duplicate scan above structurally cannot
+  // see: CONFLICT_CHIP is free everywhere, so the scan passes — and before the
+  // canonical-conflict guard the writer appended a professionally-verified
+  // microchip_implanted event carrying it, then skipped the dual-write because
+  // the pet "already had a chip". The event log said one chip, the ficha said
+  // another, and nothing anywhere said so.
+  it("chip that disagrees with THIS pet's canonical row → error, no event, canonical untouched", async () => {
+    const payload: AttendancePayload = {
+      kind: "microchip",
+      chip_number: CONFLICT_CHIP,
+      country_code: "858",
+      implanted_by: "Dr. Typo",
+      location_on_body: "interscapular",
+    };
+
+    // The first test in this block bound ATTEND_CHIP to petId.
+    const eventCountBefore = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "microchip_implanted")),
+    );
+
+    const result = await markAppointmentAttendedWriter(microchipConflictApptId, payload, {
+      ...author,
+      actorUserId: orgMemberUserId,
+      authorOrganizationId: orgId,
+    });
+
+    // Pinned to the shared constant, not to "some error": the copy is what
+    // routes a genuine chip change to «Reemplazar microchip», and a loose
+    // assertion would be satisfied by the cross-pet duplicate message one
+    // branch earlier — which would mean the new guard never ran at all.
+    expect(result).toEqual({ error: CHIP_CONFLICTS_WITH_CANONICAL_ERROR });
+
+    // Nothing reached the append-only spine.
+    const eventCountAfter = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "microchip_implanted")),
+    );
+    expect(eventCountAfter).toBe(eventCountBefore);
+
+    // The credential still carries the chip it carried before, and only that one.
+    const activeChips = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(activeChips.map((r) => r.code)).toEqual([ATTEND_CHIP]);
+
+    // Appointment survives the refusal, so the vet can retry with the right number.
+    const [appt] = await db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(eq(appointments.id, microchipConflictApptId))
       .limit(1);
     expect(appt!.status).toBe("confirmed");
   });

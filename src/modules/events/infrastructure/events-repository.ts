@@ -177,10 +177,19 @@ export class EventsRepository {
    * Skips the insert if an active row for the same (pet, kind) already exists:
    * callers of this helper are "add identifier to a pet that has none" flows
    * (createMicrochip backfill, set-pet-lost retroactive chip), so an existing
-   * active row means a prior partial write — keeping it is the correct
-   * re-sync, and inserting would trip the chip_unique partial index with a
-   * raw 500. Replacement flows expire the old row first (see
-   * expireActiveIdentification) and use direct inserts.
+   * active row means a prior partial write — keeping it is the correct re-sync.
+   * Replacement flows expire the old row first (see expireActiveIdentification)
+   * and use direct inserts.
+   *
+   * This is a LAST-RESORT re-sync guard, not a conflict check, and callers must
+   * not lean on it as one. It compares (pet, kind) and never looks at `code`,
+   * so it cannot tell a repeat of the same chip from a different one — and it
+   * is reached only after the event has already been written. The
+   * `chip_unique` partial index is UNIQUE(code) across ALL active chip rows,
+   * so a different code on the same pet would not trip it either: two active
+   * chips would simply coexist and `rowsToIdentifications` would pick whichever
+   * row the query returned last. Deciding whether a chip may be recorded at all
+   * belongs upstream, in checkChipMatchesCanonical, before anything is appended.
    */
   async insertIdentification(values: NewPetIdentification, executor: DbOrTx = db): Promise<void> {
     const [existing] = await executor

@@ -1,4 +1,8 @@
-import { validateMicrochipId } from "@/lib/domain/microchip-validation";
+import {
+  CHIP_CONFLICTS_WITH_CANONICAL_ERROR,
+  checkChipMatchesCanonical,
+  validateMicrochipId,
+} from "@/lib/domain/microchip-validation";
 import { describe, expect, it } from "vitest";
 
 describe("validateMicrochipId", () => {
@@ -78,5 +82,57 @@ describe("validateMicrochipId", () => {
   it("rejects a whitespace-only string", () => {
     const result = validateMicrochipId("   ");
     expect(result.ok).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkChipMatchesCanonical — the guard that keeps the spine from contradicting
+// the credential. See lib/domain/microchip-validation.ts for the full why.
+// ---------------------------------------------------------------------------
+
+describe("checkChipMatchesCanonical", () => {
+  const ON_RECORD = "985121025800001";
+
+  it("allows the first chip: a pet with no canonical row has nothing to contradict", () => {
+    expect(checkChipMatchesCanonical(null, ON_RECORD)).toBeNull();
+  });
+
+  it("allows re-submitting the identical chip (double-submit / partial-write re-sync)", () => {
+    expect(checkChipMatchesCanonical(ON_RECORD, ON_RECORD)).toBeNull();
+  });
+
+  it("allows the same digits typed with the separators people actually use", () => {
+    expect(checkChipMatchesCanonical(ON_RECORD, "985 121-025 800 001")).toBeNull();
+    expect(checkChipMatchesCanonical("985-121-025-800-001", ON_RECORD)).toBeNull();
+  });
+
+  it("rejects a different chip and says which flow to use instead", () => {
+    const conflict = checkChipMatchesCanonical(ON_RECORD, "985121025809999");
+    // Pinned to the exact string: the copy IS the fix's user-facing half. It
+    // has to name the scanner (the typo branch) AND route to «Reemplazar
+    // microchip» (the genuine-new-chip branch), or the person is left with a
+    // dead end and the divergence goes unresolved.
+    expect(conflict).toEqual({ error: CHIP_CONFLICTS_WITH_CANONICAL_ERROR });
+    expect(CHIP_CONFLICTS_WITH_CANONICAL_ERROR).toContain("escáner");
+    expect(CHIP_CONFLICTS_WITH_CANONICAL_ERROR).toContain("Reemplazar microchip");
+  });
+
+  it("never echoes either chip number back to the caller", () => {
+    const conflict = checkChipMatchesCanonical(ON_RECORD, "985121025809999");
+    // Same non-disclosure the atender confirm path already enforces: the signer
+    // types what the scanner reads, not what the screen showed them.
+    expect(conflict?.error).not.toContain(ON_RECORD);
+    expect(conflict?.error).not.toContain("985121025809999");
+  });
+
+  it("catches a single mistyped digit — the case a boolean guard could never see", () => {
+    expect(checkChipMatchesCanonical(ON_RECORD, "985121025800002")).not.toBeNull();
+  });
+
+  it("compares non-ISO legacy codes against themselves rather than rejecting them", () => {
+    // Neither side parses as ISO; the fallback still has to call identical
+    // strings identical, or a pre-ISO row would be unrepairable.
+    expect(checkChipMatchesCanonical("LEGACY-01", " LEGACY-01 ")).toBeNull();
+    expect(checkChipMatchesCanonical("LEGACY-01", "LEGACY-02")).not.toBeNull();
   });
 });

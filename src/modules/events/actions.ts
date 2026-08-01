@@ -753,7 +753,7 @@ export async function createMicrochipAction(
   try {
     const result = await createMicrochip(
       {
-        pet: { id: pet.id, petHasCanonicalChip: existingIds.microchip !== null },
+        pet: { id: pet.id, canonicalChipNumber: existingIds.microchip?.code ?? null },
         user: { id: user.id },
         eventAuthorship: eventAuthorship as {
           authorRole: string;
