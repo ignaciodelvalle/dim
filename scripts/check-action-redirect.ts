@@ -27,14 +27,17 @@
 //
 // THE BASELINE
 // ---------------------------------------------------------------------------
-// 16 calls across 9 action files exist today (a raw grep says 23 across 12 —
-// the difference is redirect() named in prose, which this fence does not count).
-// Failing all of them at once
-// would block every branch on work that has to be done file by file, so this
-// ratchets like its siblings (lint:brand, lint:file-size, lint:seed-ids): the
+// This ratchets like its siblings (lint:brand, lint:file-size, lint:seed-ids):
 // per-file counts are frozen, a NEW call fails, and each migration lowers the
-// number. The baseline is DEBT, not approval — every entry is a place a user
-// can press a button and watch nothing happen.
+// number. Failing every offender at once would have blocked every branch on
+// work that has to be done file by file, hence the baseline. It is DEBT, not
+// approval — every entry is a place a user can press a button and watch nothing
+// happen.
+//
+// The baseline is EMPTY as of 2026-08-01: the burn-down finished with the three
+// chip-replacement `action.ts` flows. An empty baseline means the fence is now
+// an absolute ban, not a ratchet — any redirect() in a server action fails.
+// Do not re-run --write-baseline to "fix" a failure; migrate the call.
 //
 // Run:  pnpm tsx scripts/check-action-redirect.ts   (or: pnpm lint:action-redirect)
 //       pnpm tsx scripts/check-action-redirect.ts --write-baseline   (after a migration)
@@ -47,8 +50,24 @@ import { stripComments } from "./check-scope-discipline";
 
 export const BASELINE_PATH = "scripts/action-redirect-baseline.json";
 
-/** Where server actions live. A file only counts if it declares "use server". */
-const CANDIDATE_GLOBS = ["app/actions/**/*.ts", "src/modules/**/actions.ts", "app/**/actions.ts"];
+/**
+ * Where server actions live. A file only counts if it declares "use server".
+ *
+ * `action.ts` (SINGULAR) is in the list because leaving it out cost the fence
+ * its whole point. Route-colocated actions in this repo are named `action.ts`
+ * — the three chip-replacement flows among them — and every one of them was
+ * invisible here: the baseline read `{}` and the fence printed "0 baselined
+ * call(s) across 0 file(s)" while three post-mutation redirect() calls sat in
+ * the tree. A review even cited the baseline as proof the debt was tracked.
+ * A fence whose globs miss the naming convention is worse than no fence: it
+ * reports success and is believed.
+ */
+const CANDIDATE_GLOBS = [
+  "app/actions/**/*.ts",
+  "src/modules/**/actions.ts",
+  "app/**/actions.ts",
+  "app/**/action.ts",
+];
 
 type BaselineFile = {
   _comment: string;
@@ -72,19 +91,31 @@ export function countRedirectCalls(source: string): number {
   return (code.match(/\bredirect\s*\(/g) ?? []).length;
 }
 
-function collectCounts(): Record<string, number> {
+/**
+ * Every server-action module the fence actually looks at, as forward-slash
+ * paths. Exported so a test can pin the SCAN SET and not just the two pure
+ * predicates: the fence's one real failure so far was a glob list that missed
+ * `action.ts`, and no assertion about counting or comment-stripping could have
+ * caught it — the files were never opened.
+ */
+export function listServerActionFiles(): string[] {
   const seen = new Set<string>();
-  const counts: Record<string, number> = {};
   for (const pattern of CANDIDATE_GLOBS) {
     for (const file of globSync(pattern)) {
       const normalized = file.replaceAll("\\", "/");
       if (seen.has(normalized)) continue;
+      if (!isServerActionModule(readFileSync(file, "utf8"))) continue;
       seen.add(normalized);
-      const source = readFileSync(file, "utf8");
-      if (!isServerActionModule(source)) continue;
-      const n = countRedirectCalls(source);
-      if (n > 0) counts[normalized] = n;
     }
+  }
+  return [...seen];
+}
+
+function collectCounts(): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const file of listServerActionFiles()) {
+    const n = countRedirectCalls(readFileSync(file, "utf8"));
+    if (n > 0) counts[file] = n;
   }
   return counts;
 }

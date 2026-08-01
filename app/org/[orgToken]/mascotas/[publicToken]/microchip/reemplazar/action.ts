@@ -9,7 +9,6 @@ import type { EventFormState } from "@/src/modules/events/actions";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { and, eq, inArray, isNull } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 const VET_REASONS = new Set([
   "damaged",
@@ -115,5 +114,10 @@ export async function replaceMicrochipVetAction(
     return { error: result.error };
   }
 
-  redirect(`/org/${orgToken}/mascotas`);
+  // N3: return the destination instead of redirect()-ing. A Server Action's own
+  // redirect resolves and is then dropped by the App Router in production — the
+  // replacement commits, the URL never changes, and the vet is left on a form
+  // that looks like it did nothing (lib/ui/full-page-action-nav.ts). The form
+  // navigates via useActionRedirect.
+  return { error: null, ok: true, redirectTo: `/org/${orgToken}/mascotas` };
 }

@@ -8,7 +8,6 @@ import { parseDateInput } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 const ADMIN_REASONS = new Set([
   "damaged",
@@ -101,5 +100,8 @@ export async function replaceMicrochipAdminAction(
     return { error: result.error };
   }
 
-  redirect("/admin/observaciones");
+  // N3: see the org-side twin (app/org/.../microchip/reemplazar/action.ts).
+  // The App Router drops a Server Action's own redirect in production, so the
+  // action returns the destination and the form navigates.
+  return { error: null, ok: true, redirectTo: "/admin/observaciones" };
 }

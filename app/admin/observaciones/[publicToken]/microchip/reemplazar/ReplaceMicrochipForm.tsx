@@ -2,6 +2,7 @@
 
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
@@ -43,6 +44,9 @@ export function ReplaceMicrochipForm({
   currentChip: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go instead of redirect()-ing, because the
+  // App Router drops a Server Action's own redirect in production.
+  const navigating = useActionRedirect(state.redirectTo, state);
   const [selectedReason, setSelectedReason] = useState<string>("");
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = todayIsoInAr();
@@ -159,8 +163,14 @@ export function ReplaceMicrochipForm({
         </p>
       )}
 
-      <OpButton type="submit" disabled={isPending} loading={isPending} variant="primary" block>
-        {isPending ? "Guardando..." : "Registrar reemplazo de chip"}
+      <OpButton
+        type="submit"
+        disabled={isPending || navigating}
+        loading={isPending || navigating}
+        variant="primary"
+        block
+      >
+        {isPending || navigating ? "Guardando..." : "Registrar reemplazo de chip"}
       </OpButton>
     </form>
   );

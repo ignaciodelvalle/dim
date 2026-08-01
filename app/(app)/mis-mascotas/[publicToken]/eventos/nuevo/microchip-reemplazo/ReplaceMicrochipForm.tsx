@@ -3,6 +3,7 @@
 import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { todayIsoInAr } from "@/lib/utils/format";
@@ -29,6 +30,9 @@ export function ReplaceMicrochipForm({
   currentChip: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go instead of redirect()-ing, because the
+  // App Router drops a Server Action's own redirect in production.
+  const navigating = useActionRedirect(state.redirectTo, state);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const today = todayIsoInAr();
@@ -148,7 +152,7 @@ export function ReplaceMicrochipForm({
         tone="azul"
         ctaLabel="Confirmar reemplazo de chip"
         formId={FORM_ID}
-        isPending={isPending}
+        isPending={isPending || navigating}
       />
     </>
   );
