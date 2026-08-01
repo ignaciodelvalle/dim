@@ -12,7 +12,7 @@
 //     actor_user_id; admin view batch name-lookup handles NULL actor gracefully.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { completeIdentityAction } from "@/app/actions/auth";
@@ -649,14 +649,30 @@ describe("erase_subject_data — redacts third-party PII in event payloads (0129
 
   it("emits a pet_events_mutation_override audit row for the redacted event", async () => {
     if (!incidentEventId) throw new Error("incidentEventId not set");
+    // The pet_event_id predicate belongs in SQL, not in a JS .some() over the
+    // whole table. This used to select EVERY override row and filter after the
+    // fetch: fine on a fresh database, and a 5-second timeout on a developer
+    // machine where seed runs have piled up 1.7 MILLION override rows (each
+    // seed clean deletes hundreds of thousands of events through the audited
+    // hatch, and every one writes an audit row). Measured 2026-08-01 — this is
+    // the intermittent failure that showed up once in a full-suite run and
+    // could not be reproduced afterwards, because it depends on how much
+    // history the local database has accumulated, not on the code.
+    //
+    // Same shape as two other defects found the same day: a query that is
+    // correct at small scale and wrong past a threshold, because the predicate
+    // that discriminates is applied after the rows are fetched instead of by
+    // the database.
     const overrides = await db
       .select({ payload: auditLog.payload })
       .from(auditLog)
-      .where(eq(auditLog.action, "pet_events_mutation_override"));
-    const forOurEvent = overrides.some(
-      (a) => (a.payload as Record<string, unknown>).pet_event_id === incidentEventId,
-    );
-    expect(forOurEvent).toBe(true);
+      .where(
+        and(
+          eq(auditLog.action, "pet_events_mutation_override"),
+          sql`${auditLog.payload}->>'pet_event_id' = ${incidentEventId}`,
+        ),
+      );
+    expect(overrides.length).toBeGreaterThan(0);
   });
 
   it("is idempotent — re-erasing matches no event rows the second time", async () => {
@@ -771,14 +787,18 @@ describe("erase_subject_data — redacts free-text payload keys on own pet_event
 
   it("emits a pet_events_mutation_override audit row for the redacted event", async () => {
     if (!statusChangedEventId) throw new Error("statusChangedEventId not set");
+    // Same fetch-then-filter defect as the sibling assertion above — see the
+    // note there for why it only failed on a database with history.
     const overrides = await db
       .select({ payload: auditLog.payload })
       .from(auditLog)
-      .where(eq(auditLog.action, "pet_events_mutation_override"));
-    const forOurEvent = overrides.some(
-      (a) => (a.payload as Record<string, unknown>).pet_event_id === statusChangedEventId,
-    );
-    expect(forOurEvent).toBe(true);
+      .where(
+        and(
+          eq(auditLog.action, "pet_events_mutation_override"),
+          sql`${auditLog.payload}->>'pet_event_id' = ${statusChangedEventId}`,
+        ),
+      );
+    expect(overrides.length).toBeGreaterThan(0);
   });
 
   it("is idempotent — re-erasing matches no free-text event rows the second time", async () => {
