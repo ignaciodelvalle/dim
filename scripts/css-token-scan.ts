@@ -359,14 +359,52 @@ function parseDecl(buf: string, line: number, col: number): Decl | null {
   return { prop, value, line, col };
 }
 
+/**
+ * Expand a `font:` SHORTHAND into the synthetic `font-family` + `font-weight`
+ * declarations C7 reasons about.
+ *
+ * Why this exists: C7 used to look only at a literal `font-weight` property, so
+ * `.lp-hcard-badge { font: 700 10px / 1 var(--font-ln-mono) }` was invisible to
+ * it. Every audit of the dead-weight problem therefore counted FOUR dead CSS
+ * declarations when there were five — the shorthand was the one that hid, and
+ * it hid from a `font-weight` grep for exactly the same reason.
+ *
+ * Deliberately conservative, and fails OPEN like the rest of C7:
+ *
+ *  - the weight is the first standalone 100–900 / bold / normal token, which
+ *    the shorthand grammar puts before the mandatory size;
+ *  - the family is resolved only when the value contains EXACTLY ONE `var(…)`.
+ *    With two or more there is no way to tell a `var()` size or line-height
+ *    from a `var()` family without implementing the whole shorthand grammar,
+ *    and a fence that guesses which one is the family is worse than a fence
+ *    that declines. Every such value is skipped.
+ */
+function expandFontShorthand(decl: Decl): { family: Decl; weight: Decl } | null {
+  const weightMatch = /(?:^|[\s,])(bold|normal|[1-9]00)(?=[\s,])/i.exec(decl.value);
+  if (!weightMatch) return null;
+  const familyMatches = [...decl.value.matchAll(/var\(\s*--[a-z0-9-]+[^)]*\)/gi)];
+  if (familyMatches.length !== 1) return null;
+  return {
+    family: { ...decl, prop: "font-family", value: familyMatches[0][0] },
+    weight: { ...decl, prop: "font-weight", value: weightMatch[1] },
+  };
+}
+
 function findDeadWeight(
   decls: readonly Decl[],
   cssVars: Map<string, string>,
   fontWeightSets: Map<string, Set<number>>,
 ): { decl: Decl; terminal: string; loaded: Set<number> } | null {
   if (fontWeightSets.size === 0) return null;
-  const famDecl = [...decls].reverse().find((d) => d.prop === "font-family");
-  const fwDecl = [...decls].reverse().find((d) => d.prop === "font-weight");
+  // Shorthands are expanded in place so a rule that mixes `font:` with a later
+  // `font-weight:` still resolves by the normal last-declaration-wins rule.
+  const expanded = decls.flatMap((d) => {
+    if (d.prop !== "font") return [d];
+    const parts = expandFontShorthand(d);
+    return parts ? [parts.family, parts.weight] : [d];
+  });
+  const famDecl = [...expanded].reverse().find((d) => d.prop === "font-family");
+  const fwDecl = [...expanded].reverse().find((d) => d.prop === "font-weight");
   if (!famDecl || !fwDecl) return null;
   const raw = fwDecl.value.toLowerCase();
   const weight = WEIGHT_KEYWORDS[raw] ?? (/^\d+$/.test(raw) ? Number(raw) : Number.NaN);

@@ -452,6 +452,46 @@ describe("rule C7 — a font-weight the family never loaded", () => {
     expect(categoriesOf(css2, { fontWeightSets })).toEqual([]);
   });
 
+  it("flags a dead weight declared through the `font:` SHORTHAND", () => {
+    // The blind spot that made every audit of this problem count FOUR dead CSS
+    // declarations when there were five. `.lp-hcard-badge` declares its weight
+    // in the shorthand and has no `font-weight` property at all, so a rule that
+    // looks only for `font-weight` — which is what C7 did, and what a grep does
+    // — cannot see it.
+    const css = `${THEME}.lp-hcard-badge { font: 700 10px / 1 var(--font-ln-mono); }`;
+    expect(categoriesOf(css, { fontWeightSets })).toEqual(["deadWeight"]);
+  });
+
+  it("does NOT flag a shorthand whose weight the family loaded", () => {
+    const css = `${THEME}.a { font: 600 10px / 1 var(--font-ln-mono); }`;
+    expect(categoriesOf(css, { fontWeightSets })).toEqual([]);
+  });
+
+  it("lets a later font-weight override the shorthand's weight", () => {
+    // Shorthand sets 600 (loaded), the following declaration resets it to 700
+    // (not loaded). Last declaration wins, so this rule IS dead.
+    const dead = `${THEME}.a { font: 600 10px / 1 var(--font-ln-mono); font-weight: 700; }`;
+    expect(categoriesOf(dead, { fontWeightSets })).toEqual(["deadWeight"]);
+    // And the reverse: shorthand's 600 wins over an earlier dead 700.
+    const live = `${THEME}.a { font-weight: 700; font: 600 10px / 1 var(--font-ln-mono); }`;
+    expect(categoriesOf(live, { fontWeightSets })).toEqual([]);
+  });
+
+  it("fails OPEN on a shorthand it cannot decompose", () => {
+    // No family var to resolve, and a size-only shorthand with no weight —
+    // neither may be guessed at.
+    const noVar = `${THEME}.a { font: 700 10px / 1 Georgia, serif; }`;
+    expect(categoriesOf(noVar, { fontWeightSets })).toEqual([]);
+    const noWeight = `${THEME}.a { font: 10px / 1 var(--font-ln-mono); }`;
+    expect(categoriesOf(noWeight, { fontWeightSets })).toEqual([]);
+    // Two var()s: one of them is the family and one is a size or line-height,
+    // and nothing short of the full shorthand grammar can say which. Declining
+    // is the point — picking the first or the last would be a coin flip that
+    // reports a violation against whichever token happened to lose.
+    const ambiguous = `${THEME}.a { font: 700 var(--sz) / 1 var(--font-ln-mono); }`;
+    expect(categoriesOf(ambiguous, { fontWeightSets })).toEqual([]);
+  });
+
   it("fails OPEN on anything it cannot resolve", () => {
     // Unknown family, literal stack, keyword weight, and no layout data at all
     // must never produce a violation — a fence that guesses is worse than none.

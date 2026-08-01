@@ -28,9 +28,21 @@ const encodeSans = Encode_Sans({
 // ---------- Libreta Nacional typefaces (IBM Plex family + Caveat) ----------
 // Exposed as CSS vars and wired into Tailwind @theme as --font-ln-* tokens.
 
+// Weight lists are a CONTRACT with the utility classes the app actually uses.
+// A weight that is requested but not loaded does not fail — the browser silently
+// falls back to the nearest loaded face (CSS Fonts 4 §5.2 matching), so
+// `font-bold` on a serif element rendered 600 and `font-medium` on a mono
+// element rendered 400. Nothing errors, nothing lints; only a computed-style
+// read catches it. Before adding a weight utility to a font-ln-* element, check
+// that the weight is in the list below. Guarded by
+// __tests__/font-weight-contract.test.ts, which re-derives the requested set
+// from the source and fails on any weight that is asked for but not loaded.
+
 const ibmPlexSerif = IBM_Plex_Serif({
   subsets: ["latin"],
-  weight: ["500", "600"],
+  // 700: `font-bold` on font-ln-serif (LostCaseBlock's lost-pet initial, the
+  // design-tokens page h1) used to render 600.
+  weight: ["500", "600", "700"],
   variable: "--a-serif-font",
   display: "swap",
 });
@@ -44,7 +56,13 @@ const ibmPlexSans = IBM_Plex_Sans({
 
 const ibmPlexMono = IBM_Plex_Mono({
   subsets: ["latin"],
-  weight: ["400", "600"],
+  // 500: `.lp-ch-num`, `.lp-lib-y`, `.ln-band-title` and SuccessScreen's mono
+  // labels used to render 400 (CSS matching for 500 tries 400 before 600).
+  // 700: the whole operator micro-type tier (OpStatusPill / OpPill /
+  // OpScopeChip / OpCodeBadge / OpCrumbs, CaseQueue headers, `.ln-ledlbl`,
+  // `.lp-hcard-badge`) used to render 600 — including comments that read
+  // "9px bold" over text that was not bold.
+  weight: ["400", "500", "600", "700"],
   variable: "--a-mono-font",
   display: "swap",
 });
