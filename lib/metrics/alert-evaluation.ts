@@ -126,7 +126,28 @@ export async function evaluateAlertSubscriptions(
       : [];
 
     // Build a ProjectionContext scoped to this subscription's jurisdiction.
-    const ctx = buildProjectionContext(baseActor, jurisdictions, period);
+    //
+    // SCOPING BUG FIX (numbers-that-lie audit 2026-08-01): buildProjectionScope
+    // DISCARDS the jurisdictions array for admin actors (admin ⇒ global scope),
+    // and subscriptions are evaluated under an admin actor (the /admin/programa
+    // page and the firings cron both pass { role: "admin" }). So every
+    // jurisdiction-scoped subscription silently evaluated the NATIONAL value
+    // under its provincial label. The admin drill-down channel is the correct
+    // one for narrowing a global-scope ctx: every fetcher already honors
+    // adminProvince/adminLocality (petsScopeClause etc.), and govt actors
+    // ignore these fields once scope.kind === "jurisdictions" (SECURITY notes
+    // in lib/metrics/scope.ts), so a govt baseActor keeps its own scoping.
+    const ctx = buildProjectionContext(
+      baseActor,
+      jurisdictions,
+      period,
+      sub.jurisdictionProvince
+        ? {
+            adminProvince: sub.jurisdictionProvince,
+            adminLocality: sub.jurisdictionLocality ?? undefined,
+          }
+        : undefined,
+    );
 
     let promise: Promise<number | null>;
 
