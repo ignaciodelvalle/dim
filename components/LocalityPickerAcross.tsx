@@ -100,6 +100,21 @@ export function LocalityPickerAcross({
   searchAction = searchLocalitiesAction,
 }: Props) {
   const [query, setQuery] = useState(defaultValue?.localityName ?? "");
+  // The query the current `results` array actually answers.
+  //
+  // Without this, "Sin resultados." was a LIE for most of its life: it rendered
+  // whenever results were empty and no transition was in flight, which includes
+  // the entire 200 ms debounce window before the first request is even sent. A
+  // funcionario typing their own municipality watched "Sin resultados." sit
+  // under the field the whole time they typed, and concluded the municipality
+  // was missing from the registry (QA report 2026-08-01). Nothing was broken —
+  // the component was reporting "nothing found" when it meant "not asked yet".
+  //
+  // null = no answered search for the current input.
+  const [settledQuery, setSettledQuery] = useState<string | null>(null);
+  // Latest input, readable synchronously from inside an in-flight request so a
+  // slow response for "Pal" cannot overwrite a fast one for "Palermo".
+  const latestQueryRef = useRef(query);
   // Hold the picked result so we can surface its provinceCode + indecId in
   // hidden inputs. When the user types without picking, this is null and
   // the hidden inputs fall back to the raw query (locality) + defaultValue
@@ -107,13 +122,20 @@ export function LocalityPickerAcross({
   const [selected, setSelected] = useState<LocalitySearchResult | null>(null);
   const [results, setResults] = useState<LocalitySearchResult[]>([]);
   const [open, setOpen] = useState(false);
-  const [pending, startTransition] = useTransition();
+  // An edit-mode pre-fill is a real catalog row until the user types over it.
+  const [touched, setTouched] = useState(false);
+  // `pending` is deliberately unused: it only covers the in-flight request, not
+  // the debounce window before it, and reporting on that half was the bug.
+  // `searching` below is the honest signal.
+  const [, startTransition] = useTransition();
   const [errored, setErrored] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    latestQueryRef.current = query;
     if (query.length < MIN_QUERY_LENGTH) {
       setResults([]);
+      setSettledQuery(null);
       setOpen(false);
       return;
     }
@@ -127,8 +149,13 @@ export function LocalityPickerAcross({
           query,
           provinceCode: scopeProvinceCode ?? undefined,
         });
+        // A newer keystroke already superseded this request. Applying it would
+        // mark a stale query as "settled" and strand the field in a state where
+        // it reports on text the user is no longer typing.
+        if (latestQueryRef.current !== query) return;
         if ("results" in res) {
           setResults(res.results);
+          setSettledQuery(query);
           setOpen(res.results.length > 0);
           setErrored(false);
         } else {
@@ -148,8 +175,15 @@ export function LocalityPickerAcross({
     onSelect?.(r);
   }
 
-  const showNoResults =
-    !pending && query.length >= MIN_QUERY_LENGTH && results.length === 0 && !errored;
+  const status = resolveLocalityFieldStatus({
+    query,
+    settledQuery,
+    resultCount: results.length,
+    errored,
+    hasPick: selected !== null,
+    hasUntouchedDefault:
+      !touched && Boolean(defaultValue?.localityName) && Boolean(defaultValue?.provinceCode),
+  });
 
   // Hidden-input values. When the user picked a result, all four are
   // canonical; when they typed free text, we fall through to the raw query
@@ -175,6 +209,7 @@ export function LocalityPickerAcross({
         onChange={(e) => {
           setQuery(e.target.value);
           setSelected(null);
+          setTouched(true);
           onQueryChange?.(e.target.value);
         }}
         onFocus={() => {
@@ -218,20 +253,19 @@ export function LocalityPickerAcross({
       <input type="hidden" name="provinceName" value={provinceNameValue} />
       <input type="hidden" name={name} value={localityNameValue} />
       <input type="hidden" name={`${name}IndecId`} value={indecIdValue} />
-      {pending && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ln-mute">…</span>
+      {status === "searching" && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ln-mute">
+          Buscando…
+        </span>
       )}
-      {showNoResults && (
-        <p className="text-xs text-ln-mute  mt-1">
-          Sin resultados.{" "}
-          <a
-            href={`mailto:${CATALOG_CONTACT_EMAIL}?subject=miMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
-            className="underline"
-          >
-            Sugerí esta localidad
-          </a>
-        </p>
-      )}
+
+      <LocalityFieldStatusLine
+        status={status}
+        query={query}
+        localityName={localityNameValue}
+        provinceName={provinceNameValue}
+      />
+
       {errored && (
         <p className="text-xs text-ln-warn  mt-1">
           No pudimos buscar localidades ahora. Probá de nuevo en un momento.
@@ -239,4 +273,110 @@ export function LocalityPickerAcross({
       )}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Status line
+// ---------------------------------------------------------------------------
+
+/**
+ * What the field should be saying about itself right now.
+ *
+ * Extracted as a pure function because the states are the whole bug: the old
+ * component could only say "Sin resultados.", so every other state — searching,
+ * confirmed, typed-but-not-picked — was communicated by silence.
+ */
+export type LocalityFieldStatus = "idle" | "searching" | "no-results" | "committed" | "needs-pick";
+
+export function resolveLocalityFieldStatus(input: {
+  query: string;
+  /** The query the current results answer; null when nothing has been answered. */
+  settledQuery: string | null;
+  resultCount: number;
+  errored: boolean;
+  /** The user picked a catalog row. */
+  hasPick: boolean;
+  /** Edit-mode pre-fill the user has not typed over — already a catalog row. */
+  hasUntouchedDefault: boolean;
+}): LocalityFieldStatus {
+  // The error message renders on its own; do not stack a second line under it.
+  if (input.errored) return "idle";
+
+  // Before "searching", deliberately: picking a row re-runs the search for the
+  // exact name that was picked, and flickering "Buscando…" over a confirmation
+  // the user just earned reads as the pick not having registered.
+  if (input.hasPick || input.hasUntouchedDefault) return "committed";
+
+  // Long enough to search but no answer for THIS text yet. Covers the debounce
+  // window, not just the request — reporting "Sin resultados." during the
+  // debounce was the actual defect (QA report 2026-08-01).
+  if (input.query.length >= MIN_QUERY_LENGTH && input.settledQuery !== input.query) {
+    return "searching";
+  }
+
+  // Only once a real search for this exact text came back empty.
+  if (input.settledQuery === input.query && input.resultCount === 0) return "no-results";
+
+  if (input.query.trim() !== "" && input.resultCount > 0) return "needs-pick";
+
+  return "idle";
+}
+
+function LocalityFieldStatusLine({
+  status,
+  query,
+  localityName,
+  provinceName,
+}: {
+  status: LocalityFieldStatus;
+  query: string;
+  localityName: string;
+  provinceName: string;
+}) {
+  if (status === "searching") {
+    return (
+      <p className="text-xs text-ln-mute mt-1" aria-live="polite">
+        Buscando localidades…
+      </p>
+    );
+  }
+
+  if (status === "no-results") {
+    // Names the text that failed and points at the likely cause. A bare "Sin
+    // resultados." reads to a funcionario as "my municipality is not in the
+    // national registry" rather than "check the spelling" — and the catalog
+    // holds every INDEC locality, so that reading is always wrong.
+    return (
+      <p className="text-xs text-ln-mute mt-1" aria-live="polite">
+        No encontramos “{query}”. Probá con menos letras o revisá la ortografía.{" "}
+        <a
+          href={`mailto:${CATALOG_CONTACT_EMAIL}?subject=miMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
+          className="underline"
+        >
+          Sugerí esta localidad
+        </a>
+      </p>
+    );
+  }
+
+  if (status === "committed") {
+    // The restriction stays — only a real ar_localities row is accepted. What
+    // was missing is the acknowledgement: until now the only feedback that a
+    // pick had registered arrived at submit time, as a rejection.
+    return (
+      <p className="text-xs text-ln-ok mt-1">
+        Localidad confirmada{provinceName ? `: ${localityName}, ${provinceName}` : ""}
+      </p>
+    );
+  }
+
+  if (status === "needs-pick") {
+    return (
+      <p className="text-xs text-ln-warn mt-1" aria-live="polite">
+        Elegí una de las opciones para confirmar tu localidad.
+      </p>
+    );
+  }
+
+  return null;
 }
