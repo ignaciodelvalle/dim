@@ -162,16 +162,28 @@ export default async function GobiernoDashboardPage({
   // below already computed — never re-derived.
   const scopeLabel = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
 
-  // Mandate-scoped legal citations (red-team CRITICAL): a province's law is
+  // Scope-resolved legal citations (red-team CRITICAL): a province's law is
   // only cited to an operator whose MANDATE (raw assignments, not the page's
-  // narrowed filter) includes that province. Admin has universal scope and
-  // keeps the full citation list.
-  const mandateProvinces =
+  // narrowed filter) includes that province.
+  //
+  // Admin is universal, so it has no mandate to resolve against — but it DOES
+  // have a view. An admin drilled into a province is looking at that
+  // province's numbers, and the citation follows the numbers: this is the same
+  // "the tile must scale with the jurisdiction" rule the queue counts obey.
+  // It can never widen (admin's mandate contains every province). Undrilled,
+  // the view is the whole country and the resolver qualifies a
+  // provincial-only citation instead of passing it off as national — see
+  // NATIONAL_VIEW_PROVINCIAL_ONLY_ES (demo review 2026-08-01: /gob told
+  // national officials the obligation behind a country-wide microchip figure
+  // was "Ley Prov. 14.107 (PBA)").
+  const legalBasisProvinces =
     profile.role === "admin"
-      ? ("all" as const)
+      ? adminProvince
+        ? [adminProvince]
+        : ("all" as const)
       : [...new Set(jurisdictions.map((j) => j.province))];
-  const microchipLegalBasis = formatMetricLegalBasis("microchip_penetration", mandateProvinces);
-  const pppLegalBasis = formatMetricLegalBasis("ppp_registry_compliance", mandateProvinces);
+  const microchipLegalBasis = formatMetricLegalBasis("microchip_penetration", legalBasisProvinces);
+  const pppLegalBasis = formatMetricLegalBasis("ppp_registry_compliance", legalBasisProvinces);
   const narrowedView = describeNarrowedView({
     role: profile.role,
     mandateJurisdictions: jurisdictions,
@@ -425,7 +437,7 @@ export default async function GobiernoDashboardPage({
   const { alerts, coverage: alertCoverage } = buildBriefingBoard(
     alertCandidates,
     urgencySignals,
-    mandateProvinces,
+    legalBasisProvinces,
   );
   // Only read when `alerts` is empty — the honest reading of WHY (see A1 in
   // briefing-alerts.ts). Computed here rather than inline in the JSX so the

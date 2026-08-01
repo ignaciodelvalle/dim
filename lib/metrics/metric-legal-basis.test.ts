@@ -8,7 +8,9 @@ import { describe, expect, it } from "vitest";
 import { CANONICAL_PROVINCE_NAMES } from "@/lib/domain/jurisdiction-canonical";
 import {
   METRIC_LEGAL_BASIS,
+  NATIONAL_VIEW_PROVINCIAL_ONLY_ES,
   PROVINCIAL_GAP_FALLBACK_ES,
+  formatLegalBasis,
   formatMetricLegalBasis,
   resolveMetricLegalBasis,
 } from "./metric-legal-basis";
@@ -104,10 +106,54 @@ describe("formatMetricLegalBasis", () => {
     expect(out).not.toContain("5470");
   });
 
-  it('admin ("all") sees the full citation list', () => {
-    expect(formatMetricLegalBasis("microchip_penetration", "all")).toBe("PBA: Ley Prov. 14.107");
+  // Demo review 2026-08-01: this test used to assert the bare
+  // "PBA: Ley Prov. 14.107" for a NATIONAL view — i.e. it pinned the exact
+  // defect a funcionario nacional would read as "a PBA statute is the
+  // obligation behind this country-wide number". The citation list is still
+  // full and still names the province; what changed is that the national
+  // reader is now told the norm's reach BEFORE the province prefixes.
+  it('national view ("all") gets the full citation list, qualified as provincial-only', () => {
+    expect(formatMetricLegalBasis("microchip_penetration", "all")).toBe(
+      `${NATIONAL_VIEW_PROVINCIAL_ONLY_ES} · PBA: Ley Prov. 14.107`,
+    );
     expect(formatMetricLegalBasis("ppp_registry_compliance", "all")).toBe(
-      "CABA: Ley 4078 · PBA: Ley Prov. 14.107",
+      `${NATIONAL_VIEW_PROVINCIAL_ONLY_ES} · CABA: Ley 4078 · PBA: Ley Prov. 14.107`,
+    );
+  });
+
+  it("never drops or swaps the law it cites — the obligation is real, only its reach is narrower", () => {
+    const out = formatMetricLegalBasis("microchip_penetration", "all");
+    expect(out).toContain("Ley Prov. 14.107");
+    expect(out).toContain("PBA");
+  });
+
+  it("does NOT qualify a province's own view — there the provincial law simply applies", () => {
+    expect(formatMetricLegalBasis("microchip_penetration", PBA_ONLY)).not.toContain(
+      NATIONAL_VIEW_PROVINCIAL_ONLY_ES,
+    );
+  });
+
+  // MUTATION SURVIVOR (2026-08-01): deleting the `national` half of the
+  // national-view guard changed nothing across the whole suite, because not
+  // one entry in METRIC_LEGAL_BASIS declares a national anchor today — the
+  // branch was future-proofing nobody could break. These two go through the
+  // pure formatter so both sides are exercised against a basis VALUE, without
+  // mutating the shared registry. The day a KPI cites a national law, the
+  // "no nacional" label must not appear over it.
+  it("a metric WITH a national anchor is never labelled provincial-only at national scope", () => {
+    const withNationalAnchor = {
+      national: ["Ley 22.953"],
+      byProvince: { CABA: ["Ley 5470"] },
+    };
+    const out = formatLegalBasis(withNationalAnchor, "all");
+    expect(out).toBe("Ley 22.953 (nacional) · CABA: Ley 5470");
+    expect(out).not.toContain(NATIONAL_VIEW_PROVINCIAL_ONLY_ES);
+  });
+
+  it("the SAME basis without its national anchor IS labelled provincial-only", () => {
+    const provincialOnly = { byProvince: { CABA: ["Ley 5470"] } };
+    expect(formatLegalBasis(provincialOnly, "all")).toBe(
+      `${NATIONAL_VIEW_PROVINCIAL_ONLY_ES} · CABA: Ley 5470`,
     );
   });
 

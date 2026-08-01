@@ -70,6 +70,28 @@ const PROVINCE_DISPLAY_PREFIX: Record<string, string> = {
  * the mandate's provinces has a registered citation. */
 export const PROVINCIAL_GAP_FALLBACK_ES = "Según la normativa provincial de tu jurisdicción";
 
+/**
+ * es-AR qualifier prepended when the VIEW is national ("all") and every
+ * citation the metric has is provincial (no `national` anchor).
+ *
+ * WHY (demo review 2026-08-01): at national scope /gob rendered "Penetración
+ * de microchip 36,6% — Obligación: Ley Prov. 14.107 (PBA)" and "Disposición
+ * trazable — Obligación: Ley CABA 5470". In front of national officials that
+ * is not a copy nit, it is a legal error: a provincial statute presented as
+ * the obligation of the whole country.
+ *
+ * The fix is NOT to swap the law. Ley 14.107 really is PBA's microchip
+ * mandate and Ley 5470 really is CABA's disposal law; no national equivalent
+ * is cited anywhere in kpi-catalog.ts, and this module's contract forbids
+ * inventing legal research to fill the gap. Suppressing the citation would be
+ * worse still — the obligation genuinely exists, it just does not bind
+ * uniformly. What was missing is the SCOPE of the norm: say that the
+ * obligation is provincial, that it does not cover the national figure on
+ * screen, and keep naming which province it comes from so the reader can
+ * check it.
+ */
+export const NATIONAL_VIEW_PROVINCIAL_ONLY_ES = "normativa provincial (no nacional)";
+
 function matchedProvinceEntries(
   basis: MetricLegalBasis,
   mandateProvinces: MandateProvinces,
@@ -106,6 +128,11 @@ export function resolveMetricLegalBasis(
  * province-regulated but no mandate province matched (and no national anchor
  * exists), returns the neutral fallback — NEVER a foreign province's law.
  * Returns null when the metric has no legal basis registered.
+ *
+ * A NATIONAL view (`"all"`) whose only citations are provincial gets them
+ * prefixed with NATIONAL_VIEW_PROVINCIAL_ONLY_ES — see that constant for why
+ * the answer is to disclose the norm's scope rather than to change, or drop,
+ * the law being cited.
  */
 export function formatMetricLegalBasis(
   kpiId: KpiId,
@@ -113,12 +140,39 @@ export function formatMetricLegalBasis(
 ): string | null {
   const basis = METRIC_LEGAL_BASIS[kpiId];
   if (!basis) return null;
+  return formatLegalBasis(basis, mandateProvinces);
+}
 
+/**
+ * The pure formatter behind formatMetricLegalBasis, over a basis VALUE rather
+ * than a catalog id.
+ *
+ * Split out because the national-anchor branch below is currently unreachable
+ * through the registry: not one entry in METRIC_LEGAL_BASIS declares
+ * `national` today (see the note above the registry), so a mutation deleting
+ * the `nationalLaws.length === 0` condition survived the whole suite — the
+ * guard was future-proofing with zero coverage, and the future KPI that
+ * finally cites a national law would have been mislabelled "no nacional"
+ * without a single test going red. Exported so both branches are testable
+ * without mutating the shared registry object.
+ */
+export function formatLegalBasis(
+  basis: MetricLegalBasis,
+  mandateProvinces: MandateProvinces,
+): string | null {
+  const nationalLaws = basis.national ?? [];
   const matched = matchedProvinceEntries(basis, mandateProvinces);
-  const parts: string[] = (basis.national ?? []).map((law) => `${law} (nacional)`);
+  const parts: string[] = nationalLaws.map((law) => `${law} (nacional)`);
   for (const [province, laws] of matched) {
     const prefix = PROVINCE_DISPLAY_PREFIX[province] ?? province;
     parts.push(`${prefix}: ${laws.join(" / ")}`);
+  }
+
+  // The whole country in view, and nothing national to anchor the obligation
+  // to. The citations still stand — they just do not reach this scope, and
+  // the reader has to be told so before the province prefixes, not after.
+  if (mandateProvinces === "all" && nationalLaws.length === 0 && matched.length > 0) {
+    return [NATIONAL_VIEW_PROVINCIAL_ONLY_ES, ...parts].join(" · ");
   }
 
   if (parts.length > 0) return parts.join(" · ");

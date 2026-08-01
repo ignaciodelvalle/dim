@@ -402,15 +402,20 @@ function buildUrgencyAlert(
 // ---------------------------------------------------------------------------
 
 /**
- * Mandate-scoped legal citation for an alert's title/evidence (red-team-admin
- * follow-up). Only a jurisdictional operator (mandate !== "all") is re-scoped;
- * admin/national keeps the catalog's canonical source. formatMetricLegalBasis
- * returns null for a KPI with no registered provincial basis (e.g. rabies
- * coverage), so those keep their static source untouched. Module-level so the
- * branch stays off buildBriefingAlerts' cognitive-complexity budget.
+ * Scope-resolved legal citation for an alert's title/evidence (red-team-admin
+ * follow-up). formatMetricLegalBasis returns null for a KPI with no registered
+ * provincial basis (e.g. rabies coverage, whose Ley 22.953 IS national), so
+ * those keep their static catalog source untouched. Module-level so the branch
+ * stays off buildBriefingAlerts' cognitive-complexity budget.
+ *
+ * The national caller ("all") used to short-circuit to `undefined` here and
+ * keep `descriptor.target.source` verbatim, which is how /gob told national
+ * officials that the obligation behind a country-wide microchip figure was
+ * "Ley Prov. 14.107 (PBA)" (demo review 2026-08-01). It now goes through the
+ * same resolver as everyone else, which qualifies a provincial-only citation
+ * with NATIONAL_VIEW_PROVINCIAL_ONLY_ES instead of presenting it as binding.
  */
 function resolveScopedSource(kpiId: KpiId, mandateProvinces: MandateProvinces): string | undefined {
-  if (mandateProvinces === "all") return undefined;
   return formatMetricLegalBasis(kpiId, mandateProvinces) ?? undefined;
 }
 

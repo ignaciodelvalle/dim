@@ -92,13 +92,17 @@ describe("buildBriefingAlerts — a real gap produces an alert", () => {
     // non-statutory target renders as "Obligación: <ley> · Meta programática:
     // X%" — NOT "meta X% (<ley>)", which reads as if the law set the number.
     expect(alert.title).toContain("Meta programática: 75%");
-    expect(alert.title).toContain("Obligación: Ley CABA 5470");
+    // Default scope here is national ("all") and Ley 5470 is CABA's, so the
+    // citation carries its reach (demo review 2026-08-01) — the statute itself
+    // is unchanged and still named.
+    expect(alert.title).toContain("Obligación: normativa provincial (no nacional)");
+    expect(alert.title).toContain("CABA: Ley 5470");
     expect(alert.evidence).toEqual({
       value: 33,
       target: 75,
       unit: "percent",
       n: 12,
-      source: "Ley CABA 5470",
+      source: "normativa provincial (no nacional) · CABA: Ley 5470",
     });
     expect(alert.actionHref).toBe("/gob/mortalidad");
     expect(alert.actionLabel).toBe("Ver en Mortalidad y disposición");
@@ -266,10 +270,21 @@ describe("buildBriefingAlerts — mandate-scoped legal citation (red-team CRITIC
     { kpiId: "microchip_penetration", value: 30, n: 500 },
   ];
 
-  it("default (admin/'all') keeps the catalog's canonical source wording", () => {
+  // Demo review 2026-08-01. This test pinned the defect: at national scope the
+  // alert kept `descriptor.target.source` verbatim, so the briefing read
+  // "Penetración de microchip 36,6% — Obligación: Ley Prov. 14.107 (PBA)" to a
+  // national official. The law is right and stays cited; what it lacked was
+  // its reach. See NATIONAL_VIEW_PROVINCIAL_ONLY_ES for why the answer is
+  // disclosure rather than swapping — or hiding — the statute.
+  it("default (national/'all') qualifies a provincial-only citation instead of presenting it as binding", () => {
     const [alert] = buildBriefingAlerts(candidates);
-    expect(alert.evidence.source).toBe("Ley Prov. 14.107 (PBA)");
-    expect(alert.title).toContain("Ley Prov. 14.107 (PBA)");
+    expect(alert.evidence.source).toBe(
+      "normativa provincial (no nacional) · PBA: Ley Prov. 14.107",
+    );
+    expect(alert.title).toContain("Obligación: normativa provincial (no nacional)");
+    // Still names the actual statute and the province it comes from — a
+    // funcionario has to be able to go look it up.
+    expect(alert.title).toContain("PBA: Ley Prov. 14.107");
   });
 
   it("cites the province's law to an operator whose mandate INCLUDES it", () => {
