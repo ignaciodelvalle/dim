@@ -164,7 +164,7 @@ const PERIOD_CHIP_LABELS: Record<string, string> = {
   "7d": "7 días",
   [PRESET_30D.value]: PRESET_30D.label,
   [PRESET_90D.value]: PRESET_90D.label,
-  trailing12m: "12 meses",
+  trailing12m: "Últimos 12 meses",
   [PRESET_YTD.value]: PRESET_YTD.label,
   [PRESET_3Y.value]: PRESET_3Y.label,
   [PRESET_5Y.value]: PRESET_5Y.label,
@@ -286,7 +286,7 @@ function buildActiveChips(params: {
 
 /**
  * <md summary line for the collapsed bar: the active values joined
- * ("12 meses · CABA · Perro"), falling back to the default period (nothing
+ * ("Últimos 12 meses · CABA · Perro"), falling back to the default period (nothing
  * narrowed, but the window is still worth a glance) or a plain "no filters"
  * note. Module-level so OpFilterBar's own cognitive complexity stays under
  * the lint budget.
