@@ -341,3 +341,148 @@ describe("link-integrity: every static internal link resolves to a real route", 
     ).toEqual([]);
   });
 });
+
+// ─── 5. Bounce guard: no UI link may target a redirect-only route ────────────
+//
+// WHY THIS EXISTS (added 2026-08-01 with the F9 fusion, by a mutation test that
+// SURVIVED). The assertion above only asks "does this route exist?". After six
+// hub fusions, plenty of routes exist purely to bounce: /gob/analytics,
+// /gob/poblacion, /gob/censo, /gob/campanas, /gob/disputas, /admin/moderacion
+// and a dozen more are one-line `redirect(...)` shims kept alive for old
+// bookmarks. They RESOLVE, so the dead-link fence is happy — and a UI link
+// aimed at one sails straight through it.
+//
+// That gap was measured, not assumed. Reverting one of F9's four re-pointed KPI
+// tiles on /gob back to `href="/gob/analytics"` — the exact defect F9 was
+// commissioned to remove — left 2200 tests across 194 files green. Nothing in
+// the suite could tell the difference between a link to a screen and a link to
+// a bounce.
+//
+// A redirect is the right answer for a URL someone SAVED. It is the wrong
+// answer for a link we are rendering right now: we know the destination at
+// build time, so shipping the extra hop is a choice, and the hop is where the
+// F8-era "wait, why am I back where I started?" confusion comes from.
+//
+// SCOPE: static `href="/…"` literals in shipped app/ + components/ files. Test
+// files are excluded for the same reason the scan above excludes them — an
+// instrument that reads prose ABOUT a link measures the documentation, not the
+// code. Template-literal hrefs are invisible here (as everywhere in this file),
+// and only STATIC redirect-only routes are matched; a dynamic one
+// (/gob/decomisos/[publicCode]) is only ever reachable through a template
+// literal, so it could not be checked anyway.
+
+/**
+ * A page.tsx is "redirect-only" when it imports `redirect` from next/navigation,
+ * calls it, and never returns JSX. Comments are stripped first so a page that
+ * merely DISCUSSES a redirect is not miscounted.
+ *
+ * The JSX test is `return` followed by `(` or `<` — deliberately not a bare
+ * `<[A-Za-z]` scan, which the first draft of this guard used and which matched
+ * the generic parameters in `Promise<Record<string, string | undefined>>`,
+ * silently classifying every modern redirect page as "renders JSX" and finding
+ * zero routes.
+ */
+function isRedirectOnlyPage(absolutePath: string): boolean {
+  const body = fs
+    .readFileSync(absolutePath, "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[ \t]*\/\/.*$/gm, "");
+  if (!/from "next\/navigation"/.test(body)) return false;
+  if (!/\bredirect\(/.test(body)) return false;
+  return !/return\s*[(<]/.test(body);
+}
+
+const redirectOnlyRoutes = new Set<string>();
+walkDir(APP_DIR, (filePath) => {
+  if (!/[\\/]page\.tsx$/.test(filePath)) return;
+  if (!isRedirectOnlyPage(filePath)) return;
+  const pattern = filePathToRoutePattern(filePath);
+  // Dynamic patterns are unreachable from a static href — see SCOPE above.
+  if (pattern.includes("*")) return;
+  redirectOnlyRoutes.add(pattern);
+});
+
+/**
+ * Links allowed to point at a redirect-only route.
+ *
+ * Every entry states what it is. Two of these are REAL BOUNCES this guard
+ * found on its first run — they are grandfathered, not blessed, because they
+ * belong to earlier fusions and F9's remit was Analítica. A ratchet that
+ * silently swallows a defect is worse than no ratchet; a ratchet that names it
+ * is a to-do with a test attached.
+ */
+const REDIRECT_LINK_ALLOWLIST: Record<string, string> = {
+  "/inicio":
+    "INTENTIONAL (PO ronda 4, see OWNER_NAV in nav-presets.ts). /inicio deliberately survives as the post-login LANDING that resolves the most-urgent pet and forwards its query string. The '← Inicio' back-link in app/(app)/denuncias/mias/page.tsx is aiming at that landing behaviour on purpose, not at a stale screen.",
+  "/gob/disputas":
+    "KNOWN DEFECT, found by this guard 2026-08-01, NOT fixed here. app/gob/casos/CasosScreen.tsx's own subtitle reads 'Las disputas de custodia se trabajan en Disputas' and links /gob/disputas — which since the F6 fusion redirects to /gob/casos?expediente=disputas, i.e. back into the hub the reader is already looking at. The correct target already exists verbatim elsewhere in the codebase (app/gob/analytics/AnalyticsScreen.tsx uses '/gob/casos?expediente=disputas'). Left alone because rewording Casos copy is F6 territory and F9's scope is Analítica — but the fix is one href plus one sentence.",
+  "/admin/moderacion":
+    "KNOWN DEFECT, found by this guard 2026-08-01, NOT fixed here. The 'Moderación de denuncias' tile in components/admin/QueueHealthCockpit.tsx points at /admin/moderacion, which redirects into the admin Denuncias hub (buildDenunciasHubRedirectUrl(sp, 'moderacion')). Same species as the /gob/disputas entry above, same reason for leaving it: it is the admin-side fusion's leftover, not F9's.",
+};
+
+describe("link-integrity: no shipped link points at a redirect-only route", () => {
+  it("finds the redirect-only routes at all (guard the guard)", () => {
+    // Without this, a broken detector makes every assertion below vacuously
+    // green — exactly how the first draft of this guard reported "0 violations"
+    // while missing all 30 redirect routes.
+    expect(redirectOnlyRoutes.size).toBeGreaterThanOrEqual(20);
+    expect(redirectOnlyRoutes).toContain("/gob/analytics");
+    expect(redirectOnlyRoutes).toContain("/gob/analitica");
+  });
+
+  it("every allowlist entry still names a redirect-only route (no stale grandfathering)", () => {
+    // When a grandfathered route stops being a redirect (someone gives it a
+    // real page again, or deletes it), its excuse must go too.
+    for (const route of Object.keys(REDIRECT_LINK_ALLOWLIST)) {
+      expect(
+        redirectOnlyRoutes,
+        `${route} is allowlisted but is no longer redirect-only`,
+      ).toContain(route);
+    }
+  });
+
+  it("no static href in app/ or components/ targets a redirect-only route", () => {
+    const bounces: string[] = [];
+
+    for (const scanDir of SCAN_DIRS) {
+      walkDir(scanDir, (filePath) => {
+        if (!/\.(tsx|ts|jsx|js)$/.test(filePath)) return;
+        if (/\.(test|spec)\.(tsx|ts|jsx|js)$/.test(filePath)) return;
+        const src = fs
+          .readFileSync(filePath, "utf8")
+          .replace(/\/\*[\s\S]*?\*\//g, "")
+          .replace(/^[ \t]*\/\/.*$/gm, "");
+        for (const m of src.matchAll(/\bhref="(\/[^"]+)"/g)) {
+          const raw = m[1] as string;
+          const routePath = (raw.split("?")[0] as string).split("#")[0] as string;
+          if (!redirectOnlyRoutes.has(routePath)) continue;
+          if (REDIRECT_LINK_ALLOWLIST[routePath]) continue;
+          const line = src.slice(0, m.index).split("\n").length;
+          const rel = path.relative(REPO_ROOT, filePath).replace(/\\/g, "/");
+          bounces.push(`${rel}:${line} → ${raw}`);
+        }
+      });
+    }
+
+    expect(
+      bounces,
+      `Links to redirect-only routes (${bounces.length}):\n${bounces
+        .map((b) => `  • ${b}`)
+        .join(
+          "\n",
+        )}\n\nEach one costs the visitor a hop we could have skipped. Fix by:\n  - Pointing the href at the real destination the redirect resolves to, OR\n  - Adding the route to REDIRECT_LINK_ALLOWLIST with a reason that says WHY the hop is wanted.`,
+    ).toEqual([]);
+  });
+
+  it("no nav entry points at a redirect-only route", () => {
+    // The worst instance of this shape, and the one F9 removed: a nav item
+    // whose only job is to bounce. Nav hrefs come from the structured presets,
+    // not the text scan, so they need their own pass.
+    const navBounces = navPresetsHrefs.filter(
+      (href) =>
+        redirectOnlyRoutes.has((href.split("?")[0] as string).split("#")[0] as string) &&
+        !REDIRECT_LINK_ALLOWLIST[(href.split("?")[0] as string).split("#")[0] as string],
+    );
+    expect(navBounces).toEqual([]);
+  });
+});
