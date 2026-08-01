@@ -21,9 +21,11 @@ import { AppShell } from "@/components/layout/AppShell";
 import { CitizenTabBar } from "@/components/layout/CitizenTabBar";
 import { ServiceWorkerRegistrar } from "@/components/pwa/ServiceWorkerRegistrar";
 import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
+import { IdentityPendingBanner } from "@/components/ui/IdentityPendingBanner";
 import { LnMaintenanceScreen } from "@/components/ui/MaintenanceScreen";
 import { LnOfflineBanner } from "@/components/ui/OfflineBanner";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
+import { isIdentityPending } from "@/lib/domain/identity-completeness";
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -72,6 +74,16 @@ export default async function AuthenticatedLayout({
   // role home so showReturn resolves to false rather than crashing.
   const pathname = (await headers()).get("x-pathname") ?? "/inicio";
 
+  // Recovery path for an abandoned signup step 2 (staging finding 2026-08-01).
+  // Re-derived from the profile row on EVERY request — the abandoned state used
+  // to live in a React useState on /signup and died with the tab. Sending the
+  // user back to `pathname` means completing the profile never costs them the
+  // page they were on.
+  const identityPending = isIdentityPending({
+    displayName: profile?.displayName,
+    email: user.email,
+  });
+
   const shell = resolveShellNav({
     pathname,
     session: {
@@ -93,6 +105,7 @@ export default async function AuthenticatedLayout({
       banner={
         <>
           <DemoModeBanner enabled={shouldShowDemoBanner(process.env.NEXT_PUBLIC_DEMO_MODE)} />
+          <IdentityPendingBanner pending={identityPending} returnTo={pathname} />
           <LnOfflineBanner />
         </>
       }
