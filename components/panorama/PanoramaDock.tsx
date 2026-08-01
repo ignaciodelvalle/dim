@@ -56,6 +56,11 @@ type Props = {
   /** The map's scale legends (MapLegends) — the "how to read the map" pane. */
   referencias: ReactNode;
   timeline: ReactNode;
+  /**
+   * The timeline is PLAYING. Collapses the dock to the moving line so the map
+   * it is animating stays visible. Ignored on every other tab.
+   */
+  timelinePlaying?: boolean;
 };
 
 export function PanoramaDock({
@@ -70,6 +75,7 @@ export function PanoramaDock({
   stats,
   referencias,
   timeline,
+  timelinePlaying = false,
 }: Props) {
   const panes: Record<PanoramaDockTab, ReactNode> = { registros, stats, referencias, timeline };
 
@@ -127,7 +133,32 @@ export function PanoramaDock({
       // of that cluster and was getting painted over). On tall maps 42% still
       // wins. Height lives here (not a class) because the token ratchet bans new
       // arbitrary values.
-      style={open ? { height: "min(42%, calc(100% - 26rem))" } : undefined}
+      //
+      // EXCEPT the timeline (PO 2026-08-01). Every other pane is read INSTEAD of
+      // the map — you look down at a table, a ranking, a legend. The timeline is
+      // the only one you drive WHILE watching the map: you drag the scrubber to
+      // see the country change. Giving it the same 42% covers the very thing it
+      // exists to animate, and the taller the viewport the more it hides.
+      //
+      // So it sizes to its content (scrubber + ticks + basis selector ≈ 22% of a
+      // typical map) under the SAME ceiling, instead of claiming a fixed share.
+      // A ceiling and not a fixed height because the histogram and the notices
+      // above it are conditional — pinning a number would either clip them or
+      // leave a gap on the frames that have neither.
+      style={
+        open
+          ? tab === "timeline"
+            ? {
+                height: "auto",
+                // Playing: hand the map back as much as the line can spare. The
+                // config controls are already folded away by then (TimeScrubber
+                // gates them on !playing), so this ceiling is not clipping
+                // anything — it is refusing to hold space for what is gone.
+                maxHeight: timelinePlaying ? "14rem" : "min(42%, calc(100% - 26rem))",
+              }
+            : { height: "min(42%, calc(100% - 26rem))" }
+          : undefined
+      }
     >
       {/* flex-nowrap + a scrollable tablist (mobile-polish 2026-07): the old
           flex-wrap + overflow-hidden combo silently clipped tabs into

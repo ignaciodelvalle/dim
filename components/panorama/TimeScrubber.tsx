@@ -113,6 +113,14 @@ type Props = {
   /** Emits the chosen basis when the operator flips the toggle. */
   onBasisChange: (basis: TimeBasis) => void;
   /**
+   * Fired when playback starts or stops. The dock listens so it can shrink to
+   * the moving line while the map animates — the two-step shape the PO asked
+   * for on 2026-08-01: configure tall, play minimal.
+   *
+   * Optional: a caller that does not care about the mode gets today's layout.
+   */
+  onPlayingChange?: (playing: boolean) => void;
+  /**
    * panorama-vista-redesign: whether the ACTIVE layer set has at least one
    * temporal layer (parent-derived via `isTemporalLayer()` — single source,
    * no scrubber-local set). false → the track is replaced by an empty state.
@@ -190,6 +198,7 @@ export function TimeScrubber({
   onChange,
   basis,
   onBasisChange,
+  onPlayingChange,
   temporalAvailable = true,
   currentStateBaseLabel,
   scrubDetail = false,
@@ -220,6 +229,14 @@ export function TimeScrubber({
   // Slider index 0..steps. `steps` (the max) is "ahora"/live.
   const [index, setIndex] = useState<number>(win.steps);
   const [playing, setPlaying] = useState(false);
+  // Report the mode UP rather than lifting `playing` itself: the play loop, its
+  // interval and every early-exit that pauses it all live in this component,
+  // and moving that state out would scatter the loop's invariants across two
+  // files for one layout decision.
+  const notifyPlaying = onPlayingChange;
+  useEffect(() => {
+    notifyPlaying?.(playing);
+  }, [playing, notifyPlaying]);
   // panorama-vista-redesign: the active loop window (null = not looping).
   const [looping, setLooping] = useState<LoopWindow | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -672,8 +689,12 @@ export function TimeScrubber({
             <span className="tabular-nums">Último evento</span>
           </div>
 
-          {/* Detalle: date-tick references along the track. */}
-          {scrubDetail && ticks.length > 0 && (
+          {/* Detalle: date-tick references along the track.
+              CONFIGURATION, so hidden while playing (PO 2026-08-01 — see the
+              two-step note in the module header). The ticks answer "which dates
+              can I land on"; once the thumb is moving, the watermark above
+              already says which date you ARE on. */}
+          {scrubDetail && !playing && ticks.length > 0 && (
             <div
               className="flex items-center justify-between text-xs text-ln-op-faint"
               aria-hidden="true"
@@ -693,7 +714,16 @@ export function TimeScrubber({
               whole MONTHS (buildScrubWindow) — the day math only approximates
               a month-stepped index, making the shaded window/thumb position
               dishonest. Disable the chips with a hint instead of shipping an
-              approximate reconstruction. */}
+              approximate reconstruction.
+
+              THESE STAY VISIBLE WHILE PLAYING, unlike the ticks and the basis
+              selector. They read as configuration, and the first cut of the
+              two-step layout folded them away — which the loop tests caught
+              immediately, for a better reason than "a test broke": clicking a
+              chip STARTS playback, and while the loop runs these chips are the
+              only thing saying WHICH window is cycling (aria-pressed) and the
+              only way to switch it. Folding them removes the control at the
+              exact moment it is in use. They cost one short row. */}
           <div className="flex flex-wrap items-center gap-1.5">
             <span
               aria-hidden="true"
@@ -723,6 +753,8 @@ export function TimeScrubber({
               </button>
             ))}
           </div>
+          {/* The hint explains why the chips above are disabled, so it lives and
+              dies with them. */}
           {scrubbable && win.step === "month" && (
             <p className="text-sm text-ln-op-mute">
               Los atajos de repetición no están disponibles para períodos largos (reproducción
@@ -734,7 +766,7 @@ export function TimeScrubber({
               vista-redesign): default "valid" replays by occurred_at ("cuándo
               pasó"); "transaction" replays by recorded_at ("cuándo lo supo el
               Estado"). The gap between the two IS the reporting-lag signal. */}
-          {scrubDetail && (
+          {scrubDetail && !playing && (
             <>
               <fieldset className="m-0 flex flex-wrap items-center gap-1.5 border-0 p-0">
                 <legend className="sr-only">Base temporal de la reproducción</legend>

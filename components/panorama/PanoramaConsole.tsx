@@ -950,6 +950,9 @@ export function PanoramaConsole({
   // fires in that case) — otherwise the scrubber immediately re-emits its
   // stale non-live asOf and undoes this console's own reset.
   const [scrubResetToken, setScrubResetToken] = useState(0);
+  // Two-step timeline (PO 2026-08-01): configure tall, play minimal. Held here
+  // because the dock sizes on it and the scrubber owns it.
+  const [scrubberPlaying, setScrubberPlaying] = useState(false);
 
   // Round-2: apply a deep-linked ?asOf AFTER hydration (SSR can't read window, so
   // the render-affecting states above start at their SSR defaults — asOf null, dock
@@ -3981,6 +3984,7 @@ export function PanoramaConsole({
         // renders the full detail (date ticks + bitemporal "Base" selector) by
         // default. The date-tick / basis content is additive, so nothing is lost.
         scrubDetail={true}
+        onPlayingChange={setScrubberPlaying}
         resetToken={scrubResetToken}
         initialAsOf={initialAsOf}
         // SUGGESTION 9: while a scope/period refetch is in flight the last-known
@@ -4855,6 +4859,7 @@ export function PanoramaConsole({
             stats={dockStats}
             referencias={dockReferencias}
             timeline={scrubberDock}
+            timelinePlaying={scrubberPlaying}
           />
         )}
         {/* task #38 v3 top-LEFT cluster: the floating scope pill (THE keyboard
