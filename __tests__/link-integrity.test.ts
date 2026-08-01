@@ -239,7 +239,18 @@ const eventCaptureHrefs: string[] = Array.from(
 //
 // Catches any static href not already covered by the structured nav sources above.
 
-const SCAN_DIRS = [path.join(REPO_ROOT, "app"), path.join(REPO_ROOT, "components")];
+// `src/` is here because leaving it out cost the guard a real catch: on
+// 2026-08-01 `src/modules/cases/domain/case-kinds.ts` carried a dead
+// `/gob/disputas` in ROUTED_ELSEWHERE_DESTINATION. It had no consumers that
+// day, so nothing broke — but the guard could never have caught the day one
+// appeared, because domain modules were simply outside its field of view.
+// A route literal is a route literal wherever it is declared; the layer it
+// lives in says nothing about whether it resolves.
+const SCAN_DIRS = [
+  path.join(REPO_ROOT, "app"),
+  path.join(REPO_ROOT, "components"),
+  path.join(REPO_ROOT, "src"),
+];
 
 const scannedHrefs: string[] = [];
 
@@ -262,7 +273,23 @@ for (const scanDir of SCAN_DIRS) {
     if (/\.(test|spec)\.(tsx|ts|jsx|js)$/.test(filePath)) return;
     const src = fs.readFileSync(filePath, "utf8");
     // matchAll requires a new regex instance (or a stateless literal) each call.
+    // TWO forms, and the second is why this scan reaches src/ at all:
+    //   href="/path"   — the JSX attribute. Almost everything in app/ and
+    //                    components/ is written this way.
+    //   href: "/path"  — the object-literal property. Domain modules declare
+    //                    routes as DATA (nav presets, destination maps), never
+    //                    as JSX, so an attribute-only pattern is blind to them.
+    //
+    // Adding src/ to SCAN_DIRS without this second form was inert, and I nearly
+    // shipped it that way: the probe landed, the guard stayed green, and a
+    // widened directory looked like coverage it did not have. Same shape as the
+    // defects this whole sweep has been chasing — a check that passes without
+    // checking. Verified by probe: `href: "/gob/no-existe-esta-ruta"` in a src/
+    // module now fails this suite.
     for (const m of src.matchAll(/\bhref="(\/[^"]+)"/g)) {
+      scannedHrefs.push(m[1] as string);
+    }
+    for (const m of src.matchAll(/\bhref\s*:\s*["'](\/[^"'`\n]+)["']/g)) {
       scannedHrefs.push(m[1] as string);
     }
   });
