@@ -14,7 +14,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { FeatureBody } from "@/components/panorama/DetailDrawer";
+import { FeatureBody, byTypeLabel } from "@/components/panorama/DetailDrawer";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/gob/panorama",
@@ -110,5 +110,30 @@ describe("DetailDrawer FeatureBody — dual-mode aggregate header (item #2)", ()
     expect(screen.getByText("Mordeduras registradas")).toBeInTheDocument();
     expect(screen.getByText("7")).toBeInTheDocument();
     expect(screen.queryByText("Incidente")).not.toBeInTheDocument();
+  });
+});
+
+describe("byTypeLabel — es-AR labels for the unit-history byType keys (T5.1)", () => {
+  it("resolves welfare-report kinds through the domain catalog (no raw English)", () => {
+    expect(byTypeLabel("abandonment")).toBe("Abandono");
+    expect(byTypeLabel("neglect")).toBe("Negligencia (sin agua/comida/refugio)");
+    expect(byTypeLabel("hoarding")).toBe("Acumulación de animales");
+  });
+
+  it("resolves pet-event types through the canonical event catalog", () => {
+    expect(byTypeLabel("outbreak_signal")).toBe("Señal de brote");
+    expect(byTypeLabel("vaccination_administered")).toBe("Vacuna administrada");
+    expect(byTypeLabel("death_recorded")).toBe("Fallecimiento");
+  });
+
+  it("resolves the synthetic panorama keys (perdidas kinds, incidents, custody)", () => {
+    expect(byTypeLabel("pet_lost")).toBe("Mascota perdida");
+    expect(byTypeLabel("pet_found_sighting")).toBe("Avistaje");
+    expect(byTypeLabel("bite_inflicted")).toBe("Mordedura infligida");
+    expect(byTypeLabel("custody_episode")).toBe("Episodio de custodia");
+  });
+
+  it("falls back to the raw key ONLY for a kind no catalog knows", () => {
+    expect(byTypeLabel("some_future_kind")).toBe("some_future_kind");
   });
 });

@@ -138,7 +138,8 @@ describe("buildInformeModel", () => {
         },
       }),
     );
-    expect(m.ranking?.heading).toBe("Tus 1 comunas · señales de zoonosis");
+    // T5.2: singular agreement at n=1 (the old shape read "Tus 1 comunas").
+    expect(m.ranking?.heading).toBe("1 comuna · señales de zoonosis");
     expect(m.ranking?.rows[0].value).toBe("12");
     expect(m.ranking?.rows[0].gapText).toBeUndefined();
     expect(m.ranking?.suppressedNote).toBeUndefined();

@@ -23,6 +23,7 @@ import { useEffect, useId, useMemo, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { RankedRowPreview } from "@/components/panorama/RankedRowPreview";
 import { formatNegativeGap } from "@/components/panorama/map-popup";
+import { smallScopeRankingHeading } from "@/components/panorama/panorama-console-helpers";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import type { RankedUnit, RankingKind } from "@/src/modules/panorama/domain/ranking";
 
@@ -97,7 +98,7 @@ type Props = {
    * Small-scope fallback (Cowork QA ronda 3 §4, P2.5): true when the scope holds
    * fewer than a full Worst-N of units, so `rows` is EVERY in-scope unit ordered
    * by the metric (not a "worst 10"). Reframes the heading from "Peores N" to
-   * "Tus N {unitNoun}".
+   * "N {unitNoun}" (T5.2).
    */
   scopeFallback?: boolean;
   /** es-AR plural unit noun for the fallback heading (comunas/localidades/…). */
@@ -336,12 +337,13 @@ export function PanoramaDataTable({
   };
 
   // P2.5: name the ranking framing + metric in the heading so "peores en qué" is
-  // answerable at a glance (Cowork H8). Small scope → "Tus N {unitNoun} · métrica";
-  // volume order (see `orderedByVolume`) → "Mayor volumen N · métrica"; else
+  // answerable at a glance (Cowork H8). Small scope → "N {unitNoun} · métrica"
+  // (T5.2: singular/plural agreement, no possessive — shared helper); volume
+  // order (see `orderedByVolume`) → "Mayor volumen N · métrica"; else
   // "Peores N · métrica". Mirrors the retired RankedUnitsPanel heading.
   const rankedCount = rows.length > 0 ? rows.length : 10;
   const heading = scopeFallback
-    ? `Tus ${rows.length} ${unitNoun} · ${measureLabel}`
+    ? smallScopeRankingHeading(rows.length, unitNoun, measureLabel)
     : orderedByVolume
       ? `Mayor volumen ${rankedCount} · ${measureLabel}`
       : `Peores ${rankedCount} · ${measureLabel}`;

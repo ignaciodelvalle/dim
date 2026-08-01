@@ -41,9 +41,10 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
 import { REFERENCE_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
+import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 import { Sparkline } from "./Sparkline";
 
@@ -144,6 +145,36 @@ const CASE_STATUS_LABEL: Record<string, string> = {
   closed: "Cerrado",
   resolved: "Resuelto",
 };
+
+/**
+ * Synthetic byType keys the unit-history repository mints that live in NO
+ * shared catalog: the perdidas kind pair (labels mirror repository-history's
+ * own event labels), the decomisos episode key, and the microchip
+ * identification kind.
+ */
+const BY_TYPE_SYNTHETIC_LABEL: Record<string, string> = {
+  pet_lost: "Mascota perdida",
+  pet_found_sighting: "Avistaje",
+  custody_episode: "Episodio de custodia",
+  microchip_iso: "Microchip (ISO)",
+};
+
+/**
+ * T5.1 — es-AR label for a unit-history `byType` key. The API mixes WELFARE
+ * REPORT kinds (abandonment, neglect…), PET-EVENT types (outbreak_signal…),
+ * incident kinds (bite_inflicted…) and synthetic keys (pet_lost…) in one
+ * breakdown, and the drawer rendered the raw English keys verbatim. Known
+ * catalogs resolve in order; a key none of them knows falls back to itself —
+ * raw, but only for genuinely unknown kinds, never for known ones.
+ */
+export function byTypeLabel(key: string): string {
+  const synthetic = BY_TYPE_SYNTHETIC_LABEL[key] ?? INCIDENT_LABEL[key];
+  if (synthetic) return synthetic;
+  const welfare = welfareReportKindLabel(key);
+  if (welfare !== key) return welfare;
+  const event = eventTypeLabel(key as Parameters<typeof eventTypeLabel>[0]) as string | undefined;
+  return event ?? key;
+}
 
 /** Read a string-ish property safely. */
 function str(props: Record<string, unknown>, key: string): string | null {
@@ -754,7 +785,8 @@ function UnitHistorySection({
               <dl className="flex flex-col gap-0.5">
                 {Object.entries(state.data.byType).map(([type, n]) => (
                   <div key={type} className="flex items-center justify-between text-sm">
-                    <dt className="text-ln-op-ink-2">{type}</dt>
+                    {/* T5.1: es-AR labels — never the raw English kind key. */}
+                    <dt className="text-ln-op-ink-2">{byTypeLabel(type)}</dt>
                     <dd className="font-medium text-ln-op-ink">{n}</dd>
                   </div>
                 ))}

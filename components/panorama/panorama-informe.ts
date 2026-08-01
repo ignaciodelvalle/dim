@@ -16,6 +16,7 @@
 //
 // es-AR user copy, English identifiers (project invariant #4).
 
+import { smallScopeRankingHeading } from "@/components/panorama/panorama-console-helpers";
 import { formatAsOfDate } from "@/components/panorama/panorama-export";
 import {
   type ViewScopeDescriptor,
@@ -240,12 +241,13 @@ function firstSentence(definition: string): string {
 }
 
 function buildRanking(ranking: InformeRankingInput): InformeRankingModel {
-  // Header mirrors PanoramaDataTable: small scope → "Tus N {unitNoun}", a volume
+  // Header mirrors PanoramaDataTable: small scope → "N {unitNoun}" (T5.2 —
+  // shared helper, singular/plural agreement, no possessive), a volume
   // order → "Mayor volumen N", else "Peores N" — all suffixed with the metric so
   // "peores en qué" is answerable.
   const rankedCount = ranking.rows.length > 0 ? ranking.rows.length : RANKING_LIMIT;
   const heading = ranking.smallScope
-    ? `Tus ${ranking.rows.length} ${ranking.unitNoun} · ${ranking.measureLabel}`
+    ? smallScopeRankingHeading(ranking.rows.length, ranking.unitNoun, ranking.measureLabel)
     : ranking.orderedByVolume
       ? `Mayor volumen ${rankedCount} · ${ranking.measureLabel}`
       : `Peores ${rankedCount} · ${ranking.measureLabel}`;

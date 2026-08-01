@@ -806,10 +806,13 @@ export function TimeScrubber({
                 </button>
               </fieldset>
 
+              {/* T5.11: BOTH branches state the two temporal bases once — the
+                  default (occurrence) branch used to explain nothing, so the
+                  distinction only surfaced after switching to transaction. */}
               <p className="text-sm text-ln-op-mute">
                 {basis === "transaction"
                   ? "Reproduciendo por fecha de registro (cuándo el Estado tomó conocimiento): la brecha con la fecha de ocurrencia revela demoras de reporte y presencia territorial."
-                  : "Reproduciendo: arrastrá o reproducí para ver la situación formarse. Las capas sin dimensión temporal se atenúan durante la reproducción."}
+                  : "Reproduciendo por fecha de ocurrencia (cuándo sucedió el hecho); la fecha de registro puede ser posterior. Las capas sin dimensión temporal se atenúan durante la reproducción."}
               </p>
             </>
           )}

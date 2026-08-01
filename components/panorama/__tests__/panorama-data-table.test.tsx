@@ -98,7 +98,8 @@ describe("PanoramaDataTable — accessible view (Ley 26.653)", () => {
         unitNoun="comunas"
       />,
     );
-    expect(screen.getByRole("heading", { name: /Tus 3 comunas · cobertura/ })).toBeInTheDocument();
+    // T5.2: count + agreeing plural, no possessive.
+    expect(screen.getByRole("heading", { name: /^3 comunas · cobertura/ })).toBeInTheDocument();
   });
 
   it("bubbles the unit key on row hover and clears it on leave (map sync)", () => {

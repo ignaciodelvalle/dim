@@ -642,7 +642,7 @@ export function buildViewMeta(input: {
 
 /**
  * es-AR plural noun for the ranked units at the active grain — the word the
- * small-scope ranking heading uses ("Tus 5 comunas"). Mirrors the on-canvas
+ * small-scope ranking heading uses ("5 comunas"). Mirrors the on-canvas
  * aggregationLabel: CABA's departments are "comunas", any other province's are
  * "departamentos", and a national view ranks whole "jurisdicciones".
  */
@@ -650,6 +650,32 @@ export function rankingUnitNounFor(level: AggregationLevel, province: string | n
   if (level === "province") return "jurisdicciones";
   if (province === "AR-C") return "comunas";
   return province ? "departamentos" : "localidades";
+}
+
+/** Singular forms of the ranked-unit nouns (es-AR — never a bare s-strip for
+ *  "jurisdicciones"). Unknown nouns fall back to dropping a trailing "s". */
+const UNIT_NOUN_SINGULAR: Record<string, string> = {
+  jurisdicciones: "jurisdicción",
+  comunas: "comuna",
+  departamentos: "departamento",
+  localidades: "localidad",
+};
+
+/**
+ * T5.2 — the small-scope ranking heading, shared by PanoramaDataTable and the
+ * printed informe (two hand-rolled copies had the same bug). The old shape was
+ * `Tus ${n} ${pluralNoun}`: at n=1 it read "TUS 1 DEPARTAMENTOS" — a number-
+ * agreement error under a possessive the professional register never needed.
+ * Now: "1 departamento · métrica" / "24 departamentos · métrica".
+ */
+export function smallScopeRankingHeading(
+  count: number,
+  unitNoun: string,
+  measureLabel: string,
+): string {
+  const noun =
+    count === 1 ? (UNIT_NOUN_SINGULAR[unitNoun] ?? unitNoun.replace(/s$/, "")) : unitNoun;
+  return `${count} ${noun} · ${measureLabel}`;
 }
 
 /**

@@ -504,3 +504,41 @@ describe("TimeScrubber — shared-asOf mount does not flash live (WARNING 5)", (
     expect(onChange).toHaveBeenCalledWith(null);
   });
 });
+
+describe("TimeScrubber — bitemporal basis explanation (T5.11)", () => {
+  // T5.11: only the transaction branch used to explain the two temporal bases;
+  // the DEFAULT (occurrence) branch said nothing, so an operator who never
+  // toggled had no way to learn which basis the replay was using. Both
+  // branches now state the distinction once, tersely.
+  it("the default (occurrence) branch states its basis and the register-date gap", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="valid"
+        onBasisChange={vi.fn()}
+        scrubDetail
+      />,
+    );
+    expect(
+      screen.getByText(
+        /Reproduciendo por fecha de ocurrencia \(cuándo sucedió el hecho\); la fecha de registro puede ser posterior\./,
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("the transaction branch keeps its own basis sentence", () => {
+    render(
+      <TimeScrubber
+        since={SINCE}
+        until={UNTIL}
+        onChange={vi.fn()}
+        basis="transaction"
+        onBasisChange={vi.fn()}
+        scrubDetail
+      />,
+    );
+    expect(screen.getByText(/Reproduciendo por fecha de registro/)).toBeInTheDocument();
+  });
+});

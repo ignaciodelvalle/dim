@@ -3110,8 +3110,9 @@ describe("PanoramaConsole — RA-7 F5: the measured-units count is a MEASUREMENT
     fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
 
-    // "Tus 6 jurisdicciones · …" — the small-scope heading, not "Peores 6".
-    expect(await screen.findByText(/Tus 6 jurisdicciones/)).toBeVisible();
+    // "6 jurisdicciones · …" — the small-scope heading, not "Peores 6".
+    // (T5.2 dropped the possessive "Tus" and fixed singular agreement.)
+    expect(await screen.findByText(/6 jurisdicciones ·/)).toBeVisible();
   });
 });
 
