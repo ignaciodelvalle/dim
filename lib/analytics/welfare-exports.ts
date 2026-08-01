@@ -117,6 +117,59 @@ export function knowledgeGapLabel(occurredAt: Date | null, createdAt: Date): str
   return `La autoridad tomó conocimiento ${days} días después de la fecha del hecho denunciado.`;
 }
 
+/**
+ * Decimal places printed for GPS coordinates on the Ley 14.346 denuncia.
+ *
+ * WHY FIVE — the document must not claim precision its source cannot support,
+ * and must not blur a location this block exists to carry exactly.
+ *
+ * At Argentine latitudes one degree of latitude is ~111 km, so:
+ *
+ *   7 decimals  ~1 cm    <- what this document used to print
+ *   6 decimals  ~11 cm
+ *   5 decimals  ~1.1 m   <- chosen
+ *   4 decimals  ~11 m
+ *   3 decimals  ~111 m
+ *
+ * WHERE THE NUMBER COMES FROM: the browser Geolocation API or a pin the
+ * denunciante drops on a map. Consumer GPS lands within roughly 5-50 m in the
+ * open and worse among buildings; a dropped pin is a human's aim. Seven
+ * decimals asserted centimetre accuracy on top of that — on an instrument
+ * filed with a fiscal, where every printed figure reads as evidence, that is a
+ * false claim about the quality of the evidence.
+ *
+ * NOT ROUNDED FURTHER, deliberately. This is the OFFICIAL-USE block under Ley
+ * 14.346 and it exists precisely to carry the exact location — unlike the
+ * public pet view, which hides it. Four decimals (~11 m) stops distinguishing
+ * adjacent properties on a city street, and in a maltrato denuncia that is the
+ * difference between two neighbours' front doors: it would send an inspector
+ * to the wrong house. Five decimals is finer than the best case consumer GPS
+ * error, so it discards no information that was really there, while dropping
+ * the two digits that were only ever float noise.
+ */
+export const COORDINATE_DECIMALS = 5;
+
+/**
+ * Formats one stored coordinate for print.
+ *
+ * Returns the raw input unchanged when it does not parse as a number. A legal
+ * document never silently prints "NaN" over a value the record actually holds
+ * — if we cannot round it, we show what was stored and let a human see it.
+ *
+ * The blank guard is not defensive padding: Number("") is 0, and 0 is finite,
+ * so without it an empty coordinate would print "0.00000" — a real point in
+ * the Gulf of Guinea, rendered indistinguishable from a measured one. The
+ * renderer happens to skip blanks today, but a function that turns "no data"
+ * into a plausible location is the wrong thing to leave lying around next to a
+ * denuncia.
+ */
+export function formatCoordinate(value: string): string {
+  if (value.trim() === "") return value;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return value;
+  return parsed.toFixed(COORDINATE_DECIMALS);
+}
+
 // ---------------------------------------------------------------------------
 // Mapper
 // ---------------------------------------------------------------------------
@@ -431,7 +484,7 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
   if (dto.locationLat && dto.locationLng) {
     y = drawField(page, {
       label: "Coordenadas GPS",
-      value: `Lat: ${dto.locationLat} · Lng: ${dto.locationLng}`,
+      value: `Lat: ${formatCoordinate(dto.locationLat)} · Lng: ${formatCoordinate(dto.locationLng)}`,
       x: margin,
       y,
       boldFont,

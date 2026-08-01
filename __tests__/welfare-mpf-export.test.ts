@@ -12,7 +12,12 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db";
 import { db, pets, profiles, welfareReports } from "@/db";
-import { MPF_EXPORT_SCHEMA_VERSION, welfareReportToMpfDto } from "@/lib/analytics/welfare-exports";
+import {
+  COORDINATE_DECIMALS,
+  MPF_EXPORT_SCHEMA_VERSION,
+  formatCoordinate,
+  welfareReportToMpfDto,
+} from "@/lib/analytics/welfare-exports";
 import * as authGuards from "@/lib/infra/auth-guards";
 import * as supabaseServer from "@/lib/supabase/server";
 import { generateMpfExportAction } from "@/src/modules/welfare/actions";
@@ -188,6 +193,67 @@ describe("welfareReportToMpfDto — knowledge chronology (task #77 bitemporal)",
       exportGeneratedAt: new Date(),
     });
     expect(dto.knowledgeGapLabel).toContain("1 día después");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GPS coordinate precision (2026-07-30)
+//
+// The denuncia printed "Lat: -34.6307660 · Lng: -58.3826932" — seven decimals,
+// about one centimetre. The number comes from a browser geolocation fix or a
+// pin the denunciante drops on a map; neither is accurate to a centimetre, and
+// on an instrument filed with a fiscal every printed figure reads as evidence.
+// ---------------------------------------------------------------------------
+
+describe("formatCoordinate — precision the source can actually support", () => {
+  it("prints five decimals — about a metre", () => {
+    expect(formatCoordinate("-34.6307660")).toBe("-34.63077");
+  });
+
+  it("drops the centimetre digits that were only float noise", () => {
+    expect(formatCoordinate("-58.3826932")).toBe("-58.38269");
+  });
+
+  it("rounds rather than truncates, so the point does not drift toward zero", () => {
+    // Truncation would give -34.63076; the nearest 5-decimal point is ...77.
+    expect(formatCoordinate("-34.6307660")).toBe("-34.63077");
+    expect(formatCoordinate("58.1234567")).toBe("58.12346");
+  });
+
+  it("pads a short value so every coordinate on the page has the same shape", () => {
+    expect(formatCoordinate("-34.6")).toBe("-34.60000");
+  });
+
+  it("keeps enough precision to distinguish adjacent properties on a street", () => {
+    // ~11 m apart: two neighbouring front doors. Four decimals would collapse
+    // these into one point and send an inspector to the wrong house.
+    expect(formatCoordinate("-34.60370")).not.toBe(formatCoordinate("-34.60380"));
+  });
+
+  it("does not claim centimetre accuracy — two points 1 cm apart print the same", () => {
+    expect(formatCoordinate("-34.6037000")).toBe(formatCoordinate("-34.6037001"));
+  });
+
+  it("prints the stored value verbatim when it does not parse — never 'NaN' in a legal document", () => {
+    expect(formatCoordinate("no disponible")).toBe("no disponible");
+  });
+
+  it("never turns a blank coordinate into a plausible location", () => {
+    // Number("") is 0 and 0 is finite, so the naive version printed "0.00000"
+    // — a real point in the Gulf of Guinea, printed exactly like a measured
+    // one. Found by this test, not by a mutant.
+    expect(formatCoordinate("")).toBe("");
+    expect(formatCoordinate("   ")).toBe("   ");
+  });
+
+  it("keeps the exact location: this is the official-use block, not the public view", () => {
+    // Regression guard against a reflexive privacy blur. Ley 14.346 official
+    // use is exactly why this block prints coordinates at all.
+    expect(COORDINATE_DECIMALS).toBeGreaterThanOrEqual(5);
+  });
+
+  it("does not print more precision than the source can support", () => {
+    expect(COORDINATE_DECIMALS).toBeLessThanOrEqual(5);
   });
 });
 
