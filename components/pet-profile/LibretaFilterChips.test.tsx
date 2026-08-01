@@ -39,6 +39,7 @@ import type {
 import { LibretaFace } from "./LibretaFace";
 
 const CHIP_GROUP_LABEL = "Filtrar asientos por tipo";
+const OWNER_USER = "user-owner";
 
 function row(id: string, eventType: string, payload: unknown = {}): HistorialEventRow {
   return {
@@ -48,6 +49,7 @@ function row(id: string, eventType: string, payload: unknown = {}): HistorialEve
     payload,
     occurredAt: new Date("2026-01-01T00:00:00Z"),
     notes: null,
+    recordedByUserId: OWNER_USER,
     authorRole: "owner",
     authorVerified: false,
     authorOrganizationId: null,
@@ -98,6 +100,7 @@ function faceData(overrides: Partial<LibretaFaceData> = {}): LibretaFaceData {
     weightSamples: [],
     activeShares: [],
     accessPath: "owner",
+    viewer: { userId: OWNER_USER, currentOwnerUserId: OWNER_USER },
     ...overrides,
   };
 }

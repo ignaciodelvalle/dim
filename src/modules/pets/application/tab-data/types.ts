@@ -24,6 +24,16 @@ export type HistorialEventRow = {
   payload: unknown;
   occurredAt: Date;
   notes: string | null;
+  /**
+   * The individual who WROTE this asiento (pet_events.recorded_by_user_id) —
+   * the spine's answer to "who signed this?". REQUIRED, not optional: the
+   * provenance stamp reads "Cargado por vos" only when this matches the
+   * reader, and an optional field lets a fixture (or a new loader) forget to
+   * carry it, which is exactly how authorship got reassigned to the current
+   * owner after a transfer. NULL only for legacy/system rows that genuinely
+   * have no individual author — never "unknown because nobody passed it".
+   */
+  recordedByUserId: string | null;
   authorRole: string;
   authorVerified: boolean;
   authorOrganizationId: string | null;
@@ -81,4 +91,23 @@ export type LibretaFaceData = {
   weightSamples: Array<{ date: Date; kg: number }>;
   activeShares: LibretaShareToken[];
   accessPath: "owner" | "org";
+  /**
+   * WHO IS READING (transfer-provenance fix). The libreta's provenance stamp
+   * used to derive "Cargado por vos" from the event's author ROLE alone, so
+   * every owner-declared asiento claimed the READER wrote it — after a
+   * transfer the new titular saw the previous titular's vaccine as their own.
+   * Authorship is an identity comparison, so the identities travel with the
+   * data instead of being re-guessed at render time.
+   */
+  viewer: {
+    /** The signed-in reader. */
+    userId: string;
+    /**
+     * The pet's CURRENT titular — the single active `role='owner'` ownership
+     * (`ownerships_one_active_owner_per_pet`), or null when the pet has no
+     * titular (shelter custody, unowned). Lets the stamp tell "the titular
+     * before you" apart from "the titular, who is not you (org viewer)".
+     */
+    currentOwnerUserId: string | null;
+  };
 };

@@ -21,6 +21,8 @@ import { LibretaFace } from "./LibretaFace";
 const SECRET_HASH = "SECRET_FIRMA_HASH_9f2c";
 const SECRET_CHIP = "SECRET_MATCHED_CHIP_777";
 const SECRET_INTERNAL_ID = "SECRET_INTERNAL_ROW_ID";
+const OWNER_USER = "user-owner";
+const VET_USER = "user-vet";
 
 function pastEvent(overrides: Partial<HistorialEventRow> = {}): HistorialEventRow {
   return {
@@ -39,6 +41,7 @@ function pastEvent(overrides: Partial<HistorialEventRow> = {}): HistorialEventRo
     },
     occurredAt: new Date("2026-01-01T00:00:00Z"),
     notes: null,
+    recordedByUserId: VET_USER,
     authorRole: "vet",
     authorVerified: true,
     authorOrganizationId: null,
@@ -75,6 +78,7 @@ function faceData(overrides: Partial<LibretaFaceData> = {}): LibretaFaceData {
     weightSamples: [],
     activeShares: [],
     accessPath: "owner",
+    viewer: { userId: OWNER_USER, currentOwnerUserId: OWNER_USER },
     ...overrides,
   };
 }

@@ -34,6 +34,7 @@ import {
   db,
   libretaShareTokens,
   organizations,
+  ownerships,
   petEvents,
   reminders,
   serviceOfferings,
@@ -118,6 +119,7 @@ export async function getLibretaFaceData(context: {
     identifications,
     activeShares,
     dueSoonWindowRule,
+    currentOwnerRows,
   ] = await Promise.all([
     // Rendered timeline — bounded window (PAST_EVENTS_WINDOW + 1 probe row).
     db
@@ -200,6 +202,18 @@ export async function getLibretaFaceData(context: {
       province: pet.jurisdictionProvince,
       locality: pet.jurisdictionLocality,
     }),
+    // The pet's CURRENT titular — one row at most
+    // (`ownerships_one_active_owner_per_pet`), served by ownerships_pet_id_idx.
+    // Feeds the provenance stamp so an owner-declared asiento written by
+    // SOMEONE ELSE reads "Cargado por el titular anterior" instead of silently
+    // reattributing itself to whoever is holding the pet today.
+    db
+      .select({ ownerUserId: ownerships.ownerUserId })
+      .from(ownerships)
+      .where(
+        and(eq(ownerships.petId, pet.id), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      )
+      .limit(1),
   ]);
 
   // PAST_EVENTS_WINDOW + 1 probe: strip the probe row and flag truncation.
@@ -309,6 +323,10 @@ export async function getLibretaFaceData(context: {
       weightSamples,
       activeShares,
       accessPath,
+      viewer: {
+        userId: user.id,
+        currentOwnerUserId: currentOwnerRows[0]?.ownerUserId ?? null,
+      },
     },
   };
 }

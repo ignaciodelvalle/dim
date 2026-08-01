@@ -12,10 +12,14 @@
 //
 // PROVENANCE GATE: the stamp is derived from the SAME confidence tier the
 // compliance projection uses (computeConfidence) — "Verificado" only for a
-// professional/institutional-verified event; everything owner-declared reads
-// "Cargado por vos". A self-declared rabies vaccine additionally carries the
-// amber "Falta verificación profesional" warning + a "Pedir verificación"
-// action (the turno sheet), mirroring the front-face provenance nudge.
+// professional/institutional-verified event. A self-declared rabies vaccine
+// additionally carries the amber "Falta verificación profesional" warning + a
+// "Pedir verificación" action (the turno sheet), mirroring the front-face
+// provenance nudge.
+//
+// WHO wrote it is a SEPARATE question from how trustworthy it is, and the
+// projection must answer it from identity (`recorded_by_user_id` vs the
+// reader), never from the author's role — see ownerDeclaredSubject.
 
 import type { EventType } from "@/db/schema";
 import { computeConfidence } from "@/lib/events/event-confidence";
@@ -36,6 +40,23 @@ export type AsientoFact = {
 export type AsientoProvenance = {
   verified: boolean;
   label: string;
+};
+
+/**
+ * WHO IS READING the libreta. Required (not optional) on every projection call:
+ * the stamp says "vos" only when the reader is the recorded author, and an
+ * optional parameter is a defect waiting to be re-introduced by the next caller
+ * that forgets it.
+ */
+export type AsientoViewer = {
+  /** The signed-in reader. */
+  userId: string | null;
+  /**
+   * The pet's CURRENT titular (single active `role='owner'` ownership), or null
+   * when the pet has none. Distinguishes "the titular before you" from "the
+   * titular, who simply isn't you" (an org/vet viewer).
+   */
+  currentOwnerUserId: string | null;
 };
 
 export type AsientoView = {
@@ -114,8 +135,50 @@ export function formatRelative(date: Date, now: Date): string {
 // wording but NEVER the tier: naming a vet is a CLAIM, only their signature is
 // verification (#43 tiers are the source of truth). The two must read as
 // unmistakably different (#45): "cité a mi vet" ≠ "mi vet firmó el asiento".
+
+// WHOSE declaration an owner-declared asiento is, decided by IDENTITY rather
+// than by role (transfer-provenance fix). The old code inferred "vos" from
+// `authorRole === "owner"` alone, which is a statement about the author's
+// RELATIONSHIP TO THE PET, not about who is reading — so after
+// `transfer_custody` the incoming titular saw the outgoing titular's asientos
+// signed "Cargado por vos". A libreta that reassigns authorship on every change
+// of hands is not a ledger; the spine records `recorded_by_user_id` precisely so
+// the projection never has to guess.
+type OwnerDeclaredSubject = "you" | "holder" | "former_holder";
+
+function ownerDeclaredSubject(row: HistorialEventRow, viewer: AsientoViewer): OwnerDeclaredSubject {
+  const authorUserId = row.recordedByUserId;
+  // No recorded author (legacy rows, pre-`recorded_by_user_id` writers): we
+  // cannot PROVE the reader wrote it, so we never claim they did. "El titular"
+  // is true of whoever declared it either way.
+  if (!authorUserId) return "holder";
+  if (viewer.userId && authorUserId === viewer.userId) return "you";
+  // A pet has at most ONE active `role='owner'` ownership
+  // (`ownerships_one_active_owner_per_pet`), so an owner-declared asiento whose
+  // author is NOT the current titular was written by a PREVIOUS titular — the
+  // transfer case, and the one a funcionario checks first.
+  if (viewer.currentOwnerUserId && authorUserId !== viewer.currentOwnerUserId) {
+    return "former_holder";
+  }
+  // Author IS the current titular, but the reader is someone else (an org/vet
+  // viewer on the shared libreta). Still not "vos".
+  return "holder";
+}
+
+function subjectPhrase(subject: OwnerDeclaredSubject): string {
+  switch (subject) {
+    case "you":
+      return "vos";
+    case "former_holder":
+      return "el titular anterior";
+    case "holder":
+      return "el titular";
+  }
+}
+
 function deriveProvenance(
   row: HistorialEventRow,
+  viewer: AsientoViewer,
   citedProfessional?: string | null,
 ): AsientoProvenance {
   const tier = computeConfidence({
@@ -154,16 +217,36 @@ function deriveProvenance(
   // reported from the public /p page) is NEVER the owner. "Cargado por vos"
   // would misattribute a stranger's report to the titular (QA A4: a /p
   // sighting rendered "NOTA · CARGADO POR VOS" in the owner's own libreta).
-  if (row.authorRole === "scanner") {
+  // `finder` is the same stranger with a name attached — it fell through to the
+  // owner branch and inherited the same false stamp.
+  if (row.authorRole === "scanner" || row.authorRole === "finder") {
     return { verified: false, label: "Reportado por un tercero" };
   }
-  // Owner-declared (self_reported / corroborated / unverified). When the owner
-  // NAMES a professional they only CITE (did not sign), say so explicitly so a
-  // named vet never masquerades as verification (#45 QA §2).
-  if (citedProfessional) {
-    return { verified: false, label: `Declarado por vos — citás a ${citedProfessional}` };
+  // Automated writes (cron closers, backfills). Nobody declared this.
+  if (row.authorRole === "system") {
+    return { verified: false, label: "Registrado automáticamente" };
   }
-  return { verified: false, label: "Cargado por vos" };
+  // A professional/institutional role that cleared NO verification tier above
+  // (an unverified vet, a govt actor without `authorVerified`). It is not an
+  // owner declaration, so it must not borrow the titular's voice — but it is
+  // not verification either.
+  if (row.authorRole !== "owner") {
+    return { verified: false, label: "Registrado sin verificar" };
+  }
+  // Owner-declared (self_reported / corroborated / unverified). WHO the "vos"
+  // refers to is an identity question — see ownerDeclaredSubject.
+  const subject = ownerDeclaredSubject(row, viewer);
+  // When the owner NAMES a professional they only CITE (did not sign), say so
+  // explicitly so a named vet never masquerades as verification (#45 QA §2).
+  if (citedProfessional) {
+    // Voseo only holds in the second person; a third-party subject conjugates.
+    const verb = subject === "you" ? "citás" : "cita";
+    return {
+      verified: false,
+      label: `Declarado por ${subjectPhrase(subject)} — ${verb} a ${citedProfessional}`,
+    };
+  }
+  return { verified: false, label: `Cargado por ${subjectPhrase(subject)}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -261,15 +344,19 @@ function applierAttribution(
 // Main projection
 // ---------------------------------------------------------------------------
 
+// `viewer` sits BEFORE the defaulted `now` on purpose: it has no safe default.
+// A defaulted/optional viewer is how "Cargado por vos" became a claim nobody
+// checked — every call site must state who is reading.
 export function toAsientoView(
   row: HistorialEventRow,
   petPublicToken: string,
+  viewer: AsientoViewer,
   now: Date = new Date(),
 ): AsientoView {
   const eventType = row.eventType;
   const p = (upcastPayload(eventType as EventType, row.payload) ?? {}) as P;
   const { icon, tint } = iconTintFor(eventType);
-  const provenance = deriveProvenance(row);
+  const provenance = deriveProvenance(row, viewer);
   const aplicada = formatAbsolute(new Date(row.occurredAt));
 
   const base = {
@@ -289,7 +376,7 @@ export function toAsientoView(
       // Recompute provenance WITH the cited professional so a vaccine that names
       // "Dra. Paz — MP 4821" reads correctly: verified → "Verificado por Dra.
       // Paz…"; owner-declared → "Declarado por vos — citás a Dra. Paz…" (#45).
-      const vaccineProvenance = deriveProvenance(row, administeredBy);
+      const vaccineProvenance = deriveProvenance(row, viewer, administeredBy);
       // Signer-derived fallback — must never contradict the provenance stamp
       // (see applierAttribution docblock).
       const aplico = applierAttribution(row, administeredBy);

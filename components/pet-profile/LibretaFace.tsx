@@ -149,7 +149,7 @@ export function LibretaFace({ data, petPublicToken, isOwner, emergencyContacts }
                 {visiblePast.map((row) => (
                   <AsientoCard
                     key={row.id}
-                    view={toAsientoView(row, petPublicToken, now)}
+                    view={toAsientoView(row, petPublicToken, data.viewer, now)}
                     eventHref={`/mis-mascotas/${petPublicToken}/eventos/${row.id}`}
                     // A weight asiento's sparkline shows the TRAILING 12-MONTH
                     // curve ending at its own date — every weigh-in in the year
