@@ -78,8 +78,10 @@ function baseInput(overrides: Partial<BuildInformeInput> = {}): BuildInformeInpu
 }
 
 describe("informeAsOfLabel", () => {
-  it("names the corte date when a scrub is active", () => {
-    expect(informeAsOfLabel(new Date("2026-07-04T12:00:00Z"))).toBe("Situación al 4 jul 2026");
+  it("names the corte date when a scrub is active (T2.4: shared long UTC day shape)", () => {
+    expect(informeAsOfLabel(new Date("2026-07-04T12:00:00Z"))).toBe(
+      "Situación al 4 de julio de 2026",
+    );
   });
 
   it("never fakes a date at the live edge", () => {

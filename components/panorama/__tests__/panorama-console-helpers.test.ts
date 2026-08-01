@@ -7,6 +7,8 @@ import {
   parseLayersParam,
   unknownLayerIds,
 } from "@/components/panorama/panorama-console-helpers";
+import { parseAsOfFromParams } from "@/lib/ui/map-layer-nav";
+import { formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
 
 /**
  * `?layers=` fidelity.
@@ -114,6 +116,29 @@ describe("buildViewMeta — one clock, and it declares the as-of cut", () => {
     });
     expect(meta.periodLabel).toContain("estado actual");
     expect(meta.periodLabel).toContain("· al ");
+  });
+
+  // T2.4 cross-surface same-day fence: one URL, one calendar day, everywhere.
+  // Browser-verified defect: ?asOf=2026-05-08 → the dock said "08 may" while
+  // this label said "al 7 de mayo" (AR-timezone formatter over a UTC day
+  // marker). Both the URL decode and the label are exercised end-to-end here.
+  it("renders the URL's calendar day — never the previous one (URL 2026-05-08 → al 8 de mayo)", () => {
+    const asOf = parseAsOfFromParams(new URLSearchParams("asOf=2026-05-08"));
+    expect(asOf).not.toBeNull();
+    const meta = buildViewMeta({
+      province: null,
+      locality: null,
+      since: SINCE,
+      until: UNTIL,
+      periodParam: "90d",
+      states: statesWith(["desierto-veterinario"]),
+      asOf,
+    });
+    expect(meta.periodLabel).toContain("al 8 de mayo de 2026");
+    // And the label is literally the shared formatter's output — the dock
+    // headline and export footer read the same function, so the surfaces
+    // cannot disagree by construction.
+    expect(meta.periodLabel.endsWith(`al ${formatAsOfDayLong(asOf as Date)}`)).toBe(true);
   });
 });
 

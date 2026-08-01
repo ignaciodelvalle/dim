@@ -12,7 +12,6 @@ import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
 import { replaceMapStateUrl } from "@/lib/ui/map-layer-nav";
 import type { ViewScopeAuthority } from "@/lib/ui/view-scope-descriptor";
-import { formatDate } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import { periodDaysPhrase } from "@/src/modules/panorama/domain/caption";
 import {
@@ -26,6 +25,7 @@ import {
   type PresetId,
   getPreset,
 } from "@/src/modules/panorama/domain/presets";
+import { formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -629,7 +629,10 @@ export function buildViewMeta(input: {
       periodDaysPhrase(days, input.periodParam);
   // The dock never declared the as-of cut, so a past frame was indistinguishable
   // from the live one in the corner that names the window.
-  const periodLabel = input.asOf === null ? base : `${base} · al ${formatDate(input.asOf)}`;
+  // T2.4: UTC day formatter — the scrub axis is UTC day markers, and the old
+  // AR-timezone formatDate rendered the PREVIOUS calendar day here while the
+  // dock showed the right one (URL 2026-05-08 → "al 7 de mayo").
+  const periodLabel = input.asOf === null ? base : `${base} · al ${formatAsOfDayLong(input.asOf)}`;
   // RA-7 F6: cite the ONE view-wide figure, never a second reduce of the same
   // claim. This feeds the PNG footer and the printed informe; the legend pill
   // reads the identical function, so the two cannot disagree by construction.

@@ -1,10 +1,7 @@
 {
   "_meta": {
-    "totalViolations": 3,
+    "totalViolations": 0,
     "description": "Baseline of bare toLocaleDateString/toLocaleString/Intl.DateTimeFormat calls without a timeZone option. Files listed here are grandfathered. New bare calls (new files or counts above these) fail lint:timezone. Canonical module excluded: lib/utils/format.ts."
   },
-  "files": {
-    "components/panorama/panorama-export.ts": 1,
-    "components/panorama/SituationalMap.tsx": 2
-  }
+  "files": {}
 }

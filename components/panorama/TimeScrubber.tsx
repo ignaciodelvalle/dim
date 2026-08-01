@@ -46,6 +46,7 @@ import {
   buildScrubWindow,
   dateToDayIndex,
   dayIndexToDate,
+  formatAsOfDayLong,
   formatAsOfLabel,
   nextPlayIndex,
 } from "@/src/modules/panorama/domain/time-scrub";
@@ -317,7 +318,10 @@ export function TimeScrubber({
       : null;
   const liveEdgeLabel =
     watermarkTime !== null ? `Al último evento: ${watermarkTime}` : "Al último evento";
-  const asOfLabel = atLive ? liveEdgeLabel : formatAsOfLabel(dayIndexToDate(win, index));
+  // T2.4: the HEADLINE as-of reads the one long UTC day shape every surface
+  // shares ("8 de mayo de 2026" — context bar, export footer, pinned popup);
+  // axis ticks below keep the compact formatAsOfLabel (space-bound furniture).
+  const asOfLabel = atLive ? liveEdgeLabel : formatAsOfDayLong(dayIndexToDate(win, index));
 
   // Notify the parent whenever the resolved as-of changes (onChange via a ref so
   // a new callback identity each render does not re-fire the effect).

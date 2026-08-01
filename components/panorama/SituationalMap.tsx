@@ -100,6 +100,7 @@ import {
   provinceDepartmentPrefix,
 } from "@/lib/infra/geo-join";
 import type { PresetFraming } from "@/src/modules/panorama/domain/presets";
+import { formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
 import type { AggregationLevel, FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 // maplibre-gl ships its own CSS (popups, controls, canvas). It is imported
@@ -1871,7 +1872,7 @@ export function SituationalMap({
   function pinnedCutoffLabel(): string | null {
     const vm = viewMetaRef.current;
     if (!vm) return null;
-    if (vm.asOf) return `Al ${vm.asOf.toLocaleDateString("es-AR")}`;
+    if (vm.asOf) return `Al ${formatAsOfDayLong(vm.asOf)}`;
     return vm.periodLabel || null;
   }
 

@@ -8,6 +8,7 @@ import {
   clampAsOf,
   dateToDayIndex,
   dayIndexToDate,
+  formatAsOfDayLong,
   formatAsOfLabel,
   nextPlayIndex,
   parseAsOf,
@@ -152,5 +153,19 @@ describe("formatAsOfLabel", () => {
     // Day matches the UTC date (06), not a local-tz shifted day.
     expect(label).toContain("06");
     expect(label).toContain("2026");
+  });
+});
+
+describe("formatAsOfDayLong (T2.4 — the one as-of day shape)", () => {
+  it("renders the long es-AR shape from a UTC day marker", () => {
+    expect(formatAsOfDayLong(d("2026-05-08T00:00:00Z"))).toBe("8 de mayo de 2026");
+  });
+
+  it("never shifts to the previous day for a UTC-midnight marker (the T2.4 off-by-one)", () => {
+    // An AR-timezone formatter (UTC-3) rendered 2026-05-08T00:00Z as "7 de
+    // mayo" — the context bar disagreed with the dock over one URL. UTC in,
+    // UTC out: the calendar day is the URL's day, always.
+    expect(formatAsOfDayLong(d("2026-05-08T00:00:00Z"))).toContain("8 de mayo");
+    expect(formatAsOfDayLong(d("2026-01-01T00:00:00Z"))).toBe("1 de enero de 2026");
   });
 });

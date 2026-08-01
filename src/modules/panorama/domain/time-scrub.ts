@@ -174,3 +174,24 @@ export function formatAsOfLabel(date: Date): string {
     year: "numeric",
   }).format(date);
 }
+
+/**
+ * THE long-form es-AR day label every as-of surface renders: "7 de mayo de 2026".
+ *
+ * UTC-pinned by design — the whole scrub axis is UTC day markers
+ * (parseAsOfFromParams → UTC midnight, buildScrubWindow → UTC-floored steps), so
+ * any formatter that renders an as-of instant in America/Argentina/Buenos_Aires
+ * shows the PREVIOUS calendar day (T2.4 off-by-one: URL ?asOf=2026-05-08, dock
+ * "08 may", context bar "al 7 de mayo"). One formatter, one shape, one clock:
+ * the dock headline, the context bar (buildViewMeta), the PNG/informe footer
+ * (panorama-export) and the pinned-popup cutoff all read this function.
+ * `formatAsOfLabel` above keeps the compact shape for axis ticks only.
+ */
+export function formatAsOfDayLong(date: Date): string {
+  return new Intl.DateTimeFormat("es-AR", {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
