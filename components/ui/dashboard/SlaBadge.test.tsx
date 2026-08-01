@@ -42,10 +42,45 @@ describe("SlaBadge — breached", () => {
   });
 });
 
-describe("SlaBadge — in plazo (not breached)", () => {
-  it("renders an honest 'en plazo' state, not a breach alarm", () => {
+// A4 (2026-07-31) — THE AGE-BLIND "EN PLAZO" BADGE.
+//
+// WHAT THIS BLOCK ASSERTED BEFORE, AND WHY IT WAS A LIE:
+//   it("renders an honest 'en plazo' state, not a breach alarm", ...)
+//     expect(screen.getByText("SLA 3 días · en plazo")).toBeInTheDocument();
+//
+// That exact-string assertion CERTIFIED the defect as the contract. It pinned
+// a badge that names the severity tier and the breach verdict and nothing
+// else — so every non-breached report in the maltrato triage queue rendered
+// the identical pill regardless of age. A denuncia filed this morning and one
+// filed 13 days ago (both under the 14-day `low` tier) were byte-identical to
+// the operator. The word "honest" in the old test name was doing work the
+// assertion did not: the badge was not dishonest about the breach, it was
+// SILENT about the one fact that orders the queue. Silence in the urgency
+// voice of an urgency-ordered queue is the product failing its central job.
+//
+// The assertions below pin the fact the old one omitted: two reports that
+// differ ONLY in age must not render the same badge.
+describe("SlaBadge — en plazo (not breached)", () => {
+  it("renders the tier, the in-plazo verdict AND the report's age", () => {
     render(<SlaBadge severity="high" status="open" createdAt={daysAgo(1)} now={NOW} />);
-    expect(screen.getByText("SLA 3 días · en plazo")).toBeInTheDocument();
+    expect(screen.getByText("SLA 3 días · en plazo · ingresada ayer")).toBeInTheDocument();
+  });
+
+  it("distinguishes a report filed today from one filed 13 days ago — same tier, same verdict", () => {
+    // Both are `low` (14-day tier) and neither is breached, so before A4 both
+    // rendered the SAME string. This is the triage case the defect broke.
+    const { unmount } = render(
+      <SlaBadge severity="low" status="open" createdAt={daysAgo(0)} now={NOW} />,
+    );
+    const today = screen.getByText(/^SLA 14 días · en plazo/).textContent;
+    unmount();
+
+    render(<SlaBadge severity="low" status="open" createdAt={daysAgo(13)} now={NOW} />);
+    const older = screen.getByText(/^SLA 14 días · en plazo/).textContent;
+
+    expect(today).toBe("SLA 14 días · en plazo · ingresada hoy");
+    expect(older).toBe("SLA 14 días · en plazo · hace 13 días");
+    expect(today).not.toBe(older);
   });
 });
 
@@ -54,8 +89,25 @@ describe("SlaBadge — historical backlog demotion", () => {
     // low tier = 14 days; 200 days old passes both the breach AND the
     // HISTORICAL_BACKLOG_DAYS (180) threshold — presentation demotes it.
     render(<SlaBadge severity="low" status="open" createdAt={daysAgo(200)} now={NOW} />);
-    expect(screen.getByText("Histórico · sin SLA activo")).toBeInTheDocument();
+    expect(screen.getByText("Histórico · sin SLA activo · hace 200 días")).toBeInTheDocument();
     expect(screen.queryByText(/vencido hace/i)).not.toBeInTheDocument();
+  });
+
+  // The demotion calms the CHROME, not the record. A 200-day and a 900-day
+  // backlog row are not the same case to a municipality being asked why
+  // neither was ever closed, so the demoted pill still carries the age.
+  it("still separates a 200-day backlog row from a 900-day one", () => {
+    const { unmount } = render(
+      <SlaBadge severity="low" status="open" createdAt={daysAgo(200)} now={NOW} />,
+    );
+    const younger = screen.getByText(/^Histórico/).textContent;
+    unmount();
+
+    render(<SlaBadge severity="low" status="open" createdAt={daysAgo(900)} now={NOW} />);
+    expect(screen.getByText(/^Histórico/).textContent).toBe(
+      "Histórico · sin SLA activo · hace 900 días",
+    );
+    expect(younger).not.toBe(screen.getByText(/^Histórico/).textContent);
   });
 });
 

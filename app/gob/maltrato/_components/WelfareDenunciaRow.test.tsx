@@ -67,7 +67,11 @@ describe("WelfareDenunciaRow — severity vs SLA reconciliation (finding #4)", (
       />,
     );
     expect(screen.getByText("Crítica — peligro inmediato")).toBeInTheDocument();
-    expect(screen.queryByText("Histórico · sin SLA activo")).not.toBeInTheDocument();
+    // Regex, not an exact string: SlaBadge's historical pill now also carries
+    // the report's age (A4, 2026-07-31), so an exact-match query would report
+    // "not in the document" for a badge that IS there, merely reworded — a
+    // negative assertion that passes for the wrong reason is not an assertion.
+    expect(screen.queryByText(/Histórico · sin SLA activo/)).not.toBeInTheDocument();
   });
 
   it("a 310-day-old (historical-backlog) critical report demotes the severity pill's urgency framing — no contradiction with SlaBadge", () => {
@@ -78,8 +82,9 @@ describe("WelfareDenunciaRow — severity vs SLA reconciliation (finding #4)", (
         currentUserId="user-1"
       />,
     );
-    // The SLA badge demotes to historical backlog (existing behavior).
-    expect(screen.getByText("Histórico · sin SLA activo")).toBeInTheDocument();
+    // The SLA badge demotes to historical backlog (existing behavior). The
+    // badge now appends the age too (A4), so match the demotion clause.
+    expect(screen.getByText(/Histórico · sin SLA activo/)).toBeInTheDocument();
     // The severity pill must NOT still claim "peligro inmediato" alongside it.
     expect(screen.queryByText("Crítica — peligro inmediato")).not.toBeInTheDocument();
     expect(screen.getByText("Crítica (histórica)")).toBeInTheDocument();
@@ -93,7 +98,7 @@ describe("WelfareDenunciaRow — severity vs SLA reconciliation (finding #4)", (
         currentUserId="user-1"
       />,
     );
-    expect(screen.getByText("Histórico · sin SLA activo")).toBeInTheDocument();
+    expect(screen.getByText(/Histórico · sin SLA activo/)).toBeInTheDocument();
     expect(screen.queryByText("Baja — preocupante, no urgente")).not.toBeInTheDocument();
     expect(screen.getByText("Baja (histórica)")).toBeInTheDocument();
   });
