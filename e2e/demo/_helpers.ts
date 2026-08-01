@@ -218,8 +218,12 @@ export async function loginAs(
  * a previous suite happened to leave behind. Measured: after one run of the
  * mark-lost journeys, owner@dim.test's first card was a LOST pet and the
  * carousel tests failed on a page that was behaving correctly. The
- * `hasText: /registrada/i` filter is the status flag on the card, the same
- * anchor e2e/crisis-owner-lost-flow.spec.ts uses to find a non-lost pet.
+ * `hasText: /registrad[ao]/i` filter is the status flag on the card — the same
+ * anchor e2e/crisis-owner-lost-flow.spec.ts uses to find a non-lost pet. The
+ * character class is load-bearing: the flag agrees with the animal's sex
+ * (REGISTRADO / REGISTRADA / REGISTRADO/A), and a locator hardcoded to one
+ * gender finds nothing for the others — which surfaces as a SKIPPED test, not
+ * a failing one.
  */
 export async function discoverPetToken(
   page: Page,
@@ -230,7 +234,7 @@ export async function discoverPetToken(
   await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   const links = activeOnly
-    ? page.locator('a[href^="/mis-mascotas/DIM-"]', { hasText: /registrada/i })
+    ? page.locator('a[href^="/mis-mascotas/DIM-"]', { hasText: /registrad[ao]/i })
     : page.locator('a[href^="/mis-mascotas/DIM-"]');
   await expect(
     links.nth(index),

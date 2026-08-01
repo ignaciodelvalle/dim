@@ -135,7 +135,7 @@ function Rail({ active }: { active: string }) {
         <span>
           <span className="lp-rail-name">{PAMPA.name}</span>
           <span className="mt-1 block">
-            <LnStatusFlag status={lost ? "lost" : "ok"} />
+            <LnStatusFlag status={lost ? "lost" : "ok"} sex={PAMPA.sexEnum} />
           </span>
         </span>
       </div>

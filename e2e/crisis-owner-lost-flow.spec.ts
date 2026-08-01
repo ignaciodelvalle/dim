@@ -14,7 +14,10 @@ import { ACCOUNTS, loginAs } from "./demo/_helpers";
  * only runs its `seedOwnerPets` step when the owner has NO pets yet, so a
  * local dev DB layered with other seed/demo scripts can give owner@dim.test
  * a completely different pet set. We pick the first pet whose registry row
- * shows the "REGISTRADA" status flag (i.e. not already lost/deceased) —
+ * shows the REGISTRADO/REGISTRADA status flag (i.e. not already lost or
+ * deceased). The flag agrees with the animal's sex, so the locator must be
+ * sex-agnostic — matching only /registrada/i would silently skip every male
+ * and every unknown-sex pet, and "skipped" reads as "passed" in CI.
  * the LnRegRow badge rendered by app/(app)/mis-mascotas/page.tsx.
  *
  * The wizard is driven ADAPTIVELY: the "enriched details" step only exists
@@ -52,7 +55,7 @@ test("owner marks a pet lost — public credential flips to lost state for a str
   // the newest card is progressively more likely to be one of those. A fresh CI
   // database happens not to show it; a developer's does, quickly.
   const petLink = page
-    .locator('a[href^="/mis-mascotas/"]:has(img)', { hasText: /registrada/i })
+    .locator('a[href^="/mis-mascotas/"]:has(img)', { hasText: /registrad[ao]/i })
     .first();
   test.skip(
     (await petLink.count()) === 0,

@@ -297,7 +297,7 @@ export function LibretaScreen() {
             <div>
               <div className="lp-lib-t">
                 {e.title}
-                {e.flag && <LnStatusFlag status={e.flag} />}
+                {e.flag && <LnStatusFlag status={e.flag} sex={PAMPA.sexEnum} />}
                 {e.stamp && (
                   <span className="ml-auto">
                     <LnVstamp variant={e.stamp} />

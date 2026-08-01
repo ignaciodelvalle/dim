@@ -293,7 +293,7 @@ test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
       // DIM- prefix excludes the "/mis-mascotas/nueva" create-pet CTA.
       await owner.page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
       const activePets = owner.page.locator('a[href^="/mis-mascotas/DIM-"]', {
-        hasText: /registrada/i,
+        hasText: /registrad[ao]/i,
       });
       const n = await activePets.count();
       for (let i = 0; i < n; i++) {

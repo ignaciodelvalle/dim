@@ -26,6 +26,8 @@ export type LnHeroTag = {
 export type LnHeroProps = {
   name: string;
   status?: LnPetStatus;
+  /** The animal's sex — the status flag inflects on it ("PERDIDA", not "PERDIDO"). */
+  sex?: string | null;
   breed?: string;
   photoSrc?: string;
   tags?: LnHeroTag[];
@@ -36,6 +38,7 @@ export type LnHeroProps = {
 export function LnHero({
   name,
   status = "ok",
+  sex,
   breed,
   photoSrc,
   tags = [],
@@ -84,7 +87,7 @@ export function LnHero({
             <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
               {name}
             </h1>
-            {status && <LnStatusFlag status={status} />}
+            {status && <LnStatusFlag status={status} sex={sex} />}
           </div>
 
           {breed && <p className="mt-[3px] text-md text-[var(--color-ln-mute)]">{breed}</p>}

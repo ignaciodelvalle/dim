@@ -29,6 +29,14 @@ import type { IconName } from "@/components/Icon";
 export const PAMPA = {
   name: "Pampa",
   sex: "Hembra",
+  /**
+   * Enum form of `sex`, for components whose copy inflects. The story rail and
+   * the libreta mock both flag Pampa as lost, and without this they rendered
+   * the masculine "PERDIDO" for a female dog on the first screen of the
+   * product (same defect as critique-libreta finding #5, which was reported
+   * against the owner's list).
+   */
+  sexEnum: "female",
   age: "4 años",
 } as const;
 

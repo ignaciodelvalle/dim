@@ -167,10 +167,13 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     await relogin(page, ACCOUNTS.owner);
 
     // Discover an ACTIVE (non-lost) pet from the owner's own registry — the
-    // "REGISTRADA" badge on /mis-mascotas marks a pet that is not lost/deceased.
+    // The REGISTRADO/REGISTRADA badge on /mis-mascotas marks a pet that is not
+    // lost/deceased. Sex-agnostic on purpose: the flag inflects with the animal.
     await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle").catch(() => {});
-    const petLink = page.locator('a[href^="/mis-mascotas/"]', { hasText: /registrada/i }).first();
+    const petLink = page
+      .locator('a[href^="/mis-mascotas/"]', { hasText: /registrad[ao]/i })
+      .first();
     test.skip(
       (await petLink.count()) === 0,
       "owner@dim.test has no active pet — skipping lost→found seam.",

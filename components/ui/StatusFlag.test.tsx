@@ -21,16 +21,70 @@ describe("<LnStatusFlag>", () => {
     expect(render(<LnStatusFlag status="registered" />)).not.toContain("AL DÍA");
   });
 
-  it("renders the neutral REGISTRADA label for the registered status", () => {
-    const html = render(<LnStatusFlag status="registered" />);
+  it("renders the neutral registered label, inflected for the pet", () => {
+    const html = render(<LnStatusFlag status="registered" sex="female" />);
     expect(html).toContain("REGISTRADA");
     expect(html).not.toContain("ln-ok");
   });
 
-  it("keeps the existing state labels", () => {
+  it("keeps the invariable state labels", () => {
     expect(render(<LnStatusFlag status="sick" />)).toContain("EN TRATAMIENTO");
-    expect(render(<LnStatusFlag status="lost" />)).toContain("PERDIDO");
     expect(render(<LnStatusFlag status="pregnant" />)).toContain("PREÑADA");
+    expect(render(<LnStatusFlag status="deceased" />)).toContain("EN MEMORIA");
+  });
+
+  // -------------------------------------------------------------------------
+  // Gender agreement (critique-libreta 2026-07-27 #5)
+  // -------------------------------------------------------------------------
+  //
+  // flagConfig used to hold a FIXED masculine "PERDIDO" beside a FIXED feminine
+  // "REGISTRADA", so Luna — a female dog — was flagged PERDIDO on the owner's
+  // list while her own credential badge and her lost poster said PERDIDA. The
+  // credential had already been swept for this (QA histórico 2026-07-08 #2);
+  // the list had not. These tests pin the agreement in both directions, because
+  // a one-directional test would stay green against a hard-coded label.
+
+  describe("agrees with the animal's sex", () => {
+    it("inflects the lost label", () => {
+      expect(render(<LnStatusFlag status="lost" sex="female" />)).toContain("PERDIDA");
+      expect(render(<LnStatusFlag status="lost" sex="male" />)).toContain("PERDIDO");
+    });
+
+    it("inflects the registered label", () => {
+      expect(render(<LnStatusFlag status="registered" sex="female" />)).toContain("REGISTRADA");
+      expect(render(<LnStatusFlag status="registered" sex="male" />)).toContain("REGISTRADO");
+    });
+
+    it("never renders the masculine form for a female pet", () => {
+      // The actual regression: "PERDIDO" is a prefix of nothing else here, but
+      // "REGISTRADO" IS a prefix of "REGISTRADA"'s stem, so assert on the whole
+      // rendered label rather than on substring containment.
+      const lost = render(<LnStatusFlag status="lost" sex="female" />);
+      expect(lost).not.toMatch(/>PERDIDO</);
+      const registered = render(<LnStatusFlag status="registered" sex="female" />);
+      expect(registered).not.toMatch(/>REGISTRADO</);
+    });
+
+    it("uses the slashed inclusive form when the sex is not on record", () => {
+      // Same fallback the credential's `registeredAdjective` already shows for
+      // the same pet — the two surfaces must not disagree. Guessing a gender
+      // here would be worse than admitting we do not know it.
+      expect(render(<LnStatusFlag status="lost" />)).toContain("PERDIDO/A");
+      expect(render(<LnStatusFlag status="lost" sex="unknown" />)).toContain("PERDIDO/A");
+      expect(render(<LnStatusFlag status="registered" sex={null} />)).toContain("REGISTRADO/A");
+    });
+
+    it("leaves the invariable labels alone whatever the sex", () => {
+      // A regression that inflected everything would be as wrong as one that
+      // inflected nothing. "Preñada" in particular is a female-only state and
+      // must never acquire a masculine form.
+      for (const sex of ["male", "female", "unknown", null] as const) {
+        expect(render(<LnStatusFlag status="ok" sex={sex} />)).toContain("AL DÍA");
+        expect(render(<LnStatusFlag status="sick" sex={sex} />)).toContain("EN TRATAMIENTO");
+        expect(render(<LnStatusFlag status="pregnant" sex={sex} />)).toContain("PREÑADA");
+        expect(render(<LnStatusFlag status="deceased" sex={sex} />)).toContain("EN MEMORIA");
+      }
+    });
   });
 
   // pet-state-header R7.1 audit pin — each flag's token family must match the

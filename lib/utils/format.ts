@@ -377,8 +377,12 @@ export function sterilizedLabel(sex: string): string {
  * `sex === "female" ? "Perdida" : "Perdido"`, which calls an unknown-sex pet
  * male. 22k+ pets carry `sex = 'unknown'` — a stray posted by a finder rarely
  * has a known sex, which is exactly the population this listing is for.
+ *
+ * Accepts null/undefined so a caller holding an optional sex does not have to
+ * launder it into "" first — the default branch already says "we don't know",
+ * which is the same answer. `LnStatusFlag` is such a caller.
  */
-export function lostLabel(sex: string): string {
+export function lostLabel(sex: string | null | undefined): string {
   switch (sex) {
     case "male":
       return "Perdido";

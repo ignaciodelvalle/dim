@@ -344,6 +344,7 @@ export default async function MisMascotasPage({
                 key={pet.id}
                 name={pet.name}
                 status={status}
+                sex={pet.sex}
                 breed={breedLine || undefined}
                 species={speciesLabel(pet.species)}
                 photoSrc={petPhotoUrl(photo?.storagePath) ?? undefined}

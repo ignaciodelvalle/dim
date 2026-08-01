@@ -2,67 +2,108 @@ import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
 import { LIST_STATUS_SITUATION_ICON } from "@/lib/ui/pet-situation";
+import { lostLabel, registeredAdjective } from "@/lib/utils/format";
 import type { LnPetStatus } from "./Chip";
 
 /**
  * Libreta Nacional Status Flag + Vstamp.
  *
- * LnStatusFlag — pet status chip: AL DÍA / EN TRATAMIENTO / PERDIDO / PREÑADA
+ * LnStatusFlag — pet status chip: AL DÍA / EN TRATAMIENTO / PERDIDA / PREÑADA
  * LnVstamp     — vaccination status stamp: Vigente / Por vencer / Vencida
  */
 
 // ---------- Status Flag ---------------------------------------------------
 
-const flagConfig: Record<LnPetStatus, { label: string; bg: string; text: string; border: string }> =
-  {
-    ok: {
-      label: "AL DÍA",
-      bg: "bg-[var(--color-ln-ok-bg)]",
-      text: "text-[var(--color-ln-ok)]",
-      border: "border-[var(--color-ln-ok-100)]",
-    },
-    registered: {
-      label: "REGISTRADA",
-      bg: "bg-[var(--color-ln-card)]",
-      text: "text-[var(--color-ln-ink-2)]",
-      border: "border-[var(--color-ln-line-strong)]",
-    },
-    sick: {
-      label: "EN TRATAMIENTO",
-      bg: "bg-[var(--color-ln-warn-050)]",
-      text: "text-[var(--color-ln-warn)]",
-      border: "border-[var(--color-ln-warn-100)]",
-    },
-    lost: {
-      label: "PERDIDO",
-      bg: "bg-[var(--color-ln-err-050)]",
-      text: "text-[var(--color-ln-err)]",
-      border: "border-[var(--color-ln-err-100)]",
-    },
-    pregnant: {
-      label: "PREÑADA",
-      bg: "bg-[var(--color-ln-rosa-bg)]",
-      text: "text-[var(--color-ln-rosa)]",
-      border: "border-[var(--color-ln-rosa-bd)]",
-    },
-    // A deceased pet is a closed life record — never "AL DÍA". The chip reads
-    // "EN MEMORIA" wherever the single mapper resolves the pet as deceased
-    // (PJ-M1), using the same memorial tokens as LnMemorialChip.
-    deceased: {
-      label: "EN MEMORIA",
-      bg: "bg-[var(--color-ln-memorial-chip-bg)]",
-      text: "text-[var(--color-ln-memorial-chip-text)]",
-      border: "border-[var(--color-ln-memorial-chip-bd)]",
-    },
-  };
+/**
+ * A label that inflects with the animal's sex, or one that does not.
+ *
+ * `flagConfig` used to hold a fixed masculine "PERDIDO" next to a fixed
+ * feminine "REGISTRADA", so Luna — a female dog — was flagged PERDIDO on the
+ * owner's list while her own credential badge and her lost poster said PERDIDA,
+ * in the same session (critique-libreta 2026-07-27, finding #5). The credential
+ * had already been swept for exactly this (QA histórico 2026-07-08 #2, which is
+ * where `registeredAdjective` comes from); the list was missed.
+ *
+ * So the two that inflect delegate to `lostLabel` and `registeredAdjective`
+ * in lib/utils/format.ts rather than keeping a second opinion here. Note both
+ * ALREADY EXISTED — `lostLabel` is used by /perdidas and by the mark-as-lost
+ * page, with its own tests; this chip was simply the surface that never
+ * adopted it. That includes the slashed "PERDIDO/A" / "REGISTRADO/A" for
+ * unknown sex, which is what those surfaces and the credential badge already
+ * show for the same pet, and which fits: at 9px mono both are shorter than
+ * "EN TRATAMIENTO", which the chip already carries.
+ *
+ * The rest are invariable — "AL DÍA", "EN TRATAMIENTO", "EN MEMORIA" are noun
+ * phrases, and `pregnant` is a female-only state, so it never regenders (same
+ * exclusion `situationLabelForSex` documents).
+ */
+type FlagLabel = string | ((sex: string | null | undefined) => string);
+
+function resolveLabel(label: FlagLabel, sex: string | null | undefined): string {
+  return typeof label === "string" ? label : label(sex);
+}
+
+const flagConfig: Record<
+  LnPetStatus,
+  { label: FlagLabel; bg: string; text: string; border: string }
+> = {
+  ok: {
+    label: "AL DÍA",
+    bg: "bg-[var(--color-ln-ok-bg)]",
+    text: "text-[var(--color-ln-ok)]",
+    border: "border-[var(--color-ln-ok-100)]",
+  },
+  registered: {
+    label: (sex) => registeredAdjective(sex).toUpperCase(),
+    bg: "bg-[var(--color-ln-card)]",
+    text: "text-[var(--color-ln-ink-2)]",
+    border: "border-[var(--color-ln-line-strong)]",
+  },
+  sick: {
+    label: "EN TRATAMIENTO",
+    bg: "bg-[var(--color-ln-warn-050)]",
+    text: "text-[var(--color-ln-warn)]",
+    border: "border-[var(--color-ln-warn-100)]",
+  },
+  lost: {
+    label: (sex) => lostLabel(sex).toUpperCase(),
+    bg: "bg-[var(--color-ln-err-050)]",
+    text: "text-[var(--color-ln-err)]",
+    border: "border-[var(--color-ln-err-100)]",
+  },
+  pregnant: {
+    label: "PREÑADA",
+    bg: "bg-[var(--color-ln-rosa-bg)]",
+    text: "text-[var(--color-ln-rosa)]",
+    border: "border-[var(--color-ln-rosa-bd)]",
+  },
+  // A deceased pet is a closed life record — never "AL DÍA". The chip reads
+  // "EN MEMORIA" wherever the single mapper resolves the pet as deceased
+  // (PJ-M1), using the same memorial tokens as LnMemorialChip.
+  deceased: {
+    label: "EN MEMORIA",
+    bg: "bg-[var(--color-ln-memorial-chip-bg)]",
+    text: "text-[var(--color-ln-memorial-chip-text)]",
+    border: "border-[var(--color-ln-memorial-chip-bd)]",
+  },
+};
 
 export type LnStatusFlagProps = {
   status: LnPetStatus;
+  /**
+   * The animal's sex, for the labels that inflect (`lost`, `registered`).
+   * Optional — omitting it yields the slashed inclusive form, the same one the
+   * credential badge already shows when the sex is not on record. Pass it
+   * wherever the pet is in hand; a caller that genuinely has no sex to pass is
+   * making an honest statement rather than guessing a gender.
+   */
+  sex?: string | null;
   className?: string;
 };
 
-export function LnStatusFlag({ status, className = "" }: LnStatusFlagProps) {
+export function LnStatusFlag({ status, sex, className = "" }: LnStatusFlagProps) {
   const cfg = flagConfig[status];
+  const label = resolveLabel(cfg.label, sex);
   // Situation icon — the shape-based signal that pairs with the tone + label so
   // the flag never relies on color alone (WCAG). Shared with the credential
   // skin via lib/ui/pet-situation, so a lost pet reads the SAME siren on the
@@ -92,7 +133,7 @@ export function LnStatusFlag({ status, className = "" }: LnStatusFlagProps) {
         .join(" ")}
     >
       {iconName && <Icon name={iconName} size={11} decorative />}
-      {cfg.label}
+      {label}
     </span>
   );
 }

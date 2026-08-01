@@ -72,7 +72,8 @@ test.describe.configure({ mode: "parallel", timeout: 90_000 });
  * next to the type: e2e/_page-identity.ts → OwnerPii.
  *
  * `discoverPetToken` defaults to activeOnly, so the pet under test is
- * REGISTRADA, never lost. That precondition is load-bearing for the phone and
+ * flagged REGISTRADO/REGISTRADA, never lost. That precondition is load-bearing
+ * for the phone and
  * email halves: `pets.disclose_phone_when_lost` / `disclose_email_when_lost`
  * make those two a LEGITIMATE disclosure on a lost pet. Flow (b) re-asserts the
  * non-lost state on the rendered page before treating their presence as a leak.

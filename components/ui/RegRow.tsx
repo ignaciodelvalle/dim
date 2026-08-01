@@ -81,6 +81,8 @@ export type LnRegRowProps = {
   photoSrc?: string;
   name: string;
   status?: LnPetStatus;
+  /** The animal's sex — the status flag inflects on it ("PERDIDA", not "PERDIDO"). */
+  sex?: string | null;
   breed?: string;
   nextLine?: ReactNode;
   species?: string;
@@ -94,6 +96,7 @@ export function LnRegRow({
   photoSrc,
   name,
   status = "ok",
+  sex,
   breed,
   nextLine,
   species,
@@ -128,7 +131,7 @@ export function LnRegRow({
           <span className="font-ln-serif text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {name}
           </span>
-          {status && <LnStatusFlag status={status} />}
+          {status && <LnStatusFlag status={status} sex={sex} />}
         </div>
         {breed && <p className="mt-px text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
         {nextLine && (
