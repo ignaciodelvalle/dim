@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Fragment } from "react";
 
 import { Icon } from "@/components/Icon";
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
@@ -50,6 +51,7 @@ import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatCount, pluralizeEs } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
+import { rabiesComplianceRows } from "./_components/rabies-compliance-rows";
 import {
   RABIES_CASES_KPI_CAVEAT,
   RABIES_CASES_KPI_LABEL,
@@ -550,25 +552,23 @@ export default async function GobVigilanciaPage({
             title={<span id={panelComplianceId}>Cumplimiento legal — observación rábica</span>}
           />
           <OpCardBody>
+            {/* Rows come from a pure builder (_components/rabies-compliance-
+                rows.ts) so the wording can be tested against the numbers it
+                labels. Internal indicator codes (A8/A9) stay out of operator
+                copy — qa-triage-2026-07-23 #8. */}
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-md">
-              {/* (A8) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
-              <dt className="text-ln-op-mute">Cumplimiento 10 días</dt>
-              <dd className="text-right font-semibold text-ln-op-ink">
-                {pct(rabiesCompliance.compliancePct)}
-              </dd>
-              <dt className="text-ln-op-mute">Cerradas en el período</dt>
-              <dd className="text-right font-semibold text-ln-op-ink">
-                {rabiesCompliance.closedWithinWindow}/{rabiesCompliance.closed}
-              </dd>
-              {/* (A9) internal code dropped from copy — qa-triage-2026-07-23 #8 */}
-              <dt className="text-ln-op-mute">Abiertas &gt; 10 días</dt>
-              <dd
-                className={`text-right font-semibold ${
-                  rabiesCompliance.openBreaches > 0 ? "text-ln-op-danger" : "text-ln-op-ink"
-                }`}
-              >
-                {rabiesCompliance.openBreaches}
-              </dd>
+              {rabiesComplianceRows(rabiesCompliance, pct).map((row) => (
+                <Fragment key={row.term}>
+                  <dt className="text-ln-op-mute">{row.term}</dt>
+                  <dd
+                    className={`text-right font-semibold ${
+                      row.danger ? "text-ln-op-danger" : "text-ln-op-ink"
+                    }`}
+                  >
+                    {row.value}
+                  </dd>
+                </Fragment>
+              ))}
             </dl>
           </OpCardBody>
         </OpCard>
