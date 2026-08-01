@@ -70,7 +70,7 @@ import {
   type ReservedRabiesTurno,
   deriveComplianceState,
 } from "@/lib/projections/pet-compliance";
-import { lostReportedTitle } from "@/lib/utils/format";
+import { lostReportedTitle, requestOutcomeLabel } from "@/lib/utils/format";
 import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // ---------------------------------------------------------------------------
@@ -883,7 +883,10 @@ async function fetchResolvedFosterProposals(
     id: `foster_proposal_resolved:${r.id}`,
     kind: "foster_proposal_resolved" as const,
     title: `Propuesta de tránsito · ${r.petName}`,
-    subtitle: `Estado: ${r.status}`,
+    // Was `Estado: ${r.status}` — the raw enum ("accepted", "expired") printed
+    // straight onto the owner's case history. Null when unmapped: an unnamed
+    // state says nothing rather than leaking the enum again.
+    subtitle: requestOutcomeLabel(r.status) ?? "",
     ctaUrl: `/cuenta/transitos/propuestas/${r.publicToken}`,
     since: r.respondedAt ?? r.proposedAt,
     severity: "info" as const,
@@ -971,7 +974,8 @@ async function fetchDecidedApprovalRequests(
     id: `approval_request_decided:${r.id}`,
     kind: "approval_request_decided" as const,
     title: humanizeApprovalRequestType(r.type),
-    subtitle: `Resuelta: ${r.status}`,
+    // Was `Resuelta: ${r.status}` — same raw-enum leak as the foster row above.
+    subtitle: requestOutcomeLabel(r.status) ?? "",
     ctaUrl: `/cuenta/aprobaciones/${r.publicToken}`,
     since: r.decidedAt ?? r.createdAt,
     severity: "info" as const,

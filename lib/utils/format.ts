@@ -406,6 +406,46 @@ export function statusLabel(status: string): string {
   }
 }
 
+/**
+ * es-AR label for the outcome of a request the owner made or received —
+ * foster proposals, approval requests, transfers. They all share the same
+ * small vocabulary of endings.
+ *
+ * Exists because the owner's own case history printed the RAW ENUM: the
+ * resolved-foster row read "Estado: accepted" and the decided-approval row read
+ * "Resuelta: approved", in the middle of an otherwise fully translated screen.
+ * That is the same `CaseStatus.open`-said-five-ways family the 2026-08-01
+ * review counted — the raw-enum-leak end of it — and the labels below are not
+ * new copy: they are the exact words four other surfaces already hand-roll
+ * (app/(app)/transferencias, app/org/[orgToken]/voluntarios/propuestas, and
+ * both org transferencias pages). This is the one shared home they can migrate
+ * to; nothing forces them to yet.
+ *
+ * Returns null — never the raw value — for anything unmapped. A caller that
+ * cannot name a state must say nothing rather than leak the enum, which is the
+ * exact failure being fixed here.
+ */
+export function requestOutcomeLabel(status: string | null | undefined): string | null {
+  switch (status) {
+    case "accepted":
+    case "approved":
+    case "resolved":
+      return "Aceptada";
+    case "rejected":
+      return "Rechazada";
+    case "cancelled":
+    case "withdrawn":
+      return "Cancelada";
+    case "expired":
+    case "auto_expired":
+      return "Expirada";
+    case "pending":
+      return "Pendiente";
+    default:
+      return null;
+  }
+}
+
 /** es-AR label for a profile account type (`personal` | `institutional`). */
 export function accountTypeLabel(accountType: string): string {
   switch (accountType) {
