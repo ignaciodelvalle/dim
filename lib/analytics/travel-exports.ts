@@ -16,6 +16,7 @@
 
 import { PDFDocument, type PDFFont, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
+import { documentAttributionLine } from "@/lib/analytics/export-attribution";
 import type { RequirementLevel } from "@/lib/domain/travel-strictness";
 import type {
   CorridorDisclosure,
@@ -132,7 +133,7 @@ export function buildTravelExportSections(dto: TravelExportDto): TravelExportSec
     lines: [
       `PDF generado el ${dto.exportGeneratedAt}`,
       `Esquema de exportación: ${TRAVEL_EXPORT_SCHEMA_VERSION}`,
-      `Documento generado por DIM — Trazabilidad: ${dto.petPublicToken} — mimar.ar`,
+      documentAttributionLine(dto.petPublicToken),
     ],
   });
 

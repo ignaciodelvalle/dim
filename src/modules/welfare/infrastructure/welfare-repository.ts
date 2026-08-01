@@ -37,6 +37,21 @@ import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validatedEventValues } from "@/lib/events/validated-event-values";
 import { isUniqueViolation } from "@/lib/infra/db-errors";
 
+/**
+ * Printed in the MPF denuncia's "GENERADO POR" field when the exporting
+ * account has no resolvable profile row.
+ *
+ * It used to read "Autoridad DIM" — the INTERNAL codename, signed onto a
+ * document filed with the Unidad Fiscal de Maltrato Animal. Two problems, not
+ * one: the codename leaked, AND the label asserted an identity the system did
+ * not actually have. The replacement names the role (which IS known: only an
+ * admin/govt account can reach this export) and admits the gap, matching the
+ * document's own "Sin firma PKI" candour. The exporter's user id is recorded
+ * in audit_log either way — the traceability is real, only the display name
+ * is missing.
+ */
+export const UNRESOLVED_EXPORTER_LABEL = "Autoridad interviniente (identidad no disponible)";
+
 // ---------------------------------------------------------------------------
 // Type aliases
 // ---------------------------------------------------------------------------
@@ -366,7 +381,7 @@ export class WelfareRepository {
 
   /**
    * Return the exporter's display name for MPF export.
-   * Falls back to "Autoridad DIM" when the profile row is not found.
+   * Falls back to UNRESOLVED_EXPORTER_LABEL when the profile row is not found.
    */
   async findExporterName(exporterUserId: string): Promise<string> {
     const [row] = await db
@@ -374,7 +389,7 @@ export class WelfareRepository {
       .from(profiles)
       .where(eq(profiles.id, exporterUserId))
       .limit(1);
-    return row?.displayName ?? "Autoridad DIM";
+    return row?.displayName ?? UNRESOLVED_EXPORTER_LABEL;
   }
 
   /**

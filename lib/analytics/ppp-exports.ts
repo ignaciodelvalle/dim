@@ -20,6 +20,7 @@
 
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
+import { documentAttributionLine } from "@/lib/analytics/export-attribution";
 import { formatDate } from "@/lib/utils/format";
 
 export const PPP_EXPORT_SCHEMA_VERSION = "2026-05-21";
@@ -451,7 +452,7 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
     thickness: 0.5,
     color: rgb(0.8, 0.8, 0.8),
   });
-  page.drawText(`Documento generado por DIM — Trazabilidad: ${dto.petPublicToken} — mimar.ar`, {
+  page.drawText(documentAttributionLine(dto.petPublicToken), {
     x: margin,
     y: footerY,
     size: 7,

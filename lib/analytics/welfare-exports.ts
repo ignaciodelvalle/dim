@@ -20,6 +20,7 @@
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
 import type { WelfareReport, WelfareReportAttachment } from "@/db";
+import { documentAttributionLine } from "@/lib/analytics/export-attribution";
 import type { MpfExportFormatId } from "@/lib/domain/business-rules-defaults";
 import {
   MPF_EXPORT_FORMAT_LABELS,
@@ -704,7 +705,7 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
     thickness: 0.5,
     color: rgb(0.8, 0.8, 0.8),
   });
-  page.drawText(`Documento generado por DIM — Trazabilidad: ${dto.referenceCode} — mimar.ar`, {
+  page.drawText(documentAttributionLine(dto.referenceCode), {
     x: margin,
     y: footerY,
     size: 7,

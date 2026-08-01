@@ -70,7 +70,7 @@ describe("welfareReportToMpfDto — anonymous redaction", () => {
     const report = makeReport({ reporterUserId: null, reporterOrganizationId: null });
     const dto = welfareReportToMpfDto(report, {
       reporterDisplayName: null,
-      exportedByDisplayName: "Agente DIM",
+      exportedByDisplayName: "Agente Fiscalía",
       subjectPet: null,
       attachments: [],
       exportGeneratedAt: new Date(),
@@ -88,7 +88,7 @@ describe("welfareReportToMpfDto — anonymous redaction", () => {
     });
     const dto = welfareReportToMpfDto(report, {
       reporterDisplayName: "Juan Pérez",
-      exportedByDisplayName: "Agente DIM",
+      exportedByDisplayName: "Agente Fiscalía",
       subjectPet: null,
       attachments: [],
       exportGeneratedAt: new Date(),
