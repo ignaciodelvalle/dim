@@ -8,7 +8,9 @@
 //   2. Load report.
 //   3. Validate transition to in_progress.
 //   4. ATOMIC tx:
-//      a. updateStatus (+ backfill triagedAt/By if null — triage-skip parity)
+//      a. updateStatus, COMPARE-AND-SWAP on the status read in step 2 (+ backfill
+//         triagedAt/By if null — triage-skip parity). Zero rows matched means a
+//         concurrent actor won the race; abort instead of appending.
 //      b. insertAudit (welfare_report_started)
 //   5. Collect reporter notification (non-anon).
 //   6. Return UseCaseResult<void>.
@@ -38,6 +40,14 @@ export type StartWelfareReportInput = {
 };
 
 const MIN_NOTES_LEN = 10;
+
+/**
+ * Thrown inside the transaction when the compare-and-swap matched no row —
+ * another actor moved the report between our status read and our write. A
+ * distinct type so the catch below can tell a lost race (expected, benign,
+ * needs a "refresh the page" message) from a genuine DB failure.
+ */
+class ConcurrentTransitionError extends Error {}
 
 // ---------------------------------------------------------------------------
 // Use-case
@@ -73,7 +83,13 @@ export async function startWelfareReport(
   // 4. Atomic transaction.
   try {
     await transaction(async (tx) => {
-      await repo.updateStatus(
+      // COMPARE AND SWAP on the status we validated in step 3. The check above
+      // is a separate, earlier read, so on its own it only serialises clicks
+      // that arrive far enough apart; two that overlap both see `open` and both
+      // append. Constraining the UPDATE to that same status makes the second
+      // writer match zero rows and abort the whole transaction — no duplicate
+      // welfare_report_started in a Ley 14.346 audit trail.
+      const updated = await repo.updateStatus(
         report.id,
         {
           status: "in_progress",
@@ -81,7 +97,9 @@ export async function startWelfareReport(
           ...(report.triagedAt === null ? { triagedAt: now, triagedByUserId: actor.user.id } : {}),
         },
         tx as Parameters<typeof repo.updateStatus>[2],
+        { expectedStatus: report.status },
       );
+      if (updated === 0) throw new ConcurrentTransitionError();
 
       await repo.insertAudit(
         {
@@ -98,6 +116,12 @@ export async function startWelfareReport(
       );
     });
   } catch (err) {
+    if (err instanceof ConcurrentTransitionError) {
+      return {
+        ok: false,
+        error: "La denuncia ya cambió de estado. Actualizá la página para ver cómo quedó.",
+      };
+    }
     return {
       ok: false,
       error: `No se pudo iniciar: ${err instanceof Error ? err.message : "error desconocido"}`,

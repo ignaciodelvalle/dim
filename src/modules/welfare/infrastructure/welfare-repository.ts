@@ -160,12 +160,38 @@ export class WelfareRepository {
   /**
    * Apply a status patch (status, triagedAt/By, closedAt, resolutionNotes,
    * moderationResolved) to a welfare report.
+   *
+   * Returns the number of rows actually updated, so a caller can COMPARE AND
+   * SWAP: pass `expectedStatus` and the UPDATE only lands while the report is
+   * still in the state the caller validated. Zero means someone else moved it
+   * first — the caller must abort rather than append an audit row for a
+   * transition that did not happen.
+   *
+   * Every welfare status transition is validated by a read
+   * (`findById` → `statusTransitionAllowed`) that happens BEFORE this write and
+   * outside its transaction. Without the guard that gap is a plain TOCTOU: two
+   * concurrent "Iniciar seguimiento" clicks both read `open`, both pass, and
+   * both commit — two `welfare_report_started` rows in the audit trail of a
+   * Ley 14.346 case, plus the reporter notified twice. audit_log has no unique
+   * index that would have caught it (and cannot easily have one: the report id
+   * lives in a JSONB payload, not a column).
    */
-  async updateStatus(reportId: string, patch: StatusPatch, executor: DbOrTx = db): Promise<void> {
-    await executor
+  async updateStatus(
+    reportId: string,
+    patch: StatusPatch,
+    executor: DbOrTx = db,
+    opts: { expectedStatus?: WelfareReport["status"] } = {},
+  ): Promise<number> {
+    const rows = await executor
       .update(welfareReports)
       .set(patch as Partial<typeof welfareReports.$inferInsert>)
-      .where(eq(welfareReports.id, reportId));
+      .where(
+        opts.expectedStatus === undefined
+          ? eq(welfareReports.id, reportId)
+          : and(eq(welfareReports.id, reportId), eq(welfareReports.status, opts.expectedStatus)),
+      )
+      .returning({ id: welfareReports.id });
+    return rows.length;
   }
 
   /**
