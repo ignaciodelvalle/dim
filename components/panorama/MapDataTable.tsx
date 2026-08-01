@@ -209,7 +209,10 @@ export function mapTableEmptyMessage(input: {
     return `A este nivel de zoom, ${named} se dibuja${pointModeLayers.length === 1 ? "" : "n"} como registros individuales, no como valores por unidad. Alejá el mapa para volver a la tabla por unidad — no es que no haya datos.`;
   }
   if (suppressedUnits > 0) {
-    return `${suppressedUnits.toLocaleString("es-AR")} unidades del alcance SÍ reportaron, pero sus valores son tan bajos que mostrarlos identificaría casos (k<5). Hay señal; no se puede publicar al detalle.`;
+    // RA-7 F6 — DECLARE THE UNIVERSE. `suppressedUnits` is Σ over the layers that
+    // FEED THIS TABLE (sumSuppressedTableUnits), not the view's protected-cell
+    // total that the legend pill publishes. "del alcance" claimed the wider one.
+    return `${suppressedUnits.toLocaleString("es-AR")} unidades de las capas de esta tabla SÍ reportaron, pero sus valores son tan bajos que mostrarlos identificaría casos (k<5). Hay señal; no se puede publicar al detalle.`;
   }
   return "Sin datos por unidad para las capas activas en este alcance.";
 }

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  activeSuppressedCells,
   buildViewMeta,
   initialState,
   parseLayersParam,
@@ -113,5 +114,97 @@ describe("buildViewMeta — one clock, and it declares the as-of cut", () => {
     });
     expect(meta.periodLabel).toContain("estado actual");
     expect(meta.periodLabel).toContain("· al ");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// RA-7 F6 — ONE answer to "cuántas celdas están protegidas".
+//
+// The console published four. Two of them ("this view's protected cells") were
+// the SAME claim computed twice: the legend pill summed ACTIVE + NON-LOADING
+// layers, `buildViewMeta` (→ the exported PNG footer and the printed informe)
+// summed ACTIVE layers whether or not they were mid-refetch. So for the whole
+// duration of any refetch the two disagreed ON SCREEN, and the artifact the
+// operator hands to a funcionario carried the number that included a layer's
+// PREVIOUS scope. The other two figures (the Registros caption, the ranking
+// line) are legitimately narrower universes and keep their own numbers — they
+// now name what they measure at their call sites.
+// ---------------------------------------------------------------------------
+describe("activeSuppressedCells — the single view-wide k-anon figure", () => {
+  function states(
+    overrides: Record<string, { active?: boolean; loading?: boolean; suppressedCount?: number }>,
+  ) {
+    const out = initialState();
+    for (const [id, patch] of Object.entries(overrides)) {
+      const s = out[id as keyof typeof out];
+      if (s) out[id as keyof typeof out] = { ...s, ...patch };
+    }
+    return out;
+  }
+
+  it("sums the ACTIVE layers and keeps the per-layer breakdown", () => {
+    const result = activeSuppressedCells(
+      states({
+        denuncias: { active: true, suppressedCount: 3 },
+        mordeduras: { active: true, suppressedCount: 1 },
+      }),
+    );
+    expect(result.total).toBe(4);
+    expect(result.breakdown.map((b) => b.value)).toEqual([1, 3]);
+  });
+
+  it("ignores INACTIVE layers — a layer not on the board is not part of this view", () => {
+    expect(activeSuppressedCells(states({ denuncias: { suppressedCount: 9 } })).total).toBe(0);
+  });
+
+  it("ignores LOADING layers — their count still describes the PREVIOUS scope", () => {
+    // Attributing a stale count to the scope now on screen is a false claim
+    // about privacy, which is the one number that must not be approximated.
+    expect(
+      activeSuppressedCells(
+        states({ denuncias: { active: true, loading: true, suppressedCount: 9 } }),
+      ).total,
+    ).toBe(0);
+  });
+
+  it("is THE figure buildViewMeta publishes — the pill and the PNG footer cannot drift", () => {
+    // The regression this exists to prevent: two reduces of one claim. Both
+    // surfaces read this function, so agreement is structural, not coincidental.
+    const s = states({
+      denuncias: { active: true, suppressedCount: 3 },
+      mordeduras: { active: true, suppressedCount: 1 },
+    });
+    expect(
+      buildViewMeta({
+        province: null,
+        locality: null,
+        since: new Date("2026-04-01T00:00:00Z"),
+        until: new Date("2026-06-30T00:00:00Z"),
+        periodParam: "90d",
+        states: s,
+        asOf: null,
+      }).suppressedCount,
+    ).toBe(activeSuppressedCells(s).total);
+  });
+
+  it("agrees with the pill DURING a refetch — the exact window the two used to disagree in", () => {
+    // Before the fix: pill 3 (drops the loading layer), footer 4 (keeps its
+    // last-known count). Same board, same instant, two numbers.
+    const s = states({
+      denuncias: { active: true, suppressedCount: 3 },
+      mordeduras: { active: true, loading: true, suppressedCount: 1 },
+    });
+    expect(activeSuppressedCells(s).total).toBe(3);
+    expect(
+      buildViewMeta({
+        province: null,
+        locality: null,
+        since: new Date("2026-04-01T00:00:00Z"),
+        until: new Date("2026-06-30T00:00:00Z"),
+        periodParam: "90d",
+        states: s,
+        asOf: null,
+      }).suppressedCount,
+    ).toBe(3);
   });
 });

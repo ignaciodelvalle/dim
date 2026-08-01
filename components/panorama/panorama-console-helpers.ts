@@ -491,6 +491,107 @@ export function findRankedFeature(
  * Provenance metadata for the map's export footer and dock caption: WHERE, WHEN
  * and how much was k-anon suppressed. Pure — the console memoizes the call.
  */
+/**
+ * The state patch for a layer whose refetch has just come back — the ONE rule
+ * for "what does this layer now claim", shared by every re-fetch call site.
+ *
+ * RA-7 F4 (2026-07-31) — WHY THIS IS A FUNCTION. `fetchChoroplethAt` resolves to
+ * `null` on any !res.ok (503, budget fallback, gateway timeout) and the level-
+ * change and verified-toggle handlers each merged that null into the envelope
+ * inline, with `?? 0` / `?? false` / `=== true`. A failure therefore published
+ * suppressedCount 0, noLocalityCount 0, truncated false and — the lie that
+ * mattered — `degraded: false`. Since the failed fetch also wrote nothing into
+ * the level cache, the canvas repainted EMPTY under a not-degraded flag, and
+ * `emptyOverlayMessage` fell past its `layerDegraded` branch to "Sin datos para
+ * esta capa …": the exact string LayerPanelState.degraded's own docblock forbids
+ * for a timeout. A funcionario reads "no hay casos en mi provincia" where the
+ * truth is "no pudimos calcular". Zeroing suppressedCount was its own small lie
+ * — a privacy claim derived from a response that never arrived.
+ *
+ * A failure keeps the last-known envelope and DECLARES itself; only a real body
+ * may restate the counts. Same shape as the M1/M2 honesty fixes on the fetch
+ * paths in PanoramaConsole, now expressed once instead of per call site.
+ */
+export function layerFetchPatch(body: ApiResponse | null): Partial<LayerPanelState> {
+  if (body === null) return { loading: false, degraded: true };
+  return {
+    loading: false,
+    count: body.features.features.length,
+    suppressedCount: body.suppressedCount,
+    noLocalityCount: body.noLocalityCount ?? 0,
+    truncated: body.truncated,
+    degraded: body.degraded === true,
+  };
+}
+
+/** One layer's contribution to a privacy-treatment total. */
+export type SuppressionContribution = { label: string; value: number };
+
+/**
+ * THE view-wide k-anon figure: how many cells the server withheld across the
+ * layers this board is currently showing, with the per-layer breakdown.
+ *
+ * RA-7 F6 (2026-07-31) — WHY THIS IS ONE FUNCTION AND NOT FOUR EXPRESSIONS.
+ * The console used to answer "cuántas celdas están protegidas" in four places,
+ * all of which could be on screen at once:
+ *
+ *   1. the legend pill's disclosure — Σ over ACTIVE, NON-LOADING layers;
+ *   2. the exported PNG footer + the printed informe — Σ over ACTIVE layers,
+ *      loading or not (`buildViewMeta`'s own reduce, a second derivation of the
+ *      SAME claim that drifted from #1 for the whole duration of any refetch:
+ *      the pill dropped a refetching layer's contribution, the footer kept its
+ *      last-known one, and the two numbers disagreed on screen);
+ *   3. the Registros caption — cells FLAGGED `suppressed` in the plotted
+ *      features of the summable count layers only;
+ *   4. the ranking line — ONE layer's count (the ranked base layer).
+ *
+ * #3 and #4 are legitimately different universes and keep their own numbers —
+ * but they now SAY which universe they measure, at their call sites, because a
+ * smaller number with no stated scope reads as a contradiction, not as a
+ * narrower claim. #1 and #2 are the SAME claim ("this view") and had no business
+ * being computed twice; they both read this function now.
+ *
+ * LOADING IS EXCLUDED, deliberately. A layer mid-refetch still carries the
+ * PREVIOUS scope's suppressedCount, and attributing it to the scope now on
+ * screen is a stale claim about privacy — the one class of number that must not
+ * be approximated. It resolves as soon as the fetch lands.
+ */
+export function activeSuppressedCells(states: Record<LayerId, LayerPanelState>): {
+  total: number;
+  breakdown: SuppressionContribution[];
+} {
+  const breakdown: SuppressionContribution[] = [];
+  let total = 0;
+  for (const layer of PANORAMA_LAYERS) {
+    const s = states[layer.id];
+    if (!s?.active || s.loading) continue;
+    const value = s.suppressedCount ?? 0;
+    if (value <= 0) continue;
+    total += value;
+    breakdown.push({ label: layer.label, value });
+  }
+  return { total, breakdown };
+}
+
+/** Same shape as `activeSuppressedCells`, for the "sin localidad" disclosure
+ *  that shares the pill row with it (same active/non-loading rule). */
+export function activeNoLocalityRecords(states: Record<LayerId, LayerPanelState>): {
+  total: number;
+  breakdown: SuppressionContribution[];
+} {
+  const breakdown: SuppressionContribution[] = [];
+  let total = 0;
+  for (const layer of PANORAMA_LAYERS) {
+    const s = states[layer.id];
+    if (!s?.active || s.loading) continue;
+    const value = s.noLocalityCount ?? 0;
+    if (value <= 0) continue;
+    total += value;
+    breakdown.push({ label: layer.label, value });
+  }
+  return { total, breakdown };
+}
+
 export function buildViewMeta(input: {
   province: string | null;
   locality: string | null;
@@ -524,10 +625,10 @@ export function buildViewMeta(input: {
   // The dock never declared the as-of cut, so a past frame was indistinguishable
   // from the live one in the corner that names the window.
   const periodLabel = input.asOf === null ? base : `${base} · al ${formatDate(input.asOf)}`;
-  const suppressedCount = PANORAMA_LAYERS.reduce(
-    (sum, l) => sum + (input.states[l.id]?.active ? (input.states[l.id]?.suppressedCount ?? 0) : 0),
-    0,
-  );
+  // RA-7 F6: cite the ONE view-wide figure, never a second reduce of the same
+  // claim. This feeds the PNG footer and the printed informe; the legend pill
+  // reads the identical function, so the two cannot disagree by construction.
+  const suppressedCount = activeSuppressedCells(input.states).total;
   return { scopeLabel, periodLabel, suppressedCount };
 }
 

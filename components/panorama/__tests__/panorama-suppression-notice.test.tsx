@@ -51,8 +51,14 @@ describe("PanoramaSuppressionNotice", () => {
       mordeduras: { active: true, suppressedCount: 1 },
     });
     render(<PanoramaSuppressionNotice states={states} />);
+    // RA-7 F6: the copy now NAMES its universe ("en las capas activas de esta
+    // vista"). It is the board's widest protected-cell figure, and the dock
+    // publishes narrower ones beside it; unnamed, the smaller numbers read as
+    // contradictions instead of subsets.
     expect(
-      screen.getByText("4 celdas con menos de 5 casos ocultas por privacidad (k-anonimato)"),
+      screen.getByText(
+        "4 celdas con menos de 5 casos ocultas por privacidad (k-anonimato) en las capas activas de esta vista",
+      ),
     ).toBeInTheDocument();
   });
 

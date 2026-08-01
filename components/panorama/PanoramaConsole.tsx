@@ -32,11 +32,7 @@ import { FiltroPanel } from "@/components/panorama/FiltroPanel";
 import { KpiChips } from "@/components/panorama/KpiChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { LegendPill } from "@/components/panorama/LegendPill";
-import {
-  MapDataTable,
-  type MapTableRow,
-  useMapTableCsvHref,
-} from "@/components/panorama/MapDataTable";
+import { type MapTableRow, useMapTableCsvHref } from "@/components/panorama/MapDataTable";
 import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
 import { MapLegends } from "@/components/panorama/MapLegends";
 import { ModeSwitcher } from "@/components/panorama/ModeSwitcher";
@@ -45,6 +41,7 @@ import { PanoramaBoardNotices } from "@/components/panorama/PanoramaBoardNotices
 import { PanoramaCaption } from "@/components/panorama/PanoramaCaption";
 import { PanoramaDataTable } from "@/components/panorama/PanoramaDataTable";
 import { PanoramaDock, type PanoramaDockTab } from "@/components/panorama/PanoramaDock";
+import { PanoramaDockRegistros } from "@/components/panorama/PanoramaDockRegistros";
 import { PanoramaInformeSituacion } from "@/components/panorama/PanoramaInformeSituacion";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
@@ -202,6 +199,7 @@ import {
   findRankedFeature,
   initialState,
   isAbortError,
+  layerFetchPatch,
   loadingPanoramaKpis,
   parseLayersParam,
   pointsDisclosureLine,
@@ -1964,18 +1962,10 @@ export function PanoramaConsole({
             if (isAbortError(err)) return;
             body = null;
           }
-          setStates((s) => ({
-            ...s,
-            [l.id]: {
-              ...s[l.id],
-              loading: false,
-              count: body?.features.features.length ?? s[l.id].count,
-              suppressedCount: body?.suppressedCount ?? 0,
-              noLocalityCount: body?.noLocalityCount ?? 0,
-              truncated: body?.truncated ?? false,
-              degraded: body?.degraded === true,
-            },
-          }));
+          // RA-7 F4: a failed level change keeps its envelope and DECLARES
+          // itself degraded — it never republishes zeros that read as "sin
+          // datos". One rule, shared with the verified toggle below.
+          setStates((s) => ({ ...s, [l.id]: { ...s[l.id], ...layerFetchPatch(body) } }));
         }),
       ).then(() => setLevelVersion((v) => v + 1));
     },
@@ -2010,18 +2000,11 @@ export function PanoramaConsole({
         if (isAbortError(err)) return;
         body = null;
       }
-      setStates((s) => ({
-        ...s,
-        cobertura: {
-          ...s.cobertura,
-          loading: false,
-          count: body?.features.features.length ?? s.cobertura.count,
-          suppressedCount: body?.suppressedCount ?? 0,
-          noLocalityCount: body?.noLocalityCount ?? 0,
-          truncated: body?.truncated ?? false,
-          degraded: body?.degraded === true,
-        },
-      }));
+      // RA-7 F4 — same defect, same rule as onLevelChange. This path DELETED the
+      // cobertura caches before fetching, so a failure empties the canvas
+      // outright; publishing `degraded: false` beside it made that emptiness
+      // read as "sin datos".
+      setStates((s) => ({ ...s, cobertura: { ...s.cobertura, ...layerFetchPatch(body) } }));
       setLevelVersion((v) => v + 1);
     })();
   }, [fetchChoroplethAt]);
@@ -3442,6 +3425,13 @@ export function PanoramaConsole({
     });
   }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
 
+  // RA-7 F5 (2026-07-31) — `limit` IS DELIBERATELY UNCAPPED. This list answers
+  // "how many units did we MEASURE", and PanoramaDataTable publishes its length
+  // verbatim: "Se midieron N {unidades} y ninguna quedó por debajo de la meta."
+  // RANKING_LIMIT clamped it at 10, so a national frame that measured all 24
+  // jurisdictions told a funcionario from any of the other 14 that we measured
+  // ten — a DISPLAY cap reported as a MEASUREMENT count. Passing it explicitly
+  // (not omitting it) matters: rankUnitsInScope's own default is 10.
   const rankingAllInScope = useMemo<RankedUnit[]>(() => {
     if (!rankingLayer || effectiveRankingKind === null || !rankedActiveLayer) return [];
     return rankUnitsInScope(rankedActiveLayer.features, {
@@ -3450,7 +3440,7 @@ export function PanoramaConsole({
       // Same polarity declaration as the Worst-N path above — the small-scope
       // fallback orders the SAME units and must not disagree about which end is bad.
       higherIsBetter: rankingLayer.higherIsBetter,
-      limit: RANKING_LIMIT,
+      limit: Number.POSITIVE_INFINITY,
     });
   }, [rankingLayer, effectiveRankingKind, rankedActiveLayer]);
 
@@ -4014,76 +4004,19 @@ export function PanoramaConsole({
     (l) => l.dataType === "rate" && l.level === "locality",
   );
   const dockRegistros = (
-    <div className="space-y-2">
-      {/* Dock redesign (PO ask, consistency + explanation): a one-line caption
-          naming what this pane IS — the raw records behind the current
-          filtered view — matching the caption idiom used elsewhere in the
-          dock (the disclosures right below, MapLegends' framing line). */}
-      <p className="text-xs leading-snug text-ln-op-mute">
-        Los registros crudos detrás de la vista filtrada actual.
-      </p>
-      {/* Cowork QA ronda 3 §3: the EVENT total (Σ cell counts across the active
-          count/event layers) — a DIFFERENT concept from the per-unit "Valor por
-          unidad" table below. It counts events, not table rows, so "0 eventos" no
-          longer sits over a populated value table reading as a contradiction. The
-          unit count is units-WITH-events (never the rate count-density rows). */}
-      {dockRecordSummary.hasCountLayer && (
-        <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs tabular-nums text-ln-op-ink-2">
-          {/* Period-flow layers say "Eventos en el período"; a current-state stock
-              (mortalidad, acceso-veterinario) says "Registros (estado actual)" so
-              the label matches what the number is (Cursor review). */}
-          {dockRecordSummary.anyPeriodLayer
-            ? "Eventos en el período: "
-            : "Registros (estado actual): "}
-          {dockRecordSummary.total.toLocaleString("es-AR")} en{" "}
-          {dockRecordSummary.unitsWithEvents.toLocaleString("es-AR")}{" "}
-          {dockRecordSummary.unitsWithEvents === 1 ? "unidad" : "unidades"}
-          {dockRecordSummary.suppressed > 0 &&
-            ` (+${dockRecordSummary.suppressed.toLocaleString("es-AR")} ${
-              dockRecordSummary.suppressed === 1 ? "protegida" : "protegidas"
-            } por k-anonimato)`}
-        </p>
-      )}
-      {referenceLayerLabels.length > 0 && (
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs text-ln-op-mute">
-          {referenceLayerLabels.length === 1
-            ? `${referenceLayerLabels[0]} se muestra solo en el mapa (capa de referencia); no se tabula en Registros.`
-            : `${referenceLayerLabels.join(" y ")} se muestran solo en el mapa (capas de referencia); no se tabulan en Registros.`}
-        </p>
-      )}
-      {localityRateInView && (
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs text-ln-op-mute">
-          La cobertura por unidad se muestra como conteo; el porcentaje se calcula solo a nivel
-          provincia.
-        </p>
-      )}
-      {/* panorama-percapita: the map paints per-10k rates while this table (and
-          the Estadísticas ranking) keeps raw counts — name the split so the two
-          numbers are never mistaken for a contradiction (same disclosure pattern
-          as the reference-layer / rate-count notes above). */}
-      {percapitaActive && (
-        <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs text-ln-op-mute">
-          El mapa pinta tasas por 10.000 habitantes; esta tabla y el ranking muestran conteos.
-        </p>
-      )}
-      {mapTableRows.length > 0 && (
-        <p className="text-xs font-medium text-ln-op-ink-2">Valor por unidad</p>
-      )}
-      <MapDataTable
-        rows={mapTableRows}
-        caption={mapTableCaption}
-        filename="panorama-mapa"
-        metrics={mapTableMetrics}
-        truncatedLayers={mapTableTruncatedLayers}
-        // Finding 2: WHY the table is empty, when it is — the near-zoom points
-        // band, or k-anon protection. Never a bare "sin datos".
-        pointModeLayers={pointModeLayerLabels}
-        suppressedUnits={mapTableSuppressedUnits}
-        // V2: the CSV carries its scope as an OBJECT in a `#` header block, so
-        // a file that outlives this screen can still be regenerated from itself.
-        viewScope={viewScope}
-      />
-    </div>
+    <PanoramaDockRegistros
+      summary={dockRecordSummary}
+      referenceLayerLabels={referenceLayerLabels}
+      localityRateInView={localityRateInView}
+      percapitaActive={percapitaActive}
+      rows={mapTableRows}
+      caption={mapTableCaption}
+      metrics={mapTableMetrics}
+      truncatedLayers={mapTableTruncatedLayers}
+      pointModeLayerLabels={pointModeLayerLabels}
+      suppressedUnits={mapTableSuppressedUnits}
+      viewScope={viewScope}
+    />
   );
   // Estadísticas: the Worst-N=10 ranking (PO-ratified depth — ia-v2 §3.3, NOT
   // the prototype's top-7), hover-synced with the map and click-through to the
@@ -4139,6 +4072,9 @@ export function PanoramaConsole({
           // crowned Córdoba · Capital (147 vaccinations) the worst department.
           orderedByVolume={rankLocalityRateCount}
         />
+        {/* RA-7 F6 — DECLARE THE UNIVERSE. ONE layer's count (the ranked base),
+            not the view's; unnamed, the board's smallest protected-cell figure
+            read as a contradiction of the legend pill's view-wide total. */}
         {dockSuppressedCount > 0 && (
           <p className="flex items-center gap-2 text-xs text-ln-op-mute">
             <span className="rounded-full border border-ln-op-line px-2 py-0.5 font-medium">
@@ -4146,6 +4082,7 @@ export function PanoramaConsole({
             </span>
             {dockSuppressedCount}{" "}
             {dockSuppressedCount === 1 ? "unidad suprimida" : "unidades suprimidas"} por k-anonimato
+            en {rankingLayer.label}
           </p>
         )}
         <p className="text-xs leading-snug text-ln-op-faint">

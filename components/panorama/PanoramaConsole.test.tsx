@@ -2779,3 +2779,244 @@ describe("PanoramaConsole — camera lockdown opt-in stays OUT of the console (g
     expect(mapProps?.interactive).toBeUndefined();
   });
 });
+
+// ---------------------------------------------------------------------------
+// RA-7 — "the panorama must not count itself differently in two corners"
+// (demo-funcionarios truth pass, 2026-07-31).
+// ---------------------------------------------------------------------------
+
+function stubCoberturaEnvelope(envelope: unknown) {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn((input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      const payload = url.includes("/api/panorama/kpis")
+        ? INITIAL_KPIS
+        : url.includes("/api/panorama/cobertura") && !url.includes("histogram=1")
+          ? envelope
+          : OK_ENVELOPE;
+      return Promise.resolve({ ok: true, json: async () => payload } as unknown as Response);
+    }),
+  );
+}
+
+function provinceCells(cells: Array<{ code: string; name: string; value: number }>) {
+  return {
+    features: {
+      type: "FeatureCollection" as const,
+      features: cells.map((c) => ({
+        type: "Feature" as const,
+        geometry: null,
+        properties: { provinceCode: c.code, province: c.name, value: c.value },
+      })),
+    },
+    truncated: false,
+    suppressedCount: 0,
+  };
+}
+
+describe("PanoramaConsole — RA-7 F5: the measured-units count is a MEASUREMENT, not a display cap", () => {
+  // The 24 ISO jurisdictions, every one AT or ABOVE the 80% antirrábica meta.
+  // `rankWorstUnits` therefore returns nothing (no unit is below target) and
+  // PanoramaDataTable falls to its all-clear empty state — whose whole job is to
+  // say HOW MUCH was looked at before claiming nothing is wrong.
+  const ALL_COMPLIANT = [
+    "AR-A",
+    "AR-B",
+    "AR-C",
+    "AR-D",
+    "AR-E",
+    "AR-F",
+    "AR-G",
+    "AR-H",
+    "AR-J",
+    "AR-K",
+    "AR-L",
+    "AR-M",
+    "AR-N",
+    "AR-P",
+    "AR-Q",
+    "AR-R",
+    "AR-S",
+    "AR-T",
+    "AR-U",
+    "AR-V",
+    "AR-W",
+    "AR-X",
+    "AR-Y",
+    "AR-Z",
+  ].map((code, i) => ({ code, name: `Jurisdiccion ${code}`, value: 85 + (i % 10) }));
+
+  it("reports all 24 measured jurisdictions, never the Worst-N display cap of 10", async () => {
+    // THE DEFECT: `rankingAllInScope` was built with `limit: RANKING_LIMIT` (10)
+    // and its LENGTH was published as `measuredUnits`, so a fully compliant
+    // national frame read "Se midieron 10 jurisdicciones y ninguna quedó por
+    // debajo de la meta." A funcionario from any of the other 14 provinces is
+    // told, in a sentence about coverage, that we did not look at theirs. The
+    // Worst-N cap is a rendering budget; it has no business describing what was
+    // measured.
+    stubCoberturaEnvelope(provinceCells(ALL_COMPLIANT));
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
+
+    expect(await screen.findByText(/Se midieron 24 jurisdicciones/)).toBeVisible();
+    expect(screen.queryByText(/Se midieron 10 jurisdicciones/)).not.toBeInTheDocument();
+  });
+
+  it("still frames a SMALL scope as small (uncapping did not move the Worst-N threshold)", async () => {
+    // The uncapped list has two other readers: `rankingSmallScope`
+    // (`length < RANKING_LIMIT`) and, through it, the rendered rows. Six units is
+    // under the cap either way, so the small-scope heading must survive — this is
+    // the test that fails if someone "fixes" F5 by RAISING the cap instead of
+    // removing it from the measurement.
+    stubCoberturaEnvelope(
+      provinceCells(ALL_COMPLIANT.slice(0, 6).map((c) => ({ ...c, value: 40 }))),
+    );
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
+
+    // "Tus 6 jurisdicciones · …" — the small-scope heading, not "Peores 6".
+    expect(await screen.findByText(/Tus 6 jurisdicciones/)).toBeVisible();
+  });
+});
+
+describe("PanoramaConsole — RA-7 F4: a FAILED level change says so; it never reads as 'sin datos'", () => {
+  /** Province-grain succeeds; the department-grain refetch the LOD flip issues
+   *  comes back 503 — the shape `fetchChoroplethAt` turns into `null`. */
+  function stubLocalityFailure(provinceBody: unknown) {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL): Promise<Response> => {
+        const url = String(input);
+        if (url.includes("/api/panorama/kpis")) {
+          return Promise.resolve({
+            ok: true,
+            json: async () => INITIAL_KPIS,
+          } as unknown as Response);
+        }
+        const isCobertura = url.includes("/api/panorama/cobertura") && !url.includes("histogram=1");
+        // The LOD flip to departments drops `level=province` from the query.
+        if (isCobertura && !url.includes("level=province")) {
+          return Promise.resolve({
+            ok: false,
+            status: 503,
+            json: async () => ({}),
+          } as unknown as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => (isCobertura ? provinceBody : OK_ENVELOPE),
+        } as unknown as Response);
+      }),
+    );
+  }
+
+  it("marks the layer degraded so the empty canvas reads 'no pudimos calcular', not 'sin datos'", async () => {
+    // THE DEFECT: `onLevelChange` fed the null body straight into the envelope
+    // (`?? 0`, `?? false`, `=== true`), publishing `degraded: false` over a canvas
+    // with nothing on it — the failed fetch also wrote nothing into the level
+    // cache. `emptyOverlayMessage` then fell past its `layerDegraded` branch to
+    // "Sin datos para esta capa …", the exact string LayerPanelState.degraded's
+    // own docblock forbids for a timeout.
+    stubLocalityFailure({ features: EMPTY_FC, truncated: false, suppressedCount: 0 });
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    await waitFor(() => {
+      expect(mapProps?.onZoom).toBeInstanceOf(Function);
+    });
+
+    // Zoom past Z_DIVISIONS — the automatic department-grain LOD flip, whose
+    // refetch fails.
+    await act(async () => {
+      (mapProps!.onZoom as (z: number) => void)(7);
+    });
+
+    // The flag reaches the map — this is the wire `emptyOverlayMessage` reads in
+    // its HIGHEST-priority branch, the one that replaces "Sin datos para esta
+    // capa …" with "No pudimos calcular esta capa a tiempo."
+    await waitFor(() => {
+      expect(mapProps?.layerDegraded).toBe(true);
+    });
+    // …and the console says it in words, naming the layer.
+    expect(
+      screen.getByText(/No pudimos calcular a tiempo: Cobertura antirrábica/),
+    ).toBeInTheDocument();
+  });
+
+  it("does NOT zero the privacy/truncation envelope on a failed level change", async () => {
+    // The same `?? 0` / `?? false` chain republished suppressedCount 0 and
+    // truncated false for a request that returned nothing at all — a fabricated
+    // privacy claim ("nothing was protected here") derived from a failure. The
+    // last-known envelope is retained instead, under the degraded flag.
+    stubLocalityFailure({ features: EMPTY_FC, truncated: true, suppressedCount: 7 });
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    // The province-grain answer disclosed 7 protected cells.
+    expect(await screen.findByText(/^7 celdas con menos de 5 casos/)).toBeInTheDocument();
+
+    await act(async () => {
+      (mapProps!.onZoom as (z: number) => void)(7);
+    });
+
+    await waitFor(() => {
+      expect(mapProps?.layerDegraded).toBe(true);
+    });
+    // The failure did not overwrite the privacy disclosure with a fabricated
+    // zero: with the defect, suppressedCount fell to 0 and this pill vanished
+    // entirely — a view silently claiming nothing had been protected.
+    expect(screen.getByText(/^7 celdas con menos de 5 casos/)).toBeInTheDocument();
+  });
+});
+
+describe("PanoramaConsole — RA-7 F6: every protected-cell figure names the universe it measures", () => {
+  it("the ranking line attributes its count to the RANKED LAYER, not to the view", () => {
+    // Four numbers used to answer "cuántas celdas están protegidas", all able to
+    // be on screen at once. This is the smallest of them — ONE layer's count —
+    // and unnamed it read as a contradiction of the legend pill's view-wide
+    // total rather than as the narrower, compatible claim it is.
+    stubCoberturaEnvelope({
+      features: EMPTY_FC,
+      truncated: false,
+      suppressedCount: 7,
+    });
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
+
+    return waitFor(() => {
+      expect(
+        screen.getByText(
+          /unidades suprimidas por k-anonimato en Cobertura antirrábica \(perros, 12m\)/,
+        ),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("the legend pill's figure declares itself as the VIEW-WIDE one", () => {
+    // The counterpart claim: the widest figure says so, which is what makes the
+    // smaller ones legible as subsets instead of disagreements.
+    stubCoberturaEnvelope({ features: EMPTY_FC, truncated: false, suppressedCount: 7 });
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+
+    return waitFor(() => {
+      expect(
+        screen.getByText(/7 celdas con menos de 5 casos .* en las capas activas de esta vista/),
+      ).toBeInTheDocument();
+    });
+  });
+});
