@@ -50,7 +50,30 @@ exactamente lo que estamos tratando de eliminar.
 **Nunca resetear la contraseña de la base.** El 01/08 eso tiró staging abajo
 por horas.
 
-**No uses cuentas que empiecen con `+cursor-`.** Son de otro equipo.
+**No hace falta que crees cuentas — el elenco ya está sembrado.** Todas
+entran con `Test1234!`, y verifiqué el login de cada una contra staging el
+01/08, no las estoy copiando de un documento:
+
+| Cuenta | Rol | Qué es |
+|---|---|---|
+| `owner@dim.test` | dueño | Dueño de mascotas |
+| `graciela@dim.test` · `noeli@dim.test` | dueño | Además **fosters** de Refugio Patitas del Norte |
+| `vet@dim.test` | **vet** | Admin de "Consultorio Dr. Juan Veterinario" + vet en Refugio Test |
+| `lilian@dim.test` | **vet** | Vet en "Clínica Veterinaria Recoleta" |
+| `alejo@dim.test` | dueño | **Admin de cuatro organizaciones**: Refugio Patitas del Norte, Clínica Recoleta, Red de Rescate Puerto Madero, Mascotas BA Centro |
+| `orgadmin@dim.test` | dueño | Admin de "Refugio Test" (la única **verificada**) |
+| `govt@dim.test` | **govt** | 1 jurisdicción |
+| `lucas@dim.test` | **govt** | **5 jurisdicciones** — el mejor para ver alcance amplio |
+| `govt-local@dim.test` | **govt** | 2 jurisdicciones |
+| `admin@dim.test` | **admin** | Alcance nacional |
+
+Para la historia de la libreta firmada usá **`vet@dim.test` o `lilian@dim.test`**:
+son los que tienen matrícula, y la diferencia entre un evento firmado por un
+matriculado y uno cargado por cualquiera es justamente lo que hay que mostrar.
+
+**No uses cuentas que empiecen con `+cursor-`.** Son de otro equipo. La única
+excepción documentada: `+cursor-owner2` quedó como `vet` y admin de "Clínica
+Cursor Staging" — tampoco la uses, pero si la ves en un listado, ya sabés qué es.
 
 **Repartí las jurisdicciones.** Esto es crítico y la carga anterior lo hizo mal:
 si todo cae en un solo lugar, las pantallas con alcance acotado se ven vacías.
