@@ -1046,7 +1046,18 @@ function activePetsAsOf(t: Date): SQL {
         WHERE sc.pet_id = ${pets.id}
           AND sc.event_type = 'status_changed'
           AND sc.occurred_at <= ${at}::timestamptz
-        ORDER BY sc.occurred_at DESC
+        -- THREE keys, not one. lib/projections/pet-status.ts declares the
+        -- canonical order — "latest wins by occurredAt, then recordedAt, then
+        -- id" — and delegates the sorting to its caller. This replay is a
+        -- caller, and it honoured only the first key: with two status events at
+        -- the SAME instant, LIMIT 1 returned whichever row the scan happened
+        -- to hand back, so a pet could replay as lost here and active in the
+        -- projection. Measured on staging 2026-08-01: 49 tied groups, 1 of them
+        -- carrying CONTRADICTORY statuses (DIM-BLUE-0010, lost vs active at the
+        -- same timestamp) — small today, and silently wrong rather than loud.
+        -- Same shape as the /perdidas superset bug found this morning: an ORDER
+        -- BY that does not totally order, with a LIMIT on top.
+        ORDER BY sc.occurred_at DESC, sc.recorded_at DESC, sc.id DESC
         LIMIT 1
       ),
       'active'
