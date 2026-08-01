@@ -72,9 +72,6 @@ describe("toChoroplethData", () => {
 });
 
 describe("aggregateChoroplethData", () => {
-  const casesLabel = (value: number) =>
-    `${value} caso${value !== 1 ? "s" : ""} abierto${value !== 1 ? "s" : ""}`;
-
   it("counts occurrences per resolved province like /gob/perdidas (aggregateLostByProvince)", () => {
     // Every province is at/above the k floor so this test measures the FOLD,
     // not the k-anon rule (which has its own block below).
@@ -89,12 +86,11 @@ describe("aggregateChoroplethData", () => {
       lostPets,
       (p) => (p.province ? PROVINCE_ISO_MAP[p.province] : undefined),
       () => 1,
-      (value) => `${value} mascota${value !== 1 ? "s" : ""} perdida${value !== 1 ? "s" : ""}`,
     );
 
     expect(result).toEqual([
-      { code: "AR-B", value: 6, label: "6 mascotas perdidas" },
-      { code: "AR-X", value: 5, label: "5 mascotas perdidas" },
+      { code: "AR-B", value: 6, label: "Buenos Aires" },
+      { code: "AR-X", value: 5, label: "Córdoba" },
     ]);
   });
 
@@ -110,13 +106,56 @@ describe("aggregateChoroplethData", () => {
       mapData,
       (row) => row.code,
       (row) => row.count,
-      casesLabel,
     );
 
     expect(result).toEqual([
-      { code: "AR-B", value: 7, label: "7 casos abiertos" },
-      { code: "AR-X", value: 5, label: "5 casos abiertos" },
+      { code: "AR-B", value: 7, label: "Buenos Aires" },
+      { code: "AR-X", value: 5, label: "Córdoba" },
     ]);
+  });
+
+  it("EVERY cell is labelled with its province name, never its count (demo review 2026-08-01 #2)", () => {
+    // THE FINDING: `label` is the one field a choropleth cell has for saying
+    // WHERE, and MapChoropleth spends it on the popup's place line and on the
+    // "Región" column of the "Ver datos" a11y table — the only way to read
+    // exact values off a WebGL canvas, and the whole path for an operator who
+    // cannot see the map. This fold used to fill it with the caller's
+    // `labelFor(value)`, so /gob/vigilancia nacional listed 24 rows reading
+    // "18 casos abiertos", "78 casos abiertos", "32 casos abiertos" — with no
+    // province named anywhere, "which province has 78?" was unanswerable.
+    const rows = [
+      { code: "AR-B", count: 78 },
+      { code: "AR-X", count: 32 },
+      { code: "AR-S", count: 18 },
+      { code: "AR-V", count: 1 }, // suppressed — already named, must stay named
+    ];
+
+    const result = aggregateChoroplethData(
+      rows,
+      (r) => r.code,
+      (r) => r.count,
+    );
+
+    expect(result.map((c) => c.label)).toEqual([
+      "Buenos Aires",
+      "Córdoba",
+      "Santa Fe",
+      "Tierra del Fuego",
+    ]);
+    // Not one label anywhere may carry a digit: a place name has none, and a
+    // count in this field is either a redundant restatement (visible cell) or
+    // a disclosure (suppressed cell).
+    for (const cell of result) expect(cell.label).not.toMatch(/\d/);
+  });
+
+  it("an unmapped code falls back to the code itself, never to a count", () => {
+    const result = aggregateChoroplethData(
+      [{ code: "AR-ZZ", count: 40 }],
+      (r) => r.code,
+      (r) => r.count,
+    );
+
+    expect(result).toEqual([{ code: "AR-ZZ", value: 40, label: "AR-ZZ" }]);
   });
 
   it("returns an empty array when every row is dropped", () => {
@@ -126,7 +165,6 @@ describe("aggregateChoroplethData", () => {
       rows,
       (r) => r.code,
       () => 1,
-      (value) => `${value}`,
     );
 
     expect(result).toEqual([]);
@@ -149,14 +187,14 @@ describe("aggregateChoroplethData", () => {
       rows,
       (r) => r.code,
       (r) => r.count,
-      casesLabel,
     );
     const tdf = result.find((c) => c.code === "AR-V");
 
     expect(tdf?.suppressed).toBe(true);
     // The LABEL is the disclosure channel nobody looks at: MapChoropleth renders
-    // it as the popup's place line, and `labelFor(value)` here spells the count
-    // out in words. A suppressed cell must carry the province NAME instead.
+    // it as the popup's place line. This fold used to spell the count out there
+    // via `labelFor(value)`; now every cell carries its province NAME, so the
+    // suppressed one no longer needs (or has) a special case to stay silent.
     expect(tdf?.label).toBe("Tierra del Fuego");
     expect(tdf?.label).not.toMatch(/\d/);
   });
@@ -172,7 +210,6 @@ describe("aggregateChoroplethData", () => {
       rows,
       (r) => r.code,
       (r) => r.count,
-      casesLabel,
     );
 
     // A province that vanishes at k gets stippled "sin datos" by the map — false,
@@ -194,7 +231,6 @@ describe("aggregateChoroplethData", () => {
       rows,
       (r) => r.code,
       (r) => r.count,
-      casesLabel,
     );
     const suppressed = result.filter((c) => c.suppressed).map((c) => c.code);
 
@@ -213,12 +249,11 @@ describe("aggregateChoroplethData", () => {
       rows,
       (r) => r.code,
       (r) => r.count,
-      casesLabel,
     );
 
     expect(result).toEqual([
-      { code: "AR-B", value: 30, label: "30 casos abiertos" },
-      { code: "AR-X", value: 5, label: "5 casos abiertos" },
+      { code: "AR-B", value: 30, label: "Buenos Aires" },
+      { code: "AR-X", value: 5, label: "Córdoba" },
     ]);
   });
 
@@ -229,7 +264,6 @@ describe("aggregateChoroplethData", () => {
       rows,
       (r) => r.code,
       (r) => r.count,
-      casesLabel,
     );
 
     expect(cell.suppressed).toBe(true);
@@ -240,8 +274,8 @@ describe("aggregateChoroplethData", () => {
 
 describe("scopedChoroplethProps", () => {
   const provinceCells = [
-    { code: "AR-B", value: 5, label: "5 casos abiertos" },
-    { code: "AR-X", value: 2, label: "2 casos abiertos" },
+    { code: "AR-B", value: 5, label: "Buenos Aires" },
+    { code: "AR-X", value: 2, label: "Córdoba" },
   ];
 
   it("stays at province grain when no province is selected", () => {

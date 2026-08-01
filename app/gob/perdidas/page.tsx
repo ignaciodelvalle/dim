@@ -217,7 +217,6 @@ export default async function GobPerdidasPage({
     lostPets,
     (p) => (p.province ? PROVINCE_ISO_MAP[p.province] : undefined),
     () => 1,
-    (value) => `${value} ${pluralizeEs(value, "mascota")} ${pluralizeEs(value, "perdida")}`,
   );
 
   // Scope-aware choropleth drill (design/scoped-choropleth-drill): when a

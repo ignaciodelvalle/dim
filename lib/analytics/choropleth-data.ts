@@ -24,11 +24,22 @@ import type { SubregionCaseCount } from "./subregion-redaction";
  * ISO code → canonical province display name. The exact inverse of
  * PROVINCE_ISO_MAP, derived from it (never re-typed) so the two cannot drift.
  *
- * Needed because a SUPPRESSED cell must not carry the caller's `labelFor(value)`
- * string: on the two screens that use `aggregateChoroplethData` that string IS
- * the count ("1 caso abierto"), and MapChoropleth renders `label` as the popup's
- * PLACE line. Blanking the value while the place line spells the count out is
- * not a suppression at all — it is the leak wearing the hatch.
+ * `label` IS THE PLACE NAME — every consumer treats it that way. MapChoropleth
+ * renders it as the popup's place line and as the "Región" cell of the "Ver
+ * datos" a11y table; `toChoroplethData` and `scopedChoroplethProps` have always
+ * passed the province / department / barrio NAME. `aggregateChoroplethData` was
+ * the one fold that instead passed a caller-supplied `labelFor(value)` string,
+ * which on both of its call sites spells the COUNT out in words.
+ *
+ * Two live consequences, both found 2026-08-01 on /gob/vigilancia:
+ *  - the a11y table — the ONLY way to read exact values off a WebGL canvas, and
+ *    the path for an operator who cannot see the map at all — listed 24 rows
+ *    whose Región column read "18 casos abiertos", "78 casos abiertos", "32
+ *    casos abiertos". No province was named anywhere, so "which province has
+ *    78?" had no answer on the page.
+ *  - a suppressed cell had to be special-cased back onto this map to avoid
+ *    publishing the very count the hatch was hiding — the leak wearing the
+ *    hatch. That special case is now simply what every cell does.
  */
 const PROVINCE_NAME_BY_ISO: Record<string, string> = Object.fromEntries(
   Object.entries(PROVINCE_ISO_MAP).map(([name, code]) => [code, name]),
@@ -100,6 +111,11 @@ export function toChoroplethData<T extends { province: string }>(
  * (no province, or a province absent from PROVINCE_ISO_MAP) are dropped —
  * unlike `toChoroplethData`, there is no raw-name fallback here.
  *
+ * Every cell is labelled with its PROVINCE NAME (see PROVINCE_NAME_BY_ISO above
+ * for the defect that taking a caller-supplied count string here caused). There
+ * is no `labelFor` parameter: the value is already carried by `value`, and the
+ * one field a map has for saying WHERE cannot be spent on saying how many.
+ *
  * Shared by /gob/perdidas (`aggregateLostByProvince`: counts lost pets per
  * province, keyOf resolves the raw province name through PROVINCE_ISO_MAP)
  * and /gob/vigilancia (`provinceChoroplethData`: sums per-locality case
@@ -152,7 +168,6 @@ export function aggregateChoroplethData<T>(
   rows: T[],
   keyOf: (row: T) => string | null | undefined,
   getValue: (row: T) => number,
-  labelFor: (value: number) => string,
 ): ChoroplethCell[] {
   const codeToValue = new Map<string, number>();
   for (const row of rows) {
@@ -176,16 +191,12 @@ export function aggregateChoroplethData<T>(
   );
   const suppressedCodes = new Set(allSuppressed.map((c) => c.code));
 
-  return cells.map((c) =>
-    suppressedCodes.has(c.code)
-      ? {
-          code: c.code,
-          value: 0,
-          suppressed: true,
-          label: PROVINCE_NAME_BY_ISO[c.code] ?? c.code,
-        }
-      : { code: c.code, value: c.value, label: labelFor(c.value) },
-  );
+  return cells.map((c) => {
+    const label = PROVINCE_NAME_BY_ISO[c.code] ?? c.code;
+    return suppressedCodes.has(c.code)
+      ? { code: c.code, value: 0, suppressed: true, label }
+      : { code: c.code, value: c.value, label };
+  });
 }
 
 /** GeoJSON URL per drill-down level — mirrors MapChoropleth's own GEOJSON_BY_LEVEL. */

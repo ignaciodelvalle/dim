@@ -235,7 +235,6 @@ export default async function GobVigilanciaPage({
     mapData,
     (row) => row.code,
     (row) => row.count,
-    (value) => `${value} ${pluralizeEs(value, "caso")} ${pluralizeEs(value, "abierto")}`,
   );
 
   // Scope-aware choropleth drill (design/scoped-choropleth-drill): auto-drills
