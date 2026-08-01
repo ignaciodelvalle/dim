@@ -30,16 +30,31 @@ const initialIdentityState: IdentityFormState = { error: null };
 // redirect after step 1. They now show step 2 (identity) first so that the
 // account never ends up with only a provisional display_name. Redirect happens
 // after step 2 completes.
+//
+// `initialStep` (2026-08-01): the page mounts this form at "identity" when the
+// visitor is ALREADY authenticated but still carries the trigger's provisional
+// display_name — i.e. they are resuming an abandoned signup, not starting one.
+// The step used to live only in this component's useState, so it died with the
+// browser tab and nothing could ever bring the user back. Now the entry step is
+// decided server-side from the database on every request; the useState below
+// only carries the step-1 → step-2 transition within a single visit.
 
 export function SignupForm({
   intent,
   returnTo,
+  initialStep = "account",
 }: {
   intent: "apply" | null;
   returnTo: string | null;
+  /** Server-decided entry point. "identity" means "resume an abandoned signup". */
+  initialStep?: "account" | "identity";
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<"account" | "identity">("account");
+  const [step, setStep] = useState<"account" | "identity">(initialStep);
+  // Resuming is a property of how the page was ENTERED, not of the current
+  // step: a visitor who starts at step 1 and advances to step 2 is completing a
+  // fresh signup and must still read "Paso 2 de 2".
+  const resuming = initialStep === "identity";
   const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
   const [identityState, identityFormAction, identityPending] = useActionState(
     completeIdentityAction,
@@ -72,7 +87,7 @@ export function SignupForm({
     return (
       <div className="space-y-5">
         <p className="text-center text-xs uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
-          Paso 2 de 2
+          {resuming ? "Último paso" : "Paso 2 de 2"}
         </p>
 
         <div className="space-y-2">
@@ -84,7 +99,9 @@ export function SignupForm({
             Contanos quién sos
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
-            Tu nombre aparecerá en tu perfil y en las comunicaciones de miMAR.
+            {resuming
+              ? "Ahora figurás con la primera parte de tu correo. Tu nombre real es lo que va a aparecer en la credencial de tu mascota."
+              : "Tu nombre aparecerá en tu perfil y en las comunicaciones de miMAR."}
           </p>
         </div>
 
@@ -158,7 +175,13 @@ export function SignupForm({
             disabled={identityPending}
             className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {identityPending ? "Creando cuenta..." : "Crear cuenta"}
+            {identityPending
+              ? resuming
+                ? "Guardando..."
+                : "Creando cuenta..."
+              : resuming
+                ? "Guardar mi nombre"
+                : "Crear cuenta"}
           </button>
         </form>
       </div>
