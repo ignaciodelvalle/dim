@@ -115,6 +115,9 @@ export function LocalityPickerAcross({
   // Latest input, readable synchronously from inside an in-flight request so a
   // slow response for "Pal" cannot overwrite a fast one for "Palermo".
   const latestQueryRef = useRef(query);
+  // Set by handleSelect so the effect can tell "the user typed this" from "we
+  // wrote this into the box because they picked it".
+  const justPickedRef = useRef(false);
   // Hold the picked result so we can surface its provinceCode + indecId in
   // hidden inputs. When the user types without picking, this is null and
   // the hidden inputs fall back to the raw query (locality) + defaultValue
@@ -133,6 +136,14 @@ export function LocalityPickerAcross({
 
   useEffect(() => {
     latestQueryRef.current = query;
+    // The input text was just set BY a pick, not typed. Re-asking the catalog
+    // for the exact name it returned is pointless, and the reopened dropdown it
+    // caused (setOpen(results.length > 0) below) landed straight over the
+    // choice the user had just made — which reads as the pick not registering.
+    if (justPickedRef.current) {
+      justPickedRef.current = false;
+      return;
+    }
     if (query.length < MIN_QUERY_LENGTH) {
       setResults([]);
       setSettledQuery(null);
@@ -169,6 +180,7 @@ export function LocalityPickerAcross({
   }, [query, scopeProvinceCode, searchAction]);
 
   function handleSelect(r: LocalitySearchResult) {
+    justPickedRef.current = true;
     setSelected(r);
     setQuery(r.localityName);
     setOpen(false);
