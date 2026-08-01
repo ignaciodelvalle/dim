@@ -42,7 +42,9 @@ export const TEST_PET_PREFIXES = {
   // way when the suite was run with the QA server up (CPU contention → dead
   // worker). Tokens are `MC-DUP-${Date.now()}`, so they cannot collide with a
   // real `DIM-XXXX-XXXX`.
-  byToken: ["TRNS-TEST-", "DDXTEST-", "MORT-TEST-", "SQLQ-TEST-", "MC-DUP-"],
+  // SURVTEST- added 2026-08-01: same failure mode as MC-DUP- above, this time
+  // from `__tests__/symptom-surveillance.test.ts` (tokens `SURVTEST-*-${Date.now()}`).
+  byToken: ["TRNS-TEST-", "DDXTEST-", "MORT-TEST-", "SQLQ-TEST-", "MC-DUP-", "SURVTEST-"],
 } as const;
 
 export function isLocalDatabase(url: string): boolean {
