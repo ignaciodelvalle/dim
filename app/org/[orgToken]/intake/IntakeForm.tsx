@@ -45,6 +45,61 @@ const STEP_LABELS = ["Identificación", "Identidad", "Estado", "Confirmar"];
 const inputCls =
   "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
+/** Fields the action reads. Always sent, even when empty. */
+const REQUIRED_KEYS = [
+  "name",
+  "species",
+  "sex",
+  "intakeReason",
+  "custodyRole",
+  "occurredAt",
+] as const;
+
+/** Fields the action treats as absent when empty — omitted rather than blanked. */
+const OPTIONAL_KEYS = [
+  "ageYears",
+  "ageMonths",
+  "breed",
+  "estimatedWeightKg",
+  "color",
+  "distinguishingFeatures",
+  "microchipId",
+  "microchipCountryCode",
+  "tattooCode",
+  "intakeCondition",
+  "rescueJurisdiction",
+  "tattooAckToken",
+] as const;
+
+type IntakeFields = Record<
+  (typeof REQUIRED_KEYS)[number] | (typeof OPTIONAL_KEYS)[number],
+  string | undefined
+> & { idempotencyKey: string };
+
+/**
+ * Translate the wizard's controlled state into the FormData shape
+ * createIntakeAction expects. Extracted from submit() so the handler stays
+ * under the cognitive-complexity fence once its step guard was added — the
+ * twenty field-presence branches were all this function, none of them logic
+ * the submit path needs to reason about.
+ *
+ * `tattooAckToken` rides along as an ordinary optional field: it threads the
+ * ack from a previous server response so a re-submit skips the already
+ * acknowledged advisory. (There is no chip-force token — an active-chip match
+ * is a hard block, not a "continue anyway" warning.)
+ */
+function buildIntakeFormData(fields: IntakeFields): FormData {
+  const fd = new FormData();
+  for (const key of REQUIRED_KEYS) fd.set(key, fields[key] ?? "");
+  for (const key of OPTIONAL_KEYS) {
+    const value = fields[key];
+    if (value) fd.set(key, value);
+  }
+  fd.set("noRedirect", "1");
+  fd.set("clientIdempotencyKey", fields.idempotencyKey);
+  return fd;
+}
+
 export function IntakeForm({ orgToken }: { orgToken: string }) {
   const action = createIntakeAction.bind(null, orgToken);
   const [step, setStep] = useState(1);
@@ -81,31 +136,35 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const [rescueJurisdiction, setRescueJurisdiction] = useState("");
 
   function submit() {
+    // Step gate in the HANDLER, not only on the button. Inactive steps are
+    // hidden with `inert`, which does block clicks — but it is one a11y
+    // attribute standing alone: add a step and forget it, or run where `inert`
+    // is unsupported, and the summary CTA becomes reachable from step 1, firing
+    // an intake built from half-empty state. The commit that introduced `inert`
+    // (c5994e62) was fixing WCAG 4.1.2, not defending this submit.
+    if (step !== TOTAL_STEPS) return;
     setState({ error: null });
-    const fd = new FormData();
-    fd.set("name", name);
-    fd.set("species", species);
-    fd.set("sex", sex);
-    if (ageYears) fd.set("ageYears", ageYears);
-    if (ageMonths) fd.set("ageMonths", ageMonths);
-    if (breed) fd.set("breed", breed);
-    if (estimatedWeightKg) fd.set("estimatedWeightKg", estimatedWeightKg);
-    if (color) fd.set("color", color);
-    if (distinguishingFeatures) fd.set("distinguishingFeatures", distinguishingFeatures);
-    if (microchipId) fd.set("microchipId", microchipId);
-    if (microchipCountryCode) fd.set("microchipCountryCode", microchipCountryCode);
-    if (tattooCode) fd.set("tattooCode", tattooCode);
-    fd.set("intakeReason", intakeReason);
-    fd.set("custodyRole", custodyRole);
-    fd.set("occurredAt", occurredAt);
-    if (intakeCondition) fd.set("intakeCondition", intakeCondition);
-    if (rescueJurisdiction) fd.set("rescueJurisdiction", rescueJurisdiction);
-    fd.set("noRedirect", "1");
-    fd.set("clientIdempotencyKey", idempotencyKey);
-    // Thread the tattoo ack token from a previous server response so a re-submit
-    // skips the already-acknowledged advisory. (There is no chip-force token: an
-    // active-chip match is a hard block, not a "continue anyway" warning.)
-    if (state.tattooAckToken) fd.set("tattooAckToken", state.tattooAckToken);
+    const fd = buildIntakeFormData({
+      name,
+      species,
+      sex,
+      ageYears,
+      ageMonths,
+      breed,
+      estimatedWeightKg,
+      color,
+      distinguishingFeatures,
+      microchipId,
+      microchipCountryCode,
+      tattooCode,
+      intakeReason,
+      custodyRole,
+      occurredAt,
+      intakeCondition,
+      rescueJurisdiction,
+      idempotencyKey,
+      tattooAckToken: state.tattooAckToken,
+    });
     startTransition(async () => {
       const result = await action({ error: null }, fd);
       setState(result);
@@ -173,6 +232,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     );
   }
 
+  // Field-completeness only — step gating lives in `submit()`. A `step ===
+  // TOTAL_STEPS` term here would be invisible in a browser (the CTA is inside
+  // an `inert` section until step 4 anyway) while masking the handler guard
+  // from tests: a disabled button never dispatches a click, so the assertion
+  // "a premature click submits nothing" would pass with the guard deleted.
   const canSubmit = !!name && !!species && !!intakeReason && !!occurredAt && !pending;
 
   return (

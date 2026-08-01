@@ -92,6 +92,11 @@ export function AdoptionListingForm({
   );
 
   async function runStatus(action: "publish" | "pause" | "unpause" | "unpublish") {
+    // Every runStatus button lives in the step-2 section, which is `inert`
+    // while step 1 is active. That is one a11y attribute holding a publish
+    // action shut — guard the handler too, so the gate survives a new step, a
+    // forgotten attribute, or a client that ignores `inert`.
+    if (step !== TOTAL_STEPS) return;
     setError(null);
     setOkMessage(null);
     setPending(true);

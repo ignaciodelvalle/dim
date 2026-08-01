@@ -147,3 +147,48 @@ describe("<AdoptionListingForm> — publish enablement after save (bug #66)", ()
     expect(navigateMock).toHaveBeenCalledTimes(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Step contract (staging validation 2026-08-01, bug 3). Reported across three
+// wizards: summary CTAs clickable before the final step (silently doing
+// nothing), and choices lost on back-navigation.
+//
+// Neither reproduced here, but nothing asserted either — the tests above only
+// ever move FORWARD, once. Publishing an adoption listing from step 1 was held
+// shut by a single a11y attribute (`inert`, added by c5994e62 for WCAG 4.1.2),
+// with no guard in runStatus and no test that would notice its removal.
+//
+// jsdom does not implement `inert`, so `{ hidden: true }` clicks straight
+// through it — which is what makes the handler guard observable.
+// ---------------------------------------------------------------------------
+
+describe("<AdoptionListingForm> — publishing is gated on the step, not only on `inert`", () => {
+  it("THE GUARD: clicking 'Publicar adopción' from step 1 publishes nothing", () => {
+    setStatusMock.mockResolvedValue({ ok: true });
+    renderForm({ canPublish: true });
+
+    // canPublish is true, so the button carries no disabled attribute even on
+    // step 1 — the step check inside runStatus is the only thing left.
+    const publish = screen.getByRole("button", { name: "Publicar adopción", hidden: true });
+    expect(publish).not.toBeDisabled();
+    fireEvent.click(publish);
+
+    expect(setStatusMock).not.toHaveBeenCalled();
+  });
+
+  it("step-1 content survives advancing to step 2 and coming back", async () => {
+    updateContentMock.mockResolvedValue({ ok: true });
+    renderForm({ canPublish: true });
+
+    const story = screen.getByLabelText(/Historia/i);
+    fireEvent.change(story, { target: { value: "Rocío llegó en junio." } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Guardar y continuar" }));
+    await waitFor(() => {
+      expect(screen.getAllByText("Datos guardados.").length).toBeGreaterThan(0);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Paso anterior" }));
+    expect(screen.getByLabelText(/Historia/i)).toHaveValue("Rocío llegó en junio.");
+  });
+});

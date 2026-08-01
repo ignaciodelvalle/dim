@@ -226,6 +226,11 @@ export function ApplicationForm({
   }
 
   function submit() {
+    // Step gate in the handler, not only on the button — see the sibling guards
+    // in IntakeForm/AdoptionListingForm. Without it the only thing stopping a
+    // step-1 click on "Enviar postulación" is the `inert` attribute on the
+    // inactive sections.
+    if (step !== TOTAL_STEPS) return;
     setError(null);
     if (!housingType) {
       setError("Elegí el tipo de vivienda.");
