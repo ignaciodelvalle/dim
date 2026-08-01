@@ -1243,6 +1243,39 @@ export async function fetchComplianceStatesForPets(
   if (petIds.length === 0) return new Map();
   const now = new Date();
 
+  // Bind the chip read to the caller BEFORE fetching it.
+  //
+  // This signature reads as authorized — `userId` first, `petIds` second — but
+  // until now `userId` only filtered the `reminders` lookup below (`eq(
+  // reminders.userId, userId)`). `petIds` went straight into
+  // batchFetchActiveIdentifications, whose result lands in the microchip
+  // ObligationCard's `detail` as the raw 15-digit canonical code
+  // (lib/projections/pet-compliance.ts deriveMicrochip). So the function
+  // answered "give me the chip of any pet id" for any caller.
+  //
+  // No live caller abuses that — all three resolve petIds from an
+  // ownership-bound query first (mis-mascotas/page.tsx, inicio/page.tsx,
+  // mis-mascotas/[publicToken]/page.tsx, all via the same
+  // `ownerships.ownerUserId = userId AND ended_at IS NULL` predicate). But a
+  // parameter that LOOKS like the authorization and isn't is exactly the shape
+  // of both microchip disclosures fixed on 2026-07-31: a caller-chosen pet id
+  // plus a guard that only proves identity. The next caller inherits the trap.
+  //
+  // Only the identifications read is narrowed. Events/reminders/turnos keep the
+  // full petIds so no card silently disappears — an unowned pet now yields a
+  // "Sin registro" microchip card instead of the code, never a crash.
+  const ownedPetRows = await db
+    .select({ petId: ownerships.petId })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.ownerUserId, userId),
+        isNull(ownerships.endedAt),
+        inArray(ownerships.petId, petIds),
+      ),
+    );
+  const chipReadablePetIds = [...new Set(ownedPetRows.map((r) => r.petId))];
+
   const [eventRows, reminderRows, petRows, turnoRows, identsByPet] = await Promise.all([
     // Obligation events with provenance (H1: only professional/institutional
     // events clear an obligation). `id` feeds overlayAmendments' target match.
@@ -1326,7 +1359,9 @@ export async function fetchComplianceStatesForPets(
     // Active chip/tattoo rows (bounded — one query keyed by petId, list capped
     // at 200). Feeds `microchipCode` so the list's microchip card matches the
     // profile's "Declarada · sin verificar" wording instead of "Sin registro".
-    batchFetchActiveIdentifications(petIds),
+    // Keyed by chipReadablePetIds, NOT petIds — see the ownership intersection
+    // above; this is the only read in this function that returns PII.
+    batchFetchActiveIdentifications(chipReadablePetIds),
   ]);
 
   // Project corrections BEFORE grouping (D2 at the read boundary —
