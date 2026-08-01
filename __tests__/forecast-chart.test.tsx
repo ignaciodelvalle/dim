@@ -59,7 +59,7 @@ describe("ForecastChart — forecast present", () => {
     );
     expect(html).toContain("Proyección de tendencia — no es una garantía");
     expect(html).toContain("n=6");
-    expect(html).toContain("método=linear");
+    expect(html).toContain("método=lineal");
   });
 
   it("renders the accessible data table with observed and proyección rows", () => {

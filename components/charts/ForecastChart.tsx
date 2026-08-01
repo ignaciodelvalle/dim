@@ -40,7 +40,7 @@ import {
 } from "recharts";
 
 import { CHART_COLORS } from "@/lib/analytics/viz-scales";
-import type { ForecastResult } from "@/lib/metrics/forecast";
+import type { ForecastMethod, ForecastResult } from "@/lib/metrics/forecast";
 import { ChartSizingBox } from "./ChartSizingBox";
 
 export type ForecastChartProps = {
@@ -69,6 +69,12 @@ const FORECAST_COLOR = CHART_COLORS.teal;
 function periodNoun(n: number): string {
   return n === 1 ? "período" : "períodos";
 }
+
+/** es-AR label for the projection method, shown in the honesty footnote. */
+const METHOD_LABEL: Record<ForecastMethod, string> = {
+  linear: "lineal",
+  holt: "Holt (suavizado exponencial)",
+};
 
 export function ForecastChart({
   result,
@@ -147,7 +153,7 @@ export function ForecastChart({
     ? `${seriesLabel}: datos insuficientes para proyectar la tendencia.`
     : `Proyección de ${seriesLabel}, tendencia ${slopeWord}. ${forecast.length} ${periodNoun(forecast.length)} proyectados.${crossingText ? ` ${crossingText}` : ""}`;
 
-  const footnote = `Proyección de tendencia — no es una garantía. n=${n}, método=${method}.`;
+  const footnote = `Proyección de tendencia — no es una garantía. n=${n}, método=${METHOD_LABEL[method]}.`;
 
   return (
     // RA-9 BR-7 fallout: role="img" makes its whole subtree presentational, so
