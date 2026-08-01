@@ -246,6 +246,20 @@ const scannedHrefs: string[] = [];
 for (const scanDir of SCAN_DIRS) {
   walkDir(scanDir, (filePath) => {
     if (!/\.(tsx|ts|jsx|js)$/.test(filePath)) return;
+    // Test files are not shipped surfaces, and scanning them makes this fence
+    // react to PROSE ABOUT a link instead of the link. Concretely: on
+    // 2026-08-01 `OrgSetupChecklist.test.tsx` gained
+    // `expect(html).not.toContain("/org/ORG-TEST/null")` — an assertion that
+    // exists to prove that dead href is never rendered — and this scan
+    // collected the string out of the assertion and reported it as a dead
+    // link. The fence failed BECAUSE the guard was tested.
+    //
+    // Third instance of this shape in one day: the raw-<button> ratchet counted
+    // the tag inside comments, and a CSS review counted a comment reading
+    // "computed font-size is below 16px" as one of the raw font-sizes it was
+    // measuring. An instrument that reads text about the defect is measuring
+    // the documentation, not the code.
+    if (/\.(test|spec)\.(tsx|ts|jsx|js)$/.test(filePath)) return;
     const src = fs.readFileSync(filePath, "utf8");
     // matchAll requires a new regex instance (or a stateless literal) each call.
     for (const m of src.matchAll(/\bhref="(\/[^"]+)"/g)) {
