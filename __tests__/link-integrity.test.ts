@@ -405,19 +405,20 @@ walkDir(APP_DIR, (filePath) => {
 /**
  * Links allowed to point at a redirect-only route.
  *
- * Every entry states what it is. Two of these are REAL BOUNCES this guard
- * found on its first run — they are grandfathered, not blessed, because they
- * belong to earlier fusions and F9's remit was Analítica. A ratchet that
- * silently swallows a defect is worse than no ratchet; a ratchet that names it
- * is a to-do with a test attached.
+ * Every entry states what it is. The two KNOWN DEFECT entries this guard found
+ * on its first run (/gob/disputas from CasosScreen's subtitle, /admin/moderacion
+ * from the QueueHealthCockpit tile) are GONE — both links now address their real
+ * destination, so the excuses went with them (2026-08-01).
+ *
+ * What survives is exceptions, not to-dos: a hop that is deliberately wanted.
+ * Keep it that way — an entry whose reason reads "not fixed here" is a defect
+ * wearing an allowlist, and the ratchet only means something if that stays rare.
  */
 const REDIRECT_LINK_ALLOWLIST: Record<string, string> = {
   "/inicio":
     "INTENTIONAL (PO ronda 4, see OWNER_NAV in nav-presets.ts). /inicio deliberately survives as the post-login LANDING that resolves the most-urgent pet and forwards its query string. The '← Inicio' back-link in app/(app)/denuncias/mias/page.tsx is aiming at that landing behaviour on purpose, not at a stale screen.",
-  "/gob/disputas":
-    "KNOWN DEFECT, found by this guard 2026-08-01, NOT fixed here. app/gob/casos/CasosScreen.tsx's own subtitle reads 'Las disputas de custodia se trabajan en Disputas' and links /gob/disputas — which since the F6 fusion redirects to /gob/casos?expediente=disputas, i.e. back into the hub the reader is already looking at. The correct target already exists verbatim elsewhere in the codebase (app/gob/analytics/AnalyticsScreen.tsx uses '/gob/casos?expediente=disputas'). Left alone because rewording Casos copy is F6 territory and F9's scope is Analítica — but the fix is one href plus one sentence.",
   "/admin/moderacion":
-    "KNOWN DEFECT, found by this guard 2026-08-01, NOT fixed here. The 'Moderación de denuncias' tile in components/admin/QueueHealthCockpit.tsx points at /admin/moderacion, which redirects into the admin Denuncias hub (buildDenunciasHubRedirectUrl(sp, 'moderacion')). Same species as the /gob/disputas entry above, same reason for leaving it: it is the admin-side fusion's leftover, not F9's.",
+    "NAV ENTRY ONLY (the QueueHealthCockpit tile that used to hide behind this entry now links /gob/denuncias?etapa=moderacion directly). The remaining holder is the ADMIN_NAV 'Moderación' item in nav-presets.ts, which keeps href=/admin/moderacion because matchPrefix=/admin/moderacion is what highlights the rail on the [id] DETAIL routes that genuinely still live under /admin/moderacion/. Pointing the nav href at /gob/denuncias would break that highlight for the exact routes the entry exists to serve. The documented fase-3 cleanup (see the comment on that nav item) is a thin admin-scoped hub stub — at which point this entry goes too.",
 };
 
 describe("link-integrity: no shipped link points at a redirect-only route", () => {
