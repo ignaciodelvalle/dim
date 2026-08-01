@@ -31,6 +31,8 @@ export type ComplianceEvent = {
   authorRole?: string;
   authorVerified?: boolean;
   authorOrganizationId?: string | null;
+  /** Who WROTE the event (pet_events.recorded_by_user_id) — see `viewerUserId`. */
+  recordedByUserId?: string | null;
 };
 
 // The already-filtered rabies reminder, if the pet has one. The caller isolates
@@ -124,6 +126,18 @@ export type ComplianceInput = {
   species?: string | null;
   breed?: string | null;
   estimatedWeightKg?: number | string | null;
+  /**
+   * The signed-in reader. The rabies dual block addresses the owner in the
+   * second person ("Antirrábica cargada por vos"), which is a claim about WHO
+   * WROTE THE DOSE — not about the author's role. Deriving it from
+   * `authorRole === "owner"` is how the back face came to re-sign a transferred
+   * pet's asientos to the incoming titular (see asiento-fields.ts).
+   *
+   * Optional, and deliberately FAIL-SAFE: with no viewer the copy falls back to
+   * the third person ("cargada por el titular"), which is true either way. A
+   * caller that forgets this loses warmth, never accuracy.
+   */
+  viewerUserId?: string | null;
 };
 
 // Legal footnotes — real norms per docs/legal-framework-full.md / AGENTS.md.
@@ -376,6 +390,11 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
     const currencyLabel = currencyKnown ? base.state : null; // Vigente/Por vencer/Vencida
     const currencyTone = currencyKnown ? (base.tone as "ok" | "due" | "over") : null;
     const ownerDeclared = (dose.authorRole ?? "") === "owner";
+    // "por vos" names an AUTHOR, so it needs an identity match — the role alone
+    // only says the writer was AN owner, and after a transfer that owner is
+    // someone else entirely.
+    const writtenByTheReader =
+      ownerDeclared && input.viewerUserId != null && dose.recordedByUserId === input.viewerUserId;
     // Counting tone: a vigente-declared dose must NOT count as "al día" (neutral),
     // but a por-vencer / vencida dose keeps its currency urgency so the owner
     // still sees "renovála" — provenance never hides an expiry.
@@ -388,9 +407,11 @@ function deriveRabies(input: ComplianceInput): ObligationCard {
       detail: base.detail,
       legalFootnote: FOOTNOTE.rabies,
       dual: {
-        ownerLabel: ownerDeclared
+        ownerLabel: writtenByTheReader
           ? "Antirrábica cargada por vos"
-          : "Antirrábica registrada sin firma de matrícula",
+          : ownerDeclared
+            ? "Antirrábica cargada por el titular"
+            : "Antirrábica registrada sin firma de matrícula",
         currencyLabel,
         currencyTone,
         registryLine: REGISTRY_NEEDS_LINE,

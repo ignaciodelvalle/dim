@@ -13,7 +13,18 @@ const NOW = new Date("2026-07-01T12:00:00Z");
 // Provenance presets (H1): only professional/institutional events clear an
 // obligation. VET → professional_verified; SELF (owner) → self_reported.
 const VET = { authorRole: "vet", authorVerified: true, authorOrganizationId: null };
-const SELF = { authorRole: "owner", authorVerified: false, authorOrganizationId: null };
+// The owner-declared fixture names its AUTHOR, and baseInput names the READER.
+// Before 2026-08-01 it said only `authorRole: "owner"` and no reader existed at
+// all, so "cargada por vos" was true by construction for every viewer — which
+// is precisely how a transferred pet's dose came to greet the new titular as
+// her own work.
+const OWNER_USER = "user-owner";
+const SELF = {
+  authorRole: "owner",
+  authorVerified: false,
+  authorOrganizationId: null,
+  recordedByUserId: OWNER_USER,
+};
 // VET-role trust keystone (#43): an org member WITHOUT a validated matrícula →
 // org_registered. A valid record, but NOT professional-verified — it must NOT
 // clear the "al día" gate (closes the "verificado por profesional" theater #45).
@@ -27,6 +38,7 @@ function baseInput(overrides: Partial<ComplianceInput> = {}): ComplianceInput {
     reservedRabiesTurno: null,
     microchipCode: null,
     pppApplies: false,
+    viewerUserId: OWNER_USER,
     ...overrides,
   };
 }
@@ -302,6 +314,22 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     // count as "al día" (compliance lens) — both truths surfaced at once (#4).
     expect(card?.dual?.currencyLabel).toBe("Vigente");
     expect(card?.dual?.ownerLabel).toContain("cargada por vos");
+  });
+
+  it("a dose declared by a PREVIOUS titular is never 'cargada por vos' for the new one", () => {
+    const state = deriveComplianceState(
+      baseInput({
+        events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)],
+        viewerUserId: "user-someone-else",
+      }),
+    );
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.dual?.ownerLabel).not.toContain("vos");
+    expect(card?.dual?.ownerLabel).toBe("Antirrábica cargada por el titular");
+    // Only the authorship claim moves — the dose is still declared, still
+    // vigente, and still needs a matrícula.
+    expect(card?.dual?.currencyLabel).toBe("Vigente");
+    expect(card?.state).toBe("Declarada");
     // Keeps the due-date detail.
     expect(card?.detail).toBeTruthy();
   });

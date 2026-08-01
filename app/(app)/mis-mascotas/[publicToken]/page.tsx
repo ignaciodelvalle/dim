@@ -624,6 +624,9 @@ export default async function PetDetailPage({
   const complianceState = deriveComplianceState({
     now: new Date(),
     events: typedEvents,
+    // Who is reading — the rabies dual block says "cargada por vos" only when
+    // this reader actually wrote the dose (transfer-provenance fix).
+    viewerUserId: user.id,
     rabiesReminder: rabiesReminderRow
       ? { variant: rabiesReminderRow.variant, dueAt: rabiesReminderRow.dueAt }
       : null,

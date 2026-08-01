@@ -103,12 +103,24 @@ describe("CredentialFace — compliance summary vs. obligation cards (dedup, PO 
     };
   }
 
-  const SELF = { authorRole: "owner", authorVerified: false, authorOrganizationId: null };
+  // Identities are now STATED, not implied by role. The old fixture said only
+  // `authorRole: "owner"` and the input named no reader, so "cargada por vos"
+  // passed no matter who was looking — the front-face twin of the transferred
+  // asiento defect (2026-08-01).
+  const GRACIELA = "user-graciela";
+  const NOELI = "user-noeli";
+  const SELF = {
+    authorRole: "owner",
+    authorVerified: false,
+    authorOrganizationId: null,
+    recordedByUserId: GRACIELA,
+  };
 
   it("a declared-and-vigente rabies dose: the summary shows only the count, and the card alone carries the 'not yet verified' honesty", () => {
     const state = deriveComplianceState(
       complianceInput({
         events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)],
+        viewerUserId: GRACIELA,
       }),
     );
     const card = state.cards.find((c) => c.key === "rabies");
@@ -127,6 +139,33 @@ describe("CredentialFace — compliance summary vs. obligation cards (dedup, PO 
     // distinction survives — but now ONLY in the card's own dual block.
     expect(html).toContain("Antirrábica cargada por vos");
     expect(html).toContain("un veterinario matriculado tiene que firmarla");
+  });
+
+  it("after a transfer the credential does not tell the new titular she loaded the dose", () => {
+    // graciela declared the dose; noeli now holds the pet. The front face used
+    // to greet her with "Antirrábica cargada por vos" — the same reassigned
+    // authorship the libreta's asientos had.
+    const state = deriveComplianceState(
+      complianceInput({
+        events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)],
+        viewerUserId: NOELI,
+      }),
+    );
+    const html = render(state);
+    expect(html).not.toContain("Antirrábica cargada por vos");
+    expect(html).toContain("Antirrábica cargada por el titular");
+    // The dose is still ON RECORD and still declared — only the authorship
+    // claim changed. The registry nudge must survive.
+    expect(html).toContain("un veterinario matriculado tiene que firmarla");
+  });
+
+  it("with no reader in context the copy stays third-person rather than guessing", () => {
+    // Fail-safe direction: a caller that forgets viewerUserId loses warmth,
+    // never accuracy.
+    const state = deriveComplianceState(
+      complianceInput({ events: [vaccination("Antirrábica", "2027-01-01T00:00:00Z", SELF)] }),
+    );
+    expect(render(state)).not.toContain("cargada por vos");
   });
 
   it("a pet with no rabies record at all: the summary shows only the count, and the card alone reads 'Sin registro'", () => {
