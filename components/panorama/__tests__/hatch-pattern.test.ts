@@ -11,7 +11,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { HATCH_STROKE_RGBA, HATCH_SWATCH_CSS } from "@/components/panorama/hatch-pattern";
+import {
+  HATCH_STROKE_RGBA,
+  HATCH_SWATCH_CSS,
+  layerPaintsZero,
+} from "@/components/panorama/hatch-pattern";
+import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 /** Relative luminance (0 = black, 1 = white) of an `rgba(r,g,b,a)` string. */
 function luminanceOf(rgba: string): number {
@@ -37,5 +42,43 @@ describe("hatch stroke color (light-skin regression guard)", () => {
     // the legend key and the on-map hatch are one system, not two constants.
     expect(HATCH_SWATCH_CSS).toContain(HATCH_STROKE_RGBA);
     expect(HATCH_SWATCH_CSS).toContain("repeating-linear-gradient(45deg");
+  });
+});
+
+// T4.1 (2026-08-01): a genuinely reported ZERO had no legend representation —
+// it lands in the lowest color class (province) or the floor radius (graduated),
+// indistinguishable at a glance from "no data" or "protected". `layerPaintsZero`
+// is the gate the Referencias tab's new caption reads, for both carriers.
+describe("layerPaintsZero — a confirmed zero is a mark, not an absence", () => {
+  function fc(props: Array<Record<string, unknown>>): FeatureCollection {
+    return {
+      type: "FeatureCollection",
+      features: props.map((properties) => ({ type: "Feature", geometry: null, properties })),
+    };
+  }
+
+  it("reads a province layer's `value` key", () => {
+    expect(layerPaintsZero(fc([{ provinceCode: "AR-Z", value: 0 }]), "value")).toBe(true);
+  });
+
+  it("reads a graduated layer's `count` key", () => {
+    expect(layerPaintsZero(fc([{ place: "Lanús", count: 0 }]), "count")).toBe(true);
+  });
+
+  it("does not count a suppressed cell as a zero, even if its field were 0", () => {
+    // Defensive: production data never carries this combination (a suppressed
+    // cell's numeric field is null), but the predicate must not rely on that.
+    expect(
+      layerPaintsZero(fc([{ provinceCode: "AR-Z", value: 0, suppressed: true }]), "value"),
+    ).toBe(false);
+  });
+
+  it("answers false when no feature carries a zero", () => {
+    expect(layerPaintsZero(fc([{ provinceCode: "AR-B", value: 61 }]), "value")).toBe(false);
+    expect(layerPaintsZero(fc([{ place: "Lanús", count: null }]), "count")).toBe(false);
+  });
+
+  it("answers false on an empty feature list", () => {
+    expect(layerPaintsZero(fc([]), "value")).toBe(false);
   });
 });

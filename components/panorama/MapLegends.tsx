@@ -42,7 +42,11 @@ import {
 } from "@/components/panorama/class-scale";
 import { type ChoroplethEncoding, resolveChoroplethEncoding } from "@/components/panorama/encoding";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
-import { HATCH_SWATCH_CSS, layerPaintsHatch } from "@/components/panorama/hatch-pattern";
+import {
+  HATCH_SWATCH_CSS,
+  layerPaintsHatch,
+  layerPaintsZero,
+} from "@/components/panorama/hatch-pattern";
 import { NO_DATA_SWATCH_CSS, NO_DATA_SWATCH_SIZE } from "@/components/panorama/no-data-pattern";
 import {
   type ScaleBounds,
@@ -195,6 +199,14 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
     (l) => l.renderMode === "graduated" && layerPaintsHatch(l),
   );
 
+  // T4.1 — the graduated block's own floor-state caveat: `bubbleRadius`
+  // collapses a genuine zero to BUBBLE_R_MIN, the same radius a suppressed
+  // dot collapses to (only opacity/color differ). Checked across the
+  // GRADUATED layers only, same scoping as `graduatedPaintsSuppressed` above.
+  const graduatedPaintsZero = layers.some(
+    (l) => l.renderMode === "graduated" && layerPaintsZero(l.features, "count"),
+  );
+
   // RA-7 F10 — which unclassifiable states the bivariate frame actually paints
   // grey with. Read once here so the key below describes THIS frame.
   const bivariateGrey = bivariateGreyStates(bivariateLayer?.bivariateCells ?? []);
@@ -225,6 +237,57 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
       <p className="text-xs leading-snug text-ln-op-mute">
         Cómo leer los colores y símbolos del mapa.
       </p>
+      {/* T4.1 (2026-08-01) — always rendered, independent of `anyLegend`. Three
+          gaps closed at once: (a) the AREA-proportional circle sizing
+          (`bubbleRadius`, r ∝ √value) was never explained anywhere visible;
+          (b) the hatch/stipple rule lived only as a code comment and per-block
+          conditional rows, never as a general statement in the tab itself;
+          (c) a genuinely reported ZERO had no legend representation, and sits
+          visually close to the suppressed dot (0.92 vs 0.6 opacity). An
+          operator on the "no hay escalas" empty state still benefits from
+          knowing what the marks WOULD mean once a layer starts painting. */}
+      <div className={CARD}>
+        <div className="mb-1.5 font-medium text-ln-op-ink-2">Cómo leer las marcas</div>
+        <div className="flex flex-col gap-1 text-ln-op-ink-2">
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-2.5 flex-none rounded-full border border-ln-op-line bg-ln-op-ink-2"
+              aria-hidden="true"
+            />
+            <span>El tamaño de los círculos es proporcional a la cantidad de casos.</span>
+          </div>
+          {/* Same swatch/color as the hatch rows below (hatch-pattern.ts) —
+              legend key and on-map mark cannot drift. ⊘ prefix matches
+              LegendPill's "⊘ k<5 protegido" so the glyph reads as ONE symbol
+              across both surfaces. */}
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-2.5 flex-none rounded-[var(--radius-xs)] border border-ln-op-line"
+              style={{ backgroundImage: HATCH_SWATCH_CSS }}
+              aria-hidden="true"
+            />
+            <span>
+              ⊘ Trama diagonal: protegido por privacidad (k&lt;5, Ley 25.326). El valor real no se
+              muestra.
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-block h-2.5 w-2.5 flex-none rounded-[var(--radius-xs)]"
+              style={{
+                background: COLOR_NO_DATA,
+                backgroundImage: NO_DATA_SWATCH_CSS,
+                backgroundSize: NO_DATA_SWATCH_SIZE,
+              }}
+              aria-hidden="true"
+            />
+            <span>Punteado: sin datos. Ninguna unidad reportó.</span>
+          </div>
+        </div>
+        <p className="mt-1.5 text-ln-op-mute">
+          El valor 0 es un reporte confirmado, no ausencia de datos.
+        </p>
+      </div>
       {!anyLegend && (
         <p className="text-xs leading-snug text-ln-op-ink-2">
           Por ahora no hay escalas que decodificar: las capas activas no están pintando ningún valor
@@ -259,7 +322,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   style={{ backgroundImage: HATCH_SWATCH_CSS }}
                   aria-hidden="true"
                 />
-                Protegido por privacidad (k&lt;5)
+                ⊘ Protegido por privacidad (k&lt;5)
               </div>
             )}
             {/* RA-7 F10 — NAME THE GREY. The 3×3 matrix decodes nine colours and
@@ -330,7 +393,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   style={{ backgroundImage: HATCH_SWATCH_CSS }}
                   aria-hidden="true"
                 />
-                Protegido por privacidad (k&lt;5)
+                ⊘ Protegido por privacidad (k&lt;5)
               </div>
             )}
             {/* RA-7 F9 — gated, like the hatch row above it. This key used to
@@ -383,6 +446,15 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
               {scale !== null && (
                 <ClassSwatchLegend scale={scale} unit={encoding?.unit} meta={isMeta} />
               )}
+              {/* T4.1 — a confirmed 0 falls in the lowest color class, same as any
+                  small positive value; the swatch alone cannot tell them apart.
+                  Gated on THIS layer's own features, same discipline as the
+                  hatch/stipple rows beside it. */}
+              {layerPaintsZero(layer.features, "value") && (
+                <div className="mt-1 text-ln-op-mute">
+                  El valor 0 es un reporte confirmado, no ausencia de datos.
+                </div>
+              )}
               {/* RA-7 F9 — gated on the frame, exactly like the k-anon row below
                   it. Unconditional until now: a national frame where all 24
                   jurisdictions report paints no stipple anywhere, and the key
@@ -429,7 +501,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                     style={{ backgroundImage: HATCH_SWATCH_CSS }}
                     aria-hidden="true"
                   />
-                  Protegido por privacidad (k&lt;5)
+                  ⊘ Protegido por privacidad (k&lt;5)
                 </div>
               )}
             </div>
@@ -470,6 +542,15 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   <span className="tabular-nums text-ln-op-ink-2">{b.label}</span>
                 </div>
               ))}
+              {/* T4.1 — `bubbleRadius` collapses a genuine zero to the same floor
+                  radius (BUBBLE_R_MIN) a suppressed dot also collapses to; only
+                  opacity/color differ (0.92 layer color vs 0.6 COLOR_SUPPRESSED),
+                  which reads as noise, not signal, at a glance. */}
+              {graduatedPaintsZero && (
+                <div className="mt-0.5 text-ln-op-mute">
+                  El valor 0 es un reporte confirmado, no ausencia de datos.
+                </div>
+              )}
               {/* RA-7 F3: the protected DOT is a real mark (COLOR_SUPPRESSED at
                   0.6 opacity, own stroke, collapsed to BUBBLE_R_MIN) — so this
                   key is named when it is painted, and only then. */}

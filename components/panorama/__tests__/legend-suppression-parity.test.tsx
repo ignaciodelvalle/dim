@@ -31,13 +31,26 @@ import { hasSuppressedProvince } from "@/components/panorama/province-choropleth
 import type { BivariateCell } from "@/src/modules/panorama/domain/bivariate";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
-// EVERY wording MapLegends uses to name the k-anon mark. RA-7 F3: this file
-// used to grep for the hatch row alone, so the FOURTH key — the graduated
-// block's muted-dot row, which says something else entirely — was invisible to
-// the parity check that exists precisely so no key can drift from the canvas.
-// A legend key added with new copy and no entry here is caught by
-// `every rendered k-anon key is one this test knows about`, below.
+// EVERY wording MapLegends uses to name the k-anon mark, CONDITIONALLY — i.e.
+// rendered only when THIS FRAME actually paints a suppressed unit. RA-7 F3:
+// this file used to grep for the hatch row alone, so the FOURTH key — the
+// graduated block's muted-dot row, which says something else entirely — was
+// invisible to the parity check that exists precisely so no key can drift
+// from the canvas. A legend key added with new copy and no entry here is
+// caught by `every rendered k-anon key is one this test knows about`, below.
 const K_ANON_KEYS = ["Protegido por privacidad", "Datos insuficientes (privacidad)"] as const;
+
+// T4.1 (2026-08-01): "Cómo leer las marcas" is an ALWAYS-rendered glossary
+// block (independent of `anyLegend` and of whether this frame suppresses
+// anything) that explains the SAME hatch mark in prose. Its wording must NOT
+// be added to `K_ANON_KEYS` above: that array drives `legendsClaim` below,
+// which means "this frame's surfaces claim a suppression happened" — folding
+// in copy that is present on EVERY frame would make `legendsClaim` true
+// unconditionally, exactly the disclosure bug this whole file exists to
+// catch, just introduced from the opposite direction. Tracked separately so
+// the source-scan sanity check (which enumerates every "privacidad" mention)
+// still accounts for it without corrupting the per-frame claim.
+const GLOSSARY_PRIVACY_COPY = ["protegido por privacidad"] as const;
 const PILL_CHIP = "k&lt;5 protegido";
 
 /** The suppressed DOT the graduated bubble layers paint (COLOR_SUPPRESSED). */
@@ -381,12 +394,16 @@ describe("K_ANON_KEYS covers every k-anon key MapLegends can render", () => {
       .split(/\r?\n/)
       .filter((line) => /privacidad/i.test(line))
       .filter((line) => !line.trimStart().startsWith("//"));
-    // Sanity: the four keys are actually in there (a zero-length list would make
+    // Sanity: the five keys are actually in there (a zero-length list would make
     // the loop below vacuously pass — the failure mode this whole file is about).
-    expect(rendered.length).toBeGreaterThanOrEqual(4);
+    expect(rendered.length).toBeGreaterThanOrEqual(5);
+    // Every "privacidad" mention must be accounted for by EITHER set: a
+    // conditional claim key (drives `legendsClaim`) or the always-rendered
+    // glossary copy (never should — see the comment on GLOSSARY_PRIVACY_COPY).
+    const knownWordings = [...K_ANON_KEYS, ...GLOSSARY_PRIVACY_COPY];
     for (const line of rendered) {
       expect(
-        K_ANON_KEYS.some((k) => line.includes(k)),
+        knownWordings.some((k) => line.includes(k)),
         `MapLegends renders privacy copy this parity test does not know about: ${line.trim()}`,
       ).toBe(true);
     }

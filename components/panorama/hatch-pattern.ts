@@ -132,6 +132,34 @@ export function cellsPaintHatch(cells: readonly { suppressed?: boolean }[]): boo
 }
 
 /**
+ * Whether a feature-list layer paints at least one CONFIRMED ZERO — a feature
+ * whose `key` property reads exactly 0 and which is NOT k-anon suppressed.
+ *
+ * T4.1 (2026-08-01): a genuinely reported zero had no legend representation at
+ * all. On a province choropleth it falls in the lowest color class exactly
+ * like a small positive value; on a graduated-symbol layer `bubbleRadius`
+ * collapses it to the same floor radius (`BUBBLE_R_MIN`) a suppressed dot also
+ * uses, painted at 0.92 opacity in the layer's own color — visually close to
+ * the suppressed dot's 0.6-opacity grey. Without a caption naming it, "0",
+ * "no data" and "protected" are three different facts painted as one mark.
+ *
+ * `key` lets ONE predicate serve both carriers: province features publish
+ * `value`, graduated features publish `count` — same shape, different name.
+ * A suppressed cell's numeric field is already `null`, never `0` (see
+ * `provinceCellAt`), so the exclusion below is a defensive restatement of that
+ * contract, not a correction of live data — the predicate must not depend on
+ * an upstream coalescing convention staying true forever.
+ */
+export function layerPaintsZero(features: FeatureCollection, key: "value" | "count"): boolean {
+  for (const f of features.features) {
+    const p = (f.properties ?? {}) as Record<string, unknown>;
+    if (p.suppressed === true) continue;
+    if (p[key] === 0) return true;
+  }
+  return false;
+}
+
+/**
  * Whether ANY surface in the current frame paints a hatch — the condition for
  * naming the k-anon mark in a legend. This is exactly "MapLegends would render
  * at least one «Protegido por privacidad (k<5)» row", by construction: it ORs

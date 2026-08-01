@@ -505,3 +505,132 @@ describe("MapLegends — the graduated key cites the bubble colour the map paint
     expect(html).toContain("Mordeduras / antirrábica · Zoonosis / señales");
   });
 });
+
+// T4.1 (2026-08-01) — three gaps: the AREA-proportional circle sizing was
+// never explained in visible copy, the hatch/stipple rule lived only as a
+// code comment, and a genuinely reported ZERO had no legend representation at
+// all (it lands in the lowest color class / the floor bubble radius,
+// indistinguishable at a glance from "no data" or "protected").
+describe("MapLegends — 'Cómo leer las marcas' always renders, independent of anyLegend", () => {
+  it("renders the mini-block even when there is nothing to decode (empty frame)", () => {
+    const html = renderToStaticMarkup(
+      <MapLegends layers={[]} divisionLegend={null} graduatedScale={null} provinceSeqLegend={{}} />,
+    );
+    expect(html).toContain("Cómo leer las marcas");
+    expect(html).toContain("proporcional a la cantidad de casos");
+    expect(html).toContain("protegido por privacidad");
+    expect(html).toContain("Punteado: sin datos");
+    // The "no hay escalas" empty-state note still renders alongside it.
+    expect(html).toContain("no hay escalas que decodificar");
+  });
+
+  it("renders the mini-block on a normal frame too, alongside the per-layer blocks", () => {
+    const html = renderLegend(metaLayer());
+    expect(html).toContain("Cómo leer las marcas");
+    // Both surfaces stay present: the general glossary and the specific ramp.
+    expect(html).toContain("80% (meta)");
+  });
+
+  it("prefixes the hatch rows with the ⊘ glyph, matching LegendPill's vocabulary", () => {
+    const layer = metaLayer();
+    layer.features = provinceFC([
+      { provinceCode: "AR-B", value: 34 },
+      { provinceCode: "AR-Z", value: null, suppressed: true },
+    ]);
+    const html = renderLegend(layer);
+    expect(html).toContain("⊘ Protegido por privacidad");
+  });
+});
+
+// The always-rendered "Cómo leer las marcas" mini-block carries this EXACT
+// sentence unconditionally, so a bare `.toContain` cannot tell "just the
+// glossary" apart from "glossary + this block's own conditional caption".
+// Count occurrences instead: 1 = glossary only, 2 = glossary + one block.
+function zeroCaptionCount(html: string): number {
+  return (html.match(/El valor 0 es un reporte confirmado, no ausencia de datos\./g) ?? []).length;
+}
+
+describe("MapLegends — a confirmed zero is named, distinct from 'sin datos' and 'protegido'", () => {
+  it("province: adds a SECOND zero caption (block-specific) when a jurisdiction reports value 0", () => {
+    const layer = metaLayer();
+    layer.features = provinceFC([
+      { provinceCode: "AR-B", value: 0 },
+      { provinceCode: "AR-X", value: 55 },
+    ]);
+    const html = renderLegend(layer);
+    expect(zeroCaptionCount(html)).toBe(2);
+  });
+
+  it("province: stays at ONE (glossary only) when no jurisdiction reports exactly 0", () => {
+    const html = renderLegend(metaLayer());
+    expect(zeroCaptionCount(html)).toBe(1);
+  });
+
+  it("province: a suppressed cell (value null) never adds the block-specific zero caption", () => {
+    const layer = metaLayer();
+    layer.features = provinceFC([
+      { provinceCode: "AR-B", value: 34 },
+      { provinceCode: "AR-Z", value: null, suppressed: true },
+    ]);
+    const html = renderLegend(layer);
+    expect(zeroCaptionCount(html)).toBe(1);
+  });
+
+  function graduatedLayerWithCounts(
+    units: Array<{ place: string; count: number | null }>,
+  ): ActiveLayer {
+    return {
+      id: "sintomas",
+      color: "#f28e2b",
+      label: "Síntomas reportados",
+      geomType: "point",
+      renderMode: "graduated",
+      level: "locality",
+      dataType: "signal",
+      features: {
+        type: "FeatureCollection",
+        features: units.map((u) => ({
+          type: "Feature",
+          geometry: null,
+          properties: { place: u.place, locality: u.place, count: u.count },
+        })),
+      },
+    } as unknown as ActiveLayer;
+  }
+
+  const scale = {
+    maxValue: 30,
+    bins: [
+      { value: 1, label: "1", r: 5 },
+      { value: 30, label: "30", r: 30 },
+    ],
+    radiusStops: [
+      [0, 5],
+      [30, 30],
+    ] as Array<[number, number]>,
+  };
+
+  it("graduated: adds a SECOND zero caption (block-specific) when a unit reports count 0", () => {
+    const html = renderToStaticMarkup(
+      <MapLegends
+        layers={[graduatedLayerWithCounts([{ place: "Lanús", count: 0 }])]}
+        divisionLegend={null}
+        graduatedScale={scale}
+        provinceSeqLegend={{}}
+      />,
+    );
+    expect(zeroCaptionCount(html)).toBe(2);
+  });
+
+  it("graduated: stays at ONE (glossary only) when no unit reports exactly 0", () => {
+    const html = renderToStaticMarkup(
+      <MapLegends
+        layers={[graduatedLayerWithCounts([{ place: "Lanús", count: 12 }])]}
+        divisionLegend={null}
+        graduatedScale={scale}
+        provinceSeqLegend={{}}
+      />,
+    );
+    expect(zeroCaptionCount(html)).toBe(1);
+  });
+});
