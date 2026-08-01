@@ -20,7 +20,7 @@
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
 import type { WelfareReport, WelfareReportAttachment } from "@/db";
-import { documentAttributionLine } from "@/lib/analytics/export-attribution";
+import { MPF_AUTHENTICITY_NOTE, documentAttributionLine } from "@/lib/analytics/export-attribution";
 import type { MpfExportFormatId } from "@/lib/domain/business-rules-defaults";
 import {
   MPF_EXPORT_FORMAT_LABELS,
@@ -712,7 +712,7 @@ export async function generateWelfareMpfPdf(dto: WelfareMpfDto): Promise<Uint8Ar
     font: regularFont,
     color: rgb(0.5, 0.5, 0.5),
   });
-  page.drawText("Sin firma PKI. Autenticidad verificable via referenceCode + audit_log (F-D2).", {
+  page.drawText(MPF_AUTHENTICITY_NOTE, {
     x: margin,
     y: footerY - 10,
     size: 6,

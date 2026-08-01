@@ -20,7 +20,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { PUBLIC_BRAND_NAME, documentAttributionLine } from "@/lib/analytics/export-attribution";
+import {
+  MPF_AUTHENTICITY_NOTE,
+  PPP_AUTHENTICITY_NOTE,
+  PUBLIC_BRAND_NAME,
+  documentAttributionLine,
+} from "@/lib/analytics/export-attribution";
 import { buildTravelExportSections } from "@/lib/analytics/travel-exports";
 import { UNRESOLVED_EXPORTER_LABEL } from "@/src/modules/welfare/infrastructure/welfare-repository";
 
@@ -87,6 +92,64 @@ describe("travel export — the traceability section carries the shared attribut
     for (const line of traceability?.lines ?? []) {
       expect(line).not.toMatch(INTERNAL_CODENAME);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The authenticity note — honest about PKI, in the reader's language
+// ---------------------------------------------------------------------------
+//
+// The MPF footer read: "Sin firma PKI. Autenticidad verificable via
+// referenceCode + audit_log (F-D2)."
+//
+// The candour is the best thing about this document and these tests exist to
+// PROTECT it, not to soften it. What they also pin down is that the sentence
+// is addressed to the fiscal reading it: "(F-D2)" is an internal requirement
+// id that, printed at the foot of a Ley 14.346 denuncia, is indistinguishable
+// from a legal citation, and `referenceCode` / `audit_log` are a struct field
+// and a database table dropped raw into a Spanish sentence.
+
+describe("authenticity note — the PKI disclosure survives, the internal codes do not", () => {
+  const NOTES: Array<[string, string]> = [
+    ["MPF denuncia", MPF_AUTHENTICITY_NOTE],
+    ["PPP certificate", PPP_AUTHENTICITY_NOTE],
+  ];
+
+  for (const [label, note] of NOTES) {
+    describe(label, () => {
+      it("still discloses that the document is not cryptographically signed", () => {
+        expect(note).toContain("Sin firma PKI");
+      });
+
+      it("still tells the reader authenticity IS verifiable", () => {
+        expect(note).toContain("autenticidad se verifica");
+      });
+
+      it("names the audit trail in Spanish, not as a table name", () => {
+        expect(note).toContain("registro de auditoría");
+        expect(note).not.toContain("audit_log");
+      });
+
+      it("carries no internal requirement code", () => {
+        // "(F-D2)" is an id from the change that built this export. A fiscal
+        // cannot tell it apart from a statute reference.
+        expect(note).not.toMatch(/\bF-D\d+\b/);
+      });
+
+      it("carries no raw code identifier", () => {
+        expect(note).not.toContain("referenceCode");
+        expect(note).not.toMatch(/[a-z]+_[a-z]+/);
+      });
+    });
+  }
+
+  it("the MPF note points at the denuncia's reference code, in Spanish", () => {
+    expect(MPF_AUTHENTICITY_NOTE).toContain("código de referencia");
+  });
+
+  it("the PPP note points at the credential token instead — the artefact that document actually carries", () => {
+    expect(PPP_AUTHENTICITY_NOTE).toContain("token miMAR");
+    expect(PPP_AUTHENTICITY_NOTE).not.toContain("código de referencia");
   });
 });
 

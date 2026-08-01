@@ -20,7 +20,7 @@
 
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
-import { documentAttributionLine } from "@/lib/analytics/export-attribution";
+import { PPP_AUTHENTICITY_NOTE, documentAttributionLine } from "@/lib/analytics/export-attribution";
 import { formatDate } from "@/lib/utils/format";
 
 export const PPP_EXPORT_SCHEMA_VERSION = "2026-05-21";
@@ -459,7 +459,7 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
     font: regularFont,
     color: rgb(0.5, 0.5, 0.5),
   });
-  page.drawText("Sin firma PKI (F-D2). Autenticidad verificable via token miMAR + audit_log.", {
+  page.drawText(PPP_AUTHENTICITY_NOTE, {
     x: margin,
     y: footerY - 10,
     size: 6,

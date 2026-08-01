@@ -36,3 +36,37 @@ export const PUBLIC_BRAND_DOMAIN = "mimar.ar";
 export function documentAttributionLine(traceabilityCode: string): string {
   return `Documento generado por ${PUBLIC_BRAND_NAME} — Trazabilidad: ${traceabilityCode} — ${PUBLIC_BRAND_DOMAIN}`;
 }
+
+/**
+ * The authenticity disclosure printed under the attribution.
+ *
+ * The candour here is the best thing about these documents and is kept
+ * verbatim in substance: the system does NOT cryptographically sign its PDFs,
+ * and the document says so to the fiscal reading it rather than implying a
+ * guarantee it cannot make.
+ *
+ * What changed (2026-07-30) is who the sentence is written for. It read:
+ *
+ *   "Sin firma PKI. Autenticidad verificable via referenceCode + audit_log
+ *    (F-D2)."
+ *
+ * "(F-D2)" is an INTERNAL requirement id from the change that built this
+ * export — meaningless to a fiscal and, printed at the foot of a Ley 14.346
+ * denuncia, indistinguishable from a legal citation. `referenceCode` and
+ * `audit_log` are a struct field and a database table dropped raw into a
+ * Spanish sentence. All three named real things; none of them named those
+ * things in the reader's language.
+ *
+ * The two artefacts are now described by what they ARE to the reader: the
+ * reference code printed at the head of this same document, and the system's
+ * audit trail. Nothing about the PKI disclosure is softened.
+ */
+export function authenticityNote(credentialPhrase: string): string {
+  return `Sin firma PKI. La autenticidad se verifica con ${credentialPhrase} y el registro de auditoría del sistema.`;
+}
+
+/** Ley 14.346 denuncia (MPF) — traced by the denuncia's reference code. */
+export const MPF_AUTHENTICITY_NOTE = authenticityNote("el código de referencia de esta denuncia");
+
+/** PPP certificate — traced by the pet's public credential token. */
+export const PPP_AUTHENTICITY_NOTE = authenticityNote("el token miMAR de la credencial");
