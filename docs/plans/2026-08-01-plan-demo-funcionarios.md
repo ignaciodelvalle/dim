@@ -93,8 +93,32 @@ Qué implica:
   (Analítica vs Inteligencia) queda como pregunta abierta para el PO.
 - El copy de "desierto de atención" **no va acá** — ya lo tiene la unidad de números con cara seria.
 
-**Bloqueado por territorio** al momento de escribir esto: `app/gob/page.tsx` y
-`app/gob/analytics/page.tsx` están tomados por otro agente. Despachar apenas liberen.
+**Estado: HECHO (01/08).** Territorio liberado y fold ejecutado. Los cuatro tiles quedaron
+repuntados así — cada uno al lugar donde **ese** KPI se explica, no a un genérico:
+
+| Tile | Destino | Por qué |
+|---|---|---|
+| Cobertura antirrábica (perros, 12m) | `/gob/programa?vista=resumen#gob-programa-outliers-titulo` | La tabla de outliers desglosa **esta** definición por provincia. Analítica publica `rabies_vaccination_rate_all_species`, que es otra métrica (toda especie, sin ventana) — mandarlo ahí era la confusión "misma etiqueta, otro número" que el catálogo advierte. |
+| Esterilizaciones | `/gob/padron?vista=poblacion#panel-esterilizacion-titulo` | La tendencia mensual del mismo stream de eventos. |
+| Microchip | `/gob/padron?vista=censo#panel-embudo-titulo` | El embudo de identificación contra la misma meta. |
+| PPP | `/gob/panorama?preset=riesgo-ppp` | El más débil de los cuatro, y conviene decirlo: **ninguna** pantalla renderiza un desglose de atestaciones PPP. El coroplético `ppp` se alimenta del mismo fetcher que el tile, así que es el único desglose real que existe. |
+
+**Hallazgo del fold (mutation testing).** Devolver un tile a `href="/gob/analytics"` dejaba **2200
+tests en 194 archivos en verde**. `link-integrity` sólo preguntaba "¿la ruta existe?", y una ruta
+que sólo redirige existe. Se agregó el guard que faltaba (`__tests__/link-integrity.test.ts`, bloque
+5): ningún link de `app/` o `components/` puede apuntar a una ruta redirect-only. Cubre las seis
+fusiones, no sólo F9.
+
+**Dos rebotes preexistentes que el guard encontró** (grandfathered con nombre y motivo, NO
+arreglados — son territorio de F6 y de la fusión admin, no de F9):
+
+- `app/gob/casos/CasosScreen.tsx` linkea `/gob/disputas`, que redirige a
+  `/gob/casos?expediente=disputas` — o sea, de vuelta al hub que el lector ya tiene abierto.
+- `components/admin/QueueHealthCockpit.tsx` linkea `/admin/moderacion`, que rebota al hub de
+  Denuncias admin.
+
+**Pregunta abierta para el PO** (además de la paridad Analítica/Inteligencia): ¿se arreglan esos dos
+rebotes en su propia unidad?
 
 **Nota de procedencia** (y de una equivocación mía): reporté que los cuatro tiles ya no linkeaban a
 `/gob/analytics`. Era falso — mi `rg` con una barra inicial dentro de comillas se lo comió Git Bash
