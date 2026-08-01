@@ -973,7 +973,11 @@ export async function getPanoramaKpis(
       label: "Denuncias en el período",
       value: formatCount(welfare.inPeriod),
       sub: welfare.inPeriod === 1 ? "denuncia en el período" : "denuncias en el período",
-      secondary: `acumulado: ${formatCount(welfare.count)} ${
+      // T2.2: the backlog arm has NO date bound — it is an all-time stock
+      // evaluated at NOW, so beside a scrubbed PRIMARY the old "acumulado: N"
+      // read as if it belonged to the same frame. "hoy" names the base
+      // explicitly; threading asOf into the backlog query is deferred.
+      secondary: `acumulado hoy: ${formatCount(welfare.count)} ${
         welfare.count === 1 ? "activa en total" : "activas en total"
       }`,
       tone: welfare.inPeriod > 0 ? "warn" : "neutral",
@@ -985,7 +989,7 @@ export async function getPanoramaKpis(
         formula:
           "primario = COUNT(welfare_reports donde created_at ∈ [desde, hasta], visibles) en alcance · backlog = COUNT(welfare_reports donde status NOT IN ('closed','invalid','duplicate')) en alcance",
         caveat:
-          "La ubicación en el mapa es aproximada (centroide de localidad); el conteo refleja el alcance, no el recuadro visible. El backlog no depende del período (es un stock); el primario sí se mueve con la línea de tiempo.",
+          "La ubicación en el mapa es aproximada (centroide de localidad); el conteo refleja el alcance, no el recuadro visible. El backlog es un stock calculado al día de hoy: no depende del período ni de la línea de tiempo; el primario sí se mueve con la línea de tiempo.",
       },
     },
     {

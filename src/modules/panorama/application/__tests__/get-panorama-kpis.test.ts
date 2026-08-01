@@ -735,7 +735,10 @@ describe("getPanoramaKpis", () => {
     expect(denuncias.value).toBe("195");
     // SECONDARY carries the all-time backlog, clearly labeled ("acumulado" — the
     // es-AR term replaced the English "backlog", red-team-admin-2 P1.8b).
-    expect(denuncias.secondary).toContain("acumulado");
+    // T2.2: the backlog arm has no date bound (architecturally "now"), so the
+    // label must name its base — "acumulado hoy" — or a scrubbed PRIMARY makes
+    // the frozen stock read as part of the historical frame.
+    expect(denuncias.secondary).toContain("acumulado hoy:");
     expect(denuncias.secondary).toContain("2.202");
   });
 
