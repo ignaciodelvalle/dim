@@ -71,6 +71,36 @@ un número que no puede sostener** frente a gente que lee estadística en serio.
 
 ---
 
+## Fase 1b — F9: Programa absorbe Analítica (PO eligió Opción B, 01/08)
+
+**Decisión tomada, no re-litigar.** El QA externo abrió un gate: dejar "Analítica" como entrada de
+nav propia (estado actual), o ejecutar el fold. **El PO eligió el fold**, coherente con las dos
+fusiones ya hechas (Padrón absorbe Población+Censo, Operativos absorbe Campañas).
+
+Qué implica:
+
+- `/gob/programa?vista=analitica` pasa a ser el destino; `app/gob/analytics/page.tsx` sobrevive
+  **solo como redirect permanente**, con el mismo mecanismo que `/gob/poblacion` — copiar ese
+  patrón, no inventar otro.
+- **Se quita la entrada de nav** de `nav-presets.ts:536`.
+- **Los cuatro `href="/gob/analytics"`** de `app/gob/page.tsx` (líneas 613, 633, 718, 743) se
+  repuntan. Regla: el href de un KPI lleva a donde ese KPI **se explica**, no a un genérico.
+- Los `_components` de analytics se mueven; no dejar imports cruzando una ruta muerta.
+- **Criterio de contenido**: Programa por defecto = resumen ejecutivo outcome-vs-target (lo que ya
+  es); vista Analítica = profundidad. Si un número ya está en el resumen, la vista lo **linkea**,
+  no lo repite.
+- **Fuera de alcance**: `/admin/inteligencia` no se toca. La paridad de vocabulario
+  (Analítica vs Inteligencia) queda como pregunta abierta para el PO.
+- El copy de "desierto de atención" **no va acá** — ya lo tiene la unidad de números con cara seria.
+
+**Bloqueado por territorio** al momento de escribir esto: `app/gob/page.tsx` y
+`app/gob/analytics/page.tsx` están tomados por otro agente. Despachar apenas liberen.
+
+**Nota de procedencia** (y de una equivocación mía): reporté que los cuatro tiles ya no linkeaban a
+`/gob/analytics`. Era falso — mi `rg` con una barra inicial dentro de comillas se lo comió Git Bash
+y devolvió cero. El QA externo tenía razón. **Un cero inesperado se re-verifica de otra forma antes
+de concluir nada**: no se lee como error, se lee como "ya está arreglado".
+
 ## Fase 2 — Lo que rompe o mete al usuario en un callejón
 
 | Unidad | Qué |
