@@ -121,7 +121,22 @@ const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 // tidy-up: the phantoms were headroom. Until this change, up to 14 genuinely
 // new raw <button>s could land on the citizen surface and the ratchet would
 // still report clean, because it was holding budget for prose.
-const CITIZEN_BASELINE = 309;
+// 2026-08-01 (panorama ContextBar): 309 → 310, ONE button, same sanctioned
+// shape as the disclosure row above. The bar's segment trigger is a disclosure
+// PILL — ref for focus-restore, aria-expanded/aria-controls, a count badge and
+// a chevron as children, `rounded-full`, and an open/closed border+bg pair.
+// OpButton cannot model it: its `base` hardcodes `rounded-[--radius-op-btn]`,
+// which an appended `rounded-full` does not reliably beat (equal specificity,
+// stylesheet order decides), and `ghost` hardcodes the border color the open
+// state has to repaint. Forcing it through would fork the variant table.
+// The bar's other two buttons DID migrate in this change (Copiar vista →
+// OpButton ghost, panel close → OpIconButton), so the file adds 1, not 3.
+// NOTE for whoever revisits the scoping: components/panorama/* is OPERATOR
+// chrome counted against the CITIZEN baseline, because these globs are
+// directory-based and everything under components/ lands here. That is a
+// measurement artifact, not a claim about the surface.
+// If a second disclosure pill appears, extract OpDisclosurePill and fold both.
+const CITIZEN_BASELINE = 310;
 const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
 const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
 

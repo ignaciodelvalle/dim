@@ -34,6 +34,8 @@
 import { type ReactNode, useEffect, useId, useRef } from "react";
 
 import { Icon } from "@/components/Icon";
+import { OpButton } from "@/components/ui/dashboard/OpButton";
+import { OpIconButton } from "@/components/ui/dashboard/OpIconButton";
 
 export type ContextBarSegment = {
   /** Shared panel id — the SAME id space the rail uses, so one state governs both. */
@@ -194,14 +196,15 @@ export function ContextBar({
           );
         })}
         <div className="flex flex-shrink-0 items-center gap-1.5 sm:ml-auto">
-          <button
-            type="button"
+          <OpButton
+            variant="ghost"
+            size="sm"
             onClick={onCopyView}
-            className="inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2.5 py-1 text-xs font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe"
+            className="flex-shrink-0 whitespace-nowrap"
           >
             <Icon name="enlace" size="sm" decorative /> Copiar vista
             {copied && <span className="text-ln-op-ok">· copiada</span>}
-          </button>
+          </OpButton>
           {savedViews}
         </div>
       </div>
@@ -234,14 +237,9 @@ function ContextBarPanel({
         <h2 id={titleId} className="min-w-0 truncate text-sm font-semibold text-ln-op-ink">
           {title}
         </h2>
-        <button
-          type="button"
-          onClick={onClose}
-          aria-label="Cerrar"
-          className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
-        >
+        <OpIconButton onClick={onClose} aria-label="Cerrar" className="-mr-1.5">
           <Icon name="close" size="sm" decorative />
-        </button>
+        </OpIconButton>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-3">{children}</div>
     </div>
