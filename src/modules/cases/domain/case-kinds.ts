@@ -55,9 +55,18 @@ export type CaseKind = (typeof CASE_KINDS)[number];
  */
 export const CASE_KINDS_ROUTED_ELSEWHERE: readonly CaseKind[] = ["custody_dispute"];
 
-/** Where an operator should go for a kind the Casos queue does not show. */
+/**
+ * Where an operator should go for a kind the Casos queue does not show.
+ *
+ * The href is the hub TAB, not /gob/disputas. That route has only redirected
+ * into /gob/casos?expediente=disputas since the F6 fusion, and this registry
+ * sits in src/ — outside the app/+components/ scan of the bounce guard in
+ * __tests__/link-integrity.test.ts — so nothing would have caught it once a
+ * caller appeared. It has none today; fixed while the cost is one line rather
+ * than one line plus a rendered bounce.
+ */
 export const ROUTED_ELSEWHERE_DESTINATION: Record<string, { href: string; label: string }> = {
-  custody_dispute: { href: "/gob/disputas", label: "Disputas de custodia" },
+  custody_dispute: { href: "/gob/casos?expediente=disputas", label: "Disputas de custodia" },
 };
 
 export const V1_CASE_KINDS: readonly CaseKind[] = [

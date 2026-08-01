@@ -108,6 +108,20 @@ describe("CasosScreen — render smoke test", () => {
     expect(html).toContain("Casos");
   });
 
+  // The subtitle's "se trabajan en … Disputas" pointer used to href
+  // /gob/disputas, which since the F6 fusion only redirects to
+  // /gob/casos?expediente=disputas — back into the hub the reader already has
+  // open. Both halves are pinned: the href (the bounce) and the word
+  // "expediente" (the promise). The copy has to keep saying the click switches
+  // a tab, because that is now the only thing it does.
+  it("points at the sibling Disputas expediente, not the /gob/disputas bounce", async () => {
+    const node = await CasosScreen({ searchParams: {} });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain('href="/gob/casos?expediente=disputas"');
+    expect(html).not.toContain('href="/gob/disputas"');
+    expect(html).toContain("se trabajan en el expediente");
+  });
+
   it("renders the admin-universal branch (role=admin viewing /gob/casos) without throwing", async () => {
     const { requireAdminOrGovtOrRedirect } = await import("@/lib/infra/auth-guards");
     const adminSession: Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>> = {

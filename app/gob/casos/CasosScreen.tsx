@@ -321,13 +321,22 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
                 ? "Expedientes en todo el sistema. Vista universal admin."
                 : "Expedientes en tu jurisdicción asignada."}{" "}
               {/* The queue no longer lists custody disputes (they live in their
-                own screen, with the resolve form). Saying so — and linking —
-                is what keeps the exclusion from reading as data loss. */}
-              Las disputas de custodia se trabajan en{" "}
-              <Link href="/gob/disputas" className="underline underline-offset-2">
+                own expediente, with the resolve form). Saying so — and linking —
+                is what keeps the exclusion from reading as data loss.
+
+                The link points at the SIBLING TAB, not at /gob/disputas. Since
+                the F6 fusion that route only redirects into
+                /gob/casos?expediente=disputas — i.e. back into the hub the
+                reader already has open — so the old href spent a round trip to
+                land one tab over (link-integrity.test.ts block 5, 2026-08-01).
+                Same target app/gob/analytics/AnalyticsScreen.tsx already links.
+                The copy says "expediente" now because that is what the click
+                does: it switches the tab of this hub, it does not leave it. */}
+              Las disputas de custodia se trabajan en el expediente{" "}
+              <Link href="/gob/casos?expediente=disputas" className="underline underline-offset-2">
                 Disputas
-              </Link>
-              .
+              </Link>{" "}
+              de este mismo hub.
             </p>
           </>
         }
