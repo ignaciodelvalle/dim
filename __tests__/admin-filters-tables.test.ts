@@ -53,6 +53,23 @@ describe("buildAdminCaseFilterClauses (C29)", () => {
       }),
     ).toHaveLength(3);
   });
+
+  // Demo review 2026-08-01: admin has no assignment set to narrow, so a
+  // locality drill can only reach SQL as an explicit predicate. Without one,
+  // Casos was the only /gob surface that could not follow a barrio filter —
+  // the Panel tile counted the barrio and the queue it linked to counted the
+  // country.
+  it("adds one clause for locality filter", () => {
+    expect(buildAdminCaseFilterClauses({ locality: "Palermo" })).toHaveLength(1);
+  });
+
+  it("stacks province + locality as two separate clauses", () => {
+    expect(buildAdminCaseFilterClauses({ province: "CABA", locality: "Palermo" })).toHaveLength(2);
+  });
+
+  it("ignores an explicitly null locality", () => {
+    expect(buildAdminCaseFilterClauses({ province: "CABA", locality: null })).toHaveLength(1);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -758,8 +758,20 @@ export interface ListCasesForAdminFilters {
   kind?: CaseKind | null;
   /** Filter by open/closed status. Null = all. */
   status?: "open" | "closed" | null;
-  /** Filter by jurisdiction province (exact match). Null = all. */
+  /** Filter by jurisdiction province (exact canonical name). Null = all. */
   province?: string | null;
+  /**
+   * Filter by jurisdiction locality (exact canonical name). Null = all.
+   *
+   * Admin has no assignment set to narrow, so a drill-down has to arrive as an
+   * explicit predicate — the same way every other /gob screen applies
+   * `adminSelectedLocality`. Without it the Casos surfaces were the only ones
+   * in the operator shell that could not follow a locality filter: the /gob
+   * home tile counted a barrio while the queue it linked to counted the
+   * country (demo review 2026-08-01). Only meaningful together with
+   * `province`; a locality name alone is not unique nationally.
+   */
+  locality?: string | null;
 }
 
 /**
@@ -773,6 +785,8 @@ export function buildAdminCaseFilterClauses(
   const clauses = buildCaseKindStatusClauses(filters);
   if (filters.province)
     clauses.push(eq(cases.jurisdictionProvince, filters.province) as ReturnType<typeof and>);
+  if (filters.locality)
+    clauses.push(eq(cases.jurisdictionLocality, filters.locality) as ReturnType<typeof and>);
   return clauses;
 }
 

@@ -43,9 +43,15 @@ vi.mock("@/lib/infra/approval-scope", () => ({
   countVisiblePendingRequestsByType: vi.fn(async () => 2),
 }));
 
+// The "Casos regulatorios" tile counts through the SAME two functions
+// /gob/casos itself uses (countCasesForAdmin / countCasesForGovt). It used to
+// call listOpenCasesForAdminPreview / listOpenCasesForGovtPreview, a private
+// pair whose predicate diverged from the queue's — and this mock, returning
+// `{ items: [], total: 6 }`, was the fixture that made the divergence look
+// deliberate. See the scope block at the bottom of this file.
 vi.mock("@/lib/infra/case-queries", () => ({
-  listOpenCasesForAdminPreview: vi.fn(async () => ({ items: [], total: 0 })),
-  listOpenCasesForGovtPreview: vi.fn(async () => ({ items: [], total: 6 })),
+  countCasesForAdmin: vi.fn(async () => 0),
+  countCasesForGovt: vi.fn(async () => 6),
 }));
 
 // Mutable so the A1 block below can drive an empty jurisdiction (0 deaths →
@@ -192,7 +198,11 @@ vi.mock("@/lib/metrics", async () => {
   };
 });
 
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { countCasesForAdmin, countCasesForGovt } from "@/lib/infra/case-queries";
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
+import { CASE_KINDS_ROUTED_ELSEWHERE } from "@/src/modules/cases/domain/case-kinds";
 
 import GobHomePage from "./page";
 
@@ -447,6 +457,88 @@ describe("/gob (home) — a k-anon-masked bite bucket is never published as a me
   it("still discloses the masked-period count in the card header", async () => {
     const html = await renderWithMaskedTrend();
     expect(html).toContain("1 período oculto (privacidad)");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// THE TILE COUNTS WHAT THE QUEUE SHOWS (demo review 2026-08-01).
+//
+// Measured on staging: "Casos regulatorios" said 38 for a CABA operator and
+// the queue one click away said "32 casos"; 10 vs 9 for a 5-locality
+// operator. With admin at ?province=AR-B the tile stayed frozen at the
+// national 543 while "Denuncias de maltrato" went 5.070 → 719 and "Mascotas
+// perdidas activas" 4.011 → 633 in the same row.
+//
+// Cause: the tile called listOpenCasesForGovtPreview / …AdminPreview, whose
+// predicate was its own — status IN (open, escalated) rather than "not
+// closed", and no CASE_KINDS_ROUTED_ELSEWHERE exclusion, so it counted the
+// custody disputes the queue routes elsewhere. The admin variant took no
+// jurisdiction argument at all.
+// ---------------------------------------------------------------------------
+
+describe("/gob (home) — the Casos tile counts through the queue's own functions", () => {
+  async function render(searchParams: Record<string, string> = {}): Promise<string> {
+    vi.clearAllMocks();
+    const node = await GobHomePage({ searchParams: Promise.resolve(searchParams) });
+    return renderToStaticMarkup(node);
+  }
+
+  it("applies the queue's routed-away-kind exclusion — never counts custody disputes", async () => {
+    await render();
+    const filters = vi.mocked(countCasesForGovt).mock.calls[0][1];
+    expect(filters?.excludeKinds).toEqual(CASE_KINDS_ROUTED_ELSEWHERE);
+  });
+
+  it("applies the queue's default estado (abiertos), not a private status list", async () => {
+    await render();
+    expect(vi.mocked(countCasesForGovt).mock.calls[0][1]?.status).toBe("open");
+  });
+
+  it("scopes the govt count by the page's narrowed jurisdiction set", async () => {
+    await render();
+    expect(vi.mocked(countCasesForGovt).mock.calls[0][0]).toEqual([
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
+  });
+
+  it("carries the active jurisdiction filter into the tile's link", async () => {
+    const html = await render({ province: "AR-B", locality: "la-plata" });
+    // (& is HTML-escaped in the rendered markup.)
+    expect(html).toContain("/gob/casos?province=AR-B&amp;locality=la-plata");
+  });
+
+  it("links to the bare queue when nothing is filtered", async () => {
+    const html = await render();
+    expect(html).toContain('href="/gob/casos"');
+  });
+});
+
+describe("/gob (home) — the admin Casos count follows the province drill", () => {
+  async function renderAsAdmin(searchParams: Record<string, string>): Promise<void> {
+    vi.clearAllMocks();
+    vi.mocked(requireAdminOrGovtOrRedirect).mockResolvedValueOnce({
+      user: { id: "admin-1", email: "admin@dim.test" },
+      profile: { id: "admin-1", role: "admin" },
+      jurisdictions: [],
+    } as unknown as Awaited<ReturnType<typeof requireAdminOrGovtOrRedirect>>);
+    vi.mocked(resolveJurisdictionScope).mockResolvedValueOnce({
+      filteredJurisdictions: [],
+      localities: [],
+      allowedProvinces: [],
+      adminSelectedProvince: "Buenos Aires",
+      adminSelectedLocality: null,
+    } as unknown as Awaited<ReturnType<typeof resolveJurisdictionScope>>);
+    await GobHomePage({ searchParams: Promise.resolve(searchParams) });
+  }
+
+  it("pushes the drilled province into the count instead of staying national", async () => {
+    await renderAsAdmin({ province: "AR-B" });
+    // THE REGRESSION: listOpenCasesForAdminPreview took no jurisdiction
+    // argument, so this number could not move no matter what the operator
+    // selected — 543 with every sibling tile down in the hundreds.
+    expect(vi.mocked(countCasesForAdmin)).toHaveBeenCalledWith(
+      expect.objectContaining({ province: "Buenos Aires" }),
+    );
   });
 });
 

@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   countCasesForAdmin,
@@ -61,7 +62,6 @@ import {
   listCasesForAdmin,
   listCasesForGovt,
 } from "@/lib/infra/case-queries";
-import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   CASE_KINDS,
@@ -80,7 +80,15 @@ const GOVT_CASOS_PAGE_LIMIT = 50;
 const QUEUE_KINDS = CASE_KINDS.filter((k) => !CASE_KINDS_ROUTED_ELSEWHERE.includes(k));
 const KIND_OPTIONS = QUEUE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k) }));
 
-type GovtCasosSearchParams = { cursor?: string; status?: string; kind?: string; province?: string };
+type GovtCasosSearchParams = {
+  cursor?: string;
+  status?: string;
+  kind?: string;
+  /** ISO 3166-2:AR code, e.g. "AR-B" — the canonical /gob contract. */
+  province?: string;
+  /** Locality slug, e.g. "la-plata" — the canonical /gob contract. */
+  locality?: string;
+};
 
 export type CasosScreenProps = {
   searchParams: GovtCasosSearchParams;
@@ -93,9 +101,11 @@ export type CasosScreenProps = {
 
 // Viewer scope for this page — mirrors the shape used in
 // app/gob/mascotas/[token]/page.tsx. Admin = universal (no jurisdiction
-// fence); govt = fenced to the account's active jurisdiction assignments.
+// fence), narrowed only by the explicit URL drill it resolved; govt = fenced
+// to the account's active jurisdiction assignments, already narrowed by
+// resolveJurisdictionScope (THE FENCE — it can only ever intersect DOWN).
 type ViewerScope =
-  | { role: "admin" }
+  | { role: "admin"; province: string | null; locality: string | null }
   | { role: "govt"; jurisdictions: ReadonlyArray<{ province: string; locality: string }> };
 
 // Extracted so the page component's own cognitive complexity stays under the
@@ -114,32 +124,24 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   const kindFilter =
     sp.kind && QUEUE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
 
-  // Province filter — scope-dependent:
-  //  - admin: universal, every province is a valid choice, same as
-  //    /admin/casos' province selector.
-  //  - govt: only offered (and only honored) when the viewer's own
-  //    assignments span more than one province. A value outside this list is
-  //    ignored here AND would be intersected to zero rows by
-  //    listCasesForGovt/countCasesForGovt's mandatory jurisdiction predicate
-  //    even if it slipped through — defense in depth, never a scope widening.
-  const scopeProvinces =
-    scope.role === "admin"
-      ? PROVINCES.map((p) => p.name)
-      : Array.from(new Set(scope.jurisdictions.map((j) => j.province))).sort((a, b) =>
-          a.localeCompare(b, "es-AR"),
-        );
-  const showProvinceFilter = scope.role === "admin" ? true : scopeProvinces.length > 1;
-  const provinceFilter =
-    showProvinceFilter && sp.province && scopeProvinces.includes(sp.province) ? sp.province : null;
-
-  // excludeKinds applies to the LIST, the COUNT and the cursor at once — they
-  // share buildCaseKindStatusClauses, so the header can never claim a total the
-  // rows do not contain (live review 2026-07-28: 11 custody-dispute rows here
-  // against 1 workable row in /gob/disputas, same dispute, two codes).
+  // Jurisdiction narrowing is NOT re-derived here. It arrives already resolved
+  // through the canonical `resolveJurisdictionScope` (province = ISO code,
+  // locality = slug — the SAME URL contract /gob and every sibling screen
+  // commit): for govt it is baked into `scope.jurisdictions` (the fence, which
+  // can only intersect DOWN against the assignment set), for admin it is the
+  // explicit province/locality predicate below. This screen used to own a
+  // bespoke `?province=<canonical name>` axis of its own, which is why a
+  // drill-down from /gob silently evaporated on arrival.
   const filters = {
     status: activeStatus,
     kind: kindFilter,
-    province: provinceFilter,
+    // Govt narrowing already lives in scope.jurisdictions — passing it again
+    // as a predicate would be redundant, not safer.
+    ...(scope.role === "admin" ? { province: scope.province, locality: scope.locality } : {}),
+    // excludeKinds applies to the LIST, the COUNT and the cursor at once — they
+    // share buildCaseKindStatusClauses, so the header can never claim a total the
+    // rows do not contain (live review 2026-07-28: 11 custody-dispute rows here
+    // against 1 workable row in /gob/disputas, same dispute, two codes).
     excludeKinds: CASE_KINDS_ROUTED_ELSEWHERE,
   };
 
@@ -176,7 +178,11 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
     // silently dropping "Todos" across a page turn).
     ...(casoEstado !== "open" ? { status: casoEstado } : {}),
     ...(kindFilter ? { kind: kindFilter } : {}),
-    ...(provinceFilter ? { province: provinceFilter } : {}),
+    // The RAW jurisdiction params, forwarded verbatim: they are the URL
+    // contract (ISO code + slug), and re-resolving them into names here would
+    // produce a link this screen can no longer read back.
+    ...(sp.province ? { province: sp.province } : {}),
+    ...(sp.locality ? { locality: sp.locality } : {}),
   };
   const lastItem = items.at(-1);
   const olderLink =
@@ -210,7 +216,8 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   // same true-empty / filter-empty split /admin/casos now uses: "para los
   // filtros aplicados" blamed filters nobody had applied on the untouched
   // default view (RA-6 finding 5). The govt branches below were already honest.
-  const hasFilters = casoEstado !== "open" || kindFilter !== null || provinceFilter !== null;
+  const hasFilters =
+    casoEstado !== "open" || kindFilter !== null || Boolean(sp.province) || Boolean(sp.locality);
 
   const emptyMessage =
     scope.role === "admin"
@@ -227,9 +234,6 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
     activeStatus,
     casoEstado,
     kindFilter,
-    provinceFilter,
-    scopeProvinces,
-    showProvinceFilter,
     rawCursor,
     olderLink,
     newerLink,
@@ -242,18 +246,38 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
 
 export async function CasosScreen({ searchParams: sp, underHub = false }: CasosScreenProps) {
   const session = await requireAdminOrGovtOrRedirect();
+
+  // THE CANONICAL JURISDICTION CONTRACT (demo review 2026-08-01). This screen
+  // used to parse `?province=<canonical name>` itself, against a hand-built
+  // list of province names — the only /gob surface not speaking the shared
+  // `province=ISO&locality=slug` contract, and the reason a drill-down from
+  // the /gob home evaporated on arrival: the Panel's "Casos regulatorios" tile
+  // counted CABA (32) or PBA and the queue it linked to counted the country.
+  // resolveJurisdictionScope is THE fence — for govt it can only intersect
+  // DOWN against the assignment set, and it hands admin its drill as explicit
+  // province/locality NAMES to push into SQL (admin has no assignments to
+  // narrow). Same primitive /gob, /gob/perdidas and the rest already use.
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
+    role: session.profile.role,
+    jurisdictions: session.jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
+
   const scope: ViewerScope =
     session.profile.role === "admin"
-      ? { role: "admin" }
-      : { role: "govt", jurisdictions: session.jurisdictions };
+      ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
+      : { role: "govt", jurisdictions: filteredJurisdictions };
 
   const {
     activeStatus,
     casoEstado,
     kindFilter,
-    provinceFilter,
-    scopeProvinces,
-    showProvinceFilter,
     rawCursor,
     olderLink,
     newerLink,
@@ -286,7 +310,10 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
         }
       />
 
-      {scope.role === "govt" && scope.jurisdictions.length === 0 ? (
+      {/* The MANDATE is what is empty here, not the filtered view — a govt
+          operator who narrowed to an out-of-mandate province gets an empty
+          QUEUE (fail-closed), not this "pedile a un administrador" copy. */}
+      {session.profile.role === "govt" && session.jurisdictions.length === 0 ? (
         <LnEmptyState
           icon="usuarios"
           title="No tenés jurisdicciones asignadas todavía."
@@ -312,6 +339,12 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
             showPeriod={false}
             resetParamsOnChange={["cursor"]}
             savedViewsKey="op-saved-views:casos:v1"
+            // The canonical jurisdiction control (ISO code + locality slug),
+            // replacing this screen's bespoke province-NAME axis. It also
+            // gains a Localidad level the queue never had — which is what lets
+            // a /gob tile counting one barrio link to a queue that counts the
+            // same barrio.
+            jurisdiction={{ allowedProvinces, localities }}
             axes={
               [
                 {
@@ -322,19 +355,6 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
                   current: kindFilter,
                   allLabel: "Todos los tipos",
                 },
-                ...(showProvinceFilter
-                  ? [
-                      {
-                        id: "province",
-                        label: "Provincia",
-                        paramKey: "province",
-                        options: scopeProvinces.map((p) => ({ value: p, label: p })),
-                        current: provinceFilter,
-                        allLabel:
-                          scope.role === "admin" ? "Todas las provincias" : "Todas tus provincias",
-                      } satisfies OpFilterAxis,
-                    ]
-                  : []),
               ] satisfies OpFilterAxis[]
             }
           >

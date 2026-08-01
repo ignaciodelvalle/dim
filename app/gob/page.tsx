@@ -76,10 +76,7 @@ import {
   countVisiblePendingRequestsByType,
 } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import {
-  listOpenCasesForAdminPreview,
-  listOpenCasesForGovtPreview,
-} from "@/lib/infra/case-queries";
+import { countCasesForAdmin, countCasesForGovt } from "@/lib/infra/case-queries";
 import {
   TARGETS,
   applyCensusCoverageGuard,
@@ -112,6 +109,26 @@ import {
   pluralizeEs,
   relativeDayLabel,
 } from "@/lib/utils/format";
+import { CASE_KINDS_ROUTED_ELSEWHERE } from "@/src/modules/cases/domain/case-kinds";
+
+/**
+ * The Casos-regulatorios queue predicate, verbatim from what /gob/casos
+ * renders under its default filters (app/gob/casos/CasosScreen.tsx). The tile
+ * and the screen it links to MUST count the same rows, and the only way to
+ * guarantee that is to share the filter object rather than to reimplement it —
+ * the previous pair of bespoke "preview" fetchers disagreed on both the status
+ * predicate and the routed-away kinds, and the tile said 38 where the screen
+ * said 32.
+ *
+ * `status: "open"` is the queue's default estado (closedAt IS NULL, which
+ * covers escalated as well as open). `excludeKinds` drops custody disputes,
+ * which the queue routes to its own screen — counting them here promised rows
+ * the destination will not show.
+ */
+const CASOS_QUEUE_FILTERS = {
+  status: "open",
+  excludeKinds: CASE_KINDS_ROUTED_ELSEWHERE,
+} as const;
 
 export default async function GobiernoDashboardPage({
   searchParams,
@@ -283,13 +300,28 @@ export default async function GobiernoDashboardPage({
         adminProvince,
         adminLocality,
       }),
-      // Casos regulatorios (open/escalated) — status filter + LIMIT 5 pushed
-      // into SQL; C6b's condensed queue row only renders the total count, not
-      // the row preview, so this could shrink to a COUNT-only fetch in a
-      // future pass — kept as-is here (zero NEW query, same call as before).
+      // Casos regulatorios — THE SAME COUNT /gob/casos itself renders, from
+      // the same two functions with the same filter object (see
+      // CASOS_QUEUE_FILTERS). This tile used to call
+      // listOpenCasesForAdminPreview / listOpenCasesForGovtPreview, whose
+      // predicate was subtly its own: status IN (open, escalated) instead of
+      // "not closed", and NO CASE_KINDS_ROUTED_ELSEWHERE exclusion, so it
+      // counted the custody disputes the queue deliberately routes to its own
+      // screen — measured on staging as 38 here vs "32 casos" one click away
+      // (10 vs 9 for a 5-locality operator). The admin variant also took no
+      // jurisdiction argument at all, which is why the tile stayed frozen at
+      // the national 543 under ?province=AR-B while every sibling tile in the
+      // row moved. Counting through the queue's own functions is what makes
+      // the two numbers the same number, not two opinions that happen to
+      // agree today. It also drops a query: the 5-row preview was never
+      // rendered.
       profile.role === "admin"
-        ? listOpenCasesForAdminPreview(5)
-        : listOpenCasesForGovtPreview(filteredJurisdictions, 5),
+        ? countCasesForAdmin({
+            ...CASOS_QUEUE_FILTERS,
+            province: adminProvince ?? null,
+            locality: adminLocality ?? null,
+          })
+        : countCasesForGovt(filteredJurisdictions, CASOS_QUEUE_FILTERS),
       // Novedades — session-start orientation feed. Reuses ctx12m for SCOPE only
       // (admin → universal; govt → its jurisdictions, narrowed by the active
       // switcher filter); the feed window is the per-user watermark, not the
@@ -349,7 +381,7 @@ export default async function GobiernoDashboardPage({
     rabiesVaxTrend,
     mortality,
     perdidas,
-    openCasesPreview,
+    openCasesTotal,
     novedades,
     myAssignedWelfareCount,
     orgVerificationPendingCount,
@@ -376,8 +408,6 @@ export default async function GobiernoDashboardPage({
   // the Panorama CSV/PNG of the same fact already writes "Protegido (k<5)".
   const bitesTrendPoints = bitesTrend.points;
   const bitesBucketWord = bitesTrend.granularity === "month" ? "mes" : "semana";
-
-  const openCasesTotal = openCasesPreview.total;
 
   // -------------------------------------------------------------------------
   // C6b block 1 — Alertas priorizadas. Pure composition from metric values
@@ -470,6 +500,13 @@ export default async function GobiernoDashboardPage({
   // header button (removed, see `header` above) — this card is its single
   // occurrence now. Label renamed (PO interview 2026-07-23, item 5) to match
   // the nav rename — see components/layout/nav-presets.ts.
+  // /gob/casos with the page's own jurisdiction filter attached — same param
+  // names, same values, no re-derivation.
+  const casosParams = new URLSearchParams();
+  if (selectedProvinceIso) casosParams.set("province", selectedProvinceIso);
+  if (selectedLocalitySlug) casosParams.set("locality", selectedLocalitySlug);
+  const casosHref = casosParams.size > 0 ? `/gob/casos?${casosParams}` : "/gob/casos";
+
   const queueItems: Array<{ href: string; label: string; count: number; descriptorId?: KpiId }> = [
     {
       href: "/gob/cola",
@@ -493,7 +530,16 @@ export default async function GobiernoDashboardPage({
       count: openWelfareReports.count,
       descriptorId: "open_welfare_reports",
     },
-    { href: "/gob/casos", label: "Casos regulatorios", count: openCasesTotal },
+    {
+      // Carries the ACTIVE jurisdiction filter through to the queue, in the
+      // canonical contract (province=ISO, locality=slug) /gob/casos now
+      // speaks. A tile that counts one province and links to a national list
+      // is the same lie told twice; the count above and this link are the two
+      // halves of one claim.
+      href: casosHref,
+      label: "Casos regulatorios",
+      count: openCasesTotal,
+    },
     {
       href: "/gob/perdidas",
       label: perdidas.activeCount === 1 ? "Mascota perdida activa" : "Mascotas perdidas activas",
