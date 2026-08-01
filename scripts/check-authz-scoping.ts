@@ -25,8 +25,23 @@
 //   Inner writers (`*ForUser`/`*ForOrg`/… suffixes) and `@no-auth-required`
 //   opt-outs are skipped, exactly as in check-authz-guards.ts. Personal-tier
 //   guards (requireUser/requirePetAccess/requireOwnedPet…) are NOT tenant
-//   guards: they are inherently self-scoped, so an action gated only by those
-//   is never a candidate.
+//   guards, so an action gated only by those is never a candidate here.
+//
+//   READ THAT EXCLUSION NARROWLY. "Personal-tier" is one bucket holding two
+//   different things, and calling both "self-scoped" is how the 2026-07-31
+//   custody-dispute disclosure survived review:
+//     - requirePetAccess / requireAlivePetAccess / requireOwnedPet* RESOLVE
+//       THE PET AND JOIN ownerships (lib/infra/pet-access.ts:164) — the pet
+//       argument is bound to the caller. Genuinely self-scoped.
+//     - requireUserOrRedirect / requireUser prove a SESSION and say NOTHING
+//       about any pet the action goes on to touch. An action that calls only
+//       these and then feeds a caller-supplied petToken/petId into a WHERE
+//       clause is unscoped in exactly this linter's sense — it is simply out
+//       of range because the caller is a citizen rather than a tenant.
+//   That gap is real and this file does not cover it: it is a separate rule
+//   (identity-only guard + caller-chosen pet identifier + no binding
+//   predicate), not something to paper over by widening TENANT_GUARDS, which
+//   would flood the baseline with every legitimate owner action.
 //
 // REPORT-ONLY / BASELINE MODE (like the app/actions line-budget ratchet):
 //   Most current offenders delegate their scoping to an application use-case
@@ -65,7 +80,11 @@ import {
 // session (admin-global, govt-jurisdictional, org-tenant, or capability). An
 // action gated by one of these MUST scope the resource it touches. Personal
 // guards (requireUser*, requirePetAccess*, requireOwnedPet*) are intentionally
-// EXCLUDED — they scope to the caller's own identity/pet by construction.
+// EXCLUDED — but for two DIFFERENT reasons, and the difference matters (see the
+// header): requirePetAccess* / requireOwnedPet* bind the pet to the caller via
+// an ownerships join, whereas requireUser* bind nothing at all and are excluded
+// only because a citizen action is not the tenant-scoping question this file
+// asks. Do not read this list as "requireUserOrRedirect is self-scoped".
 // ---------------------------------------------------------------------------
 export const TENANT_GUARDS = [
   "requireAdminOrRedirect",
