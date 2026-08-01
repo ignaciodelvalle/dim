@@ -650,7 +650,18 @@ export default async function GobiernoDashboardPage({
                       población canina estimada
                     </span>
                   ) : (
-                    <span className="block">Sin estimación censal</span>
+                    /* Two different absences behind one number (demo review
+                       2026-08-01). "grain-mismatch" means the estimate EXISTS
+                       but describes a whole province while this view does not
+                       — the honest read is "not answerable at this scale",
+                       not "we have no data on you". The flat "Sin estimación
+                       censal" that used to cover both would land on a
+                       5-barrio municipality as if its data were missing. */
+                    <span className="block">
+                      {rabiesCoverage.censusUnavailableReason === "no-census-row"
+                        ? "Sin estimación censal para esta provincia"
+                        : "Sin estimación censal a esta escala — el censo poblacional es provincial"}
+                    </span>
                   )}
                   <span className="block text-ln-op-mute">
                     {formatCount(rabiesCoverage.registryDenominator)}{" "}

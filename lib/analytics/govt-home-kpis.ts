@@ -166,6 +166,28 @@ export type RabiesCoverageKpi = {
    */
   censusCoveragePct: number | null;
   /**
+   * WHY `censusCoveragePct` is null — `null` when it is not null.
+   *
+   * The two absences read identically on a tile ("Sin estimación censal") and
+   * mean different things (demo review 2026-08-01, and the same
+   * distinguish-your-empty-states rule the briefing empty state follows):
+   *
+   *   - "grain-mismatch": a census row exists, but it describes a WHOLE
+   *     province and this view does not (a partial-province mandate, a
+   *     locality drill, or the national aggregate). Dividing anyway is how a
+   *     5-barrio operator got "0,1%" against all of CABA's estimated canine
+   *     population. Nothing is missing from the database; the question just
+   *     cannot be answered at this scale.
+   *   - "no-census-row": the view IS one whole province and that province has
+   *     no `jurisdictions_census` row — genuinely missing reference data.
+   *
+   * OPTIONAL on purpose: the Panorama fan-out builds RabiesCoverageKpi values
+   * in its own tests, and a render site must degrade to the SAFER reading
+   * ("not answerable at this scale") when the reason is absent — never to
+   * "this province has no census row", which asserts a data gap.
+   */
+  censusUnavailableReason?: "grain-mismatch" | "no-census-row" | null;
+  /**
    * DUAL-LENS disclosure (T1, PO decision 2026-07): of the dogs counted in
    * `current`, how many hold a dose SIGNED by a matriculated vet
    * (rabiesSignedByMatriculaCondition). ALWAYS computed — independent of
@@ -209,6 +231,8 @@ export async function fetchRabiesCoverage(
       registryDenominator: 0,
       censusDenominator: null,
       censusCoveragePct: null,
+      // No jurisdictions at all — no province row can describe this view.
+      censusUnavailableReason: "grain-mismatch",
       signedCount: 0,
       signedPct: 0,
     };
@@ -331,10 +355,19 @@ export async function fetchRabiesCoverage(
   // province?", not "is any single assignment sub-provincial?". A multi-barrio
   // govt whose view aggregates every one of their CABA barrios now gets the
   // CABA census row; a govt drilled to one specific barrio still does not.
+  //
+  // 2026-08-01: censusEligibleProvince now requires the view to cover a WHOLE
+  // province (5 of 48 barrios is not CABA — see its docblock), and the two
+  // ways this can come back null are reported separately so the tile can say
+  // which one happened instead of one flat "sin estimación censal".
+  const eligibleProvince = censusEligibleProvince(ctx);
   const census =
-    censusEligibleProvince(ctx) === null
-      ? null
-      : computeCensusCoverage(totalDogs, denom.censusPopulation);
+    eligibleProvince === null ? null : computeCensusCoverage(totalDogs, denom.censusPopulation);
+  const censusUnavailableReason = census
+    ? null
+    : eligibleProvince === null
+      ? ("grain-mismatch" as const)
+      : ("no-census-row" as const);
 
   return {
     current,
@@ -344,6 +377,7 @@ export async function fetchRabiesCoverage(
     registryDenominator: totalDogs,
     censusDenominator: census?.censusDenominator ?? null,
     censusCoveragePct: census?.censusCoveragePct ?? null,
+    censusUnavailableReason,
     signedCount: signedDogs,
     // Same 1-decimal convention as `current` — and the same denominator, so the
     // two lenses are directly comparable on the tile.

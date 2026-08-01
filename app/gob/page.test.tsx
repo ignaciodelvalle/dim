@@ -136,6 +136,7 @@ const govtHomeKpisFixture = {
     // Nullable in the real fetcher (no census row for the scope) — the A1
     // block drives that case, so the fixture must not narrow it to `number`.
     censusCoveragePct: 50 as number | null,
+    censusUnavailableReason: null as "grain-mismatch" | "no-census-row" | null,
     signedCount: 100,
     signedPct: 20,
   },
@@ -475,6 +476,63 @@ describe("/gob (home) — a k-anon-masked bite bucket is never published as a me
 // custody disputes the queue routes elsewhere. The admin variant took no
 // jurisdiction argument at all.
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// TWO DIFFERENT ABSENCES, TWO DIFFERENT SENTENCES (demo review 2026-08-01).
+//
+// censusEligibleProvince now refuses to divide a partial-province view by the
+// whole-province census — that is what stops a 5-barrio operator reading
+// "0,1% del padrón sobre la población canina estimada" against all of CABA.
+// The state it degrades to therefore has to say WHICH absence it is: an
+// estimate that cannot be computed at this scale, or a province with no
+// census row at all. One flat "Sin estimación censal" told a municipality its
+// data was missing when nothing was.
+// ---------------------------------------------------------------------------
+
+describe("/gob (home) — the census co-headline names which absence it is", () => {
+  async function renderWithReason(
+    reason: "grain-mismatch" | "no-census-row" | null,
+  ): Promise<string> {
+    const prev = {
+      pct: govtHomeKpisFixture.rabiesCoverage.censusCoveragePct,
+      reason: govtHomeKpisFixture.rabiesCoverage.censusUnavailableReason,
+    };
+    govtHomeKpisFixture.rabiesCoverage.censusCoveragePct = null;
+    govtHomeKpisFixture.rabiesCoverage.censusUnavailableReason = reason;
+    try {
+      const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+      return renderToStaticMarkup(node);
+    } finally {
+      govtHomeKpisFixture.rabiesCoverage.censusCoveragePct = prev.pct;
+      govtHomeKpisFixture.rabiesCoverage.censusUnavailableReason = prev.reason;
+    }
+  }
+
+  it("says the estimate does not apply at this scale, not that data is missing", async () => {
+    const html = await renderWithReason("grain-mismatch");
+    expect(html).toContain("Sin estimación censal a esta escala");
+    expect(html).toContain("el censo poblacional es provincial");
+    expect(html).not.toContain("Sin estimación censal para esta provincia");
+  });
+
+  it("says the province has no census row when that is genuinely the case", async () => {
+    const html = await renderWithReason("no-census-row");
+    expect(html).toContain("Sin estimación censal para esta provincia");
+  });
+
+  it("defaults to the scale reading when no reason came back — never asserts a data gap", async () => {
+    const html = await renderWithReason(null);
+    expect(html).toContain("Sin estimación censal a esta escala");
+    expect(html).not.toContain("Sin estimación censal para esta provincia");
+  });
+
+  it("still renders the percentage when the estimate IS applicable", async () => {
+    const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("del padrón sobre la población canina estimada");
+    expect(html).not.toContain("Sin estimación censal");
+  });
+});
 
 describe("/gob (home) — the Casos tile counts through the queue's own functions", () => {
   async function render(searchParams: Record<string, string> = {}): Promise<string> {
