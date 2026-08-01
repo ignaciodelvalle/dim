@@ -3704,12 +3704,20 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   text-transform: uppercase;
   color: var(--color-ln-mute);
 }
+/* overflow-wrap: anywhere — the values here are unbounded free text at the
+   schema level (batch, brand, administered_by, chip_number and the generic
+   payload fallback are all plain strings with no max length), and `.ln-asiento`
+   above them is `overflow: hidden`. Without a break rule a 15-digit microchip
+   number, a spaceless lot code or a pasted URL does not wrap: it runs past the
+   card and gets clipped, which on an entry of the medical record reads as a
+   shorter value rather than as a truncated one. */
 .ln-fact .ln-v {
   font-size: 13px;
   color: var(--color-ln-ink);
   font-weight: 500;
   margin-top: 4px;
   line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 .ln-fact .ln-v.ln-mono {
   font-family: var(--font-ln-mono);
@@ -3959,11 +3967,22 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   border-radius: var(--radius-lg);
   overflow: hidden;
 }
+/* The drill-down row: vaccine name on the left, its state on the right.
+   flex-wrap + min-width:0 on BOTH children, because the right-hand text is not
+   always short. The "unconfirmed" state's meta is a full sentence — "Sin
+   confirmar — hay una dosis registrada que no pudimos identificar" — and it
+   used to be `white-space: nowrap` inside `.ln-vac-list`'s `overflow: hidden`.
+   A nowrap flex child's minimum width is its whole unwrapped run, so on a 390px
+   phone the sentence ran past the card and was silently cut off mid-word: the
+   one row an official reading an ambiguous vaccine record most needs whole.
+   The short metas ("Próxima 12 mar 2026", "Al día") get a full line to
+   themselves long before they would ever need to wrap internally. */
 .ln-vac-list-item {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: 12px;
+  gap: 4px 12px;
   padding: 9px 13px;
   border-top: 1px solid var(--color-ln-line-2);
 }
@@ -3971,15 +3990,16 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   border-top: 0;
 }
 .ln-vac-list-name {
+  min-width: 0;
   font-size: 13px;
   font-weight: 500;
   color: var(--color-ln-ink);
 }
 .ln-vac-list-meta {
+  min-width: 0;
   font-family: var(--font-ln-mono);
   font-size: var(--text-xs);
   color: var(--color-ln-mute);
-  white-space: nowrap;
 }
 
 /* ---- Prominent "Marcar como encontrada" (lost pet, owner) ----------------- */
