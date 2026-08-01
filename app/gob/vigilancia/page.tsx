@@ -5,6 +5,7 @@ import { Icon } from "@/components/Icon";
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
+import { GlossaryTerm } from "@/components/ui/GlossaryTerm";
 import {
   OpBreach,
   OpCallout,
@@ -575,7 +576,11 @@ export default async function GobVigilanciaPage({
 
         <OpCard aria-labelledby={panelEnoId}>
           <OpCardHead
-            title={<span id={panelEnoId}>Notificación ENO (SLA de la bandeja de salida)</span>}
+            title={
+              <span id={panelEnoId}>
+                Notificación <GlossaryTerm term="ENO" /> (SLA de la bandeja de salida)
+              </span>
+            }
             actions={
               <Link
                 href="/gob/outbox"

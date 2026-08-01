@@ -9,6 +9,7 @@
 //
 // Privacy invariant: both fetchers receive scope-restricted context/jurisdictions.
 
+import { GlossaryTerm } from "@/components/ui/GlossaryTerm";
 import {
   OpCard,
   OpCardBody,
@@ -190,7 +191,13 @@ export default async function GobSistemaPage({
 
       {/* ENO SLA detail card */}
       <OpCard>
-        <OpCardHead title="ENO SLA — detalle" />
+        <OpCardHead
+          title={
+            <>
+              <GlossaryTerm term="ENO" /> SLA — detalle
+            </>
+          }
+        />
         <OpCardBody>
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
@@ -218,9 +225,9 @@ export default async function GobSistemaPage({
             </div>
           </div>
           <p className="mt-3 text-xs text-ln-op-mute">
-            SLA objetivo: {TARGETS.ENO_SLA_PCT}% de notificaciones ENO entregadas en tiempo (A7).
-            Solo se muestran notificaciones cuyo target_jurisdiction corresponde a tu jurisdicción
-            asignada.
+            SLA objetivo: {TARGETS.ENO_SLA_PCT}% de notificaciones <GlossaryTerm term="ENO" />{" "}
+            entregadas en tiempo (A7). Solo se muestran notificaciones cuyo target_jurisdiction
+            corresponde a tu jurisdicción asignada.
           </p>
         </OpCardBody>
       </OpCard>
