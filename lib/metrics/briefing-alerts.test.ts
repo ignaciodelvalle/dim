@@ -13,7 +13,9 @@ import {
   MAX_BRIEFING_ALERTS,
   type SurveillanceUrgencyCandidate,
   buildBriefingAlerts,
+  buildBriefingBoard,
   deriveAlertConfidence,
+  describeBriefingEmptyState,
 } from "./briefing-alerts";
 import { KPI_CATALOG } from "./kpi-catalog";
 
@@ -282,6 +284,171 @@ describe("buildBriefingAlerts — mandate-scoped legal citation (red-team CRITIC
     expect(alert.evidence.source).toBe("Según la normativa provincial de tu jurisdicción");
     expect(alert.title).not.toContain("14.107");
     expect(alert.title).not.toContain("PBA");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A1 (2026-07-31) — THE AUTOMATIC GREEN.
+//
+// /gob rendered "Sin alertas activas — las métricas con meta están dentro de
+// rango." off `alerts.length === 0`. Every describe block ABOVE this one
+// asserts that a guard produces `[]` — and each of them is correct. Together
+// they proved something nobody noticed: the engine returns the SAME empty
+// array for "nothing was measured", "the sample is too small to judge" and
+// "every target was met". The screen then read that array as a verdict, so a
+// municipality with no data loaded was told its metrics were in range.
+//
+// These tests pin the distinction the engine now keeps.
+// ---------------------------------------------------------------------------
+
+describe("buildBriefingBoard — coverage says WHICH emptiness this is", () => {
+  it("reports a zero-denominator candidate as unmeasured, never as met", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 0, n: 0 },
+    ];
+    const { alerts, coverage } = buildBriefingBoard(candidates);
+    expect(alerts).toEqual([]);
+    expect(coverage.unmeasured).toEqual(["mortality_disposal_traceability"]);
+    expect(coverage.met).toEqual([]);
+    expect(coverage.suppressed).toEqual([]);
+  });
+
+  it("reports a small-N candidate as suppressed — data exists, the verdict does not", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 0, n: 2 },
+    ];
+    const { coverage } = buildBriefingBoard(candidates);
+    expect(coverage.suppressed).toEqual(["mortality_disposal_traceability"]);
+    expect(coverage.unmeasured).toEqual([]);
+    expect(coverage.met).toEqual([]);
+  });
+
+  it("reports a measured, met target as met", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "rabies_coverage_dogs_12m", value: 85, n: 500 },
+    ];
+    const { coverage } = buildBriefingBoard(candidates);
+    expect(coverage.met).toEqual(["rabies_coverage_dogs_12m"]);
+    expect(coverage.unmeasured).toEqual([]);
+    expect(coverage.suppressed).toEqual([]);
+  });
+
+  it("keeps a target-less KPI out of the 'métricas con meta' count entirely", () => {
+    // bites_per_10k has no target — it was never part of the claim, so it must
+    // land in neither `met` (overclaiming) nor `unmeasured` (underclaiming).
+    const { coverage } = buildBriefingBoard([{ kpiId: "bites_per_10k", value: 40, n: 100 }]);
+    expect(coverage.notEvaluated).toEqual(["bites_per_10k"]);
+    expect(coverage.met).toEqual([]);
+    expect(coverage.unmeasured).toEqual([]);
+    expect(coverage.suppressed).toEqual([]);
+  });
+
+  it("an alerting candidate lands in no coverage bucket at all — it is on screen", () => {
+    const { alerts, coverage } = buildBriefingBoard([
+      { kpiId: "mortality_disposal_traceability", value: 33, n: 12 },
+    ]);
+    expect(alerts).toHaveLength(1);
+    expect(coverage).toEqual({ met: [], unmeasured: [], suppressed: [], notEvaluated: [] });
+  });
+
+  it("returns the SAME ranked alerts as buildBriefingAlerts — coverage is additive, not a rewrite", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 60, n: 12 },
+      { kpiId: "rabies_coverage_dogs_12m", value: 20, n: 500 },
+      { kpiId: "microchip_penetration", value: 30, n: 500 },
+    ];
+    const signals: SurveillanceUrgencyCandidate[] = [{ kind: "deadline_breach", openBreaches: 3 }];
+    expect(buildBriefingBoard(candidates, signals, ["Buenos Aires"]).alerts).toEqual(
+      buildBriefingAlerts(candidates, signals, ["Buenos Aires"]),
+    );
+  });
+});
+
+describe("describeBriefingEmptyState — the copy never outruns the data", () => {
+  it("claims 'dentro de rango' ONLY when every evaluable metric was measured and met", () => {
+    const { coverage } = buildBriefingBoard([
+      { kpiId: "rabies_coverage_dogs_12m", value: 85, n: 500 },
+      { kpiId: "microchip_penetration", value: 90, n: 500 },
+    ]);
+    const { headline, details } = describeBriefingEmptyState(coverage);
+    expect(headline).toBe("Sin alertas activas — 2 métricas con meta están dentro de rango.");
+    expect(details).toEqual([]);
+  });
+
+  it("agrees in the singular for exactly one met metric", () => {
+    const { coverage } = buildBriefingBoard([
+      { kpiId: "rabies_coverage_dogs_12m", value: 85, n: 500 },
+    ]);
+    expect(describeBriefingEmptyState(coverage).headline).toBe(
+      "Sin alertas activas — 1 métrica con meta está dentro de rango.",
+    );
+  });
+
+  it("NEVER says 'dentro de rango' when nothing was measured — the A1 defect", () => {
+    // The exact /gob shape on an empty jurisdiction: no dogs in the padrón, no
+    // pets active, no deaths recorded. Three zero-denominators, zero alerts.
+    const { alerts, coverage } = buildBriefingBoard([
+      { kpiId: "rabies_coverage_dogs_12m", value: 0, n: 0 },
+      { kpiId: "microchip_penetration", value: 0, n: 0 },
+      { kpiId: "mortality_disposal_traceability", value: 0, n: 0 },
+    ]);
+    expect(alerts).toEqual([]);
+    const { headline, details } = describeBriefingEmptyState(coverage);
+    expect(headline).toBe(
+      "Sin alertas activas — ninguna métrica con meta tiene una medición evaluable en este período.",
+    );
+    expect(headline).not.toContain("dentro de rango");
+    expect(details).toEqual([
+      `Sin medición en este período: ${KPI_CATALOG.rabies_coverage_dogs_12m.label}, ${KPI_CATALOG.microchip_penetration.label}, ${KPI_CATALOG.mortality_disposal_traceability.label}.`,
+    ]);
+  });
+
+  it("says the FRACTION when some metrics were measured and others were not", () => {
+    const { coverage } = buildBriefingBoard([
+      { kpiId: "rabies_coverage_dogs_12m", value: 85, n: 500 }, // met
+      { kpiId: "microchip_penetration", value: 0, n: 0 }, // unmeasured
+      { kpiId: "mortality_disposal_traceability", value: 0, n: 2 }, // suppressed
+    ]);
+    const { headline, details } = describeBriefingEmptyState(coverage);
+    expect(headline).toBe("Sin alertas activas — 1 de 3 métricas con meta dentro de rango.");
+    expect(details).toEqual([
+      `Sin medición en este período: ${KPI_CATALOG.microchip_penetration.label}.`,
+      `Con datos, pero muestra demasiado chica para evaluar contra la meta: ${KPI_CATALOG.mortality_disposal_traceability.label}.`,
+    ]);
+  });
+
+  it("distinguishes suppressed from unmeasured — a small sample is not an absent one", () => {
+    const suppressed = describeBriefingEmptyState(
+      buildBriefingBoard([{ kpiId: "mortality_disposal_traceability", value: 0, n: 2 }]).coverage,
+    );
+    const unmeasured = describeBriefingEmptyState(
+      buildBriefingBoard([{ kpiId: "mortality_disposal_traceability", value: 0, n: 0 }]).coverage,
+    );
+    expect(suppressed.details).toEqual([
+      `Con datos, pero muestra demasiado chica para evaluar contra la meta: ${KPI_CATALOG.mortality_disposal_traceability.label}.`,
+    ]);
+    expect(unmeasured.details).toEqual([
+      `Sin medición en este período: ${KPI_CATALOG.mortality_disposal_traceability.label}.`,
+    ]);
+    expect(suppressed.details).not.toEqual(unmeasured.details);
+  });
+
+  it("says so plainly when no metric on the view carries a target at all", () => {
+    const { coverage } = buildBriefingBoard([{ kpiId: "bites_per_10k", value: 40, n: 100 }]);
+    const { headline, details } = describeBriefingEmptyState(coverage);
+    expect(headline).toBe(
+      "Sin alertas activas — ninguna métrica de esta vista tiene una meta que evaluar.",
+    );
+    expect(headline).not.toContain("dentro de rango");
+    expect(details).toEqual([]);
+  });
+
+  it("never claims a privacy mechanism that did not run — smallN is not k-anonymity", () => {
+    const { coverage } = buildBriefingBoard([
+      { kpiId: "mortality_disposal_traceability", value: 0, n: 2 },
+    ]);
+    const { details } = describeBriefingEmptyState(coverage);
+    expect(details.join(" ")).not.toMatch(/privacidad|anonimato/i);
   });
 });
 

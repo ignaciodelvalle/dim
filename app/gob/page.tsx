@@ -92,7 +92,8 @@ import {
 import {
   type BriefingAlertCandidate,
   type SurveillanceUrgencyCandidate,
-  buildBriefingAlerts,
+  buildBriefingBoard,
+  describeBriefingEmptyState,
 } from "@/lib/metrics/briefing-alerts";
 import { KPI_CATALOG, type KpiId, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { formatMetricLegalBasis } from "@/lib/metrics/metric-legal-basis";
@@ -363,7 +364,10 @@ export default async function GobiernoDashboardPage({
   // this page ALREADY fetches (zero new query fan-out) — see
   // lib/metrics/briefing-alerts.ts for the guard/ranking contract. Candidates
   // that fail a guard (no target, small-N, zero-denominator, target already
-  // met) are silently dropped by buildBriefingAlerts, never rendered.
+  // met) never become alerts — but buildBriefingBoard now RECORDS which guard
+  // dropped each one (BriefingCoverage), because the empty state has to say
+  // which emptiness it is (A1, 2026-07-31) instead of painting every empty
+  // list green.
   //
   // DROPPED FOR NEEDING A NEW QUERY (documented, not wired): reunification_rate
   // (this page only fetches perdidas' activeCount, not the reunification
@@ -372,16 +376,21 @@ export default async function GobiernoDashboardPage({
   // bounded Promise.all today.
   // -------------------------------------------------------------------------
   const alertCandidates: BriefingAlertCandidate[] = [
-    ...(rabiesCoverage.hasData
-      ? [
-          {
-            kpiId: "rabies_coverage_dogs_12m" as const,
-            value: rabiesCoverage.current,
-            n: rabiesCoverage.registryDenominator,
-            auxPresent: rabiesCoverage.censusCoveragePct !== null,
-          },
-        ]
-      : []),
+    {
+      // A1 (2026-07-31): this candidate used to be OMITTED from the array when
+      // `!rabiesCoverage.hasData`, which made the metric invisible to the
+      // briefing — the empty state could then claim "las métricas con meta
+      // están dentro de rango" about a padrón with zero registered dogs.
+      // Passing it unconditionally is behaviourally identical for ALERTING
+      // (hasData is literally `totalDogs > 0` and registryDenominator is
+      // `totalDogs`, so n===0 exactly when hasData is false, and the
+      // descriptor's zeroDenominator guard drops it before any tone is
+      // computed) — but now the engine SEES it and reports it as unmeasured.
+      kpiId: "rabies_coverage_dogs_12m" as const,
+      value: rabiesCoverage.current,
+      n: rabiesCoverage.registryDenominator,
+      auxPresent: rabiesCoverage.censusCoveragePct !== null,
+    },
     {
       kpiId: "microchip_penetration" as const,
       value: microchipPenetration.ratePct,
@@ -405,7 +414,15 @@ export default async function GobiernoDashboardPage({
     },
     { kind: "deadline_breach", openBreaches: rabiesObservationCompliance.openBreaches },
   ];
-  const alerts = buildBriefingAlerts(alertCandidates, urgencySignals, mandateProvinces);
+  const { alerts, coverage: alertCoverage } = buildBriefingBoard(
+    alertCandidates,
+    urgencySignals,
+    mandateProvinces,
+  );
+  // Only read when `alerts` is empty — the honest reading of WHY (see A1 in
+  // briefing-alerts.ts). Computed here rather than inline in the JSX so the
+  // headline and its detail lines come from the SAME coverage object.
+  const emptyBriefing = describeBriefingEmptyState(alertCoverage);
 
   // Claim #1 (cursor red-team 2026-07-23) — "dual-denominator hero": the
   // registry % (rabiesCoverage.current) can read a confident 65% while the
@@ -489,10 +506,24 @@ export default async function GobiernoDashboardPage({
         </h2>
         {alerts.length === 0 ? (
           <OpCard>
-            <OpCardBody>
-              <p className="text-md text-ln-op-mute">
-                Sin alertas activas — las métricas con meta están dentro de rango.
-              </p>
+            {/* A1 (2026-07-31): this used to be a single hardcoded sentence —
+                "las métricas con meta están dentro de rango" — rendered from
+                `alerts.length === 0` alone. Every guard in the briefing engine
+                drops its candidate silently, so a jurisdiction where NOTHING
+                was measured produced the same empty list as one where every
+                target was met, and the screen read it as a green verdict. The
+                copy now comes from the coverage report: it names how many
+                metrics were actually measured and met, and lists the ones that
+                were not measured (or whose sample is too small to judge)
+                separately. No accent tone here on purpose — this is a
+                statement of fact, not an alarm. */}
+            <OpCardBody className="space-y-1">
+              <p className="text-md text-ln-op-mute">{emptyBriefing.headline}</p>
+              {emptyBriefing.details.map((detail) => (
+                <p key={detail} className="text-xs text-ln-op-mute">
+                  {detail}
+                </p>
+              ))}
             </OpCardBody>
           </OpCard>
         ) : (

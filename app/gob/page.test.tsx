@@ -48,8 +48,12 @@ vi.mock("@/lib/infra/case-queries", () => ({
   listOpenCasesForGovtPreview: vi.fn(async () => ({ items: [], total: 6 })),
 }));
 
+// Mutable so the A1 block below can drive an empty jurisdiction (0 deaths →
+// zero-denominator) through the SAME page render, same as the other fixtures.
+const mortalityFixture = { total: 12, traceableRate: 33 };
+
 vi.mock("@/lib/analytics/mortality-metrics", () => ({
-  fetchMortalityHeadline: vi.fn(async () => ({ total: 12, traceableRate: 33 })),
+  fetchMortalityHeadline: vi.fn(async () => ({ ...mortalityFixture })),
 }));
 
 // Claim #4 (cursor red-team 2026-07-23) — the ONE new query the home page's
@@ -105,7 +109,9 @@ const govtHomeKpisFixture = {
     hasData: true,
     registryDenominator: 500,
     censusDenominator: 1000,
-    censusCoveragePct: 50,
+    // Nullable in the real fetcher (no census row for the scope) — the A1
+    // block drives that case, so the fixture must not narrow it to `number`.
+    censusCoveragePct: 50 as number | null,
     signedCount: 100,
     signedPct: 20,
   },
@@ -159,6 +165,8 @@ vi.mock("@/lib/metrics", async () => {
     fetchKpiTrend: vi.fn(async () => ({ points: [] })),
   };
 });
+
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 
 import GobHomePage from "./page";
 
@@ -254,6 +262,93 @@ describe("/gob (home) — C6b briefing block order", () => {
     expect(html).toMatch(/<details[^>]*>/);
     expect(html).not.toMatch(/<details[^>]*\bopen\b[^>]*>/);
     expect(html).toContain("Actividad reciente");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A1 (2026-07-31) — the automatic green.
+//
+// The Alertas block rendered "Sin alertas activas — las métricas con meta
+// están dentro de rango." whenever the alert list was empty, and the briefing
+// engine returns an empty list for "nothing was measured" just as readily as
+// for "every target was met". A jurisdiction with no data loaded therefore got
+// a clean bill of health from a screen that had measured nothing — the single
+// most expensive kind of error to put in front of a funcionario.
+//
+// These tests drive the page with a genuinely empty jurisdiction and assert
+// the screen says so.
+// ---------------------------------------------------------------------------
+
+describe("/gob (home) — the empty briefing states WHICH emptiness it is (A1)", () => {
+  /** Zero every input the briefing reads, then restore it. */
+  async function renderWithEmptyJurisdiction(): Promise<string> {
+    const prev = {
+      rabiesCoverage: { ...govtHomeKpisFixture.rabiesCoverage },
+      microchip: { ...complianceFixture.microchip },
+      bites: { ...govtHomeKpisFixture.bitesPer10k },
+      mortality: { ...mortalityFixture },
+    };
+    // hasData is literally `totalDogs > 0`, so an empty padrón is both flags.
+    govtHomeKpisFixture.rabiesCoverage.hasData = false;
+    govtHomeKpisFixture.rabiesCoverage.registryDenominator = 0;
+    govtHomeKpisFixture.rabiesCoverage.current = 0;
+    govtHomeKpisFixture.rabiesCoverage.censusCoveragePct = null;
+    complianceFixture.microchip.active = 0;
+    complianceFixture.microchip.ratePct = 0;
+    // No bites reported → the escalation-gap urgency signal stays silent too,
+    // so the alert list is empty for data reasons only.
+    govtHomeKpisFixture.bitesPer10k.reports = 0;
+    mortalityFixture.total = 0;
+    mortalityFixture.traceableRate = 0;
+    try {
+      const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+      return renderToStaticMarkup(node);
+    } finally {
+      Object.assign(govtHomeKpisFixture.rabiesCoverage, prev.rabiesCoverage);
+      Object.assign(complianceFixture.microchip, prev.microchip);
+      Object.assign(govtHomeKpisFixture.bitesPer10k, prev.bites);
+      Object.assign(mortalityFixture, prev.mortality);
+    }
+  }
+
+  it("never tells a jurisdiction with zero measurements that its metrics are within range", async () => {
+    const html = await renderWithEmptyJurisdiction();
+    expect(html).toContain("Alertas priorizadas");
+    expect(html).not.toContain("dentro de rango");
+  });
+
+  it("names the metrics it could not measure, instead of a blanket verdict", async () => {
+    const html = await renderWithEmptyJurisdiction();
+    expect(html).toContain("ninguna métrica con meta tiene una medición evaluable en este período");
+    expect(html).toContain("Sin medición en este período");
+    // Named one by one, with the same labels the tiles below use — a
+    // funcionario can check each claim against the strip on the same screen.
+    expect(html).toContain(KPI_CATALOG.rabies_coverage_dogs_12m.label);
+    expect(html).toContain(KPI_CATALOG.microchip_penetration.label);
+    expect(html).toContain(KPI_CATALOG.mortality_disposal_traceability.label);
+  });
+
+  it("still says 'dentro de rango' when the metrics really were measured and met", async () => {
+    const prev = {
+      rabiesCoverage: { ...govtHomeKpisFixture.rabiesCoverage },
+      microchip: { ...complianceFixture.microchip },
+      bites: { ...govtHomeKpisFixture.bitesPer10k },
+      mortality: { ...mortalityFixture },
+    };
+    govtHomeKpisFixture.rabiesCoverage.current = 95;
+    complianceFixture.microchip.ratePct = 95;
+    govtHomeKpisFixture.bitesPer10k.reports = 0;
+    mortalityFixture.traceableRate = 95;
+    try {
+      const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+      const html = renderToStaticMarkup(node);
+      expect(html).toContain("3 métricas con meta están dentro de rango");
+    } finally {
+      Object.assign(govtHomeKpisFixture.rabiesCoverage, prev.rabiesCoverage);
+      Object.assign(complianceFixture.microchip, prev.microchip);
+      Object.assign(govtHomeKpisFixture.bitesPer10k, prev.bites);
+      Object.assign(mortalityFixture, prev.mortality);
+    }
   });
 });
 

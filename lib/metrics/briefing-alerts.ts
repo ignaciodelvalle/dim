@@ -40,7 +40,7 @@
 // PURE — no DB, no React. Every export is unit-tested in briefing-alerts.test.ts.
 
 import { getScreenManifestEntry } from "@/lib/ui/screen-manifest";
-import { formatCount, formatPercent } from "@/lib/utils/format";
+import { formatCount, formatPercent, pluralizeEs } from "@/lib/utils/format";
 import { type ForecastTrendPoint, forecastToTarget, resourceGap } from "./forecast-to-target";
 import type { KpiDefinition, KpiId, KpiUnit } from "./kpi-catalog";
 import { KPI_CATALOG, formatKpiTarget } from "./kpi-catalog";
@@ -132,6 +132,45 @@ export type BriefingAlert = {
 };
 
 export const MAX_BRIEFING_ALERTS = 5;
+
+// ---------------------------------------------------------------------------
+// Coverage — WHY the briefing is empty (A1, 2026-07-31)
+// ---------------------------------------------------------------------------
+//
+// THE BUG THIS KILLS: /gob rendered "Sin alertas activas — las métricas con
+// meta están dentro de rango." from `alerts.length === 0` alone. Every guard
+// above drops its candidate SILENTLY, so a scope where NOTHING was measured
+// (0 dogs in the padrón, 0 deaths recorded, 0 pets active) produced the exact
+// same empty list as a scope where every target was genuinely met — and the
+// screen read the empty list as a green verdict. That is the fabricated-signal
+// class C1 killed at the tile level, resurrected as an EMPTY-STATE claim: a
+// municipality with no data loaded was told its metrics were in range.
+//
+// The engine already knows which of the three things happened to each
+// candidate; it just threw that away. `BriefingCoverage` is the same single
+// pass, keeping the reason instead of discarding it. No new math, no second
+// opinion — the buckets are literally the guard branches.
+export type BriefingCoverage = {
+  /** Measured, evaluated against its target, and at/above it — a real green. */
+  met: KpiId[];
+  /** zeroDenominatorGate fired: n === 0. Nothing was measured in this scope
+   *  or period — NOT a 0% and NOT "within range". */
+  unmeasured: KpiId[];
+  /** smallNGate fired: real data exists, but the sample sits under the
+   *  descriptor's `guards.smallN.min` floor, so no verdict is defensible. */
+  suppressed: KpiId[];
+  /** The engine cannot produce a verdict at all: no target, a semaphore that
+   *  refuses to paint one, or no owning screen registered. Deliberately kept
+   *  OUT of the "métricas con meta" count — these were never part of the
+   *  claim, so counting them either way would misstate it. */
+  notEvaluated: KpiId[];
+};
+
+/** The alerts AND the reason the ones that are missing are missing. */
+export type BriefingBoard = {
+  alerts: BriefingAlert[];
+  coverage: BriefingCoverage;
+};
 
 // ---------------------------------------------------------------------------
 // Owning-screen resolution — lib/ui/screen-manifest.ts is the single source.
@@ -375,95 +414,83 @@ function resolveScopedSource(kpiId: KpiId, mandateProvinces: MandateProvinces): 
   return formatMetricLegalBasis(kpiId, mandateProvinces) ?? undefined;
 }
 
-/**
- * Compose the ranked, capped-at-5 briefing alert list from candidate metric
- * values. Candidates that fail a guard (no target / semaphore:none /
- * zero-denominator / small-N / target already met) are silently dropped —
- * NOT ranked last, never rendered. Ranking: severity desc (alta before
- * media), then gap size desc (bigger miss first).
- *
- * `urgencySignals` (claim #4, cursor red-team 2026-07-23) — the OPTIONAL
- * second candidate class for the two non-target-gap surveillance signals
- * (escalation gap, deadline breach). Merged into the SAME ranked/capped list
- * via buildUrgencyAlert, so a genuine legal-deadline breach can outrank a
- * target-gap alert exactly as its severity implies.
- */
-export function buildBriefingAlerts(
-  candidates: readonly BriefingAlertCandidate[],
-  urgencySignals: readonly SurveillanceUrgencyCandidate[] = [],
-  // Mandate-scoped legal citation (red-team CRITICAL follow-up 2026-07-24). The
-  // gob tile fix (formatMetricLegalBasis) scoped the KPI tile but NOT this
-  // briefing alert — a jurisdictional operator still saw a foreign province's
-  // law (e.g. "PBA: Ley Prov. 14.107" to a CABA+TdF+SC operator) in the
-  // microchip alert. Admin/national callers pass "all" (the default) and keep
-  // the catalog's canonical source wording; a jurisdictional operator passes
-  // their mandate provinces and gets the resolved citation — or neutral framing
-  // when no mandate province regulates the metric, never a foreign law.
-  mandateProvinces: MandateProvinces = "all",
-): BriefingAlert[] {
-  const alerts: Array<BriefingAlert & { gap: number }> = [];
+/** Which of the guard branches a single candidate landed in. `alert` carries
+ *  the built alert; every other outcome is just the reason, so the caller can
+ *  say WHICH emptiness it is instead of inventing a verdict. */
+type CandidateOutcome =
+  | { kind: "alert"; alert: BriefingAlert & { gap: number } }
+  | { kind: "met" | "unmeasured" | "suppressed" | "notEvaluated" };
 
-  for (const candidate of candidates) {
-    const descriptor = KPI_CATALOG[candidate.kpiId];
+/** The per-candidate guard chain, extracted verbatim from the loop that used
+ *  to `continue` at each step — same order, same predicates, same math. */
+function classifyCandidate(
+  candidate: BriefingAlertCandidate,
+  mandateProvinces: MandateProvinces,
+): CandidateOutcome {
+  const descriptor = KPI_CATALOG[candidate.kpiId];
 
-    // No target, or a semaphore that refuses to paint a legal-verdict tone
-    // (paintAgainst: "none") → no gap can honestly be computed. This also
-    // covers descriptors that omit `semaphore` entirely (the C1 barrido
-    // hasn't reached them yet) — absence of an explicit "target" opt-in is
-    // treated the same as an explicit "none".
-    if (!descriptor.target || descriptor.semaphore?.paintAgainst !== "target") continue;
+  // No target, or a semaphore that refuses to paint a legal-verdict tone
+  // (paintAgainst: "none") → no gap can honestly be computed. This also
+  // covers descriptors that omit `semaphore` entirely (the C1 barrido
+  // hasn't reached them yet) — absence of an explicit "target" opt-in is
+  // treated the same as an explicit "none".
+  if (!descriptor.target || descriptor.semaphore?.paintAgainst !== "target") {
+    return { kind: "notEvaluated" };
+  }
 
-    // Unmeasurable-data guards — an alert from a 0/0 ratio or a handful of
-    // cases is exactly the dishonesty C1 killed at the tile level.
-    if (zeroDenominatorGate(descriptor, candidate.n)) continue;
-    if (smallNGate(descriptor, candidate.n)) continue;
+  // Unmeasurable-data guards — an alert from a 0/0 ratio or a handful of
+  // cases is exactly the dishonesty C1 killed at the tile level.
+  if (zeroDenominatorGate(descriptor, candidate.n)) return { kind: "unmeasured" };
+  if (smallNGate(descriptor, candidate.n)) return { kind: "suppressed" };
 
-    const tone = toneForTarget(candidate.value, descriptor.target.value);
-    // Target met (or beaten) — evidence, not an alert.
-    if (tone === "ok") continue;
+  const tone = toneForTarget(candidate.value, descriptor.target.value);
+  // Target met (or beaten) — evidence, not an alert.
+  if (tone === "ok") return { kind: "met" };
 
-    const action = resolveAlertAction(candidate.kpiId);
-    // No owning screen registered (or the manifest no longer carries the
-    // registered route) — drop rather than link to an unverified destination.
-    if (!action) continue;
+  const action = resolveAlertAction(candidate.kpiId);
+  // No owning screen registered (or the manifest no longer carries the
+  // registered route) — drop rather than link to an unverified destination.
+  if (!action) return { kind: "notEvaluated" };
 
-    const gap = descriptor.target.value - candidate.value;
-    const severity: BriefingAlertSeverity = tone === "danger" ? "alta" : "media";
-    const confidence = deriveAlertConfidence(descriptor, {
-      n: candidate.n,
-      auxPresent: candidate.auxPresent,
-    });
+  const gap = descriptor.target.value - candidate.value;
+  const severity: BriefingAlertSeverity = tone === "danger" ? "alta" : "media";
+  const confidence = deriveAlertConfidence(descriptor, {
+    n: candidate.n,
+    auxPresent: candidate.auxPresent,
+  });
 
-    // FORECAST-A-META: only when the descriptor declares a qualifying trend
-    // source AND this candidate actually supplied one — guards flow through
-    // the engine itself (an insufficient/flat/receding trend simply yields no
-    // `.line`, never a fabricated one). SCOPE NOTE above: this engine's
-    // gap/tone math is higher-is-better-only, so forecastToTarget is called
-    // with its default (higherIsBetter: true) — consistent with every KPI
-    // this module resolves an action for today.
-    const forecastLine =
-      descriptor.forecast && candidate.trend && candidate.trend.length > 0
-        ? (forecastToTarget({
-            current: candidate.value,
-            target: descriptor.target.value,
-            trend: candidate.trend,
-          }).line ?? undefined)
-        : undefined;
-
-    // PO decision 2 item 2: "faltan ~N dosis" — only when the descriptor
-    // names a resourceUnit (kpi-catalog.ts), reusing candidate.n as the
-    // denominator — the SAME sample size the guards above already checked,
-    // never a second/different population figure.
-    const resourceLine = descriptor.resourceUnit
-      ? (resourceGap(
-          { current: candidate.value, target: descriptor.target.value, denominator: candidate.n },
-          descriptor.resourceUnit,
-        ).line ?? undefined)
+  // FORECAST-A-META: only when the descriptor declares a qualifying trend
+  // source AND this candidate actually supplied one — guards flow through
+  // the engine itself (an insufficient/flat/receding trend simply yields no
+  // `.line`, never a fabricated one). SCOPE NOTE above: this engine's
+  // gap/tone math is higher-is-better-only, so forecastToTarget is called
+  // with its default (higherIsBetter: true) — consistent with every KPI
+  // this module resolves an action for today.
+  const forecastLine =
+    descriptor.forecast && candidate.trend && candidate.trend.length > 0
+      ? (forecastToTarget({
+          current: candidate.value,
+          target: descriptor.target.value,
+          trend: candidate.trend,
+        }).line ?? undefined)
       : undefined;
 
-    const scopedSource = resolveScopedSource(candidate.kpiId, mandateProvinces);
+  // PO decision 2 item 2: "faltan ~N dosis" — only when the descriptor
+  // names a resourceUnit (kpi-catalog.ts), reusing candidate.n as the
+  // denominator — the SAME sample size the guards above already checked,
+  // never a second/different population figure.
+  const resourceLine = descriptor.resourceUnit
+    ? (resourceGap(
+        { current: candidate.value, target: descriptor.target.value, denominator: candidate.n },
+        descriptor.resourceUnit,
+      ).line ?? undefined)
+    : undefined;
 
-    alerts.push({
+  const scopedSource = resolveScopedSource(candidate.kpiId, mandateProvinces);
+
+  return {
+    kind: "alert",
+    alert: {
       id: candidate.kpiId,
       title: buildTitle(descriptor, candidate.value, scopedSource),
       evidence: {
@@ -480,7 +507,34 @@ export function buildBriefingAlerts(
       actionHref: action.href,
       actionLabel: action.label,
       gap,
-    });
+    },
+  };
+}
+
+/**
+ * `buildBriefingAlerts` plus the coverage report — the ONE pass that both
+ * ranks the alerts and records why each non-alerting candidate did not alert.
+ * Call this (not `buildBriefingAlerts`) whenever the caller renders something
+ * for the empty case: an empty `alerts` array alone cannot tell "everything is
+ * on target" apart from "nothing was measured".
+ */
+export function buildBriefingBoard(
+  candidates: readonly BriefingAlertCandidate[],
+  urgencySignals: readonly SurveillanceUrgencyCandidate[] = [],
+  mandateProvinces: MandateProvinces = "all",
+): BriefingBoard {
+  const alerts: Array<BriefingAlert & { gap: number }> = [];
+  const coverage: BriefingCoverage = {
+    met: [],
+    unmeasured: [],
+    suppressed: [],
+    notEvaluated: [],
+  };
+
+  for (const candidate of candidates) {
+    const outcome = classifyCandidate(candidate, mandateProvinces);
+    if (outcome.kind === "alert") alerts.push(outcome.alert);
+    else coverage[outcome.kind].push(candidate.kpiId);
   }
 
   for (const signal of urgencySignals) {
@@ -493,5 +547,125 @@ export function buildBriefingAlerts(
     return b.gap - a.gap;
   });
 
-  return alerts.slice(0, MAX_BRIEFING_ALERTS).map(({ gap, ...alert }) => alert);
+  return {
+    alerts: alerts.slice(0, MAX_BRIEFING_ALERTS).map(({ gap, ...alert }) => alert),
+    coverage,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Empty-state copy (es-AR) — one place, so no screen re-invents the verdict.
+// ---------------------------------------------------------------------------
+
+/** The es-AR reading of an empty briefing: a headline that never claims more
+ *  than the data supports, plus one clarifying line per non-evaluable bucket. */
+export type BriefingEmptyState = {
+  headline: string;
+  details: string[];
+};
+
+function kpiLabels(ids: readonly KpiId[]): string {
+  return ids.map((id) => KPI_CATALOG[id].label).join(", ");
+}
+
+/**
+ * Describe an EMPTY briefing honestly. The three states a municipality must be
+ * able to tell apart — and which read identically before this existed:
+ *
+ *   - `met`        → "está dentro de rango"  (a measured, met target)
+ *   - `unmeasured` → "no hay medición para este período" (0/0, nothing loaded)
+ *   - `suppressed` → "hay dato, pero la muestra es demasiado chica" (smallN)
+ *
+ * The headline only says "dentro de rango" about the metrics that were ACTUALLY
+ * measured and met — never about the whole set, and never at all when nothing
+ * was measured. No alarm, no apology: it states what happened.
+ *
+ * NOTE on `suppressed`: this is the descriptor's own `guards.smallN.min` floor
+ * (5 for every KPI that declares one), NOT the k=5 k-anonymity suppression
+ * that lib/metrics/anonymity.ts applies to per-jurisdiction rollups. The copy
+ * says "muestra demasiado chica", never "suprimido por privacidad" — claiming
+ * a privacy mechanism that did not run would be its own small lie.
+ */
+export function describeBriefingEmptyState(coverage: BriefingCoverage): BriefingEmptyState {
+  const { met, unmeasured, suppressed } = coverage;
+  const evaluable = met.length + unmeasured.length + suppressed.length;
+  const details: string[] = [];
+
+  if (unmeasured.length > 0) {
+    details.push(`Sin medición en este período: ${kpiLabels(unmeasured)}.`);
+  }
+  if (suppressed.length > 0) {
+    details.push(
+      `Con datos, pero muestra demasiado chica para evaluar contra la meta: ${kpiLabels(suppressed)}.`,
+    );
+  }
+
+  // Nothing on this screen carries a target at all — there is no "range" to be
+  // inside of, so the old sentence would have been meaningless here too.
+  if (evaluable === 0) {
+    return {
+      headline: "Sin alertas activas — ninguna métrica de esta vista tiene una meta que evaluar.",
+      details,
+    };
+  }
+
+  // Nothing measurable: the case the old copy painted green.
+  if (met.length === 0) {
+    return {
+      headline:
+        "Sin alertas activas — ninguna métrica con meta tiene una medición evaluable en este período.",
+      details,
+    };
+  }
+
+  // Everything measurable was measured, and met its target — the ONE case the
+  // original sentence was actually true for.
+  if (met.length === evaluable) {
+    const noun = pluralizeEs(met.length, "métrica");
+    const verb = met.length === 1 ? "está" : "están";
+    return {
+      headline: `Sin alertas activas — ${formatCount(met.length)} ${noun} con meta ${verb} dentro de rango.`,
+      details,
+    };
+  }
+
+  // Mixed: some met, some unevaluable. Say the fraction, never the whole.
+  return {
+    headline: `Sin alertas activas — ${formatCount(met.length)} de ${formatCount(evaluable)} métricas con meta dentro de rango.`,
+    details,
+  };
+}
+
+/**
+ * Compose the ranked, capped-at-5 briefing alert list from candidate metric
+ * values. Candidates that fail a guard (no target / semaphore:none /
+ * zero-denominator / small-N / target already met) are silently dropped —
+ * NOT ranked last, never rendered. Ranking: severity desc (alta before
+ * media), then gap size desc (bigger miss first).
+ *
+ * `urgencySignals` (claim #4, cursor red-team 2026-07-23) — the OPTIONAL
+ * second candidate class for the two non-target-gap surveillance signals
+ * (escalation gap, deadline breach). Merged into the SAME ranked/capped list
+ * via buildUrgencyAlert, so a genuine legal-deadline breach can outrank a
+ * target-gap alert exactly as its severity implies.
+ *
+ * RENDERING THE EMPTY CASE? Use `buildBriefingBoard` instead. This function
+ * returns the alerts ALONE, and an empty array cannot distinguish "every
+ * target met" from "nothing was measured" — reading it as the former is the
+ * exact bug BriefingCoverage exists to kill (A1, 2026-07-31).
+ */
+export function buildBriefingAlerts(
+  candidates: readonly BriefingAlertCandidate[],
+  urgencySignals: readonly SurveillanceUrgencyCandidate[] = [],
+  // Mandate-scoped legal citation (red-team CRITICAL follow-up 2026-07-24). The
+  // gob tile fix (formatMetricLegalBasis) scoped the KPI tile but NOT this
+  // briefing alert — a jurisdictional operator still saw a foreign province's
+  // law (e.g. "PBA: Ley Prov. 14.107" to a CABA+TdF+SC operator) in the
+  // microchip alert. Admin/national callers pass "all" (the default) and keep
+  // the catalog's canonical source wording; a jurisdictional operator passes
+  // their mandate provinces and gets the resolved citation — or neutral framing
+  // when no mandate province regulates the metric, never a foreign law.
+  mandateProvinces: MandateProvinces = "all",
+): BriefingAlert[] {
+  return buildBriefingBoard(candidates, urgencySignals, mandateProvinces).alerts;
 }
