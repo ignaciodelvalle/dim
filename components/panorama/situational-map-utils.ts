@@ -125,13 +125,23 @@ export function hasProvinceChoroplethLayer(layers: ActiveLayerLike[]): boolean {
  *   2. `detailKAnonSuppressed` — the aggregate exists but the per-unit detail is
  *      protected by k-anonymity. Say so; affirm the aggregate IS available.
  *   3. genuinely no data — the generic scope-aware "Sin datos" (unchanged),
- *      EXCEPT when every active layer is a surveillance/risk layer (sentiment
- *      review #6): a TRUE zero on a surveillance layer is the good outcome the
- *      layer exists to confirm, so it frames positively instead of reading as
- *      a cold-start failure. Honesty invariant: the positive copy is reachable
- *      ONLY through this last branch — degraded, rate-below-province and k-anon
- *      empties all return their own copy above, so protected or failed data
- *      never reads as "buena noticia".
+ *      EXCEPT when every active layer is a surveillance/risk layer, which gets
+ *      a NAMED empty ("sin registros de zoonosis…") plus the epistemic caveat.
+ *
+ * WHY THE SURVEILLANCE BRANCH NO LONGER SAYS "BUENA NOTICIA" (demo review
+ * 2026-08-01, finding #3). It used to close with "— buena noticia.", live on
+ * /gob/panorama?period=30d while the SAME panel's KPI rail read "activas hoy: 1
+ * (rabia + mordeduras + 30d)" and /gob published "Enfermedades notificadas 1"
+ * with a Peligro badge. The three empties this function already separates —
+ * "no pudimos calcular" (degraded), "hay dato pero está protegido" (k-anon) and
+ * "no hay registros" (this branch) — are three different statements, and NONE
+ * of them is good news: a surveillance layer only sees what somebody reported,
+ * so its zero is the ABSENCE OF A CLAIM, not a claim of absence. The old copy
+ * converted a reporting gap into an all-clear, which is exactly the reading a
+ * sanitary authority must never be handed. The branch keeps naming its layers
+ * (that part was honest and specific) and now states what the zero cannot rule
+ * out — the same "la ausencia de X no implica ausencia de Y" phrasing
+ * LnEmptyState's nature="no-signal" and /gob/vigilancia's own cards use.
  */
 export function emptyOverlayMessage(opts: {
   rateProvinceOnlyEmpty: boolean;
@@ -162,7 +172,7 @@ export function emptyOverlayMessage(opts: {
     ids.every(isSurveillanceLayer)
   ) {
     const names = ids.map((id) => shortLayerLabel(id).toLocaleLowerCase("es-AR")).join(" ni ");
-    return `Sin señales de ${names} en el período — buena noticia.`;
+    return `Sin registros de ${names} en el período. La ausencia de reportes no implica ausencia de casos.`;
   }
   return `Sin datos para esta capa ${opts.emptyStateScope}.`;
 }

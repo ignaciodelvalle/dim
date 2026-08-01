@@ -159,29 +159,58 @@ describe("emptyOverlayMessage (cowork QA ronda 3 §5 — honest empty copy)", ()
   });
 });
 
-describe("emptyOverlayMessage — surveillance true zero (sentiment review #6)", () => {
-  it("frames a TRUE zero on a surveillance-only view as good news", () => {
-    // Zero zoonosis signals in the window — not suppression, not a timeout —
-    // is the outcome the surveillance layer exists to confirm.
-    expect(
-      emptyOverlayMessage({
-        rateProvinceOnlyEmpty: false,
-        detailKAnonSuppressed: false,
-        emptyStateScope: "en tu cobertura",
-        activeLayerIds: ["zoonosis"],
-      }),
-    ).toBe("Sin señales de zoonosis en el período — buena noticia.");
+describe("emptyOverlayMessage — surveillance empty (demo review 2026-08-01 #3)", () => {
+  it("a surveillance zero is the absence of a claim, NEVER 'buena noticia'", () => {
+    // THE FINDING: this branch used to close with "— buena noticia." while the
+    // same panel's KPI rail read "activas hoy: 1 (rabia + mordeduras + 30d)".
+    // A surveillance layer only sees what somebody reported, so its zero cannot
+    // rule anything out — and the copy must say so instead of celebrating.
+    const msg = emptyOverlayMessage({
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: false,
+      emptyStateScope: "en tu cobertura",
+      activeLayerIds: ["zoonosis"],
+    });
+    expect(msg).toBe(
+      "Sin registros de zoonosis en el período. La ausencia de reportes no implica ausencia de casos.",
+    );
+    expect(msg).not.toContain("buena noticia");
   });
 
-  it("names every active surveillance layer", () => {
-    expect(
-      emptyOverlayMessage({
-        rateProvinceOnlyEmpty: false,
-        detailKAnonSuppressed: false,
-        emptyStateScope: "en tu cobertura",
-        activeLayerIds: ["zoonosis", "mordeduras"],
-      }),
-    ).toBe("Sin señales de zoonosis ni mordeduras en el período — buena noticia.");
+  it("names every active surveillance layer and still refuses the all-clear", () => {
+    const msg = emptyOverlayMessage({
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: false,
+      emptyStateScope: "en tu cobertura",
+      activeLayerIds: ["zoonosis", "mordeduras"],
+    });
+    expect(msg).toBe(
+      "Sin registros de zoonosis ni mordeduras en el período. La ausencia de reportes no implica ausencia de casos.",
+    );
+    expect(msg).not.toContain("buena noticia");
+  });
+
+  it("NO branch of this function is allowed to editorialize an empty as good news", () => {
+    // The three empties (degraded / protected / unreported) are three different
+    // statements and none of them is an all-clear. Sweep every reachable branch
+    // rather than trusting the three spot-checks below to stay exhaustive.
+    const branches = [
+      { layerDegraded: true, rateProvinceOnlyEmpty: false, detailKAnonSuppressed: false },
+      { rateProvinceOnlyEmpty: true, detailKAnonSuppressed: false },
+      { rateProvinceOnlyEmpty: false, detailKAnonSuppressed: true },
+      { rateProvinceOnlyEmpty: false, detailKAnonSuppressed: false },
+    ];
+    for (const branch of branches) {
+      for (const activeLayerIds of [undefined, ["zoonosis"], ["zoonosis", "refugios"]]) {
+        const msg = emptyOverlayMessage({
+          ...branch,
+          emptyStateScope: "en tu cobertura",
+          activeLayerIds,
+        });
+        expect(msg).not.toContain("buena noticia");
+        expect(msg).not.toMatch(/buena|tranquil|todo en orden|sin novedad/i);
+      }
+    }
   });
 
   it("keeps the neutral copy when a non-surveillance layer is also active", () => {
@@ -208,19 +237,20 @@ describe("emptyOverlayMessage — surveillance true zero (sentiment review #6)",
     ).toBe("Sin datos para esta capa en este alcance.");
   });
 
-  it("NEVER says 'buena noticia' for a k-anon-suppressed zero (honesty invariant)", () => {
-    // Suppressed data is protected, not absent — the k-anon branch must win.
+  it("a k-anon-suppressed zero says PROTECTED, never 'sin registros'", () => {
+    // Suppressed data is protected, not absent — the k-anon branch must win,
+    // and it must not borrow the unreported branch's wording either.
     const msg = emptyOverlayMessage({
       rateProvinceOnlyEmpty: false,
       detailKAnonSuppressed: true,
       emptyStateScope: "en tu cobertura",
       activeLayerIds: ["zoonosis"],
     });
-    expect(msg).not.toContain("buena noticia");
     expect(msg).toContain("protegido por privacidad");
+    expect(msg).not.toContain("Sin registros");
   });
 
-  it("NEVER says 'buena noticia' for a degraded (timed-out) layer", () => {
+  it("a degraded (timed-out) layer says NOT CALCULATED, never 'sin registros'", () => {
     const msg = emptyOverlayMessage({
       layerDegraded: true,
       rateProvinceOnlyEmpty: false,
@@ -228,8 +258,33 @@ describe("emptyOverlayMessage — surveillance true zero (sentiment review #6)",
       emptyStateScope: "en tu cobertura",
       activeLayerIds: ["mordeduras"],
     });
-    expect(msg).not.toContain("buena noticia");
     expect(msg).toContain("No pudimos calcular");
+    expect(msg).not.toContain("Sin registros");
+  });
+
+  it("the three empties are three DIFFERENT sentences (no two branches collide)", () => {
+    // "no pudimos calcular", "está protegido" and "no hay registros" are the
+    // three claims this screen is allowed to make about an empty map. If any
+    // two ever render the same string, the operator loses the distinction the
+    // Referencias tab promises them.
+    const base = { emptyStateScope: "en tu cobertura", activeLayerIds: ["zoonosis"] };
+    const degraded = emptyOverlayMessage({
+      ...base,
+      layerDegraded: true,
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: false,
+    });
+    const protectedMsg = emptyOverlayMessage({
+      ...base,
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: true,
+    });
+    const unreported = emptyOverlayMessage({
+      ...base,
+      rateProvinceOnlyEmpty: false,
+      detailKAnonSuppressed: false,
+    });
+    expect(new Set([degraded, protectedMsg, unreported]).size).toBe(3);
   });
 });
 
