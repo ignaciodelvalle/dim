@@ -30,6 +30,13 @@ export type LnHeroProps = {
   sex?: string | null;
   breed?: string;
   photoSrc?: string;
+  /**
+   * When there is NO photo, makes the placeholder a link that starts adding
+   * one. Pass only for a viewer who can actually edit this pet — the hero also
+   * renders for read-only viewers, and offering an action they cannot take is
+   * worse than offering none. See LnPetPhoto.addPhotoHref.
+   */
+  addPhotoHref?: string;
   tags?: LnHeroTag[];
   actions?: ReactNode;
   className?: string;
@@ -41,6 +48,7 @@ export function LnHero({
   sex,
   breed,
   photoSrc,
+  addPhotoHref,
   tags = [],
   actions,
   className = "",
@@ -78,7 +86,15 @@ export function LnHero({
       <div className="flex items-end gap-[22px] px-6 pb-[22px]">
         {/* Photo overlapping band (pokes 50px up into the band) */}
         <div className="-mt-[50px] flex-shrink-0">
-          <LnPetPhoto src={photoSrc} alt={name} status={status} size={132} radius="md" />
+          <LnPetPhoto
+            src={photoSrc}
+            alt={name}
+            status={status}
+            size={132}
+            radius="md"
+            addPhotoHref={addPhotoHref}
+            addPhotoLabel={name}
+          />
         </div>
 
         {/* Info */}

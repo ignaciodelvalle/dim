@@ -958,6 +958,14 @@ export default async function PetDetailPage({
               status: lnPetStatus,
               breed: breedLine,
               photoSrc: photoUrl ?? undefined,
+              // Empty-state shortcut: with no photo, the 132px placeholder is
+              // the tap target that opens the edit sheet already mounted on
+              // this page — same form, same file input, same action. Gated on
+              // isOwner because this page also renders for a vet or a shelter
+              // reading the credential, and they cannot save it.
+              addPhotoHref: isOwner
+                ? `/mis-mascotas/${pet.publicToken}?sheet=editar-mascota`
+                : undefined,
               tags: heroTags,
             }}
             complianceState={complianceState}

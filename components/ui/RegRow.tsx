@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import type { LnPetStatus } from "./Chip";
 import { LnStatusFlag } from "./StatusFlag";
@@ -24,10 +25,50 @@ export type LnPetPhotoProps = {
   status?: LnPetStatus;
   size?: number;
   radius?: "full" | "md";
+  /**
+   * Turns the EMPTY placeholder into a link that starts adding a photo.
+   *
+   * OPT-IN, and it has to be. This primitive renders on the public credential
+   * and in read-only registry rows, where an "Agregar foto" affordance would be
+   * offering an action the viewer cannot perform. The caller knows whether the
+   * person looking owns this animal; the primitive does not, and must not guess.
+   *
+   * Ignored when `src` is present: replacing an existing photo is an edit, and
+   * edits belong in the edit form where the old photo is visible next to the
+   * new one. This is only the empty-state shortcut.
+   *
+   * Deliberately a HREF and not an upload handler — the href points at the
+   * existing edit sheet (`?sheet=editar-mascota`), so the file input, its
+   * validation, the server action and the storage write stay exactly where they
+   * already are. A second upload path is a second thing to keep correct.
+   */
+  addPhotoHref?: string;
+  /** Pet name for the link's accessible label. Required with `addPhotoHref`. */
+  addPhotoLabel?: string;
 };
 
-export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnPetPhotoProps) {
+/**
+ * The word under the empty-avatar placeholder. Its own component because BOTH
+ * branches below need it — the plain placeholder and the add-photo link — and
+ * the 7px size is on the design-token ratchet's list, which counts occurrences.
+ * A second copy of the class string is a second thing to migrate when that size
+ * finally moves onto the named scale.
+ */
+function PlaceholderLabel() {
+  return <span className="font-ln-mono text-[7px] uppercase tracking-[.04em]">foto</span>;
+}
+
+export function LnPetPhoto({
+  src,
+  alt,
+  status,
+  size = 56,
+  radius = "full",
+  addPhotoHref,
+  addPhotoLabel,
+}: LnPetPhotoProps) {
   const radiusClass = radius === "full" ? "rounded-full" : "rounded-[var(--radius-md)]";
+  const offersAdd = !src && Boolean(addPhotoHref);
   return (
     <div
       className={[
@@ -42,9 +83,25 @@ export function LnPetPhoto({ src, alt, status, size = 56, radius = "full" }: LnP
     >
       {src ? (
         <Image src={src} alt={alt} fill sizes={`${size}px`} className="object-cover" />
+      ) : offersAdd ? (
+        // The whole placeholder is the target, not a small icon inside it: at
+        // 56px the ring IS the tap area, and anything smaller fails the 44px
+        // minimum on a phone — which is the device this shortcut exists for.
+        <Link
+          href={addPhotoHref as string}
+          aria-label={
+            addPhotoLabel ? `Agregar foto de ${addPhotoLabel}` : "Agregar foto de la mascota"
+          }
+          className={`absolute inset-0 grid place-items-center gap-0.5 text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)] hover:text-[var(--color-ln-ink)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--color-ln-azul)] ${radiusClass}`}
+        >
+          <span aria-hidden="true" className="text-base leading-none">
+            +
+          </span>
+          <PlaceholderLabel />
+        </Link>
       ) : (
-        <span className="font-ln-mono text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">
-          foto
+        <span className="text-[var(--color-ln-mute)]">
+          <PlaceholderLabel />
         </span>
       )}
 
