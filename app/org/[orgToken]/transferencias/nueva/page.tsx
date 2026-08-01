@@ -63,17 +63,17 @@ export default async function OrgTransferenciaNuevaPage({
           title="Te falta el permiso «Proponer transferencias entre orgs»"
           detail={`Tu membresía en ${organization.displayName} no tiene esa capacidad concedida, así que no podés abrir una propuesta de transferencia. Un admin de la organización puede otorgártela desde Permisos — no hace falta cambiarte el rol.`}
         />
-        <p className="text-[13px] text-ln-op-mute">{auth.error}</p>
+        <p className="text-md text-ln-op-mute">{auth.error}</p>
         <div className="flex gap-4">
           <Link
             href={`/org/${orgToken}/admin/permisos`}
-            className="text-[13px] text-ln-op-azul hover:underline no-underline"
+            className="text-md text-ln-op-azul hover:underline no-underline"
           >
             Ver mis permisos
           </Link>
           <Link
             href={`/org/${orgToken}/transferencias`}
-            className="text-[13px] text-ln-op-azul hover:underline no-underline"
+            className="text-md text-ln-op-azul hover:underline no-underline"
           >
             ← Volver a transferencias
           </Link>
@@ -116,19 +116,19 @@ export default async function OrgTransferenciaNuevaPage({
           <h1 className="text-title font-semibold text-ln-op-ink">
             Nueva propuesta de transferencia
           </h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Elegí la mascota en custodia que querés transferir.
           </p>
         </header>
 
         {custodyPets.length === 0 ? (
           <div className="space-y-3">
-            <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+            <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-md text-ln-op-mute">
               No tenés mascotas en custodia para transferir.
             </p>
             <Link
               href={`/org/${orgToken}/mascotas`}
-              className="inline-block text-[13px] text-ln-op-azul hover:underline no-underline"
+              className="inline-block text-md text-ln-op-azul hover:underline no-underline"
             >
               → Ir a Mascotas
             </Link>
@@ -144,7 +144,7 @@ export default async function OrgTransferenciaNuevaPage({
                       className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-ln-op-stripe transition-colors no-underline"
                     >
                       <div className="min-w-0 space-y-0.5">
-                        <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
+                        <p className="text-md font-medium text-ln-op-ink">{p.name}</p>
                         <p className="text-sm text-ln-op-mute">{speciesLabel(p.species)}</p>
                       </div>
                       <span className="text-sm text-ln-op-azul shrink-0">Seleccionar →</span>
@@ -193,7 +193,7 @@ export default async function OrgTransferenciaNuevaPage({
         />
         <Link
           href={`/org/${orgToken}/transferencias`}
-          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+          className="text-md text-ln-op-azul hover:underline no-underline"
         >
           ← Volver a transferencias
         </Link>
@@ -245,7 +245,7 @@ export default async function OrgTransferenciaNuevaPage({
 
       <header className="space-y-1">
         <h1 className="text-title font-semibold text-ln-op-ink">Transferir {pet.name}</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Proponer la transferencia de custodia desde {organization.displayName} a otra organización
           verificada.
         </p>

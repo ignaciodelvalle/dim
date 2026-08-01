@@ -37,7 +37,7 @@ export function IdentityPendingBanner({ pending, returnTo }: IdentityPendingBann
   if (!pending) return null;
 
   return (
-    <div className="flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-2 text-center text-[12.5px] text-ln-op-ink-2">
+    <div className="flex w-full flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-2 text-center text-sm text-ln-op-ink-2">
       <span>
         Falta tu nombre. Por ahora figurás con la primera parte de tu correo, y eso es lo que ve
         quien mira la credencial de tu mascota.
