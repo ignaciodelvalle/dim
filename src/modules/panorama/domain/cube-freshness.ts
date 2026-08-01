@@ -27,23 +27,39 @@ import { formatDateTimeNumericAr } from "@/lib/utils/format";
  *
  * `builtAt` null/undefined/unparseable → the view is live-served (or the cube
  * has nothing honest to claim), so the caption says so instead of fabricating a
- * freshness the cube can't back. `truncatedLayers` (labels of live layers that
- * hit the per-layer cap) only decorates the LIVE caption: a cube-served view is
- * not subject to the live cap, and its own residual truncation is already
- * disclosed per layer by the LayerPanel badge.
+ * freshness the cube can't back.
+ *
+ * RA-7 F7 (2026-07-31) — THE CAP NOTICE IS NEVER SWALLOWED. This used to
+ * `return` inside the `builtAt` branch, on the reasoning that "a cube-served
+ * view is not subject to the live cap". That reasoning does not survive contact
+ * with either caller. `builtAt` is ONE stamp for the WHOLE board: app/gob/
+ * panorama/page.tsx walks the seeded layers and `break`s on the FIRST that
+ * resolves a cube freshness, so any single cubeable layer produces it. And
+ * `truncatedLayers` is not "the cube layer's residual truncation" — it is the
+ * label list of every ACTIVE layer whose own response came back `truncated`
+ * (PanoramaConsole's `mapTableTruncatedLayers`), which on a mixed board is a
+ * set of LIVE layers that genuinely hit the 2.000-row cap. So one cubeable
+ * layer silently deleted the incompleteness disclosure of every other layer on
+ * screen — a notice vanishing because of a layer the operator is not looking
+ * at. The two facts are independent and are now both stated:
+ *
+ *   "Datos precalculados al 17/07/2026 04:30 · capas al tope (2.000): Perdidas"
+ *
+ * The LayerPanel badge is a per-layer disclosure one panel away; it is not a
+ * substitute for the board-level line, which is the one that ends up in the
+ * screenshot.
  */
 export function panoramaFreshnessCaption(
   builtAt: Date | string | null | undefined,
   truncatedLayers: string[] = [],
 ): string {
+  const cap =
+    truncatedLayers.length > 0 ? ` · capas al tope (2.000): ${truncatedLayers.join(", ")}` : "";
   if (builtAt) {
     const date = builtAt instanceof Date ? builtAt : new Date(builtAt);
     if (!Number.isNaN(date.getTime())) {
-      return `Datos precalculados al ${formatDateTimeNumericAr(date)}`;
+      return `Datos precalculados al ${formatDateTimeNumericAr(date)}${cap}`;
     }
   }
-  if (truncatedLayers.length > 0) {
-    return `Datos en vivo · capas al tope (2.000): ${truncatedLayers.join(", ")}`;
-  }
-  return "Datos en vivo";
+  return `Datos en vivo${cap}`;
 }

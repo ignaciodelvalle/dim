@@ -50,11 +50,60 @@ describe("panoramaFreshnessCaption", () => {
     );
   });
 
-  it("does NOT decorate the precomputed caption with live-cap labels", () => {
-    // A cube-served view is not subject to the live per-layer cap; its own
-    // residual truncation is disclosed per layer by the LayerPanel badge.
+  // ⚠️ REWRITTEN — RA-7 F7 (2026-07-31). This test used to be:
+  //
+  //     it("does NOT decorate the precomputed caption with live-cap labels")
+  //       expect(caption(builtAt, ["Perdidas"])).toBe("Datos precalculados al …")
+  //
+  // with the rationale "a cube-served view is not subject to the live per-layer
+  // cap; its own residual truncation is disclosed per layer by the LayerPanel
+  // badge". It was certifying a data-loss bug as a contract, on two false
+  // premises:
+  //
+  //   1. `builtAt` is not a per-layer fact. app/gob/panorama/page.tsx loops the
+  //      seeded layers and `break`s on the FIRST one that resolves a cube
+  //      freshness, so ONE cubeable layer stamps the whole board.
+  //   2. `truncatedLayers` is not "the cube layer's residual truncation". It is
+  //      PanoramaConsole's `mapTableTruncatedLayers` — every ACTIVE layer whose
+  //      own response came back `truncated`, which on a mixed board is a set of
+  //      LIVE layers that really did hit the 2.000-row cap.
+  //
+  // So the assertion said: one cubeable layer may delete the incompleteness
+  // disclosure of every other layer on screen. The operator loses a notice
+  // because of a layer they are not looking at, and the caption — the line that
+  // ends up in the screenshot handed to a funcionario — presents a truncated
+  // board as complete. The LayerPanel badge is a different surface, one panel
+  // away, and was never a substitute for the board-level line.
+  //
+  // The two facts are independent. Both are now stated.
+  it("states the capped layers ALONGSIDE the precomputed stamp (a cube stamp never swallows the cap notice)", () => {
     expect(panoramaFreshnessCaption(new Date("2026-07-17T07:30:00Z"), ["Perdidas"])).toBe(
+      "Datos precalculados al 17/07/2026 04:30 · capas al tope (2.000): Perdidas",
+    );
+  });
+
+  it("names every capped layer under a cube stamp, not just the first", () => {
+    // The whole point of F7: the swallowed notice belonged to layers OTHER than
+    // the one that produced the stamp.
+    expect(
+      panoramaFreshnessCaption("2026-07-17T07:30:00Z", ["Perdidas", "Denuncias", "Mordeduras"]),
+    ).toBe(
+      "Datos precalculados al 17/07/2026 04:30 · capas al tope (2.000): Perdidas, Denuncias, Mordeduras",
+    );
+  });
+
+  it("leaves the precomputed caption bare when nothing is capped", () => {
+    // The fix must not invent a cap notice — an uncapped cube view reads exactly
+    // as it did before.
+    expect(panoramaFreshnessCaption(new Date("2026-07-17T07:30:00Z"), [])).toBe(
       "Datos precalculados al 17/07/2026 04:30",
+    );
+  });
+
+  it("falls back to the LIVE caption + cap notice when the stamp is unparseable", () => {
+    // An invalid stamp must not take the cap notice down with it.
+    expect(panoramaFreshnessCaption(new Date("not-a-date"), ["Perdidas"])).toBe(
+      "Datos en vivo · capas al tope (2.000): Perdidas",
     );
   });
 });
