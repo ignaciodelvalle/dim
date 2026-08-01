@@ -164,6 +164,64 @@ export function shouldSuppressDelta(
 }
 
 // ---------------------------------------------------------------------------
+// deltaImplausibleGate — the "−99,6% sobre una base sana" class (external
+// red-team 2026-07-30, H16). The SIBLING of shouldSuppressDelta above: that
+// one distrusts a tiny prior base, this one distrusts a swing no programme
+// produces even when the base is perfectly stable. See kpi-catalog.ts's
+// KpiGuards.deltaImplausible for the threshold reasoning.
+// ---------------------------------------------------------------------------
+
+/** Short chip suffix rendered inline next to the delta itself — where the eye
+ *  already is. Deliberately an instruction ("check the load"), not a verdict
+ *  ("this is wrong"): the guard cannot know which it is, and saying so would
+ *  be the same overclaim it exists to stop. */
+export const DELTA_IMPLAUSIBLE_SUFFIX = "verificar carga";
+
+/** The explanation line, rendered as the tile's guard note. States the
+ *  MEASURED fact (the swing is real in the data) and the likelier cause,
+ *  without asserting either as settled. */
+export const DELTA_IMPLAUSIBLE_NOTE =
+  "Variación de un orden de magnitud sobre una base estable — suele indicar carga incompleta del período, no una caída real. Verificá la carga antes de citarla.";
+
+/**
+ * True when the descriptor declares `guards.deltaImplausible`, the PRIOR
+ * period's base is at or above its `minPriorBase`, and the period-over-period
+ * change is at least `minFoldChange`-fold in EITHER direction.
+ *
+ * `deltaPct` is a percentage CHANGE (computeDeltaPct / campaign-metrics'
+ * computeDelta — `(current − prior) / prior × 100`), never a percentage-POINT
+ * difference between two rates; every descriptor carrying this guard is
+ * `basis: "flow"`, `unit: "count"`, which is what makes the fold-change
+ * reading valid.
+ *
+ * Ratio form (current/prior = 1 + Δ/100) rather than |Δ%| on purpose — see
+ * KpiGuards.deltaImplausible: |Δ%| ≥ 90 would flag a legitimate near-doubling
+ * as fabricated while treating ×0.1 and ×1.9 as the same magnitude.
+ */
+export function deltaImplausibleGate(
+  descriptor: Pick<KpiDefinition, "guards">,
+  input: { deltaPct: number; priorBase: number },
+): boolean {
+  const rule = descriptor.guards?.deltaImplausible;
+  if (rule === undefined) return false;
+  if (!Number.isFinite(input.deltaPct)) return false;
+  if (input.priorBase < rule.minPriorBase) return false;
+  const ratio = 1 + input.deltaPct / 100;
+  // ONE comparison for both directions, deliberately. Written as the pair
+  // `ratio <= 1/f || ratio >= f`, the downside operator is untestable: at
+  // Δ = −90% the ratio computes to 0.09999999999999998, strictly under 0.1 in
+  // IEEE-754, so `<` and `<=` behave identically and nothing can ever pin the
+  // downside boundary (found by mutation testing 2026-07-30 — `<=` → `<`
+  // survived, and the test claiming to cover that boundary was the thing at
+  // fault). Folding to a magnitude means the two directions share the ONE
+  // operator that IS exactly reachable: Δ = +900% gives a ratio of exactly 10.
+  // A ratio at or below zero (Δ ≤ −100%, only reachable from impossible data)
+  // folds to Infinity, which is the right answer for input that cannot be real.
+  const fold = ratio >= 1 ? ratio : 1 / Math.max(ratio, 0);
+  return fold >= rule.minFoldChange;
+}
+
+// ---------------------------------------------------------------------------
 // censusCoverageLowGate — the "dual-denominator hero" class (cursor red-team
 // 2026-07-23, claim #1). A registry-coverage rate (e.g. rabies_coverage_dogs_12m)
 // can read a confident 65% while the padrón it's computed over covers well

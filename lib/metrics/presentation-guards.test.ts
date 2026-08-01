@@ -7,12 +7,16 @@
 import { describe, expect, it } from "vitest";
 
 import type { KpiDefinition } from "./kpi-catalog";
+import { KPI_CATALOG } from "./kpi-catalog";
 import {
+  DELTA_IMPLAUSIBLE_NOTE,
+  DELTA_IMPLAUSIBLE_SUFFIX,
   UNSTABLE_DELTA_BASE_NOTE,
   ZERO_DENOMINATOR_DASH,
   applyCensusCoverageGuard,
   censusCoverageLowGate,
   censusCoverageWarningNote,
+  deltaImplausibleGate,
   guardRatioTone,
   resolveSemaphoreTone,
   shouldSuppressDelta,
@@ -160,6 +164,125 @@ describe("shouldSuppressDelta — the '−95% MoM sobre base inestable' class", 
 
   it("exposes a stable, non-empty note for the suppressed state", () => {
     expect(UNSTABLE_DELTA_BASE_NOTE.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// deltaImplausibleGate — H16 (external red-team 2026-07-30).
+//
+// WHAT THE CODE DID BEFORE THIS BLOCK EXISTED: /gob rendered
+// "Esterilizaciones / mes: 1 ↓ −99,6% vs mes anterior (desde 274)" with the
+// same red arrow a genuine collapse gets. shouldSuppressDelta above could not
+// help — its floor is 5 and the prior base was 274, so by that guard's
+// reckoning the delta was perfectly trustworthy. There was no assertion
+// anywhere that a −99,6% over a healthy base must not read as a fact; this
+// block is that assertion.
+// ---------------------------------------------------------------------------
+
+describe("deltaImplausibleGate — the '−99,6% sobre una base sana' class", () => {
+  const withImplausibleGuard: Descriptor = {
+    guards: { deltaImplausible: { minFoldChange: 10, minPriorBase: 50 } },
+  };
+
+  it("fires on the exact figure that shipped: −99,6% over a prior base of 274", () => {
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: -99.6, priorBase: 274 })).toBe(
+      true,
+    );
+  });
+
+  // The downside boundary sits BETWEEN these two, and that is all this pair
+  // can honestly claim: Δ = −90% computes to a ratio of 0.09999999999999998,
+  // so no input lands exactly on ×0,1 and no test can distinguish a strict
+  // from a non-strict comparison there (mutation testing, 2026-07-30). The
+  // operator itself is pinned by the +900% case below, which the
+  // implementation now shares with this one.
+  it("fires at an order-of-magnitude drop — −90% is ×0,1", () => {
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: -90, priorBase: 274 })).toBe(
+      true,
+    );
+  });
+
+  it("leaves a steep but sub-order-of-magnitude drop alone — −89% keeps its verdict", () => {
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: -89, priorBase: 274 })).toBe(
+      false,
+    );
+  });
+
+  it("treats an impossible delta below −100% as implausible, not as a mild drop", () => {
+    // Only reachable from corrupt input; folding it to a finite magnitude
+    // would let it slip past the threshold and render a confident verdict.
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: -100, priorBase: 274 })).toBe(
+      true,
+    );
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: -150, priorBase: 274 })).toBe(
+      true,
+    );
+  });
+
+  // THE reason the rule is a fold change and not |Δ%| ≥ 90. A raw absolute
+  // threshold treats ×0,1 and ×1,9 as the same magnitude, so it would flag a
+  // campaign month that legitimately nearly doubled — and a guard that fires
+  // on ordinary programme behaviour is a guard operators learn to ignore.
+  it("does NOT flag a legitimate near-doubling: +95% is ×1,95, not an order of magnitude", () => {
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: 95, priorBase: 274 })).toBe(
+      false,
+    );
+  });
+
+  it("fires on the UPSIDE mirror instead — +900% is ×10, the bulk-backload signature", () => {
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: 900, priorBase: 274 })).toBe(
+      true,
+    );
+  });
+
+  it("fires exactly AT the prior-base floor (50), not one event above it", () => {
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: -99.6, priorBase: 50 })).toBe(
+      true,
+    );
+  });
+
+  it("stays silent below the prior-base floor — a 49-event month that stops has ordinary causes", () => {
+    expect(deltaImplausibleGate(withImplausibleGuard, { deltaPct: -99.6, priorBase: 49 })).toBe(
+      false,
+    );
+  });
+
+  it("does not fire when the descriptor declares no deltaImplausible guard", () => {
+    expect(deltaImplausibleGate(noGuards, { deltaPct: -99.6, priorBase: 274 })).toBe(false);
+  });
+
+  it("does not fire on a non-finite delta", () => {
+    // NaN alone would be a weak assertion — every comparison against NaN is
+    // already false, so it holds with or without the finiteness check.
+    // Infinity is the case that actually needs it: ∞ >= 10 is true, so without
+    // the guard a garbage input would render as a confident "verificar carga"
+    // on a tile whose delta could not be computed at all.
+    expect(
+      deltaImplausibleGate(withImplausibleGuard, { deltaPct: Number.NaN, priorBase: 274 }),
+    ).toBe(false);
+    expect(
+      deltaImplausibleGate(withImplausibleGuard, {
+        deltaPct: Number.POSITIVE_INFINITY,
+        priorBase: 274,
+      }),
+    ).toBe(false);
+  });
+
+  it("the shipped sterilization descriptor carries the guard, wired to the live numbers", () => {
+    expect(
+      deltaImplausibleGate(KPI_CATALOG.sterilizations_per_month, {
+        deltaPct: -99.6,
+        priorBase: 274,
+      }),
+    ).toBe(true);
+  });
+
+  it("exposes a stable, non-empty note and chip suffix for the flagged state", () => {
+    expect(DELTA_IMPLAUSIBLE_NOTE.length).toBeGreaterThan(0);
+    expect(DELTA_IMPLAUSIBLE_SUFFIX.length).toBeGreaterThan(0);
+    // The copy must read as an instruction to check, never as a verdict that
+    // the number is wrong — the guard cannot know which it is.
+    expect(DELTA_IMPLAUSIBLE_NOTE).toContain("Verificá la carga");
   });
 });
 

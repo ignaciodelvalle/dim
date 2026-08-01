@@ -8,7 +8,10 @@ import { Icon } from "@/components/Icon";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { KPI_CATALOG, type KpiId, formatKpiTarget, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import {
+  DELTA_IMPLAUSIBLE_NOTE,
+  DELTA_IMPLAUSIBLE_SUFFIX,
   UNSTABLE_DELTA_BASE_NOTE,
+  deltaImplausibleGate,
   guardRatioTone,
   shouldSuppressDelta,
 } from "@/lib/metrics/presentation-guards";
@@ -41,7 +44,10 @@ import { formatPercent } from "@/lib/utils/format";
  *    small-N (forced-neutral + note) guards from the descriptor's `guards`.
  *  - `guardInput.priorBase` (the prior period's raw count) suppresses
  *    `deltaV2` when the descriptor's `guards.unstableDeltaBase` floor isn't
- *    met (the "−95% MoM on an unstable base" class).
+ *    met (the "−95% MoM on an unstable base" class), and — via the same
+ *    input — strips the delta's red/green VERDICT (never the number) when the
+ *    descriptor's `guards.deltaImplausible` fold change is exceeded over a
+ *    healthy base (the "−99,6% desde 274" incomplete-load class, H16).
  * Semaphore-tone resolution (never painting a "legal verdict" color for a
  * `semaphore: {paintAgainst: "none"}` KPI) is NOT auto-applied here — it
  * composes differently per KPI's own no-data branching (e.g. PPP's
@@ -419,6 +425,10 @@ type ContractResolution = {
   info: InfoTooltip | undefined;
   /** True when the CONTRACT says this is a point-in-time stock (see below). */
   derivedPeriodInvariant: boolean;
+  /** True when `guards.deltaImplausible` fired — the delta keeps its number
+   *  and its arrow but loses its colour verdict and gains a "verificar carga"
+   *  suffix (H16). */
+  deltaImplausible: boolean;
 };
 
 /** "Meta: X% (fuente)" / "Confianza: …" / methodology popover extras from a
@@ -455,6 +465,11 @@ function contractInfoExtras(
 
 function resolveDescriptor(descriptorId: KpiId | undefined) {
   return descriptorId ? KPI_CATALOG[descriptorId] : undefined;
+}
+
+/** Guard notes accumulate — a tile can trip more than one. */
+function appendNote(existing: string | undefined, note: string): string {
+  return existing ? `${existing} ${note}` : note;
 }
 
 /**
@@ -498,14 +513,29 @@ function resolveOpKpiContract(
   const derivedPeriodInvariant =
     descriptor !== undefined && descriptor.basis === "stock" && descriptor.window === "now";
 
-  if (
-    descriptor &&
-    deltaV2 &&
-    guardInput?.priorBase !== undefined &&
-    shouldSuppressDelta(descriptor, guardInput.priorBase)
-  ) {
-    deltaV2 = undefined;
-    guardNote = guardNote ? `${guardNote} ${UNSTABLE_DELTA_BASE_NOTE}` : UNSTABLE_DELTA_BASE_NOTE;
+  let deltaImplausible = false;
+  if (descriptor && deltaV2 && guardInput?.priorBase !== undefined) {
+    if (shouldSuppressDelta(descriptor, guardInput.priorBase)) {
+      deltaV2 = undefined;
+      guardNote = appendNote(guardNote, UNSTABLE_DELTA_BASE_NOTE);
+    } else if (
+      // H16: a fold-change guard only reads a PERCENTAGE change. A
+      // `unit: "count"` delta is a raw net difference (queue size ±N), which
+      // has no fold-change meaning at all — skipping it here is what keeps
+      // this guard from inventing a ratio out of an integer.
+      deltaV2.unit !== "count" &&
+      deltaImplausibleGate(descriptor, {
+        deltaPct: deltaV2.value,
+        priorBase: guardInput.priorBase,
+      })
+    ) {
+      // The NUMBER survives — value, sign, arrow and prior base all still
+      // render. Only the red/green verdict is withheld: the guard knows the
+      // swing is not citable as-is, it does NOT know the direction is wrong.
+      deltaV2 = { ...deltaV2, valence: "neutral" };
+      deltaImplausible = true;
+      guardNote = appendNote(guardNote, DELTA_IMPLAUSIBLE_NOTE);
+    }
   }
 
   // Auto-resolve `info` from the catalog when descriptorId is set and the
@@ -517,7 +547,7 @@ function resolveOpKpiContract(
     ? { ...baseInfo, ...contractInfoExtras(descriptor, guardInput?.trendMonths) }
     : undefined;
 
-  return { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant };
+  return { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant, deltaImplausible };
 }
 
 // ---------------------------------------------------------------------------
@@ -531,7 +561,11 @@ function resolveOpKpiContract(
  * text ("+0%") next to a directional arrow reads as a real increase. No arrow
  * (and neutral tone) when the delta is exactly 0.
  */
-function DeltaV2Row({ delta, priorBase }: { delta: DeltaV2; priorBase?: number }) {
+function DeltaV2Row({
+  delta,
+  priorBase,
+  implausible,
+}: { delta: DeltaV2; priorBase?: number; implausible?: boolean }) {
   const isFlat = delta.value === 0 || delta.valence === "neutral";
   const isGood = delta.value > 0 === (delta.valence !== "goodWhenDown");
   const toneCls = isFlat
@@ -559,6 +593,10 @@ function DeltaV2Row({ delta, priorBase }: { delta: DeltaV2; priorBase?: number }
               is checkable. The number already arrives for the unstable-base
               guard — it was simply never shown. */}
           {priorBase !== undefined && ` (desde ${priorBase.toLocaleString("es-AR")})`}
+          {/* H16: the suffix rides ON the chip, not only in the guard note
+              below — a funcionario copying the figure into a slide reads the
+              delta line, not the small print under it. */}
+          {implausible && ` · ${DELTA_IMPLAUSIBLE_SUFFIX}`}
         </span>
       </span>
     </div>
@@ -589,14 +627,8 @@ export function OpKpi({
   descriptorId,
   guardInput,
 }: Props) {
-  const { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant } = resolveOpKpiContract(
-    descriptorId,
-    guardInput,
-    rawValue,
-    rawTone,
-    rawDeltaV2,
-    rawInfo,
-  );
+  const { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant, deltaImplausible } =
+    resolveOpKpiContract(descriptorId, guardInput, rawValue, rawTone, rawDeltaV2, rawInfo);
 
   const cardCls = [
     "flex flex-col rounded-[var(--radius-md)] border p-[14px_16px]",
@@ -682,7 +714,13 @@ export function OpKpi({
           demo-review M5: a delta of exactly 0 got an up-arrow / "Sube" label —
           honest text ("+0%") next to a directional arrow reads as a real
           increase. No arrow (and neutral tone) when the delta is exactly 0. */}
-      {deltaV2 && <DeltaV2Row delta={deltaV2} priorBase={guardInput?.priorBase} />}
+      {deltaV2 && (
+        <DeltaV2Row
+          delta={deltaV2}
+          priorBase={guardInput?.priorBase}
+          implausible={deltaImplausible}
+        />
+      )}
 
       {/* Sub */}
       {sub && <div className="mt-auto pt-1.5 text-sm text-ln-op-mute">{sub}</div>}

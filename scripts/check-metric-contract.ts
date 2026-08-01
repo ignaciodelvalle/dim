@@ -84,7 +84,8 @@ function hasDescriptorId(block: string): boolean {
 // Rule 2 — guard feeding (consistency sweep 2026-07-23, dead-guard class).
 //
 // A descriptor may declare guards (zeroDenominator/smallN need `guardInput.n`;
-// unstableDeltaBase needs `guardInput.priorBase`) that NO call site feeds —
+// unstableDeltaBase and deltaImplausible need `guardInput.priorBase`) that NO
+// call site feeds —
 // the guard then silently never fires (the adoption-tile 0/0-confident-red bug
 // and the eno_sla_compliance case were both this class). Every <OpKpi> block
 // carrying a guard-declaring descriptorId must pass the matching guardInput
@@ -134,7 +135,11 @@ export function parseCatalogGuardNeeds(catalogSrc: string): Map<string, GuardNee
       const guards = stripLineComments(sliceBraceBlock(entry, braceIdx));
       needs.set(id, {
         needsN: /\b(?:zeroDenominator|smallN)\s*:/.test(guards),
-        needsPriorBase: /\bunstableDeltaBase\s*:/.test(guards),
+        // H16 (2026-07-30): deltaImplausible reads the SAME guardInput key as
+        // unstableDeltaBase. Listed explicitly rather than left implicit —
+        // a descriptor that carries only the new guard is just as dead
+        // without a fed priorBase as one carrying only the old guard.
+        needsPriorBase: /\b(?:unstableDeltaBase|deltaImplausible)\s*:/.test(guards),
         manual: /\bmanualEnforcement\s*:\s*true\b/.test(guards),
       });
     }

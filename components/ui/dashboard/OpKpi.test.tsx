@@ -2,6 +2,11 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import {
+  DELTA_IMPLAUSIBLE_NOTE,
+  DELTA_IMPLAUSIBLE_SUFFIX,
+  UNSTABLE_DELTA_BASE_NOTE,
+} from "@/lib/metrics/presentation-guards";
 import { OpKpi } from "./OpKpi";
 
 // Regression — Cowork B6: on /gob/programa the KPI tiles wrap the whole card in
@@ -141,5 +146,132 @@ describe("OpKpi — the delta names its base, and 'Normal' stays quiet", () => {
   it("stays silent when there is no tone to announce", () => {
     const { container } = render(<OpKpi label="Total" value="9" />);
     expect(container.textContent).not.toContain("Normal");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H16 (external red-team 2026-07-30) — the implausible delta.
+//
+// WHAT SHIPPED: /gob's "Esterilizaciones / mes" tile rendered
+// "1 ↓ −99,6% vs mes anterior (desde 274)" in the SAME red a genuine collapse
+// gets. The prior base was 274, comfortably above unstableDeltaBase's floor of
+// 5, so the only guard that could have caught it had no reason to fire. A
+// funcionario who repeats that figure in a meeting is repeating an incomplete
+// load as a fact.
+//
+// The fix withholds the VERDICT, not the number: value, sign, arrow and prior
+// base all still render. These tests pin both halves — that the number
+// survives, and that the colour does not.
+// ---------------------------------------------------------------------------
+
+/** The delta chip's own row (the element carrying the valence colour). The
+ *  period text is a descendant span, and spans are never `div`s, so the
+ *  closest div ancestor is the row DeltaV2Row builds. */
+function deltaRow(): HTMLElement {
+  const el = screen.getByText(/vs mes ant\./).closest("div");
+  if (el === null) throw new Error("delta row not found");
+  return el as HTMLElement;
+}
+
+describe("OpKpi — an order-of-magnitude delta loses its verdict, not its number", () => {
+  afterEach(cleanup);
+
+  const LIVE_DELTA = { value: -99.6, period: "vs mes ant." } as const;
+
+  it("renders the flagged delta muted, and an unflagged one of the same shape red", () => {
+    // Guarded: the catalogued descriptor + a healthy prior base.
+    render(
+      <OpKpi
+        label="Esterilizaciones / mes"
+        value="1"
+        deltaV2={LIVE_DELTA}
+        descriptorId="sterilizations_per_month"
+        guardInput={{ priorBase: 274 }}
+      />,
+    );
+    expect(deltaRow().className).toContain("text-ln-op-mute");
+    cleanup();
+
+    // CONTROL, same delta, no descriptor → the ordinary bad-news treatment.
+    // This is what keeps the assertion above from decaying into a tautology if
+    // the token names ever change: the pair can only both pass while the two
+    // treatments are genuinely different.
+    render(<OpKpi label="Esterilizaciones / mes" value="1" deltaV2={LIVE_DELTA} />);
+    expect(deltaRow().className).toContain("--color-st-err");
+  });
+
+  it("keeps the figure, the direction and the base fully visible", () => {
+    const { container } = render(
+      <OpKpi
+        label="Esterilizaciones / mes"
+        value="1"
+        deltaV2={LIVE_DELTA}
+        descriptorId="sterilizations_per_month"
+        guardInput={{ priorBase: 274 }}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain("99.6");
+    expect(text).toContain("desde 274");
+    expect(screen.getByText("↓")).toBeTruthy();
+  });
+
+  it("says what to do about it, on the chip and in the guard note", () => {
+    const { container } = render(
+      <OpKpi
+        label="Esterilizaciones / mes"
+        value="1"
+        deltaV2={LIVE_DELTA}
+        descriptorId="sterilizations_per_month"
+        guardInput={{ priorBase: 274 }}
+      />,
+    );
+    expect(container.textContent).toContain(DELTA_IMPLAUSIBLE_SUFFIX);
+    expect(screen.getByText(DELTA_IMPLAUSIBLE_NOTE)).toBeTruthy();
+  });
+
+  it("leaves a real, plausible drop fully red — the guard must not eat true alarms", () => {
+    render(
+      <OpKpi
+        label="Esterilizaciones / mes"
+        value="164"
+        deltaV2={{ value: -40, period: "vs mes ant." }}
+        descriptorId="sterilizations_per_month"
+        guardInput={{ priorBase: 274 }}
+      />,
+    );
+    expect(deltaRow().className).toContain("--color-st-err");
+    expect(screen.queryByText(DELTA_IMPLAUSIBLE_NOTE)).toBeNull();
+  });
+
+  it("leaves a legitimate near-doubling green — +95% is not an order of magnitude", () => {
+    render(
+      <OpKpi
+        label="Esterilizaciones / mes"
+        value="534"
+        deltaV2={{ value: 95, period: "vs mes ant." }}
+        descriptorId="sterilizations_per_month"
+        guardInput={{ priorBase: 274 }}
+      />,
+    );
+    expect(deltaRow().className).toContain("--color-st-ok");
+    expect(screen.queryByText(DELTA_IMPLAUSIBLE_NOTE)).toBeNull();
+  });
+
+  it("defers to the unstable-base guard below its floor — one note, not two", () => {
+    const { container } = render(
+      <OpKpi
+        label="Esterilizaciones / mes"
+        value="0"
+        deltaV2={{ value: -100, period: "vs mes ant." }}
+        descriptorId="sterilizations_per_month"
+        guardInput={{ priorBase: 3 }}
+      />,
+    );
+    // The older guard drops the chip entirely, so there is no chip left to
+    // annotate — asserting on its note (a positive claim) also pins that the
+    // two guards did not both fire.
+    expect(screen.getByText(UNSTABLE_DELTA_BASE_NOTE)).toBeTruthy();
+    expect(container.textContent).not.toContain(DELTA_IMPLAUSIBLE_SUFFIX);
   });
 });
