@@ -97,7 +97,9 @@ export type LostListingItem = {
   primaryPhotoStoragePath: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
-  microchipId: string | null;
+  /** Presence only — the canonical chip code is never read into this DTO.
+   *  /perdidas is unauthenticated and the card only needs a badge. */
+  hasMicrochip: boolean;
   /** Latest `status_changed → 'lost'` event timestamp. */
   markedLostAt: Date;
   /** Pre-applied privacy: null when the owner opted out via

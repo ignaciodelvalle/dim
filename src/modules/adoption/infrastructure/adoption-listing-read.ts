@@ -131,14 +131,17 @@ export async function queryAdoptionListing(
       primaryPhotoStoragePath: attachments.storagePath,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
-      // microchipId: sourced from canonical pet_identifications via correlated
-      // subquery so the badge shows canonical data without a batch join.
-      microchipId: sql<string | null>`(
-        SELECT pi.code FROM pet_identifications pi
+      // hasMicrochip: EXISTS, never the code. The card renders a "Con chip"
+      // badge — a boolean — and /adoptar is unauthenticated, so selecting the
+      // 15-digit canonical value put every listed pet's chip one `"use client"`
+      // away from the public RSC payload. Same standard queryLostListing's
+      // Item-27 location split already applies: don't fetch PII you only need
+      // to test for presence, rather than fetch it and redact in JS.
+      hasMicrochip: sql<boolean>`EXISTS (
+        SELECT 1 FROM pet_identifications pi
         WHERE pi.pet_id = ${pets.id}
           AND pi.kind = 'microchip_iso'
           AND pi.status = 'active'
-        LIMIT 1
       )`,
       adoptionListedAt: pets.adoptionListedAt,
       adoptionStory: pets.adoptionStory,

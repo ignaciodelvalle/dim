@@ -105,7 +105,7 @@ const MOCK_ITEM: AdoptionListingItem = {
   primaryPhotoId: null,
   primaryPhotoStoragePath: null,
   isSterilized: true,
-  microchipId: null,
+  hasMicrochip: false,
   adoptionStory: "Una perra muy cariñosa.",
   adoptionRequirements: null,
   adoptionListedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000),

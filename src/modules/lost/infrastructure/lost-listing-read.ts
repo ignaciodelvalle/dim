@@ -84,14 +84,17 @@ export async function queryLostListing(
       primaryPhotoStoragePath: attachments.storagePath,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
-      // microchipId: sourced from canonical pet_identifications via correlated
-      // subquery so the badge shows canonical data without a batch join.
-      microchipId: sql<string | null>`(
-        SELECT pi.code FROM pet_identifications pi
+      // hasMicrochip: EXISTS, never the code. The card renders a "Con chip"
+      // badge — a boolean — and /perdidas is unauthenticated. Selecting the
+      // 15-digit canonical value for every lost pet in the country put it one
+      // `"use client"` away from the public RSC payload. Same standard as the
+      // Item-27 location split below: don't fetch PII you only need to test for
+      // presence, rather than fetch it and redact in JS.
+      hasMicrochip: sql<boolean>`EXISTS (
+        SELECT 1 FROM pet_identifications pi
         WHERE pi.pet_id = ${pets.id}
           AND pi.kind = 'microchip_iso'
           AND pi.status = 'active'
-        LIMIT 1
       )`,
       discloseLastLocationWhenLost: pets.discloseLastLocationWhenLost,
       isSterilized: sql<boolean>`EXISTS (
@@ -234,7 +237,7 @@ export async function queryLostListing(
       primaryPhotoStoragePath: row.primaryPhotoStoragePath,
       jurisdictionProvince: row.jurisdictionProvince,
       jurisdictionLocality: row.jurisdictionLocality,
-      microchipId: row.microchipId,
+      hasMicrochip: row.hasMicrochip,
       markedLostAt: occurredAt,
       lastSeenDescription,
       isSterilized: row.isSterilized,

@@ -107,7 +107,9 @@ export type AdoptionListingItem = {
   primaryPhotoStoragePath: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
-  microchipId: string | null;
+  /** Presence only — the canonical chip code is never read into this DTO.
+   *  /adoptar is unauthenticated and the card only needs a badge. */
+  hasMicrochip: boolean;
   adoptionListedAt: Date;
   adoptionStory: string | null;
   adoptionRequirements: string | null;

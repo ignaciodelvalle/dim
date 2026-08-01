@@ -77,14 +77,14 @@ export function AdoptionListingCard({
             </div>
           )}
           {/* Top-left: sterilized / chip health chips */}
-          {(item.isSterilized || item.microchipId) && (
+          {(item.isSterilized || item.hasMicrochip) && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
               {item.isSterilized && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-ok text-white">
                   {sterilizedText}
                 </span>
               )}
-              {item.microchipId && (
+              {item.hasMicrochip && (
                 <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-celeste text-white">
                   Con chip
                 </span>

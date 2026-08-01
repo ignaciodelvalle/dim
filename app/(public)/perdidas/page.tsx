@@ -408,7 +408,7 @@ function LostListingCard({ item }: { item: LostListingItem }) {
 
           {/* Footer */}
           <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-ln-line)] text-sm text-[var(--color-ln-mute)]">
-            {item.microchipId && (
+            {item.hasMicrochip && (
               <span className="text-[var(--color-ln-celeste)] font-medium">Con chip</span>
             )}
             {item.isSterilized && (
