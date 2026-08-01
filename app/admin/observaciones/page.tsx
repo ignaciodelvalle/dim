@@ -23,7 +23,7 @@ import {
 } from "@/lib/metrics/observaciones-query";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatDateShort, speciesLabel } from "@/lib/utils/format";
+import { formatDateShort, formatDiasAgo, speciesLabel } from "@/lib/utils/format";
 import {
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
@@ -34,7 +34,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const STATUS_LABEL: Record<RabiesObservationStatus, string> = {
   in_progress: "En curso",
   completed_negative: "Cerrada negativa",
-  completed_positive_rabies: "Cerrada POSITIVA",
+  completed_positive_rabies: "Cerrada positiva",
   completed_dead: "Cerrada por fallecimiento",
   completed_lost_to_followup: "Sin seguimiento",
 };
@@ -57,7 +57,7 @@ function formatRelative(date: Date | null): string {
     const hours = Math.floor(diffMs / (60 * 60 * 1000));
     return hours <= 0 ? "hace minutos" : `hace ${hours} h`;
   }
-  if (days < 30) return `hace ${days} días`;
+  if (days < 30) return formatDiasAgo(days);
   const months = Math.floor(days / 30);
   return months === 1 ? "hace 1 mes" : `hace ${months} meses`;
 }
