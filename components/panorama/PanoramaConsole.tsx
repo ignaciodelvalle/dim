@@ -81,6 +81,11 @@ import {
   summarizeDockRecords,
 } from "@/components/panorama/panorama-map-table";
 import {
+  buildMapTableCaption,
+  deriveLiveScopeLabel,
+  resolveScopeLabel,
+} from "@/components/panorama/scope-truth";
+import {
   binDailyCounts,
   binTimestamps,
   dailyCountsFromTimestamps,
@@ -3502,35 +3507,67 @@ export function PanoramaConsole({
     [scopeAuthority, viewState, level],
   );
 
+  // Live-QA regression (2026-07-11): the masthead scope pill read the SERVER
+  // `scopeLabel` prop, so a shallow client drill (which never re-renders the
+  // server shell) left it stuck on "Nacional · todas las provincias". Derive the
+  // pill label from the SAME client scope state the KPIs/map read (see
+  // scope-truth.ts) — this is the OPERATOR-aware label.
+  const liveScopeLabel = useMemo(
+    () =>
+      deriveLiveScopeLabel({
+        province: effectiveScopeProvince,
+        locality: effectiveScopeLocality,
+        serverScopeLabel: scopeLabel,
+        allowedProvinces,
+        localities: scopeData.localities,
+      }),
+    [
+      effectiveScopeProvince,
+      effectiveScopeLocality,
+      allowedProvinces,
+      scopeData.localities,
+      scopeLabel,
+    ],
+  );
+
   // panorama-ia-v2 §3.6: metadata for the map's "Exportar PNG" footer
   // (auditable provenance). Scope + period in plain es-AR; suppressed-cell
   // count summed across the active layers (audit trail). V2 adds the view
   // digest, which ties the PNG to the descriptor the CSV/informe print in full.
-  const viewMeta = useMemo(
-    () => ({
-      asOf,
-      viewScope,
-      ...buildViewMeta({
-        province: effectiveScopeProvince,
-        locality: effectiveScopeLocality,
-        since,
-        until,
-        periodParam,
-        states,
-        asOf,
-      }),
-    }),
-    [
-      effectiveScopeProvince,
-      effectiveScopeLocality,
+  //
+  // QA 2026-08-01 (govt sanitary-authority walkthrough): `buildViewMeta` knows
+  // only whether the VIEW is drilled, so with no drill its scope label is
+  // "Nacional" — for EVERY operator, including one bounded to "CABA · 5
+  // localidades". Resolve the operator-aware label ONCE, here, so every artifact
+  // downstream (dock caption, dock meta, exported PNG footer, printed informe)
+  // cites one derivation instead of re-copying the cascade.
+  const viewMeta = useMemo(() => {
+    const view = buildViewMeta({
+      province: effectiveScopeProvince,
+      locality: effectiveScopeLocality,
       since,
       until,
+      periodParam,
       states,
       asOf,
-      periodParam,
+    });
+    return {
+      asOf,
       viewScope,
-    ],
-  );
+      ...view,
+      scopeLabel: resolveScopeLabel(liveScopeLabel, view.scopeLabel),
+    };
+  }, [
+    effectiveScopeProvince,
+    effectiveScopeLocality,
+    since,
+    until,
+    states,
+    asOf,
+    periodParam,
+    viewScope,
+    liveScopeLabel,
+  ]);
 
   // Registros (dock) — the accessible table of what the map paints: the map is
   // the least accessible surface, so mirror it into a real table. Flatten every
@@ -3584,7 +3621,7 @@ export function PanoramaConsole({
   // (P4-U1). The event total is still stated, labelled, in the line below.
   // One expression, so badge and table cannot drift.
   const dockBadgeCount = mapTableRows.length;
-  const mapTableCaption = `Datos del mapa por unidad — ${viewMeta.scopeLabel}, ${viewMeta.periodLabel}.`;
+  const mapTableCaption = buildMapTableCaption(viewMeta.scopeLabel, viewMeta.periodLabel);
   // v2C dock bar "Exportar CSV": the SAME in-memory CSV artifact the Registros
   // pane's download link builds (one builder, two affordances).
   const dockCsvHref = useMapTableCsvHref(mapTableRows, mapTableTruncatedLayers, viewScope);
@@ -3755,43 +3792,6 @@ export function PanoramaConsole({
   // chips and the map are the same geography — no clarifier needed.
   const kpiScopeCoarserThanMap =
     level === "locality" && !effectiveScopeLocality && initialDivisionLocality == null;
-
-  // Live-QA regression (2026-07-11): the masthead scope pill read the SERVER
-  // `scopeLabel` prop, so a shallow client drill (which never re-renders the
-  // server shell) left it stuck on "Nacional · todas las provincias". Derive the
-  // pill label from the SAME client scope state the KPIs/map read: an explicit
-  // province/locality drill names the drilled jurisdiction; no drill falls back
-  // to the server default (national, or the operator's implicit jurisdiction).
-  const liveScopeLabel = useMemo(() => {
-    if (!effectiveScopeProvince && !effectiveScopeLocality) return scopeLabel ?? "";
-    // QA fix (2026-07-11 adversarial cowork, §3): `allowedProvinces` only lists
-    // provinces the OPERATOR is scoped to — an out-of-scope drill (forced via
-    // ?province=, e.g. a govt-local operator probing AR-V/AR-Y) never appears
-    // in it, so the lookup fell through to the raw ISO code ("AR-V") instead
-    // of a name. provinceByCode is the full 24-province reference table (not
-    // scope-gated), so it always resolves a real name for any valid code —
-    // the fence itself (which data loads) is unaffected, this is display-only.
-    const provinceName =
-      (effectiveScopeProvince
-        ? allowedProvinces?.find((p) => p.code === effectiveScopeProvince)?.name
-        : undefined) ??
-      (effectiveScopeProvince ? provinceByCode(effectiveScopeProvince)?.name : undefined) ??
-      effectiveScopeProvince ??
-      "";
-    if (effectiveScopeLocality) {
-      const localityName =
-        scopeData.localities.find((l) => l.slug === effectiveScopeLocality)?.name ??
-        effectiveScopeLocality;
-      return provinceName ? `${provinceName} · ${localityName}` : localityName;
-    }
-    return provinceName;
-  }, [
-    effectiveScopeProvince,
-    effectiveScopeLocality,
-    allowedProvinces,
-    scopeData.localities,
-    scopeLabel,
-  ]);
 
   // Scope-change announcement (WCAG 4.1.3 Status Messages): the scope pill is
   // the sole keyboard path to change jurisdiction, and a commit was previously
@@ -3981,9 +3981,9 @@ export function PanoramaConsole({
   // Registros: the accessible per-unit projection of what the map paints (the
   // MapDataTable "Ver como tabla" surface, promoted from a rail toggle into the
   // dock's primary records tab — its k-anon "Protegido (k<5)" cells unchanged).
-  const dockMeta = `${liveScopeLabel || viewMeta.scopeLabel} · ${viewMeta.periodLabel} · ${
-    activeLayers.length
-  } ${activeLayers.length === 1 ? "capa" : "capas"}`;
+  const dockMeta = `${viewMeta.scopeLabel} · ${viewMeta.periodLabel} · ${activeLayers.length} ${
+    activeLayers.length === 1 ? "capa" : "capas"
+  }`;
   // H5 (cowork QA): REFERENCE layers (decomisos, refugios) are drawn on the map
   // but are NOT tabulated in Registros (they carry no per-unit aggregate row). An
   // operator auditing "qué venimos haciendo" saw the bubbles on the map but zero
@@ -4317,7 +4317,7 @@ export function PanoramaConsole({
   const informeModel = useMemo(
     () =>
       buildInformeModel({
-        scopeLabel: liveScopeLabel || viewMeta.scopeLabel,
+        scopeLabel: viewMeta.scopeLabel,
         periodLabel: viewMeta.periodLabel,
         asOf,
         generatedAt: informeGeneratedAt,
@@ -4360,7 +4360,6 @@ export function PanoramaConsole({
         viewScope,
       }),
     [
-      liveScopeLabel,
       viewMeta,
       viewScope,
       asOf,
