@@ -32,6 +32,7 @@ import { DetailDrawer, type SelectedFeature } from "@/components/panorama/Detail
 import { FiltroPanel } from "@/components/panorama/FiltroPanel";
 import { KpiChips } from "@/components/panorama/KpiChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
+import { LegendCaptionBlock } from "@/components/panorama/LegendCaptionBlock";
 import { LegendPill } from "@/components/panorama/LegendPill";
 import { type MapTableRow, useMapTableCsvHref } from "@/components/panorama/MapDataTable";
 import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
@@ -5015,37 +5016,24 @@ export function PanoramaConsole({
               {/* panorama-ia-v2 §2.4: plain-language caption — what a map mark
                   means at the active VISTA + derived level. Under the bivariate
                   encoding it explains the 3×3 matrix + tercile method instead. */}
-              {bivariateActive ? (
-                <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
-                  {bivariateCaptionText(bivariatePair)} Terciles calculados sobre la distribución
-                  del alcance actual.
-                  {/* PO 2026-08-01, the RA-7 F9/F10 rule in its third form: this
-                      sentence sends the reader looking for a texture, so it may
-                      only be said when the frame paints one. Gated on the SAME
-                      predicate as the pill's k-anon chip and MapLegends' hatch
-                      rows, so the three cannot disagree. */}
-                  {frameHasSuppressedMark(mapLayers, divisionLegend) &&
-                    " Una provincia protegida por privacidad (k-anonimato) se muestra con trama, nunca con color."}
-                </p>
-              ) : (
-                <>
-                  <PanoramaCaption
-                    layer={captionLayer}
-                    level={level}
-                    period={captionPeriod}
-                    perCapita={percapitaActive}
-                    presetId={periodParam}
-                  />
-                  {/* panorama-percapita: the honest denominator footer — year +
-                      source read from the census table's own metadata (carried
-                      on the enriched features), never hardcoded. */}
-                  {percapitaActive && percapitaCensusMeta && (
-                    <p className="text-xs leading-snug text-ln-op-mute" aria-live="polite">
-                      {percapitaFooterLabel(percapitaCensusMeta)}
-                    </p>
-                  )}
-                </>
-              )}
+              <LegendCaptionBlock
+                bivariate={bivariateActive}
+                bivariatePair={bivariatePair}
+                bivariateCaption={bivariateCaptionText(bivariatePair)}
+                paintsHatch={frameHasSuppressedMark(mapLayers, divisionLegend)}
+                captionProps={{
+                  layer: captionLayer,
+                  level,
+                  period: captionPeriod,
+                  perCapita: percapitaActive,
+                  presetId: periodParam,
+                }}
+                perCapitaFooter={
+                  percapitaActive && percapitaCensusMeta
+                    ? percapitaFooterLabel(percapitaCensusMeta)
+                    : null
+                }
+              />
               {/* WARNING 6: honest note when the color scale is anchored to a
                   shared link's day. Shown whenever anchored — P1.1: on entry too. */}
               {scaleAnchoredToAsOf && (

@@ -28,12 +28,13 @@
 // = no-data) is preserved verbatim — only the container skin changes (from an
 // on-canvas translucent panel to a dark rail sub-card).
 
+import { BivariateMatrix } from "@/components/panorama/BivariateMatrix";
 import type {
   ActiveLayer,
   DivisionLegendDescriptor,
   ProvinceSeqLegend,
 } from "@/components/panorama/SituationalMap";
-import { BIVARIATE_LEGEND_GRID, bivariateGreyStates } from "@/components/panorama/bivariate-fill";
+import { bivariateGreyStates } from "@/components/panorama/bivariate-fill";
 import {
   type ClassScale,
   type ClassSwatch,
@@ -242,37 +243,7 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
               {bivariateLayer.bivariatePair?.legendTitle ?? "Intensidad de reporte"}
               <span className="font-normal text-ln-op-mute"> — {bivariateLayer.label}</span>
             </div>
-            <div className="flex items-stretch gap-1.5">
-              <div className="flex flex-col items-center justify-center">
-                <span className="whitespace-nowrap text-xs text-ln-op-mute [writing-mode:vertical-rl] [transform:rotate(180deg)]">
-                  {bivariateLayer.bivariatePair?.signalAxis ?? "Señales ↑"}
-                </span>
-              </div>
-              <div>
-                {/* 3 rows × 3 cols; grid is row-major, top row = high signal. */}
-                <div className="grid grid-cols-3 gap-0.5">
-                  {BIVARIATE_LEGEND_GRID.map((sw) => (
-                    <span
-                      key={`biv-${sw.cov}-${sw.sig}`}
-                      className={`h-4 w-4 rounded-[var(--radius-xs)] ${
-                        sw.risk ? "ring-1 ring-ln-op-danger" : "border border-ln-op-line-2"
-                      }`}
-                      style={{ background: sw.color }}
-                      title={
-                        sw.risk
-                          ? (bivariateLayer.bivariatePair?.riskCornerNote ??
-                            "Intensidad alta: cobertura baja · señales altas")
-                          : undefined
-                      }
-                      aria-hidden="true"
-                    />
-                  ))}
-                </div>
-                <div className="mt-0.5 text-center text-xs text-ln-op-mute">
-                  {bivariateLayer.bivariatePair?.coverageAxis ?? "Cobertura →"}
-                </div>
-              </div>
-            </div>
+            <BivariateMatrix pair={bivariateLayer.bivariatePair} />
             {/* Live pixel verification 2026-07-30: this row was the ONE k-anon
                 key in this file still rendered unconditionally — the bivariate
                 block named the hatch whether or not any cell was suppressed,
