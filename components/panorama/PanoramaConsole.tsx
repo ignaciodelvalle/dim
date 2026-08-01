@@ -211,6 +211,7 @@ import {
   buildViewMeta,
   canonicalLayersKey,
   findRankedFeature,
+  initBoardOnMount,
   initialState,
   isAbortError,
   layerFetchPatch,
@@ -2968,165 +2969,52 @@ export function PanoramaConsole({
     scrubDetail,
   ]);
 
-  // map-QOL mount effect (runs once): resolve the initial board.
-  // (a) URL carries `layers` → fetch whatever the server didn't seed.
-  // (b) Bare URL + a saved board in localStorage → subtle one-time restore via
-  //     shallow replaceState + client fetch (no redirect, no reload). The URL
-  //     stays the source of truth; localStorage is only the memory of it.
-  // (c) TRULY-FIRST visit (bare URL, no saved board) → default-activate the
-  //     flagship compliance preset (design-QA 2026-07-04 highest-leverage nit):
-  //     the first screen must answer "¿dónde estamos mal?" — question-framed
-  //     preset + national frame + matching auto-reading — instead of an orphan
-  //     perdidas layer with a generic fallback sentence. Committed via
-  //     replaceState (the operator didn't navigate; no history entry).
+  // map-QOL mount effect (runs once): resolve the initial board. The branching
+  // (URL board vs `?preset=` deep-link vs saved-board restore vs first visit)
+  // lives in initBoardOnMount (panorama-console-helpers); this effect is the
+  // thin adapter that hands it the console's stable callbacks/refs.
   const mountInitDoneRef = useRef(false);
   useEffect(() => {
     if (mountInitDoneRef.current) return;
     mountInitDoneRef.current = true;
-    const current = new URLSearchParams(window.location.search);
-    const urlLayerIds = parseLayersParam(current.get("layers"));
-
-    // panorama-vista-redesign Phase 5 (design Decision 5): capasDetail/
-    // scrubDetail are UI-only prefs (never URL params) — read the saved board
-    // ONCE here and seed both toggles regardless of which restore branch below
-    // runs. A pre-redesign v1 entry (or unreadable storage) tolerantly reads
-    // as Simple (false) for both — no crash, no JSON.parse failure surfaced.
-    let saved: SavedBoard | null = null;
-    try {
-      const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
-      saved = raw !== null ? (JSON.parse(raw) as SavedBoard) : null;
-    } catch {
-      // Storage unreadable — treat as a first visit: default-activate below.
-      saved = null;
-    }
-    if (saved !== null) {
-      // QA fix: coerce STRICTLY — a corrupt or pre-redesign non-boolean value
-      // (e.g. a stray string) must read as Simple (false), not as any
-      // truthy value. `?? false` only guards `undefined`; `=== true` also
-      // guards against a corrupt stored value passing through.
-      setCapasDetail(saved.capasDetail === true);
-      setScrubDetail(saved.scrubDetail === true);
-    }
-
-    if (urlLayerIds !== null) {
-      const missing = missingFromCache(urlLayerIds, levelRef.current);
-      // Q10: initial-load path — coalesce identical in-flight GETs across a
-      // StrictMode dev-remount (the fresh instance's abort registry cannot
-      // supersede the first's in-flight fetch).
-      if (missing.length > 0)
-        void fetchLayersInto(missing, levelRef.current, current, { coalesce: true });
-      return;
-    }
-
-    // Bare URL — offer the saved board, if any. Explicit period/preset params
-    // mean the operator navigated here on purpose: don't override the board.
-    if (current.get("period") !== null || current.get("preset") !== null) {
-      // P4c (task_ccc31326): a `?preset=` deep-link's board is server-seeded, so
-      // applyPreset (the only other framing site) never runs — apply the seeded
-      // preset's camera FRAMING here or a national-framed vista lands unframed
-      // (reads as blank when the base layer is sparse). setPresetFrame fires
-      // before the map's async load; SituationalMap BUFFERS a pre-load frame and
-      // applies it in its load handler (camera-pin and province-drill win there).
-      // Skip when the link pins its own camera (?z — parseCameraFromParams needs
-      // z+lat+lng, so z-null ⇒ no pinned camera).
-      if (hasSeed && seededPresetId != null && current.get("z") === null) {
-        const seededPreset = getPreset(seededPresetId);
-        // Same yank-guard as applyPreset: a national frame must NOT override a
-        // scoped operator's own extent on a `?preset=` deep-link mount either.
+    initBoardOnMount({
+      hasSeed,
+      seededPresetId,
+      defaultPresetId,
+      levelRef,
+      presetCommittedQsRef,
+      seedDetailPrefs: (capas, scrub) => {
+        setCapasDetail(capas);
+        setScrubDetail(scrub);
+      },
+      missingFromCache,
+      fetchLayersInto,
+      // Same yank-guard as applyPreset: a national frame must NOT override a
+      // scoped operator's own extent on a `?preset=` deep-link mount either.
+      emitSeededPresetFrame: (seededPreset) => {
         const hasActiveScope =
           effectiveScopeProvinceRef.current != null ||
           effectiveScopeLocalityRef.current != null ||
           initialDivisionProvince != null ||
           initialDivisionLocality != null;
-        if (seededPreset?.framing && shouldEmitPresetFrame(seededPreset.framing, hasActiveScope)) {
+        if (seededPreset.framing && shouldEmitPresetFrame(seededPreset.framing, hasActiveScope)) {
           frameTokenRef.current += 1;
           setPresetFrame({ framing: seededPreset.framing, token: frameTokenRef.current });
         }
-      }
-      return;
-    }
-    if (saved === null) {
-      // (c) No explicit board, no saved board — first visit: land on the
-      // role-aware question-framed preset (govt → local surveillance, admin →
-      // national default) instead of the orphan default layer. When the SERVER
-      // seeded that preset's layers + KPIs (perf plan 1.2), PRESERVE the seeded
-      // caches so this commit fires zero fetches; otherwise (no seed) fall back
-      // to the fetch-on-mount path (the client re-fetches, now cache-warmed).
-      const preserve = hasSeed && seededPresetId === defaultPresetId;
-      applyPreset(
-        defaultPresetId,
-        "replace",
-        preserve ? { preserveSeededCaches: true } : undefined,
-      );
-      return;
-    }
-    const savedIds = parseLayersParam(saved.layers || null);
-    // A saved board with an explicit empty layer set is a deliberate
-    // "all off" board — respect it; only the truly-absent case defaults.
-    if (savedIds === null || savedIds.length === 0) return;
-
-    const nextParams = new URLSearchParams(window.location.search);
-    nextParams.set("layers", canonicalLayersKey(savedIds));
-    const savedLevel: AggregationLevel = saved.level === "locality" ? "locality" : "province";
-    if (savedLevel === "locality") nextParams.set("level", "locality");
-    if (saved.preset !== null && getPreset(saved.preset as PresetId)) {
-      nextParams.set("preset", saved.preset);
-    }
-    if (saved.period !== null) nextParams.set("period", saved.period);
-    // P5: restore the encoding selection with the board (tolerant — older boards
-    // lack the field; only known selectable values apply).
-    if (saved.encoding === "bivariate") {
-      nextParams.set("encoding", "bivariate");
-      setBivariateMode(true);
-    } else if (saved.encoding === "percapita") {
-      nextParams.set("encoding", "percapita");
-      setPercapitaMode(true);
-    }
-
-    // The restored period differs from the server-rendered one → the seeded
-    // default features are stale for the new window: drop every cache and
-    // refetch the whole board. Same-period restores only fill the gaps.
-    const periodChanged = saved.period !== null && saved.period !== current.get("period");
-    if (periodChanged) {
-      dataRef.current.clear();
-      provinceDataRef.current.clear();
-      bivariateSignalRef.current.clear();
-      asOfDataRef.current.clear();
-    }
-    presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
-    replaceMapStateUrl(`${window.location.pathname}?${nextParams.toString()}`);
-    // W2 fix: mirror the restored period into committedPeriod so the chrome tracks
-    // the shallow-committed window (useSearchParams stays on the bare URL).
-    if (saved.period !== null) setCommittedPeriod(saved.period);
-    setLevel(savedLevel);
-    levelRef.current = savedLevel;
-    // `activePresetId` is DERIVED (task #66 / WS-4): flipping the layer states to
-    // the saved set (below) re-derives it. A saved board persists `layers` and
-    // `preset` together (saveBoard), so the derived value matches `saved.preset`.
-    setStates((s) => {
-      const next = { ...s };
-      for (const l of PANORAMA_LAYERS) {
-        if (savedIds.includes(l.id)) {
-          if (!next[l.id].active) {
-            next[l.id] = {
-              active: true,
-              loading: true,
-              count: 0,
-              suppressedCount: 0,
-              truncated: false,
-            };
-          }
-        } else if (next[l.id].active) {
-          next[l.id] = { ...next[l.id], active: false, compatibilityHint: undefined };
-        }
-      }
-      return next;
+      },
+      applyPreset,
+      setBivariateMode,
+      setPercapitaMode,
+      clearPeriodSensitiveCaches: () => {
+        dataRef.current.clear();
+        provinceDataRef.current.clear();
+        bivariateSignalRef.current.clear();
+        asOfDataRef.current.clear();
+      },
+      setCommittedPeriod,
+      setLevel,
+      setStates,
     });
-    const toFetch = periodChanged ? savedIds : missingFromCache(savedIds, savedLevel);
-    // Q10: initial board-restore path — coalesce identical in-flight GETs across
-    // a StrictMode dev-remount.
-    if (toFetch.length > 0)
-      void fetchLayersInto(toFetch, savedLevel, nextParams, { coalesce: true });
     // hasSeed/seededPresetId are mount-stable props; the effect is mount-only
     // (mountInitDoneRef guard), so their inclusion never re-runs it.
   }, [

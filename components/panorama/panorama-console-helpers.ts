@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
 import { provinceByCode, provinceByName } from "@/lib/reference/ar-provincias";
+import { replaceMapStateUrl } from "@/lib/ui/map-layer-nav";
 import type { ViewScopeAuthority } from "@/lib/ui/view-scope-descriptor";
 import { formatDate } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
@@ -20,7 +21,11 @@ import {
   getLayer,
   isAggregatedPointLayer,
 } from "@/src/modules/panorama/domain/layers";
-import type { PresetId } from "@/src/modules/panorama/domain/presets";
+import {
+  type PanoramaPreset,
+  type PresetId,
+  getPreset,
+} from "@/src/modules/panorama/domain/presets";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -642,6 +647,197 @@ export function rankingUnitNounFor(level: AggregationLevel, province: string | n
   if (level === "province") return "jurisdicciones";
   if (province === "AR-C") return "comunas";
   return province ? "departamentos" : "localidades";
+}
+
+/**
+ * The console-side effect surface `initBoardOnMount` drives. Every field is a
+ * stable console callback/ref, so the mount effect that calls the helper stays
+ * a thin adapter — the BRANCHING (URL board vs deep-link vs saved board vs
+ * first visit) lives here, testable and out of PanoramaConsole.tsx (file-size
+ * split, behavior-preserving move of the map-QOL mount effect).
+ */
+export type BoardMountIO = {
+  hasSeed: boolean;
+  seededPresetId: PresetId | undefined;
+  defaultPresetId: PresetId;
+  levelRef: { current: AggregationLevel };
+  /** The scope+period qs a restore already handled (skips one invalidation run). */
+  presetCommittedQsRef: { current: string | null };
+  /** Seed the Simple/Detalle UI prefs from the saved board (strict-coerced). */
+  seedDetailPrefs: (capasDetail: boolean, scrubDetail: boolean) => void;
+  missingFromCache: (ids: LayerId[], lvl: AggregationLevel) => LayerId[];
+  fetchLayersInto: (
+    ids: LayerId[],
+    lvl: AggregationLevel,
+    baseParams: URLSearchParams,
+    opts?: { preserveOnError?: boolean; coalesce?: boolean },
+  ) => Promise<void>;
+  /** Apply a `?preset=` deep-link's camera framing (yank-guard at the caller). */
+  emitSeededPresetFrame: (preset: PanoramaPreset) => void;
+  applyPreset: (id: PresetId, commit: "replace", opts?: { preserveSeededCaches?: boolean }) => void;
+  setBivariateMode: (v: boolean) => void;
+  setPercapitaMode: (v: boolean) => void;
+  /** Drop every period-sensitive cache (restored period ≠ server-rendered one). */
+  clearPeriodSensitiveCaches: () => void;
+  setCommittedPeriod: (period: string) => void;
+  setLevel: (lvl: AggregationLevel) => void;
+  setStates: (
+    updater: (s: Record<LayerId, LayerPanelState>) => Record<LayerId, LayerPanelState>,
+  ) => void;
+};
+
+/**
+ * map-QOL mount init (runs once): resolve the initial board.
+ * (a) URL carries `layers` → fetch whatever the server didn't seed.
+ * (b) Bare URL + a saved board in localStorage → subtle one-time restore via
+ *     shallow replaceState + client fetch (no redirect, no reload). The URL
+ *     stays the source of truth; localStorage is only the memory of it.
+ * (c) TRULY-FIRST visit (bare URL, no saved board) → default-activate the
+ *     flagship compliance preset (design-QA 2026-07-04 highest-leverage nit):
+ *     the first screen must answer "¿dónde estamos mal?" — question-framed
+ *     preset + national frame + matching auto-reading — instead of an orphan
+ *     perdidas layer with a generic fallback sentence. Committed via
+ *     replaceState (the operator didn't navigate; no history entry).
+ */
+export function initBoardOnMount(io: BoardMountIO): void {
+  const current = new URLSearchParams(window.location.search);
+  const urlLayerIds = parseLayersParam(current.get("layers"));
+
+  // panorama-vista-redesign Phase 5 (design Decision 5): capasDetail/
+  // scrubDetail are UI-only prefs (never URL params) — read the saved board
+  // ONCE here and seed both toggles regardless of which restore branch below
+  // runs. A pre-redesign v1 entry (or unreadable storage) tolerantly reads
+  // as Simple (false) for both — no crash, no JSON.parse failure surfaced.
+  let saved: SavedBoard | null = null;
+  try {
+    const raw = window.localStorage.getItem(BOARD_STORAGE_KEY);
+    saved = raw !== null ? (JSON.parse(raw) as SavedBoard) : null;
+  } catch {
+    // Storage unreadable — treat as a first visit: default-activate below.
+    saved = null;
+  }
+  if (saved !== null) {
+    // QA fix: coerce STRICTLY — a corrupt or pre-redesign non-boolean value
+    // (e.g. a stray string) must read as Simple (false), not as any
+    // truthy value. `?? false` only guards `undefined`; `=== true` also
+    // guards against a corrupt stored value passing through.
+    io.seedDetailPrefs(saved.capasDetail === true, saved.scrubDetail === true);
+  }
+
+  if (urlLayerIds !== null) {
+    const missing = io.missingFromCache(urlLayerIds, io.levelRef.current);
+    // Q10: initial-load path — coalesce identical in-flight GETs across a
+    // StrictMode dev-remount (the fresh instance's abort registry cannot
+    // supersede the first's in-flight fetch).
+    if (missing.length > 0)
+      void io.fetchLayersInto(missing, io.levelRef.current, current, { coalesce: true });
+    return;
+  }
+
+  // Bare URL — offer the saved board, if any. Explicit period/preset params
+  // mean the operator navigated here on purpose: don't override the board.
+  if (current.get("period") !== null || current.get("preset") !== null) {
+    // P4c (task_ccc31326): a `?preset=` deep-link's board is server-seeded, so
+    // applyPreset (the only other framing site) never runs — apply the seeded
+    // preset's camera FRAMING here or a national-framed vista lands unframed
+    // (reads as blank when the base layer is sparse). setPresetFrame fires
+    // before the map's async load; SituationalMap BUFFERS a pre-load frame and
+    // applies it in its load handler (camera-pin and province-drill win there).
+    // Skip when the link pins its own camera (?z — parseCameraFromParams needs
+    // z+lat+lng, so z-null ⇒ no pinned camera).
+    if (io.hasSeed && io.seededPresetId != null && current.get("z") === null) {
+      const seededPreset = getPreset(io.seededPresetId);
+      if (seededPreset) io.emitSeededPresetFrame(seededPreset);
+    }
+    return;
+  }
+  if (saved === null) {
+    // (c) No explicit board, no saved board — first visit: land on the
+    // role-aware question-framed preset (govt → local surveillance, admin →
+    // national default) instead of the orphan default layer. When the SERVER
+    // seeded that preset's layers + KPIs (perf plan 1.2), PRESERVE the seeded
+    // caches so this commit fires zero fetches; otherwise (no seed) fall back
+    // to the fetch-on-mount path (the client re-fetches, now cache-warmed).
+    const preserve = io.hasSeed && io.seededPresetId === io.defaultPresetId;
+    io.applyPreset(
+      io.defaultPresetId,
+      "replace",
+      preserve ? { preserveSeededCaches: true } : undefined,
+    );
+    return;
+  }
+  const savedIds = parseLayersParam(saved.layers || null);
+  // A saved board with an explicit empty layer set is a deliberate
+  // "all off" board — respect it; only the truly-absent case defaults.
+  if (savedIds === null || savedIds.length === 0) return;
+  restoreSavedBoard(io, saved, savedIds, current);
+}
+
+/** The saved-board restore half of initBoardOnMount (branch b) — split out to
+ *  keep each function under the complexity budget; same code, only moved. */
+function restoreSavedBoard(
+  io: BoardMountIO,
+  saved: SavedBoard,
+  savedIds: LayerId[],
+  current: URLSearchParams,
+): void {
+  const nextParams = new URLSearchParams(window.location.search);
+  nextParams.set("layers", canonicalLayersKey(savedIds));
+  const savedLevel: AggregationLevel = saved.level === "locality" ? "locality" : "province";
+  if (savedLevel === "locality") nextParams.set("level", "locality");
+  if (saved.preset !== null && getPreset(saved.preset as PresetId)) {
+    nextParams.set("preset", saved.preset);
+  }
+  if (saved.period !== null) nextParams.set("period", saved.period);
+  // P5: restore the encoding selection with the board (tolerant — older boards
+  // lack the field; only known selectable values apply).
+  if (saved.encoding === "bivariate") {
+    nextParams.set("encoding", "bivariate");
+    io.setBivariateMode(true);
+  } else if (saved.encoding === "percapita") {
+    nextParams.set("encoding", "percapita");
+    io.setPercapitaMode(true);
+  }
+
+  // The restored period differs from the server-rendered one → the seeded
+  // default features are stale for the new window: drop every cache and
+  // refetch the whole board. Same-period restores only fill the gaps.
+  const periodChanged = saved.period !== null && saved.period !== current.get("period");
+  if (periodChanged) io.clearPeriodSensitiveCaches();
+  io.presetCommittedQsRef.current = scopePeriodQsOf(nextParams);
+  replaceMapStateUrl(`${window.location.pathname}?${nextParams.toString()}`);
+  // W2 fix: mirror the restored period into committedPeriod so the chrome tracks
+  // the shallow-committed window (useSearchParams stays on the bare URL).
+  if (saved.period !== null) io.setCommittedPeriod(saved.period);
+  io.setLevel(savedLevel);
+  io.levelRef.current = savedLevel;
+  // `activePresetId` is DERIVED (task #66 / WS-4): flipping the layer states to
+  // the saved set (below) re-derives it. A saved board persists `layers` and
+  // `preset` together (saveBoard), so the derived value matches `saved.preset`.
+  io.setStates((s) => {
+    const next = { ...s };
+    for (const l of PANORAMA_LAYERS) {
+      if (savedIds.includes(l.id)) {
+        if (!next[l.id].active) {
+          next[l.id] = {
+            active: true,
+            loading: true,
+            count: 0,
+            suppressedCount: 0,
+            truncated: false,
+          };
+        }
+      } else if (next[l.id].active) {
+        next[l.id] = { ...next[l.id], active: false, compatibilityHint: undefined };
+      }
+    }
+    return next;
+  });
+  const toFetch = periodChanged ? savedIds : io.missingFromCache(savedIds, savedLevel);
+  // Q10: initial board-restore path — coalesce identical in-flight GETs across
+  // a StrictMode dev-remount.
+  if (toFetch.length > 0)
+    void io.fetchLayersInto(toFetch, savedLevel, nextParams, { coalesce: true });
 }
 
 /**
