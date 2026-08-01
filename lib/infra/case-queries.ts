@@ -835,96 +835,25 @@ export async function countCasesForAdmin(filters: ListCasesForAdminFilters = {})
 }
 
 // ---------------------------------------------------------------------------
-// Dashboard preview: open/escalated cases, limited in SQL
+// REMOVED (demo review 2026-08-01): listOpenCasesForAdminPreview /
+// listOpenCasesForGovtPreview.
+//
+// They existed for exactly one caller — the /gob home's "Casos regulatorios"
+// tile — and their predicate was quietly its own: status IN (open, escalated)
+// rather than the queue's "closedAt IS NULL", and NO
+// CASE_KINDS_ROUTED_ELSEWHERE exclusion, so they counted the custody disputes
+// /gob/casos routes to its own screen. The tile read 38 where the screen it
+// linked to read "32 casos". The admin variant took no jurisdiction argument
+// at all, which froze that number at the national total under any province
+// filter.
+//
+// The tile now counts through countCasesForGovt / countCasesForAdmin — the
+// SAME functions the queue itself uses, with the same filter object. Deleted
+// rather than left in place: a helper named "for the dashboard preview" is an
+// invitation to reintroduce a second opinion of a number that must have only
+// one. If a future surface needs a capped preview WITH its total, build it on
+// the shared filter types above so the two can never drift again.
 // ---------------------------------------------------------------------------
-
-export interface OpenCasesPreview {
-  /** Up to `limit` open/escalated cases, newest first. */
-  items: CaseListItem[];
-  /** Total count of open/escalated cases (independent of `limit`). */
-  total: number;
-}
-
-const OPEN_CASE_STATUSES = ["open", "escalated"] as const;
-
-/**
- * Admin dashboard preview of open/escalated cases. Pushes both the status
- * filter and the row cap into SQL — the old /gob page loaded up to 500 rows
- * via listCasesForAdmin() and sliced 5 in JS, scanning the whole cases table
- * on every dashboard render. The count is a separate lightweight aggregate so
- * the "Ver todos (N)" link stays accurate without fetching all rows.
- */
-export async function listOpenCasesForAdminPreview(limit = 5): Promise<OpenCasesPreview> {
-  const [items, totalRow] = await Promise.all([
-    db
-      .select({
-        c: CASE_LIST_SELECT,
-        petName: pets.name,
-        petPublicToken: pets.publicToken,
-      })
-      .from(cases)
-      .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-      .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
-      .orderBy(desc(cases.openedAt))
-      .limit(limit)
-      .then((rows) => rows.map(mapListRow)),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(cases)
-      .where(inArray(cases.status, [...OPEN_CASE_STATUSES]))
-      .then((rows) => rows[0]?.count ?? 0),
-  ]);
-
-  return { items, total: totalRow };
-}
-
-/**
- * Govt dashboard preview of open/escalated cases within the given
- * jurisdictions. Mirrors listOpenCasesForAdminPreview but scoped — the /gob
- * page previously called listCasesForGovt() (up to 300 rows) and sliced 5.
- */
-export async function listOpenCasesForGovtPreview(
-  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
-  limit = 5,
-): Promise<OpenCasesPreview> {
-  if (jurisdictions.length === 0) return { items: [], total: 0 };
-
-  // jurisdictionPairClause applies whole-province subsumption (a whole-CABA
-  // assignment matches every barrio, not just the sentinel locality string) —
-  // see lib/metrics/scope.ts. A raw per-assignment AND(province, locality)
-  // pair would under-scope a whole-province operator to sentinel-locality rows
-  // only (fail-closed but wrong; found via authz-subsumption fence hardening,
-  // 2026-07-22 — same bug class as commit 68501bb4).
-  const jurisdictionFilter =
-    jurisdictionPairClause(
-      [...jurisdictions],
-      sql`${cases.jurisdictionProvince}`,
-      sql`${cases.jurisdictionLocality}`,
-    ) ?? sql`false`;
-  const whereClause = and(inArray(cases.status, [...OPEN_CASE_STATUSES]), jurisdictionFilter);
-
-  const [items, total] = await Promise.all([
-    db
-      .select({
-        c: CASE_LIST_SELECT,
-        petName: pets.name,
-        petPublicToken: pets.publicToken,
-      })
-      .from(cases)
-      .leftJoin(pets, eq(pets.id, cases.primaryPetId))
-      .where(whereClause)
-      .orderBy(desc(cases.openedAt))
-      .limit(limit)
-      .then((rows) => rows.map(mapListRow)),
-    db
-      .select({ count: sql<number>`count(*)::int` })
-      .from(cases)
-      .where(whereClause)
-      .then((rows) => rows[0]?.count ?? 0),
-  ]);
-
-  return { items, total };
-}
 
 // ---------------------------------------------------------------------------
 // Outbreak investigation queries

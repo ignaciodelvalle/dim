@@ -14,12 +14,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, organizations, pets } from "@/db";
 import { closeCase, openCase } from "@/lib/infra/case-helpers";
-import {
-  listCaseKindDistributionForOrg,
-  listCasesForOrg,
-  listOpenCasesForAdminPreview,
-  listOpenCasesForGovtPreview,
-} from "@/lib/infra/case-queries";
+import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/infra/case-queries";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -301,71 +296,14 @@ describe("listCasesForOrg — filter beyond cap (_limitOverride)", () => {
   });
 });
 
-describe("listOpenCasesForAdminPreview — LIMIT pushed into SQL", () => {
-  it("returns at most `limit` items even when more open cases exist", async () => {
-    // Create 6 extra open (general-subject) cases so the system has well over
-    // the preview limit of open/escalated cases. The old /gob page loaded up to
-    // 500 rows and sliced 5 in JS; the new helper must cap rows in SQL.
-    const extras: string[] = [];
-    for (let i = 0; i < 6; i += 1) {
-      const c = await openCase({
-        kind: "bite_incident",
-        primarySubjectKind: "general",
-        openedByOrganizationId: orgId,
-        openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
-      });
-      extras.push(c.id);
-    }
-
-    try {
-      const preview = await listOpenCasesForAdminPreview(5);
-      // The crux: SQL LIMIT caps the row count at the requested limit.
-      expect(preview.items.length).toBeLessThanOrEqual(5);
-      // total counts ALL open/escalated cases (independent of the limit) and
-      // must therefore exceed the page slice — including our 6 extras.
-      expect(preview.total).toBeGreaterThanOrEqual(6);
-      expect(preview.total).toBeGreaterThan(preview.items.length);
-      // Every returned row is genuinely open/escalated (status filter in SQL).
-      for (const c of preview.items) {
-        expect(c.closedAt).toBeNull();
-      }
-    } finally {
-      for (const id of extras) {
-        await db.delete(cases).where(eq(cases.id, id));
-      }
-    }
-  });
-
-  it("honors a smaller limit exactly", async () => {
-    const extras: string[] = [];
-    for (let i = 0; i < 3; i += 1) {
-      const c = await openCase({
-        kind: "bite_incident",
-        primarySubjectKind: "general",
-        openedByOrganizationId: orgId,
-        openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
-      });
-      extras.push(c.id);
-    }
-    try {
-      const preview = await listOpenCasesForAdminPreview(2);
-      expect(preview.items.length).toBe(2);
-      expect(preview.total).toBeGreaterThanOrEqual(3);
-    } finally {
-      for (const id of extras) {
-        await db.delete(cases).where(eq(cases.id, id));
-      }
-    }
-  });
-});
-
-describe("listOpenCasesForGovtPreview — scope + LIMIT", () => {
-  it("returns an empty preview when no jurisdictions are assigned", async () => {
-    const preview = await listOpenCasesForGovtPreview([], 5);
-    expect(preview.items).toHaveLength(0);
-    expect(preview.total).toBe(0);
-  });
-});
+// The listOpenCasesForAdminPreview / listOpenCasesForGovtPreview blocks that
+// used to sit here went with the functions (demo review 2026-08-01): their
+// only caller, the /gob "Casos regulatorios" tile, now counts through
+// countCasesForGovt / countCasesForAdmin — the same functions /gob/casos uses
+// — because the preview pair's predicate silently disagreed with the queue's
+// (38 on the tile, "32 casos" on the screen it linked to). The behaviour those
+// tests protected (SQL-side cap, separate total, empty scope → 0) lives on in
+// the count/list pair and its own tests.
 
 describe("listCaseKindDistributionForOrg", () => {
   it("returns all distinct case kinds the org has", async () => {
