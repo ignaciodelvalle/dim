@@ -9,6 +9,7 @@ import {
   formatDateTime,
   formatDateTimeLegal,
   formatDelta,
+  formatDiasAgo,
   formatPercent,
   formatRate,
   isoToArDateDisplay,
@@ -616,5 +617,16 @@ describe("pluralizeEs", () => {
     expect(pluralizeEs(2, "camión", "camiones")).toBe("camiones");
     expect(pluralizeEs(2, "lunes", "lunes")).toBe("lunes");
     expect(pluralizeEs(1, "camión", "camiones")).toBe("camión");
+  });
+});
+
+describe("formatDiasAgo", () => {
+  it("returns 'hace N días' for the plural cases (0 and 2+)", () => {
+    expect(formatDiasAgo(0)).toBe("hace 0 días");
+    expect(formatDiasAgo(3)).toBe("hace 3 días");
+  });
+
+  it("returns the singular 'hace 1 día' — never 'hace 1 días'", () => {
+    expect(formatDiasAgo(1)).toBe("hace 1 día");
   });
 });

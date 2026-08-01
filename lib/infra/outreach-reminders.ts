@@ -42,6 +42,7 @@ import { db, notifications, ownerships } from "@/db";
 import { createNotification } from "@/lib/infra/notification-service";
 import { fetchOverdueRabiesVaccine, logOutreachReminderSent } from "@/lib/infra/outreach-pipelines";
 import type { ProjectionContext } from "@/lib/metrics";
+import { formatDiasAgo } from "@/lib/utils/format";
 
 /**
  * Anti-spam window: an owner who already received a vaccine reminder
@@ -73,7 +74,7 @@ function overdueRabiesReminderBody(petName: string, lastVaccineAt: Date, now: Da
     return `${petName} nunca tiene registrada la vacuna antirrábica obligatoria.`;
   }
   const daysSince = Math.round((now.getTime() - lastVaccineAt.getTime()) / MS_PER_DAY);
-  return `${petName} tiene la vacuna antirrábica obligatoria vencida hace ${daysSince} días.`;
+  return `${petName} tiene la vacuna antirrábica obligatoria vencida ${formatDiasAgo(daysSince)}.`;
 }
 
 /**

@@ -18,6 +18,7 @@ import { getReminderVariant, isVaccineReportable } from "@/lib/domain/vaccine-re
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { createNotification } from "@/lib/infra/notification-service";
 import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
+import { formatDiasAgo } from "@/lib/utils/format";
 import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, lte, sql } from "drizzle-orm";
 
 type DB = typeof defaultDb;
@@ -310,11 +311,11 @@ function buildBody(
   }
   if (variant === "overdue_critical") {
     if (absDays === 0) return `${petName} tiene una vacuna obligatoria programada para hoy.`;
-    return `${petName} tiene una vacuna obligatoria vencida hace ${absDays} días.`;
+    return `${petName} tiene una vacuna obligatoria vencida ${formatDiasAgo(absDays)}.`;
   }
   // overdue
   if (absDays === 0) return `${petName} tiene una vacuna programada para hoy.`;
-  return `${petName} tiene una vacuna vencida hace ${absDays} días.`;
+  return `${petName} tiene una vacuna vencida ${formatDiasAgo(absDays)}.`;
 }
 
 // ---------------------------------------------------------------------------

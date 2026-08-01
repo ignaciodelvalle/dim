@@ -1352,6 +1352,18 @@ export function pluralizeEs(n: number, singular: string, plural?: string): strin
   return `${singular}es`;
 }
 
+/**
+ * "hace N día(s)" with correct singular agreement — "hace 1 día", never "hace
+ * 1 días". Several call sites (admin observaciones relative-time, vaccine_due
+ * notification bodies, outreach-reminder bodies) hand-rolled `hace ${n} días`
+ * without the `n === 1` branch that `lostTimeLabel` (lib/infra/lost-listing.ts)
+ * already got right — this is the one shared home for that phrase so it can't
+ * drift again.
+ */
+export function formatDiasAgo(n: number): string {
+  return `hace ${n} ${pluralizeEs(n, "día")}`;
+}
+
 export function ageFromDateOfBirth(dateOfBirth: string | null | undefined): string | null {
   if (!dateOfBirth) return null;
   const dob = new Date(dateOfBirth);
