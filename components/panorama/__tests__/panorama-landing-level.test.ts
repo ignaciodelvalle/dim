@@ -93,8 +93,17 @@ describe("landing-state grain: the seed axis is a fixed point of resolveDataLeve
 // 2. Every axis mutation syncs levelRef EAGERLY.
 // ---------------------------------------------------------------------------
 
-const CONSOLE_SRC = readFileSync(join(__dirname, "..", "PanoramaConsole.tsx"), "utf8");
-const CONSOLE_LINES = CONSOLE_SRC.split(/\r?\n/);
+// The axis mutation sites live in TWO files since the board-init extraction
+// (2026-08-01): onLevelChange stays in PanoramaConsole.tsx; the saved-board
+// restore (io.setLevel + io.levelRef.current) moved to
+// panorama-console-helpers.ts. The fence follows the code.
+const FENCED_SOURCES = [
+  { name: "PanoramaConsole.tsx", file: join(__dirname, "..", "PanoramaConsole.tsx") },
+  {
+    name: "panorama-console-helpers.ts",
+    file: join(__dirname, "..", "panorama-console-helpers.ts"),
+  },
+].map((s) => ({ ...s, lines: readFileSync(s.file, "utf8").split(/\r?\n/) }));
 
 /**
  * The CODE on a line, with comments stripped.
@@ -120,23 +129,25 @@ const LEVEL_REF_WRITE = /levelRef\.current\s*=[^=]/;
 const WINDOW = 24;
 
 describe("PanoramaConsole: setLevel always syncs levelRef in the same tick", () => {
-  const sites = CONSOLE_LINES.map((line, i) => ({ line: codeOnly(line), i })).filter(({ line }) =>
-    SET_LEVEL_CALL.test(line),
+  const sites = FENCED_SOURCES.flatMap(({ name, lines }) =>
+    lines
+      .map((line, i) => ({ name, lines, line: codeOnly(line), i }))
+      .filter(({ line }) => SET_LEVEL_CALL.test(line)),
   );
 
   it("finds the axis mutation sites (the fence has something to guard)", () => {
-    // onLevelChange + the board restore. If this drops to 0 the regex rotted and
-    // every assertion below would pass vacuously.
+    // onLevelChange (console) + the board restore (helpers). If this drops to 0
+    // the regex rotted and every assertion below would pass vacuously.
     expect(sites.length).toBeGreaterThanOrEqual(2);
   });
 
-  for (const { line, i } of sites) {
-    it(`assigns levelRef.current near setLevel at line ${i + 1}`, () => {
-      const window = CONSOLE_LINES.slice(i + 1, i + 1 + WINDOW);
+  for (const { name, lines, line, i } of sites) {
+    it(`assigns levelRef.current near setLevel at ${name}:${i + 1}`, () => {
+      const window = lines.slice(i + 1, i + 1 + WINDOW);
       const found = window.some((l) => LEVEL_REF_WRITE.test(codeOnly(l)));
       expect(
         found,
-        `setLevel at line ${i + 1} (${line.trim()}) does not assign levelRef.current within ${WINDOW} lines. Effects declared LATER in the file run in the SAME commit and read that ref — a stale read fetches the wrong grain and aborts the right request.`,
+        `setLevel at ${name}:${i + 1} (${line.trim()}) does not assign levelRef.current within ${WINDOW} lines. Effects declared LATER in the file run in the SAME commit and read that ref — a stale read fetches the wrong grain and aborts the right request.`,
       ).toBe(true);
     });
   }
