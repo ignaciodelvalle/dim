@@ -90,3 +90,69 @@ describe("<LibretaSanitariaView> — paper-libreta roadmap placeholder", () => {
     expect(btnMatch?.[0]).toContain("disabled=");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Clinical timeline — the `1fr` track must be allowed to shrink
+// ---------------------------------------------------------------------------
+
+/**
+ * The timeline lays each entry out as a `96px 34px 1fr` grid. A grid item's
+ * automatic minimum size is its MIN-CONTENT, not zero, so the card in the `1fr`
+ * track can push the row wider than its container. With 130px already spent on
+ * the two fixed tracks, a 390px phone leaves the card ~200px — and the card
+ * holds free text (event notes, payload summaries, SENASA norm citations) where
+ * a single unbreakable run is enough to overrun it. Nothing in the ancestor
+ * chain clips or scrolls this grid, so the overflow reaches the page body,
+ * which is the one thing the project's overflow rule forbids.
+ */
+describe("<LibretaSanitariaView> — clinical timeline cannot widen the page", () => {
+  /** A note with no spaces — worst case for a min-content-sized track. */
+  const unbreakable = "x".repeat(120);
+
+  const longNoteEvent: Event = {
+    ...weightEvent,
+    id: "evt-long",
+    notes: unbreakable,
+  };
+
+  function timelineCardTag(html: string): string {
+    // The card is the only element carrying the timeline card's border+bg combo.
+    const match = html.match(/<div class="[^"]*ml-3\.5[^"]*"/);
+    if (!match) throw new Error(`timeline card not found in: ${html.slice(0, 400)}`);
+    return match[0];
+  }
+
+  it("lets the 1fr track shrink below its min-content (min-w-0)", () => {
+    const groups = emptyGroups();
+    groups.peso = [longNoteEvent];
+    const html = renderToStaticMarkup(
+      <LibretaSanitariaView groupedEvents={groups} publicToken="abc123" vista="agrupada" />,
+    );
+    expect(
+      timelineCardTag(html),
+      "without min-w-0 the grid item's automatic minimum size is min-content, and " +
+        "a long unbreakable note pushes the whole row past the viewport",
+    ).toContain("min-w-0");
+  });
+
+  it("wraps a long unbreakable run instead of overflowing it", () => {
+    const groups = emptyGroups();
+    groups.peso = [longNoteEvent];
+    const html = renderToStaticMarkup(
+      <LibretaSanitariaView groupedEvents={groups} publicToken="abc123" vista="agrupada" />,
+    );
+    // min-w-0 alone lets the TRACK shrink; the text still needs permission to
+    // break mid-word or it just overflows the card instead of the row.
+    expect(timelineCardTag(html)).toContain("break-words");
+    expect(html).toContain(unbreakable);
+  });
+
+  it("keeps the fixed date/dot tracks — the fix must not collapse the layout", () => {
+    const groups = emptyGroups();
+    groups.peso = [weightEvent];
+    const html = renderToStaticMarkup(
+      <LibretaSanitariaView groupedEvents={groups} publicToken="abc123" vista="agrupada" />,
+    );
+    expect(html).toContain("96px 34px 1fr");
+  });
+});

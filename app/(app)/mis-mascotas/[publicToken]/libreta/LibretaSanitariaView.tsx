@@ -301,8 +301,17 @@ function LnTimelineSection({
               )}
             </div>
 
-            {/* Card */}
-            <div className="ml-3.5 mb-3.5 mt-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3.5 py-[11px]">
+            {/* Card.
+                min-w-0: this is the `1fr` track of a `96px 34px 1fr` grid, and
+                a grid item's automatic minimum size is its MIN-CONTENT, not
+                zero. 130px of the row is already spoken for by the two fixed
+                tracks, so on a 390px phone the card gets ~200px — and any
+                unbreakable run longer than that in the free-text fields below
+                (event notes, a payload summary, a SENASA norm citation) would
+                push the whole row wider than the viewport with nothing in the
+                ancestor chain to clip or scroll it. min-w-0 lets the track
+                shrink; break-words makes the long run wrap instead. */}
+            <div className="ml-3.5 mb-3.5 mt-2 min-w-0 break-words rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3.5 py-[11px]">
               <div className="flex flex-wrap items-center gap-[7px]">
                 <p
                   className="m-0 text-[13px] font-semibold"
