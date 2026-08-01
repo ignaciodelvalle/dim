@@ -650,7 +650,12 @@ export function OpKpi({
         </span>
         {/* AFTER the label: a screen reader hears "Vacunados, Normal", not
             "Normal: Vacunados". Same information, the metric first. */}
-        {TONE_LABELS[tone] && <span className="sr-only">, {TONE_LABELS[tone]}</span>}
+        {/* Single template-literal child (not `, {expr}`) — two JSX children
+            compile to two separate text nodes, which some accessibility-tree
+            tooling (per-node ARIA snapshots) lists as an orphan ", " leaf
+            ahead of the tone word. One string node keeps "label, tone" as a
+            single announced fragment either way. */}
+        {TONE_LABELS[tone] && <span className="sr-only">{`, ${TONE_LABELS[tone]}`}</span>}
         {info && <InfoButton info={info} />}
       </div>
 
