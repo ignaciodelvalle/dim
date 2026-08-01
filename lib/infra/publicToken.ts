@@ -60,6 +60,10 @@ export function generatePrefixedToken(prefix: string): string {
 
 /** Backward-compat wrapper — generates a DIM-XXXX-XXXX pet public token. */
 export function generatePublicToken(): string {
+  // dim-codename-ok: the token prefix, at its single point of definition. Every
+  // value this returns is hyphenated (DIM-XXXX-XXXX) and public by design; this
+  // bare literal is the one place the prefix exists without its hyphen, and the
+  // reason check-brand-casing.ts Rule 2 keys on the hyphen at all.
   return generatePrefixedToken("DIM");
 }
 

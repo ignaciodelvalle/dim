@@ -24,6 +24,7 @@ export default function AcercaPage() {
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
             <strong>miMAR (Mi Mascota Argentina)</strong> es un sistema de credencial digital
             sanitaria para mascotas. El nombre interno del proyecto es{" "}
+            {/* dim-codename-ok: deliberate institutional disclosure. The codename is not a secret — this page exists to explain what it stands for. It simply is not the name the product signs documents with. */}
             <strong>DIM — Documento de Identificación para Mascotas</strong>, y surge como evolución
             de un proyecto universitario de la UTN iniciado en 2021.
           </p>

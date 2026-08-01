@@ -59,6 +59,14 @@
 import { provinceViewbox } from "@/lib/reference/ar-viewboxes";
 
 const NOMINATIM_BASE = "https://nominatim.openstreetmap.org";
+// dim-codename-ok: machine-to-machine header sent to Nominatim — no human
+// reader, so this is not the "two issuers on one document" failure Rule 2
+// exists to catch. Left alone on purpose: OSM's usage policy requires a
+// genuinely monitored contact, and which mailbox that is remains an open PO
+// call already documented in __tests__/no-personal-contact-in-ui.test.ts.
+// Rewriting the brand half now would touch that decision sideways. When the
+// mailbox lands, this whole string (brand, domain and contact) gets rewritten
+// once — this annotation is what makes it resurface then.
 const USER_AGENT = "DIM/1.0 (https://dim.ar; contact: ignaciodelvalle2014@gmail.com)";
 const RATE_LIMIT_PER_SECOND = 5;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
