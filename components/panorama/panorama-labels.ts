@@ -335,6 +335,19 @@ export function describeCapasMeta(input: {
   return `${capas} · ${ajustes}`;
 }
 
+/**
+ * "N capas" / "1 capa" — the plain active-layer count, pluralized ONCE.
+ *
+ * Two surfaces state this number (the dock's meta line and the ContextBar's
+ * Capas segment) and a third was about to. Hand-rolling the ternary at each of
+ * them is how "cuántas capas hay" becomes three answers; they cite this instead.
+ * Note this is NOT {@link filtroBadgeAriaLabel}'s number — that one counts
+ * modifiers over the vista, which is why both are named wherever both appear.
+ */
+export function capasCountLabel(activeLayerCount: number): string {
+  return activeLayerCount === 1 ? "1 capa" : `${activeLayerCount} capas`;
+}
+
 /** The Capas badge's accessible name / tooltip — names what the number counts. */
 export function filtroBadgeAriaLabel(modifierCount: number): string {
   return modifierCount === 1

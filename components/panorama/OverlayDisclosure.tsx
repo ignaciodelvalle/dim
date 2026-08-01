@@ -12,7 +12,7 @@
 // layered on top; `closeSignal` lets the owner close it when a selection
 // commits (e.g. a preset pick).
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
 type Props = {
   /** The always-visible trigger (pill) content. */
@@ -30,6 +30,26 @@ type Props = {
   closeSignal?: unknown;
   /** Optional test id on the summary trigger. */
   summaryTestId?: string;
+  /**
+   * CONTROLLED mode (opt-in). Pass both to let an owner share ONE open-panel
+   * state with sibling surfaces — the panorama ContextBar does this so the scope
+   * disclosure, the rail panels and the bar segments can never be open at the
+   * same time, and so a keyboard user opening another segment closes this one.
+   *
+   * Omit both and the component stays uncontrolled (LegendPill's usage), which
+   * is why every internal close path routes through `setOpen` rather than the
+   * state setter: Esc, outside-click and `closeSignal` behave identically in
+   * both modes, including the focus restore.
+   */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /**
+   * Explicit id for the floating panel, mirrored as `aria-controls` on the
+   * trigger. Native <details> already exposes its expanded state, but not every
+   * AT/browser pair reports it, and the panorama's other disclosures (the rail,
+   * the ContextBar) all state it explicitly — so state it here too.
+   */
+  panelId?: string;
   children: ReactNode;
 };
 
@@ -40,9 +60,22 @@ export function OverlayDisclosure({
   side = "down",
   closeSignal,
   summaryTestId,
+  open: controlledOpen,
+  onOpenChange,
+  panelId,
   children,
 }: Props) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  // Every close path (toggle, Esc, outside-click, closeSignal) goes through
+  // this, so controlled and uncontrolled modes cannot drift.
+  const setOpen = useCallback(
+    (next: boolean) => {
+      if (controlledOpen === undefined) setUncontrolledOpen(next);
+      onOpenChange?.(next);
+    },
+    [controlledOpen, onOpenChange],
+  );
   const rootRef = useRef<HTMLDetailsElement | null>(null);
   const summaryRef = useRef<HTMLElement | null>(null);
 
@@ -82,7 +115,7 @@ export function OverlayDisclosure({
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onPointer);
     };
-  }, [open]);
+  }, [open, setOpen]);
 
   return (
     <details
@@ -94,11 +127,14 @@ export function OverlayDisclosure({
       <summary
         ref={summaryRef}
         data-testid={summaryTestId}
+        aria-expanded={open}
+        aria-controls={panelId}
         className={`cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden ${summaryClassName}`}
       >
         {summary}
       </summary>
       <div
+        id={panelId}
         className={`absolute z-30 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-3 shadow-lg ${
           side === "down" ? "top-full mt-1.5" : "bottom-full mb-1.5"
         } ${panelClassName}`}
