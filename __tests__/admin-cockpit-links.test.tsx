@@ -56,6 +56,22 @@ describe("QueueHealthCockpit — approval tiles deep-link to their own filtered 
     expect(html).toContain('href="/admin/outbox?breach=yes"');
     expect(html).not.toContain('href="/admin/outbox"');
   });
+
+  // This tile used to point at /admin/moderacion, which has been a redirect-only
+  // shim since the F1 fusion — one extra hop to reach the exact URL below
+  // (link-integrity.test.ts block 5 found it, 2026-08-01).
+  //
+  // It needs its OWN assertion rather than leaning on that guard. The guard
+  // skips any route named in REDIRECT_LINK_ALLOWLIST, and /admin/moderacion has
+  // to stay listed there for a DIFFERENT holder: the ADMIN_NAV "Moderación"
+  // entry, which keeps that href so matchPrefix highlights the [id] detail
+  // routes. One allowlist entry, two consumers — so the guard is structurally
+  // blind to a regression here. Measured, not assumed: reverting this href with
+  // only the guard in place left all 15 tests in scope green.
+  it("Moderación tile links straight to the Denuncias hub stage, not the /admin/moderacion shim", () => {
+    expect(html).toContain('href="/gob/denuncias?etapa=moderacion"');
+    expect(html).not.toContain('href="/admin/moderacion"');
+  });
 });
 
 describe("AdminKpiStrip — omitPendingQueue prevents the duplicate 'Aprobaciones pendientes' tile", () => {

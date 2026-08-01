@@ -141,7 +141,15 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
           </h4>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <QueueTile
-              href="/admin/moderacion"
+              // The Denuncias hub's Moderación stage, addressed directly.
+              // /admin/moderacion is a redirect-only shim since the F1 fusion
+              // (buildDenunciasHubRedirectUrl(sp, "moderacion")), so the old
+              // href cost the admin a hop to reach exactly this URL
+              // (link-integrity.test.ts block 5, 2026-08-01). The cross-portal
+              // jump into /gob chrome is unchanged and still the documented
+              // exception recorded on the ADMIN_NAV "Moderación" entry — this
+              // only removes the bounce, not the jump.
+              href="/gob/denuncias?etapa=moderacion"
               label="Moderación de denuncias"
               count={cockpit.moderationPending}
               tone={warnIf(cockpit.moderationPending)}
