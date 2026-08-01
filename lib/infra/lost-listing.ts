@@ -7,6 +7,9 @@
 // The DB query (`queryLostListing`) lives in
 // `@/src/modules/lost/infrastructure/lost-listing-read`.
 
+// Pure, dependency-free (no db, no next) — safe for the client bundle.
+import { firstSearchParam } from "@/lib/utils/search-params";
+
 // ---------------------------------------------------------------------------
 // Catalogs
 // ---------------------------------------------------------------------------
@@ -116,11 +119,10 @@ export function parseSearchParams(params: Record<string, string | string[] | und
   cursor: LostListingCursor | null;
 } {
   const filters: LostListingFilters = {};
-  const pick = (k: string): string | undefined => {
-    const v = params[k];
-    if (Array.isArray(v)) return v[0];
-    return v;
-  };
+  // Was a local copy of the same three lines that lived in
+  // adoption-listing.ts. Both are now the shared helper — the behavior these
+  // two files already had correct is the behavior ~27 page files still lack.
+  const pick = (k: string): string | undefined => firstSearchParam(params[k]);
 
   const species = pick("species");
   if (species) filters.species = species;

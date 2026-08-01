@@ -9,6 +9,7 @@ import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { attemptedChipMatchesPet } from "@/lib/infra/chip-lookup";
 import { petPhotoUrl } from "@/lib/infra/storage";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { MatchConfirmationCardVecino } from "./MatchConfirmationCardVecino";
 
@@ -17,11 +18,15 @@ export default async function VecinoMatchPage({
   searchParams,
 }: {
   params: Promise<{ matchedPetToken: string }>;
-  searchParams: Promise<{ chip?: string }>;
+  // `string | string[]`, not `string`: Next passes an ARRAY when the key
+  // repeats (`?chip=a&chip=b`), and the old `chip?.trim()` below threw
+  // "chip.trim is not a function" — a raw 500 screen on a link anyone can
+  // produce by copy-pasting. firstSearchParam collapses it.
+  searchParams: Promise<{ chip?: string | string[] }>;
 }) {
   const { matchedPetToken } = await params;
   const { chip } = await searchParams;
-  const attemptedMicrochipId = chip?.trim() ?? "";
+  const attemptedMicrochipId = trimmedSearchParam(chip) ?? "";
 
   await requireUserOrRedirect();
 

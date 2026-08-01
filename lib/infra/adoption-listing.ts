@@ -4,6 +4,9 @@
 // `AdoptionFiltersBar.tsx` and `AdoptionListingForm.tsx`. The DB query
 // (`queryAdoptionListing`) lives in `@/src/modules/adoption/infrastructure/adoption-listing-read`.
 
+// Pure, dependency-free (no db, no next) — safe for the client bundle.
+import { firstSearchParam } from "@/lib/utils/search-params";
+
 // ---------------------------------------------------------------------------
 // Catalogs (kept here so consumers — page, form, filters bar — import from
 // one place; labels are es-AR and intentionally separate from DB values)
@@ -136,11 +139,8 @@ export function parseSearchParams(params: Record<string, string | string[] | und
   cursor: AdoptionListingCursor | null;
 } {
   const filters: AdoptionListingFilters = {};
-  const pick = (k: string): string | undefined => {
-    const v = params[k];
-    if (Array.isArray(v)) return v[0];
-    return v;
-  };
+  // See lost-listing.ts — same closure, now the shared helper.
+  const pick = (k: string): string | undefined => firstSearchParam(params[k]);
 
   const species = pick("species");
   if (species) filters.species = species;

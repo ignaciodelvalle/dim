@@ -79,7 +79,7 @@ function findByTypeName(node: unknown, name: string): Element | undefined {
   return el.props ? findByTypeName(el.props.children, name) : undefined;
 }
 
-function renderPage(chip?: string) {
+function renderPage(chip?: string | string[]) {
   queuedResults.length = 0;
   queuedResults.push([{ pet: PET, photo: null }], [], []);
   return VecinoMatchPage({
@@ -115,5 +115,45 @@ describe("vecino match page — ?chip= gate", () => {
     const card = findByTypeName(element, "MatchConfirmationCardVecino");
     expect(card, "the page must render the confirmation card").toBeDefined();
     expect(card?.props.attemptedMicrochipId).toBe("999000111222333");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Repeated search param — the raw 500
+// ---------------------------------------------------------------------------
+//
+// Next hands a page `string[]` the moment a key repeats in the query string,
+// and this page's `chip?.trim()` threw "chip.trim is not a function" — an
+// unstyled Next error screen, on a URL anybody can produce by concatenating
+// two copied links. It failed CLOSED (no PII rendered, nothing leaked), which
+// is why it survived: the only symptom was the crash.
+
+describe("vecino match page — repeated ?chip= (the 500)", () => {
+  it("does not crash on ?chip=a&chip=b — it reads the first value and gates on it", async () => {
+    attemptedChipMatchesPetMock.mockResolvedValue(true);
+    const element = await renderPage(["999000111222333", "900000000000001"]);
+
+    // First wins. Pinning the VALUE, not just the absence of a throw: a helper
+    // that returned the last one, or joined them, would also "not crash" while
+    // authorizing against a code the user never typed.
+    expect(attemptedChipMatchesPetMock).toHaveBeenCalledWith("pet-1", "999000111222333");
+    const card = findByTypeName(element, "MatchConfirmationCardVecino");
+    expect(card?.props.attemptedMicrochipId).toBe("999000111222333");
+  });
+
+  it("still 404s on a repeated chip that does not match — the gate is not bypassed", async () => {
+    // The load-bearing half. Collapsing the array must not turn the gate into
+    // "an array was supplied, close enough".
+    attemptedChipMatchesPetMock.mockResolvedValue(false);
+    await expect(renderPage(["900000000000001", "999000111222333"])).rejects.toThrow(
+      "NEXT_NOT_FOUND",
+    );
+    expect(attemptedChipMatchesPetMock).toHaveBeenCalledWith("pet-1", "900000000000001");
+  });
+
+  it("treats an empty repeated param the same as no chip at all", async () => {
+    attemptedChipMatchesPetMock.mockResolvedValue(false);
+    await expect(renderPage([])).rejects.toThrow("NEXT_NOT_FOUND");
+    expect(attemptedChipMatchesPetMock).toHaveBeenCalledWith("pet-1", "");
   });
 });

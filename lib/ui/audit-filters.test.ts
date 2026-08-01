@@ -37,6 +37,36 @@ describe("parseAuditActions", () => {
       "request_approved",
     ]);
   });
+
+  // `?action=a&action=b` makes Next pass a string[]. `raw.split(",")` threw
+  // "raw.split is not a function" and 500'd /admin/auditoria,
+  // /admin/historial and /gob/historial — three pages, one helper.
+  it("accepts a REPEATED param (string[]) instead of throwing", () => {
+    expect(() => parseAuditActions(["request_approved"])).not.toThrow();
+    // Concatenated, not first-wins: this param is already a list, so
+    // ?action=a&action=b unambiguously means both.
+    expect(parseAuditActions(["request_approved", "request_rejected"])).toEqual([
+      "request_approved",
+      "request_rejected",
+    ]);
+  });
+
+  it("applies the same validation to every value of a repeated param", () => {
+    // The load-bearing half: joining must not become a bypass. An unknown code
+    // arriving in the SECOND array entry has to be dropped exactly like one
+    // arriving after a comma.
+    expect(parseAuditActions(["request_approved", "not_a_real_action"])).toEqual([
+      "request_approved",
+    ]);
+    expect(parseAuditActions(["request_approved,request_rejected", "request_approved"])).toEqual([
+      "request_approved",
+      "request_rejected",
+    ]);
+  });
+
+  it("returns an empty list for an empty repeated param", () => {
+    expect(parseAuditActions([])).toEqual([]);
+  });
 });
 
 describe("parseAuditDateRange", () => {

@@ -54,13 +54,24 @@ import {
   provinceByCode,
   provinceByName,
 } from "@/lib/reference/ar-provincias";
+import { firstSearchParam } from "@/lib/utils/search-params";
 
 /** The raw ?province / ?locality searchParams, source-shape-agnostic. */
 export type JurisdictionScopeParams = {
-  /** ?province — ISO 3166-2:AR code, e.g. "AR-B". Absent/empty = national. */
-  province?: string | null;
+  /**
+   * ?province — ISO 3166-2:AR code, e.g. "AR-B". Absent/empty = national.
+   *
+   * `string[]` is part of the contract, not sloppiness: Next hands a page an
+   * ARRAY the moment a key repeats (`?province=AR-B&province=AR-C`), and every
+   * /gob and /admin dashboard forwards `sp.province` here untouched. The
+   * province path happened to fail closed (`provinceByCode` only compares), but
+   * `locality` reached `normalize()` → `s.normalize is not a function` → a raw
+   * 500 on a link a funcionario can produce by concatenating two copied URLs.
+   * Collapsed once here rather than at 15 call sites.
+   */
+  province?: string | string[] | null;
   /** ?locality — locality slug, e.g. "la-plata". Absent = province-level (or national). */
-  locality?: string | null;
+  locality?: string | string[] | null;
 };
 
 export type JurisdictionScopeInput = {
@@ -116,7 +127,15 @@ export type ResolvedJurisdictionScope = {
 export async function resolveJurisdictionScope(
   input: JurisdictionScopeInput,
 ): Promise<ResolvedJurisdictionScope> {
-  const { role, jurisdictions, params } = input;
+  const { role, jurisdictions } = input;
+
+  // Collapse repeated search params ONCE, at the boundary. Everything below
+  // may assume plain strings. See JurisdictionScopeParams for why the input
+  // type admits arrays at all.
+  const params = {
+    province: firstSearchParam(input.params.province ?? undefined),
+    locality: firstSearchParam(input.params.locality ?? undefined),
+  };
 
   const selectedProvince = params.province ? provinceByCode(params.province) : null;
 

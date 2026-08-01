@@ -21,12 +21,19 @@ export const DECISION_AUDIT_ACTIONS = ["request_approved", "request_rejected"] a
  * Parse a (possibly comma-separated) `action` param into a validated, de-duped
  * list of audit actions. Unknown codes are dropped so an attacker-shaped param
  * can never reach the SQL layer. Order of first appearance is preserved.
+ *
+ * Accepts `string[]` because Next hands a page an array when the key repeats
+ * (`?action=a&action=b`) and `raw.split` then throws — a raw 500 on
+ * /admin/auditoria, /admin/historial and /gob/historial, all three of which
+ * call this. A repeated key is unambiguously "both of these" for a param that
+ * is ALREADY a list, so the values are concatenated rather than first-wins.
  */
-export function parseAuditActions(raw: string | null | undefined): AuditLogAction[] {
+export function parseAuditActions(raw: string | string[] | null | undefined): AuditLogAction[] {
   if (!raw) return [];
+  const joined = Array.isArray(raw) ? raw.join(",") : raw;
   const seen = new Set<string>();
   const out: AuditLogAction[] = [];
-  for (const part of raw.split(",")) {
+  for (const part of joined.split(",")) {
     const code = part.trim();
     if (code && code in AUDIT_ACTION_LABELS && !seen.has(code)) {
       seen.add(code);

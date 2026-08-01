@@ -445,3 +445,65 @@ describe("full ResolvedJurisdictionScope pin", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// B11 — repeated search params (?province=a&province=b)
+// ---------------------------------------------------------------------------
+//
+// Next hands a page `string[]` when a key repeats, and every /gob + /admin
+// dashboard forwards sp.province / sp.locality here untouched. The province
+// path failed CLOSED (provinceByCode only compares, so an array matched
+// nothing), but the locality path reached localityByName → normalize() →
+// "s.normalize is not a function": a raw 500 on a URL a funcionario produces
+// by concatenating two copied links. Collapsed once, at this boundary.
+
+describe("B11 — repeated ?province / ?locality collapse to the first value", () => {
+  it("does not throw on a repeated locality, and resolves the FIRST one", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_MULTI_LOCALITY,
+      params: { province: "AR-B", locality: ["la-plata", "rosario"] },
+    });
+    // Value-pinned, not just "no throw": last-wins or a join would also avoid
+    // the TypeError while scoping the operator to a jurisdiction they never
+    // asked for.
+    expect(scope.selectedLocality?.localityName).toBe("La Plata");
+    expect(scope.filteredJurisdictions).toStrictEqual([
+      { province: "Buenos Aires", locality: "La Plata" },
+    ]);
+  });
+
+  it("resolves the first of a repeated province", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "admin",
+      jurisdictions: [],
+      params: { province: ["AR-B", "AR-C"] },
+    });
+    expect(scope.selectedProvince?.code).toBe("AR-B");
+    expect(scope.adminSelectedProvince).toBe("Buenos Aires");
+  });
+
+  it("STILL fails closed when the first repeated value is invalid", async () => {
+    // The load-bearing half. Collapsing must not turn "an array arrived" into
+    // "pick whichever entry happens to validate" — that would let a govt
+    // operator smuggle a second province past the fence.
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_MULTI_PROVINCE,
+      params: { province: ["AR-ZZ", "AR-B"], locality: ["la-plata"] },
+    });
+    expect(scope.selectedProvince).toBeNull();
+    expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_PROVINCE);
+  });
+
+  it("treats an empty repeated param as absent", async () => {
+    const scope = await resolveJurisdictionScope({
+      role: "govt",
+      jurisdictions: A_MULTI_LOCALITY,
+      params: { province: [], locality: [] },
+    });
+    expect(scope.selectedProvince).toBeNull();
+    expect(scope.selectedLocality).toBeNull();
+    expect(scope.filteredJurisdictions).toStrictEqual(A_MULTI_LOCALITY);
+  });
+});

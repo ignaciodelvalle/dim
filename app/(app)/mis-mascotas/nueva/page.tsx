@@ -15,13 +15,17 @@ import { and, count, eq, isNull } from "drizzle-orm";
 
 import { db, ownerships } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { createPetAction } from "@/src/modules/pets/actions";
 import { MinimalNewPetForm } from "./MinimalNewPetForm";
 
 export default async function NewPetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ chipConflict?: string; microchipId?: string }>;
+  // `string | string[]`, not `string`: Next passes an ARRAY when a key repeats
+  // (`?microchipId=a&microchipId=b`), which made the old `sp.microchipId?.trim()`
+  // throw and render a raw 500. See lib/utils/search-params.ts.
+  searchParams: Promise<{ chipConflict?: string | string[]; microchipId?: string | string[] }>;
 }) {
   // Auth is enforced by the (app) layout above us, but we need the user id to
   // count their existing pets — a single SQL COUNT, never loads pet rows.
@@ -45,8 +49,8 @@ export default async function NewPetPage({
   // cross-check, and a token with no code cannot be validated (the HMAC is
   // bound to the code).
   const sp = await searchParams;
-  const conflictToken = sp.chipConflict?.trim();
-  const conflictChip = sp.microchipId?.trim();
+  const conflictToken = trimmedSearchParam(sp.chipConflict);
+  const conflictChip = trimmedSearchParam(sp.microchipId);
   const chipConflict =
     conflictToken && conflictChip
       ? { microchipId: conflictChip, forceToken: conflictToken }
