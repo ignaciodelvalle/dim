@@ -195,7 +195,10 @@ import {
   toPeriodSearchParams,
   toScopeFilter,
 } from "@/src/modules/panorama/domain/view-state";
-import { explainViewState } from "@/src/modules/panorama/domain/view-state-caption";
+import {
+  explainViewState,
+  layerIdsAreAllCurrentState,
+} from "@/src/modules/panorama/domain/view-state-caption";
 import { toast } from "sonner";
 
 export type { SeededLayer } from "@/components/panorama/panorama-console-helpers";
@@ -1663,8 +1666,21 @@ export function PanoramaConsole({
   // + active period-sensitive layers, instead of relying on the scopePeriodQs-keyed
   // effects (which the shallow write never triggers). Back/Forward stays coherent
   // via the popstate resync (resyncBoardFromUrl), which restores from/to too.
+  // T2.7 — a preset switch overwrites the período with the vista's default by
+  // CONTRACT (preserving an operator period across presets would change every
+  // preset's meaning — deferred). What must not survive is the silence: when
+  // the operator explicitly committed a different window this session, the
+  // reset says so in one line. The ref tracks the explicit choice; the state
+  // holds the es-AR label of the window the preset reset to (null = no notice).
+  const operatorPeriodRef = useRef<string | null>(null);
+  const [periodResetNotice, setPeriodResetNotice] = useState<string | null>(null);
+
   const commitPeriod = useCallback(
     (nextPeriod: string, from: string | null, to: string | null) => {
+      // T2.7: an explicit operator commit — remember it, and clear any stale
+      // reset notice (the operator owns the window again).
+      operatorPeriodRef.current = nextPeriod;
+      setPeriodResetNotice(null);
       const isCustom = nextPeriod === "custom" && from !== null && to !== null;
       // Build the shallow URL off the FRESHEST live URL (a scope drill may have
       // pushed ?province/?locality useSearchParams can't see). Camera params stay —
@@ -2577,6 +2593,14 @@ export function PanoramaConsole({
       // scrubber axis + PeriodPicker highlight track the loaded window, not the
       // stale bare-URL default.
       setCommittedPeriod(preset.periodPreset);
+      // T2.7: overwriting an EXPLICIT operator window must not be silent —
+      // surface the one-line notice (the overwrite semantics are unchanged).
+      if (operatorPeriodRef.current !== null && operatorPeriodRef.current !== preset.periodPreset) {
+        setPeriodResetNotice(preset.periodPreset === "30d" ? "30 días" : "90 días");
+      } else {
+        setPeriodResetNotice(null);
+      }
+      operatorPeriodRef.current = null;
 
       // riesgo-ppp gap fix: the bivariateMode useState initializer only seeds
       // from the OPENING preset's `encodings` declaration once, at mount (via
@@ -4209,6 +4233,10 @@ export function PanoramaConsole({
           from={fromParam ?? null}
           to={toParam ?? null}
           onPeriodChange={commitPeriod}
+          // T2.6: an all-current-state board ignores the período — the panel
+          // says so instead of showing a selected window (ONE clock per screen,
+          // same rule buildViewMeta and the view card already read).
+          currentStateOnly={layerIdsAreAllCurrentState(activeLayerIdList)}
         />
       ),
     },
@@ -4606,6 +4634,24 @@ export function PanoramaConsole({
                     type="button"
                     aria-label="Descartar aviso"
                     onClick={() => setRestoredBoardNotice(false)}
+                    className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
+                  >
+                    <Icon name="close" size="sm" decorative />
+                  </button>
+                </output>
+              )}
+              {/* T2.7 — the preset reset the operator's explicit período; the
+                  contract stands (preset defaults win) but never silently. */}
+              {periodResetNotice !== null && (
+                <output
+                  aria-live="polite"
+                  className="flex items-center gap-x-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-xs text-ln-op-ink-2"
+                >
+                  <span>El período volvió a {periodResetNotice} con la vista.</span>
+                  <button
+                    type="button"
+                    aria-label="Descartar aviso de período"
+                    onClick={() => setPeriodResetNotice(null)}
                     className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
                   >
                     <Icon name="close" size="sm" decorative />

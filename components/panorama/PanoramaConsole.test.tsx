@@ -928,6 +928,67 @@ describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3
       "false",
     );
   });
+
+  // T2.7 (browser-verified): applyPreset always overwrites the período with the
+  // preset default — the CONTRACT stands, but discarding an operator-chosen
+  // window used to be silent. The one-line notice names the window it reset to.
+  it("T2.7: a preset switch that resets an explicit operator período says so (dismissible)", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderConsole();
+
+    // The operator explicitly commits 30 días…
+    openPeriodo();
+    fireEvent.click(screen.getByRole("button", { name: "30 días" }));
+    expect(screen.queryByText(/El período volvió a/)).not.toBeInTheDocument();
+
+    // …then switches vista (Brotes activos defaults to 90d) → the reset speaks.
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    expect(screen.getByText("El período volvió a 90 días con la vista.")).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Descartar aviso de período" }));
+    expect(screen.queryByText(/El período volvió a/)).not.toBeInTheDocument();
+  });
+
+  it("T2.7: no notice when the operator never chose a período (URL default is not an operator choice)", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Brotes activos/ }));
+    expect(screen.queryByText(/El período volvió a/)).not.toBeInTheDocument();
+  });
+
+  // T2.6 (browser-verified): PeriodPanel rendered a flat radio off ?period=
+  // with zero awareness of current-state boards, while the header honestly said
+  // "Estado actual" — two period claims over one screen. When every active
+  // layer is a current-state snapshot the panel now says the período does not
+  // apply and grays the radios out (same layerIdsAreAllCurrentState rule the
+  // view card and buildViewMeta already read — ONE clock per screen).
+  it("T2.6: an all-current-state board grays the Período panel and states the window doesn't apply", async () => {
+    renderConsole();
+
+    // Default board (perdidas — temporal): the panel is a live selector.
+    openPeriodo();
+    expect(
+      screen.queryByText("Esta vista muestra estado actual; el período no aplica."),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "30 días" })).toBeEnabled();
+
+    // Cumplimiento antirrábico: base cobertura, a current-state rate.
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    openPeriodo();
+    expect(
+      screen.getByText("Esta vista muestra estado actual; el período no aplica."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "30 días" })).toBeDisabled();
+    // No highlighted selection over an inert control.
+    expect(screen.getByRole("button", { name: "90 días" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+  });
 });
 
 describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)", () => {

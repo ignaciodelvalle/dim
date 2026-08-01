@@ -30,14 +30,18 @@ import {
 } from "@/lib/metrics/period-presets";
 
 // 30d/90d/ytd/3y/5y are single-sourced from lib/metrics/period-presets
-// (identical label in PeriodPicker.tsx); 7d/trailing12m keep their
-// PeriodPanel-specific terser rail copy locally — see that module's doc
-// comment for why.
+// (identical label in PeriodPicker.tsx); 7d keeps its PeriodPanel-specific
+// terser rail copy locally — see that module's doc comment for why.
+// trailing12m was unified with PeriodPicker's wording (T2.6, 2026-08-01).
 const COMMON: ReadonlyArray<{ value: PeriodPreset; label: string }> = [
   { value: "7d", label: "7 días" },
   PRESET_30D,
   PRESET_90D,
-  { value: "trailing12m", label: "12 meses" },
+  // T2.6 copy alignment (2026-08-01): "Últimos 12 meses" — the same wording
+  // PeriodPicker and the view caption ("últimos 12 meses") use, so the two
+  // surfaces never name one window two ways. Supersedes the terser "12 meses"
+  // rail copy noted in lib/metrics/period-presets.ts.
+  { value: "trailing12m", label: "Últimos 12 meses" },
 ];
 
 const MORE: ReadonlyArray<{ value: PeriodPreset; label: string }> = [
@@ -59,9 +63,24 @@ type Props = {
    * the console commits scope/layers/asOf — a History push + a client refetch.
    */
   onPeriodChange: (period: string, from: string | null, to: string | null) => void;
+  /**
+   * T2.6 — true when EVERY active layer is a current-state snapshot
+   * (layerIdsAreAllCurrentState): those layers ignore the period outright, and
+   * the header honestly says "Estado actual" while this panel used to show a
+   * selected "Últimos 90 días" — two period claims over one screen. When set,
+   * the selector grays out with one line saying the período does not apply.
+   */
+  currentStateOnly?: boolean;
 };
 
-export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: Props) {
+export function PeriodPanel({
+  activePeriod,
+  detail,
+  from,
+  to,
+  onPeriodChange,
+  currentStateOnly = false,
+}: Props) {
   const [customRange, setCustomRange] = useState<DateRange>({ from, to });
   // "Personalizado…" is expanded when the committed period IS custom, or the
   // operator just revealed the picker (before the range is complete — no commit
@@ -92,15 +111,25 @@ export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: 
   return (
     <fieldset className="m-0 flex flex-col gap-0.5 border-0 p-0">
       <legend className="sr-only">Período</legend>
+      {/* T2.6: the header says "Estado actual" for this board — echoing a
+          selected window here would claim a filter no number on screen
+          respects. Say it once, plainly, and gray the radios out. */}
+      {currentStateOnly && (
+        <p className="px-2.5 pb-1 text-sm leading-snug text-ln-op-mute">
+          Esta vista muestra estado actual; el período no aplica.
+        </p>
+      )}
       {options.map(({ value, label }) => {
-        const isActive = activePeriod === value;
+        // No highlighted selection over an inert control (T2.6).
+        const isActive = !currentStateOnly && activePeriod === value;
         return (
           <button
             key={value}
             type="button"
             aria-pressed={isActive}
+            disabled={currentStateOnly}
             onClick={() => pick(value)}
-            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm ${
+            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${
               isActive
                 ? "bg-ln-op-azul/10 font-semibold text-ln-op-azul"
                 : "text-ln-op-ink hover:bg-ln-op-stripe"
@@ -117,20 +146,23 @@ export function PeriodPanel({ activePeriod, detail, from, to, onPeriodChange }: 
         <>
           <button
             type="button"
-            aria-pressed={customActive}
+            aria-pressed={!currentStateOnly && customActive}
+            disabled={currentStateOnly}
             onClick={revealCustom}
-            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm ${
-              customActive
+            className={`flex w-full items-center gap-2 rounded-[var(--radius-md)] px-2.5 py-1.5 text-left text-sm disabled:cursor-not-allowed disabled:opacity-50 ${
+              !currentStateOnly && customActive
                 ? "bg-ln-op-azul/10 font-semibold text-ln-op-azul"
                 : "text-ln-op-ink hover:bg-ln-op-stripe"
             }`}
           >
             <span aria-hidden="true" className="inline-flex w-3 items-center text-ln-op-azul">
-              {customActive ? <Icon name="check" size={12} decorative /> : null}
+              {!currentStateOnly && customActive ? (
+                <Icon name="check" size={12} decorative />
+              ) : null}
             </span>
             Personalizado…
           </button>
-          {customActive && (
+          {!currentStateOnly && customActive && (
             <div className="mt-1 border-t border-ln-op-line-2 pt-2">
               <DateRangePicker value={customRange} onChange={handleCustomRangeChange} />
             </div>
