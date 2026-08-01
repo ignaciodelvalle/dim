@@ -63,7 +63,7 @@
     { "do": "sleep", "ms": 6000 },
     { "do": "shot", "name": "05-admin-panel" },
     {
-      "_why": "Anonymous surface. With an active session /login redirects to the panel, so an h1 check there reads 'Panel de administracion' and proves nothing. `anon` drops the session -- new context, no cookies, no storage state -- so the steps below exercise what an unauthenticated citizen hits first, and reveal a missing NEXT_PUBLIC_SITE_URL or a broken CSP nonce. Before 2026-07-27 this requirement lived only in a comment and the runner ignored it.",
+      "_why": "Anonymous surface. With an active session /login redirects to the panel, so an h1 check there reads 'Briefing de administracion' and proves nothing. `anon` drops the session -- new context, no cookies, no storage state -- so the steps below exercise what an unauthenticated citizen hits first, and reveal a missing NEXT_PUBLIC_SITE_URL or a broken CSP nonce. Before 2026-07-27 this requirement lived only in a comment and the runner ignored it.",
       "do": "anon"
     },
     { "do": "goto", "url": "/login" },

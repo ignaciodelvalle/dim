@@ -57,7 +57,10 @@ export default async function AdminDashboardPage() {
       <ScreenHeader
         className="space-y-1"
         eyebrow="miMAR Plataforma · Admin"
-        title="Panel de administración"
+        // "Briefing", not "Panel" — the admin twin of the /gob rename (PO
+        // decision 2026-08-01). /admin ships its own "Panorama" entry one nav
+        // section below, so it had the same two-synonyms problem.
+        title="Briefing de administración"
         subtitle={
           <p className="text-md text-ln-op-ink-2">
             Estas colas se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.

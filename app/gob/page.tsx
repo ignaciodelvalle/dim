@@ -245,7 +245,12 @@ export default async function GobiernoDashboardPage({
           miMAR Gobierno · {roleLabel} · {scopeLabel}
         </>
       }
-      title="Panel de jurisdicción"
+      // "Briefing", not "Panel" (PO decision 2026-08-01): the rail used to
+      // offer "Panel" and "Panorama" as two general-overview nouns with no way
+      // to tell them apart. This screen has been the `briefing` layer since C6b
+      // (lib/ui/screen-manifest.ts) — the h1 now matches the nav label and the
+      // layer name.
+      title="Briefing de jurisdicción"
       subtitle={<ViewScopeCaption scope={narrowedView} />}
     />
   );

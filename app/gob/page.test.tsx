@@ -240,7 +240,18 @@ describe("/gob (home) — C6b briefing block order", () => {
     expect(headerHtml).not.toContain("Habilitación");
     expect(headerHtml).not.toContain("Denuncias de maltrato");
     // Only title + mandate chrome + ViewScopeCaption remain.
-    expect(headerHtml).toContain("Panel de jurisdicción");
+    expect(headerHtml).toContain("Briefing de jurisdicción");
+  });
+
+  // PO decision 2026-08-01 — the h1 must agree with the nav label and the
+  // crumb; "Panel" was the word that read as a synonym of "Panorama". Pinned
+  // as both a positive and a negative: without the negative, re-adding a
+  // "Panel de jurisdicción" subtitle beside the new h1 would stay green.
+  it("h1 reads 'Briefing de jurisdicción' and the old 'Panel' wording is gone", async () => {
+    const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("Briefing de jurisdicción");
+    expect(html).not.toContain("Panel de jurisdicción");
   });
 
   it("Cola operativa renders individual cards — one per queue, each carrying its own live count (PO visual-validation batch B: no more condensed row)", async () => {

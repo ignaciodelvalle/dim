@@ -425,11 +425,18 @@ export function buildOrgNavFlat(orgToken: string, opts: OrgNavOptions = {}): Nav
 //    2026-07-09 audit; route survives only as a deep-link redirect) — nothing
 //    to regroup, so Profundidad's "Sistema" is a no-op here.
 export const GOB_NAV_SECTIONS: NavSection[] = [
-  // Unlabeled/top — Panel only. This is the future Briefing's home; every
-  // other top-level surface now lives in one of the five layers below.
+  // Unlabeled/top — the Briefing. This IS the Briefing's home now (PO decision
+  // 2026-08-01): the label was "Panel", which read as a synonym of the
+  // "Panorama" entry one section below, so a funcionario opening the rail had
+  // two general-overview nouns and no way to tell which one to click. The
+  // screen's own layer has been called `briefing` since C6b
+  // (lib/ui/screen-manifest.ts) and its hero comes from
+  // lib/metrics/briefing-alerts.ts — the label now says what the screen already
+  // is. Route and matchPrefix are untouched; only the surface word changed.
+  // /org keeps "Panel": that rail has no Panorama to collide with.
   {
     label: "",
-    items: [{ href: "/gob", label: "Panel" }],
+    items: [{ href: "/gob", label: "Briefing" }],
   },
   {
     // Situational/risk surfaces — "what does the map look like right now".
@@ -587,9 +594,11 @@ export const GOB_NAV: NavItem[] = GOB_NAV_FLAT;
 //    twin — all Profundidad (analyst/admin-config), same layer as their
 //    closest gob relatives (Reglas/Directorio).
 export const ADMIN_NAV_SECTIONS: NavSection[] = [
+  // Same Panel→Briefing rename as GOB_NAV_SECTIONS above, and for the same
+  // reason: /admin also ships a "Panorama" entry in the section right below.
   {
     label: "",
-    items: [{ href: "/admin", label: "Panel" }],
+    items: [{ href: "/admin", label: "Briefing" }],
   },
   {
     label: "Situación",

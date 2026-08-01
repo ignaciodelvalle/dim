@@ -1,4 +1,13 @@
 // Unit tests for nav-presets — pure module, no React required.
+//
+// One block at the bottom ("portal home h1 agrees with its nav label") reads
+// the two portal home page sources from disk. It is the only impure block in
+// this file, and it lives here on purpose: nav-presets IS the source of truth
+// for what the portal root is called, and the h1 that drifts from it is the
+// bug (see that block's own comment for why a source scan and not a render).
+
+import * as fs from "node:fs";
+import * as path from "node:path";
 
 import { describe, expect, it } from "vitest";
 import {
@@ -102,6 +111,20 @@ describe("buildOrgNav (section structure)", () => {
     const [first] = buildOrgNav("ORG-ABC", { granted: ALL_GATED_CAPS });
     expect(first.label).toBe("");
     expect(first.items[0]?.label).toBe("Panel");
+  });
+
+  // Scope fence for the 2026-08-01 Panel→Briefing rename: gob and admin got it
+  // because THEIR rails also carry a "Panorama" entry, and two general-overview
+  // nouns side by side left a funcionario guessing. The org rail has no
+  // Panorama, so "Panel" collides with nothing and stays. This assertion exists
+  // so a later "harmonise the portals" sweep has to argue with a test instead
+  // of quietly widening the rename.
+  it("keeps 'Panel' — the org rail has no Panorama entry to collide with", () => {
+    const sections = buildOrgNav("ORG-ABC", FULL_NAV);
+    const labels = sections.flatMap((s) => s.items.map((i) => i.label));
+    expect(labels).toContain("Panel");
+    expect(labels).not.toContain("Briefing");
+    expect(labels).not.toContain("Panorama");
   });
 });
 
@@ -547,7 +570,7 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(casos?.label).toBe("Casos");
   });
 
-  it("includes /gob/programa in the Programa section, not the unlabeled top (C6a — top holds only Panel)", () => {
+  it("includes /gob/programa in the Programa section, not the unlabeled top (C6a — top holds only the Briefing)", () => {
     const unlabeled = GOB_NAV_SECTIONS.find((s) => s.label === "");
     expect(unlabeled?.items.map((i) => i.href)).toEqual(["/gob"]);
     const progSection = GOB_NAV_SECTIONS.find((s) => s.label === "Programa");
@@ -599,9 +622,30 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(sectionHrefs.length).toBe(unique.size);
   });
 
-  it("first section is unlabeled (Panel)", () => {
+  it("first section is unlabeled (the Briefing)", () => {
     expect(GOB_NAV_SECTIONS[0].label).toBe("");
     expect(GOB_NAV_SECTIONS[0].items[0].href).toBe("/gob");
+  });
+
+  // PO decision 2026-08-01. The rail offered "Panel" and "Panorama" — two
+  // general-overview nouns, no way to tell which one a funcionario wants. The
+  // top entry is now named after the layer the screen has belonged to since
+  // C6b (`briefing`, lib/ui/screen-manifest.ts). Asserted together with the
+  // Panorama label because the DEFECT was the pair, not either word alone: a
+  // test that only pinned "Briefing" would stay green if Panorama were renamed
+  // back into a synonym.
+  it("names the top entry 'Briefing', distinct from the 'Panorama' entry below it", () => {
+    expect(GOB_NAV_SECTIONS[0].items[0].label).toBe("Briefing");
+    const situacion = GOB_NAV_SECTIONS.find((s) => s.label === "Situación");
+    expect(situacion?.items.find((i) => i.href === "/gob/panorama")?.label).toBe("Panorama");
+  });
+
+  it("keeps /gob's href and matchPrefix untouched by the label rename", () => {
+    const top = GOB_NAV_SECTIONS[0].items[0];
+    expect(top.href).toBe("/gob");
+    // The top entry never had a matchPrefix (exact-match on "/gob"); the
+    // rename must not have introduced one.
+    expect(top.matchPrefix).toBeUndefined();
   });
 
   it("sections follow the C6a layer order: Situación → Programa → Intervención → Bandeja operativa → Profundidad", () => {
@@ -732,10 +776,24 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
   });
 
   it("Situación is the first labeled section (C6a — Panorama leads, mirrors gob)", () => {
-    // index 0 is the unlabeled Panel-only top; the first NAMED group is
+    // index 0 is the unlabeled Briefing-only top; the first NAMED group is
     // where the eye lands next.
     const firstLabeled = ADMIN_NAV_SECTIONS.find((s) => s.label !== "");
     expect(firstLabeled?.label).toBe("Situación");
+  });
+
+  // Admin twin of the gob assertion — same PO decision, same synonym pair
+  // (/admin ships its own Panorama entry one section below).
+  it("names the top entry 'Briefing', distinct from the 'Panorama' entry below it", () => {
+    expect(ADMIN_NAV_SECTIONS[0].items[0].label).toBe("Briefing");
+    const situacion = ADMIN_NAV_SECTIONS.find((s) => s.label === "Situación");
+    expect(situacion?.items.find((i) => i.href === "/admin/panorama")?.label).toBe("Panorama");
+  });
+
+  it("keeps /admin's href and matchPrefix untouched by the label rename", () => {
+    const top = ADMIN_NAV_SECTIONS[0].items[0];
+    expect(top.href).toBe("/admin");
+    expect(top.matchPrefix).toBeUndefined();
   });
 
   it("Situación holds Panorama + Observaciones (C6a — epidemiological surveillance judgment)", () => {
@@ -1068,5 +1126,36 @@ describe("C3 — gob /historial label honesty fix", () => {
     const item = allAdminItems.find((i) => i.href === "/admin/historial");
     expect(item).toBeDefined();
     expect(item?.label).toBe("Historial");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Panel → Briefing (PO decision 2026-08-01): the nav label, the breadcrumb root
+// and the portal home's h1 all name the SAME destination, so they have to move
+// together. The crumb side is fenced in __tests__/operator-breadcrumbs.test.ts;
+// the /gob h1 is fenced by a render test in app/gob/page.test.tsx.
+//
+// The /admin h1 had NO unit coverage at all — only e2e/owner-ia-p6.spec.ts,
+// which does not run in `pnpm vitest`. A mutation flipping it back to "Panel de
+// administración" survived the entire vitest suite. app/admin/page.tsx pulls the
+// full admin-metrics fetcher set, so rendering it here would cost more mocking
+// than the assertion is worth; a source scan buys the same regression fence for
+// two lines. It is deliberately narrow — it reads the `title=` prop, not layout.
+// ---------------------------------------------------------------------------
+
+describe("portal home h1 agrees with its nav label", () => {
+  const REPO_ROOT = path.resolve(__dirname, "..", "..");
+  const readPage = (rel: string) => fs.readFileSync(path.join(REPO_ROOT, rel), "utf8");
+
+  it("/admin renders an h1 titled 'Briefing de administración', not 'Panel de …'", () => {
+    const src = readPage("app/admin/page.tsx");
+    expect(src).toContain('title="Briefing de administración"');
+    expect(src).not.toContain('title="Panel de administración"');
+  });
+
+  it("/gob renders an h1 titled 'Briefing de jurisdicción', not 'Panel de …'", () => {
+    const src = readPage("app/gob/page.tsx");
+    expect(src).toContain('title="Briefing de jurisdicción"');
+    expect(src).not.toContain('title="Panel de jurisdicción"');
   });
 });

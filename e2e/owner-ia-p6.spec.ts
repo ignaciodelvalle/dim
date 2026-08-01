@@ -679,7 +679,7 @@ test("12 — admin /admin shows the queue cockpit", async ({ browser }) => {
     await page.waitForLoadState("domcontentloaded");
 
     expect(new URL(page.url()).pathname, "admin stays on /admin").toBe("/admin");
-    await expect(page.getByRole("heading", { name: /Panel de administración/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Briefing de administración/i })).toBeVisible();
     await expect(page.getByText(/Estado de las colas/i), "queue cockpit present").toBeVisible();
     await expect(
       page.getByText(/Colas operativas/i),

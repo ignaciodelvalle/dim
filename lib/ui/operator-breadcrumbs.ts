@@ -3,7 +3,7 @@
 // Output: an ordered list of { label, href? } items suitable for OpCrumbs.
 //
 // Rules:
-//   - The first crumb is always the portal root ("Panel"), linked.
+//   - The first crumb is always the portal root ("Briefing"), linked.
 //   - The second crumb is the section label derived from the nav presets.
 //   - Additional depth is capped: any dynamic id/token segment gets a generic
 //     "Detalle" label instead of echoing raw ids (PII / ugliness concern).
@@ -112,9 +112,15 @@ function labelForSegment(segment: string, segmentMap: Map<string, string>): stri
 // Root labels and base paths per portal.
 // ---------------------------------------------------------------------------
 
+// The root label MUST stay in lockstep with the unlabeled-top nav item in
+// components/layout/nav-presets.ts (GOB_NAV_SECTIONS / ADMIN_NAV_SECTIONS):
+// the crumb and the rail entry name the SAME destination, and a crumb reading
+// "Panel › Panorama" beside a rail reading "Briefing" would reintroduce the
+// two-nouns-one-screen confusion this rename removed (PO decision 2026-08-01).
+// /org is unaffected — its crumbs come from OrgBreadcrumbs.tsx and keep "Panel".
 const PORTAL_META: Record<OperatorPortal, { rootLabel: string; base: string }> = {
-  gob: { rootLabel: "Panel", base: "/gob" },
-  admin: { rootLabel: "Panel", base: "/admin" },
+  gob: { rootLabel: "Briefing", base: "/gob" },
+  admin: { rootLabel: "Briefing", base: "/admin" },
 };
 
 // ---------------------------------------------------------------------------
