@@ -54,6 +54,7 @@ import {
 } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { ViewScopeCaption } from "@/components/ui/dashboard/ViewScopeCaption";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -62,6 +63,7 @@ import {
   listCasesForAdmin,
   listCasesForGovt,
 } from "@/lib/infra/case-queries";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   CASE_KINDS,
@@ -274,6 +276,24 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
       ? { role: "admin", province: adminSelectedProvince, locality: adminSelectedLocality }
       : { role: "govt", jurisdictions: filteredJurisdictions };
 
+  // C3. The moment this screen started resolving scope through the canonical
+  // fence (demo review 2026-08-01 — it was the only /gob surface still parsing
+  // `?province=<canonical name>` against a hand-built list, so the `AR-B` every
+  // other screen writes fell through in silence), it inherited the obligation
+  // that comes with narrowing: a view showing LESS than the operator's mandate
+  // has to say so. `lint:view-scope` caught the gap on the very next run — the
+  // fence is the reason this line exists, not an afterthought.
+  const narrowedView = describeNarrowedView({
+    role: session.profile.role,
+    mandateJurisdictions: session.jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    // The resolver returns null for "no drill"; the descriptor's contract is
+    // undefined. Coalescing rather than widening the descriptor: null and
+    // undefined mean the same thing here, and the descriptor is shared.
+    adminProvince: adminSelectedProvince ?? undefined,
+    adminLocality: adminSelectedLocality ?? undefined,
+  });
+
   const {
     activeStatus,
     casoEstado,
@@ -294,19 +314,22 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
         eyebrow="Casos regulatorios"
         title="Casos"
         subtitle={
-          <p className="text-md text-ln-op-mute">
-            {scope.role === "admin"
-              ? "Expedientes en todo el sistema. Vista universal admin."
-              : "Expedientes en tu jurisdicción asignada."}{" "}
-            {/* The queue no longer lists custody disputes (they live in their
+          <>
+            <ViewScopeCaption scope={narrowedView} />
+            <p className="text-md text-ln-op-mute">
+              {scope.role === "admin"
+                ? "Expedientes en todo el sistema. Vista universal admin."
+                : "Expedientes en tu jurisdicción asignada."}{" "}
+              {/* The queue no longer lists custody disputes (they live in their
                 own screen, with the resolve form). Saying so — and linking —
                 is what keeps the exclusion from reading as data loss. */}
-            Las disputas de custodia se trabajan en{" "}
-            <Link href="/gob/disputas" className="underline underline-offset-2">
-              Disputas
-            </Link>
-            .
-          </p>
+              Las disputas de custodia se trabajan en{" "}
+              <Link href="/gob/disputas" className="underline underline-offset-2">
+                Disputas
+              </Link>
+              .
+            </p>
+          </>
         }
       />
 
