@@ -17,6 +17,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
+import { biteEscalationSub } from "@/app/gob/vigilancia/_components/rabies-counter-labels";
 import { OpKpi } from "@/components/ui/dashboard/OpKpi";
 import { type BriefingAlertCandidate, buildBriefingAlerts } from "@/lib/metrics/briefing-alerts";
 import { forecastToTarget } from "@/lib/metrics/forecast-to-target";
@@ -216,17 +217,23 @@ describe("hostile reader — brecha de escalamiento nunca colapsa en una sola ci
   });
 
   it("OpKpi renders BOTH counts, never a single blended ratio", () => {
+    // The sub comes from the SCREEN's own builder, not a copy pasted here: the
+    // hand-written fixture that used to sit in this argument kept asserting
+    // "vs 0 observaciones rábicas abiertas" long after that wording was found
+    // to collide with the neighbouring case counter (demo review 2026-08-01 #5).
+    // A prop fixture is invisible to a grep for bad assertions — wiring it to
+    // the real builder is what keeps this test honest.
     render(
       <OpKpi
         label={KPI_CATALOG.bite_escalation_gap.label}
         value="690"
-        sub="vs 0 observaciones rábicas abiertas — los reportes sin escalamiento no implican ausencia de riesgo"
+        sub={biteEscalationSub(0)}
         descriptorId="bite_escalation_gap"
       />,
     );
     expect(screen.getByText("690")).toBeInTheDocument();
-    expect(screen.getByText(/0 observaciones rábicas abiertas/)).toBeInTheDocument();
-    expect(screen.getByText(/no implican ausencia de riesgo/)).toBeInTheDocument();
+    expect(screen.getByText(/0 mascotas en observación rábica hoy/)).toBeInTheDocument();
+    expect(screen.getByText(/no implica ausencia de riesgo/)).toBeInTheDocument();
   });
 });
 

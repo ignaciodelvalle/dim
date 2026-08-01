@@ -50,6 +50,11 @@ import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatCount, pluralizeEs } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
+import {
+  RABIES_CASES_KPI_CAVEAT,
+  RABIES_CASES_KPI_LABEL,
+  biteEscalationSub,
+} from "./_components/rabies-counter-labels";
 
 export default async function GobVigilanciaPage({
   searchParams,
@@ -329,8 +334,14 @@ export default async function GobVigilanciaPage({
           }}
           descriptorId="outbreak_active_signals"
         />
+        {/* Demo review 2026-08-01 (#5): this tile used to be labelled "Rábicas
+            activas", a few tiles away from the escalation tile's "vs N
+            observaciones rábicas abiertas". Two near-identical rabies labels,
+            two different numbers (12 vs 1 nacional; 0 vs 1 con CABA), nothing
+            saying they were different counters. Both now name their unit —
+            see _components/rabies-counter-labels.ts. */}
         <OpKpi
-          label="Rábicas activas"
+          label={RABIES_CASES_KPI_LABEL}
           value={formatCount(metrics.rabiesActiveCount)}
           tone={metrics.rabiesActiveCount > 0 ? "danger" : "neutral"}
           sparkline={rabiesSparkline.points.map((p) => p.y)}
@@ -343,6 +354,7 @@ export default async function GobVigilanciaPage({
             definition:
               "Cantidad de casos de observación rábica (caseKind='rabies_observation') con estado 'open' en la jurisdicción.",
             formula: "COUNT(cases WHERE caseKind='rabies_observation' AND status='open')",
+            caveat: RABIES_CASES_KPI_CAVEAT,
           }}
           descriptorId="rabies_observation_cases_open"
         />
@@ -408,7 +420,10 @@ export default async function GobVigilanciaPage({
         <OpKpi
           label={KPI_CATALOG.bite_escalation_gap.label}
           value={formatCount(escalationGap.bites12m)}
-          sub={`vs ${escalationGap.openObservations} observaciones rábicas abiertas — la ausencia de escalamiento no implica ausencia de riesgo`}
+          // Names MASCOTAS, not "observaciones rábicas abiertas": the tile two
+          // rows up counts open EXPEDIENTES, and the old wording made the two
+          // read as one contradicted number (demo review 2026-08-01, #5).
+          sub={biteEscalationSub(escalationGap.openObservations)}
           href="/gob/casos?kind=bite_incident"
           descriptorId="bite_escalation_gap"
         />
