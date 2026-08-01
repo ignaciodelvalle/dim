@@ -231,7 +231,13 @@ describe("caseKindLabel fallback", () => {
     expect(caseKindLabel("bite_incident")).toBe("Mordedura / observación rábica");
   });
 
-  it("labels the seed-only rabies_observation kind", () => {
+  // NOT a supported kind — a retired one. Nothing opens 'rabies_observation'
+  // any more (the seed now writes 'bite_incident', the kind that has a
+  // closer), but rows written before that fix still sit in staging/prod and
+  // must not render blank. The label is a read-side courtesy for legacy data,
+  // never a licence to write the kind again — __tests__/seed-case-kinds.test.ts
+  // is what stops that.
+  it("still labels the retired rabies_observation kind so legacy rows never render blank", () => {
     expect(caseKindLabel("rabies_observation")).toBe("Observación antirrábica");
   });
 

@@ -1246,8 +1246,11 @@ describe("fetchVigilanciaMetrics", () => {
       locality: "La Plata",
       hoursAgo: 1,
     });
+    // 'bite_incident' is the kind rabiesActiveCount counts — the expediente a
+    // rabies observation actually lives on. (Was 'rabies_observation', a kind
+    // no production code opens or closes.)
     await insertFixtureCase({
-      caseKind: "rabies_observation",
+      caseKind: "bite_incident",
       status: "open",
       province: "Buenos Aires",
       locality: "La Plata",

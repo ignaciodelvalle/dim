@@ -343,8 +343,30 @@ export async function fetchVigilanciaMetrics(
       .where(and(...outbreakConditions)),
     db
       .select({
+        // The rabies expediente is a `bite_incident` case, NOT the
+        // 'rabies_observation' string this used to count. That string is not a
+        // member of CASE_KINDS: nothing in the app opens it and — the part that
+        // broke — nothing closes it, so every row that ever carried it stayed
+        // open forever. Measured on staging 2026-08-01: 12 such rows against 1
+        // pet actually under observation, zero overlap, each already carrying
+        // its cron-written `rabies_observation_ended`. The tile was reporting a
+        // pile of immortal fixtures next to a live counter that said 1.
+        //
+        // `bite_incident` is the real thing on every axis: reportBite opens it
+        // and emits `rabies_observation_started` in the SAME transaction (so
+        // the two populations coincide by construction), its lifecycle declares
+        // `terminalEvents: ['rabies_observation_ended']`, and all three closers
+        // resolve it via findOpenBiteCase.
+        //
+        // 'escalated' counts alongside 'open' — same as the investigation arm
+        // below. bite-incident.ts declares escalated as a valid status (a
+        // rabies-compatible symptom during observation); counting only 'open'
+        // would drop the single highest-risk expediente out of a RABIES
+        // counter. No writer escalates a bite case today (escalateCase is wired
+        // only for outbreaks), so this is free now and correct if that declared
+        // path is ever implemented.
         rabies:
-          sql<number>`count(*) filter (where ${cases.caseKind} = 'rabies_observation' and ${cases.status} = 'open')`.mapWith(
+          sql<number>`count(*) filter (where ${cases.caseKind} = 'bite_incident' and ${cases.status} in ('open', 'escalated'))`.mapWith(
             Number,
           ),
         investigation:

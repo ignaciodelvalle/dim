@@ -171,8 +171,13 @@ export function caseKindLabel(kind: CaseKind | (string & {})): string {
       return "Investigación de brote";
     case "microchip_remediation":
       return "Remediación de microchip";
-    // Outside the CaseKind union — written by scripts/seed-panorama.ts and
-    // counted by fetchVigilanciaMetrics (lib/analytics/govt-dashboards.ts).
+    // RETIRED kind, outside the CaseKind union. scripts/seed-panorama.ts used
+    // to write it and fetchVigilanciaMetrics used to count it; both now use
+    // 'bite_incident', the kind that actually has a lifecycle and a closer.
+    // Rows written before that fix survive in staging/prod and are unclosable
+    // by any code path, so they keep a label here rather than rendering as a
+    // raw key. Do not reintroduce it as a write target — the fence for that is
+    // __tests__/seed-case-kinds.test.ts.
     case "rabies_observation":
       return "Observación antirrábica";
     default:

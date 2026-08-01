@@ -212,12 +212,18 @@ afterEach(cleanupFixtureRows);
 
 describe("PF1 parity — fetchVigilanciaMetrics cases consolidation", () => {
   async function seedCases(province: string, locality: string) {
-    // In-scope: 2 open rabies, 1 closed rabies (must NOT count); 2 active
-    // (open+escalated) investigations, 1 closed investigation (must NOT count).
-    await insertFixtureCase({ caseKind: "rabies_observation", status: "open", province, locality });
-    await insertFixtureCase({ caseKind: "rabies_observation", status: "open", province, locality });
+    // In-scope: 2 active rabies expedientes (open+escalated), 1 closed (must
+    // NOT count); 2 active (open+escalated) investigations, 1 closed
+    // investigation (must NOT count).
+    //
+    // The rabies arm counts case_kind='bite_incident' — the kind that actually
+    // carries a rabies observation. These fixtures used to say
+    // 'rabies_observation', a string no production code writes or closes, so
+    // they pinned a counter that could only ever see immortal seed rows.
+    await insertFixtureCase({ caseKind: "bite_incident", status: "open", province, locality });
+    await insertFixtureCase({ caseKind: "bite_incident", status: "escalated", province, locality });
     await insertFixtureCase({
-      caseKind: "rabies_observation",
+      caseKind: "bite_incident",
       status: "closed",
       province,
       locality,
@@ -249,7 +255,7 @@ describe("PF1 parity — fetchVigilanciaMetrics cases consolidation", () => {
     await seedCases(province, locality);
     // Out-of-scope rows in a different locality — must not leak into the govt count.
     await insertFixtureCase({
-      caseKind: "rabies_observation",
+      caseKind: "bite_incident",
       status: "open",
       province,
       locality: otherLocality,

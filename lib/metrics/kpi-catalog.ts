@@ -1282,7 +1282,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
   rabies_observation_cases_open: {
     id: "rabies_observation_cases_open",
     label: "Casos de observación rábica abiertos",
-    numerator: "COUNT cases where case_kind='rabies_observation' AND status='open'",
+    numerator: "COUNT cases where case_kind='bite_incident' AND status IN ('open','escalated')",
     denominator: "n/a — absolute count",
     source: "cases",
     fetcherName: "fetchVigilanciaMetrics (rabiesActiveCount)",
@@ -1298,7 +1298,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     question:
       "¿Cuántos casos de observación rábica siguen abiertos en la jurisdicción, ahora mismo?",
     exclusions:
-      "Distinto de open_rabies_observations (catálogo): ese cuenta MASCOTAS con rabies_observation_status='in_progress' (tabla pets); este cuenta CASOS (tabla cases) con case_kind='rabies_observation' y status='open' — poblaciones y tablas distintas, no deben sumarse ni leerse como la misma cifra.",
+      "Distinto de open_rabies_observations (catálogo): ese cuenta MASCOTAS con rabies_observation_status='in_progress' (tabla pets); este cuenta EXPEDIENTES (tabla cases) con case_kind='bite_incident' y status abierto o escalado — poblaciones y tablas distintas, no deben sumarse ni leerse como la misma cifra. El expediente de una observación rábica ES el caso de mordedura: reportBite abre el caso y emite rabies_observation_started en la misma transacción. Los dos números pueden diferir legítimamente: un expediente sigue abierto si queda trabajo pendiente aunque la observación ya haya cerrado, y una mascota puede estar en observación sin expediente propio.",
     semaphore: { paintAgainst: "none" },
   },
 
