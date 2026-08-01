@@ -374,3 +374,134 @@ describe("MapLegends — META'd rate layer renders the discrete threshold-class 
     expect(divisionOnly(undefined)).toContain("Sin datos (solo contorno)");
   });
 });
+
+// PO 2026-08-01 — the province branch's FALLBACK (used before SituationalMap has
+// lifted its scale, and whenever the map is not mounted) was a third derivation:
+// `computeClassScale(values, { target })`. It knew about the compliance target
+// and nothing else — not the layer's POLARITY, not delta encoding — while the
+// fill resolved through `resolveChoroplethEncoding`. So a higher-is-better
+// layer's swatches came out the right way up under polygons painted upside down.
+// The fallback now calls the SAME resolver the fill does.
+describe("MapLegends — the province fallback resolves the ENCODING, not a look-alike", () => {
+  const seqCells = [
+    { provinceCode: "AR-B", value: 120 },
+    { provinceCode: "AR-X", value: 340 },
+    { provinceCode: "AR-S", value: 700 },
+    { provinceCode: "AR-M", value: 1100 },
+    { provinceCode: "AR-C", value: 2184 },
+    { provinceCode: "AR-T", value: 90 },
+  ];
+
+  function seqLayer(higherIsBetter?: boolean): ActiveLayer {
+    return {
+      id: "acceso-veterinario",
+      color: "#b6992d",
+      label: "Acceso veterinario (actos/1.000)",
+      geomType: "choropleth",
+      level: "province",
+      dataType: "density",
+      ...(higherIsBetter === undefined ? {} : { higherIsBetter }),
+      features: provinceFC(seqCells),
+    } as ActiveLayer;
+  }
+
+  /** CLASS swatch fills in render order, top class last. Scoped to the `w-4`
+   *  chips ClassSwatchLegend renders — the narrower `w-2.5` keys beside them
+   *  (no-data stipple, k-anon hatch) are categorical states, not ramp classes,
+   *  and would otherwise contaminate the ordering. */
+  function swatchColours(html: string): string[] {
+    return [
+      ...html.matchAll(/class="[^"]*\bw-4\b[^"]*"\s*style="background:\s*(#[0-9a-f]{3,6})/gi),
+    ].map((m) => m[1].toLowerCase());
+  }
+
+  it("inverts the swatches for a higher-is-better layer, exactly as the fill does", () => {
+    const plain = swatchColours(renderLegend(seqLayer()));
+    const better = swatchColours(renderLegend(seqLayer(true)));
+    expect(plain.length).toBeGreaterThan(1);
+    expect(better).toEqual([...plain].reverse());
+  });
+
+  it("does not tag a target-less sequential layer as a meta scale", () => {
+    // `unit` and `meta` now come from the encoding too: a density layer has no
+    // compliance target, so no "%" suffix and no "(meta)" top class.
+    const html = renderLegend(seqLayer(true));
+    expect(html).not.toContain("(meta)");
+    expect(html).not.toContain("%");
+  });
+
+  it("still prefers the LIFTED scale over the fallback when the map has committed one", () => {
+    // The lift is the map's own resolved object (scrub-lock included); the
+    // fallback exists only to cover the frames before it arrives.
+    const html = renderLegend(seqLayer(true), {
+      "acceso-veterinario": { breaks: [10, 20], colors: ["#111111", "#222222", "#333333"] },
+    });
+    expect(swatchColours(html)).toEqual(["#111111", "#222222", "#333333"]);
+  });
+});
+
+// PO 2026-08-01 — "los círculos … no son consistentes con lo mostrado en el
+// mapa". The sample bubbles were always the right SIZE (`b.r` is the radius the
+// map paints) but were drawn as hollow grey rings, while the canvas fills them
+// in the layer's own colour (addGraduatedPointLayer: `circle-color:
+// layer.color`). Matching an orange dot on the map to a grey ring in the key is
+// an act of faith the legend should not be asking for.
+describe("MapLegends — the graduated key cites the bubble colour the map paints", () => {
+  function graduatedLayer(id: string, color: string, label: string): ActiveLayer {
+    return {
+      id,
+      color,
+      label,
+      geomType: "point",
+      renderMode: "graduated",
+      level: "province",
+      dataType: "density",
+      features: { type: "FeatureCollection", features: [] },
+    } as unknown as ActiveLayer;
+  }
+  const scale = {
+    maxValue: 42,
+    bins: [
+      { value: 1, label: "1", r: 5 },
+      { value: 42, label: "42", r: 30 },
+    ],
+    radiusStops: [
+      [0, 5],
+      [42, 30],
+    ] as Array<[number, number]>,
+  };
+
+  it("fills the sample bubbles with the layer colour when ONE layer owns them", () => {
+    const html = renderToStaticMarkup(
+      <MapLegends
+        layers={[graduatedLayer("mordeduras", "#f28e2b", "Mordeduras / antirrábica")]}
+        divisionLegend={null}
+        graduatedScale={scale}
+        provinceSeqLegend={{}}
+      />,
+    );
+    expect(html).toContain("#f28e2b");
+    // And the sizes stay the map's radii (diameter = 2r).
+    expect(html).toContain("width:60px");
+    expect(html).toContain("width:10px");
+  });
+
+  it("stays neutral when TWO graduated layers share the size scale", () => {
+    // There is no single colour to cite, and picking one would imply the other
+    // layer's bubbles are a different mark. The block title names both.
+    const html = renderToStaticMarkup(
+      <MapLegends
+        layers={[
+          graduatedLayer("mordeduras", "#f28e2b", "Mordeduras / antirrábica"),
+          graduatedLayer("zoonosis", "#e15759", "Zoonosis / señales"),
+        ]}
+        divisionLegend={null}
+        graduatedScale={scale}
+        provinceSeqLegend={{}}
+      />,
+    );
+    expect(html).not.toContain("#f28e2b");
+    expect(html).not.toContain("#e15759");
+    expect(html).toContain("Mordeduras / antirrábica · Zoonosis / señales");
+  });
+});

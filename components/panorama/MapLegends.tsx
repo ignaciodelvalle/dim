@@ -8,13 +8,21 @@
 // scale, each titled by the layer it decodes. The map keeps ONLY the
 // zoom/home/Volver controls + the aggregation badge on the canvas.
 //
-// Data flow:
-//   - province ramp + bivariate legends are RENDER-DERIVED from `layers` (the same
-//     derivation SituationalMap used) — recomputed here, no coupling to the map;
+// Data flow — every scale on this panel is the map's, never this panel's:
+//   - the province ramp reads the LIFTED `provinceSeqLegend` (the exact scale
+//     syncLayers resolved for the fill, scrub-lock included); when the lift has
+//     not arrived yet it falls back to `resolveChoroplethEncoding` — the SAME
+//     resolver provinceColorExprForLayer calls, not a look-alike recompute. It
+//     used to be a bare `computeClassScale`, which knew nothing about polarity or
+//     delta encoding and could publish colours the canvas never painted;
 //   - the division-fill legend + graduated-symbol scale are computed imperatively
 //     inside SituationalMap's syncLayers (from the rendered data) and LIFTED here
 //     via props (onDivisionLegendChange / onGraduatedScaleChange), so a legend
-//     bubble/ramp always matches its on-map mark.
+//     bubble/ramp always matches its on-map mark;
+//   - the bivariate matrix reads the shared palette constant (bivariate-fill.ts),
+//     the one the fill expression is built from.
+//
+// The invariant behind all three: this file may DISPLAY a scale, never DERIVE one.
 //
 // The k-anon trichotomy copy (color = value · hatch = protected · outline/neutral
 // = no-data) is preserved verbatim — only the container skin changes (from an
@@ -30,8 +38,8 @@ import {
   type ClassScale,
   type ClassSwatch,
   classSwatches,
-  computeClassScale,
 } from "@/components/panorama/class-scale";
+import { type ChoroplethEncoding, resolveChoroplethEncoding } from "@/components/panorama/encoding";
 import type { GraduatedScale } from "@/components/panorama/graduated-scale";
 import { HATCH_SWATCH_CSS, layerPaintsHatch } from "@/components/panorama/hatch-pattern";
 import { NO_DATA_SWATCH_CSS, NO_DATA_SWATCH_SIZE } from "@/components/panorama/no-data-pattern";
@@ -41,7 +49,6 @@ import {
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
-import { isMetaLayer } from "@/src/modules/panorama/domain/capabilities";
 
 type Props = {
   /** The currently-active layers — the render-derived legends read from these. */
@@ -136,14 +143,23 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
     .map((l) => ({
       layer: l,
       bounds: provinceValueBounds(l.features),
-      // META'd rate layers (a `complianceTarget`) now render the discrete classed
-      // scale anchored on the target — same discrete swatch legend as the
-      // meta-less sequential layers, only with a "%" unit + a "(meta)" top class.
-      // P2: reads the ONE shared registry helper (the gate's encoding.kind source).
-      isMeta: isMetaLayer(l),
+      // The ENCODING the map's fill resolves for this layer (encoding.ts — the
+      // same `resolveChoroplethEncoding` provinceColorExprForLayer calls). It
+      // decides three things this block used to decide for itself: whether the
+      // scale is META'd ("%" + a "(meta)" top class), whether it is a zero-
+      // anchored DELTA, and — on the sequential path — the layer's POLARITY.
+      //
+      // PO 2026-08-01: `isMetaLayer(l)` alone was a SECOND, coarser derivation.
+      // It ignores `deltaEncoded` (which the resolver branches on FIRST, so a
+      // delta layer that also carried a target would have been labelled "%
+      // (meta)" over diverging paint) and it ignores `higherIsBetter`, so the
+      // fallback scale below painted a higher-is-better ramp the right way up
+      // while the map painted it inverted. One resolver, one answer.
+      encoding: resolveChoroplethEncoding(l),
     }))
     .filter(
-      (x): x is { layer: ActiveLayer; bounds: ScaleBounds; isMeta: boolean } => x.bounds !== null,
+      (x): x is { layer: ActiveLayer; bounds: ScaleBounds; encoding: ChoroplethEncoding | null } =>
+        x.bounds !== null,
     );
 
   // #6/#7: the graduated legend is data-driven — sample bubbles come from
@@ -154,10 +170,19 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
     graduatedScale !== null &&
     graduatedScale.bins.length > 0;
   // Name the graduated legend by its layer(s): "Eventos por unidad — Zoonosis".
-  const graduatedLayerLabel = layers
-    .filter((l) => l.renderMode === "graduated")
-    .map((l) => l.label)
-    .join(" · ");
+  const graduatedLayers = layers.filter((l) => l.renderMode === "graduated");
+  const graduatedLayerLabel = graduatedLayers.map((l) => l.label).join(" · ");
+  // PO 2026-08-01 ("los círculos no son consistentes con lo mostrado en el
+  // mapa"). The sample bubbles below are the RIGHT SIZE — `b.r` is the radius
+  // the map paints — but they were drawn as hollow grey rings while the canvas
+  // paints them filled in the layer's own colour (addGraduatedPointLayer:
+  // `circle-color: layer.color`). An operator matching the orange dots on the
+  // map to a grey ring in the key has to take it on faith that they are the
+  // same mark. Cite the colour when exactly ONE graduated layer is painting —
+  // then it is unambiguous. With two co-active graduated layers there is no
+  // single colour to cite (the block's title lists both), so it stays neutral
+  // rather than picking one and implying the other is something else.
+  const graduatedColor = graduatedLayers.length === 1 ? graduatedLayers[0].color : null;
   // RA-7 F3 — the FOURTH k-anon key in this file, and the last one with no gate
   // at all: the graduated block announced "Datos insuficientes (privacidad)" on
   // every graduated frame, painted or not. Exact residue of the defect closed
@@ -356,29 +381,26 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
             )}
           </div>
         )}
-        {provinceLegends.map(({ layer, isMeta }) => {
-          const values = layer.features.features
-            // #40: `value` is now nullable (k-anon suppressed). The typeof guard
-            // already excluded null, but the declared type said it could not
-            // happen — a lie the compiler was happy to keep.
-            .map((f) => (f.properties as { value?: number | null } | null)?.value)
-            .filter((v): v is number => typeof v === "number");
-          const target =
-            isMeta && typeof layer.complianceTarget === "number" ? layer.complianceTarget : null;
+        {provinceLegends.map(({ layer, encoding }) => {
+          const isMeta = encoding?.meta === true;
           // Prefer the scale LIFTED from the map (built from the same values +
           // locked domain / meta target the fill renders, so the swatch ranges
-          // describe the PAINTED colors even mid-scrub); fall back to a live-edge
-          // recompute only when the lift is not yet present. A META'd layer's
-          // fallback uses the target (fixed [0.5T, 0.75T, T] breaks) so it still
-          // matches the classed-step META fill.
+          // describe the PAINTED colors even mid-scrub); fall back to the
+          // ENCODING the fill would resolve for this frame when the lift is not
+          // yet present (first paint, or a frame where SituationalMap has not
+          // committed yet). The fallback used to be a bare
+          // `computeClassScale(values, { target })` — a third derivation that
+          // knew nothing about polarity or delta encoding and could therefore
+          // publish swatch colours the map never paints. Now both branches
+          // ultimately come from the same resolver.
           const lifted = provinceSeqLegend[layer.id];
-          const scale: ClassScale = lifted
+          const scale: ClassScale | null = lifted
             ? {
                 breaks: lifted.breaks,
                 colors: lifted.colors,
                 method: isMeta ? "meta" : "interval",
               }
-            : computeClassScale(values, { target });
+            : (encoding?.scale ?? null);
           return (
             <div key={layer.id} className={CARD}>
               <div className="mb-1 font-medium text-ln-op-ink-2">{layer.label}</div>
@@ -387,7 +409,9 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   microchip / ppp) show a "%" unit and mark the top class as the
                   compliance target ("≥ 80% (meta)"), replacing the old continuous
                   divergent gradient bar. */}
-              <ClassSwatchLegend scale={scale} unit={isMeta ? "%" : undefined} meta={isMeta} />
+              {scale !== null && (
+                <ClassSwatchLegend scale={scale} unit={encoding?.unit} meta={isMeta} />
+              )}
               {/* RA-7 F9 — gated on the frame, exactly like the k-anon row below
                   it. Unconditional until now: a national frame where all 24
                   jurisdictions report paints no stipple anywhere, and the key
@@ -459,8 +483,17 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
               {graduatedScale.bins.map((b) => (
                 <div key={b.value} className="flex items-center gap-2">
                   <span
-                    className="flex-none rounded-full border-[1.5px] border-ln-op-ink-2/70 bg-transparent"
-                    style={{ width: b.r * 2, height: b.r * 2 }}
+                    className="flex-none rounded-full border-[1.5px] border-ln-op-ink-2/70"
+                    style={{
+                      width: b.r * 2,
+                      height: b.r * 2,
+                      // The map's own fill for this mark when it is unambiguous
+                      // (see graduatedColor). `circle-opacity` is 0.92 on the
+                      // canvas; matched here so the key is the same mark, not a
+                      // saturated approximation of it.
+                      background: graduatedColor ?? "transparent",
+                      opacity: graduatedColor ? 0.92 : 1,
+                    }}
                     aria-hidden="true"
                   />
                   <span className="tabular-nums text-ln-op-ink-2">{b.label}</span>
