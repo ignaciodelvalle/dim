@@ -27,6 +27,7 @@ import {
   JurisdictionSwitcher,
 } from "@/components/gob/JurisdictionSwitcher";
 import { CalendarHeatmap } from "@/components/panorama/CalendarHeatmap";
+import { ContextBar } from "@/components/panorama/ContextBar";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { FiltroPanel } from "@/components/panorama/FiltroPanel";
 import { KpiChips } from "@/components/panorama/KpiChips";
@@ -45,14 +46,18 @@ import { PanoramaDockRegistros } from "@/components/panorama/PanoramaDockRegistr
 import { PanoramaInformeSituacion } from "@/components/panorama/PanoramaInformeSituacion";
 import { PanoramaKpiFooter } from "@/components/panorama/PanoramaKpiFooter";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
-import { PanoramaRail, type RailItem } from "@/components/panorama/PanoramaRail";
+import {
+  PanoramaRail,
+  type RailItem,
+  type RailPanelItem,
+} from "@/components/panorama/PanoramaRail";
 import { PanoramaReading } from "@/components/panorama/PanoramaReading";
 import { PanoramaStatSection } from "@/components/panorama/PanoramaStatSection";
 import { PanoramaSuppressionNotice } from "@/components/panorama/PanoramaSuppressionNotice";
 import { PeriodPanel } from "@/components/panorama/PeriodPanel";
 import { PresetPanel } from "@/components/panorama/PresetPanel";
 import { SavedViewsPopover } from "@/components/panorama/SavedViewsPopover";
-import { ScopePillSummary } from "@/components/panorama/ScopePillSummary";
+import { ScopeDisclosure } from "@/components/panorama/ScopeDisclosure";
 import type {
   ActiveLayer,
   DivisionLegendDescriptor,
@@ -63,11 +68,13 @@ import { SituationalMapDynamic } from "@/components/panorama/SituationalMapDynam
 import { TimeScrubber } from "@/components/panorama/TimeScrubber";
 import { buildAllSuppressedNotice } from "@/components/panorama/all-suppressed-notice";
 import { coalescedGet } from "@/components/panorama/coalesced-get";
+import { buildContextSegments } from "@/components/panorama/context-bar-model";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { frameHasSuppressedMark } from "@/components/panorama/hatch-pattern";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import {
   activeVistaName,
+  capasCountLabel,
   countFiltroModifiers,
   describeCapasMeta,
   filtroBadgeAriaLabel,
@@ -97,7 +104,6 @@ import {
 } from "@/components/panorama/situational-map-utils";
 import { useAsOfFrame } from "@/components/panorama/use-asof-frame";
 import { useKeyedAbort } from "@/components/panorama/use-keyed-abort";
-import { screenViewExplanation } from "@/components/panorama/view-explanation-screen";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { PANORAMA_DEFAULT_PRESET, resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 import type { LocalityCentroids } from "@/lib/infra/ar-localidades";
@@ -1325,7 +1331,23 @@ export function PanoramaConsole({
   // always render full detail (panorama QA root-cause #2/3a/5/6). (#49 item
   // 10: the methodology affordance is the rail's own "Acerca" icon now — no
   // KPI-cluster text link.)
-  const [railOpen, setRailOpen] = useState<string | null>(null);
+  //
+  // ContextBar (2026-08-01): this ONE state is shared by three surfaces — the
+  // rail, the sticky bar above the map, and the scope disclosure inside it
+  // (OverlayDisclosure's controlled mode). `anchor` says only WHERE the single
+  // open panel renders; it never duplicates it. So "Período" opened from the bar
+  // and from the rail is one instance, and two panels can never be open at once.
+  const [panelOpen, setPanelOpen] = useState<{ id: string; anchor: "rail" | "bar" } | null>(null);
+  const railOpen = panelOpen?.anchor === "rail" ? panelOpen.id : null;
+  const barOpen = panelOpen?.anchor === "bar" ? panelOpen.id : null;
+  const setRailOpen = useCallback(
+    (id: string | null) => setPanelOpen(id === null ? null : { id, anchor: "rail" }),
+    [],
+  );
+  const setBarOpen = useCallback(
+    (id: string | null) => setPanelOpen(id === null ? null : { id, anchor: "bar" }),
+    [],
+  );
   // task #38 v3 — the map's exportPng, bridged up from SituationalMap (map-ref
   // coupled) so the "Exportar" rail panel can fire it.
   const exportPngFnRef = useRef<(() => void) | null>(null);
@@ -3055,14 +3077,10 @@ export function PanoramaConsole({
     () => explainViewState(viewState, explainNames),
     [viewState, explainNames],
   );
-  // The SAME sentence, trimmed of what the screen around it already states (the
-  // vista title, the scope selector, the vista's eponymous layer). Only the
-  // on-screen block uses this: the copied link, the informe and the embed keep
-  // the full sentence, which travels alone and needs its subject.
-  const screenExplanation = useMemo(
-    () => screenViewExplanation(viewState, explainNames),
-    [viewState, explainNames],
-  );
+  // The trimmed on-screen sentence (screenViewExplanation) USED to render above
+  // the KPI chips. Removed 2026-08-01 with the ContextBar, which states the
+  // period and the layer count once. `viewExplanation` above still carries the
+  // WHOLE sentence to the link/informe/embed, which are read alone.
 
   // A2 (automatic department-grain LOD): a committed province/locality still reads
   // the locality axis at any zoom. National scope defaults to the province axis but
@@ -3981,9 +3999,9 @@ export function PanoramaConsole({
   // Registros: the accessible per-unit projection of what the map paints (the
   // MapDataTable "Ver como tabla" surface, promoted from a rail toggle into the
   // dock's primary records tab — its k-anon "Protegido (k<5)" cells unchanged).
-  const dockMeta = `${viewMeta.scopeLabel} · ${viewMeta.periodLabel} · ${activeLayers.length} ${
-    activeLayers.length === 1 ? "capa" : "capas"
-  }`;
+  const dockMeta = `${viewMeta.scopeLabel} · ${viewMeta.periodLabel} · ${capasCountLabel(
+    activeLayers.length,
+  )}`;
   // H5 (cowork QA): REFERENCE layers (decomisos, refugios) are drawn on the map
   // but are NOT tabulated in Registros (they carry no per-unit aggregate row). An
   // operator auditing "qué venimos haciendo" saw the bubbles on the map but zero
@@ -4536,12 +4554,13 @@ export function PanoramaConsole({
               Copia un enlace con la vista, el alcance y el período actuales.
             </p>
           </div>
-          <div className="space-y-1">
-            <SavedViewsPopover />
-            <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
-              Recuerda tableros con nombre para volver a ellos rápido.
-            </p>
-          </div>
+          {/* "Vistas guardadas" is a POPOVER with its own open state: mounted here
+              AND in the ContextBar it would be two instances of one control. It
+              lives in the bar; the rail stays a complete index by saying so. */}
+          <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
+            Las vistas guardadas — tableros con nombre para volver a ellos rápido — están en la
+            barra de contexto, arriba del mapa.
+          </p>
           {/* C5: the three data/capture exports consolidated here (was: CSV in the
               dock bar, PNG + informe here) — one place, each with an honest note
               of exactly what it captures. The dock bar no longer carries its own
@@ -4637,6 +4656,47 @@ export function PanoramaConsole({
     },
   ];
 
+  // ── ContextBar (2026-08-01) ───────────────────────────────────────────────
+  // The sticky one-line answer to "¿qué estoy mirando y de qué período?". It
+  // COMPOSES; it never forks — each segment's body is the rail item's OWN
+  // `render()` closure (see context-bar-model.ts), so there is one definition
+  // and, because `panelOpen` is one state with an anchor, one live instance
+  // whichever trigger opened it.
+  const contextSegments = buildContextSegments({
+    railItems,
+    periodLabel: viewMeta.periodLabel,
+    activeLayerCount: activeLayers.length,
+    modifierCount: filtroBadge,
+  });
+
+  // The scope segment — relocated from the top-left cluster, not rewritten (see
+  // ScopeDisclosure.tsx: same disclosure, same testid, same closed-by-default
+  // panel, PO 2026-07-29). It reads the shared `panelOpen` state.
+  const scopeDisclosure =
+    scopeLabel !== undefined || allowedProvinces !== undefined || filtersSlot !== undefined ? (
+      <ScopeDisclosure
+        // scope-truth.ts is the ONE cascade. `viewMeta.scopeLabel` is its output,
+        // and it is what the Registros caption, the dock meta, the PNG footer and
+        // the informe already cite — the pill joins them instead of hand-copying
+        // `liveScopeLabel || "Nacional"` a fifth time.
+        scopeLabel={viewMeta.scopeLabel}
+        open={barOpen === "alcance"}
+        onOpenChange={(next) => {
+          // Guarded: a scope commit fires this with `false`, and it must not
+          // reach in and close a rail panel it never owned.
+          if (next) setBarOpen("alcance");
+          else if (barOpen === "alcance") setBarOpen(null);
+        }}
+        closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
+        allowedProvinces={allowedProvinces}
+        localities={scopeData.localities}
+        selectedProvince={effectiveScopeProvince}
+        selectedLocality={effectiveScopeLocality}
+        onScopeCommit={onSwitcherScopeCommit}
+        filtersSlot={filtersSlot}
+      />
+    ) : null;
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       {/* task #55 — the print-only "Informe de situación". Mounted ONLY once the
@@ -4704,6 +4764,23 @@ export function PanoramaConsole({
             )}
           </div>
         </header>
+      )}
+      {/* ABOVE the map region on purpose, not floating over it: the one line a
+          decision maker must never hunt for must also not cover the territory it
+          describes. As a flex SIBLING of the map container it leaves every
+          absolute overlay coordinate (rail, KPI cluster, legend, dock) untouched
+          — MapLibre sizes once at mount and never re-layouts when a panel opens
+          (spec no-negociable #4). */}
+      {!presentationMode && (
+        <ContextBar
+          segments={contextSegments}
+          open={barOpen}
+          onOpenChange={setBarOpen}
+          leading={scopeDisclosure}
+          onCopyView={copyView}
+          copied={copied}
+          savedViews={<SavedViewsPopover />}
+        />
       )}
       {/* v2C body: ONE map region — the map fills everything below the masthead
           and every other control floats over it as an absolute overlay
@@ -4800,39 +4877,9 @@ export function PanoramaConsole({
               <p aria-live="polite" className="sr-only" data-testid="panorama-scope-live">
                 {scopeAnnouncement}
               </p>
-              {(scopeLabel !== undefined ||
-                allowedProvinces !== undefined ||
-                filtersSlot !== undefined) && (
-                <OverlayDisclosure
-                  summaryTestId="panorama-scope-pill"
-                  panelClassName="left-0 w-80 max-w-[80vw]"
-                  closeSignal={`${effectiveScopeProvince ?? ""}|${effectiveScopeLocality ?? ""}`}
-                  summaryClassName="inline-flex w-fit items-center gap-1.5 rounded-full border border-ln-op-azul bg-ln-op-card px-3.5 py-1 text-sm font-semibold text-ln-op-azul hover:bg-ln-op-azul/10"
-                  summary={<ScopePillSummary scopeLabel={liveScopeLabel || "Nacional"} />}
-                >
-                  <div className="space-y-3">
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-                      Jurisdicción
-                    </p>
-                    {/* The JurisdictionSwitcher is rendered CLIENT-SIDE (embedded
-                      drill): a province/locality pick commits the scope shallowly
-                      (no reload). Native selects = the full keyboard path. */}
-                    {allowedProvinces !== undefined && (
-                      <JurisdictionSwitcher
-                        allowedProvinces={allowedProvinces}
-                        localities={scopeData.localities}
-                        selectedProvince={effectiveScopeProvince}
-                        selectedLocality={effectiveScopeLocality}
-                        onScopeCommit={onSwitcherScopeCommit}
-                      />
-                    )}
-                    {filtersSlot}
-                    <p className="text-xs leading-snug text-ln-op-faint">
-                      También podés hacer clic en una provincia del mapa.
-                    </p>
-                  </div>
-                </OverlayDisclosure>
-              )}
+              {/* The scope pill MOVED (2026-08-01) into the sticky ContextBar
+                  above the map — see ScopeDisclosure.tsx. Leaving a copy here
+                  would have added a place to hunt, not removed one. */}
               {/* #53 QOL — the vista, named ONCE (the standalone shadowed pill is
                   gone; the dock meta / caption serve other surfaces). */}
               {vistaName && (
@@ -4840,21 +4887,11 @@ export function PanoramaConsole({
                   Vista · <span className="font-semibold text-ln-op-ink-2">{vistaName}</span>
                 </p>
               )}
-              {/* PO decision (panorama polish 2026-07-21): fold the floating
-                  ViewCaption strip that used to sit over the map (line-clamped to
-                  2 lines behind a "Ver más") INTO this header instead — the SAME
-                  honest one-line view description (explainViewState — "Copiar
-                  vista" and the informe print use it too), now a fully-visible
-                  subtitle under the vista title. No clamp, no toggle: it just
-                  wraps. Declutters the map surface (item 3) without losing the
-                  "¿qué estoy viendo?" answer (Epic C1).
-
-                  PO 2026-07-26: as a SUBTITLE it re-stated its own title and the
-                  scope pill above it — the vista 3×, the scope 3×, in four lines,
-                  beside truncated KPI numbers. screenViewExplanation trims what
-                  this container already says; the travelling copies (link,
-                  informe, embed) still get the whole sentence. */}
-              <p className="text-xs leading-snug text-ln-op-mute">{screenExplanation}</p>
+              {/* The trimmed view sentence that lived here (2026-07-21, re-trimmed
+                  2026-07-26) is GONE as of 2026-08-01 — the last survivor of the
+                  "state the view four times" era. The ContextBar above the map
+                  states scope, period and layer count once; this line restated
+                  the period and the layers beside truncated KPI numbers. */}
               {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
                   changes the board silently; one tap returns to the vista left. */}
               {personalizadaFrom !== null && activePresetId === null && (

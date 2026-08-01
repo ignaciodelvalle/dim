@@ -3146,3 +3146,130 @@ describe("PanoramaConsole — RA-7 F6: every protected-cell figure names the uni
     });
   });
 });
+
+describe("PanoramaConsole — the ContextBar is the ONE place the answer lives", () => {
+  // The pages hand the console a `scopeLabel` + `allowedProvinces`; both are
+  // needed for the scope segment to mount.
+  function renderBarConsole(extraProps: Record<string, unknown> = {}) {
+    return render(
+      <PanoramaConsole
+        defaultLayerId="perdidas"
+        defaultFeatures={EMPTY_FC}
+        initialKpis={INITIAL_KPIS}
+        scopeLabel="Nacional · todas las provincias"
+        allowedProvinces={[{ code: "AR-B", name: "Buenos Aires" }]}
+        {...extraProps}
+      />,
+    );
+  }
+
+  it("states scope, período and capas on one row ABOVE the map, before anything else", () => {
+    // The decision maker's first question was answered in four-to-six places at
+    // once. This is the one they should reach first — literally, in DOM order.
+    setUrl("/gob/panorama?period=3y");
+    renderBarConsole();
+
+    const bar = screen.getByTestId("panorama-context-bar");
+    expect(within(bar).getByTestId("panorama-scope-pill")).toHaveTextContent("Nacional");
+    expect(within(bar).getByTestId("panorama-context-periodo")).toHaveTextContent(
+      /últimos 3 años/i,
+    );
+    expect(within(bar).getByTestId("panorama-context-filtro")).toHaveTextContent(/capas?$|capas/);
+    expect(isBefore(bar, screen.getByTestId("map-region"))).toBe(true);
+  });
+
+  it("the scope pill lives in the bar and NOWHERE else — moving it must not leave a copy", () => {
+    // Adding a fifth surface would have been the opposite of the fix.
+    setUrl("/gob/panorama?period=3y");
+    renderBarConsole();
+
+    const pills = screen.getAllByTestId("panorama-scope-pill");
+    expect(pills).toHaveLength(1);
+    expect(screen.getByTestId("panorama-context-bar")).toContainElement(pills[0]);
+  });
+
+  it("the scope panel still starts CLOSED (PO 2026-07-29) — the pill is the whole affordance", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderBarConsole();
+
+    const pill = screen.getByTestId("panorama-scope-pill");
+    expect(pill.closest("details")?.hasAttribute("open")).toBe(false);
+    expect(pill).toHaveAttribute("aria-expanded", "false");
+  });
+
+  it("Período opened from the BAR is the same single instance the rail opens", () => {
+    // The whole point of sharing `panelOpen`: one state, one body, one mounted
+    // panel — whichever trigger the operator reached for.
+    setUrl("/gob/panorama?period=3y");
+    renderBarConsole();
+
+    fireEvent.click(screen.getByTestId("panorama-context-periodo"));
+    expect(screen.getAllByRole("button", { name: "90 días" })).toHaveLength(1);
+    expect(screen.getByRole("button", { name: "Período" })).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+
+    // Reaching for the rail icon MOVES the one panel; it never mounts a second.
+    fireEvent.click(screen.getByRole("button", { name: "Período" }));
+    expect(screen.getAllByRole("button", { name: "90 días" })).toHaveLength(1);
+    expect(screen.getByTestId("panorama-context-periodo")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("one panel at a time across the three surfaces (bar segment, rail panel, scope disclosure)", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderBarConsole();
+
+    // Scope open → the bar's Período is closed and unmounted. jsdom does not
+    // implement <summary> activation, so drive the native toggle the way the
+    // A11Y M1 test above does — that IS the browser's path into our handler.
+    const pill = screen.getByTestId("panorama-scope-pill");
+    const details = pill.closest("details") as HTMLDetailsElement;
+    act(() => {
+      details.open = true;
+      details.dispatchEvent(new Event("toggle"));
+    });
+    expect(pill).toHaveAttribute("aria-expanded", "true");
+    expect(screen.queryAllByRole("button", { name: "90 días" })).toHaveLength(0);
+
+    // Opening Período closes the scope disclosure — including on the keyboard
+    // path, where no outside-pointer event ever fires.
+    fireEvent.click(screen.getByTestId("panorama-context-periodo"));
+    expect(screen.getByTestId("panorama-scope-pill")).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getAllByRole("button", { name: "90 días" })).toHaveLength(1);
+
+    // ...and a rail panel closes the bar segment.
+    fireEvent.click(screen.getByRole("button", { name: "Vista" }));
+    expect(screen.queryAllByRole("button", { name: "90 días" })).toHaveLength(0);
+    expect(screen.getByTestId("panorama-context-periodo")).toHaveAttribute(
+      "aria-expanded",
+      "false",
+    );
+  });
+
+  it("the redundant meta line above the KPI chips is GONE — the period is not restated there", () => {
+    // It was the last survivor of stating the view four times: the period and
+    // the layer set, re-wrapped beside truncated KPI numbers. The bar says it
+    // once now; the KPI card must not say it again.
+    setUrl("/gob/panorama?period=3y");
+    renderBarConsole();
+
+    const cluster = screen.getByTestId("panorama-scope-live").parentElement as HTMLElement;
+    expect(within(cluster).queryByText(/últimos 3 años/i)).toBeNull();
+    // ...and it did not simply VANISH: the bar states it, once.
+    expect(screen.getByTestId("panorama-context-periodo")).toHaveTextContent(/últimos 3 años/i);
+  });
+
+  it("the Exportar panel mounts NO second saved-views popover — the bar owns the only one", () => {
+    setUrl("/gob/panorama?period=3y");
+    renderBarConsole();
+
+    fireEvent.click(screen.getByRole("button", { name: "Exportar" }));
+    expect(screen.getAllByRole("button", { name: "Vistas guardadas" })).toHaveLength(1);
+    // The rail stays a complete index: it says where the control went.
+    expect(screen.getByText(/vistas guardadas .* están en la barra de contexto/i)).toBeVisible();
+  });
+});
