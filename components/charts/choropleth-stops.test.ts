@@ -262,13 +262,90 @@ describe("choroplethClassed — classed sequential scale (dataviz review #5)", (
     expect(withOutlier.scale.breaks).toEqual(clean.scale.breaks);
   });
 
-  it("degenerate domains yield a flat single class and NO bins", () => {
-    for (const values of [[], [7], [7, 7, 7]]) {
+  it("NO unsuppressed values yields a flat class and no bins — nothing to key", () => {
+    const { scale, bins } = choroplethClassed([{ value: Number.NaN }, datum(9, true)]);
+    expect(scale.breaks).toEqual([]);
+    expect(bins).toEqual([]);
+    // The step expression degrades to a plain color string MapLibre accepts.
+    expect(typeof stepColorExpr(["get", "v"], scale)).toBe("string");
+  });
+
+  it("a UNIFORM domain keys the one value it paints (demo review 2026-08-01 #1)", () => {
+    // THE FINDING, live on /gob/vigilancia with alcance CABA: the scope resolves
+    // to a single province cell worth 32 open cases, so min === max, the scale
+    // goes flat and this used to return ZERO bins. MapChoropleth gates BOTH the
+    // scale-label line and the bin row on `bins.length > 0`, so the whole legend
+    // collapsed to its "Sin datos" swatch — directly above a "Ver datos" table
+    // printing 32. "Every unit holds the same value" is a result, not an absence.
+    for (const values of [[32], [32, 32, 32]]) {
       const { scale, bins } = choroplethClassed(values.map((v) => datum(v)));
       expect(scale.breaks).toEqual([]);
-      expect(bins).toEqual([]);
-      // The step expression degrades to a plain color string MapLibre accepts.
+      expect(bins).toHaveLength(1);
+      expect(bins[0].label).toBe("32");
+      // Painted with the flat class colour the map actually used, and clickable
+      // over exactly the units it describes.
+      expect(bins[0].color).toBe(scale.colors[0]);
+      expect(colorForValue(scale, 32)).toBe(bins[0].color);
+      expect(bins[0]).toMatchObject({ lo: 32, hi: null });
       expect(typeof stepColorExpr(["get", "v"], scale)).toBe("string");
+    }
+  });
+
+  it("a uniform NON-integer domain keys its value exactly, not rounded away", () => {
+    const { bins } = choroplethClassed([datum(64.4), datum(64.4)]);
+    expect(bins.map((b) => b.label)).toEqual(["64,4"]);
+  });
+
+  it("no legend bin may describe an impossible range (demo review 2026-08-01 #4)", () => {
+    // THE FINDING, live on /gob/vigilancia nacional: 24 provinces of integer
+    // case counts produced interpolated quantile breaks [12.6, 13, 16, 19]; the
+    // first two both rounded to "13" and the key published
+    // `< 13 | 13 – <13 | 13 – <16 | 16 – <19 | ≥ 19`. The second bucket cannot
+    // contain anything.
+    const casesByProvince = [
+      8, 9, 10, 11, 12, 13, 13, 13, 13, 13, 13, 14, 15, 16, 16, 17, 18, 18, 19, 19, 20, 21, 22, 23,
+    ];
+    const { scale, bins } = choroplethClassed(casesByProvince.map((v) => datum(v)));
+
+    expect(bins.map((b) => b.label)).toEqual(["< 13", "13 – <16", "16 – <19", "≥ 19"]);
+    // A count metric's class boundary is a count: no "12,6 casos abiertos".
+    expect(scale.breaks).toEqual([13, 16, 19]);
+    for (const b of scale.breaks) expect(Number.isInteger(b)).toBe(true);
+    // Snapping preserved class membership — every value paints the class its
+    // own label claims.
+    for (const bin of bins) {
+      const probe = bin.lo ?? (bin.hi as number) - 1;
+      expect(colorForValue(scale, probe)).toBe(bin.color);
+    }
+  });
+
+  it("no two bins share a bound label, and none opens onto an empty class", () => {
+    // The general invariant behind #4, swept over shapes that make quantile
+    // breaks tie: heavy ties at the floor, at the ceiling, and in the middle.
+    const shapes: number[][] = [
+      [
+        8, 9, 10, 11, 12, 13, 13, 13, 13, 13, 13, 14, 15, 16, 16, 17, 18, 18, 19, 19, 20, 21, 22,
+        23,
+      ],
+      [5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 8, 40, 41, 42, 43, 44, 45, 46],
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9, 9],
+      [0.11, 0.12, 0.13, 0.14, 0.15, 0.16, 0.17, 0.18, 0.19, 0.2],
+      [10.01, 10.02, 10.03, 10.04, 10.05, 10.06, 10.07, 10.08],
+    ];
+    for (const values of shapes) {
+      const { scale, bins } = choroplethClassed(values.map((v) => datum(v)));
+      const min = Math.min(...values);
+      const max = Math.max(...values);
+      // No bin renders a zero-width range like "13 – <13".
+      for (const bin of bins) expect(bin.label).not.toMatch(/^(.+) – <\1$/);
+      // Labels are the legend's identity — MapChoropleth keys the buttons on
+      // them, so duplicates would also collide in React.
+      expect(new Set(bins.map((b) => b.label)).size).toBe(bins.length);
+      // Every break admits at least one real value on each side of it.
+      for (const b of scale.breaks) {
+        expect(b).toBeGreaterThan(min);
+        expect(b).toBeLessThanOrEqual(max);
+      }
     }
   });
 

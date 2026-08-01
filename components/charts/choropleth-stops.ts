@@ -97,23 +97,99 @@ export type ChoroplethLegendBin = {
  *  the SAME breaks/colors so on-map fill and legend can never disagree. */
 export type ChoroplethClassed = { scale: ClassScale; bins: ChoroplethLegendBin[] };
 
-/** Round a class break to a readable precision for the legend label.
- *  (Same convention as panorama's MapLegends formatBound — kept local because
- *  MapLegends' formatter is private to that client component.) */
-function formatBound(n: number): string {
-  const rounded = Math.abs(n) >= 10 ? Math.round(n) : Math.round(n * 10) / 10;
-  return rounded.toLocaleString("es-AR");
+/** Round a class break to `decimals` places and render it es-AR. */
+function formatBound(n: number, decimals: number): string {
+  const factor = 10 ** decimals;
+  return (Math.round(n * factor) / factor).toLocaleString("es-AR", {
+    maximumFractionDigits: decimals,
+  });
+}
+
+/** Highest precision a bound label may go to before we accept a collision.
+ *  Three decimals is already past what any choropleth on this product reports;
+ *  beyond it the label stops being readable, which is its own defect. */
+const MAX_BOUND_DECIMALS = 3;
+
+/**
+ * The FEWEST decimals at which every one of these bounds renders as a distinct
+ * string.
+ *
+ * THE BUG THIS CLOSES (demo review 2026-08-01, finding #4). The formatter was
+ * fixed at "0 decimals above 10, 1 below", and the legend rendered each bound
+ * independently. On /gob/vigilancia nacional the interpolated quantile breaks
+ * came out [12.6, 13, 16, 19]; the first two both rounded to "13" and the
+ * legend published `< 13 | 13 – <13 | 13 – <16 | 16 – <19 | ≥ 19` — a second
+ * bucket that cannot contain anything. A key with an impossible row is a key
+ * the reader stops trusting, and this one sat under "Casos abiertos".
+ *
+ * Rounding is a PRESENTATION choice, so it may never manufacture a claim the
+ * data does not make: if two real breaks differ, their labels must differ.
+ * (`choroplethClassed` separately removes breaks that are genuinely redundant —
+ * this only guarantees the surviving ones stay legible as distinct.)
+ */
+export function boundDecimalsFor(bounds: readonly number[]): number {
+  const finite = bounds.filter((b) => Number.isFinite(b));
+  for (let decimals = 0; decimals < MAX_BOUND_DECIMALS; decimals++) {
+    const rendered = finite.map((b) => formatBound(b, decimals));
+    if (new Set(rendered).size === finite.length) return decimals;
+  }
+  return MAX_BOUND_DECIMALS;
+}
+
+/** Fewest decimals (≤ MAX_BOUND_DECIMALS) at which `n` renders WITHOUT losing
+ *  value. A lone legend row names one number rather than separating two, so
+ *  distinctness (`boundDecimalsFor`) is not the constraint there — fidelity is:
+ *  "64,4 %" must not be keyed as "64". */
+function exactDecimalsFor(n: number): number {
+  for (let decimals = 0; decimals < MAX_BOUND_DECIMALS; decimals++) {
+    const factor = 10 ** decimals;
+    if (Math.round(n * factor) / factor === n) return decimals;
+  }
+  return MAX_BOUND_DECIMALS;
 }
 
 /** es-AR range label for one class swatch. Half-open disambiguation mirrors
  *  panorama's MapLegends: the interior range reads "lo – <hi" so the exclusive
  *  upper bound is explicit (a value exactly AT a break belongs to the UPPER
- *  class — pinned by class-scale.test.ts). */
-function swatchBinLabel(s: ClassSwatch): string {
+ *  class — pinned by class-scale.test.ts). `decimals` is resolved ONCE for the
+ *  whole legend by `boundDecimalsFor`, so sibling rows can never collide. */
+function swatchBinLabel(s: ClassSwatch, decimals: number): string {
   if (s.lo === null && s.hi === null) return "Todos";
-  if (s.lo === null) return `< ${formatBound(s.hi as number)}`;
-  if (s.hi === null) return `≥ ${formatBound(s.lo as number)}`;
-  return `${formatBound(s.lo)} – <${formatBound(s.hi)}`;
+  if (s.lo === null) return `< ${formatBound(s.hi as number, decimals)}`;
+  if (s.hi === null) return `≥ ${formatBound(s.lo as number, decimals)}`;
+  return `${formatBound(s.lo, decimals)} – <${formatBound(s.hi, decimals)}`;
+}
+
+/**
+ * Drop the breaks that would open an EMPTY class, and snap an all-integer
+ * domain's breaks back onto integers.
+ *
+ * Two defects, one fold, because both produce a legend row nothing can land in:
+ *
+ *  - A break at or below `min` leaves the open-below class unreachable ("< 8"
+ *    when 8 is the smallest value in the country); a break above `max` does the
+ *    same to the open-above class. Ties at either end of the value set make
+ *    quantile breaks land exactly there.
+ *  - Interpolated quantiles over COUNT data produce fractional cutoffs (12.6
+ *    "casos abiertos"), which is both unreadable and the direct cause of the
+ *    label collision above. `Math.ceil` is the snap that PRESERVES class
+ *    membership under MapLibre `step` semantics (`v >= break` ⇒ upper class):
+ *    for integer v, `v >= 12.6` and `v >= 13` select exactly the same values.
+ *    Rounding would not — `round(12.2) = 12` would promote every 12 a class.
+ */
+function pruneBreaks(breaks: number[], values: readonly number[]): number[] {
+  if (values.length === 0) return [];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const allIntegers = values.every((v) => Number.isInteger(v));
+  const snapped = allIntegers ? breaks.map((b) => Math.ceil(b)) : breaks;
+  const out: number[] = [];
+  for (const b of snapped) {
+    if (b <= min || b > max) continue;
+    if (out.length > 0 && b <= out[out.length - 1]) continue;
+    out.push(b);
+  }
+  return out;
 }
 
 /**
@@ -134,8 +210,12 @@ function swatchBinLabel(s: ClassSwatch): string {
  * of fractional quantile cutoffs that would produce empty/misleading classes.
  *
  * Suppressed (k-anon) and non-finite values are excluded — they are painted
- * their own categorical states, never a class. A degenerate domain (empty or
- * all-equal) yields a single flat class and NO bins.
+ * their own categorical states, never a class.
+ *
+ * A domain with NO unsuppressed values yields a flat scale and NO bins: there
+ * is nothing for a key to describe. A domain with data but only ONE distinct
+ * value (the common single-jurisdiction case) yields a flat scale and exactly
+ * ONE bin naming that value — see the UNIFORM DOMAIN note below.
  */
 export function choroplethClassed(
   data: ReadonlyArray<{ value: number; suppressed?: boolean }>,
@@ -164,10 +244,54 @@ export function choroplethClassed(
     }
   }
 
-  const scale = computeClassScale(values);
-  if (scale.breaks.length === 0) return { scale, bins: [] };
-  const bins = classSwatches(scale).map((s) => ({
-    label: swatchBinLabel(s),
+  const raw = computeClassScale(values);
+  const breaks = pruneBreaks(raw.breaks, values);
+  const scale: ClassScale =
+    breaks.length === raw.breaks.length
+      ? raw
+      : {
+          breaks,
+          colors: classColors(breaks.length + 1),
+          // Pruning every break leaves one class — report it as `flat`, the
+          // method it now IS, so nothing downstream reads a "quantile" scale
+          // with no quantiles in it.
+          method: breaks.length === 0 ? "flat" : raw.method,
+        };
+
+  if (scale.breaks.length === 0) {
+    // UNIFORM DOMAIN (demo review 2026-08-01, finding #1). A flat scale used to
+    // return NO bins, and MapChoropleth gates BOTH the scale-label line and the
+    // bin row on `bins.length > 0` — so a map painting one region left a legend
+    // whose entire content was the "Sin datos" swatch. Live on /gob/vigilancia
+    // with alcance CABA: a single province cell worth 32 open cases, a legend
+    // reading "Casos abiertos — Sin datos", and the map's own "Ver datos" table
+    // one line below printing 32.
+    //
+    // "Every unit in view holds the same value" is a RESULT, not an absence, so
+    // it gets a key row like any other class: the value itself, painted the flat
+    // class colour the map actually used. `lo` is that value with `hi` open, so
+    // clicking the row highlights exactly the units it describes. With no
+    // unsuppressed values at all there is still nothing to key, and bins stay
+    // empty — that map genuinely has no data class to explain.
+    if (values.length === 0) return { scale, bins: [] };
+    const only = values[0];
+    return {
+      scale,
+      bins: [
+        {
+          label: formatBound(only, exactDecimalsFor(only)),
+          color: scale.colors[0],
+          lo: only,
+          hi: null,
+        },
+      ],
+    };
+  }
+
+  const swatches = classSwatches(scale);
+  const decimals = boundDecimalsFor(scale.breaks);
+  const bins = swatches.map((s) => ({
+    label: swatchBinLabel(s, decimals),
     color: s.color,
     lo: s.lo,
     hi: s.hi,
