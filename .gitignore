@@ -94,3 +94,12 @@ graphify-out/
 # gets a real name, a test, and a commit.
 scripts/scratch/
 scripts/bulk-cursor-pets-staging.mjs
+
+# Playwright MCP writes snapshots and screenshots to CWD, which is the repo root.
+# `.playwright-mcp/` above only covers the cases where it uses its own directory.
+# Telling a browser agent "don't touch the repo" cannot prevent this — it is the
+# tool's default, not the agent's choice. These are session artifacts: the .md is
+# an accessibility-tree dump, the .png a screenshot. Neither is a finding.
+/*.png
+/*-snapshot.md
+/panorama.md
