@@ -179,7 +179,7 @@ import {
   rankUnitsInScope,
   rankWorstUnits,
 } from "@/src/modules/panorama/domain/ranking";
-import type { TimeBasis } from "@/src/modules/panorama/domain/time-scrub";
+import { type TimeBasis, formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
 import type {
   AggregationLevel,
   FeatureCollection,
@@ -4649,6 +4649,9 @@ export function PanoramaConsole({
                 // mode ignores this (metricIds drives the curated set).
                 activeLayerIds={activeLayerIdList}
                 pending={kpisPending}
+                // T2.1: during a time scrub the held numbers are the previous
+                // frame's — stamp the strip with the target day being computed.
+                pendingAsOfLabel={asOf ? formatAsOfDayLong(asOf) : null}
                 // Q13: a scope/period drill makes the held numbers wrong for the
                 // new jurisdiction — blank (aria-busy) instead of holding them.
                 scopeChanging={kpisScopeChanging}

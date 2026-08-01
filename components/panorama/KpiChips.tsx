@@ -70,6 +70,14 @@ type Props = {
    * stock cards so the not-tracking reads as intentional, never as a stuck bug.
    */
   temporalFrameActive?: boolean;
+  /**
+   * T2.1 — the TARGET day of the in-flight refetch (formatAsOfDayLong shape),
+   * when a temporal frame drives it; null/absent for a live refetch. While
+   * `pending` holds the previous values on screen, the strip stamps
+   * "Actualizando al {fecha}…" so the held numbers are never presented as
+   * current silently (the opacity dim alone said nothing).
+   */
+  pendingAsOfLabel?: string | null;
 };
 
 /** The first sentence of the KPI definition — the hover method note. */
@@ -182,6 +190,7 @@ export function KpiChips({
   scopeChanging = false,
   degraded = false,
   temporalFrameActive = false,
+  pendingAsOfLabel = null,
 }: Props) {
   // C2a: in manual mode, irrelevant indicators start hidden behind a toggle.
   const [showAll, setShowAll] = useState(false);
@@ -242,6 +251,19 @@ export function KpiChips({
   const refreshing = pending;
   // Subtle "updating" affordance: dim slightly + announce busy, never unmount.
   const refreshingClass = refreshing ? "opacity-60 transition-opacity" : "";
+  // T2.1 — during a time scrub the numbers on screen are the PREVIOUS frame's
+  // while the refetch is in flight, and the opacity dim alone read as a style,
+  // not a claim. One terse line names the day the strip is moving to, so a
+  // stale figure is never presented as current silently. Scrub-only by design:
+  // a live refetch (pending without a temporal target) keeps the subtle dim —
+  // the Q13 contract reserves the "Actualizando indicadores…" blank for scope
+  // changes.
+  const refreshingNote =
+    refreshing && pendingAsOfLabel ? (
+      <p aria-live="polite" className="text-xs italic text-ln-op-faint">
+        {`Actualizando al ${pendingAsOfLabel}…`}
+      </p>
+    ) : null;
 
   // Preset mode (metricIds set) OR no layer context: unchanged — show the curated
   // (or full) set capped at MAX_CHIPS, no relevance partition.
@@ -249,20 +271,23 @@ export function KpiChips({
   if (!manualMode) {
     const shown = selected.slice(0, MAX_CHIPS);
     return (
-      <ul
-        aria-label="Indicadores de esta vista"
-        aria-busy={refreshing}
-        className={`m-0 flex list-none flex-col gap-1.5 p-0 ${refreshingClass}`}
-      >
-        {shown.map((kpi) => (
-          <KpiCard
-            key={kpi.id}
-            kpi={kpi}
-            presetId={presetId}
-            temporalFrameActive={temporalFrameActive}
-          />
-        ))}
-      </ul>
+      <>
+        <ul
+          aria-label="Indicadores de esta vista"
+          aria-busy={refreshing}
+          className={`m-0 flex list-none flex-col gap-1.5 p-0 ${refreshingClass}`}
+        >
+          {shown.map((kpi) => (
+            <KpiCard
+              key={kpi.id}
+              kpi={kpi}
+              presetId={presetId}
+              temporalFrameActive={temporalFrameActive}
+            />
+          ))}
+        </ul>
+        {refreshingNote}
+      </>
     );
   }
 
@@ -285,6 +310,7 @@ export function KpiChips({
           />
         ))}
       </ul>
+      {refreshingNote}
       {shownRelevant.length === 0 && (
         <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card px-3 py-2 text-center text-xs text-ln-op-mute">
           Ningún indicador corresponde directamente a las capas activas.

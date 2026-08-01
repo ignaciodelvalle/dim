@@ -156,6 +156,54 @@ describe("KpiChips — honesty states (unchanged from the interactive era)", () 
     expect(screen.queryByText("Actualizando indicadores…")).not.toBeInTheDocument();
   });
 
+  // T2.1 (browser-verified): during a time scrub the strip trails the slider by
+  // one fetch and the ONLY cue was opacity-60 — the previous frame's numbers
+  // read as current. The strip now stamps the target day while the refetch is
+  // in flight, in the same long UTC day shape every as-of surface shares.
+  it("T2.1: a scrub refetch stamps the strip with the target day — held numbers never read as current", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        pending
+        pendingAsOfLabel="8 de mayo de 2026"
+        temporalFrameActive
+      />,
+    );
+    // The values HOLD (no blink)…
+    expect(screen.getByText("64%")).toBeInTheDocument();
+    // …and the strip says which frame it is computing.
+    expect(screen.getByText("Actualizando al 8 de mayo de 2026…")).toBeInTheDocument();
+  });
+
+  it("T2.1: the stamp clears once the refetch settles (pending false)", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        pendingAsOfLabel="8 de mayo de 2026"
+        temporalFrameActive
+      />,
+    );
+    expect(screen.queryByText(/Actualizando al/)).not.toBeInTheDocument();
+  });
+
+  it("T2.1: manual mode carries the same stamp", () => {
+    render(
+      <KpiChips
+        kpis={KPIS}
+        metricIds={null}
+        presetId={null}
+        activeLayerIds={["cobertura", "zoonosis"]}
+        pending
+        pendingAsOfLabel="8 de mayo de 2026"
+      />,
+    );
+    expect(screen.getByText("Actualizando al 8 de mayo de 2026…")).toBeInTheDocument();
+  });
+
   it("empty selection renders the no-metrics copy", () => {
     render(<KpiChips kpis={{ ...KPIS, kpis: [] }} metricIds={null} presetId={null} />);
     expect(screen.getByText("Métricas no disponibles para esta vista.")).toBeInTheDocument();
