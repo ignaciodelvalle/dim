@@ -10,9 +10,21 @@
 > desde cualquier cuenta gratuita** que introdujo esta misma ola y cerró antes
 > de salir.
 >
-> 34 commits pusheados el 31/07 (`ec098654..4b09b445`). **CI: el veredicto real
-> vive en la corrida hermana** — cada push dispara dos (una por `push`, otra por
-> `pull_request`) y una cancela a la otra. Leer `cancelled` no es leer CI.
+> **CI: el veredicto real vive en la corrida hermana** — cada push dispara dos
+> (una por `push`, otra por `pull_request`) y una cancela a la otra. Leer
+> `cancelled` no es leer CI.
+>
+> ## ⚠️ CORREGIDO 01/08 — staging YA NO está atrasado
+>
+> Este documento decía que `dim-staging.vercel.app` servía el commit `aa668d54`
+> del 18 de julio. **Era cierto y ya no lo es**, y mientras tanto un equipo
+> externo leyó esa línea y la reportó como hallazgo vigente. Un documento que
+> describe como presente un problema resuelto es la misma clase de defecto que
+> esta ola viene cazando: **un registro que dice algo que ya no es verdad.**
+>
+> Estado real: la rama de trabajo es ahora la **rama de producción** del
+> proyecto de Vercel, así que cada push despliega solo. Verificado contra el
+> entorno — health `ok`, 0 chunks rotos de 21, y el commit servido == HEAD.
 
 ---
 
