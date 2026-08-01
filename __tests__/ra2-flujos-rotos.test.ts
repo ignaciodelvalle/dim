@@ -309,3 +309,79 @@ describe("RA-2 F8 — marcar-perdida no longer returns null", () => {
     expect(handoff).toContain('routeOverride: "?sheet=marcar-perdida"');
   });
 });
+
+// ---------------------------------------------------------------------------
+// F9 — a granted org.transfer.propose was inert: the page gated on ROLE
+// ---------------------------------------------------------------------------
+//
+// /org/[orgToken]/transferencias/nueva used to select organizationMemberships
+// .role and compare it against `new Set(["admin","coordinator"])`, while
+// proposeCrossOrgTransferAction gates on requireCapabilityForOrgToken(
+// "org.transfer.propose"). The two disagree for exactly the actor the grant
+// table exists for: a `member` (or volunteer/foster) with an APPROVED
+// org.transfer.propose row. nav-presets.ts already shows Transferencias to
+// anyone holding that capability, so such a member could see the section,
+// click "Nueva propuesta", and be told "Solo roles admin o coordinator" — a
+// sentence the server does not enforce and that the admin who just granted the
+// permission has no way to reconcile.
+//
+// Source-derived on purpose: the defect is "this page authorizes with the
+// wrong PREDICATE", which is a property of the code, not of a rendered string.
+
+describe("RA-2 F9 — the propose-transfer page gates on the capability, not on role", () => {
+  const REL = "app/org/[orgToken]/transferencias/nueva/page.tsx";
+  const page = source(REL);
+  const action = source("src/modules/transfers/actions.ts");
+
+  it("calls requireCapability with the SAME capability the action enforces", () => {
+    const CAP = "org.transfer.propose";
+    // Pin both ends, so renaming the capability in one place fails here rather
+    // than silently re-opening the gap.
+    expect(action).toContain(`requireCapabilityForOrgToken("${CAP}"`);
+    expect(page).toContain(`requireCapability("${CAP}"`);
+  });
+
+  it("pins the capability check to the org in the URL, not the session default", () => {
+    // Bare requireCapability(cap) falls back to the most-recently-joined
+    // membership. This page resolves the org from orgToken first and passes
+    // organization.id — the confused-deputy-safe shape.
+    expect(page).toContain("requireOrgAccessByToken(orgToken)");
+    expect(page).toMatch(/requireCapability\(\s*"org\.transfer\.propose",\s*organization\.id\s*\)/);
+  });
+
+  it("no longer reads a membership role anywhere", () => {
+    // The structural assertion. Unlike a copy check this cannot go tautological
+    // when someone rewords the error screen: the only way to satisfy it is to
+    // stop authorizing by role.
+    expect(page).not.toContain("organizationMemberships");
+    expect(page).not.toMatch(/ALLOWED_[A-Z_]*ROLES/);
+    expect(page).not.toMatch(/membership\.role/);
+  });
+
+  it("the denial copy names the missing permission and who grants it", () => {
+    // Positive assertions, deliberately. The old string
+    // ("Solo roles admin o coordinator") is asserted absent BELOW, but only in
+    // company of these — a lone `not.toContain` on a literal decays into a
+    // tautology the moment the literal is reworded.
+    expect(page).toContain("Proponer transferencias entre orgs");
+    // Names the org, so a member in several orgs knows WHICH admin to ask.
+    expect(page).toMatch(/Tu membresía en \$\{organization\.displayName\}/);
+    // Says who can fix it and that no role change is involved — the two facts
+    // the old sentence got wrong.
+    expect(page).toMatch(/Un admin de la organización puede otorgártela/);
+    expect(page).toMatch(/no hace falta cambiarte el rol/);
+    // …and a route to go do it.
+    expect(page).toContain("/admin/permisos");
+    expect(page).not.toContain("Solo roles admin o coordinator");
+  });
+
+  it("the capability it names is the one the permissions console can actually grant", () => {
+    // "Pedíselo a un admin" is only actionable if the admin sees that row.
+    const console_ = source("app/org/[orgToken]/admin/permisos/page.tsx");
+    expect(console_).toContain('"org.transfer.propose"');
+    // And the label the page quotes must be the catalog's, or the member and
+    // the admin are looking for different words on different screens.
+    const grant = source("src/modules/organizations/application/grant-capability.ts");
+    expect(grant).toContain('"org.transfer.propose": "Proponer transferencias entre orgs"');
+  });
+});
