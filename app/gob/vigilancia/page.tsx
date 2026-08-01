@@ -48,7 +48,7 @@ import {
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatCount, pluralizeEs } from "@/lib/utils/format";
+import { formatCount, formatRate, pluralizeEs } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 import { rabiesComplianceRows } from "./_components/rabies-compliance-rows";
@@ -600,7 +600,9 @@ export default async function GobVigilanciaPage({
               </dd>
               <dt className="text-ln-op-mute">Mediana de latencia</dt>
               <dd className="text-right font-semibold text-ln-op-ink">
-                {enoSla.medianLatencyHours === null ? "—" : `${enoSla.medianLatencyHours} h`}
+                {enoSla.medianLatencyHours === null
+                  ? "—"
+                  : `${formatRate(enoSla.medianLatencyHours)} h`}
               </dd>
             </dl>
             {/* C2 language contract (2026-07-22): states reality instead of

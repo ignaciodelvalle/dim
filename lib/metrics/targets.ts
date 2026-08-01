@@ -19,7 +19,7 @@
 // PURE — no DB, no side effects. Every export is unit-testable without a
 // live Postgres or Next.js runtime.
 
-import { pluralizeEs } from "@/lib/utils/format";
+import { formatRate, pluralizeEs } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // TARGETS — named benchmark constants
@@ -233,9 +233,11 @@ export function enoSlaHeadline(
       // reviewer was right that the parenthesis doesn't save the first read.
       // Show the operationally useful median delivery latency instead (neutral,
       // no false-success signal), or a plain pending note when unavailable.
+      // formatRate: percentile_cont medians arrive as raw floats
+      // ("287.432300277778") — render es-AR with 1 decimal, never raw.
       sub:
         eno.medianLatencyHours !== null
-          ? `Mediana de entrega ${eno.medianLatencyHours} h`
+          ? `Mediana de entrega ${formatRate(eno.medianLatencyHours)} h`
           : "Pendientes de reintento",
     };
   }
@@ -243,7 +245,7 @@ export function enoSlaHeadline(
     value: pctLabel,
     sub:
       eno.medianLatencyHours !== null
-        ? `Mediana ${eno.medianLatencyHours} h`
+        ? `Mediana ${formatRate(eno.medianLatencyHours)} h`
         : "Sin entregas en el período",
   };
 }

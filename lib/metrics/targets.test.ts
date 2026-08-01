@@ -296,8 +296,24 @@ describe("enoSlaHeadline", () => {
     // is DROPPED entirely (a "100%" beside "12 vencidas" reads as makeup no
     // matter the caption). The sub shows neutral operational context — median
     // delivery latency — never the success %.
-    expect(sub).toBe("Mediana de entrega 4 h");
+    expect(sub).toBe("Mediana de entrega 4,0 h");
     expect(sub).not.toContain("100%");
+  });
+
+  it("formats a raw percentile_cont float es-AR with 1 decimal, never verbatim", () => {
+    // Live regression: /gob/vigilancia's SLA tile read
+    // "Mediana 287.432300277778 h" — the DB median interpolated raw.
+    const breach = enoSlaHeadline(
+      { onTimePct: 100, breachedOpen: 2, medianLatencyHours: 287.432300277778 },
+      pctLabel,
+    );
+    expect(breach.sub).toBe("Mediana de entrega 287,4 h");
+
+    const clean = enoSlaHeadline(
+      { onTimePct: 98, breachedOpen: 0, medianLatencyHours: 287.432300277778 },
+      pctLabel,
+    );
+    expect(clean.sub).toBe("Mediana 287,4 h");
   });
 
   it("an active breach with no latency data falls back to a plain pending note (no %)", () => {
@@ -316,7 +332,7 @@ describe("enoSlaHeadline", () => {
       pctLabel,
     );
     expect(value).toBe("95%");
-    expect(sub).toBe("Mediana 6 h");
+    expect(sub).toBe("Mediana 6,0 h");
   });
 
   it("no open breach, no deliveries yet → '—' headline with an honest no-data sub", () => {
