@@ -454,6 +454,132 @@ describe("PanoramaConsole — Riesgo PPP vista (new-vistas wave, declared bivari
   });
 });
 
+// PO 2026-08-01, from a live capture of
+//   /admin/panorama?layers=mordeduras,ppp&period=90d&preset=riesgo-ppp&encoding=bivariate
+// at national scope: "las referencias de colores y círculos no son consistentes
+// con lo mostrado en el mapa".
+//
+// Two lies on that one strip, both of the RA-7 F9/F10 family (a legend may not
+// name a mark the frame does not paint):
+//
+//  1. the axis caption was the LITERAL "cobertura × señal" — the OTHER declared
+//     pair's vocabulary — while the matrix crossed registro PPP × mordeduras;
+//  2. an orange "Mordeduras / antirrábica" dot promised circles on a canvas
+//     with none, because `legendLayerDots` read `activeLayers` (what was
+//     REQUESTED) instead of `mapLayers` (what is PAINTED). Under the bivariate
+//     encoding those differ by exactly the signal layer, which is folded into
+//     the 3×3 matrix and removed from the map.
+//
+// The dot bug reached BOTH pill states from one derivation: `visibleDots` feeds
+// the collapsed strip AND the expanded repeat.
+describe("PanoramaConsole — the bivariate strip describes the frame it is over", () => {
+  /** 9 provinces with a real spread — enough units and non-degenerate terciles
+   *  for `bivariateViable`, so the encoding actually engages. */
+  const PROV = ["AR-B", "AR-C", "AR-X", "AR-S", "AR-M", "AR-T", "AR-E", "AR-N", "AR-Q"];
+
+  /** How many of the 9 signal cells come back k-anon suppressed. Under
+   *  BIVARIATE_MAX_SUPPRESSED_SHARE (0.5) so the encoding still engages. */
+  let suppressedSignals = 0;
+
+  function bivariateFetch(input: RequestInfo | URL): Promise<Response> {
+    const url = String(input);
+    let body: unknown = OK_ENVELOPE;
+    if (url.includes("/api/panorama/kpis")) {
+      body = INITIAL_KPIS;
+    } else if (url.includes("/api/panorama/ppp")) {
+      body = {
+        features: {
+          type: "FeatureCollection",
+          features: PROV.map((code, i) => ({
+            type: "Feature",
+            geometry: null,
+            properties: {
+              provinceCode: code,
+              province: code,
+              value: 10 + i * 9,
+              suppressed: false,
+            },
+          })),
+        },
+        truncated: false,
+        suppressedCount: 0,
+      };
+    } else if (url.includes("/api/panorama/mordeduras")) {
+      body = {
+        features: {
+          type: "FeatureCollection",
+          features: PROV.map((code, i) => ({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [-60, -34] },
+            properties:
+              i < suppressedSignals
+                ? { province: code, count: null, suppressed: true }
+                : { province: code, count: 7 + i * 5, suppressed: false },
+          })),
+        },
+        truncated: false,
+        suppressedCount: 0,
+      };
+    }
+    return Promise.resolve({ ok: true, json: async () => body } as unknown as Response);
+  }
+
+  async function openRiesgoPpp(opts?: { suppressed?: number }) {
+    suppressedSignals = opts?.suppressed ?? 0;
+    // A LOCAL stub, never `fetchMock.mockImplementation` — the shared mock is
+    // only `mockClear`ed between tests, so an implementation swap would leak
+    // into every later case (it broke the two deferMode abort tests).
+    vi.stubGlobal("fetch", vi.fn(bivariateFetch));
+    setUrl("/gob/panorama?layers=mordeduras,ppp&period=90d&preset=riesgo-ppp&encoding=bivariate");
+    renderConsole();
+    // Wait until the encoding has actually engaged — the strip only makes its
+    // bivariate claims once the 3×3 matrix is what the map paints.
+    await waitFor(() => {
+      expect(screen.getByText("Intensidad combinada")).toBeInTheDocument();
+    });
+  }
+
+  it("names the axes THIS pair crosses, never the other pair's vocabulary", async () => {
+    await openRiesgoPpp();
+
+    expect(screen.getByText("Registro PPP × Mordeduras")).toBeInTheDocument();
+    expect(screen.queryByText("cobertura × señal")).not.toBeInTheDocument();
+  });
+
+  it("shows no point-layer dot for a layer folded into the matrix", async () => {
+    await openRiesgoPpp();
+
+    // `mordeduras` is `geomType: "point"` and IS active — but the bivariate
+    // encoding drops it from `mapLayers` and paints not one circle. The strip
+    // used to show its orange dot anyway, in both the collapsed summary and the
+    // expanded repeat (one `visibleDots` array feeds both), so a zero here also
+    // covers the expanded panel the PO flagged.
+    expect(screen.queryAllByText("Mordeduras / antirrábica")).toHaveLength(0);
+  });
+
+  // The RA-7 F9/F10 rule in its THIRD form, spotted on the same capture: the
+  // bivariate method caption asserted "Una provincia protegida por privacidad
+  // (k-anonimato) se muestra con trama, nunca con color" on EVERY bivariate
+  // frame. It sends the reader hunting for a texture; on a fully-classified
+  // frame there is none to find, and a reader who learns the notices are
+  // decoration stops reading the privacy one.
+  const TRAMA = /se muestra con trama, nunca con color/;
+
+  it("does not promise a k-anon trama on a frame that paints none", async () => {
+    await openRiesgoPpp();
+
+    expect(screen.queryByText(TRAMA)).not.toBeInTheDocument();
+    // The method sentence itself still stands — only the unearned claim is gone.
+    expect(screen.getByText(/Terciles calculados sobre la distribución/)).toBeInTheDocument();
+  });
+
+  it("does promise it the moment the frame actually hatches a province", async () => {
+    await openRiesgoPpp({ suppressed: 2 });
+
+    expect(screen.getByText(TRAMA)).toBeInTheDocument();
+  });
+});
+
 describe("PanoramaConsole — bare-URL board restore (subtle, not sticky)", () => {
   it("restores a saved board on a bare URL via shallow replaceState + client fetch", async () => {
     window.localStorage.setItem(

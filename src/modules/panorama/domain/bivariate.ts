@@ -129,6 +129,22 @@ export function bivariateCaptionText(pair: BivariatePair | null): string {
   return `Intensidad combinada por provincia: ${coverage} (terciles) × ${signal} (terciles). ${risk}.`;
 }
 
+/**
+ * Compact "x × y" axis caption for the COLLAPSED legend strip (LegendPill) —
+ * the pair's own declared axis captions with their arrows stripped.
+ *
+ * PO 2026-08-01: the strip had the literal `"cobertura × señal"` inlined and
+ * rendered it for every bivariate frame, so `riesgo-ppp` (registro PPP ×
+ * mordeduras) was captioned with the OTHER pair's vocabulary. Same defect
+ * {@link bivariateCaptionText} was written to close for the expanded caption —
+ * the collapsed surface just never got the fix. Returns null when no pair is
+ * resolved: a strip that does not know what the matrix crosses says nothing.
+ */
+export function bivariateAxesLabel(pair: BivariatePair | null): string | null {
+  if (!pair) return null;
+  return `${pair.coverageAxis.replace(" →", "")} × ${pair.signalAxis.replace(" ↑", "")}`;
+}
+
 // ---------------------------------------------------------------------------
 // Terciles
 // ---------------------------------------------------------------------------

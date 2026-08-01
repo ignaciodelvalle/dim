@@ -24,7 +24,31 @@ type Props = {
    * with the hint. The full 3×3 reading lives in the expanded `children`.
    */
   bivariate?: boolean;
-  /** One dot per active point layer (its registry color + label). */
+  /**
+   * The ACTIVE bivariate pair's axis caption ("Registro PPP × Mordeduras"),
+   * built by `bivariateAxesLabel` from the pair the matrix actually crosses.
+   *
+   * PO 2026-08-01. This slot used to be the hardcoded literal "cobertura ×
+   * señal", rendered for EVERY bivariate frame. That vocabulary belongs to ONE
+   * declared pair (cobertura × zoonosis); on `riesgo-ppp` the canvas crosses
+   * registro PPP × mordeduras and the strip named neither axis correctly — with
+   * the map's own popup two centimetres above it saying the right thing.
+   * `bivariateCaptionText` had already learned this lesson for the expanded
+   * caption (bivariate.ts, PO validacion-A 2026-07-23); the collapsed strip
+   * kept its copy of the old bug.
+   *
+   * Absent → the 3×3 hint renders with no axis caption. A legend that does not
+   * know what the matrix crosses says nothing, never a guess.
+   */
+  bivariateAxes?: string | null;
+  /**
+   * One dot per point layer THE MAP IS PAINTING (its registry color + label).
+   *
+   * "Painting", not "active": under the bivariate encoding the signal layer is
+   * folded INTO the 3×3 matrix and its circles are removed from the canvas
+   * (PanoramaConsole's `mapLayers` drops it). The caller must therefore derive
+   * these from the painted layer set — see the call site.
+   */
   layerDots: ReadonlyArray<{ color: string; label: string }>;
   /**
    * Round-3 QA fix 6: low/high endpoint labels flanking the ramp (e.g. "0%" /
@@ -37,10 +61,14 @@ type Props = {
    * radii (px, as rendered on the map) + their value labels. These encodings
    * paint no ramp at all, so without this the collapsed pill offered no scale
    * cue beyond a bare color dot.
+   *
+   * `color` is the layer's own bubble fill when exactly one graduated layer is
+   * painting (null when several — no single colour to cite).
    */
   graduatedHint?: {
     small: { r: number; label: string };
     large: { r: number; label: string };
+    color?: string | null;
   } | null;
   /**
    * Whether the CURRENT FRAME paints at least one k-anon hatch — the gate for
@@ -98,10 +126,29 @@ function BivariateHint() {
   );
 }
 
+/**
+ * Largest diameter (px) a collapsed-strip hint bubble may take. The map's own
+ * bubbles run BUBBLE_R_MIN 5 → BUBBLE_R_MAX 30 (10–60 px across), which cannot
+ * fit inside a one-line pill — so the pair is scaled DOWN by a single common
+ * factor. Both dots shrink together, which is the only thing that has to be
+ * true: the RATIO between them is the scale cue, and a shared factor preserves
+ * it exactly (the map's √-area relation survives the rescale).
+ */
+const HINT_MAX_D = 14;
+
+/** The two hint diameters (px) for a graduated small/large pair, scaled to fit
+ *  the strip while preserving their on-map size ratio. */
+function hintDiameters(smallR: number, largeR: number): { small: number; large: number } {
+  const large = Math.max(largeR, smallR, 0.5);
+  const factor = HINT_MAX_D / (large * 2);
+  return { small: Math.max(3, Math.round(smallR * 2 * factor)), large: HINT_MAX_D };
+}
+
 export function LegendPill({
   baseLabel,
   rampColors,
   bivariate,
+  bivariateAxes = null,
   layerDots,
   rampEndpoints = null,
   graduatedHint = null,
@@ -152,10 +199,13 @@ export function LegendPill({
           {bivariate && (
             // Round-3 QA fix 6: the 3×3 hint already existed; add the two axis
             // labels micro-captioned so the collapsed strip names WHAT the
-            // matrix crosses, not just that it is a matrix.
+            // matrix crosses, not just that it is a matrix. The caption comes
+            // from the ACTIVE pair (see `bivariateAxes`) — never a literal.
             <span className="inline-flex shrink-0 items-center gap-1">
               <BivariateHint />
-              <span className="text-xs leading-none text-ln-op-faint">cobertura × señal</span>
+              {bivariateAxes && (
+                <span className="text-xs leading-none text-ln-op-faint">{bivariateAxes}</span>
+              )}
             </span>
           )}
           {rampColors !== null && rampColors.length > 0 && (
@@ -188,35 +238,53 @@ export function LegendPill({
               )}
             </span>
           )}
-          {graduatedHint && (
-            // Round-3 QA fix 6: graduated/points had NO collapsed scale at all
-            // (only a color dot) — the biggest gap the QA doc named. A compact
-            // small●–large● step hint with the real bin labels.
-            <span
-              className="inline-flex shrink-0 items-center gap-1"
-              title="Tamaño del punto ∝ cantidad de eventos por unidad"
-            >
-              <span
-                aria-hidden="true"
-                className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
-                style={{ width: 4, height: 4 }}
-              />
-              <span className="text-xs tabular-nums leading-none text-ln-op-faint">
-                {graduatedHint.small.label}
-              </span>
-              <span aria-hidden="true" className="text-xs leading-none text-ln-op-faint">
-                –
-              </span>
-              <span
-                aria-hidden="true"
-                className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
-                style={{ width: 10, height: 10 }}
-              />
-              <span className="text-xs tabular-nums leading-none text-ln-op-faint">
-                {graduatedHint.large.label}
-              </span>
-            </span>
-          )}
+          {graduatedHint &&
+            (() => {
+              // Round-3 QA fix 6: graduated/points had NO collapsed scale at all
+              // (only a color dot) — the biggest gap the QA doc named. A compact
+              // small●–large● step hint with the real bin labels.
+              //
+              // PO 2026-08-01. The two dots were HARDCODED at 4 px and 10 px
+              // while this prop's own doc promised "bubble radii (px, as
+              // rendered on the map)". They were a fixed 2,5× pair no matter
+              // what the data did: a frame whose bins ran 1 → 2 (map radii 5 and
+              // ~26 px, a 5,3× area step) and a frame whose bins ran 1 → 900 got
+              // the identical picture, and the "large" 10 px dot was the exact
+              // size of the map's SMALLEST bubble. Derived from the real radii
+              // now, scaled by one shared factor so the ratio survives.
+              const d = hintDiameters(graduatedHint.small.r, graduatedHint.large.r);
+              // The map fills these in the layer's colour; cite it when there is
+              // one (MapLegends does the same in the expanded block).
+              const dot = graduatedHint.color
+                ? { background: graduatedHint.color, opacity: 0.92 }
+                : {};
+              return (
+                <span
+                  className="inline-flex shrink-0 items-center gap-1"
+                  title="Tamaño del punto ∝ cantidad de eventos por unidad"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
+                    style={{ width: d.small, height: d.small, ...dot }}
+                  />
+                  <span className="text-xs tabular-nums leading-none text-ln-op-faint">
+                    {graduatedHint.small.label}
+                  </span>
+                  <span aria-hidden="true" className="text-xs leading-none text-ln-op-faint">
+                    –
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className="inline-block shrink-0 rounded-full border border-ln-op-line-2 bg-ln-op-azul/20"
+                    style={{ width: d.large, height: d.large, ...dot }}
+                  />
+                  <span className="text-xs tabular-nums leading-none text-ln-op-faint">
+                    {graduatedHint.large.label}
+                  </span>
+                </span>
+              );
+            })()}
           {visibleDots.map((dot) => (
             <span key={dot.label} className="inline-flex shrink-0 items-center gap-1">
               <span

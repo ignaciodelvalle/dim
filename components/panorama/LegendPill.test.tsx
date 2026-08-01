@@ -32,13 +32,25 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
     expect(screen.getByText("70% meta")).toBeInTheDocument();
   });
 
-  it("renders no ramp/endpoints when rampColors is null (e.g. bivariate mode)", () => {
+  // ⚠️ REWRITTEN (PO 2026-08-01). This case used to assert
+  //     expect(screen.getByText("cobertura × señal")).toBeInTheDocument();
+  // against a LITERAL hardcoded in LegendPill.tsx, and it passed for every
+  // bivariate frame regardless of which pair was on the canvas. It was pinning
+  // the defect as the contract: "cobertura × señal" is ONE declared pair's
+  // vocabulary (cobertura × zoonosis). On the `riesgo-ppp` vista the matrix
+  // crosses registro PPP × mordeduras, and the strip announced axes the map was
+  // not crossing — with the map's own popup, two centimetres above it, naming
+  // them correctly. `bivariateCaptionText` had already been taught to read the
+  // active pair (bivariate.ts, PO validacion-A 2026-07-23); the collapsed strip
+  // kept the stale copy, and this test kept it alive.
+  it("names the axes the ACTIVE pair declares, not a hardcoded pair", () => {
     render(
       <LegendPill
-        baseLabel="Riesgo combinado"
+        baseLabel="Intensidad combinada"
         rampColors={null}
         rampEndpoints={null}
         bivariate
+        bivariateAxes="Registro PPP × Mordeduras"
         layerDots={[]}
         suppressedInFrame={false}
       >
@@ -46,7 +58,31 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
       </LegendPill>,
     );
 
-    expect(screen.getByText("cobertura × señal")).toBeInTheDocument();
+    expect(screen.getByText("Registro PPP × Mordeduras")).toBeInTheDocument();
+    // The other pair's vocabulary must be nowhere on the strip.
+    expect(screen.queryByText(/cobertura/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/señal/i)).not.toBeInTheDocument();
+  });
+
+  it("says nothing about the axes when the pair is unknown", () => {
+    // A legend that cannot name what the matrix crosses stays silent; the 3×3
+    // glyph still renders (the encoding IS a matrix, which is true regardless).
+    const { container } = render(
+      <LegendPill
+        baseLabel="Intensidad combinada"
+        rampColors={null}
+        rampEndpoints={null}
+        bivariate
+        bivariateAxes={null}
+        layerDots={[]}
+        suppressedInFrame={false}
+      >
+        <div>panel</div>
+      </LegendPill>,
+    );
+
+    expect(screen.queryByText(/×/)).not.toBeInTheDocument();
+    expect(container.querySelector('[title^="Mapa bivariado"]')).toBeInTheDocument();
   });
 
   it("shows a small/large step hint with real value labels for graduated encodings", () => {
@@ -64,6 +100,81 @@ describe("<LegendPill> — collapsed-strip enrichment (Round-3 QA fix 6)", () =>
 
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("42")).toBeInTheDocument();
+  });
+
+  // PO 2026-08-01 — "los círculos … no son consistentes con lo mostrado en el
+  // mapa". The two hint dots were HARDCODED at 4 px and 10 px: a fixed 2,5×
+  // pair that never moved with the data, and whose "large" dot was the exact
+  // diameter of the map's SMALLEST bubble (BUBBLE_R_MIN 5 → 10 px across). The
+  // prop's own doc promised "bubble radii (px, as rendered on the map)". They
+  // cannot BE the map's radii inside a one-line pill (up to 60 px across), so
+  // they are scaled down by ONE shared factor — which is what preserves the
+  // ratio that carries the meaning.
+  function hintDots(container: HTMLElement): number[] {
+    return [...container.querySelectorAll<HTMLElement>("span[style*='width']")]
+      .map((el) => Number.parseFloat(el.style.width))
+      .filter((w) => Number.isFinite(w));
+  }
+
+  it("sizes the hint dots from the REAL radii, preserving their on-map ratio", () => {
+    // Map radii 5 and 30 → a 6× diameter ratio. Rendered at 14 px max, the
+    // small dot must land near 14/6 ≈ 2,3 → floored at the 3 px legibility
+    // minimum, and must stay strictly smaller than the large one.
+    const { container } = render(
+      <LegendPill
+        baseLabel="Eventos por unidad"
+        rampColors={null}
+        layerDots={[]}
+        graduatedHint={{ small: { r: 5, label: "1" }, large: { r: 30, label: "42" } }}
+        suppressedInFrame={false}
+      >
+        <div>panel</div>
+      </LegendPill>,
+    );
+    const wide = hintDots(container);
+    expect(wide).toContain(14);
+    expect(Math.min(...wide)).toBeLessThan(14);
+
+    cleanup();
+
+    // A frame whose bubbles barely differ (radii 12 vs 15) must NOT be drawn as
+    // the same dramatic step — this is the whole point of deriving the sizes.
+    const { container: c2 } = render(
+      <LegendPill
+        baseLabel="Eventos por unidad"
+        rampColors={null}
+        layerDots={[]}
+        graduatedHint={{ small: { r: 12, label: "1" }, large: { r: 15, label: "3" } }}
+        suppressedInFrame={false}
+      >
+        <div>panel</div>
+      </LegendPill>,
+    );
+    const narrow = hintDots(c2);
+    expect(narrow).toContain(14);
+    // 12/15 of 14 ≈ 11 — visibly closer together than the 6× frame above.
+    expect(Math.min(...narrow)).toBeGreaterThan(Math.min(...wide));
+  });
+
+  it("cites the bubble colour the map paints when one layer owns it", () => {
+    const { container } = render(
+      <LegendPill
+        baseLabel="Eventos por unidad"
+        rampColors={null}
+        layerDots={[]}
+        graduatedHint={{
+          small: { r: 5, label: "1" },
+          large: { r: 30, label: "42" },
+          color: "#f28e2b",
+        }}
+        suppressedInFrame={false}
+      >
+        <div>panel</div>
+      </LegendPill>,
+    );
+    // The map fills these circles with `layer.color`; a grey placeholder in the
+    // key makes the reader guess that the two marks are the same thing.
+    expect(container.innerHTML).toContain("rgb(242, 142, 43)");
   });
 
   // LIVE PIXEL VERIFICATION 2026-07-30. This case used to read "keeps the k-anon

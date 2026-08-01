@@ -113,6 +113,7 @@ import { AR_TIME_ZONE } from "@/lib/utils/format";
 import type { PanoramaKpis } from "@/src/modules/panorama/application/get-panorama-kpis";
 import {
   BIVARIATE_MIN_UNITS,
+  bivariateAxesLabel,
   bivariateCaptionText,
   bivariatePairFor,
   bivariateRefusalReason,
@@ -4174,12 +4175,21 @@ export function PanoramaConsole({
     if (divisionLegend && divisionLegend.colors.length > 0) return divisionLegend.colors;
     return null;
   }, [captionLayer, provinceSeqLegend, divisionLegend, bivariateActive]);
+  // PO 2026-08-01 — "los círculos no son consistentes con lo mostrado en el
+  // mapa". This read `activeLayers` (what the operator REQUESTED) where every
+  // other legend surface reads `mapLayers` (what the canvas PAINTS). Under the
+  // bivariate encoding the two differ by exactly one layer: mapLayers drops the
+  // signal because it is folded into the 3×3 matrix, so on riesgo-ppp the strip
+  // showed an orange "Mordeduras / antirrábica" dot over a map with not one
+  // circle on it. Same rule as RA-7 F9/F10 — a legend may not name a mark the
+  // frame does not paint — and per-cápita gets fixed for free (mapLayers carries
+  // the "por 10.000 hab." label the marks were re-encoded into).
   const legendLayerDots = useMemo(
     () =>
-      activeLayers
+      mapLayers
         .filter((l) => l.geomType === "point")
         .map((l) => ({ color: l.color, label: l.label })),
-    [activeLayers],
+    [mapLayers],
   );
 
   // Round-3 QA fix 6 — collapsed-ramp endpoint labels (panorama-labels.ts).
@@ -4222,14 +4232,24 @@ export function PanoramaConsole({
   // small●–large● hint using the SAME bins the map's bubbles use
   // (graduated-scale.ts), so the pill states the value range a bubble size
   // spans without opening the full "Eventos por unidad" legend block.
-  const legendGraduatedHint = useMemo<{ small: GraduatedBin; large: GraduatedBin } | null>(() => {
+  const legendGraduatedHint = useMemo<{
+    small: GraduatedBin;
+    large: GraduatedBin;
+    color: string | null;
+  } | null>(() => {
     if (bivariateActive || !graduatedScale || graduatedScale.bins.length === 0) return null;
-    if (!activeLayers.some((l) => l.renderMode === "graduated")) return null;
+    // PAINTED, not merely active (the legendLayerDots rule): `activeLayers` here
+    // was the same wrong array, only currently shadowed by the bivariateActive
+    // guard above. Reading mapLayers removes the latent case entirely.
+    const grad = mapLayers.filter((l) => l.renderMode === "graduated");
+    if (grad.length === 0) return null;
     return {
       small: graduatedScale.bins[0],
       large: graduatedScale.bins[graduatedScale.bins.length - 1],
+      // Cite the bubble fill only when one layer owns it (see MapLegends).
+      color: grad.length === 1 ? grad[0].color : null,
     };
-  }, [activeLayers, graduatedScale, bivariateActive]);
+  }, [mapLayers, graduatedScale, bivariateActive]);
 
   // task #63: bivariate encoding toggle — offered ONLY on "Brotes activos" at
   // province framing (both inputs active). A map ENCODING switch (how the two
@@ -4934,6 +4954,8 @@ export function PanoramaConsole({
             rampColors={legendRampColors}
             rampEndpoints={legendRampEndpoints}
             bivariate={bivariateActive}
+            // The ACTIVE pair's axes, never a literal (bivariate.ts).
+            bivariateAxes={bivariateAxesLabel(bivariatePair)}
             graduatedHint={legendGraduatedHint}
             layerDots={legendLayerDots}
             // Same atoms + same inputs MapLegends gets (mapLayers + the lifted
@@ -4960,8 +4982,14 @@ export function PanoramaConsole({
               {bivariateActive ? (
                 <p className="text-sm leading-snug text-ln-op-mute" aria-live="polite">
                   {bivariateCaptionText(bivariatePair)} Terciles calculados sobre la distribución
-                  del alcance actual. Una provincia protegida por privacidad (k-anonimato) se
-                  muestra con trama, nunca con color.
+                  del alcance actual.
+                  {/* PO 2026-08-01, the RA-7 F9/F10 rule in its third form: this
+                      sentence sends the reader looking for a texture, so it may
+                      only be said when the frame paints one. Gated on the SAME
+                      predicate as the pill's k-anon chip and MapLegends' hatch
+                      rows, so the three cannot disagree. */}
+                  {frameHasSuppressedMark(mapLayers, divisionLegend) &&
+                    " Una provincia protegida por privacidad (k-anonimato) se muestra con trama, nunca con color."}
                 </p>
               ) : (
                 <>
