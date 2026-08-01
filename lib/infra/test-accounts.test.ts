@@ -19,6 +19,24 @@ describe("isTestAccount", () => {
     expect(isTestAccount("Export Bot", "govt-dashboard-export@dim.test")).toBe(true);
   });
 
+  it("flags the plus-addressed bulk-load accounts (staging finding 2026-08-01)", () => {
+    // These carry the signup trigger's provisional display_name — the email
+    // local part — so the roster was about to show a funcionario
+    // "ignaciodelvalle2014+cursor-owner2" as a person's name in a national
+    // registry. Both identifiers must hit, since the name IS the local part.
+    expect(isTestAccount("ignaciodelvalle2014+cursor-owner2@gmail.com")).toBe(true);
+    expect(isTestAccount("ignaciodelvalle2014+cursor-owner2")).toBe(true);
+    expect(isTestAccount("Ana Pérez", "ignaciodelvalle2014+cursor-vet1@gmail.com")).toBe(true);
+  });
+
+  it("anchors on the plus-addressing, not on the word 'cursor'", () => {
+    // A real organisation could legitimately be named for a cursor; a real
+    // titular does not write their own address as somebody else's mailbox plus
+    // a routing suffix.
+    expect(isTestAccount("Cursor Software SRL", "contacto@cursor.com.ar")).toBe(false);
+    expect(isTestAccount("cursor-owner2")).toBe(false);
+  });
+
   it("matches across any of the provided identifiers", () => {
     // name is clean, email is a test handle → still flagged.
     expect(isTestAccount("María González", "maria-gen-1@dim.test")).toBe(true);
