@@ -6,6 +6,15 @@
 // Privacy posture (active pets): NO owner PII, NO microchip number, NO medical
 // details, NO scan history.
 //
+// The TATTOO code is the deliberate exception, and only on the lost branch
+// (ratified 2026-08-01 after an audit read the omission as an oversight). A
+// microchip needs a reader, so publishing its number helps nobody standing over
+// the animal and hands a scraper a national identifier. A tattoo is a mark you
+// read OFF the animal — withholding it would withhold the one identifier the
+// finder can actually match, in the exact situation the Tier 1 promotion exists
+// to serve. It stays out of the active-pet view: this is a reunification
+// disclosure, not a public property of the credential.
+//
 // Security (V1-1): per-IP rate limit enforced before ANY data is fetched.
 // Limit: 30 req/min, 200 req/hour per IP. Generous enough that a real QR scan
 // (one person refreshing a single page) is never affected; tight enough to stop
