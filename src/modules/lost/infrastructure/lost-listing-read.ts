@@ -26,6 +26,13 @@ export async function queryLostListing(
   filters: LostListingFilters,
   cursor: LostListingCursor | null,
   pageSize: number = DEFAULT_PAGE_SIZE,
+  // Test seam, never passed in production. The superset-ordering defect below
+  // only exists ABOVE this cap, and the real value is 500 — a fixture large
+  // enough to cross it needs 500+ pets AND 500+ spine events, and pet_events
+  // cannot be torn down without the audited mutation-override hatch. Shrinking
+  // the cap reproduces the SAME mechanism at six rows: the bug is about
+  // ordering, and ordering does not care what the number is.
+  fetchCapOverride?: number,
 ): Promise<{ items: LostListingItem[]; nextCursor: LostListingCursor | null }> {
   // Stage 1 — pull the pet rows in status='lost' that match the structural
   // filters. We overshoot by pageSize+1 to detect "more pages", same
@@ -69,7 +76,30 @@ export async function queryLostListing(
   // We don't yet know which pets pass the time-bucket filter; fetch a
   // generous superset and trim after joining the latest event.
   // 500 is the same cap fetchLostPets uses in govt-dashboards.
-  const fetchCap = Math.max(500, pageSize * 5);
+  const fetchCap = fetchCapOverride ?? Math.max(500, pageSize * 5);
+
+  // ORDER BY on the superset, not just on the 24 we keep.
+  //
+  // This LIMIT used to run unordered. Below ~500 lost pets that is invisible —
+  // the cap takes everything, and the JS sort at the bottom of this function
+  // produces the right answer. Past it, Postgres hands back an ARBITRARY 500
+  // rows (whatever the scan yields), the JS sort orders that accidental window,
+  // and the page confidently presents it as "the most recent". Staging crossed
+  // the threshold on 2026-08-01 with 4011 lost pets and the three genuinely
+  // newest — including the only lost pet in the database that has a photo —
+  // were nowhere on page 1. Verified against the live page, not inferred.
+  //
+  // The sort key lives only in the event spine (there is no pets.lost_at
+  // column), so ordering costs a correlated subquery. It selects occurred_at
+  // and nothing else: the Item-27 split below still decides who gets the
+  // location PAYLOAD, and this changes none of that. The timestamp itself is
+  // already shown for every pet, disclosing or not.
+  const markedLostAtSql = sql<Date>`(
+    SELECT max(e.occurred_at) FROM pet_events e
+    WHERE e.pet_id = ${pets.id}
+      AND e.event_type = 'status_changed'
+      AND e.payload->>'to_status' = 'lost'
+  )`;
 
   const baseRows = await db
     .select({
@@ -106,6 +136,11 @@ export async function queryLostListing(
     .from(pets)
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(and(...baseConditions))
+    // NULLS LAST: a pet whose status is 'lost' with no status_changed event to
+    // match is dropped further down anyway (allItems skips rows with no
+    // timestamp). Sorting it to the front would spend the 500-row budget on
+    // rows guaranteed to be discarded.
+    .orderBy(sql`${markedLostAtSql} DESC NULLS LAST`)
     .limit(fetchCap);
 
   if (baseRows.length === 0) return { items: [], nextCursor: null };
