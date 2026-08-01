@@ -55,7 +55,11 @@ type AlertDirectionValue = (typeof ALERT_DIRECTIONS)[number];
 
 const ALERT_METRIC_LABEL: Record<AlertMetricKeyValue, string> = {
   active_zoonosis: KPI_CATALOG.active_zoonosis_signals.label,
-  eno_sla_ontime_pct: "SLA ENO en tiempo (%)",
+  // ENO spelled out inline (T5.8): this string also backs a plain-text filter
+  // dropdown option (line ~176) and two inline metric-name spans, none of
+  // which can carry a hover tooltip — the acronym expansion has to live in
+  // the string itself here, unlike the other ENO sites in this codebase.
+  eno_sla_ontime_pct: "SLA ENO (Notificación Obligatoria) en tiempo (%)",
   queue_oldest_days: "Días sin atender (solicitud más antigua)",
   sterilization_coverage_pct: "Cobertura de esterilización (%)",
   microchip_penetration_pct: "Penetración de microchip (%)",
@@ -220,7 +224,12 @@ export default async function SuscripcionesPage({
                     {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
                   </span>
                   {a.jurisdictionProvince ? (
-                    <span className="ml-1 text-sm text-ln-op-mute">({a.jurisdictionProvince})</span>
+                    <>
+                      {" "}
+                      <span className="ml-1 text-sm text-ln-op-mute">
+                        ({a.jurisdictionProvince})
+                      </span>
+                    </>
                   ) : null}
                   {" — "}
                   actual{" "}
@@ -274,9 +283,12 @@ export default async function SuscripcionesPage({
                       {a.label ?? ALERT_METRIC_LABEL[a.metricKey] ?? a.metricKey}
                     </span>
                     {a.jurisdictionProvince ? (
-                      <span className="ml-1 text-sm text-ln-op-mute">
-                        ({a.jurisdictionProvince})
-                      </span>
+                      <>
+                        {" "}
+                        <span className="ml-1 text-sm text-ln-op-mute">
+                          ({a.jurisdictionProvince})
+                        </span>
+                      </>
                     ) : null}
                     <span className="ml-2 text-sm text-ln-op-mute">
                       {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction}{" "}
