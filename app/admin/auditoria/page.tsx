@@ -1,4 +1,14 @@
-import { and, desc, eq, gte, inArray, lt } from "drizzle-orm";
+// /admin/auditoria — global audit log (streamed shell, platform-budget T3.3).
+//
+// The default export is SYNCHRONOUS: the shell (loading skeleton) flushes
+// before any DB call. The whole fetch group (entries + the now-parallel
+// profiles lookups, see _lib/load-audit-data.ts) is bounded with
+// loadWithTimeout(8 s) — on expiry the operator gets an honest
+// AnalyticsLoadFallback with a retry link that preserves the active filters,
+// never a ~20 s blank hang.
+
+import { Suspense } from "react";
+
 import Link from "next/link";
 
 import {
@@ -10,8 +20,10 @@ import {
   OpFilterBar,
   OpPill,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
+import { OpDashboardSkeleton } from "@/components/ui/dashboard/OpDashboardSkeleton";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
-import { auditLog, db, profiles } from "@/db";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import {
@@ -20,25 +32,38 @@ import {
   parseAuditDateRange,
 } from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
-import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
+import { businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { formatDateTime } from "@/lib/utils/format";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 
 import { AuditActionFilter } from "./_components/AuditActionFilter";
+import { type AuditData, loadAuditData } from "./_lib/load-audit-data";
 
-const AUDITORIA_PAGE_LIMIT = 200;
+/** Budget for the audit fetch group (entries + parallel profile lookups). */
+const AUDITORIA_LOAD_TIMEOUT_MS = 8_000;
 
-export default async function AdminAuditoriaPage({
+type AuditoriaSearchParams = Promise<{
+  action?: string;
+  actor?: string;
+  from?: string;
+  to?: string;
+  cursor?: string;
+}>;
+
+export default function AdminAuditoriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{
-    action?: string;
-    actor?: string;
-    from?: string;
-    to?: string;
-    cursor?: string;
-  }>;
+  searchParams: AuditoriaSearchParams;
 }) {
+  // Sync export — skeleton config mirrors loading.tsx.
+  return (
+    <Suspense fallback={<OpDashboardSkeleton cards={[10]} />}>
+      <AuditoriaBody searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function AuditoriaBody({ searchParams }: { searchParams: AuditoriaSearchParams }) {
   await requireAdminOrRedirect();
 
   const sp = await searchParams;
@@ -55,38 +80,41 @@ export default async function AdminAuditoriaPage({
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
-  // Build WHERE clause — push every filter into SQL so the LIMIT is
-  // applied after filtering (JS-side filtering would silently miss rows
-  // beyond the cap). action uses IN over the validated enum codes; actor uses
-  // exact UUID equality; the date range is a half-open [since, until) interval.
-  // Keyset predicate is AND-composed last.
-  const filterClauses = [];
-  if (actionFilters.length > 0) filterClauses.push(inArray(auditLog.action, actionFilters));
-  if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
-  if (since) filterClauses.push(gte(auditLog.performedAt, since));
-  if (until) filterClauses.push(lt(auditLog.performedAt, until));
-  const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
-  if (cursorClause) filterClauses.push(cursorClause);
-  const whereClause = filterClauses.length > 0 ? and(...filterClauses) : undefined;
+  // Bounded fetch group (T3.3): entries + the parallel profiles lookups race an
+  // 8 s deadline. NOTE: the deadline does not cancel the underlying queries —
+  // it only bounds how long this request waits (same contract as the analytics
+  // dashboards). The retry link keeps every active filter.
+  const load = await loadWithTimeout(
+    loadAuditData({ actionFilters, actorFilter, since, until, cursor }),
+    AUDITORIA_LOAD_TIMEOUT_MS,
+  );
 
-  // Fetch limit+1 to detect hasMore.
-  const rawEntries = await db
-    .select({
-      id: auditLog.id,
-      actorUserId: auditLog.actorUserId,
-      action: auditLog.action,
-      approvalRequestId: auditLog.approvalRequestId,
-      targetUserId: auditLog.targetUserId,
-      performedAt: auditLog.performedAt,
-      payload: auditLog.payload,
-    })
-    .from(auditLog)
-    .where(whereClause)
-    .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
-    .limit(AUDITORIA_PAGE_LIMIT + 1);
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        <ScreenHeader
+          title="Auditoría global"
+          subtitle={
+            <p className="text-md text-ln-op-ink-2">
+              Registro de auditoría (todas las acciones de autoridad).
+            </p>
+          }
+        />
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/admin/auditoria", {
+            action: sp.action,
+            actor: sp.actor,
+            from: sp.from,
+            to: sp.to,
+            cursor: sp.cursor,
+          })}
+        />
+      </div>
+    );
+  }
 
-  const hasMore = rawEntries.length > AUDITORIA_PAGE_LIMIT;
-  const entries = hasMore ? rawEntries.slice(0, AUDITORIA_PAGE_LIMIT) : rawEntries;
+  const { entries, hasMore, namesById, targetsById, actorOptions }: AuditData = load.value;
 
   // Pagination links — changing a filter resets cursor to page 1. The multi-
   // action list is preserved as a comma-joined param so paging past a KPI drill
@@ -106,57 +134,6 @@ export default async function AdminAuditoriaPage({
         })
       : null;
   const newerLink = rawCursor ? newerHref("/admin/auditoria", filterParams) : null;
-
-  // Resolve actor names in one batch. actorUserId is nullable (ARCH-H,
-  // migration 0080): rows whose actor was hard-deleted have NULL actor_user_id.
-  const actorIds = Array.from(
-    new Set(entries.map((e) => e.actorUserId).filter((id): id is string => id !== null)),
-  );
-  const namesById = new Map<string, string>();
-  if (actorIds.length > 0) {
-    const rows = await db
-      .select({ id: profiles.id, displayName: profiles.displayName })
-      .from(profiles)
-      .where(inArray(profiles.id, actorIds));
-    for (const r of rows) namesById.set(r.id, r.displayName);
-  }
-
-  // Resolve target display names + roles in one batch (C12).
-  // targetUserId is nullable — only resolve when present.
-  const targetIds = Array.from(
-    new Set(entries.map((e) => e.targetUserId).filter((id): id is string => id !== null)),
-  );
-  // Map id → { displayName, href } for rendering "sobre: {name}"
-  const targetsById = new Map<string, { displayName: string; href: string | null }>();
-  if (targetIds.length > 0) {
-    const targetRows = await db
-      .select({ id: profiles.id, displayName: profiles.displayName, role: profiles.role })
-      .from(profiles)
-      .where(inArray(profiles.id, targetIds));
-    for (const r of targetRows) {
-      const info = buildTargetLinkInfo({ id: r.id, displayName: r.displayName, role: r.role });
-      targetsById.set(r.id, { displayName: info.displayName, href: info.href });
-    }
-  }
-
-  // Build actor options for the dropdown (C30): resolve distinct actors from the
-  // current page + any selected actor not on this page so the dropdown still
-  // shows the selected name after pagination.
-  const actorOptions: { id: string; name: string }[] = actorIds
-    .map((id) => ({ id, name: namesById.get(id) ?? "Desconocido" }))
-    .sort((a, b) => a.name.localeCompare(b.name, "es-AR"));
-
-  if (actorFilter && !actorOptions.find((o) => o.id === actorFilter)) {
-    const [extra] = await db
-      .select({ id: profiles.id, displayName: profiles.displayName })
-      .from(profiles)
-      .where(eq(profiles.id, actorFilter))
-      .limit(1);
-    if (extra) {
-      actorOptions.push({ id: extra.id, name: extra.displayName });
-      actorOptions.sort((a, b) => a.name.localeCompare(b.name, "es-AR"));
-    }
-  }
 
   // Known action codes+labels for the dropdown, deduped by visible label so
   // aliased codes (old/new revocation codes, etc.) render one row each.

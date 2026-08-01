@@ -1,4 +1,5 @@
-// lib/analytics-load.ts — bounded loading for the admin analytics dashboards (D2).
+// lib/analytics-load.ts — bounded loading for the admin analytics dashboards (D2)
+// and, since the platform-budget pass (T3), other heavy admin pages too.
 //
 // The admin analytics pages (/admin/programa, /censo, /poblacion) await a
 // Promise.all of population-scale fetchers in a force-dynamic server component.
@@ -7,6 +8,12 @@
 // with no escape. loadWithTimeout races the fetch against a deadline and folds
 // a rejection into the same shape, so the page can render an honest
 // "tardando… reintentar" state instead of hanging forever.
+//
+// T3 widened the audience beyond analytics: /admin/auditoria bounds its whole
+// fetch group with loadWithTimeout, and /admin/inteligencia races one deadline
+// PER STREAMED PANEL (three independent budgets instead of a single all-or-
+// nothing Promise.all race). Same contract everywhere: the deadline bounds the
+// wait, it does NOT cancel the underlying queries.
 
 /** Deadline for an analytics page's fetcher set before it degrades (D2: 10 s). */
 export const ANALYTICS_LOAD_TIMEOUT_MS = 10_000;
