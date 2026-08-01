@@ -96,10 +96,14 @@ const GOB_PERDIDAS: ScreenManifestEntry = {
   decision: "¿Qué mascotas perdidas siguen sin reunificar y necesitan seguimiento?",
 };
 
+// F9 fusion (2026-08-01, PO decision on an external-QA navigation gate — two
+// nav destinations shared one noun): this screen now OWNS both the
+// outcome-vs-target question (resumen, the default) and the depth question
+// (analitica) as tabbed vistas.
 const GOB_PROGRAMA: ScreenManifestEntry = {
   route: "/gob/programa",
   layer: "programa",
-  decision: "¿El programa cumple sus metas de cobertura este período, y dónde no?",
+  decision: "¿Estamos cumpliendo el programa en tu jurisdicción, y qué hay detrás de esos números?",
 };
 
 // F8 fusion (2026-07-22) — ABSORBED into GOB_PADRON as the "poblacion"
@@ -262,21 +266,30 @@ const GOB_SUSCRIPCIONES: ScreenManifestEntry = {
   decision: "¿Qué umbral de alerta necesito crear o ajustar para mi jurisdicción?",
 };
 
+// F9 fusion (2026-08-01) — ABSORBED into GOB_PROGRAMA as the "analitica"
+// vista. The question this screen answered ("¿qué tendencia de fondo explica
+// el número que vi en Programa?") was itself the tell: a screen whose decision
+// is phrased relative to ANOTHER screen belongs inside it. The route still
+// exists as a page.tsx (a permanent redirect into
+// /gob/programa?vista=analitica, preserving query params — see
+// lib/ui/programa-hub-redirect.ts), so it still needs a manifest entry to
+// satisfy the coverage fence; it has no nav entry anymore.
 const GOB_ANALYTICS: ScreenManifestEntry = {
   route: "/gob/analytics",
-  layer: "profundidad",
-  decision: "¿Qué tendencia de fondo explica el número que vi en Programa?",
+  layer: "programa",
+  decision: "[Absorbida] Redirige a /gob/programa?vista=analitica — ver GOB_PROGRAMA.",
 };
 
 // Bug fix (qa-triage-2026-07-23, finding #11): /gob/analitica is a pure typo
-// alias — a permanent redirect into /gob/analytics, preserving every query
-// param (app/gob/analitica/page.tsx). Same shape as GOB_MODERACION/
-// GOB_MALTRATO above (a route that still needs a manifest entry to satisfy
-// the coverage fence, but makes no decision of its own).
+// alias (app/gob/analitica/page.tsx). Since F9 it redirects DIRECTLY into
+// /gob/programa?vista=analitica — not through /gob/analytics — so a mistyped
+// URL costs one hop, not two. Same shape as GOB_MODERACION/GOB_MALTRATO above
+// (a route that still needs a manifest entry to satisfy the coverage fence,
+// but makes no decision of its own).
 const GOB_ANALITICA: ScreenManifestEntry = {
   route: "/gob/analitica",
-  layer: "profundidad",
-  decision: "[Alias de typo] Redirige a /gob/analytics — ver GOB_ANALYTICS.",
+  layer: "programa",
+  decision: "[Alias de typo] Redirige a /gob/programa?vista=analitica — ver GOB_PROGRAMA.",
 };
 
 const GOB_HISTORIAL: ScreenManifestEntry = {
@@ -475,6 +488,8 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_VIGILANCIA,
   GOB_PERDIDAS,
   GOB_PROGRAMA,
+  GOB_ANALYTICS,
+  GOB_ANALITICA,
   GOB_PADRON,
   GOB_POBLACION,
   GOB_CENSO,
@@ -493,8 +508,6 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_DISPUTAS,
   GOB_OUTBOX,
   GOB_SUSCRIPCIONES,
-  GOB_ANALYTICS,
-  GOB_ANALITICA,
   GOB_HISTORIAL,
   GOB_REGLAS,
   GOB_ORGANIZACIONES,

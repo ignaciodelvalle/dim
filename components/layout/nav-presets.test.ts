@@ -444,7 +444,12 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/casos",
   "/gob/reglas",
   "/gob/historial",
-  "/gob/analytics",
+  // /gob/analytics REMOVED from nav (F9 fusion, 2026-08-01): absorbed into the
+  // Programa hub as a tabbed vista (?vista=resumen|analitica). It had been
+  // listed here since the snapshot was written; an external QA pass showed the
+  // entry was the second half of an ambiguity — "Ver en Programa →" and four
+  // KPI tiles were two paths to two different "numbers" screens. The route
+  // still exists as a permanent redirect, but it has no nav entry.
   "/gob/perdidas",
   // /gob/maltrato and /gob/moderacion REMOVED from nav (F1 fusion, 2026-07-22):
   // absorbed into the Denuncias hub as tabbed stages (?etapa=moderacion|triage).

@@ -270,7 +270,7 @@
         "app/gob/page.tsx",
         "app/gob/panorama/page.tsx",
         "app/gob/poblacion/PoblacionScreen.tsx",
-        "app/gob/programa/page.tsx",
+        "app/gob/programa/ProgramaResumenScreen.tsx",
         "app/gob/servicios/[offeringToken]/page.tsx",
         "app/gob/sistema/page.tsx",
         "app/gob/vigilancia/page.tsx",

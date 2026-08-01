@@ -36,7 +36,8 @@ const GOB_HREF_SNAPSHOT = new Set([
   // nav-presets.test.ts's GOB_HREF_SNAPSHOT.
   "/gob/reglas",
   "/gob/historial",
-  "/gob/analytics",
+  // /gob/analytics REMOVED (F9 fusion, 2026-08-01): absorbed into the Programa
+  // hub as a tabbed vista — matches nav-presets.test.ts's GOB_HREF_SNAPSHOT.
   "/gob/perdidas",
   "/gob/decomisos",
   // /gob/campanas and /gob/outreach REMOVED (F2 fusion, 2026-07-22): absorbed
@@ -165,10 +166,12 @@ describe("Phase B operator parity — gob", () => {
   // rupga collapsed into /gob/directorio — 6 routes dropped from nav, 2 hub
   // routes added, net -4. Further lowered 21 → 19 (F6+F8 fusions, same day):
   // disputas collapsed into /gob/casos (-1) and censo+poblacion collapsed
-  // into /gob/padron (-2 routes, +1 hub route, net -1). Matches
-  // GOB_HREF_SNAPSHOT's new cardinality.
-  it("has at least 19 items (matches GOB_HREF_SNAPSHOT cardinality — includes gov-vis routes)", () => {
-    expect(allHrefs.length).toBeGreaterThanOrEqual(19);
+  // into /gob/padron (-2 routes, +1 hub route, net -1). Lowered once more
+  // 19 → 18 (F9 fusion, 2026-08-01): Analítica collapsed into the existing
+  // /gob/programa hub as a `?vista=` tab, so -1 route with no new hub route to
+  // offset it. Matches GOB_HREF_SNAPSHOT's new cardinality.
+  it("has at least 18 items (matches GOB_HREF_SNAPSHOT cardinality — includes gov-vis routes)", () => {
+    expect(allHrefs.length).toBeGreaterThanOrEqual(18);
   });
 
   it("sections form the expected structure (5 groups including 1 unlabeled)", () => {

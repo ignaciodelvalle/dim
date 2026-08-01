@@ -402,7 +402,7 @@ function stripComments(src: string): string {
 // What it still cannot catch, stated because this wave is about docblocks that
 // promise more than the code delivers: a surface that receives an already-fetched
 // result through a PROP or a cache without naming the fetcher. `app/gob/analytics
-// /page.tsx` → `RegionRankingTable` is exactly that shape, which is why the
+// /AnalyticsScreen.tsx` → `RegionRankingTable` is exactly that shape, which is why the
 // render side is pinned by its own assertion below and by
 // RegionRankingTable.test.tsx.
 
@@ -448,7 +448,7 @@ const HEADLINE_CONSUMERS = [
   "app/admin/poblacion/AdminPoblacionScreen.tsx",
   "app/gob/poblacion/PoblacionScreen.tsx",
   "app/gob/poblacion/export/route.ts",
-  "app/gob/programa/page.tsx",
+  "app/gob/programa/ProgramaResumenScreen.tsx",
   "app/admin/programa/page.tsx",
   // RA-3 C1, fourth surface: `?province=` on the Panorama console narrows the
   // WHOLE scope, so "Cobertura de esterilización" became the withheld cell under
@@ -469,7 +469,7 @@ const NON_HEADLINE_CONSUMERS: Record<string, string> = {
     "Public open-data tier. Reads `byProvince` ROWS only and applies its own suppression (SUPPRESSED_MARKER / province-suppression.ts); it publishes no scope headline from this decider.",
   "src/modules/panorama/infrastructure/repository-choropleth.ts":
     "Map LAYER loader. Reads `byProvince` rows only and re-decides per CELL via `provinceCell` (task #40's blanket tier — the divergence province-disclosure.ts documents). No scope aggregate.",
-  "app/gob/analytics/page.tsx":
+  "app/gob/analytics/AnalyticsScreen.tsx":
     "Ranking consumer. `fetchRegionRanking` returns ROWS plus a `suppressedCount`; the page publishes no aggregate of its own and only hands the verdict to RegionRankingTable — pinned by its own assertion below.",
   "lib/metrics/alert-evaluation.ts":
     "Threshold evaluator. Reads `.rate`, but `buildProjectionContext(baseActor, …)` is called WITHOUT adminProvince, and subscriptions can only be created by admins (requireAdminOrRedirect), so scope.kind is always 'global' with no drill: the value is the NATIONAL rate, strictly coarser than any single cell. KNOWN DEFECT, reported 2026-07-31: a province-scoped subscription therefore evaluates NATIONALLY (a correctness bug, not a leak). Whoever fixes it MUST consume `scopeTotalPublishable` in the same change, or this file moves to HEADLINE_CONSUMERS and the fix becomes C1's fifth instance.",
@@ -491,7 +491,7 @@ const CLASSIFIED = [...HEADLINE_CONSUMERS, ...Object.keys(NON_HEADLINE_CONSUMERS
  */
 const HEADLINE_ONLY = new Set([
   "app/gob/poblacion/PoblacionScreen.tsx",
-  "app/gob/programa/page.tsx",
+  "app/gob/programa/ProgramaResumenScreen.tsx",
   "app/admin/programa/page.tsx",
   // The Panorama KPI strip renders TILES, never a province breakdown from these
   // fetchers — the map's per-province layer is a different tier
@@ -644,7 +644,9 @@ describe("screen/export parity is structural", () => {
     // names a decider, it receives already-decided rows through props. If the
     // page drops `suppressedCount`, the table withholds silently — the exact
     // "hid it and told nobody" failure #40's follow-up shipped.
-    const code = stripComments(readFileSync(join(REPO_ROOT, "app/gob/analytics/page.tsx"), "utf8"));
+    const code = stripComments(
+      readFileSync(join(REPO_ROOT, "app/gob/analytics/AnalyticsScreen.tsx"), "utf8"),
+    );
     expect(code).toMatch(/suppressedCount=\{\s*regionRanking\.suppressedCount\s*\}/);
     // And the card must survive a fully-withheld scope, or the notice never renders.
     expect(code).toMatch(/regionRanking\.suppressedCount\s*>\s*0/);

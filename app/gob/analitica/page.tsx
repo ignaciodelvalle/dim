@@ -1,13 +1,17 @@
-// /gob/analitica — bug fix (qa-triage-2026-07-23, finding #11): the correctly
-// spelled route is /gob/analytics (nav uses it, no typo there), but nothing
-// caught the honest human typo "analitica" — it 404'd. This route now
-// permanently redirects to /gob/analytics, forwarding every original search
-// param untouched (same param-preserving pattern as
-// lib/ui/denuncias-hub-redirect.ts's buildDenunciasHubRedirectUrl, simplified
-// here since there is no stage/etapa param to inject — this is a pure
-// typo-route alias, not a hub absorption).
+// /gob/analitica — bug fix (qa-triage-2026-07-23, finding #11): the route the
+// nav used to expose was /gob/analytics, but nothing caught the honest human
+// typo "analitica" — it 404'd.
+//
+// F9 fusion (2026-08-01): Analítica is now the Programa hub's second vista, so
+// this alias redirects STRAIGHT to /gob/programa?vista=analitica. It
+// deliberately does NOT chain through /gob/analytics (which is itself a
+// redirect now): two permanent redirects for one mistyped letter is a hop the
+// visitor never has to pay for, and a redirect chain is the kind of thing that
+// silently becomes a loop the day someone re-points one of its links.
 
 import { redirect } from "next/navigation";
+
+import { buildProgramaHubRedirectUrl } from "@/lib/ui/programa-hub-redirect";
 
 export default async function GobAnaliticaRedirectPage({
   searchParams,
@@ -15,15 +19,5 @@ export default async function GobAnaliticaRedirectPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const sp = await searchParams;
-  const qs = new URLSearchParams();
-  for (const [key, value] of Object.entries(sp)) {
-    if (value === undefined) continue;
-    if (Array.isArray(value)) {
-      for (const v of value) qs.append(key, v);
-    } else {
-      qs.set(key, value);
-    }
-  }
-  const query = qs.toString();
-  redirect(query ? `/gob/analytics?${query}` : "/gob/analytics");
+  redirect(buildProgramaHubRedirectUrl(sp, "analitica"));
 }

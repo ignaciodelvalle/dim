@@ -449,6 +449,16 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     // (`?vista=poblacion|censo`) of ONE screen. /gob/poblacion and /gob/censo
     // survive only as permanent redirects into /gob/padron?vista=... for old
     // links/bookmarks; neither has its own nav entry anymore.
+    //
+    // F9 fusion (2026-08-01, PO decision on an external-QA navigation gate):
+    // Programa ABSORBS Analítica (formerly in Profundidad, below) as tabbed
+    // vistas (`?vista=resumen|analitica`) of ONE screen. Two nav destinations
+    // shared one noun — the /gob briefing alerts read "Ver en Programa →" and
+    // landed here, while four KPI tiles in the same panel landed on
+    // /gob/analytics, whose h1 said "Analítica". /gob/analytics (and the
+    // /gob/analitica typo alias) survive only as permanent redirects into
+    // /gob/programa?vista=... for old links/bookmarks; neither has its own nav
+    // entry anymore.
     label: "Programa",
     items: [
       // Paquete gov-vis — exec summary (highest-level view, leads the layer)
@@ -531,9 +541,11 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     // nav entry anymore — RUPGA's former Intervención entry (above) is GONE
     // too, its revocation console body relocated as-is into the
     // "Credenciales" tab.
+    //
+    // F9 fusion (2026-08-01): "Analítica" is GONE from this section — it is
+    // now the Programa hub's second vista (see the Programa section above).
     label: "Profundidad",
     items: [
-      { href: "/gob/analytics", label: "Analítica", matchPrefix: "/gob/analytics" },
       { href: "/gob/historial", label: "Historial", matchPrefix: "/gob/historial" },
       { href: "/gob/reglas", label: "Reglas", matchPrefix: "/gob/reglas" },
       { href: "/gob/directorio", label: "Directorio", matchPrefix: "/gob/directorio" },

@@ -1,211 +1,146 @@
 // @vitest-environment jsdom
 //
-// /gob/programa — the C1 privacy shape, closed (RA-3 finding C1, third instance).
+// /gob/programa — the Programa hub. F9 fusion (2026-08-01, PO decision on an
+// external-QA navigation gate): the hub ABSORBS Analítica as TABBED VISTAS
+// (`?vista=resumen|analitica`).
 //
-// This page accepts `?province=`, and for an ADMIN that drill narrows the whole
-// projection scope (`petsScopeClause`) instead of intersecting an assignment
-// set. Once the scope holds a single foreign jurisdiction, every figure on the
-// executive summary — "Total registradas", the esterilización rate and its
-// "faltan ~N cirugías" forecast, microchip, SLA ENO, la cola, calidad de datos —
-// stops being an aggregate and becomes that one province's cell wearing a
-// national label. The page used to publish all of them.
-//
-// The two tests below are the pair that matters, and they pull in OPPOSITE
-// directions on purpose:
-//   1. the drilled admin gets NOTHING (the withheld headline), and
-//   2. D.10 SURVIVES — a govt operator looking at their OWN sub-k province keeps
-//      the real number. Suppression exists to stop inference about OTHER
-//      jurisdictions; your own administrados are already in your padrón.
-// A fix that only satisfies (1) is a regression, not a fix.
+// The two embedded vista screens (ProgramaResumenScreen / AnalyticsScreen) are
+// heavy server components with their own DB/auth-guard/jurisdiction-scope
+// dependencies; each keeps its own suite (./ProgramaResumenScreen.test.tsx and
+// the source-level pins in lib/metrics/province-disclosure.test.ts). This test
+// stubs them out entirely so it can focus on what the HUB itself owns: the
+// header, the vista tab switcher, and — critically — that the default vista is
+// "resumen" and that ?vista= actually selects the right embedded screen.
 import "@testing-library/jest-dom/vitest";
+
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+let mockSearch = new URLSearchParams();
+
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
+  useSearchParams: () => mockSearch,
 }));
 
-// Async Server Component (fetches its own freshness timestamp) —
-// renderToStaticMarkup cannot resolve one synchronously. Same stub the other
-// dashboard page tests use.
-vi.mock("@/components/ui/dashboard/DashboardFreshnessFooter", () => ({
-  DashboardFreshnessFooter: () => null,
+vi.mock("@/app/gob/programa/ProgramaResumenScreen", () => ({
+  ProgramaResumenScreen: () => <div data-testid="resumen-stub">RESUMEN VISTA CONTENT</div>,
 }));
 
-// vi.mock factories are hoisted above top-level consts, so every mock the
-// factories close over has to come from vi.hoisted.
-const mocks = vi.hoisted(() => {
-  const coverage = {
-    rate: 33.3,
-    sterilized: 1,
-    total: 3,
-    byProvince: [
-      {
-        province: "Tierra del Fuego",
-        suppressed: true,
-        ratePct: null,
-        sterilized: null,
-        total: null,
-      },
-    ],
-    byProvinceSuppressedCount: 1,
-    byProvinceAssignedTotal: null,
-    // THE FIELD UNDER TEST. Overridden per-test; the page must never re-derive
-    // it (pinned separately by the comment-stripped parity suite in
-    // lib/metrics/province-disclosure.test.ts).
-    scopeTotalPublishable: false,
-  };
-  return {
-    coverage,
-    role: { value: "admin" as "admin" | "govt" },
-    jurisdictions: { value: [] as { province: string; locality: string }[] },
-    adminProvince: { value: "Tierra del Fuego" as string | null },
-    requireAdminOrGovtOrRedirect: vi.fn(),
-    resolveJurisdictionScope: vi.fn(),
-    registryCounts: vi.fn(),
-    getCensusPopulationsCached: vi.fn(),
-    fetchSterilizationCoverage: vi.fn(),
-    fetchMicrochipPenetration: vi.fn(),
-    fetchEnoSla: vi.fn(),
-    fetchQueueHealthScoped: vi.fn(),
-    fetchDataQuality: vi.fn(),
-    fetchCrossJurisdictionOutliers: vi.fn(),
-    fetchPiiOversight: vi.fn(),
-  };
-});
-
-mocks.requireAdminOrGovtOrRedirect.mockImplementation(async () => ({
-  profile: { id: "u-1", role: mocks.role.value },
-  jurisdictions: mocks.jurisdictions.value,
-}));
-mocks.resolveJurisdictionScope.mockImplementation(async () => ({
-  selectedProvince: null,
-  selectedLocality: null,
-  localities: [],
-  filteredJurisdictions: mocks.jurisdictions.value,
-  allowedProvinces: [{ code: "AR-V", name: "Tierra del Fuego" }],
-  adminSelectedProvince: mocks.role.value === "admin" ? mocks.adminProvince.value : null,
-  adminSelectedLocality: null,
-}));
-// The scope holds THREE pets — the whole point: small enough that the headline
-// and the withheld province cell are literally the same number.
-mocks.registryCounts.mockImplementation(async () => ({
-  total: 3,
-  active: 3,
-  dormant: 0,
-  incomplete: 1,
-  byLocality: { value: [], suppressedCount: 0 },
-}));
-mocks.getCensusPopulationsCached.mockImplementation(async () => ({}));
-mocks.fetchSterilizationCoverage.mockImplementation(async () => mocks.coverage);
-mocks.fetchMicrochipPenetration.mockImplementation(async () => ({ ratePct: 66.6, active: 3 }));
-mocks.fetchEnoSla.mockImplementation(async () => ({
-  onTimePct: 100,
-  total: 3,
-  breachedOpen: 0,
-}));
-mocks.fetchQueueHealthScoped.mockImplementation(async () => ({
-  pendingTotal: 3,
-  oldestPendingDaysAgo: 4,
-  pending14dPlus: 0,
-  pending30dPlus: 0,
-  pending60dPlus: 0,
-}));
-mocks.fetchDataQuality.mockImplementation(async () => ({
-  total: 3,
-  completenessPct: 66,
-  missingLocality: 1,
-  missingSex: 0,
-  missingChip: 1,
-  orphans: 0,
-}));
-mocks.fetchCrossJurisdictionOutliers.mockImplementation(async () => []);
-// Kept empty so the page's actor-name lookup (a real `db.select`) never runs.
-mocks.fetchPiiOversight.mockImplementation(async () => []);
-
-vi.mock("@/lib/infra/auth-guards", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/infra/auth-guards")>()),
-  requireAdminOrGovtOrRedirect: mocks.requireAdminOrGovtOrRedirect,
-}));
-vi.mock("@/lib/analytics/jurisdiction-scope", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/analytics/jurisdiction-scope")>()),
-  resolveJurisdictionScope: mocks.resolveJurisdictionScope,
-}));
-vi.mock("@/lib/metrics/census", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/metrics/census")>()),
-  registryCounts: mocks.registryCounts,
-  getCensusPopulationsCached: mocks.getCensusPopulationsCached,
-}));
-vi.mock("@/lib/metrics/population-control", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/metrics/population-control")>()),
-  fetchSterilizationCoverage: mocks.fetchSterilizationCoverage,
-}));
-vi.mock("@/lib/analytics/compliance-metrics", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/analytics/compliance-metrics")>()),
-  fetchMicrochipPenetration: mocks.fetchMicrochipPenetration,
-}));
-vi.mock("@/lib/analytics/surveillance-metrics", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/analytics/surveillance-metrics")>()),
-  fetchEnoSla: mocks.fetchEnoSla,
-}));
-vi.mock("@/lib/analytics/admin-metrics", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/analytics/admin-metrics")>()),
-  fetchQueueHealthScoped: mocks.fetchQueueHealthScoped,
-}));
-vi.mock("@/lib/metrics", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/metrics")>()),
-  fetchDataQuality: mocks.fetchDataQuality,
-  fetchCrossJurisdictionOutliers: mocks.fetchCrossJurisdictionOutliers,
-  fetchPiiOversight: mocks.fetchPiiOversight,
+vi.mock("@/app/gob/analytics/AnalyticsScreen", () => ({
+  AnalyticsScreen: () => <div data-testid="analitica-stub">ANALITICA VISTA CONTENT</div>,
 }));
 
 import GobProgramaPage from "./page";
 
-async function renderPage(searchParams: Record<string, string>): Promise<string> {
-  const element = await GobProgramaPage({ searchParams: Promise.resolve(searchParams) });
-  return renderToStaticMarkup(element);
+function renderHub(query: Record<string, string> = {}) {
+  mockSearch = new URLSearchParams(query);
+  return GobProgramaPage({ searchParams: Promise.resolve(query) });
 }
 
-describe("/gob/programa — the scope headline obeys the same verdict as the rows", () => {
-  it("an ADMIN drilled into a sub-k province publishes NO scope aggregate", async () => {
-    mocks.role.value = "admin";
-    mocks.jurisdictions.value = [];
-    mocks.adminProvince.value = "Tierra del Fuego";
-    mocks.coverage.scopeTotalPublishable = false;
-
-    const html = await renderPage({ province: "AR-V" });
-
-    // The disclosure is present and says WHY (never "sin datos" — the data
-    // exists; dressing a withholding as a coverage gap is the same lie in
-    // reverse).
-    expect(html).toContain("Totales ocultos por privacidad");
-    // And not one of the aggregates that IS the withheld cell survives.
-    expect(html).not.toContain("Total registradas");
-    expect(html).not.toContain("Esterilización");
-    expect(html).not.toContain("Microchip");
-    expect(html).not.toContain("SLA ENO");
-    expect(html).not.toContain("Calidad de datos");
-    // Above all: not the protected number itself, by any route (the padrón
-    // count, the queue depth and the ENO total were all 3 in this fixture).
-    expect(html).not.toMatch(/>3</);
+describe("/gob/programa — the hub (F9 fusion: Resumen + Analítica as tabbed vistas)", () => {
+  it("renders the hub header", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("¿Estamos cumpliendo el programa en tu jurisdicción?");
   });
 
-  it("D.10 SURVIVES: a GOVT operator keeps the real number for their OWN sub-k province", async () => {
-    mocks.role.value = "govt";
-    mocks.jurisdictions.value = [{ province: "Tierra del Fuego", locality: "" }];
-    mocks.adminProvince.value = null;
-    // Own cells are never suppression candidates, so the fetcher hands down a
-    // publishable verdict — even at 3 pets. That is the ruling, not a loophole:
-    // those animals are already in this operator's padrón, by name.
-    mocks.coverage.scopeTotalPublishable = true;
+  it("renders both vista tab labels", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("Resumen");
+    expect(html).toContain("Analítica");
+  });
 
-    const html = await renderPage({});
+  it("defaults to the 'resumen' vista when no ?vista= is given", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("RESUMEN VISTA CONTENT");
+    expect(html).not.toContain("ANALITICA VISTA CONTENT");
+  });
 
-    expect(html).not.toContain("Totales ocultos por privacidad");
-    expect(html).toContain("Total registradas");
-    // The real figure, not a dash and not a zero.
-    expect(html).toMatch(/>3</);
-    expect(html).toContain("Esterilización");
+  it("?vista=analitica renders the Analítica vista instead", async () => {
+    const node = await renderHub({ vista: "analitica" });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("ANALITICA VISTA CONTENT");
+    expect(html).not.toContain("RESUMEN VISTA CONTENT");
+  });
+
+  it("an unrecognized ?vista= value falls back to the resumen default (never crashes, never shows blank)", async () => {
+    const node = await renderHub({ vista: "not-a-real-vista" });
+    const html = renderToStaticMarkup(node);
+    expect(html).toContain("RESUMEN VISTA CONTENT");
+  });
+
+  it("does not link out to the old standalone /gob/analytics route from the hub itself", async () => {
+    const node = await renderHub();
+    const html = renderToStaticMarkup(node);
+    expect(html).not.toContain('href="/gob/analytics"');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The F9 CONTENT RULE, pinned.
+//
+// "Si un número ya está en el resumen, la vista lo linkea, no lo repite" (PO,
+// 2026-08-01). This is the rule that made the fold worth doing rather than
+// merely tidy: before it, /gob/programa and /gob/analytics both published the
+// padrón total over a verified-identical predicate, and the duplication was
+// invisible because the two screens were a nav click apart. As tabs of ONE
+// screen it is one keystroke apart, and a funcionario reading "Total
+// registradas 12.345" then "Mascotas totales 12.345" learns the dashboard
+// double-counts. It doesn't — but that is not the impression that survives.
+//
+// A rendering test cannot see this: both vistas are heavy async server
+// components and each tile's value comes from a live fetcher. What IS
+// mechanically checkable is the SHARED VOCABULARY — every OpKpi carries a
+// `descriptorId` naming its catalog entry, so two vistas publishing the same
+// metric necessarily name the same descriptor. Comments are stripped first, so
+// a descriptorId merely DISCUSSED in a rationale (this file's own history is
+// full of them) never counts as a render.
+// ---------------------------------------------------------------------------
+
+const REPO_ROOT = join(__dirname, "..", "..", "..");
+
+function renderedDescriptorIds(relPath: string): Set<string> {
+  const src = readFileSync(join(REPO_ROOT, relPath), "utf8")
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/^[ \t]*\/\/.*$/gm, "");
+  return new Set([...src.matchAll(/descriptorId="([a-z0-9_]+)"/g)].map((m) => m[1] as string));
+}
+
+describe("F9 content rule — the two vistas never publish the same KPI twice", () => {
+  it("Resumen and Analítica share no descriptorId", () => {
+    const resumen = renderedDescriptorIds("app/gob/programa/ProgramaResumenScreen.tsx");
+    const analitica = renderedDescriptorIds("app/gob/analytics/AnalyticsScreen.tsx");
+
+    // Guard the guard: an empty set on either side would make the assertion
+    // below vacuously true (a renamed prop, a moved file, a bad regex).
+    expect(resumen.size).toBeGreaterThan(3);
+    expect(analitica.size).toBeGreaterThan(1);
+
+    const shared = [...resumen].filter((id) => analitica.has(id));
+    expect(shared).toEqual([]);
+  });
+
+  it("registry_total_pets is published by Resumen and only by Resumen", () => {
+    // The specific duplicate F9 removed, named so a future re-add fails loudly
+    // rather than merging into the generic assertion above.
+    expect(renderedDescriptorIds("app/gob/programa/ProgramaResumenScreen.tsx")).toContain(
+      "registry_total_pets",
+    );
+    expect(renderedDescriptorIds("app/gob/analytics/AnalyticsScreen.tsx")).not.toContain(
+      "registry_total_pets",
+    );
+  });
+
+  it("Analítica links to the vista that owns the padrón total instead of restating it", () => {
+    const src = readFileSync(
+      join(REPO_ROOT, "app/gob/analytics/AnalyticsScreen.tsx"),
+      "utf8",
+    ).replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(src).toContain('href="/gob/programa?vista=resumen"');
   });
 });

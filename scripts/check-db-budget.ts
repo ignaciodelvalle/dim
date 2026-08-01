@@ -59,12 +59,16 @@ export const DASHBOARD_PAGES = [
   "app/admin/censo/AdminCensoScreen.tsx",
   "app/admin/poblacion/AdminPoblacionScreen.tsx",
   "app/admin/inteligencia/page.tsx",
-  "app/gob/programa/page.tsx",
+  "app/gob/programa/ProgramaResumenScreen.tsx",
   "app/gob/censo/CensoScreen.tsx",
   "app/gob/poblacion/PoblacionScreen.tsx",
   // DB2 resilience finding: heavy multi-query fan-outs with no time budget —
   // wrapped with loadWithTimeout in the same pass that added this line.
-  "app/gob/analytics/page.tsx",
+  // F9 (2026-08-01): same relocation as the F8 pair above — app/gob/analytics/
+  // page.tsx and app/gob/programa/page.tsx are now thin shims (a redirect and a
+  // hub), so the scan targets moved to the Screen components that kept the
+  // fan-out.
+  "app/gob/analytics/AnalyticsScreen.tsx",
   "app/gob/page.tsx",
   "app/gob/vigilancia/page.tsx",
 ] as const;

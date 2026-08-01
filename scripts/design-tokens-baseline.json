@@ -2076,7 +2076,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/programa/page.tsx": {
+    "app/gob/programa/ProgramaResumenScreen.tsx": {
       "text": 12,
       "deadTextVar": 0,
       "deadFontVar": 0,
@@ -2472,7 +2472,7 @@
       "shadow": 0,
       "hexStyle": 0
     },
-    "app/gob/analytics/page.tsx": {
+    "app/gob/analytics/AnalyticsScreen.tsx": {
       "text": 4,
       "deadTextVar": 0,
       "deadFontVar": 0,
