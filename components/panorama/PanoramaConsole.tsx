@@ -862,17 +862,17 @@ export function PanoramaConsole({
             `/api/panorama/${l.id}${params.toString() ? `?${params.toString()}` : ""}`,
             { headers: { accept: "application/json" }, signal: signalFor(l.id) },
           );
+          // RA-7 F4: every settle arm routes through layerFetchPatch — the ONE
+          // rule for "what does this layer now claim" — so a failure (here a
+          // !res.ok, below a network throw) always publishes degraded:true and
+          // keeps the last-known privacy envelope. The M1 fix (2026-07-18)
+          // covered the HTTP-failure arm inline; the catch arm was left
+          // clearing `loading` with degraded UNSET while the caches above were
+          // already wiped — the forbidden "Sin datos" fallthrough
+          // (situational-map-utils emptyOverlayMessage) for a network throw on
+          // a province drill.
           if (!res.ok) {
-            // M1 (panorama honesty audit 2026-07-18): a 503/failure on a
-            // scope/period refetch must CLEAR the loading flag set above and mark
-            // the layer degraded, so degradedLayerLabels surfaces "no pudimos
-            // calcular a tiempo". A bare `return` left the layer spinning forever
-            // over silent stale paint with degraded=false — a failed load reading
-            // as "still loading" (or worse, as fresh).
-            setStates((s) => ({
-              ...s,
-              [l.id]: { ...s[l.id], loading: false, degraded: true },
-            }));
+            setStates((s) => ({ ...s, [l.id]: { ...s[l.id], ...layerFetchPatch(null) } }));
             return;
           }
           const body = (await res.json()) as ApiResponse;
@@ -882,25 +882,13 @@ export function PanoramaConsole({
           } else {
             dataRef.current.set(l.id, body.features);
           }
-          setStates((s) => ({
-            ...s,
-            [l.id]: {
-              ...s[l.id],
-              loading: false,
-              count: body.features.features.length,
-              suppressedCount: body.suppressedCount,
-              noLocalityCount: body.noLocalityCount ?? 0,
-              truncated: body.truncated,
-              degraded: body.degraded === true,
-            },
-          }));
+          setStates((s) => ({ ...s, [l.id]: { ...s[l.id], ...layerFetchPatch(body) } }));
         } catch (err) {
           // Superseded fetch — the newer request owns the layer state now.
           if (isAbortError(err)) return;
-          setStates((s) => ({
-            ...s,
-            [l.id]: { ...s[l.id], loading: false },
-          }));
+          // RA-7 F4: a thrown fetch is a FAILURE, not a quiet un-load — same
+          // patch as the !res.ok arm (degraded declares itself).
+          setStates((s) => ({ ...s, [l.id]: { ...s[l.id], ...layerFetchPatch(null) } }));
         }
       }),
     ).then(() => setLevelVersion((v) => v + 1));

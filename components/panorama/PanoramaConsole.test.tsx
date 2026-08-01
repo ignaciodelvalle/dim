@@ -3205,6 +3205,74 @@ describe("PanoramaConsole — RA-7 F4: a FAILED level change says so; it never r
     // entirely — a view silently claiming nothing had been protected.
     expect(screen.getByText(/^7 celdas con menos de 5 casos/)).toBeInTheDocument();
   });
+
+  // RA-7 F4 (catch arm): the zoom-LOD tests above cover the !res.ok arm of
+  // onLevelChange; the SCOPE/PERIOD invalidation effect's catch arm was the
+  // last un-migrated failure path — a network THROW on a province drill
+  // cleared `loading` but left degraded UNSET while the caches had already
+  // been wiped, so the empty canvas fell through to the forbidden "Sin datos".
+  it("a network-thrown refetch on a province drill marks the layer degraded — never 'sin datos'", async () => {
+    // Start ALREADY drilled at locality level: a province→province drill then
+    // keeps the aggregation level (no LOD flip), so the SCOPE/PERIOD
+    // invalidation effect owns the only cobertura refetch — the exact arm
+    // under test. (A national→province drill also flips the level, whose own
+    // — already migrated — failure path would mask this arm's regression.)
+    setUrl("/gob/panorama?period=3y&level=locality&province=AR-B");
+    let failCobertura = false;
+    const localFetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+      const url = String(input);
+      if (url.includes("/api/panorama/kpis")) {
+        return Promise.resolve({ ok: true, json: async () => INITIAL_KPIS } as unknown as Response);
+      }
+      if (url.includes("/api/panorama/scope")) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ localities: [], localityCentroids: {} }),
+        } as unknown as Response);
+      }
+      if (
+        failCobertura &&
+        url.includes("/api/panorama/cobertura") &&
+        !url.includes("histogram=1")
+      ) {
+        // A THROW (network down), not an HTTP failure — the catch arm.
+        return Promise.reject(new TypeError("network down"));
+      }
+      return Promise.resolve({ ok: true, json: async () => OK_ENVELOPE } as unknown as Response);
+    });
+    vi.stubGlobal("fetch", localFetch);
+    renderConsole();
+
+    openVista();
+    fireEvent.click(screen.getByRole("radio", { name: /Cumplimiento antirrábico/ }));
+    // Let the preset's own (successful) fetch burst settle first, so the
+    // degraded flag below can only come from the drill's failed refetch.
+    await waitFor(() => {
+      const calls = localFetch.mock.calls
+        .map((c) => String(c[0]))
+        .filter((u) => u.includes("/api/panorama/cobertura") && !u.includes("histogram=1"));
+      expect(calls.length).toBeGreaterThan(0);
+    });
+    await waitFor(() => {
+      expect(mapProps?.layerDegraded).not.toBe(true);
+    });
+    expect(mapProps?.onProvinceDrill).toBeInstanceOf(Function);
+
+    // Now the network dies, and the operator drills into ANOTHER province —
+    // the scope invalidation effect wipes the caches and refetches, which throws.
+    failCobertura = true;
+    await act(async () => {
+      (mapProps!.onProvinceDrill as (code: string) => void)("AR-V");
+    });
+
+    await waitFor(() => {
+      expect(mapProps?.layerDegraded).toBe(true);
+    });
+    // …and the console says it in words, naming the layer.
+    expect(
+      screen.getByText(/No pudimos calcular a tiempo: Cobertura antirrábica/),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("PanoramaConsole — RA-7 F6: every protected-cell figure names the universe it measures", () => {
