@@ -157,7 +157,7 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 | **`searchParams` repetido → 500** | `?chip=a&chip=b` hace que Next pase `string[]` y revienta en `.trim()`. Falla cerrado, sin fuga. Mismo patrón en `nueva/page.tsx` |
 | **P2.6** | El worker de Windows (`0xC0000409`). **No bloquea** — no reproduce en Linux |
 | **P2.7** | El limpiador de huérfanos cubre 4 de ~20 prefijos. Propuesta escrita, **sin implementar a propósito**: cambia un script que BORRA |
-| **P3.2** | `jurisdictionProvince` sin `z.enum` → error crudo de Postgres al usuario |
+| ~~**P3.2**~~ | ~~`jurisdictionProvince` sin `z.enum`~~ — **YA ESTABA ARREGLADO**, commit `3f56326d`, y el test que certificaba el defecto viejo ya estaba reescrito. Este documento lo listó como abierto durante días y un agente fue a arreglarlo de nuevo. **Segunda vez hoy que la cola describe como pendiente algo resuelto**: antes fue "staging atrasado". Un ítem que nadie re-verifica se pudre |
 | **P3.3** | El aviso de capa desconocida enterrado en un dock colapsado. `PanoramaConsole.tsx` está en su fence |
 
 ---
