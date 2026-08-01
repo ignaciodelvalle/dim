@@ -453,11 +453,23 @@ function classifyCandidate(
   if (!action) return { kind: "notEvaluated" };
 
   const gap = descriptor.target.value - candidate.value;
-  const severity: BriefingAlertSeverity = tone === "danger" ? "alta" : "media";
   const confidence = deriveAlertConfidence(descriptor, {
     n: candidate.n,
     auxPresent: candidate.auxPresent,
   });
+  // Severity is capped by confidence (demo review 2026-08-01). It used to come
+  // from `tone` ALONE, so /gob rendered "Prioridad alta: Disposición trazable
+  // 33,3% · Confianza: baja · n = 9" — one line claiming maximum urgency and
+  // then disavowing the evidence it rests on. A funcionario reads that as the
+  // panel arguing with itself, and they are right to: the smallN guard did not
+  // fire (9 clears the floor of 5), but at 2× the floor the descriptor's own
+  // rule already says this sample cannot support a confident verdict, and
+  // "alta" IS a confident verdict. A thin sample can still be worth surfacing —
+  // that is why it stays an alert at all — it just cannot outrank a measured
+  // one in the ranked list below. Never the reverse: high confidence never
+  // PROMOTES a warn-tier gap to "alta".
+  const severity: BriefingAlertSeverity =
+    tone === "danger" && confidence !== "baja" ? "alta" : "media";
 
   // FORECAST-A-META: only when the descriptor declares a qualifying trend
   // source AND this candidate actually supplied one — guards flow through

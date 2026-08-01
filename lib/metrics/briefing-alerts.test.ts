@@ -452,6 +452,62 @@ describe("describeBriefingEmptyState — the copy never outruns the data", () =>
   });
 });
 
+// ---------------------------------------------------------------------------
+// Severity never outruns confidence (demo review 2026-08-01).
+//
+// Live on /gob with a 5-locality mandate: "Prioridad alta: Disposición
+// trazable 33,3% · Confianza: baja · n = 9". One line claiming maximum urgency
+// and, in the same breath, disavowing the evidence under it. Severity came
+// from `tone` alone; the confidence label was computed beside it and never
+// consulted. A briefing that ranks a 9-case sample above a measured one is
+// ranking by noise.
+// ---------------------------------------------------------------------------
+
+describe("buildBriefingAlerts — severity is capped by confidence", () => {
+  it("caps a danger-tier gap at 'media' when the sample only earns 'baja' confidence", () => {
+    // n = 9: above mortality_disposal_traceability's smallN floor (5, so the
+    // guard does not drop it) but under 2x that floor, which is exactly what
+    // deriveAlertConfidence calls "baja". 33 vs target 75 is danger-tier.
+    const [alert] = buildBriefingAlerts([
+      { kpiId: "mortality_disposal_traceability", value: 33, n: 9 },
+    ]);
+    expect(alert.confidence).toBe("baja");
+    expect(alert.severity).toBe("media");
+  });
+
+  it("keeps 'alta' for the SAME gap once the sample supports it", () => {
+    const [alert] = buildBriefingAlerts([
+      { kpiId: "mortality_disposal_traceability", value: 33, n: 12 },
+    ]);
+    expect(alert.confidence).not.toBe("baja");
+    expect(alert.severity).toBe("alta");
+  });
+
+  it("never PROMOTES a warn-tier gap to 'alta' on high confidence", () => {
+    // 60 vs target 75 sits in the warn band — a comfortable sample must not
+    // turn an amber gap red.
+    const [alert] = buildBriefingAlerts([
+      { kpiId: "mortality_disposal_traceability", value: 60, n: 500 },
+    ]);
+    expect(alert.severity).toBe("media");
+  });
+
+  it("ranks a thin danger-tier gap BELOW a measured one, however big its gap", () => {
+    const alerts = buildBriefingAlerts([
+      // Thin sample, enormous gap (75 - 2 = 73) — used to sort first on both
+      // severity and gap size, putting the least trustworthy number at the top
+      // of the briefing.
+      { kpiId: "mortality_disposal_traceability", value: 2, n: 9 },
+      // Measured sample, smaller gap (80 - 30 = 50).
+      { kpiId: "microchip_penetration", value: 30, n: 500 },
+    ]);
+    expect(alerts.map((a) => a.id)).toEqual([
+      "microchip_penetration",
+      "mortality_disposal_traceability",
+    ]);
+  });
+});
+
 describe("deriveAlertConfidence", () => {
   const withSmallN = { guards: { smallN: { min: 5 } } };
 
