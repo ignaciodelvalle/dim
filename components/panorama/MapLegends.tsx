@@ -25,7 +25,7 @@ import type {
   DivisionLegendDescriptor,
   ProvinceSeqLegend,
 } from "@/components/panorama/SituationalMap";
-import { BIVARIATE_LEGEND_GRID } from "@/components/panorama/bivariate-fill";
+import { BIVARIATE_LEGEND_GRID, bivariateGreyStates } from "@/components/panorama/bivariate-fill";
 import {
   type ClassScale,
   type ClassSwatch,
@@ -37,6 +37,7 @@ import { HATCH_SWATCH_CSS, layerPaintsHatch } from "@/components/panorama/hatch-
 import { NO_DATA_SWATCH_CSS, NO_DATA_SWATCH_SIZE } from "@/components/panorama/no-data-pattern";
 import {
   type ScaleBounds,
+  provincePaintsNoData,
   provinceValueBounds,
 } from "@/components/panorama/province-choropleth-style";
 import { COLOR_NO_DATA, COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
@@ -168,6 +169,10 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
     (l) => l.renderMode === "graduated" && layerPaintsHatch(l),
   );
 
+  // RA-7 F10 — which unclassifiable states the bivariate frame actually paints
+  // grey with. Read once here so the key below describes THIS frame.
+  const bivariateGrey = bivariateGreyStates(bivariateLayer?.bivariateCells ?? []);
+
   // UX audit 2026-07-26 (finding 5): this used to `return null`, and since the
   // dock renders the pane slot verbatim, "Referencias" became a NAMED TAB THAT
   // OPENS ONTO NOTHING — measured live on the Síntomas vista, where every active
@@ -261,6 +266,31 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                 Protegido por privacidad (k&lt;5)
               </div>
             )}
+            {/* RA-7 F10 — NAME THE GREY. The 3×3 matrix decodes nine colours and
+                the hatch, and said nothing about COLOR_NO_DATA, which
+                bivariateFillColorExpr paints on every province the cross could
+                not classify. Two different situations land there ("falta un eje"
+                and "sin datos en ninguna de las dos"), they are opposite
+                conclusions for a municipality, and one grey cannot separate them
+                — so the key states which of them THIS frame contains and sends
+                the reader to the popup, which does resolve it per jurisdiction.
+                Gated: a fully-classified frame paints no grey and says nothing. */}
+            {(bivariateGrey.missingAxis || bivariateGrey.noData) && (
+              <div className="mt-1.5 flex items-start gap-1.5 text-ln-op-mute">
+                <span
+                  className="mt-0.5 inline-block h-2.5 w-2.5 flex-none rounded-[var(--radius-xs)] border border-ln-op-line"
+                  style={{ background: COLOR_NO_DATA }}
+                  aria-hidden="true"
+                />
+                <span className="leading-snug">
+                  {bivariateGrey.missingAxis && bivariateGrey.noData
+                    ? "Gris: no se pudo cruzar. En algunas jurisdicciones falta una de las dos capas; en otras faltan las dos. Tocá una para ver cuál."
+                    : bivariateGrey.missingAxis
+                      ? "Gris: falta una de las dos capas en esa jurisdicción, así que el cruce no se puede clasificar. No significa que no haya casos. Tocá una para ver cuál falta."
+                      : "Gris: ninguna de las dos capas reportó en esa jurisdicción."}
+                </span>
+              </div>
+            )}
           </div>
         )}
         {/* Division-fill legend: sequential ramp for the active locality choropleth
@@ -307,13 +337,23 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                 Protegido por privacidad (k&lt;5)
               </div>
             )}
-            <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
-              <span
-                className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
-                aria-hidden="true"
-              />
-              Sin datos (solo contorno)
-            </div>
+            {/* RA-7 F9 — gated, like the hatch row above it. This key used to
+                render on every drilled frame, promising an outline-only mark on
+                scopes where every division carries a value. `noData` is lifted
+                from syncLayers (divisionPaintsNoData), the same complement the
+                stipple overlay is filtered by. `!== false` on purpose: a
+                descriptor from before this field existed says "unknown", and for
+                a key that has always over-rendered, unknown must not start
+                hiding a mark that IS on the canvas. */}
+            {divisionLegend.noData !== false && (
+              <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)] border border-ln-op-line"
+                  aria-hidden="true"
+                />
+                Sin datos (solo contorno)
+              </div>
+            )}
           </div>
         )}
         {provinceLegends.map(({ layer, isMeta }) => {
@@ -348,24 +388,31 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
                   compliance target ("≥ 80% (meta)"), replacing the old continuous
                   divergent gradient bar. */}
               <ClassSwatchLegend scale={scale} unit={isMeta ? "%" : undefined} meta={isMeta} />
-              <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
-                {/* The swatch carries the SAME stipple the map paints (D.5(b)).
-                    A key that shows a flat colour for a textured fill teaches
-                    the reader the wrong mark, and the texture is the whole
-                    reason "sin datos" is now separable from bare land — they
-                    are only ΔE00 1.48 apart as colours. Pattern values come
-                    from no-data-pattern.ts so key and map cannot drift. */}
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
-                  style={{
-                    background: COLOR_NO_DATA,
-                    backgroundImage: NO_DATA_SWATCH_CSS,
-                    backgroundSize: NO_DATA_SWATCH_SIZE,
-                  }}
-                  aria-hidden="true"
-                />
-                Sin datos
-              </div>
+              {/* RA-7 F9 — gated on the frame, exactly like the k-anon row below
+                  it. Unconditional until now: a national frame where all 24
+                  jurisdictions report paints no stipple anywhere, and the key
+                  still named the mark. Same complement provinceNoDataFilter
+                  paints with, so key and overlay cannot disagree. */}
+              {provincePaintsNoData(layer.features) && (
+                <div className="mt-1 flex items-center gap-1.5 text-ln-op-mute">
+                  {/* The swatch carries the SAME stipple the map paints (D.5(b)).
+                      A key that shows a flat colour for a textured fill teaches
+                      the reader the wrong mark, and the texture is the whole
+                      reason "sin datos" is now separable from bare land — they
+                      are only ΔE00 1.48 apart as colours. Pattern values come
+                      from no-data-pattern.ts so key and map cannot drift. */}
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-[var(--radius-xs)]"
+                    style={{
+                      background: COLOR_NO_DATA,
+                      backgroundImage: NO_DATA_SWATCH_CSS,
+                      backgroundSize: NO_DATA_SWATCH_SIZE,
+                    }}
+                    aria-hidden="true"
+                  />
+                  Sin datos
+                </div>
+              )}
               {/* k-anon disclosure at PROVINCE grain (#40). This block used to be
                   a comment explaining its own ABSENCE: "provinces are never
                   suppressed". That premise died with #40 — a province cell is now

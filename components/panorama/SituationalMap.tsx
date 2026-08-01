@@ -60,6 +60,7 @@ import { AllSuppressedNoticeCard } from "@/components/panorama/all-suppressed-no
 import {
   type DivisionLevel,
   divisionFillForLayer,
+  divisionPaintsNoData,
   divisionSuppressedFilter,
   divisionValueBounds,
   joinCellsToDivisionsMulti,
@@ -1354,6 +1355,7 @@ export function SituationalMap({
       breaks: number[];
       colors: string[];
       suppressed: boolean;
+      noData: boolean;
     } | null = null;
     // The sequential province choropleth classed scale(s), keyed by layer id and
     // computed WITH the scrub-locked domain — lifted so the off-canvas province
@@ -1448,6 +1450,7 @@ export function SituationalMap({
         const levels: Array<{ level: DivisionLevel; codes: Set<string> }> = [];
         if (divs.deptCodes.size > 0) levels.push({ level: "department", codes: divs.deptCodes });
         if (divs.barrioCodes.size > 0) levels.push({ level: "barrio", codes: divs.barrioCodes });
+        const divisionsInSource = divs.deptCodes.size + divs.barrioCodes.size;
         const join = joinCellsToDivisionsMulti(layer.features, levels);
         divisionValuesRef.current.set(layer.id, join.values);
         divisionSuppressedRef.current.set(layer.id, join.suppressed);
@@ -1510,6 +1513,8 @@ export function SituationalMap({
             breaks: divScale.breaks,
             colors: divScale.colors,
             suppressed: hasSuppressed,
+            // RA-7 F9: is the stipple ACTUALLY painted? (see divisionPaintsNoData)
+            noData: divisionPaintsNoData(join.values, join.suppressed, divisionsInSource),
           };
         }
         continue;
@@ -1584,7 +1589,9 @@ export function SituationalMap({
           prev.max === nextDivisionLegend.max &&
           prev.hasRamp === nextDivisionLegend.hasRamp &&
           prev.breaks.join(",") === nextDivisionLegend.breaks.join(",") &&
-          prev.suppressed === nextDivisionLegend.suppressed);
+          prev.suppressed === nextDivisionLegend.suppressed &&
+          // RA-7 F9: a frame that changed only its no-data-ness must re-commit.
+          prev.noData === nextDivisionLegend.noData);
       return same ? prev : nextDivisionLegend;
     });
 

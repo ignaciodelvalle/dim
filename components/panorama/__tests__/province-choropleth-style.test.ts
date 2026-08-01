@@ -6,6 +6,7 @@
 import { describe, expect, it } from "vitest";
 
 import { COLOR_NO_DATA, SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 import { classSwatches } from "../class-scale";
@@ -16,6 +17,7 @@ import {
   provinceMetaClassScale,
   provinceMetaColorExpr,
   provinceNoDataFilter,
+  provincePaintsNoData,
   provinceSeqClassScale,
   provinceSuppressedCodes,
   provinceValueBounds,
@@ -415,5 +417,60 @@ describe("provinceCellAt (#40 — the popup lookup that used to publish a false 
 
   it("tolerates an undefined feature collection", () => {
     expect(provinceCellAt(undefined, "AR-B")).toEqual({ value: null, suppressed: false });
+  });
+});
+
+// RA-7 F9 — the gate the legend's "Sin datos" key must pass. It rendered
+// unconditionally on every province legend, so a frame in which all 24
+// jurisdictions report still named a stipple the canvas does not paint.
+describe("provincePaintsNoData", () => {
+  function fc(
+    cells: Array<{ code: string; value: number | null; suppressed?: boolean }>,
+  ): FeatureCollection {
+    return {
+      type: "FeatureCollection",
+      features: cells.map((c) => ({
+        type: "Feature",
+        geometry: null,
+        properties: { provinceCode: c.code, value: c.value, suppressed: c.suppressed === true },
+      })),
+    } as unknown as FeatureCollection;
+  }
+
+  it("is false when all 24 jurisdictions carry a value — nothing is stippled", () => {
+    expect(provincePaintsNoData(fc(PROVINCES.map((p) => ({ code: p.code, value: 12 }))))).toBe(
+      false,
+    );
+  });
+
+  it("is true when even ONE jurisdiction is missing from the layer", () => {
+    expect(
+      provincePaintsNoData(
+        fc(PROVINCES.slice(0, PROVINCES.length - 1).map((p) => ({ code: p.code, value: 12 }))),
+      ),
+    ).toBe(true);
+  });
+
+  it("treats a SUPPRESSED province as accounted-for, exactly like provinceNoDataFilter", () => {
+    // The trap the filter documents: a suppressed cell carries value null, so a
+    // naive complement stipples the one province whose count is sub-k — both a
+    // lie ("nadie reportó acá") and a leak (the odd texture points at it).
+    const cells = PROVINCES.map((p, i) =>
+      i === 0 ? { code: p.code, value: null, suppressed: true } : { code: p.code, value: 12 },
+    );
+    expect(provincePaintsNoData(fc(cells))).toBe(false);
+    // …and the filter agrees: the suppressed code is inside the known set.
+    expect(JSON.stringify(provinceNoDataFilter(fc(cells)))).toContain(PROVINCES[0].code);
+  });
+
+  it("is true for an empty layer — the filter stipples the whole country there", () => {
+    expect(provincePaintsNoData(fc([]))).toBe(true);
+  });
+
+  it("does not count a NaN-valued cell as accounted-for (same hardening as the fill)", () => {
+    // provincePairs drops non-finite values, so the fill routes them to
+    // COLOR_NO_DATA and the stipple covers them. The key must follow.
+    const cells = PROVINCES.map((p, i) => ({ code: p.code, value: i === 0 ? Number.NaN : 12 }));
+    expect(provincePaintsNoData(fc(cells))).toBe(true);
   });
 });

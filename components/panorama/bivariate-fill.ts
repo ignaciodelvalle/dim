@@ -99,6 +99,51 @@ export function bivariateSuppressedCodes(cells: readonly BivariateCell[]): strin
 }
 
 /**
+ * How the current bivariate frame USES the grey (COLOR_NO_DATA) fill.
+ *
+ * RA-7 F10 (2026-07-31) — A PAINTED STATE THAT WAS NEVER DECLARED. The 3×3
+ * legend names nine colours and (since 2026-07-30) the hatch, and stops there.
+ * But `bivariateFillColorExpr` defaults to COLOR_NO_DATA for every province
+ * `bivariateCellColor` refuses to colour, and that refusal covers TWO different
+ * situations plus one that is separately marked:
+ *
+ *   - `missingAxis` — the jurisdiction reported one of the two layers and not
+ *     the other, so the CROSS cannot be classified even though half the data
+ *     exists. There is something there; we just cannot say where it falls on
+ *     the matrix.
+ *   - `noData`      — neither axis reported.
+ *   - suppressed    — declared already, by the hatch key.
+ *
+ * "no hay nada" and "no pudimos cruzarlo" are opposite conclusions for a
+ * municipality, and the map paints them the SAME grey with no key at all: the
+ * operator sees a colour and the legend offers no reading for it. The colour
+ * genuinely cannot separate the two (one hue, two meanings) — inventing two
+ * swatches would be a fresh lie — so the honest fix is a key that names the
+ * grey, says which of the two situations this frame contains, and points at the
+ * popup, which DOES resolve it per jurisdiction (`bivariateReadouts` marks each
+ * axis row `nodata` individually).
+ *
+ * Suppressed cells are excluded from both counts: they carry their own mark and
+ * their own key, and folding them in here would double-declare them.
+ */
+export function bivariateGreyStates(cells: readonly BivariateCell[]): {
+  missingAxis: boolean;
+  noData: boolean;
+} {
+  let missingAxis = false;
+  let noData = false;
+  for (const c of cells) {
+    if (c.suppressed) continue;
+    const hasCoverage = c.coverageClass !== null;
+    const hasSignal = c.signalClass !== null;
+    if (hasCoverage && hasSignal) continue;
+    if (hasCoverage || hasSignal) missingAxis = true;
+    else noData = true;
+  }
+  return { missingAxis, noData };
+}
+
+/**
  * A MapLibre `filter` selecting the suppressed province polygons (for the
  * diagonal-hatch overlay), matching the `code` property against the suppressed
  * set. Constant-`false` when empty so the hatch layer renders nothing.

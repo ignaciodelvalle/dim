@@ -183,6 +183,16 @@ export type DivisionLegendDescriptor = {
    * the legend shows the "Suprimido (k-anon)" hatch swatch.
    */
   suppressed: boolean;
+  /**
+   * RA-7 F9 — at least one polygon in the division source is neither valued nor
+   * suppressed, i.e. the no-data STIPPLE is actually painted, so the legend may
+   * show its "Sin datos (solo contorno)" key. Lifted (not recomputed in the
+   * legend) because only syncLayers knows how many polygons the shared division
+   * source holds; see `divisionPaintsNoData`. Optional so an older serialized
+   * descriptor keeps rendering the key — absence means "unknown", and for a key
+   * that already over-rendered, unknown must not silently start hiding it.
+   */
+  noData?: boolean;
 };
 
 /**

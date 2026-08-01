@@ -8,6 +8,7 @@ import {
   divisionCodeForCell,
   divisionFillColorExpr,
   divisionNoDataFilter,
+  divisionPaintsNoData,
   divisionSuppressedFilter,
   divisionValueBounds,
   filterDepartmentsByPrefix,
@@ -425,5 +426,50 @@ describe("divisionFillColorExpr — polarity (D4: dark = alarm, always)", () => 
     const colours = (expr: string) => (expr.match(/#[0-9a-f]{6}/gi) ?? []).join(",");
     expect(colours(inverted)).not.toBe(colours(plain));
     expect(colours(inverted).split(",").sort()).toEqual(colours(plain).split(",").sort());
+  });
+});
+
+// RA-7 F9 — the legend's "Sin datos (solo contorno)" key rendered on every
+// drilled frame, promising an outline-only mark on scopes where every division
+// carries a value. This atom is the gate, and it must be the same arithmetic
+// `divisionNoDataFilter` is evaluated with.
+describe("divisionPaintsNoData", () => {
+  it("is false when every polygon in the source is valued", () => {
+    expect(divisionPaintsNoData(new Map([["06001", 4]]), new Set(), 1)).toBe(false);
+  });
+
+  it("is false when the polygons are split between valued and suppressed", () => {
+    // Suppressed is ACCOUNTED FOR, not missing — it wears the hatch, not the
+    // stipple. Same exclusion the filter's docblock spells out.
+    expect(divisionPaintsNoData(new Map([["06001", 4]]), new Set(["06002"]), 2)).toBe(false);
+  });
+
+  it("is true as soon as ONE polygon is neither valued nor suppressed", () => {
+    expect(divisionPaintsNoData(new Map([["06001", 4]]), new Set(["06002"]), 3)).toBe(true);
+  });
+
+  it("is true when nothing is known at all — the whole grain is stippled", () => {
+    // Matches the filter's constant-`true` branch: a map with no data anywhere
+    // should look like it, not like bare land.
+    expect(divisionPaintsNoData(new Map(), new Set(), 12)).toBe(true);
+  });
+
+  it("is false when there is no polygon to stipple", () => {
+    // The one case where the filter's constant-`true` paints nothing, because
+    // the source is empty. A key here would name a mark on an empty canvas.
+    expect(divisionPaintsNoData(new Map(), new Set(), 0)).toBe(false);
+  });
+
+  it("agrees with divisionNoDataFilter about whether ANYTHING is unaccounted for", () => {
+    // The coupling is the point: key and overlay must answer from one rule.
+    const valued = new Map([["06001", 4]]);
+    const suppressed = new Set(["06002"]);
+    const filter = JSON.stringify(divisionNoDataFilter(valued, suppressed));
+    // The complement lists exactly the accounted-for codes; anything else in the
+    // source is stippled, which is what the atom reports for a 3-polygon source.
+    expect(filter).toContain("06001");
+    expect(filter).toContain("06002");
+    expect(divisionPaintsNoData(valued, suppressed, 3)).toBe(true);
+    expect(divisionPaintsNoData(valued, suppressed, 2)).toBe(false);
   });
 });

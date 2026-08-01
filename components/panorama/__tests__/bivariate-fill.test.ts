@@ -9,6 +9,7 @@ import {
   BIVARIATE_RISK_COLOR,
   bivariateCellColor,
   bivariateFillColorExpr,
+  bivariateGreyStates,
   bivariateReadouts,
   bivariateSuppressedCodes,
   bivariateSuppressedFilter,
@@ -107,5 +108,99 @@ describe("pinned-popup readout", () => {
   it("a suppressed cell reports the protected state, never a value", () => {
     const rows = bivariateReadouts(cell({ suppressed: true }));
     expect(rows.every((r) => r.valueText === null && r.state === "suppressed")).toBe(true);
+  });
+});
+
+// RA-7 F10 — which unclassifiable states the frame actually paints grey with.
+// `bivariateFillColorExpr` sends three different situations to the SAME
+// COLOR_NO_DATA default, and the legend named none of them. Two of the three
+// ("falta un eje" vs "no reportó ninguna") are opposite conclusions for a
+// municipality and cannot be told apart by hue, so the key has to state which
+// ones this frame contains rather than pretend the colour resolves it.
+describe("bivariateGreyStates", () => {
+  it("reports neither state when every cell is fully classified", () => {
+    expect(bivariateGreyStates([cell({}), cell({ provinceCode: "AR-X" })])).toEqual({
+      missingAxis: false,
+      noData: false,
+    });
+  });
+
+  it("flags missingAxis when the SIGNAL half is absent", () => {
+    expect(bivariateGreyStates([cell({ signalValue: null, signalClass: null })])).toEqual({
+      missingAxis: true,
+      noData: false,
+    });
+  });
+
+  it("flags missingAxis when the COVERAGE half is absent", () => {
+    expect(bivariateGreyStates([cell({ coverageValue: null, coverageClass: null })])).toEqual({
+      missingAxis: true,
+      noData: false,
+    });
+  });
+
+  it("flags noData only when BOTH axes are absent", () => {
+    expect(
+      bivariateGreyStates([
+        cell({
+          coverageValue: null,
+          coverageClass: null,
+          signalValue: null,
+          signalClass: null,
+        }),
+      ]),
+    ).toEqual({ missingAxis: false, noData: true });
+  });
+
+  it("reports both when the frame contains both — never collapses them to one", () => {
+    expect(
+      bivariateGreyStates([
+        cell({ signalValue: null, signalClass: null }),
+        cell({
+          provinceCode: "AR-X",
+          coverageValue: null,
+          coverageClass: null,
+          signalValue: null,
+          signalClass: null,
+        }),
+      ]),
+    ).toEqual({ missingAxis: true, noData: true });
+  });
+
+  it("EXCLUDES suppressed cells — they carry their own mark and their own key", () => {
+    // A suppressed cell is colourless too, but the hatch declares it. Folding it
+    // in here would publish two readings for one polygon, and would leak the
+    // suppressed unit into a key that describes absence.
+    expect(
+      bivariateGreyStates([
+        cell({
+          suppressed: true,
+          coverageValue: null,
+          coverageClass: null,
+          signalValue: null,
+          signalClass: null,
+        }),
+      ]),
+    ).toEqual({ missingAxis: false, noData: false });
+  });
+
+  it("agrees with bivariateCellColor: every cell it flags is one the fill leaves grey", () => {
+    // The coupling that matters — the key must describe the polygons the
+    // expression actually defaults to COLOR_NO_DATA, not a parallel guess.
+    const cells = [
+      cell({}),
+      cell({ provinceCode: "AR-X", signalValue: null, signalClass: null }),
+      cell({
+        provinceCode: "AR-S",
+        coverageValue: null,
+        coverageClass: null,
+        signalValue: null,
+        signalClass: null,
+      }),
+    ];
+    const greyCount = cells.filter((c) => !c.suppressed && bivariateCellColor(c) === null).length;
+    const flags = bivariateGreyStates(cells);
+    expect(greyCount).toBe(2);
+    expect(flags.missingAxis || flags.noData).toBe(true);
   });
 });

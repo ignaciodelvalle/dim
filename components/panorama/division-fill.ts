@@ -320,6 +320,30 @@ export function divisionNoDataFilter(
   ] as unknown as FilterSpecification;
 }
 
+/**
+ * Whether the division stipple is actually painted on at least one polygon —
+ * the gate the legend's "Sin datos (solo contorno)" key must pass.
+ *
+ * RA-7 F9 (2026-07-31). That key rendered unconditionally on every drilled
+ * frame, so a scope whose every departamento carries a value still advertised a
+ * mark the canvas does not paint. Same complement `divisionNoDataFilter` uses
+ * (valued ∪ suppressed), measured against the number of polygons actually in
+ * the shared division source — which is the set the filter is evaluated over, so
+ * key and overlay answer from the same arithmetic.
+ *
+ * `divisionsInSource === 0` → there is no polygon to stipple, so nothing is
+ * painted, even though the filter's empty-`known` branch is constant-`true`.
+ */
+export function divisionPaintsNoData(
+  valued: ReadonlyMap<string, number>,
+  suppressed: ReadonlySet<string>,
+  divisionsInSource: number,
+): boolean {
+  if (divisionsInSource <= 0) return false;
+  const known = new Set<string>([...valued.keys(), ...suppressed]);
+  return known.size < divisionsInSource;
+}
+
 /** value min/max over a division values map (for the fill legend). null when empty. */
 export function divisionValueBounds(
   values: ReadonlyMap<string, number>,

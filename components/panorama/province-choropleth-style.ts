@@ -18,6 +18,7 @@ import {
   stepColorExpr,
 } from "@/components/panorama/class-scale";
 import { COLOR_NO_DATA } from "@/lib/analytics/viz-scales";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
 import type { FeatureCollection } from "@/src/modules/panorama/domain/types";
 
 /** A province feature's properties (as emitted by buildProvinceChoroplethFeatures). */
@@ -117,6 +118,35 @@ export function provinceCellAt(
  *  never announces a mark the current frame does not paint. */
 export function hasSuppressedProvince(features: FeatureCollection): boolean {
   return provinceSuppressedCodes(features).length > 0;
+}
+
+/**
+ * Whether this layer's frame actually paints the no-data STIPPLE on at least one
+ * province — the gate the legend's "Sin datos" key must pass.
+ *
+ * RA-7 F9 (2026-07-31). The k-anon key learned this discipline (#40, and again
+ * on 2026-07-30 for the pill and the bivariate/graduated rows); the "Sin datos"
+ * key beside it never did, and rendered on EVERY province legend. On a frame
+ * where all 24 jurisdictions carry a value there is no stipple anywhere on the
+ * canvas, and the key promised a mark the map does not paint. That is the same
+ * defect as announcing a hatch that is not there, and it costs the same thing:
+ * an operator who learns the legend is decoration stops reading the row that
+ * matters, and the row that matters is the privacy one.
+ *
+ * Derived as the EXACT complement `provinceNoDataFilter` paints with — the same
+ * `known` set (valued ∪ suppressed) measured against the basemap's jurisdiction
+ * count — so the key and the overlay cannot disagree about whether the mark
+ * exists. `PROVINCES` is the authoritative ISO 3166-2:AR list and matches
+ * public/geo/ar-provinces.geojson one-for-one (24 polygons, same codes), which
+ * is what makes counting a valid stand-in for enumerating the source.
+ *
+ * A layer with nothing known stipples the whole country (the filter's
+ * constant-`true` branch) and correctly answers true.
+ */
+export function provincePaintsNoData(features: FeatureCollection): boolean {
+  const known = new Set(provincePairs(features).map(([code]) => code));
+  for (const code of provinceSuppressedCodes(features)) known.add(code);
+  return known.size < PROVINCES.length;
 }
 
 /**
