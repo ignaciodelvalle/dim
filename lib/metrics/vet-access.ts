@@ -32,6 +32,7 @@ import { analyticsDb as db, petEvents, pets } from "@/db";
 
 import { suppressSmallCells } from "./anonymity";
 import type { ProjectionContext } from "./context";
+import { KPI_CATALOG } from "./kpi-catalog";
 import { activePetsCondition } from "./population";
 import { petsScopeClause } from "./scope";
 
@@ -87,6 +88,101 @@ export function perThousand(visits: number, activePets: number): number {
   return Math.round((visits / activePets) * 1000 * 10) / 10;
 }
 
+// ---------------------------------------------------------------------------
+// "Desierto de atención" — an ABSOLUTE band, not a position in a sorted list
+// (external red-team 2026-07-30, H6).
+//
+// The /gob/analytics table sorted ascending and told the operator "las
+// primeras filas son desiertos de atención". Live, the first row was Palermo
+// at 1.286,8 actos / 1.000 activos — the LOWEST of the set and roughly 1,3
+// veterinary acts per pet per year, which is not a desert of anything. A
+// sanitary authority can allocate resources off that sentence; a relative
+// order does not support an absolute claim, and the top of ANY ascending list
+// is non-empty by construction.
+//
+// So the label needs a floor it can be measured against, and the floor has to
+// be anchored in something real rather than picked to look decisive. The
+// anchor used here is the ANNUAL ANTIRRÁBICA: Ley 22.953 makes one
+// vet-administered rabies vaccination per dog per year obligatory, so one
+// veterinary act per pet per year is the least a locality can register while
+// still meeting the single legal contact the law already requires. Below it,
+// "desierto de atención" is a defensible reading of the registry.
+//
+// PERIOD-NORMALISED, and that is not a detail. /gob/analytics has a period
+// picker (7d / 30d / 90d / 12m / YTD / 3y / 5y / custom), so the per-1k figure
+// on screen is a per-PERIOD rate. A fixed number-of-acts threshold would be
+// correct on exactly one of those presets and wrong on the other seven — the
+// same class of error this whole pass exists to remove. The threshold is
+// therefore pro-rated to the visible window, and refuses to exist at all below
+// VET_ACCESS_DESERT_MIN_PERIOD_DAYS: over a 7-day window the pro-rated floor
+// is ~19 per 1.000 and a locality falls under it by coincidence, not by
+// deprivation.
+// ---------------------------------------------------------------------------
+
+/** Veterinary acts per pet per YEAR below which a locality reads as a care
+ *  desert — one act/pet/year is the annual antirrábica the law already
+ *  mandates (Ley 22.953). Programmatic floor derived from a legal obligation,
+ *  not a number the statute itself sets. */
+export const VET_ACCESS_DESERT_ACTS_PER_PET_YEAR = 1;
+
+/** Shortest window over which the absolute band is computed at all. Under a
+ *  quarter, the pro-rated floor is small enough that ordinary lumpiness
+ *  (one clinic closed a week) crosses it. */
+export const VET_ACCESS_DESERT_MIN_PERIOD_DAYS = 90;
+
+/** Active-pet floor under which the ratio is reported but never classified —
+ *  read from the descriptor's `guards.smallN`, so the threshold lives in the
+ *  catalog and this module cannot drift from it. */
+export const VET_ACCESS_MIN_ACTIVE_PETS =
+  KPI_CATALOG.vet_access_per_1k_locality.guards?.smallN?.min ?? 50;
+
+const DAYS_PER_YEAR = 365;
+
+/**
+ * The per-1.000 figure below which a locality is a care desert, pro-rated to
+ * the visible window. `null` when the window is too short to support the
+ * claim (see VET_ACCESS_DESERT_MIN_PERIOD_DAYS) — a null threshold means "do
+ * not classify", never "nothing is a desert".
+ */
+export function vetAccessDesertThresholdPer1k(periodDays: number): number | null {
+  if (!Number.isFinite(periodDays) || periodDays < VET_ACCESS_DESERT_MIN_PERIOD_DAYS) return null;
+  return (
+    Math.round(((VET_ACCESS_DESERT_ACTS_PER_PET_YEAR * 1000 * periodDays) / DAYS_PER_YEAR) * 10) /
+    10
+  );
+}
+
+/**
+ * What this row's rate can honestly be called.
+ *
+ *  - "small-sample": fewer than VET_ACCESS_MIN_ACTIVE_PETS active pets. The
+ *    rate is arithmetically true and stays visible, but one act swings it too
+ *    far to classify. Checked FIRST — a tiny locality reading 0 per 1.000 is
+ *    the most tempting false desert on the whole table.
+ *  - "desert": below the pro-rated absolute floor, over a big enough
+ *    population and a long enough window.
+ *  - "measured": everything else, INCLUDING the lowest row of the table when
+ *    that row clears the floor. This is the branch Palermo lands in.
+ *  - "unclassified": the window is too short for any absolute claim.
+ */
+export type VetAccessBand = "desert" | "small-sample" | "measured" | "unclassified";
+
+export function classifyVetAccess(
+  row: Pick<VetAccessRow, "per1k" | "activePets">,
+  periodDays: number,
+): VetAccessBand {
+  if (row.activePets < VET_ACCESS_MIN_ACTIVE_PETS) return "small-sample";
+  const threshold = vetAccessDesertThresholdPer1k(periodDays);
+  if (threshold === null) return "unclassified";
+  return row.per1k < threshold ? "desert" : "measured";
+}
+
+/** Whole days spanned by a ProjectionContext period — the input the absolute
+ *  band is pro-rated over. */
+export function periodDays(period: { since: Date; until: Date }): number {
+  return (period.until.getTime() - period.since.getTime()) / (24 * 60 * 60 * 1000);
+}
+
 export type VetAccessRow = {
   /** Province name (pets.jurisdiction_province). */
   province: string;
@@ -102,16 +198,27 @@ export type VetAccessRow = {
   activePets: number;
   /** Veterinary acts per 1,000 active pets, one decimal. */
   per1k: number;
+  /** What this rate can honestly be CALLED — see classifyVetAccess. H6: the
+   *  render site must never derive "desierto" from the row's position. */
+  band: VetAccessBand;
 };
 
 export type VetAccessResult = {
   /**
    * Localities visible after k-anon suppression, sorted ASCENDING by per1k so
-   * the lowest-access zones (care deserts) surface first.
+   * the lowest-access zones surface first. Lowest is a RELATIVE fact; whether
+   * a row is a care desert is `row.band`, decided against an absolute floor.
    */
   localities: VetAccessRow[];
   /** Count of localities suppressed for having <5 active pets (privacy). */
   suppressedCount: number;
+  /**
+   * The absolute floor the bands were computed against, pro-rated to the
+   * period — `null` when the window is too short to classify at all. The
+   * render site shows this number so the claim is checkable instead of
+   * asserted.
+   */
+  desertThresholdPer1k: number | null;
 };
 
 /**
@@ -128,7 +235,9 @@ export type VetAccessResult = {
  * @param ctx - ProjectionContext (actor + scope + period).
  */
 export async function fetchVetAccessByLocality(ctx: ProjectionContext): Promise<VetAccessResult> {
-  const empty: VetAccessResult = { localities: [], suppressedCount: 0 };
+  const days = periodDays(ctx.period);
+  const desertThresholdPer1k = vetAccessDesertThresholdPer1k(days);
+  const empty: VetAccessResult = { localities: [], suppressedCount: 0, desertThresholdPer1k };
   if (isEmptyScope(ctx)) return empty;
 
   const activeCond = activePetsCondition(ctx);
@@ -183,12 +292,14 @@ export async function fetchVetAccessByLocality(ctx: ProjectionContext): Promise<
     )
     .map((r) => {
       const visits = visitsByKey.get(keyOf(r.province, r.locality)) ?? 0;
+      const per1k = perThousand(visits, r.n);
       return {
         province: r.province,
         locality: r.locality,
         visits,
         activePets: r.n,
-        per1k: perThousand(visits, r.n),
+        per1k,
+        band: classifyVetAccess({ per1k, activePets: r.n }, days),
       };
     });
 
@@ -202,5 +313,5 @@ export async function fetchVetAccessByLocality(ctx: ProjectionContext): Promise<
     .slice()
     .sort((a, b) => a.per1k - b.per1k);
 
-  return { localities, suppressedCount };
+  return { localities, suppressedCount, desertThresholdPer1k };
 }

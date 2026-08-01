@@ -14,7 +14,16 @@ import { db, petEvents, pets } from "@/db";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "../../__tests__/_helpers/db-overrides";
-import { VET_ACTIVITY_EVENT_TYPES, fetchVetAccessByLocality, perThousand } from "./vet-access";
+import { KPI_CATALOG } from "./kpi-catalog";
+import {
+  VET_ACCESS_DESERT_MIN_PERIOD_DAYS,
+  VET_ACCESS_MIN_ACTIVE_PETS,
+  VET_ACTIVITY_EVENT_TYPES,
+  classifyVetAccess,
+  fetchVetAccessByLocality,
+  perThousand,
+  vetAccessDesertThresholdPer1k,
+} from "./vet-access";
 
 const TEST_PROVINCE = "Córdoba";
 const LOC_HIGH = "HighAccessVille";
@@ -160,7 +169,13 @@ describe("fetchVetAccessByLocality", () => {
     expect(localities).not.toContain(LOC_TINY);
   });
 
-  it("orders care deserts (lowest per1k) first and computes the rate", async () => {
+  // H6 (2026-07-30) — RENAMED. This used to be titled "orders care deserts
+  // (lowest per1k) first", which is the exact conflation the red-team found on
+  // /gob/analytics: it asserted an ORDER and called the result a desert. The
+  // assertions themselves were always true and are unchanged; the name was the
+  // lie, and it is the name the page's caption was written from. What the
+  // fetcher guarantees is an ascending sort — nothing more.
+  it("orders the lowest per1k first and computes the rate", async () => {
     const result = await fetchVetAccessByLocality(ctx);
     expect(result.localities[0].locality).toBe(LOC_LOW);
     expect(result.localities[0].per1k).toBe(200);
@@ -169,6 +184,35 @@ describe("fetchVetAccessByLocality", () => {
 
     const high = result.localities.find((r) => r.locality === LOC_HIGH);
     expect(high?.per1k).toBe(2000);
+  });
+
+  it("refuses to call the first row a desert when its denominator is 5 pets", async () => {
+    // The fixture is the false-desert shape in miniature: LOC_LOW leads the
+    // ascending table at 200 per 1.000, which under the old caption made it a
+    // "desierto de atención" purely by being first. It has five active pets —
+    // one more veterinary act would put it at 400.
+    const result = await fetchVetAccessByLocality(ctx);
+    expect(result.localities[0].locality).toBe(LOC_LOW);
+    expect(result.localities[0].band).toBe("small-sample");
+  });
+
+  it("carries the absolute floor the bands were measured against", async () => {
+    // The page renders this number so the claim is checkable. Over a trailing
+    // 12m window it is one act per pet per year.
+    const result = await fetchVetAccessByLocality(ctx);
+    expect(result.desertThresholdPer1k).toBeCloseTo(1000, 0);
+  });
+
+  it("classifies a well-populated locality against that floor, not against its neighbours", async () => {
+    const result = await fetchVetAccessByLocality(ctx);
+    const high = result.localities.find((r) => r.locality === LOC_HIGH);
+    // LOC_HIGH is above the floor and, like every row here, under the
+    // active-pet minimum — so it is reported without a verdict either way.
+    expect(high?.band).toBe("small-sample");
+    // And the classifier it delegates to would call the same rate "measured"
+    // on a real population: the band is a function of the numbers, not of the
+    // row's rank in the list.
+    expect(classifyVetAccess({ per1k: high?.per1k ?? 0, activePets: 4000 }, 365)).toBe("measured");
   });
 });
 
@@ -227,5 +271,87 @@ describe("fetchVetAccessByLocality — the numerator counts every veterinary act
     // author_role names the REPORTER, not the performer (28.979 of 29.123
     // seeded vaccinations are owner-logged), so it is deliberately NOT a filter.
     expect(VET_ACTIVITY_EVENT_TYPES).not.toContain("deworming_administered");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// H6 (external red-team 2026-07-30) — "desierto de atención" over a relative
+// order. PURE, DB-free: everything below is the classifier, not the fetcher.
+//
+// WHAT SHIPPED: /gob/analytics sorted ascending and captioned the table "las
+// primeras filas son desiertos de atención". Palermo led that list at 1.286,8
+// actos / 1.000 activos — about 1,3 acts per pet per year, which is above the
+// annual antirrábica the law already requires. The top of an ascending list is
+// non-empty by construction; calling it a desert is a claim the sort cannot
+// support, and a sanitary authority can allocate resources off it.
+// ---------------------------------------------------------------------------
+
+describe("classifyVetAccess — the 'desierto' label is measured, never positional", () => {
+  const YEAR = 365;
+
+  it("refuses to call the live Palermo figure a desert — lowest of the set is not a desert", () => {
+    // The exact row that shipped: first in the ascending table, and above the
+    // one-act-per-pet-per-year floor.
+    expect(classifyVetAccess({ per1k: 1286.8, activePets: 4000 }, YEAR)).toBe("measured");
+  });
+
+  it("calls a genuinely deprived locality a desert — under one act per pet per year", () => {
+    expect(classifyVetAccess({ per1k: 640, activePets: 4000 }, YEAR)).toBe("desert");
+  });
+
+  it("puts the boundary AT the floor: exactly one act per pet per year is not a desert", () => {
+    expect(classifyVetAccess({ per1k: 1000, activePets: 4000 }, YEAR)).toBe("measured");
+    expect(classifyVetAccess({ per1k: 999.9, activePets: 4000 }, YEAR)).toBe("desert");
+  });
+
+  it("never classifies a thin denominator, however low the ratio looks", () => {
+    // The most tempting false desert on the table: a locality that cleared
+    // k-anon (5 actives) reading 0 per 1.000 because nobody happened to take
+    // an animal to a vet. One act would move it by 200.
+    expect(classifyVetAccess({ per1k: 0, activePets: 5 }, YEAR)).toBe("small-sample");
+    expect(classifyVetAccess({ per1k: 0, activePets: VET_ACCESS_MIN_ACTIVE_PETS - 1 }, YEAR)).toBe(
+      "small-sample",
+    );
+  });
+
+  it("classifies exactly AT the active-pet floor, not one pet above it", () => {
+    expect(classifyVetAccess({ per1k: 0, activePets: VET_ACCESS_MIN_ACTIVE_PETS }, YEAR)).toBe(
+      "desert",
+    );
+  });
+
+  it("refuses to classify anything over a window too short to mean it", () => {
+    // A 30-day window pro-rates the floor to ~82 per 1.000; a locality dips
+    // under that by coincidence, not by deprivation.
+    expect(classifyVetAccess({ per1k: 0, activePets: 4000 }, 30)).toBe("unclassified");
+  });
+});
+
+describe("vetAccessDesertThresholdPer1k — pro-rated to the visible window", () => {
+  it("is one act per pet over a year", () => {
+    expect(vetAccessDesertThresholdPer1k(365)).toBe(1000);
+  });
+
+  it("scales with the window instead of pretending every period is a year", () => {
+    // /gob/analytics has a period picker. A fixed acts-per-1k number would be
+    // right on exactly one preset — this is the assertion that pins that the
+    // threshold MOVES.
+    expect(vetAccessDesertThresholdPer1k(90)).toBeCloseTo(246.6, 1);
+    expect(vetAccessDesertThresholdPer1k(365 * 3)).toBe(3000);
+  });
+
+  it("returns null below the minimum window rather than a small confident number", () => {
+    expect(vetAccessDesertThresholdPer1k(VET_ACCESS_DESERT_MIN_PERIOD_DAYS - 1)).toBeNull();
+    expect(vetAccessDesertThresholdPer1k(7)).toBeNull();
+    // …and exists exactly AT the minimum.
+    expect(vetAccessDesertThresholdPer1k(VET_ACCESS_DESERT_MIN_PERIOD_DAYS)).not.toBeNull();
+  });
+
+  it("reads its active-pet floor from the catalog, not from a literal here", () => {
+    // The threshold must live in the metric contract, so a future change to
+    // the descriptor cannot leave the classifier behind.
+    expect(VET_ACCESS_MIN_ACTIVE_PETS).toBe(
+      KPI_CATALOG.vet_access_per_1k_locality.guards?.smallN?.min,
+    );
   });
 });

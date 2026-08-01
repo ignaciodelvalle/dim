@@ -35,6 +35,10 @@ import {
   toneForTarget,
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import {
+  VET_ACCESS_DESERT_MIN_PERIOD_DAYS,
+  VET_ACCESS_MIN_ACTIVE_PETS,
+} from "@/lib/metrics/vet-access";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { deathCauseLabel, formatCount, formatPercent } from "@/lib/utils/format";
 import { AcquisitionChartDynamic } from "./_components/AcquisitionChartDynamic";
@@ -243,8 +247,10 @@ export default async function GobAnalyticsPage({
   const panelRankingId = "panel-ranking-titulo";
   const panelPerCapitaId = "panel-percapita-titulo";
   const panelVetAccessId = "panel-vet-access-titulo";
-  // Lowest-access localities first (care deserts). fetchVetAccessByLocality
-  // already sorts ascending by per1k; cap the table at the 8 lowest.
+  // Lowest RELATIVE access first. fetchVetAccessByLocality sorts ascending by
+  // per1k; cap the table at the 8 lowest. H6 (2026-07-30): "lowest in the
+  // visible set" is all the ORDER says — whether a row is a care desert comes
+  // from `row.band`, measured against `vetAccess.desertThresholdPer1k`.
   const vetAccessRows = vetAccess.localities.slice(0, 8);
 
   return (
@@ -466,7 +472,7 @@ export default async function GobAnalyticsPage({
               <table className="w-full text-[13px] text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Visitas veterinarias por cada 1.000 mascotas activas, por localidad, de menor a
-                  mayor acceso.
+                  mayor acceso relativo dentro del alcance seleccionado.
                 </caption>
                 <thead>
                   <tr className="border-b border-ln-op-line">
@@ -493,6 +499,20 @@ export default async function GobAnalyticsPage({
                       <td className="py-2 pr-4">
                         {r.locality}
                         <span className="text-ln-op-mute"> · {r.province}</span>
+                        {/* H6: the ONLY place the table says "desierto", and it
+                            says it from the absolute band, never from the row's
+                            position. A locality that is merely the lowest of the
+                            set gets no badge at all. */}
+                        {r.band === "desert" && (
+                          <span className="ml-2 rounded-full bg-ln-op-warn-bg px-2 py-0.5 text-xs font-semibold text-ln-op-warn">
+                            Desierto de atención
+                          </span>
+                        )}
+                        {r.band === "small-sample" && (
+                          <span className="ml-2 rounded-full bg-ln-op-stripe px-2 py-0.5 text-xs font-medium text-ln-op-mute">
+                            Muestra chica
+                          </span>
+                        )}
                       </td>
                       <td className="py-2 px-4 text-right tabular-nums font-semibold">
                         {r.per1k.toLocaleString("es-AR")}
@@ -507,10 +527,35 @@ export default async function GobAnalyticsPage({
                   ))}
                 </tbody>
               </table>
+              {/* H6 (2026-07-30): this line used to read "las primeras filas
+                  son desiertos de atención" over a purely RELATIVE sort. Live,
+                  the first row was Palermo at 1.286,8 — the lowest of the set
+                  and about 1,3 actos por mascota al año, which is not a desert
+                  of anything. The order and the label are now two separate
+                  claims, and the label states the number it was measured
+                  against. */}
               <p className="mt-2 text-xs text-ln-op-mute">
-                Ordenado de menor a mayor acceso — las primeras filas son desiertos de atención.
-                Denominador: mascotas activas de la localidad (no censo humano). Localidades con
-                menos de 5 activos se ocultan por k-anonimato.
+                Ordenado de menor a mayor acceso <strong>relativo dentro del alcance</strong>: las
+                primeras filas son las de menor acceso registrado del conjunto visible, no
+                necesariamente desiertos de atención.{" "}
+                {vetAccess.desertThresholdPer1k !== null ? (
+                  <>
+                    Se marca <strong>desierto de atención</strong> solo por debajo de{" "}
+                    {vetAccess.desertThresholdPer1k.toLocaleString("es-AR")} actos / 1.000 activos
+                    en este período — el equivalente a 1 acto veterinario por mascota al año, el
+                    piso que implica la antirrábica anual obligatoria (Ley 22.953).
+                  </>
+                ) : (
+                  <>
+                    El período seleccionado es más corto que {VET_ACCESS_DESERT_MIN_PERIOD_DAYS}{" "}
+                    días: no alcanza para afirmar que una localidad sea un desierto de atención, así
+                    que ninguna fila se marca como tal.
+                  </>
+                )}{" "}
+                Con menos de {VET_ACCESS_MIN_ACTIVE_PETS} activos el ratio se muestra pero no se
+                clasifica (un solo acto lo mueve demasiado). Denominador: mascotas activas de la
+                localidad (no censo humano). Localidades con menos de 5 activos se ocultan por
+                k-anonimato.
               </p>
             </div>
           )}

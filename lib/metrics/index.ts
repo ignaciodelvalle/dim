@@ -252,8 +252,17 @@ export type {
 // scoped via petsScopeClause.
 export { fetchDewormingCoverage } from "./deworming";
 export type { DewormingCoverageResult, ProvinceDewormingRow } from "./deworming";
-export { VET_ACTIVITY_EVENT_TYPES, fetchVetAccessByLocality, perThousand } from "./vet-access";
-export type { VetAccessResult, VetAccessRow } from "./vet-access";
+export {
+  VET_ACCESS_DESERT_ACTS_PER_PET_YEAR,
+  VET_ACCESS_DESERT_MIN_PERIOD_DAYS,
+  VET_ACCESS_MIN_ACTIVE_PETS,
+  VET_ACTIVITY_EVENT_TYPES,
+  classifyVetAccess,
+  fetchVetAccessByLocality,
+  perThousand,
+  vetAccessDesertThresholdPer1k,
+} from "./vet-access";
+export type { VetAccessBand, VetAccessResult, VetAccessRow } from "./vet-access";
 export { fetchMovementCorridors } from "./movement";
 export type { MovementCorridorsResult } from "./movement";
 export { approvalRate, fetchAdoptionApplicationFunnel } from "./adoption-funnel";
