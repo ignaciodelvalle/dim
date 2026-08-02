@@ -166,3 +166,19 @@ describe('CaseQueue — "Animal sin registrar" subject rendering (item 6c)', () 
     expect(html).toMatch(/>—<\/td>/);
   });
 });
+
+describe("CaseQueue — sticky header (Q2)", () => {
+  // `position: sticky` only works against the nearest SCROLLING ancestor —
+  // jsdom cannot verify the visual behavior, so this pins the STRUCTURE the
+  // CSS depends on: the thead is sticky (with an opaque bg + z so rows never
+  // show through) AND its wrapper is the element that actually scrolls
+  // (max-height + overflow-auto). The old wrapper was `overflow-x-auto` with
+  // no height bound — a scroll container that never scrolled vertically, the
+  // exact silent-failure trap for sticky.
+  it("marks the thead sticky and makes its own wrapper the scrolling element", () => {
+    const html = renderToStaticMarkup(<CaseQueue rows={ROWS} />);
+    expect(html).toMatch(/<thead class="[^"]*sticky top-0[^"]*"/);
+    expect(html).toMatch(/<div class="[^"]*max-h-\[70vh\] overflow-auto[^"]*"/);
+    expect(html).not.toContain("overflow-x-auto");
+  });
+});

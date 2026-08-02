@@ -308,10 +308,17 @@ export function CaseQueue({
           {emptyMessage}
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-[var(--radius-sm)] border border-ln-op-line">
+        // Q2 (sticky headers): the header sticks to THIS wrapper, so the
+        // wrapper must be the scrolling element — `position: sticky` fails
+        // silently when the scroll happens on an ancestor the sticky can't
+        // see (the old `overflow-x-auto` made this div a scroll container
+        // that never scrolled vertically, which is exactly that trap). Same
+        // structure as MapDataTable: max-height + overflow-auto on the
+        // container, sticky + opaque bg + z on the thead.
+        <div className="max-h-[70vh] overflow-auto rounded-[var(--radius-sm)] border border-ln-op-line">
           <table className="w-full border-collapse text-[13px]">
             <caption className="sr-only">{caption}</caption>
-            <thead className="bg-ln-op-stripe">
+            <thead className="sticky top-0 z-10 bg-ln-op-stripe">
               <tr>
                 {bulk && (
                   <th scope="col" className="w-10 px-3 py-2 text-left">
