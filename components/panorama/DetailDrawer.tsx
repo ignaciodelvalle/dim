@@ -40,14 +40,23 @@ import type React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
-import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
+import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard";
+import type { CaseStatus } from "@/db/schema";
+import { AR_TIME_ZONE, eventTypeLabel, speciesLabel } from "@/lib/utils/format";
 import { REFERENCE_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
-import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
+import { SEVERITY_BASE_LABEL, welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 import { Sparkline } from "./Sparkline";
 
 import { REUNIFICATION_RATE_LABEL_ES } from "@/lib/metrics/kpi-label-constants";
+
+// Re-exported for situational-map-config.ts's popup-html builder, which reads
+// this shared severity-tier map (bite-incident severity uses the same
+// low/medium/high/critical vocabulary as welfare denuncias) — canonical source
+// is now welfare's domain module (see T5.2 dedup below); this keeps that
+// import path working unchanged.
+export { SEVERITY_BASE_LABEL as SEVERITY_LABEL } from "@/src/modules/welfare/domain/types";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -104,15 +113,6 @@ type UnitHistoryResult = {
 // es-AR label maps (local; no shared helper exists for these enums)
 // ---------------------------------------------------------------------------
 
-const SPECIES_LABEL: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  rabbit: "Conejo",
-  guinea_pig: "Cobayo",
-  ferret: "Hurón",
-  other: "Otra",
-};
-
 export const PET_STATUS_LABEL: Record<string, string> = {
   active: "Activa",
   lost: "Perdida",
@@ -122,29 +122,6 @@ export const PET_STATUS_LABEL: Record<string, string> = {
 export const INCIDENT_LABEL: Record<string, string> = {
   bite_inflicted: "Mordedura infligida",
   bite_suffered: "Mordedura sufrida",
-};
-
-export const SEVERITY_LABEL: Record<string, string> = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-  critical: "Crítica",
-};
-
-const WELFARE_KIND_LABEL: Record<string, string> = {
-  neglect: "Abandono / negligencia",
-  abuse: "Maltrato",
-  hoarding: "Acumulación",
-  abandonment: "Abandono",
-  other: "Otra",
-};
-
-const CASE_STATUS_LABEL: Record<string, string> = {
-  open: "Abierto",
-  in_progress: "En curso",
-  escalated: "Escalado",
-  closed: "Cerrado",
-  resolved: "Resuelto",
 };
 
 /**
@@ -359,7 +336,10 @@ export function FeatureBody({
         <>
           <dl>
             <Row label="Expediente" value={code ?? "—"} />
-            <Row label="Estado" value={status ? (CASE_STATUS_LABEL[status] ?? status) : "—"} />
+            <Row
+              label="Estado"
+              value={status ? (CASE_STATUS_CONFIG[status as CaseStatus]?.label ?? status) : "—"}
+            />
             <Row label="Apertura" value={shortDate(str(properties, "openedAt"))} />
           </dl>
           {code && (
@@ -388,8 +368,11 @@ export function FeatureBody({
           </p>
           <dl>
             <Row label="Zona" value={place || "—"} />
-            <Row label="Tipo" value={kind ? (WELFARE_KIND_LABEL[kind] ?? kind) : "—"} />
-            <Row label="Gravedad" value={severity ? (SEVERITY_LABEL[severity] ?? severity) : "—"} />
+            <Row label="Tipo" value={kind ? welfareReportKindLabel(kind) : "—"} />
+            <Row
+              label="Gravedad"
+              value={severity ? (SEVERITY_BASE_LABEL[severity] ?? severity) : "—"}
+            />
             <Row label="Ingreso" value={shortDate(str(properties, "createdAt"))} />
           </dl>
           {/* F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's
@@ -423,7 +406,7 @@ export function FeatureBody({
         <>
           <dl>
             <Row label="Mascota" value={str(properties, "name") ?? "—"} />
-            <Row label="Especie" value={species ? (SPECIES_LABEL[species] ?? species) : "—"} />
+            <Row label="Especie" value={species ? speciesLabel(species) : "—"} />
             <Row label="Estado" value={status ? (PET_STATUS_LABEL[status] ?? status) : "—"} />
             <Row label="Visto por última vez" value={shortDate(str(properties, "lastSeenAt"))} />
           </dl>
@@ -456,7 +439,10 @@ export function FeatureBody({
               label="Incidente"
               value={incident ? (INCIDENT_LABEL[incident] ?? incident) : "—"}
             />
-            <Row label="Gravedad" value={severity ? (SEVERITY_LABEL[severity] ?? severity) : "—"} />
+            <Row
+              label="Gravedad"
+              value={severity ? (SEVERITY_BASE_LABEL[severity] ?? severity) : "—"}
+            />
             <Row label="Fecha" value={shortDate(str(properties, "occurredAt"))} />
           </dl>
           <DrillLink href={withUnitScope("/gob/vigilancia", properties)}>

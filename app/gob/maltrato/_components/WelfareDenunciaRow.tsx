@@ -1,5 +1,6 @@
 import { OpCodeBadge, OpPill, SlaBadge } from "@/components/ui/dashboard";
 import {
+  SEVERITY_BASE_LABEL,
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
@@ -28,13 +29,6 @@ import { resolveAssignmentDisplay } from "./welfare-row-assignment";
 // One truth per card: severity stays as DATA (the base name + tone/left-edge
 // stay, nothing is hidden), only the urgency FRAMING is dropped for backlog
 // rows — matching SlaBadge's own demotion, not re-deriving a second opinion.
-const SEVERITY_BASE_LABEL: Record<WelfareReportSeverity, string> = {
-  low: "Baja",
-  medium: "Media",
-  high: "Alta",
-  critical: "Crítica",
-};
-
 function severityDisplayLabel(severity: WelfareReportSeverity, historical: boolean): string {
   if (!historical) return welfareReportSeverityLabel(severity);
   const base = SEVERITY_BASE_LABEL[severity] ?? severity;

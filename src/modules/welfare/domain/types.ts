@@ -71,6 +71,24 @@ export function welfareReportSeverityLabel(severity: WelfareReportSeverity | str
   }
 }
 
+/**
+ * Bare severity-tier label (no urgency framing) for the four tiers this
+ * vocabulary shares across welfare denuncias AND bite-incident severity
+ * (situational-map-config/DetailDrawer read the same low/medium/high/critical
+ * strings off a pet_events payload). Lives here — next to
+ * welfareReportSeverityLabel, welfare's canonical severity owner — instead of
+ * two byte-identical UI-local copies (was duplicated verbatim in
+ * DetailDrawer's SEVERITY_LABEL and WelfareDenunciaRow's SEVERITY_BASE_LABEL).
+ * `Record<string, string>` (not keyed to WelfareReportSeverity) so untyped
+ * callers can index it directly with `?? key` fallback, same as before.
+ */
+export const SEVERITY_BASE_LABEL: Record<string, string> = {
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+  critical: "Crítica",
+};
+
 // ---------------------------------------------------------------------------
 // Status
 // ---------------------------------------------------------------------------
