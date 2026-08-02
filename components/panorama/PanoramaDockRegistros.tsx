@@ -30,8 +30,6 @@ type Props = {
   referenceLayerLabels: string[];
   /** A rate layer is drilled below province, where its per-unit value is a COUNT. */
   localityRateInView: boolean;
-  /** The map paints per-10k rates while this table keeps raw counts. */
-  percapitaActive: boolean;
   rows: MapTableRow[];
   caption: string;
   metrics: ValueMetric[];
@@ -48,7 +46,6 @@ export function PanoramaDockRegistros({
   summary,
   referenceLayerLabels,
   localityRateInView,
-  percapitaActive,
   rows,
   caption,
   metrics,
@@ -102,14 +99,6 @@ export function PanoramaDockRegistros({
         <p className={NOTE}>
           La cobertura por unidad se muestra como conteo; el porcentaje se calcula solo a nivel
           provincia.
-        </p>
-      )}
-      {/* panorama-percapita: the map paints per-10k rates while this table (and
-          the Estadísticas ranking) keeps raw counts — name the split so the two
-          numbers are never mistaken for a contradiction. */}
-      {percapitaActive && (
-        <p className={NOTE}>
-          El mapa pinta tasas por 10.000 habitantes; esta tabla y el ranking muestran conteos.
         </p>
       )}
       {rows.length > 0 && <p className="text-xs font-medium text-ln-op-ink-2">Valor por unidad</p>}

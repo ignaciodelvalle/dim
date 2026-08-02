@@ -158,6 +158,7 @@ import {
 } from "@/src/modules/panorama/domain/layers";
 import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
 import {
+  PERCAPITA_UNIT_LABEL,
   censusMetaOf,
   isPercapitaEligible,
   percapitaEligibleFor,
@@ -3109,9 +3110,17 @@ export function PanoramaConsole({
     (l) => states[l.id]?.active && states[l.id]?.degraded,
   ).map((l) => l.label);
 
+  // T4.3 (2026-08-01): the ranking must read the same values the map PAINTS,
+  // not merely what it FETCHED — under per-cápita the map projects counts into
+  // per-10k rates (mapLayers), while `activeLayers` still carries raw counts.
+  // Ranking off `activeLayers` therefore ordered "Peores 10" by conteo while
+  // the map colored by tasa: a province with a huge population could rank
+  // worst by count yet paint a mild rate. Reading `mapLayers` (already the
+  // legend/table/popup's shared source, see the block above) keeps the three
+  // surfaces honest about which universe they order.
   const rankedActiveLayer = useMemo(
-    () => (rankingLayer ? activeLayers.find((l) => l.id === rankingLayer.id) : undefined),
-    [rankingLayer, activeLayers],
+    () => (rankingLayer ? mapLayers.find((l) => l.id === rankingLayer.id) : undefined),
+    [rankingLayer, mapLayers],
   );
 
   // Visual review 2026-07-23 (#1) — full story in all-suppressed-notice.tsx.
@@ -3136,7 +3145,9 @@ export function PanoramaConsole({
   const rankingMeasureLabel = rankingLayer
     ? rankLocalityRateCount
       ? `${rankingLayer.caption.measure} (conteo)`
-      : rankingLayer.caption.measure
+      : rankedActiveLayer?.perCapita
+        ? `${rankingLayer.caption.measure} (${PERCAPITA_UNIT_LABEL})`
+        : rankingLayer.caption.measure
     : "";
 
   // Worst-N and full small-scope ordering, from the SAME features. Worst-N is the
@@ -3740,7 +3751,6 @@ export function PanoramaConsole({
       summary={dockRecordSummary}
       referenceLayerLabels={referenceLayerLabels}
       localityRateInView={localityRateInView}
-      percapitaActive={percapitaActive}
       rows={mapTableRows}
       caption={mapTableCaption}
       metrics={mapTableMetrics}
@@ -3833,13 +3843,15 @@ export function PanoramaConsole({
   // already narrates that empty state in its own body).
   const dockRankingSubtitle =
     effectiveRankingKind !== null && rankingLayer !== null
-      ? `${
-          // Finding 4: below province grain the measure is a COUNT, so this
-          // subtitle must not promise an ordering "por cobertura" either.
-          rankLocalityRateCount
-            ? `Ordena ${rankingUnitNoun} por cantidad de registros de ${rankingLayer.caption.measure} en el alcance actual.`
-            : `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.`
-        }${percapitaActive ? " El mapa pinta tasas por 10.000 hab.; este ranking ordena por conteos." : ""}`
+      ? // Finding 4: below province grain the measure is a COUNT, so this
+        // subtitle must not promise an ordering "por cobertura" either.
+        // T4.3: the old per-cápita caveat ("el mapa pinta tasas... este
+        // ranking ordena por conteos") is gone — the ranking now follows
+        // mapLayers, so `rankingMeasureLabel` already names the tasa when
+        // that mode is on, and the two surfaces agree.
+        rankLocalityRateCount
+        ? `Ordena ${rankingUnitNoun} por cantidad de registros de ${rankingLayer.caption.measure} en el alcance actual.`
+        : `Ordena ${rankingUnitNoun} por ${rankingMeasureLabel} en el alcance actual.`
       : undefined;
 
   // The calendar heatmap sits ABOVE the ranking as its own <section>, so a later
@@ -4462,8 +4474,15 @@ export function PanoramaConsole({
                 not a data-freshness watermark — it legitimately changes when the
                 scope changes (a smaller alcance has an older last event). Labeled
                 "Último evento en el alcance" so it never reads as "Salta tiene datos
-                más viejos". */}
-            {kpis.dataAsOf && (
+                más viejos".
+                T4.7 (2026-08-01): rendered ungated, `kpis.dataAsOf` still held the
+                PREVIOUS scope's last event while a scope/period refetch was in
+                flight — the chip's own title promises "el alcance seleccionado",
+                so showing the OLD alcance's stamp during that window is a lie of
+                omission. Gate like the scrubber watermark (~3673): hide while a
+                fetch owns the strip (kpisPending) or a scope change is in flight
+                (kpisScopeChanging, from use-panorama-kpis). */}
+            {kpis.dataAsOf && !kpisPending && !kpisScopeChanging && (
               <span
                 suppressHydrationWarning
                 title="Fecha y hora del evento más reciente dentro del alcance seleccionado (no es la frescura general de los datos). No cambia al mover la línea de tiempo."

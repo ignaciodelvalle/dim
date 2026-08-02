@@ -93,7 +93,6 @@ function render(
       summary={over.summary ?? summary()}
       referenceLayerLabels={[]}
       localityRateInView={false}
-      percapitaActive={false}
       rows={over.rows ?? []}
       caption={over.caption ?? captionFor({ role: "admin", jurisdictions: [] })}
       metrics={[]}
