@@ -153,8 +153,6 @@ import {
   FRAME_PADDING,
   HATCH_FILL_OPACITY,
   MIN_ZOOM,
-  POINT_STROKE,
-  POINT_STROKE_SUPPRESSED,
   PROV_LINE_OPACITY,
   PROV_LINE_OPACITY_FADED,
   PROV_LINE_WIDTH,
@@ -162,6 +160,9 @@ import {
   type ProvinceSeqLegend,
   SUPPRESS_SOLID_OPACITY,
   type SituationalMapProps,
+  addChoroplethLayer,
+  addGraduatedPointLayer,
+  addReferencePointLayer,
   applyDim,
   choroLayerId,
   choroplethFillPaint,
@@ -169,6 +170,7 @@ import {
   divisionFillLayerId,
   fetchGeojsonFeatures,
   framingMaxZoom,
+  graduatedRadiusExpr,
   layersBbox,
   pointLayerId,
   pointPopupHtml,
@@ -541,7 +543,10 @@ export function SituationalMap({
         // callback, synchronously before the browser clears the buffer for the
         // next frame (the standard maplibre-gl v5 pattern for capturing a
         // non-preserved canvas).
-        canvasContextAttributes: { preserveDrawingBuffer: false },
+        // V3 (PO 2026-08-02): antialias smooths circle/line edges platform-wide —
+        // one flag, same canvasContextAttributes bag preserveDrawingBuffer already
+        // uses, so this stays net-zero against the file's line-count ratchet.
+        canvasContextAttributes: { preserveDrawingBuffer: false, antialias: true },
         // es-AR labels for every MapLibre-stamped control (zoom buttons, marker
         // title, attribution toggle, fullscreen, popup close, cooperative-gestures
         // overlay) — otherwise a screen-reader user in a Spanish app hears English
@@ -1474,7 +1479,10 @@ export function SituationalMap({
         const circleData = join.unmatched as unknown as GeoJSON.FeatureCollection;
         const existing = map.getSource(srcId(layer.id)) as maplibregl.GeoJSONSource | undefined;
         if (existing) existing.setData(circleData);
-        else addChoroplethLayer(map, layer, circleData);
+        else {
+          addChoroplethLayer(map, layer, circleData);
+          wireChoroplethInteractions(map, layer);
+        }
         // Lock the division-fill classed BREAKS across a scrub so a division keeps
         // the same color across as-of frames (the legend swatches use the SAME
         // frozen breaks, so swatch and map agree). MAP-1 fix: freeze the live-edge
@@ -1573,14 +1581,20 @@ export function SituationalMap({
         }
         if (layer.geomType === "choropleth") {
           addChoroplethLayer(map, layer, data);
+          wireChoroplethInteractions(map, layer);
         } else if (layer.renderMode === "graduated") {
           // F1: density+signal layers render as per-unit graduated circles (no clustering).
           addGraduatedPointLayer(map, layer, data, gradScale.radiusStops);
+          wireGraduatedPointInteractions(map, layer);
           mountedPointModeRef.current.set(layer.id, "graduated");
         } else {
           // Reference layers (refugios, decomisos) AND perdidas real-dots (points):
-          // discrete pins with native MapLibre clustering (design D3).
-          addReferencePointLayer(map, layer, data);
+          // discrete pins with native MapLibre clustering (design D3). V1 (PO
+          // 2026-08-02): fades in on mount/mode-flip — its circle-opacity is
+          // CONSTANT, unlike the case-expression graduated/choropleth sites above,
+          // which cannot transition (see addReferencePointLayer's doc comment).
+          addReferencePointLayer(map, layer, data, reduced());
+          wireReferencePointInteractions(map, layer);
           mountedPointModeRef.current.set(layer.id, layer.renderMode ?? "reference");
         }
         mountedRef.current.add(layer.id);
@@ -2181,163 +2195,12 @@ export function SituationalMap({
     });
   }
 
-  /**
-   * F1 Panorama v2: graduated circles for density+signal layers.
-   *
-   * One NON-clustered circle per administrative unit (province or locality).
-   * `circle-radius` is a step expression on the feature's `count` property so
-   * higher event counts render as larger circles. Suppressed cells (count null
-   * → coalesced to 0) render at a fixed small muted radius, same as the
-   * choropleth's suppressed-cell treatment.
-   *
-   * This replaces MapLibre's generic point clustering for these layers so the
-   * map shows a STABLE, DETERMINISTIC symbol per unit regardless of zoom level.
-   */
-  /**
-   * #6/#7 — the AREA-proportional, data-driven `circle-radius` expression for a
-   * graduated layer. Suppressed cells keep the fixed small muted radius; visible
-   * cells interpolate over `radiusStops` derived from the observed maximum count
-   * (r ∝ √count — see graduated-scale.ts). Stops come from the shared scale so
-   * the on-map bubble matches the legend bubble for any value.
-   */
-  function graduatedRadiusExpr(
-    radiusStops: ReadonlyArray<readonly [number, number]>,
-  ): maplibregl.ExpressionSpecification {
-    return [
-      "case",
-      ["==", ["get", "suppressed"], true],
-      5,
-      ["interpolate", ["linear"], ["coalesce", ["get", "count"], 0], ...radiusStops.flat()],
-    ] as unknown as maplibregl.ExpressionSpecification;
-  }
-
-  function addGraduatedPointLayer(
-    map: maplibregl.Map,
-    layer: ActiveLayer,
-    data: GeoJSON.FeatureCollection,
-    radiusStops: ReadonlyArray<readonly [number, number]>,
-  ) {
-    // Non-clustered source — one feature per unit is already the aggregation unit.
-    map.addSource(srcId(layer.id), { type: "geojson", data });
-    map.addLayer({
-      id: pointLayerId(layer.id),
-      type: "circle",
-      source: srcId(layer.id),
-      paint: {
-        "circle-color": [
-          "case",
-          ["==", ["get", "suppressed"], true],
-          COLOR_SUPPRESSED,
-          layer.color,
-        ],
-        // Theme 3: raise the data-fill opacity (was 0.82) so a colored dot reads
-        // solid, not translucent; suppressed dots stay clearly lower (was 0.45)
-        // but crisp, not a faint smudge.
-        "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.6, 0.92],
-        "circle-radius": graduatedRadiusExpr(radiusStops),
-        // White halo on a colored fill; mid-slate edge on the light suppressed
-        // fill — each keeps a crisp, contrasting outline on the light canvas.
-        "circle-stroke-color": [
-          "case",
-          ["==", ["get", "suppressed"], true],
-          POINT_STROKE_SUPPRESSED,
-          POINT_STROKE,
-        ],
-        "circle-stroke-width": 1.5,
-      },
-    });
-    wireGraduatedPointInteractions(map, layer);
-  }
-
-  /**
-   * Reference-layer rendering: discrete pins with MapLibre native clustering.
-   * Used for refugios and decomisos — each feature represents an individual
-   * entity (shelter / expediente) that must not be spatially merged.
-   */
-  function addReferencePointLayer(
-    map: maplibregl.Map,
-    layer: ActiveLayer,
-    data: GeoJSON.FeatureCollection,
-  ) {
-    map.addSource(srcId(layer.id), {
-      type: "geojson",
-      data,
-      cluster: true,
-      clusterRadius: 48,
-      clusterMaxZoom: 12,
-    });
-    // Cluster bubbles (no on-canvas text: privacy).
-    map.addLayer({
-      id: clusterLayerId(layer.id),
-      type: "circle",
-      source: srcId(layer.id),
-      filter: ["has", "point_count"],
-      paint: {
-        "circle-color": layer.color,
-        "circle-opacity": 0.8,
-        "circle-radius": ["step", ["get", "point_count"], 14, 25, 18, 100, 24, 500, 32],
-        "circle-stroke-color": COLOR_CANVAS,
-        "circle-stroke-width": 2,
-      },
-    });
-    // Unclustered points.
-    map.addLayer({
-      id: pointLayerId(layer.id),
-      type: "circle",
-      source: srcId(layer.id),
-      filter: ["!", ["has", "point_count"]],
-      paint: {
-        "circle-color": layer.color,
-        "circle-radius": 6,
-        "circle-stroke-color": COLOR_CANVAS,
-        "circle-stroke-width": 1.5,
-      },
-    });
-    wireReferencePointInteractions(map, layer);
-  }
-
-  function addChoroplethLayer(
-    map: maplibregl.Map,
-    layer: ActiveLayer,
-    data: GeoJSON.FeatureCollection,
-  ) {
-    map.addSource(srcId(layer.id), { type: "geojson", data });
-    // Graduated symbol: radius scales with `value`; suppressed cells (value null
-    // → coalesced to 0 by maplibre 'get') render muted at a fixed small radius.
-    map.addLayer({
-      id: choroLayerId(layer.id),
-      type: "circle",
-      source: srcId(layer.id),
-      paint: {
-        "circle-color": [
-          "case",
-          ["==", ["get", "suppressed"], true],
-          COLOR_SUPPRESSED,
-          layer.color,
-        ],
-        // Theme 3: raise the data-fill opacity (was 0.78) so a centroid dot reads
-        // solid against the dark canvas; suppressed dots stay clearly lower (was
-        // 0.45) but crisp, not a faint smudge.
-        "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.6, 0.92],
-        "circle-radius": [
-          "case",
-          ["==", ["get", "suppressed"], true],
-          5,
-          ["interpolate", ["linear"], ["coalesce", ["get", "value"], 0], 0, 6, 50, 16, 250, 26],
-        ],
-        // White halo on a colored fill; mid-slate edge on the light suppressed
-        // fill — each keeps a crisp, contrasting outline on the light canvas.
-        "circle-stroke-color": [
-          "case",
-          ["==", ["get", "suppressed"], true],
-          POINT_STROKE_SUPPRESSED,
-          POINT_STROKE,
-        ],
-        "circle-stroke-width": 1.5,
-      },
-    });
-    wireChoroplethInteractions(map, layer);
-  }
+  // graduatedRadiusExpr / addGraduatedPointLayer / addReferencePointLayer /
+  // addChoroplethLayer moved to situational-map-config.ts (map-mapa-nivel-2,
+  // 2026-08-02 — pure layer-creation, no closure over component state; this
+  // file stays net-zero against its file-size ratchet). Interactions still
+  // wire HERE, right after each call, since wireXInteractions closes over
+  // component state (setSelectedFeature etc.) that cannot move.
 
   // --- U5 province-choropleth: fill the local basemap polygons by value. -----
 

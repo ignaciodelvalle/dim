@@ -22,6 +22,7 @@ import {
   FRAMING_SNAP_MAX_ZOOM,
   shouldSnapFraming,
 } from "@/components/panorama/situational-map-utils";
+import { COLOR_SUPPRESSED } from "@/lib/analytics/viz-scales";
 import { AR_BBOX } from "@/lib/ui/map-bounds";
 import type { MapCamera } from "@/lib/ui/map-layer-nav";
 import { escapeHtml } from "@/lib/utils/escape-html";
@@ -886,4 +887,204 @@ export function pointPopupHtml(layer: ActiveLayer, props: Record<string, unknown
     .filter(Boolean)
     .join(" · ");
   return `<div style="font-size:12px;padding:2px 6px"><strong>${escapeHtml(primary)}</strong>${meta ? `<br/><span style="color:#94a3b8">${escapeHtml(meta)}</span>` : ""}</div>`;
+}
+
+// map-mapa-nivel-2 V2 (PO 2026-08-02): a subtle diffused edge on every data
+// circle — softens the hard-edged dot without reading as a smudge. 0.15 keeps
+// solidity; a full gaussian blur was NOT approved (scouted + explicitly
+// rejected in the same review — see the paint sites below).
+export const CIRCLE_BLUR = 0.15;
+
+// panorama-mapa-nivel-2 V1 (PO 2026-08-02): fade a just-mounted CONSTANT-opacity
+// circle layer in from 0, mirroring the division-outline fade-in above (same
+// DIVISION_FADE_MS sweep, same reduced-motion floor). Case-expression
+// circle-opacity sites (graduated points, choropleth cells) cannot use this —
+// maplibre snaps data-driven paint immediately (see the ABANDONED note above);
+// this only ever softens a plain-number target.
+function fadeInOpacity(
+  map: maplibregl.Map,
+  layerId: string,
+  prop: "fill-opacity" | "circle-opacity",
+  target: number,
+  reducedMotion: boolean,
+) {
+  map.setPaintProperty(layerId, `${prop}-transition`, {
+    duration: reducedMotion ? 0 : DIVISION_FADE_MS,
+    delay: 0,
+  });
+  window.requestAnimationFrame(() => {
+    if (map.getLayer(layerId)) map.setPaintProperty(layerId, prop, target);
+  });
+}
+
+/**
+ * #6/#7 — the AREA-proportional, data-driven `circle-radius` expression for a
+ * graduated layer. Suppressed cells keep the fixed small muted radius; visible
+ * cells interpolate over `radiusStops` derived from the observed maximum count
+ * (r ∝ √count — see graduated-scale.ts). Stops come from the shared scale so
+ * the on-map bubble matches the legend bubble for any value.
+ */
+export function graduatedRadiusExpr(
+  radiusStops: ReadonlyArray<readonly [number, number]>,
+): maplibregl.ExpressionSpecification {
+  return [
+    "case",
+    ["==", ["get", "suppressed"], true],
+    5,
+    ["interpolate", ["linear"], ["coalesce", ["get", "count"], 0], ...radiusStops.flat()],
+  ] as unknown as maplibregl.ExpressionSpecification;
+}
+
+/**
+ * F1 Panorama v2: graduated circles for density+signal layers.
+ *
+ * One NON-clustered circle per administrative unit (province or locality).
+ * `circle-radius` is a step expression on the feature's `count` property so
+ * higher event counts render as larger circles. Suppressed cells (count null
+ * → coalesced to 0) render at a fixed small muted radius, same as the
+ * choropleth's suppressed-cell treatment.
+ *
+ * This replaces MapLibre's generic point clustering for these layers so the
+ * map shows a STABLE, DETERMINISTIC symbol per unit regardless of zoom level.
+ *
+ * Pure layer-creation only — the caller wires interactions (closes over
+ * component state) right after calling this.
+ */
+export function addGraduatedPointLayer(
+  map: maplibregl.Map,
+  layer: ActiveLayer,
+  data: GeoJSON.FeatureCollection,
+  radiusStops: ReadonlyArray<readonly [number, number]>,
+) {
+  // Non-clustered source — one feature per unit is already the aggregation unit.
+  map.addSource(srcId(layer.id), { type: "geojson", data });
+  map.addLayer({
+    id: pointLayerId(layer.id),
+    type: "circle",
+    source: srcId(layer.id),
+    paint: {
+      "circle-color": ["case", ["==", ["get", "suppressed"], true], COLOR_SUPPRESSED, layer.color],
+      // Theme 3: raise the data-fill opacity (was 0.82) so a colored dot reads
+      // solid, not translucent; suppressed dots stay clearly lower (was 0.45).
+      // PO 2026-08-02: circle-blur softens the edge without losing that solidity
+      // (a full gaussian was scouted and rejected — see CIRCLE_BLUR above).
+      "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.6, 0.92],
+      "circle-blur": CIRCLE_BLUR,
+      "circle-radius": graduatedRadiusExpr(radiusStops),
+      // White halo on a colored fill; mid-slate edge on the light suppressed
+      // fill — each keeps a crisp, contrasting outline on the light canvas.
+      "circle-stroke-color": [
+        "case",
+        ["==", ["get", "suppressed"], true],
+        POINT_STROKE_SUPPRESSED,
+        POINT_STROKE,
+      ],
+      "circle-stroke-width": 1.5,
+    },
+  });
+}
+
+/**
+ * Reference-layer rendering: discrete pins with MapLibre native clustering.
+ * Used for refugios and decomisos — each feature represents an individual
+ * entity (shelter / expediente) that must not be spatially merged.
+ *
+ * V1 (2026-08-02): both circle-opacity targets here are CONSTANT (not the
+ * case-expression graduated/choropleth sites), so a mode-flip mount fades in
+ * instead of popping — see fadeInOpacity above. Native cluster split/merge
+ * pops (a point crossing clusterMaxZoom) stay unsoftened: that transition is
+ * driven by maplibre's internal supercluster reassigning which features pass
+ * the `has`/`!has point_count` FILTER, and maplibre does not animate features
+ * newly passing a layer filter — only paint-property VALUE changes on
+ * features already rendering. Reported, not forced.
+ */
+export function addReferencePointLayer(
+  map: maplibregl.Map,
+  layer: ActiveLayer,
+  data: GeoJSON.FeatureCollection,
+  reducedMotion: boolean,
+) {
+  map.addSource(srcId(layer.id), {
+    type: "geojson",
+    data,
+    cluster: true,
+    clusterRadius: 48,
+    clusterMaxZoom: 12,
+  });
+  // Cluster bubbles (no on-canvas text: privacy).
+  map.addLayer({
+    id: clusterLayerId(layer.id),
+    type: "circle",
+    source: srcId(layer.id),
+    filter: ["has", "point_count"],
+    paint: {
+      "circle-color": layer.color,
+      "circle-opacity": 0,
+      "circle-blur": CIRCLE_BLUR,
+      "circle-radius": ["step", ["get", "point_count"], 14, 25, 18, 100, 24, 500, 32],
+      "circle-stroke-color": COLOR_CANVAS,
+      "circle-stroke-width": 2,
+    },
+  });
+  fadeInOpacity(map, clusterLayerId(layer.id), "circle-opacity", 0.8, reducedMotion);
+  // Unclustered points.
+  map.addLayer({
+    id: pointLayerId(layer.id),
+    type: "circle",
+    source: srcId(layer.id),
+    filter: ["!", ["has", "point_count"]],
+    paint: {
+      "circle-color": layer.color,
+      "circle-opacity": 0,
+      "circle-blur": CIRCLE_BLUR,
+      "circle-radius": 6,
+      "circle-stroke-color": COLOR_CANVAS,
+      "circle-stroke-width": 1.5,
+    },
+  });
+  fadeInOpacity(map, pointLayerId(layer.id), "circle-opacity", 1, reducedMotion);
+}
+
+/**
+ * Locality choropleth's centroid-circle fallback (unmatched cells with no
+ * division polygon to fill). Pure layer-creation only — the caller wires
+ * interactions right after calling this.
+ */
+export function addChoroplethLayer(
+  map: maplibregl.Map,
+  layer: ActiveLayer,
+  data: GeoJSON.FeatureCollection,
+) {
+  map.addSource(srcId(layer.id), { type: "geojson", data });
+  // Graduated symbol: radius scales with `value`; suppressed cells (value null
+  // → coalesced to 0 by maplibre 'get') render muted at a fixed small radius.
+  map.addLayer({
+    id: choroLayerId(layer.id),
+    type: "circle",
+    source: srcId(layer.id),
+    paint: {
+      "circle-color": ["case", ["==", ["get", "suppressed"], true], COLOR_SUPPRESSED, layer.color],
+      // Theme 3: raise the data-fill opacity (was 0.78) so a centroid dot reads
+      // solid against the dark canvas; suppressed dots stay clearly lower (was
+      // 0.45). PO 2026-08-02: circle-blur softens the edge without losing that
+      // solidity (a full gaussian was scouted and rejected — see CIRCLE_BLUR).
+      "circle-opacity": ["case", ["==", ["get", "suppressed"], true], 0.6, 0.92],
+      "circle-blur": CIRCLE_BLUR,
+      "circle-radius": [
+        "case",
+        ["==", ["get", "suppressed"], true],
+        5,
+        ["interpolate", ["linear"], ["coalesce", ["get", "value"], 0], 0, 6, 50, 16, 250, 26],
+      ],
+      // White halo on a colored fill; mid-slate edge on the light suppressed
+      // fill — each keeps a crisp, contrasting outline on the light canvas.
+      "circle-stroke-color": [
+        "case",
+        ["==", ["get", "suppressed"], true],
+        POINT_STROKE_SUPPRESSED,
+        POINT_STROKE,
+      ],
+      "circle-stroke-width": 1.5,
+    },
+  });
 }

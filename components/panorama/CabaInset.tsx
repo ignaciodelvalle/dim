@@ -11,7 +11,12 @@ import {
   joinCellsToDivisionsMulti,
 } from "@/components/panorama/division-fill";
 import { fetchGeojsonCached } from "@/components/panorama/geojson-cache";
-import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
+import {
+  HATCH_IMAGE_ID,
+  buildHatchImageData,
+  patternPixelRatio,
+} from "@/components/panorama/hatch-pattern";
+import { CIRCLE_BLUR } from "@/components/panorama/situational-map-config";
 import { normalizeBarioCode } from "@/lib/infra/geo-join";
 
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -192,6 +197,9 @@ export function CabaInset({
         attributionControl: false,
         center: [-58.435, -34.61],
         zoom: 9,
+        // V3 (PO 2026-08-02): antialias smooths the inset's circle/line edges,
+        // matching the main SituationalMap constructor.
+        canvasContextAttributes: { antialias: true },
       });
       mapRef.current = map;
 
@@ -200,7 +208,7 @@ export function CabaInset({
         try {
           if (!map.hasImage(HATCH_IMAGE_ID)) {
             const hatch = buildHatchImageData();
-            if (hatch) map.addImage(HATCH_IMAGE_ID, hatch, { pixelRatio: 2 });
+            if (hatch) map.addImage(HATCH_IMAGE_ID, hatch, { pixelRatio: patternPixelRatio() });
           }
         } catch {
           // No canvas — suppressed barrios fall back to outline-only.
@@ -277,6 +285,7 @@ export function CabaInset({
               "circle-radius": 0,
               "circle-color": COLOR_LAND,
               "circle-opacity": DATA_FILL_OPACITY,
+              "circle-blur": CIRCLE_BLUR,
               "circle-stroke-color": COLOR_BUBBLE_STROKE,
               "circle-stroke-width": 1.5,
             },
