@@ -229,7 +229,14 @@ export function PanoramaDock({
                 >
                   {TAB_LABELS[key]}
                   {key === "registros" && (
-                    <span className="rounded-full bg-ln-op-azul/10 px-1.5 text-xs font-medium tabular-nums text-ln-op-azul">
+                    // T4.4: the bare pill reads as an event count, but it counts
+                    // TABLE ROWS (units × layers, P4-U1) — name that so it stops
+                    // contradicting the event totals shown elsewhere in the dock.
+                    <span
+                      className="rounded-full bg-ln-op-azul/10 px-1.5 text-xs font-medium tabular-nums text-ln-op-azul"
+                      title="Filas en la tabla (unidades × capas), no eventos."
+                      aria-label={`${recordCount.toLocaleString("es-AR")} filas en la tabla (unidades × capas), no eventos`}
+                    >
                       {recordCount.toLocaleString("es-AR")}
                     </span>
                   )}
