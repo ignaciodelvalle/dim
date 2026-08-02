@@ -27,6 +27,10 @@ import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateShort, formatDiasAgo, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import {
+  observationOverdueLabel,
+  observationOverdueState,
+} from "@/src/modules/surveillance/domain/observation-overdue";
+import {
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
   resolveObservationDeadline,
@@ -269,6 +273,13 @@ export default async function ObservacionesPage({
   const ownerByPet = new Map<string, string>();
   for (const o of ownerRows) ownerByPet.set(o.petId, o.displayName);
 
+  // G3 (2026-07-03 critique): "Cierre estimado" alone never said whether the
+  // date was already PAST — an observation 20 days over its statutory window
+  // looked identical to one on time. One `now` for the whole render so every
+  // row's badge derives from the same instant (SlaBadge honest-math pattern:
+  // the number is the real day distance, never a tier or window size).
+  const now = new Date();
+
   return (
     <div className="space-y-6">
       {header}
@@ -288,6 +299,13 @@ export default async function ObservacionesPage({
             status,
             deathByPet.get(r.petId) ?? null,
           );
+          // Deadline pressure only matters while the observation is LIVE —
+          // closed rows carry their outcome pill instead.
+          const overdue =
+            status === "in_progress" && started
+              ? observationOverdueState(started.observationUntil, now)
+              : null;
+          const overdueLabel = overdue ? observationOverdueLabel(overdue) : null;
           return (
             <li key={r.petId}>
               <OpCard>
@@ -321,6 +339,11 @@ export default async function ObservacionesPage({
                     </div>
                     <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
                       <OpPill tone={STATUS_PILL[status]}>{STATUS_LABEL[status]}</OpPill>
+                      {overdue && overdueLabel && (
+                        <OpPill tone={overdue.state === "overdue" ? "danger" : "open"}>
+                          {overdueLabel}
+                        </OpPill>
+                      )}
                       {dispositionChip && (
                         <OpPill tone={dispositionChip.tone}>{dispositionChip.label}</OpPill>
                       )}
