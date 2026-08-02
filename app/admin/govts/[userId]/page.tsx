@@ -101,7 +101,12 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
     <div className="space-y-6">
       {/* Back nav */}
       <p className="text-sm text-ln-op-mute">
-        <Link href="/admin/govts" className="underline underline-offset-4 hover:text-ln-op-ink-2">
+        {/* Straight to the hub tab (privileged-accounts fusion 2026-08-02) —
+            /admin/govts is redirect-only now, no reason to pay the hop. */}
+        <Link
+          href="/admin/cuentas?registro=govts"
+          className="underline underline-offset-4 hover:text-ln-op-ink-2"
+        >
           {"←"} Volver a Gobiernos
         </Link>
       </p>

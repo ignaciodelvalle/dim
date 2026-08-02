@@ -704,11 +704,16 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       { href: "/admin/inteligencia", label: "Inteligencia", matchPrefix: "/admin/inteligencia" },
       { href: "/admin/sistema", label: "Sistema", matchPrefix: "/admin/sistema" },
       { href: "/admin/auditoria", label: "Auditoría", matchPrefix: "/admin/auditoria" },
-      // "Cuentas gobierno", not "Gobiernos" (cursor UX A3, verified): the bare
-      // noun collided with the Portales menu's "Ir a Gobierno" — two different
-      // jobs (managing govt ACCOUNTS vs switching portal) shared one word.
-      { href: "/admin/govts", label: "Cuentas gobierno", matchPrefix: "/admin/govts" },
-      { href: "/admin/admins", label: "Administradores", matchPrefix: "/admin/admins" },
+      // Privileged-accounts fusion (2026-08-02): "Cuentas gobierno" +
+      // "Administradores" collapse into ONE /admin/cuentas hub entry
+      // (?registro=govts|admins), mirroring the F3 Directorio hub shape. The
+      // old /admin/govts and /admin/admins list routes survive only as
+      // permanent redirects; their [userId]/new detail routes are unchanged
+      // (rail highlighting for those deep pages is accepted collateral, same
+      // as the Directorio fusion's offering-detail routes). Label keeps the
+      // "Cuentas" noun the A3 rename fought for — never a bare "Gobiernos"
+      // that collides with the Portales menu's "Ir a Gobierno".
+      { href: "/admin/cuentas", label: "Cuentas privilegiadas", matchPrefix: "/admin/cuentas" },
       { href: "/admin/directorio", label: "Directorio", matchPrefix: "/admin/directorio" },
       // Reglas exists under both portals (portal-follows-viewer,
       // admin-rules-console) — admin nav points at the /admin/* copy so an

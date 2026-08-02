@@ -85,8 +85,10 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/auditoria",
   "/admin/outbox",
   "/admin/sistema",
-  "/admin/govts",
-  "/admin/admins",
+  // /admin/govts and /admin/admins REMOVED (privileged-accounts fusion,
+  // 2026-08-02): absorbed into the Cuentas privilegiadas hub as tabbed
+  // registers — matches nav-presets.test.ts's ADMIN_HREF_SNAPSHOT.
+  "/admin/cuentas",
   "/admin/observaciones",
   "/admin/moderacion",
   "/admin/casos",

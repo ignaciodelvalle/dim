@@ -499,16 +499,34 @@ const ADMIN_AUDITORIA: ScreenManifestEntry = {
   decision: "¿Quién hizo qué (cambio sensible o actividad del período), y necesito investigarlo?",
 };
 
+// Privileged-accounts fusion (2026-08-02, mirroring the F3 Directorio hub
+// shape): /admin/govts and /admin/admins collapse into the /admin/cuentas
+// hub as tabbed registers (?registro=govts|admins). Both routes still exist
+// as page.tsx files (permanent redirects into /admin/cuentas?registro=...,
+// preserving query params — see lib/ui/cuentas-hub-redirect.ts), so they
+// still need a manifest entry to satisfy the coverage fence; neither has a
+// nav entry anymore. Their nested detail/form routes ([userId], /new) are
+// UNCHANGED and stay baselined.
 const ADMIN_GOVTS: ScreenManifestEntry = {
   route: "/admin/govts",
   layer: "profundidad",
-  decision: "¿Qué cuenta de gobierno necesito dar de alta o reasignar de jurisdicción?",
+  decision: "[Absorbida] Redirige a /admin/cuentas?registro=govts — ver ADMIN_CUENTAS.",
 };
 
 const ADMIN_ADMINS: ScreenManifestEntry = {
   route: "/admin/admins",
   layer: "profundidad",
-  decision: "¿A quién le doy o retiro acceso de administrador?",
+  decision: "[Absorbida] Redirige a /admin/cuentas?registro=admins — ver ADMIN_CUENTAS.",
+};
+
+// The hub OWNS privileged-account administration across both registers —
+// same roster grammar (search, alta, per-account drill, deactivate) over two
+// deliberately distinct panels (govt_assignments jurisdiction alta vs admin
+// grant/revoke — a tab shell, never a merged query).
+const ADMIN_CUENTAS: ScreenManifestEntry = {
+  route: "/admin/cuentas",
+  layer: "profundidad",
+  decision: "¿Quién puede operar con privilegios (gobierno o admin), y con qué alcance?",
 };
 
 const ADMIN_LIBRO: ScreenManifestEntry = {
@@ -576,6 +594,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   ADMIN_USUARIOS,
   ADMIN_GOVTS,
   ADMIN_ADMINS,
+  ADMIN_CUENTAS,
   ADMIN_ORGANIZACIONES,
   ADMIN_REGLAS,
   ADMIN_HISTORIAL,

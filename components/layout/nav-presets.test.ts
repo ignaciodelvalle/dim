@@ -736,8 +736,11 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   "/admin/auditoria",
   "/admin/outbox",
   "/admin/sistema",
-  "/admin/govts",
-  "/admin/admins",
+  // /admin/govts and /admin/admins REMOVED from nav (privileged-accounts
+  // fusion, 2026-08-02): absorbed into the Cuentas privilegiadas hub as
+  // tabbed registers (?registro=govts|admins). Both routes still exist as
+  // permanent redirects; their [userId]/new detail routes are unchanged.
+  "/admin/cuentas",
   // admin-rules-console — Reglas exists under both portals; admin nav points
   // at the /admin/* copy.
   "/admin/reglas",

@@ -207,8 +207,10 @@ export function CreateGovtForm() {
         <OpButton type="submit" disabled={loading} loading={loading} variant="primary">
           {loading ? "Creando..." : "Crear cuenta de gobierno"}
         </OpButton>
+        {/* Straight to the hub tab (privileged-accounts fusion 2026-08-02) —
+            /admin/govts is redirect-only now, no reason to pay the hop. */}
         <a
-          href="/admin/govts"
+          href="/admin/cuentas?registro=govts"
           className="px-5 py-2 text-[13px] border border-ln-op-line rounded-[var(--radius-md)] hover:bg-ln-op-stripe"
         >
           Cancelar
