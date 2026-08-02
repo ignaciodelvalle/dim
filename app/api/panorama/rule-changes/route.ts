@@ -33,7 +33,13 @@ import { isWholeProvinceAssignment, narrowGovtScope } from "@/lib/domain/jurisdi
 import { localityByName } from "@/lib/infra/ar-localidades";
 import { type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
+import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
+
 import { resolveInstitutionalPanoramaActor } from "../_guard";
+
+// Annotation layer, not critical path: on a degraded pooler the markers simply
+// don't render this refresh (the scrubber stays fully usable without them).
+const RULE_CHANGES_BUDGET_MS = 4_000;
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +101,14 @@ export async function GET(request: Request) {
   //    result), newest first, capped at the same limit a single fetch has.
   try {
     const results = await Promise.all(
-      scopes.map((scope) => fetchRuleChanges(POLICY_OUTCOME_MAX_CHANGES, scope)),
+      scopes.map((scope, i) =>
+        withDbBudget(
+          fetchRuleChanges(POLICY_OUTCOME_MAX_CHANGES, scope),
+          RULE_CHANGES_BUDGET_MS,
+          `panorama/rule-changes scope#${i}`,
+          [] as RuleChangeRow[],
+        ),
+      ),
     );
     const byAuditId = new Map<string, RuleChangeRow>();
     for (const rows of results) {
