@@ -346,7 +346,9 @@ export default async function GobVigilanciaPage({
           <CsvExportLink
             filename={`vigilancia-senales-${todayIsoInAr()}`}
             columns={["Enfermedad", "24h", "7 días", "30 días"]}
-            rows={summary.map((r) => [
+            // Export the SORTED set the table shows, not the fetcher default —
+            // the file must match the on-screen order (review 2026-08-02).
+            rows={sortedSummary.map((r) => [
               r.diseaseName,
               String(r.count24h),
               String(r.count7d),

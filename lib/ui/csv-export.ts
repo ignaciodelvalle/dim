@@ -81,5 +81,6 @@ export function buildOperatorCsv(input: OperatorCsvInput): string {
  */
 export function csvPageDisclosure(shownRows: number, totalRows: number): string | null {
   if (totalRows <= shownRows) return null;
-  return `# Exportando la página visible: ${shownRows.toLocaleString("es-AR")} filas de ${totalRows.toLocaleString("es-AR")} en total — paginá para exportar el resto`;
+  const fila = shownRows === 1 ? "fila" : "filas";
+  return `# Exportando la página visible: ${shownRows.toLocaleString("es-AR")} ${fila} de ${totalRows.toLocaleString("es-AR")} en total — paginá para exportar el resto`;
 }

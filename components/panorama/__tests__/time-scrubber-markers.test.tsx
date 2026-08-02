@@ -60,7 +60,7 @@ describe("TimeScrubber — rule-change markers (Detalle only)", () => {
     // Rule label + action + jurisdiction (RULE_TYPE_REGISTRY / ACTION_LABELS /
     // ruleScopeLabel vocabulary — no deltas, no numbers).
     expect(screen.getByText("Microchip obligatorio")).toBeInTheDocument();
-    expect(screen.getByText("(modificada)")).toBeInTheDocument();
+    expect(screen.getByText("(regla modificada)")).toBeInTheDocument();
     expect(screen.getByText("Salta")).toBeInTheDocument();
     // The caveat travels with the marker layer.
     expect(screen.getByText(/Correlación temporal, no atribución\./)).toBeInTheDocument();

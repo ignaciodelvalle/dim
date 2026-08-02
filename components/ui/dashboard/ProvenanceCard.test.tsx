@@ -103,21 +103,23 @@ describe("ProvenanceCard — privacy (n below the anonymity floor)", () => {
       <ProvenanceCard descriptorId="rabies_coverage_dogs_12m" open onClose={() => {}} n={3} />,
     );
 
-    expect(screen.getByText("Menos de 5 registros — oculto por privacidad.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Menos de 5 registros — se oculta por privacidad."),
+    ).toBeInTheDocument();
     // Bidirectional: the digit 3 appears nowhere in the dialog.
     expect(container.textContent ?? "").not.toContain("3");
   });
 
   it("withholds n=0 too — a zero count is still below the floor", () => {
     expect(sampleLineEs("rabies_coverage_dogs_12m", 0)).toBe(
-      "Menos de 5 registros — oculto por privacidad.",
+      "Menos de 5 registros — se oculta por privacidad.",
     );
   });
 
   it("sampleLineEs boundary: the floor itself renders, one below does not", () => {
     expect(sampleLineEs("rabies_coverage_dogs_12m", 5)).toBe("5 registros.");
     expect(sampleLineEs("rabies_coverage_dogs_12m", 4)).toBe(
-      "Menos de 5 registros — oculto por privacidad.",
+      "Menos de 5 registros — se oculta por privacidad.",
     );
     expect(sampleLineEs("rabies_coverage_dogs_12m", undefined)).toBe(
       "No disponible en esta vista.",

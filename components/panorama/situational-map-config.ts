@@ -1026,7 +1026,20 @@ export function addReferencePointLayer(
       "circle-stroke-width": 2,
     },
   });
-  fadeInOpacity(map, clusterLayerId(layer.id), "circle-opacity", 0.8, reducedMotion);
+  // Fade in TO the resting opacity applyDim would set — never to a hardcoded
+  // full value. Otherwise, mounting a reference layer during a PAUSED scrub
+  // (F4 dim) fades it to full opacity one rAF after applyDim muted it, so it
+  // reads as replayable as-of data until the next sync pass (adversarial
+  // review 2026-08-02). Mirrors applyDim's dim/multiplier resolution exactly.
+  const dim = layer.dimmed === true;
+  const op = typeof layer.opacity === "number" ? Math.min(Math.max(layer.opacity, 0.2), 1) : 1;
+  fadeInOpacity(
+    map,
+    clusterLayerId(layer.id),
+    "circle-opacity",
+    dim ? DIM_OPACITY : 0.8 * op,
+    reducedMotion,
+  );
   // Unclustered points.
   map.addLayer({
     id: pointLayerId(layer.id),
@@ -1042,7 +1055,13 @@ export function addReferencePointLayer(
       "circle-stroke-width": 1.5,
     },
   });
-  fadeInOpacity(map, pointLayerId(layer.id), "circle-opacity", 1, reducedMotion);
+  fadeInOpacity(
+    map,
+    pointLayerId(layer.id),
+    "circle-opacity",
+    dim ? DIM_OPACITY : 1 * op,
+    reducedMotion,
+  );
 }
 
 /**

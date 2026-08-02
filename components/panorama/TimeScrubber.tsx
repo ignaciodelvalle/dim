@@ -812,7 +812,7 @@ function TimeScrubberImpl({
                               <p className="text-sm font-semibold text-ln-op-ink">
                                 {ruleChangeRuleLabel(c.ruleType)}{" "}
                                 <span className="font-normal text-ln-op-mute">
-                                  ({RULE_CHANGE_ACTION_LABELS[c.action]})
+                                  (regla {RULE_CHANGE_ACTION_LABELS[c.action]})
                                 </span>
                               </p>
                               <p className="text-xs text-ln-op-mute">{ruleChangeScopeLabel(c)}</p>

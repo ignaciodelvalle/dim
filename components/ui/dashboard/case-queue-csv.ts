@@ -20,6 +20,8 @@ import { caseStatusDisplay } from "@/components/ui/dashboard/CaseStatusBadge";
 import { formatDate } from "@/lib/utils/format";
 import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
+// Columns mirror CaseQueue's own table exactly (no "Cierre" — the queue lists
+// open cases and never renders a closure column; review 2026-08-02).
 export const CASE_QUEUE_CSV_COLUMNS = [
   "Código",
   "Tipo",
@@ -27,7 +29,6 @@ export const CASE_QUEUE_CSV_COLUMNS = [
   "Mascota",
   "Jurisdicción",
   "Apertura",
-  "Cierre",
 ];
 
 export const CASE_QUEUE_CSV_ORDER_NOTE =
@@ -45,6 +46,5 @@ export function caseQueueCsvRows(rows: CaseQueueRow[]): string[][] {
       ? `${row.jurisdictionLocality}, ${row.jurisdictionProvince}`
       : (row.jurisdictionProvince ?? "—"),
     formatDate(row.openedAt),
-    row.closedAt ? formatDate(row.closedAt) : "",
   ]);
 }

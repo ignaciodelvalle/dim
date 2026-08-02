@@ -61,7 +61,7 @@ export function sampleLineEs(descriptorId: KpiId, n: number | undefined): string
   if (n === undefined) return "No disponible en esta vista.";
   const descriptor = KPI_CATALOG[descriptorId];
   const floor = Math.max(ANONYMITY_K, descriptor.guards?.smallN?.min ?? 0);
-  if (n < floor) return `Menos de ${floor} registros — oculto por privacidad.`;
+  if (n < floor) return `Menos de ${floor} registros — se oculta por privacidad.`;
   return `${formatCount(n)} registros.`;
 }
 

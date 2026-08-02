@@ -350,8 +350,8 @@ export function DeathRecordForm({
               del cuerpo debe hacerse por canales autorizados —cremación en un establecimiento
               habilitado o cementerio autorizado (en CABA lo regula la Ley 5470/2015)— para que la
               autoridad sanitaria pueda descartar rabia. El método que elegiste no pasa por esos
-              canales. Podés registrarlo igual: la libreta refleja lo que pasó, y la autoridad
-              sanitaria de tu jurisdicción va a recibir el aviso.
+              canales. Podés registrarlo igual: la libreta refleja lo que pasó, y el sistema da
+              aviso a la autoridad sanitaria correspondiente.
             </LnCallout>
           )}
 

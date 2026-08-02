@@ -163,7 +163,7 @@ function buildModeracionCsv(
       }`,
       ...(hasMore
         ? [
-            `# Exportando la página visible: ${rows.length.toLocaleString("es-AR")} filas — hay más resultados, paginá para exportar el resto`,
+            `# Exportando la página visible: ${rows.length.toLocaleString("es-AR")} ${rows.length === 1 ? "fila" : "filas"} — hay más resultados, paginá para exportar el resto`,
           ]
         : []),
     ],
