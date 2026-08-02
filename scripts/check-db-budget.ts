@@ -65,7 +65,11 @@ export const DASHBOARD_PAGES = [
   "app/admin/inteligencia/inteligencia-panels.tsx",
   "app/admin/sistema/page.tsx",
   "app/admin/sistema/_components/sistema-sections.tsx",
-  "app/admin/auditoria/page.tsx",
+  // Auditoría-hub merge (2026-08): /admin/historial folded in as the Actividad
+  // vista, so page.tsx is now a thin hub that delegates; the bounded 8s fetch
+  // group relocated into AuditoriaScreen.tsx — the scan target moves with it
+  // (same relocation shape as the F8/F9 pairs above).
+  "app/admin/auditoria/AuditoriaScreen.tsx",
   "app/admin/auditoria/_lib/load-audit-data.ts",
   "app/gob/programa/ProgramaResumenScreen.tsx",
   "app/gob/censo/CensoScreen.tsx",
