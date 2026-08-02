@@ -1,0 +1,62 @@
+/* expediente-print.css — sober print layout for the maltrato expediente
+   detail (Lote Q, Q6). Same *-print.css mechanism as libreta/cartel/chapita:
+   a route-scoped @media print sheet imported by the page, triggered by an
+   on-screen button through deferPrint (lib/infra/defer-print.ts).
+
+   NOTE: @page rule deliberately absent — same convention as cartel-print.css
+   (see its header comment); default printer margins are right for an A4
+   expediente.
+
+   ISOLATION: this detail renders inside the /gob operator shell (rail,
+   topbar, omnibox). The visibility flip below prints ONLY the expediente
+   content: visibility (unlike display) cascades and can be re-enabled on a
+   subtree, which is the standard way to print one region without knowing the
+   shell's DOM. The root is then lifted to the page origin so the hidden
+   chrome leaves no offset behind. */
+
+@media print {
+  html,
+  body {
+    background: white !important;
+    color: black !important;
+  }
+
+  body * {
+    visibility: hidden;
+  }
+
+  .expediente-print-root,
+  .expediente-print-root * {
+    visibility: visible;
+  }
+
+  .expediente-print-root {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    margin: 0;
+    padding: 1rem;
+  }
+
+  /* Interactive chrome is meaningless on paper: action buttons (tomar /
+     triage / derivar / imprimir itself), every link (breadcrumb, attachment
+     signed URLs — which expire anyway — and map links), and the derivation
+     form controls. In-page anchors (#) are kept, matching libreta-print. */
+  .expediente-print-root button,
+  .expediente-print-root a[href]:not([href^="#"]),
+  .expediente-print-root form,
+  .expediente-print-root input,
+  .expediente-print-root select,
+  .expediente-print-root textarea {
+    display: none !important;
+  }
+
+  /* Each card/section of the expediente stays whole across page breaks. */
+  .expediente-print-root > * {
+    break-inside: avoid;
+  }
+
+  li {
+    break-inside: avoid;
+  }
+}

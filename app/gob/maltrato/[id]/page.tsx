@@ -78,8 +78,13 @@ import {
 import { AssignmentActions } from "./AssignmentActions";
 import { DerivationPanel } from "./DerivationPanel";
 import { MpfExportButton } from "./MpfExportButton";
+import { PrintExpedienteButton } from "./PrintExpedienteButton";
 import { Timeline } from "./Timeline";
 import { TriageActions } from "./TriageActions";
+
+// Q6 (print) — route-scoped print sheet; see expediente-print.css.
+import { documentAttributionLine } from "@/lib/analytics/export-attribution";
+import "./expediente-print.css";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
@@ -270,16 +275,33 @@ export default async function GobMaltratoDetailPage({
   const statusTone = WELFARE_STATUS_TONE[report.status] ?? "neutral";
 
   return (
-    <div className="space-y-6">
+    <div className="expediente-print-root space-y-6">
+      {/* Q6 print-only header — the paper copy travels without the shell's
+          context, so it names the instrument up front: case code +
+          jurisdiction. Screen keeps CaseHeader below as before. */}
+      <div className="hidden border-b border-ln-op-line pb-2 print:block">
+        <p className="text-lg font-bold">
+          Expediente {report.referenceCode} — Denuncia de maltrato (Ley 14.346)
+        </p>
+        <p className="text-sm">
+          {[report.jurisdictionLocality, report.jurisdictionProvince].filter(Boolean).join(", ") ||
+            "Jurisdicción sin registrar"}
+        </p>
+      </div>
+
       {/* Breadcrumb — F1 fusion (2026-07-22): Triage is now a stage of the
           Denuncias hub; link straight there instead of through the old
-          /gob/maltrato redirect. */}
-      <Link
-        href="/gob/denuncias?etapa=triage"
-        className="text-sm text-ln-op-mute hover:text-ln-op-ink-2"
-      >
-        ← Volver al listado
-      </Link>
+          /gob/maltrato redirect. "Imprimir" (Q6) sits opposite: the print
+          sheet hides every button/link, so this row is screen-only chrome. */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/gob/denuncias?etapa=triage"
+          className="text-sm text-ln-op-mute hover:text-ln-op-ink-2"
+        >
+          ← Volver al listado
+        </Link>
+        <PrintExpedienteButton />
+      </div>
 
       <CaseHeader
         title={welfareReportKindLabel(report.kind)}
@@ -364,7 +386,12 @@ export default async function GobMaltratoDetailPage({
               <p className="text-xs uppercase tracking-wider text-ln-op-mute">
                 Ubicación exacta — uso oficial (Ley 14.346)
               </p>
-              <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+              {/* Q6: the map is a WebGL canvas — blank/garbage on paper. The
+                  printed copy keeps the address line + the exact coordinates
+                  below, which carry the same investigative fact. */}
+              <div className="print:hidden">
+                <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+              </div>
               <p className="text-xs text-ln-op-mute font-mono">
                 {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
               </p>
@@ -582,6 +609,16 @@ export default async function GobMaltratoDetailPage({
           })()}
         </OpCardBody>
       </OpCard>
+
+      {/* Q6 print-only footer — generation stamp + the shared attribution
+          line (lib/analytics/export-attribution.ts: user-facing brand, never
+          the internal codename; traceable by this expediente's reference
+          code). The stamp is the render moment: this page is dynamic, so it
+          IS the retrieval time of everything printed above it. */}
+      <footer className="hidden border-t border-ln-op-line pt-2 text-xs print:block">
+        <p>Documento impreso el {formatDateTime(new Date())} (hora de Argentina)</p>
+        <p>{documentAttributionLine(report.referenceCode)}</p>
+      </footer>
     </div>
   );
 }
