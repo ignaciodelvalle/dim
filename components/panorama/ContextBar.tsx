@@ -231,7 +231,11 @@ function ContextBarPanel({
     <div
       id={panelId}
       aria-labelledby={titleId}
-      className="absolute left-0 top-full z-40 mt-1.5 flex max-h-[min(60dvh,28rem)] w-[22rem] max-w-[calc(100vw-1.5rem)] flex-col rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-lg"
+      // A6 (motion review): op-panel-enter (globals.css) — 8px translateY +
+      // fade on mount. Safe here: this div's own conditional {isOpen && ...}
+      // render already mounts/unmounts it (no wrapper needed), and it is
+      // absolutely positioned, so the transform doesn't perturb layout.
+      className="op-panel-enter absolute left-0 top-full z-40 mt-1.5 flex max-h-[min(60dvh,28rem)] w-[22rem] max-w-[calc(100vw-1.5rem)] flex-col rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-lg"
     >
       <header className="flex flex-shrink-0 items-center justify-between gap-2 border-b border-ln-op-line px-3 py-2">
         <h2 id={titleId} className="min-w-0 truncate text-sm font-semibold text-ln-op-ink">
