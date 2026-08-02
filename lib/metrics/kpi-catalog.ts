@@ -37,12 +37,11 @@
 // SCOPE / NON-GOALS
 //   - This catalog does NOT invent new metrics or composite/derived scores (PO decision).
 //   - It does NOT change any fetcher's numerator or denominator.
-//   - The rabies-coverage render-site label swap (app/gob/**, app/gob/analytics/**,
-//     components/panorama/**) is DONE — every render site imports the lib-level label
-//     constant (RABIES_COVERAGE_LABEL_ES in govt-home-kpis.ts, RABIES_VACCINATION_RATE_LABEL_ES
-//     in govt-dashboards.ts) instead of repeating a similar-looking string literal.
-//     scripts/check-metric-labels.ts guards against a future render site drifting back
-//     to a duplicated/diverging string for a catalogued KPI's label.
+//   - The rabies-coverage render-site label swap is DONE — every render site imports
+//     the lib-level label constant (RABIES_COVERAGE_LABEL_ES in govt-home-kpis.ts,
+//     RABIES_VACCINATION_RATE_LABEL_ES in govt-dashboards.ts; client-safe ones in
+//     kpi-label-constants.ts). scripts/check-metric-labels.ts guards against a render
+//     site drifting back to a retyped string for a catalogued KPI's label.
 //
 // MAINTENANCE
 //   Adding a KPI to a /gob page? Add its entry here in the same PR. The test in
@@ -50,6 +49,7 @@
 //   lib/analytics/{govt-home-kpis,compliance-metrics,mortality-metrics} has a matching
 //   `fetcherName` in this catalog — CI fails if a new home-page KPI ships undocumented.
 
+import { REUNIFICATION_RATE_LABEL_ES } from "./kpi-label-constants";
 import { TARGETS } from "./targets";
 
 /** Stable identifier for a catalogued KPI. Snake_case, never reused once shipped. */
@@ -1153,7 +1153,7 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
 
   reunification_rate: {
     id: "reunification_rate",
-    label: "Tasa de reunificación",
+    label: REUNIFICATION_RATE_LABEL_ES,
     numerator: "COUNT lost episodes (status_changed → to_status='lost') that returned to 'active'",
     denominator:
       "COUNT all lost episodes in scope, trailing 30 days (fixed window, no period picker)",
