@@ -3259,6 +3259,35 @@ body {
   place-items: center;
   color: var(--color-ln-faint);
 }
+/* Owner-only tap target over the credential photo: opens the same edit sheet
+   the page already mounts (?sheet=editar-mascota) — add when empty, change
+   when present. Only rendered when addPhotoHref is passed (owner viewers). */
+.ln-photo-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+}
+.ln-photo-link:focus-visible {
+  outline: 2px solid var(--color-ln-azul);
+  outline-offset: 2px;
+}
+.ln-photo-add-plus {
+  font-size: var(--text-title);
+  line-height: 1;
+  font-weight: 600;
+}
+.ln-photo-add {
+  font-family: var(--font-ln-mono);
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-top: 2px;
+}
+.ln-photo-link:hover .ln-photo-empty {
+  color: var(--color-ln-ink-2);
+  background: var(--color-ln-stripe);
+}
 .ln-idmeta {
   min-width: 0;
   padding-top: 2px;
@@ -3394,7 +3423,12 @@ body {
   position: absolute;
   left: 50%;
   transform: translateX(-50%);
-  bottom: 12px;
+  /* Anchored to the BAND (120px tall), not the card. The chip is a sibling of
+     .ln-band inside the relatively-positioned .ln-face, so `bottom` resolved
+     against the whole card and dropped the chip onto the action row at the
+     card's foot (PO QA 2026-08-02 "se superpone"). `top` lands it in the band
+     like .ln-band-title / .ln-turn — ~12px above the band's lower edge. */
+  top: 82px;
   z-index: 4;
   display: inline-flex;
   align-items: center;

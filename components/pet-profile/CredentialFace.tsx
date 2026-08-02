@@ -234,13 +234,48 @@ export function CredentialFace({
       <div className="ln-sec" data-swipe-zone>
         <div className="ln-idrow">
           <div className="ln-photo">
-            {heroProps.photoSrc ? (
-              <img src={heroProps.photoSrc} alt={heroProps.name} />
-            ) : (
-              <span className="ln-photo-empty">
-                <Icon name="paw" size="lg" decorative />
-              </span>
-            )}
+            {(() => {
+              // The photo itself. Empty state shows a "+ Foto" cue only when
+              // the owner can act (addPhotoHref set) — a vet/shelter reading
+              // the credential sees the plain paw placeholder.
+              const photo = heroProps.photoSrc ? (
+                <img src={heroProps.photoSrc} alt={heroProps.name} />
+              ) : (
+                <span className="ln-photo-empty">
+                  {heroProps.addPhotoHref ? (
+                    <>
+                      <span aria-hidden className="ln-photo-add-plus">
+                        +
+                      </span>
+                      <span className="ln-photo-add">Foto</span>
+                    </>
+                  ) : (
+                    <Icon name="paw" size="lg" decorative />
+                  )}
+                </span>
+              );
+              // Owner: the whole thumbnail opens the edit sheet already mounted
+              // on this page (same form, same file input, same action) — add
+              // when empty, change when present. The PO ask evolved from
+              // "only when missing" (2026-07) to "let me tap it" (QA
+              // 2026-08-02) because every demo pet carries a generated avatar,
+              // so the empty-only affordance never appeared in practice.
+              return heroProps.addPhotoHref ? (
+                <Link
+                  href={heroProps.addPhotoHref}
+                  className="ln-photo-link"
+                  aria-label={
+                    heroProps.photoSrc
+                      ? `Cambiar foto de ${heroProps.name}`
+                      : `Agregar foto de ${heroProps.name}`
+                  }
+                >
+                  {photo}
+                </Link>
+              ) : (
+                photo
+              );
+            })()}
           </div>
 
           <div className="ln-idmeta">
