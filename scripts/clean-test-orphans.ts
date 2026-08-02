@@ -46,12 +46,15 @@ export const TEST_PET_PREFIXES = {
   // from `__tests__/symptom-surveillance.test.ts` (tokens `SURVTEST-*-${Date.now()}`).
   // DIM-PANO-US1 added 2026-08-01: unit-history-govt-subsumption.test.ts fixture
   // (fixed token `DIM-PANO-US1SUB`) — same killed-worker leak class.
+  // MC-PRI- added 2026-08-02: microchip-replaced.test.ts's primary-chip fixture
+  // (`MC-PRI-${Date.now()}`) — same killed-worker leak class as MC-DUP-.
   byToken: [
     "TRNS-TEST-",
     "DDXTEST-",
     "MORT-TEST-",
     "SQLQ-TEST-",
     "MC-DUP-",
+    "MC-PRI-",
     "SURVTEST-",
     "DIM-PANO-US1",
   ],
