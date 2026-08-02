@@ -275,3 +275,51 @@ describe("OpKpi — an order-of-magnitude delta loses its verdict, not its numbe
     expect(container.textContent).not.toContain(DELTA_IMPLAUSIBLE_SUFFIX);
   });
 });
+
+// Provenance ("¿De dónde sale este número?") — the "Ver origen" affordance at
+// the ⓘ popover's foot is gated on descriptorId: a catalogued tile gets it, a
+// descriptor-less tile never does.
+describe("OpKpi — 'Ver origen' is gated on descriptorId", () => {
+  afterEach(cleanup);
+
+  const info = {
+    definition: "Qué mide este indicador.",
+    formula: "a / b × 100",
+  };
+
+  it("shows the link for a catalogued tile and opens the provenance dialog", () => {
+    // jsdom lacks <dialog>.showModal — stub it (ConfirmDialog.test idiom).
+    HTMLDialogElement.prototype.showModal = function (this: HTMLDialogElement) {
+      this.setAttribute("open", "");
+    };
+    HTMLDialogElement.prototype.close = function (this: HTMLDialogElement) {
+      this.removeAttribute("open");
+    };
+
+    render(
+      <OpKpi
+        label="Cobertura"
+        value="64,3%"
+        href="/gob/poblacion"
+        info={info}
+        descriptorId="rabies_coverage_dogs_12m"
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: /Información sobre este indicador/i }));
+    const verOrigen = screen.getByRole("button", { name: "Ver origen" });
+
+    // Same anchor-descendant hazard as the ⓘ trigger: the click must cancel
+    // the wrapping <a>'s native navigation.
+    expect(fireEvent.click(verOrigen)).toBe(false);
+    expect(screen.getByText("Origen del dato")).toBeTruthy();
+    expect(screen.getByText(/Perros del padrón con al menos una vacuna antirrábica/)).toBeTruthy();
+  });
+
+  it("renders NO link when the tile has no descriptor", () => {
+    render(<OpKpi label="Cobertura" value="64,3%" info={info} />);
+    fireEvent.click(screen.getByRole("button", { name: /Información sobre este indicador/i }));
+    expect(screen.queryByRole("button", { name: "Ver origen" })).toBeNull();
+    expect(screen.queryByText("Origen del dato")).toBeNull();
+  });
+});

@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { ProvenanceCard, type ProvenanceContext } from "@/components/ui/dashboard/ProvenanceCard";
 import { KPI_CATALOG, type KpiId, formatKpiTarget, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import {
   DELTA_IMPLAUSIBLE_NOTE,
@@ -207,6 +208,14 @@ type Props = {
      */
     valueIsRatio?: boolean;
   };
+
+  /**
+   * Live view context for the ProvenanceCard ("Ver origen" at the ⓘ popover's
+   * foot — only rendered when `descriptorId` is set). Purely additive: omit it
+   * and the card still opens with its catalog-static content plus honest
+   * "No disponible…" fallbacks for the unthreaded lines.
+   */
+  provenance?: ProvenanceContext;
 };
 
 // ---------------------------------------------------------------------------
@@ -268,7 +277,24 @@ const toneValue: Record<Tone, string> = {
 // InfoTooltip sub-component
 // ---------------------------------------------------------------------------
 
-function InfoButton({ info }: { info: InfoTooltip }) {
+function InfoButton({
+  info,
+  descriptorId,
+  provenance,
+  sampleN,
+  periodInvariant,
+}: {
+  info: InfoTooltip;
+  /** When set, the popover foot gets the "Ver origen" affordance opening the
+   *  ProvenanceCard for this catalogued KPI. */
+  descriptorId?: KpiId;
+  provenance?: ProvenanceContext;
+  /** The SAME n the tile feeds the guard engine (guardInput.n) — the card
+   *  consumes it, it never derives its own count. */
+  sampleN?: number;
+  /** OpKpi's resolved period-invariant verdict — threaded, not recomputed. */
+  periodInvariant?: boolean;
+}) {
   // hover-reveals + click-PINS (red-team QA: save a click on the ⓘ). Hover opens
   // it for a quick glance (desktop); a small close delay lets the pointer travel
   // to the dense popover to read a line; a CLICK pins it (survives mouse-leave,
@@ -276,6 +302,13 @@ function InfoButton({ info }: { info: InfoTooltip }) {
   // click (when pinned) dismisses.
   const [open, setOpen] = useState(false);
   const [pinned, setPinned] = useState(false);
+  const [provenanceOpen, setProvenanceOpen] = useState(false);
+  // Lazy-mounted on FIRST open, then kept mounted: an always-mounted (closed)
+  // <dialog> would put the card's text in every tile's DOM (breaking text
+  // queries and bloating the page), while unmounting on close would skip the
+  // focus-return effect. First-open mount + never unmount serves both.
+  const [provenanceMounted, setProvenanceMounted] = useState(false);
+  const infoTriggerRef = useRef<HTMLButtonElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const clearTimer = () => {
@@ -312,6 +345,7 @@ function InfoButton({ info }: { info: InfoTooltip }) {
       }}
     >
       <button
+        ref={infoTriggerRef}
         type="button"
         aria-label="Información sobre este indicador"
         aria-expanded={open}
@@ -393,8 +427,43 @@ function InfoButton({ info }: { info: InfoTooltip }) {
             {info.methodologyVersion && (
               <p className="text-xs text-ln-op-mute">{info.methodologyVersion}</p>
             )}
+            {/* Provenance — "¿De dónde sale este número?". One terse link at
+                the popover's foot, only for catalogued tiles; opens the
+                ProvenanceCard dialog. preventDefault carries the same
+                anchor-descendant rationale as the ⓘ trigger (Cowork B6). */}
+            {descriptorId && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  closeNow();
+                  setProvenanceMounted(true);
+                  setProvenanceOpen(true);
+                }}
+                className="text-xs font-medium text-ln-op-azul hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul rounded-sm"
+              >
+                Ver origen
+              </button>
+            )}
           </div>
         </>
+      )}
+
+      {/* Lazy-mounted on FIRST open, then kept mounted (open/close via prop,
+          the ConfirmDialog idiom): an always-mounted closed <dialog> put the
+          card's text in every catalogued tile's DOM (hostile-reader caught
+          it), while unmounting on close would skip the focus-return effect. */}
+      {descriptorId && provenanceMounted && (
+        <ProvenanceCard
+          descriptorId={descriptorId}
+          open={provenanceOpen}
+          onClose={() => setProvenanceOpen(false)}
+          triggerRef={infoTriggerRef}
+          context={provenance}
+          n={sampleN}
+          periodInvariant={periodInvariant}
+        />
       )}
     </span>
   );
@@ -626,6 +695,7 @@ export function OpKpi({
   forecast,
   descriptorId,
   guardInput,
+  provenance,
 }: Props) {
   const { value, tone, deltaV2, guardNote, info, derivedPeriodInvariant, deltaImplausible } =
     resolveOpKpiContract(descriptorId, guardInput, rawValue, rawTone, rawDeltaV2, rawInfo);
@@ -656,7 +726,15 @@ export function OpKpi({
             ahead of the tone word. One string node keeps "label, tone" as a
             single announced fragment either way. */}
         {TONE_LABELS[tone] && <span className="sr-only">{`, ${TONE_LABELS[tone]}`}</span>}
-        {info && <InfoButton info={info} />}
+        {info && (
+          <InfoButton
+            info={info}
+            descriptorId={descriptorId}
+            provenance={provenance}
+            sampleN={guardInput?.n}
+            periodInvariant={periodInvariant ?? derivedPeriodInvariant}
+          />
+        )}
       </div>
 
       {/* Value */}
