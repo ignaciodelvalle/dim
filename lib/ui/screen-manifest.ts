@@ -445,6 +445,16 @@ const ADMIN_ALERTAS: ScreenManifestEntry = {
   decision: "¿Reconozco, investigo o cierro esta alerta de umbral?",
 };
 
+// LAYER NOTE (leanness sweep, 2026-08-02): this screen's actual shape is a
+// per-case deadline queue — "bandeja" is the semantically honest layer for
+// it. Left as "situacion" on purpose: nav-presets.ts places /admin/observaciones
+// under the "Situación" section (admin has no dedicated Vigilancia screen, so
+// this fills that role — see the ADMIN_NAV_SECTIONS comment above), and
+// scripts/check-screen-manifest.ts's manifest↔nav cross-check FAILS the
+// moment this declares "bandeja" while the nav keeps it under Situación.
+// Moving it to Bandeja operativa would be a real (if small) nav change, not a
+// one-line manifest fix — out of scope for a leanness/dedup pass. Revisit
+// together with nav-presets.ts if/when admin gets a dedicated bandeja section.
 const ADMIN_OBSERVACIONES: ScreenManifestEntry = {
   route: "/admin/observaciones",
   layer: "situacion",
