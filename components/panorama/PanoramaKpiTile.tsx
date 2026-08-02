@@ -13,7 +13,7 @@
 // `kpi.sparkline` is new (get-panorama-kpis.ts). No new visual language.
 
 import { DeltaGlyph } from "@/components/panorama/DeltaGlyph";
-import { OpKpi } from "@/components/ui/dashboard";
+import { OpKpi } from "@/components/ui/dashboard/OpKpi";
 import type { PanoramaKpi } from "@/src/modules/panorama/application/get-panorama-kpis";
 
 type Props = {

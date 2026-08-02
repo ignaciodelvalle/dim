@@ -22,7 +22,7 @@ import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { Icon } from "@/components/Icon";
 import { MOTIVO_MIN } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
-import { OpBulkBar } from "@/components/ui/dashboard";
+import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
 import { isPageFullySelected, toggleSelectPage, toggleSelection } from "@/lib/domain/bulk-select";
 import { createClient } from "@/lib/supabase/client";
 
