@@ -6,15 +6,23 @@ import { Suspense } from "react";
 
 import {
   CasoEstadoFilter,
+  CsvExportLink,
   type OpFilterAxis,
   OpFilterBar,
   parseCasoEstado,
 } from "@/components/ui/dashboard";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import {
+  CASE_QUEUE_CSV_COLUMNS,
+  CASE_QUEUE_CSV_ORDER_NOTE,
+  caseQueueCsvRows,
+} from "@/components/ui/dashboard/case-queue-csv";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, listCasesForAdmin } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { csvPageDisclosure } from "@/lib/ui/csv-export";
+import { todayIsoInAr } from "@/lib/utils/format";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
@@ -125,6 +133,15 @@ export default async function AdminCasosPage({
     detailHref: `/admin/casos/${c.publicCode}`,
   }));
 
+  // Q1 (CSV export parity) — same shared CaseQueue CSV projection as
+  // /gob/casos (case-queue-csv.ts), so the two casos twins export identically.
+  const csvPageLine = csvPageDisclosure(queueRows.length, totalCount);
+  const csvContextLines = [
+    "miMAR · Casos — vista universal admin",
+    CASE_QUEUE_CSV_ORDER_NOTE,
+    ...(csvPageLine ? [csvPageLine] : []),
+  ];
+
   return (
     <div className="space-y-6">
       <ScreenHeader
@@ -161,6 +178,14 @@ export default async function AdminCasosPage({
         showPeriod={false}
         resetParamsOnChange={["cursor"]}
         savedViewsKey="op-saved-views:casos:v1"
+        actions={
+          <CsvExportLink
+            filename={`casos-${todayIsoInAr()}`}
+            columns={CASE_QUEUE_CSV_COLUMNS}
+            rows={caseQueueCsvRows(queueRows)}
+            contextLines={csvContextLines}
+          />
+        }
         axes={
           [
             {

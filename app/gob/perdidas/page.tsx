@@ -4,6 +4,7 @@ import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import {
+  CsvExportLink,
   OpCard,
   OpCardBody,
   OpCardHead,
@@ -40,7 +41,14 @@ import {
   describeNarrowedView,
   isNarrowedToOperativeJurisdiction,
 } from "@/lib/ui/view-scope-caption";
-import { formatCount, formatPercent, pluralizeEs } from "@/lib/utils/format";
+import {
+  formatCount,
+  formatDate,
+  formatPercent,
+  pluralizeEs,
+  speciesLabel,
+  todayIsoInAr,
+} from "@/lib/utils/format";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 const VALID_STATUSES: PetListSelector[] = ["all", "lost", "recovered", "active", "deceased"];
@@ -212,6 +220,35 @@ export default async function GobPerdidasPage({
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
+  // Q1 (CSV export parity) — exactly the rendered list rows, and DELIBERATELY
+  // NARROWER than the on-screen detail: no owner name, no contact, no
+  // coordinates, regardless of showOwnerDetail. The row's presentation-
+  // minimization rule (PO decision 4, 2026-07-23) hides those fields at any
+  // national/multi-province view because they identify people; a CSV outlives
+  // the screen and travels, so the file keeps the minimized shape ALWAYS and
+  // says so, instead of resurfacing contact data the moment someone narrows
+  // the filter and clicks export.
+  const csvColumns = ["Mascota", "Especie", "Token", "Estado", "Jurisdicción", "Perdida desde"];
+  const csvStatusLabel: Record<string, string> = {
+    lost: "Perdida",
+    active: "Activa",
+    deceased: "Fallecida",
+  };
+  const csvRows = lostPets.map((p) => [
+    p.petName,
+    speciesLabel(p.species),
+    p.petPublicToken,
+    csvStatusLabel[p.petStatus] ?? p.petStatus,
+    [p.locality, p.province].filter(Boolean).join(", "),
+    p.markedLostAt ? formatDate(p.markedLostAt) : "",
+  ]);
+  const csvContextLines = [
+    `miMAR · Mascotas perdidas — estado: ${
+      STATUS_TABS.find((t) => t.value === statusFilter)?.label ?? statusFilter
+    }`,
+    "# Sin datos de contacto ni ubicación exacta: el archivo viaja fuera de pantalla; el detalle operativo vive en la vista filtrada a tu jurisdicción",
+  ];
+
   // task #31c dedup: shared aggregateChoroplethData (same fold as /gob/vigilancia)
   const choroplethData = aggregateChoroplethData(
     lostPets,
@@ -290,6 +327,14 @@ export default async function GobPerdidasPage({
         showPeriod={false}
         jurisdiction={{ allowedProvinces, localities }}
         savedViewsKey="op-saved-views:perdidas:v1"
+        actions={
+          <CsvExportLink
+            filename={`perdidas-${todayIsoInAr()}`}
+            columns={csvColumns}
+            rows={csvRows}
+            contextLines={csvContextLines}
+          />
+        }
         axes={
           [
             {

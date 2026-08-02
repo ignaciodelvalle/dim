@@ -30,6 +30,7 @@ export type {
   OpFilterAxisOption,
 } from "./OpFilterBar";
 export { CopyViewButton } from "./CopyViewButton";
+export { CsvExportLink } from "./CsvExportLink";
 export { SavedViewsControl } from "./SavedViewsControl";
 export type { SavedViewsControlProps } from "./SavedViewsControl";
 export { OpBreach } from "./OpBreach";

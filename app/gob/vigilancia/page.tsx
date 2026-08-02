@@ -7,6 +7,7 @@ import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynam
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { GlossaryTerm } from "@/components/ui/GlossaryTerm";
 import {
+  CsvExportLink,
   OpBreach,
   OpCallout,
   OpCard,
@@ -49,7 +50,7 @@ import {
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatCount, formatRate, pluralizeEs } from "@/lib/utils/format";
+import { formatCount, formatRate, pluralizeEs, todayIsoInAr } from "@/lib/utils/format";
 import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 import { rabiesComplianceRows } from "./_components/rabies-compliance-rows";
@@ -317,6 +318,25 @@ export default async function GobVigilanciaPage({
       <OpFilterBar
         period={{ defaultPreset: "30d" }}
         jurisdiction={{ allowedProvinces, localities }}
+        actions={
+          // Q1 (CSV export parity) — the per-disease signal summary, exactly
+          // as the "Señales por enfermedad" table below renders it. The `#`
+          // line repeats the table's own fixed-window caveat: 30 days always,
+          // independent of the period picker.
+          <CsvExportLink
+            filename={`vigilancia-senales-${todayIsoInAr()}`}
+            columns={["Enfermedad", "24h", "7 días", "30 días"]}
+            rows={summary.map((r) => [
+              r.diseaseName,
+              String(r.count24h),
+              String(r.count7d),
+              String(r.count30d),
+            ])}
+            contextLines={[
+              "miMAR · Vigilancia — señales por enfermedad, siempre últimos 30 días (independiente del período seleccionado)",
+            ]}
+          />
+        }
       />
 
       {/* 6 KPI tiles */}

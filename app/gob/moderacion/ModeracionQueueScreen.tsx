@@ -37,6 +37,7 @@ import { Icon } from "@/components/Icon";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import {
+  CsvExportLink,
   OpCard,
   OpCardBody,
   type OpFilterAxis,
@@ -51,7 +52,7 @@ import {
 } from "@/lib/analytics/govt-dashboards";
 import { requireDenunciaModerationPrincipal } from "@/lib/infra/auth-guards";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
-import { formatDate, formatDateTime } from "@/lib/utils/format";
+import { formatDate, formatDateTime, todayIsoInAr } from "@/lib/utils/format";
 import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   WELFARE_REPORT_KINDS,
@@ -111,6 +112,62 @@ export type ModeracionQueueScreenProps = {
  */
 function moderationScopePhrase(role: string): string {
   return role === "admin" ? "de todo el país" : "de tus localidades";
+}
+
+/**
+ * Q1 (CSV export parity) — the CSV projection of the rendered moderation page:
+ * exactly the page rows, same label registries the cards render with. This
+ * queue counts no filtered total (only a hasMore probe), so the page
+ * disclosure is phrased without one instead of inventing a number the query
+ * never produced. Module-level so the screen's own cognitive complexity stays
+ * under the lint budget (same rationale as moderationScopePhrase above).
+ */
+function buildModeracionCsv(
+  rows: Array<{
+    referenceCode: string;
+    kind: WelfareReportKind;
+    severity: WelfareReportSeverity;
+    flagReasons: unknown;
+    jurisdictionProvince: string | null;
+    jurisdictionLocality: string | null;
+    flaggedAt: Date | null;
+    moderationResolvedAt: Date | null;
+  }>,
+  statusFilter: ModerationQueueStatus,
+  hasMore: boolean,
+): { columns: string[]; rows: string[][]; contextLines: string[] } {
+  return {
+    columns: [
+      "Referencia",
+      "Tipo",
+      "Severidad",
+      "Motivos de revisión",
+      "Jurisdicción",
+      "Marcada",
+      "Resuelta",
+    ],
+    rows: rows.map((r) => [
+      r.referenceCode,
+      welfareReportKindLabel(r.kind),
+      welfareReportSeverityLabel(r.severity),
+      ((r.flagReasons as string[]) ?? [])
+        .map((reason) => reasonLabel(reason as FlagReason))
+        .join("; "),
+      [r.jurisdictionLocality, r.jurisdictionProvince].filter(Boolean).join(", "),
+      r.flaggedAt ? formatDateTime(r.flaggedAt) : "",
+      r.moderationResolvedAt ? formatDate(r.moderationResolvedAt) : "",
+    ]),
+    contextLines: [
+      `miMAR · Moderación de denuncias — estado: ${
+        STATUS_TABS.find((t) => t.value === statusFilter)?.label ?? statusFilter
+      }`,
+      ...(hasMore
+        ? [
+            `# Exportando la página visible: ${rows.length.toLocaleString("es-AR")} filas — hay más resultados, paginá para exportar el resto`,
+          ]
+        : []),
+    ],
+  };
 }
 
 export async function ModeracionQueueScreen({
@@ -189,6 +246,8 @@ export async function ModeracionQueueScreen({
       : null;
   const newerLink = sp.cursor ? newerHref("/gob/denuncias", filterParams) : null;
 
+  const csv = buildModeracionCsv(rows, statusFilter, hasMore);
+
   return (
     <div className="space-y-6">
       <ScreenHeader
@@ -217,6 +276,14 @@ export async function ModeracionQueueScreen({
       <OpFilterBar
         showPeriod={false}
         resetParamsOnChange={["cursor"]}
+        actions={
+          <CsvExportLink
+            filename={`moderacion-denuncias-${todayIsoInAr()}`}
+            columns={csv.columns}
+            rows={csv.rows}
+            contextLines={csv.contextLines}
+          />
+        }
         axes={
           [
             {

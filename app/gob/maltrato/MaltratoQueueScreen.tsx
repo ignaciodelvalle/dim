@@ -16,6 +16,7 @@ import { Suspense } from "react";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import {
+  CsvExportLink,
   OpCard,
   OpCardBody,
   OpCardHead,
@@ -50,7 +51,8 @@ import {
 } from "@/src/modules/welfare/domain/types";
 import { and, asc, count, inArray, sql } from "drizzle-orm";
 
-import { formatCount } from "@/lib/utils/format";
+import { csvPageDisclosure } from "@/lib/ui/csv-export";
+import { formatCount, formatDateTime, todayIsoInAr } from "@/lib/utils/format";
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 import { InspectorMounter } from "./_inspector/InspectorMounter";
 import { decodeRiskCursor, encodeRiskCursor, severityRank } from "./_lib/welfare-sla";
@@ -309,6 +311,37 @@ export async function MaltratoQueueScreen({
     { value: "unverified" as const, label: "Sin verificar" },
   ];
 
+  // Q1 (CSV export parity) — export EXACTLY the rendered page: same rows,
+  // same label vocabulary the list renders with (kind/severity/status label
+  // registries, batch-resolved assignee names). The `#` block declares the
+  // active workflow lens and, via csvPageDisclosure, that a keyset page is a
+  // page — never a silently-partial "todas".
+  const csvColumns = [
+    "Referencia",
+    "Tipo",
+    "Severidad",
+    "Estado",
+    "Jurisdicción",
+    "Creada",
+    "Asignada a",
+  ];
+  const csvRows = rows.map((r) => [
+    r.referenceCode,
+    welfareReportKindLabel(r.kind),
+    welfareReportSeverityLabel(r.severity),
+    welfareReportStatusLabel(r.status),
+    [r.jurisdictionLocality, r.jurisdictionProvince].filter(Boolean).join(", "),
+    formatDateTime(r.createdAt),
+    r.assignedToUserId ? (assigneeNames.get(r.assignedToUserId) ?? "un agente") : "Sin asignar",
+  ]);
+  const csvPageLine = csvPageDisclosure(rows.length, totalCount);
+  const csvContextLines = [
+    `miMAR · Denuncias de maltrato (Ley 14.346) — cola de trabajo: ${
+      TABS.find((t) => t.value === activeQueue)?.label ?? activeQueue
+    }`,
+    ...(csvPageLine ? [csvPageLine] : []),
+  ];
+
   return (
     <div className="flex flex-col gap-6 lg:h-full lg:min-h-0">
       {/* Top section — pinned above the master/detail split (full width) */}
@@ -355,6 +388,14 @@ export async function MaltratoQueueScreen({
           jurisdiction={{ allowedProvinces, localities }}
           resetParamsOnChange={["cursor"]}
           savedViewsKey="op-saved-views:maltrato:v1"
+          actions={
+            <CsvExportLink
+              filename={`denuncias-maltrato-${todayIsoInAr()}`}
+              columns={csvColumns}
+              rows={csvRows}
+              contextLines={csvContextLines}
+            />
+          }
           axes={
             [
               {

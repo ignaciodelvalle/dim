@@ -48,6 +48,7 @@ import { Suspense } from "react";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
   CasoEstadoFilter,
+  CsvExportLink,
   type OpFilterAxis,
   OpFilterBar,
   parseCasoEstado,
@@ -55,6 +56,11 @@ import {
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { ViewScopeCaption } from "@/components/ui/dashboard/ViewScopeCaption";
+import {
+  CASE_QUEUE_CSV_COLUMNS,
+  CASE_QUEUE_CSV_ORDER_NOTE,
+  caseQueueCsvRows,
+} from "@/components/ui/dashboard/case-queue-csv";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -63,7 +69,9 @@ import {
   listCasesForAdmin,
   listCasesForGovt,
 } from "@/lib/infra/case-queries";
+import { csvPageDisclosure } from "@/lib/ui/csv-export";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
+import { todayIsoInAr } from "@/lib/utils/format";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   CASE_KINDS,
@@ -306,6 +314,16 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
     emptyMessage,
   } = await loadCasosForViewer(sp, scope);
 
+  // Q1 (CSV export parity) — the shared CaseQueue CSV projection: exactly the
+  // rendered page rows, page-hood declared (csvPageDisclosure), order note
+  // included because the on-screen default sort is Urgencia (client-side).
+  const csvPageLine = csvPageDisclosure(queueRows.length, totalCount);
+  const csvContextLines = [
+    `miMAR · Casos — ${scope.role === "admin" ? "vista universal admin" : "tu jurisdicción asignada"}`,
+    CASE_QUEUE_CSV_ORDER_NOTE,
+    ...(csvPageLine ? [csvPageLine] : []),
+  ];
+
   return (
     <div className="space-y-6">
       <ScreenHeader
@@ -371,6 +389,14 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
             showPeriod={false}
             resetParamsOnChange={["cursor"]}
             savedViewsKey="op-saved-views:casos:v1"
+            actions={
+              <CsvExportLink
+                filename={`casos-${todayIsoInAr()}`}
+                columns={CASE_QUEUE_CSV_COLUMNS}
+                rows={caseQueueCsvRows(queueRows)}
+                contextLines={csvContextLines}
+              />
+            }
             // The canonical jurisdiction control (ISO code + locality slug),
             // replacing this screen's bespoke province-NAME axis. It also
             // gains a Localidad level the queue never had — which is what lets

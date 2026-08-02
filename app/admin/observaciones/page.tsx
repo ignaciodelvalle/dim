@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import {
+  CsvExportLink,
   OpBreach,
   OpCallout,
   OpCard,
@@ -24,7 +25,7 @@ import {
 import { observationDispositionChip } from "@/lib/ui/observation-disposition-chip";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatDateShort, formatDiasAgo, speciesLabel } from "@/lib/utils/format";
+import { formatDateShort, formatDiasAgo, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import {
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
@@ -132,10 +133,35 @@ export default async function ObservacionesPage({
   // Jurisdiction reuses the same scoped allowedProvinces/localities every
   // other govt/admin screen wires through `jurisdiction`, preserving the
   // govt-fenced / admin-universal split.
+  // Q1 (CSV export parity) — exactly the rendered rows (500-row query cap and
+  // all). Owner names stay OUT of the file for the same travel-risk reason
+  // /gob/perdidas excludes them: the screen shows them in context, the CSV
+  // outlives the screen. Inicio/cierre are resolved later (per-pet event
+  // lookups) only when rows exist — the export sticks to the row projection
+  // the query itself returns, so the link can render from the bar in every
+  // branch.
+  const csvRows = rows.map((r) => [
+    r.petName,
+    speciesLabel(r.species),
+    r.petPublicToken,
+    [r.locality, r.province].filter(Boolean).join(", "),
+    STATUS_LABEL[r.status],
+  ]);
+
   const filterBar = (
     <OpFilterBar
       showPeriod={false}
       jurisdiction={{ allowedProvinces, localities }}
+      actions={
+        <CsvExportLink
+          filename={`observaciones-antirrabicas-${todayIsoInAr()}`}
+          columns={["Mascota", "Especie", "Token", "Jurisdicción", "Estado"]}
+          rows={csvRows}
+          contextLines={[
+            "miMAR · Observaciones antirrábicas — sin datos de dueño/a: el archivo viaja fuera de pantalla",
+          ]}
+        />
+      }
       axes={
         [
           {
