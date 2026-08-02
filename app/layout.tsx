@@ -93,8 +93,15 @@ const lnFontVars = [
 // must set NEXT_PUBLIC_SITE_URL.
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
 
+// Deployed build marker — Vercel injects VERCEL_GIT_COMMIT_SHA at build time.
+// Rendered as a <meta> in every page's <head>, so the live commit is readable
+// via view-source on ANY route WITHOUT touching the DB — it survives even when
+// a data-heavy page degrades. "dev" locally/CI where the var is absent.
+const APP_VERSION = (process.env.VERCEL_GIT_COMMIT_SHA ?? "dev").slice(0, 7);
+
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  other: { "mimar-version": APP_VERSION },
   title: `${BRANDING.appName} — ${BRANDING.appNameLong}`,
   description:
     "La libreta sanitaria digital de tu mascota. Para encontrarse, para cuidarse, para ayudarnos a cuidar a todas.",
