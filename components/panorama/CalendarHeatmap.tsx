@@ -23,7 +23,7 @@
 //
 // English identifiers, es-AR user copy (project invariant #4).
 
-import { useId } from "react";
+import { memo, useId } from "react";
 
 import {
   type CalendarCell,
@@ -106,7 +106,7 @@ function DayCell({
   );
 }
 
-export function CalendarHeatmap({
+function CalendarHeatmapImpl({
   data,
   since,
   until,
@@ -295,3 +295,11 @@ export function CalendarHeatmap({
     </section>
   );
 }
+
+// memo(): always-mounted dock pane, same rationale as PanoramaDockRegistros.
+// NOTE: the call site (PanoramaConsole.tsx ~3877) passes `onDayClick` as an
+// inline arrow function and `data={scopeDailyCounts}` which falls back to a
+// fresh `[]` literal when both sources are empty — neither is memoized, so
+// they defeat the shallow-equal bailout on those renders. Flagged, not fixed
+// here (perf sweep 2026-08-02) — deeper than a memo wrap.
+export const CalendarHeatmap = memo(CalendarHeatmapImpl);

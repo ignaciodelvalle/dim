@@ -18,7 +18,7 @@
 // — the ranking upstream drops them (privacy invariant §5.1); the console renders
 // the k-anon suppressed-count line beneath this table.
 
-import { useEffect, useId, useMemo, useState } from "react";
+import { memo, useEffect, useId, useMemo, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { RankedRowPreview } from "@/components/panorama/RankedRowPreview";
@@ -223,7 +223,7 @@ export function rankingEmptyState(input: {
   };
 }
 
-export function PanoramaDataTable({
+function PanoramaDataTableImpl({
   rows,
   kind,
   measureLabel,
@@ -475,3 +475,10 @@ export function PanoramaDataTable({
     </section>
   );
 }
+
+// memo(): always-mounted dock pane, same rationale as PanoramaDockRegistros.
+// NOTE: the call site (PanoramaConsole.tsx ~3798) passes `preview` as a fresh
+// object literal (with an inline `drills` closure) on every render — that
+// prop alone defeats the shallow-equal bailout regardless of this wrapper.
+// Flagged, not fixed here (perf sweep 2026-08-02) — deeper than a memo wrap.
+export const PanoramaDataTable = memo(PanoramaDataTableImpl);

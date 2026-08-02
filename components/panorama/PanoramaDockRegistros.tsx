@@ -16,6 +16,8 @@
 // below province grain; per-10k on the map against raw counts here; and the
 // k-anon units excluded from the event total (RA-7 F6).
 
+import { memo } from "react";
+
 import {
   MapDataTable,
   type MapTableRow,
@@ -42,7 +44,7 @@ type Props = {
 const NOTE =
   "rounded-[var(--radius-md)] border border-dashed border-ln-op-line bg-ln-op-card/60 px-3 py-1.5 text-xs text-ln-op-mute";
 
-export function PanoramaDockRegistros({
+function PanoramaDockRegistrosImpl({
   summary,
   referenceLayerLabels,
   localityRateInView,
@@ -119,3 +121,11 @@ export function PanoramaDockRegistros({
     </div>
   );
 }
+
+// memo(): this pane is always mounted in the dock (PanoramaConsole re-renders
+// 3-4x/1100ms in play mode). NOTE: `referenceLayerLabels` and `metrics` are
+// built with a fresh `.filter()/.map()` at the PanoramaConsole call site (not
+// useMemo'd) — those two props defeat the shallow-equal bailout on every
+// re-render even with this wrapper in place. Every other prop IS memoized
+// upstream (perf sweep 2026-08-02).
+export const PanoramaDockRegistros = memo(PanoramaDockRegistrosImpl);
