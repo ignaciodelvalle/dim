@@ -14,6 +14,9 @@ import { describe, expect, it, vi } from "vitest";
 const nav = vi.hoisted(() => ({ path: "/admin/programa" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => nav.path,
+  // P5 hover/focus prefetch (perf sweep 2026-08-02) calls useRouter().prefetch —
+  // stub it so NavLink can render outside a real app-router context.
+  useRouter: () => ({ prefetch: vi.fn() }),
 }));
 
 import { type NavSection, OpRailNav } from "@/components/ui/dashboard/OpRailNav";

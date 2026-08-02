@@ -1,8 +1,9 @@
 "use client";
 
 import type { NavItem } from "@/components/layout/HeaderNav";
-import Link from "next/link";
-import { usePathname } from "next/navigation";
+import Link, { useLinkStatus } from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 export type NavSection = {
   label: string;
@@ -34,11 +35,42 @@ function isActive(item: NavItem, pathname: string | null): boolean {
   return pathname === item.href;
 }
 
+/**
+ * Bridges next/link's pending state up to NavLink. useLinkStatus() only
+ * resolves when called from a component rendered INSIDE a <Link> (it reads a
+ * context <Link> provides to its own children) — NavLink itself is the
+ * PARENT that renders the Link, so it cannot call the hook directly. This
+ * sensor renders nothing and just reports pending changes to its parent.
+ */
+function RailLinkPendingSignal({ onChange }: { onChange: (pending: boolean) => void }) {
+  const { pending } = useLinkStatus();
+  useEffect(() => {
+    onChange(pending);
+  }, [pending, onChange]);
+  return null;
+}
+
 function NavLink({
   item,
   active,
   variant,
 }: { item: NavItem; active: boolean; variant: "gob" | "org" }) {
+  // RESILIENCE follow-up (2026-08-02, perf sweep P5): the rail opted OUT of
+  // Next's automatic hover prefetch above (self-DoS fix — do not touch), so
+  // clicking a cold link pays the full RSC fetch with zero warning. Firing an
+  // EXPLICIT prefetch on hover/focus intent (not on mount, so the ~30-link
+  // fan-out from the original bug never recurs) buys back most of that time
+  // for the common "hover, then click" path, guarded to fire once per href so
+  // repeated pointerenter events on the same link don't refire it.
+  const router = useRouter();
+  const prefetchedRef = useRef(false);
+  const [pending, setPending] = useState(false);
+  const prefetchOnIntent = () => {
+    if (item.deferred || prefetchedRef.current) return;
+    prefetchedRef.current = true;
+    router.prefetch(item.href);
+  };
+
   // Deferred (not-yet-built) destination: non-interactive, muted "Próximamente"
   // affordance — a <span> (no <Link>/<button>) so it cannot navigate and is out
   // of the tab order by default (no tabIndex). State announced via aria-disabled
@@ -78,6 +110,13 @@ function NavLink({
       // self-DoS is gone.
       prefetch={false}
       aria-current={active ? "page" : undefined}
+      // Pending affordance (useLinkStatus, Next 15.5): announces + visually
+      // dims the link while ITS OWN target route is loading — state-only, no
+      // keyframe/spinner animation. `undefined` (not `false`) when idle so the
+      // attribute is absent rather than printing `aria-busy="false"`.
+      aria-busy={pending || undefined}
+      onPointerEnter={prefetchOnIntent}
+      onFocus={prefetchOnIntent}
       // Guaranteed accessible name sourced from the nav-presets label (a11y
       // audit 2026-07): the name survives ANY visual treatment of the link
       // (icon-only compaction, CSS truncation) and folds the badge count into
@@ -96,8 +135,10 @@ function NavLink({
         active
           ? activeClasses
           : "border-l-2 border-transparent text-[var(--color-ln-op-rail-text)] hover:bg-[rgba(255,255,255,0.05)]",
+        pending ? "cursor-wait opacity-60" : "",
       ].join(" ")}
     >
+      <RailLinkPendingSignal onChange={setPending} />
       <span className="flex-1 truncate">{item.label}</span>
       {item.badge != null && item.badge > 0 && (
         <span className="font-ln-mono inline-flex items-center justify-center rounded-[3px] bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-xs font-bold leading-none text-white">

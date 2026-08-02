@@ -40,9 +40,11 @@ describe("LnWizardShell — 44px back button (UX 2.1)", () => {
 
 import { OpRailNav } from "@/components/ui/dashboard/OpRailNav";
 
-// OpRailNav uses usePathname — stub it.
+// OpRailNav uses usePathname, and useRouter (P5 hover/focus prefetch,
+// perf sweep 2026-08-02) — stub both.
 vi.mock("next/navigation", () => ({
   usePathname: () => "/gob/dashboard",
+  useRouter: () => ({ prefetch: vi.fn() }),
 }));
 
 describe("OpRailNav — 44px nav links (UX 2.1)", () => {

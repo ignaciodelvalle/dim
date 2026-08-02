@@ -13,6 +13,9 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/gob",
+  // P5 hover/focus prefetch (perf sweep 2026-08-02) calls useRouter().prefetch —
+  // stub it so NavLink can render outside a real app-router context.
+  useRouter: () => ({ prefetch: vi.fn() }),
 }));
 
 import { ADMIN_NAV_SECTIONS, GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
