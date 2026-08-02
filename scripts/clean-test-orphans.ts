@@ -44,7 +44,17 @@ export const TEST_PET_PREFIXES = {
   // real `DIM-XXXX-XXXX`.
   // SURVTEST- added 2026-08-01: same failure mode as MC-DUP- above, this time
   // from `__tests__/symptom-surveillance.test.ts` (tokens `SURVTEST-*-${Date.now()}`).
-  byToken: ["TRNS-TEST-", "DDXTEST-", "MORT-TEST-", "SQLQ-TEST-", "MC-DUP-", "SURVTEST-"],
+  // DIM-PANO-US1 added 2026-08-01: unit-history-govt-subsumption.test.ts fixture
+  // (fixed token `DIM-PANO-US1SUB`) — same killed-worker leak class.
+  byToken: [
+    "TRNS-TEST-",
+    "DDXTEST-",
+    "MORT-TEST-",
+    "SQLQ-TEST-",
+    "MC-DUP-",
+    "SURVTEST-",
+    "DIM-PANO-US1",
+  ],
 } as const;
 
 export function isLocalDatabase(url: string): boolean {
