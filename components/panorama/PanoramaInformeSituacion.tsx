@@ -203,6 +203,12 @@ export function PanoramaInformeSituacion({ model }: Props) {
               <span className="font-mono">{model.viewUrl}</span>
             </p>
           )}
+          {/* "Citar esta vista" v1 — the provenance disclosure sits WITH the
+              reproducible-URL line: the URL above says how to replay the cut;
+              this says exactly what the cut does and does NOT freeze (the
+              «estado actual» stocks and the k<5 suppression survive an asOf
+              pin by design — honest by disclosure, not by fake determinism). */}
+          {model.citationDisclosure && <p>{model.citationDisclosure}</p>}
           {/* V2 — the scope as an OBJECT, not as prose. The URL above says WHERE
               this came from; this says exactly WHAT was asked, in a form that can
               be re-executed. Printed in full (it is short) so a page detached

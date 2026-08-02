@@ -183,6 +183,13 @@ export type InformeModel = {
   methodNotes: string[];
   /** The k-anon disclosure sentence + the scoped suppressed-cell count. */
   kAnonDisclosure: string;
+  /**
+   * "Citar esta vista" v1 — the frozen-citation provenance paragraph, or null
+   * when the informe is a live-edge briefing (no corte → nothing claims to be
+   * frozen, and `asOfLabel` already says "Datos en vivo"). Sits with the
+   * "Vista reproducible" line in the footer.
+   */
+  citationDisclosure: string | null;
   /** E1 — the URL that reproduces this view, printed for traceability. */
   viewUrl: string | null;
   /**
@@ -319,6 +326,34 @@ export function buildInformeModel(input: BuildInformeInput): InformeModel {
         } por privacidad.`
       : kAnonBase;
 
+  // "Citar esta vista" v1 (2026-08-02 determinism audit) — honest by
+  // DISCLOSURE, not by engineering the impurities away. An asOf pin freezes
+  // the event-spine replay; two things deliberately SURVIVE the pin and are
+  // named instead of hidden: the «estado actual» stocks (the "acumulado hoy"
+  // figure has no date bound BY DESIGN) and the k<5 privacy suppression
+  // (evaluated at query time — a cell can flip between «Protegido» and a
+  // number on re-open). The stock clause appears ONLY when a stock KPI is in
+  // the SHOWN set (its "estado actual" tag sits next to its number — same
+  // gate as the rendered strip, so the footer never explains a figure the
+  // page does not print). The digest clause mirrors view-scope-descriptor's
+  // own caveat — the id IDENTIFIES the view, it is NOT tamper evidence — and
+  // appears only when the "Alcance verificable" block is printed, whose
+  // wording could otherwise imply integrity.
+  const hasStockKpi = !input.kpisDegraded && input.kpis.some((k) => k.currentState === true);
+  const citationDisclosure = input.asOf
+    ? [
+        `Esta cita reproduce el registro de eventos al ${formatAsOfDate(input.asOf)}.`,
+        hasStockKpi
+          ? "No quedan congelados con el corte y pueden diferir al reabrir: el «acumulado hoy» de los indicadores marcados «estado actual» (stock sin fecha de corte, por diseño) y la supresión por privacidad k<5 (evaluada en vivo; puede cambiar al reabrir)."
+          : "No queda congelada con el corte y puede diferir al reabrir: la supresión por privacidad k<5 (evaluada en vivo; puede cambiar al reabrir).",
+        input.viewScope
+          ? "El id de vista identifica esta vista; no es evidencia de integridad."
+          : null,
+      ]
+        .filter((s): s is string => s !== null)
+        .join(" ")
+    : null;
+
   return {
     title: `Informe de situación · ${input.scopeLabel}`,
     asOfLabel: informeAsOfLabel(input.asOf),
@@ -339,6 +374,7 @@ export function buildInformeModel(input: BuildInformeInput): InformeModel {
     activeLayerLabels: input.activeLayerLabels,
     methodNotes,
     kAnonDisclosure,
+    citationDisclosure,
     scopeDescriptor: input.viewScope
       ? {
           ...describeViewScope(input.viewScope),

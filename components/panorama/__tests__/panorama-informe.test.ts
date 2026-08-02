@@ -15,8 +15,10 @@ import {
   buildInformeModel,
   informeAsOfLabel,
 } from "@/components/panorama/panorama-informe";
+import { makeViewScopeDescriptor } from "@/lib/ui/view-scope-descriptor";
 import { partitionKpiIdsByRelevance } from "@/src/modules/panorama/domain/metric-relevance";
 import type { PanoramaKpiId } from "@/src/modules/panorama/domain/types";
+import { makeViewState } from "@/src/modules/panorama/domain/view-state";
 
 /** The informe KPI inputs carry `id: string`; the relevance gate keys on the
  *  PanoramaKpiId union. In the console the ids ARE PanoramaKpiIds (they come from
@@ -192,6 +194,77 @@ describe("buildInformeModel", () => {
       }),
     );
     expect(m.ranking?.emptyText).toBe("No pudimos calcular el ranking en este momento.");
+  });
+});
+
+// "Citar esta vista" v1 — the frozen-citation provenance disclosure (2026-08-02
+// determinism audit). Honest by DISCLOSURE, not by fake determinism: the
+// paragraph exists ONLY under a pinned corte, names the two known survivors of
+// an asOf pin (the «estado actual» stocks and the k<5 suppression), and never
+// lets the view digest read as tamper evidence.
+describe("citation provenance disclosure (Citar esta vista v1)", () => {
+  const CORTE = new Date("2026-07-04T00:00:00.000Z");
+
+  const DESCRIPTOR = makeViewScopeDescriptor({
+    authority: {
+      role: "govt",
+      mandate: [{ province: "Córdoba", locality: "" }],
+      effective: [{ province: "Córdoba", locality: "" }],
+      adminDrill: null,
+    },
+    view: makeViewState({
+      scope: { kind: "province", province: "Córdoba" },
+      period: { kind: "preset", preset: "90d" },
+      asOf: CORTE.toISOString(),
+      basis: "valid",
+      layers: ["denuncias"],
+      verifiedOnly: false,
+      preset: null,
+      encoding: null,
+    }),
+    grain: "province",
+    generatedAt: "2026-07-04T12:00:00.000Z",
+  });
+
+  it("is absent at the live edge — no corte, nothing claims to be frozen", () => {
+    expect(buildInformeModel(baseInput({ asOf: null })).citationDisclosure).toBeNull();
+  });
+
+  it("states the replay corte and BOTH non-frozen survivors when a stock KPI is shown", () => {
+    const d = buildInformeModel(baseInput({ asOf: CORTE })).citationDisclosure ?? "";
+    expect(d).toContain("Esta cita reproduce el registro de eventos al 4 de julio de 2026.");
+    // The stock clause names the tag printed next to the number (stateTag) and
+    // the on-page "acumulado hoy" wording — the reader can find the figure.
+    expect(d).toContain("«estado actual»");
+    expect(d).toContain("«acumulado hoy»");
+    expect(d).toContain("k<5");
+    expect(d).toContain("evaluada en vivo; puede cambiar al reabrir");
+  });
+
+  it("names the stock survivor ONLY when a stock KPI is in the shown set", () => {
+    const noStock = baseInput().kpis.map((k) => ({ ...k, currentState: false }));
+    const d = buildInformeModel(baseInput({ asOf: CORTE, kpis: noStock })).citationDisclosure ?? "";
+    expect(d).not.toContain("estado actual");
+    expect(d).not.toContain("acumulado hoy");
+    // The k<5 clause is unconditional — the suppression survives on every view.
+    expect(d).toContain("k<5");
+  });
+
+  it("drops the stock clause when the KPI fan-out degraded (no numbers are shown)", () => {
+    const d =
+      buildInformeModel(baseInput({ asOf: CORTE, kpisDegraded: true })).citationDisclosure ?? "";
+    expect(d).not.toContain("estado actual");
+    expect(d).toContain("k<5");
+  });
+
+  it("adds the digest caveat ONLY when the descriptor block is printed, and keeps it honest", () => {
+    const without = buildInformeModel(baseInput({ asOf: CORTE })).citationDisclosure ?? "";
+    expect(without).not.toContain("id de vista");
+    const withScope =
+      buildInformeModel(baseInput({ asOf: CORTE, viewScope: DESCRIPTOR })).citationDisclosure ?? "";
+    expect(withScope).toContain(
+      "El id de vista identifica esta vista; no es evidencia de integridad.",
+    );
   });
 });
 

@@ -5,6 +5,7 @@
 // and how many cells were privacy-suppressed). Kept framework-free and pure so
 // the footer text is unit-testable without a canvas or maplibre.
 
+import { encodeAsOfToParams } from "@/lib/ui/map-layer-nav";
 import { type ViewScopeDescriptor, viewScopeDigest } from "@/lib/ui/view-scope-descriptor";
 import { formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
 
@@ -18,6 +19,33 @@ import { formatAsOfDayLong } from "@/src/modules/panorama/domain/time-scrub";
  */
 export function formatAsOfDate(date: Date): string {
   return formatAsOfDayLong(date);
+}
+
+// ---------------------------------------------------------------------------
+// "Citar esta vista" v1 (2026-08-02 determinism audit) — the citation pin.
+//
+// A citation must never depend on the live serving path (cache/cube parity):
+// the copied URL always carries an explicit `asOf`, so re-opening it replays
+// the event spine through the as-of path. Parked at the live edge, the pin is
+// the GENERATION day at UTC-day precision — exactly the value a URL round-trip
+// (encodeAsOfToParams → parseAsOfFromParams) restores, so the citing
+// operator's own re-pinned view and the reader's re-opened view are the SAME
+// cut (a full-instant pin would show the operator a view the day-precision URL
+// cannot reproduce). An asOf the operator already scrubbed to is preserved
+// untouched. Pure; the console owns the History write and the state pin.
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the citation corte and write it into `params` (mutates in place —
+ * same contract as encodeAsOfToParams; every other view param is untouched).
+ * Returns the pinned Date: the given `asOf` when a scrub is active, else UTC
+ * midnight of `now`'s day. `now` is injectable for deterministic tests.
+ */
+export function pinCitationAsOf(params: URLSearchParams, asOf: Date | null, now?: Date): Date {
+  const generation = now ?? new Date();
+  const pinned = asOf ?? new Date(`${generation.toISOString().slice(0, 10)}T00:00:00.000Z`);
+  encodeAsOfToParams(params, pinned);
+  return pinned;
 }
 
 export type ExportFooterInput = {

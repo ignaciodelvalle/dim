@@ -73,6 +73,7 @@ import { coalescedGet } from "@/components/panorama/coalesced-get";
 import { buildContextSegments } from "@/components/panorama/context-bar-model";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { frameHasSuppressedMark } from "@/components/panorama/hatch-pattern";
+import { pinCitationAsOf } from "@/components/panorama/panorama-export";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import {
   activeVistaName,
@@ -1166,6 +1167,36 @@ export function PanoramaConsole({
       },
     );
   }, []);
+
+  // "Citar esta vista" v1 — the honest-by-disclosure frozen citation: pin the
+  // corte FIRST, then copy. At the live edge the pin is the generation day
+  // (pinCitationAsOf — UTC-day precision, the exact value a URL round-trip
+  // restores). The URL write is synchronous (the asOf URL-sync effect only
+  // runs after this click returns, and then re-encodes the same day → no
+  // churn) so the clipboard NEVER captures a live link; the SAME value goes to
+  // state, so the console immediately replays the cut it just cited (as-of
+  // serving path — the citation never depends on cache/cube parity) and a
+  // subsequent "Informe de situación" prints "Situación al {fecha}" plus the
+  // provenance disclosure. An existing scrub corte is preserved untouched.
+  const [cited, setCited] = useState(false);
+  const citeView = useCallback(() => {
+    if (typeof window === "undefined" || !navigator.clipboard) return;
+    if (asOf === null) {
+      const params = new URLSearchParams(window.location.search);
+      const pinned = pinCitationAsOf(params, null);
+      replaceMapStateUrl(`${window.location.pathname}?${params.toString()}`);
+      setAsOf(pinned);
+    }
+    navigator.clipboard.writeText(window.location.href).then(
+      () => {
+        setCited(true);
+        window.setTimeout(() => setCited(false), 1800);
+      },
+      () => {
+        /* clipboard denied — the pinned URL is still shareable from the address bar. */
+      },
+    );
+  }, [asOf]);
 
   // task #63: the bivariate "riesgo-brotes" map encoding. P5 (PO 2026-07-14): the
   // selection is a SHAREABLE coordinate — seeded from `?encoding=bivariate` on
@@ -4312,6 +4343,29 @@ export function PanoramaConsole({
             </button>
             <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
               Copia un enlace con la vista, el alcance y el período actuales.
+            </p>
+          </div>
+          {/* "Citar esta vista" v1 — ONE terse action: pin + copy. It does NOT
+              open the print dialog itself: the live→pinned flip refetches the
+              as-of frame asynchronously, and printing in the same click would
+              put live-path numbers under a "Situación al" header. The note
+              routes the operator to "Informe de situación" below for the
+              printed artifact (which now carries the provenance disclosure). */}
+          <div className="space-y-1">
+            <OpButton
+              variant="ghost"
+              size="sm"
+              block
+              onClick={citeView}
+              className="justify-start gap-2"
+            >
+              <Icon name="enlace" size="sm" decorative /> Citar esta vista
+              {cited && <span className="text-xs font-normal text-ln-op-ok">· enlace copiado</span>}
+            </OpButton>
+            <p className="px-2.5 text-xs leading-snug text-ln-op-mute">
+              Fija el corte temporal de la cita en el enlace y lo copia: al reabrirlo se reproduce
+              el registro a esa fecha. Para el artefacto impreso, generá el «Informe de situación»
+              (lleva la constancia de la cita al pie).
             </p>
           </div>
           {/* "Vistas guardadas" is a POPOVER with its own open state: mounted here
