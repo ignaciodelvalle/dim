@@ -245,7 +245,7 @@
         "app/admin/auditoria/page.tsx",
         "app/admin/casos/page.tsx",
         "app/admin/censo/AdminCensoScreen.tsx",
-        "app/admin/govts/page.tsx",
+        "app/admin/govts/GovtsScreen.tsx",
         "app/admin/inteligencia/page.tsx",
         "app/admin/moderacion/page.tsx",
         "app/admin/outbox/page.tsx",

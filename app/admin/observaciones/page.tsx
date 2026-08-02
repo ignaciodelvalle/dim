@@ -1,5 +1,6 @@
+import { Suspense } from "react";
+
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
-import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import {
@@ -26,6 +27,7 @@ import { observationDispositionChip } from "@/lib/ui/observation-disposition-chi
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateShort, formatDiasAgo, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
+import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 import {
   observationOverdueLabel,
   observationOverdueState,
@@ -35,6 +37,12 @@ import {
   type RabiesObservationStatus,
   resolveObservationDeadline,
 } from "@/src/modules/surveillance/domain/rabies-observation";
+
+import {
+  ObservationCloseInspector,
+  type ObservationCloseRow,
+} from "./_inspector/ObservationCloseInspector";
+import { ObservationCloseTrigger } from "./_inspector/ObservationCloseTrigger";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -273,6 +281,29 @@ export default async function ObservacionesPage({
   const ownerByPet = new Map<string, string>();
   for (const o of ownerRows) ownerByPet.set(o.petId, o.displayName);
 
+  // Inline-close inspector rows (convergence 2026-08-02): one entry per
+  // in-progress observation, carrying ONLY fields the list card already
+  // renders (no new PII crosses to the browser) plus the per-row BOUND close
+  // action — the inspector never fetches. Scope/authz is unchanged: rows are
+  // already jurisdiction-fenced by fetchObservaciones, and the action
+  // re-validates role + scope server-side (professionalCloseObservation).
+  const inspectorRows: ObservationCloseRow[] = rows
+    .filter((r) => r.status === "in_progress")
+    .map((r) => {
+      const started = startedByPet.get(r.petId);
+      return {
+        publicToken: r.petPublicToken,
+        petName: r.petName,
+        speciesLabel: speciesLabel(r.species),
+        locality: r.locality,
+        province: r.province,
+        ownerName: ownerByPet.get(r.petId) ?? null,
+        startedLabel: formatRelative(started?.occurredAt ?? null),
+        deadlineLabel: started?.observationUntil ? formatDateShort(started.observationUntil) : null,
+        closeAction: professionalCloseRabiesObservationAction.bind(null, r.petPublicToken),
+      };
+    });
+
   // G3 (2026-07-03 critique): "Cierre estimado" alone never said whether the
   // date was already PAST — an observation 20 days over its statutory window
   // looked identical to one on time. One `now` for the whole render so every
@@ -347,13 +378,12 @@ export default async function ObservacionesPage({
                       {dispositionChip && (
                         <OpPill tone={dispositionChip.tone}>{dispositionChip.label}</OpPill>
                       )}
+                      {/* Inline-close convergence (2026-08-02): a plain click
+                          opens the slide-over inspector below (?cerrar=token,
+                          shallow history — list state survives); modifier
+                          clicks / new tab still land on the detail route. */}
                       {status === "in_progress" && (
-                        <Link
-                          href={`/admin/observaciones/${r.petPublicToken}`}
-                          className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
-                        >
-                          {"Cerrar profesionalmente ->"}
-                        </Link>
+                        <ObservationCloseTrigger publicToken={r.petPublicToken} />
                       )}
                     </div>
                   </div>
@@ -363,6 +393,12 @@ export default async function ObservacionesPage({
           );
         })}
       </ul>
+
+      {/* Always-mounted inline-close inspector — reacts to ?cerrar=<token>
+          (useSearchParams needs a Suspense boundary when server-rendered). */}
+      <Suspense>
+        <ObservationCloseInspector rows={inspectorRows} />
+      </Suspense>
     </div>
   );
 }
