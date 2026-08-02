@@ -30,6 +30,18 @@
 //      — the toast is the immediate transient cue, the inline text is the
 //      durable one; they're complementary, not redundant.
 //
+//      `notifyUndoable` (Lote Q, Q5) is a REFINEMENT of this second
+//      mechanism, not a third one: the same success toast, plus a
+//      "Deshacer" action button. It is ONLY for mutations whose inverse is
+//      a REAL, first-class server action that restores the exact prior
+//      state (e.g. welfare self-assign ↔ unassign). In an append-only
+//      events system most actions have NO honest inverse — anything that
+//      sent a notification, appended a medical/legal event, or overwrote
+//      heterogeneous per-row state must NOT fake one; a "Deshacer" that
+//      performs an approximate rollback is worse than none. The undo
+//      callback commits through the normal server-action path and confirms
+//      with the standard toast; it never touches navigation.
+//
 // Do not invent a third pattern (bespoke "Guardado" banners with no toast,
 // silent success, etc.) without updating this doc comment — the whole
 // point of §C1 was to stop the ad hoc per-component choice the audit found
@@ -39,6 +51,7 @@
 //   import { notifySaved, notifyActionError } from "@/lib/ui/action-feedback";
 //   notifySaved("Transferencia aceptada");
 //   notifyActionError("No se pudo guardar. Probá de nuevo.");
+//   notifyUndoable("Te asignaste la denuncia", { onUndo: () => undoAction() });
 
 import { toast } from "sonner";
 
@@ -53,4 +66,29 @@ export function notifySaved(message = "Listo"): void {
  * no better-placed inline error surface for the failure. */
 export function notifyActionError(message: string): void {
   toast.error(message);
+}
+
+/** How long an undoable toast stays up — longer than sonner's 4s default so
+ * "Deshacer" is realistically reachable, short enough that the offer never
+ * outlives the operator's memory of what it would undo. */
+export const UNDOABLE_TOAST_DURATION_MS = 8000;
+
+/**
+ * Fires the standard success toast WITH a "Deshacer" action (mechanism #2
+ * refinement — see the module doc for when an undo is honest and when it
+ * must not be offered). `onUndo` runs the real inverse server action; its
+ * own success/failure feedback is the caller's job (standard notifySaved /
+ * notifyActionError), since this module cannot know the inverse's outcome.
+ */
+export function notifyUndoable(
+  message: string,
+  undo: { label?: string; onUndo: () => void | Promise<void> },
+): void {
+  toast.success(message, {
+    duration: UNDOABLE_TOAST_DURATION_MS,
+    action: {
+      label: undo.label ?? "Deshacer",
+      onClick: () => void undo.onUndo(),
+    },
+  });
 }

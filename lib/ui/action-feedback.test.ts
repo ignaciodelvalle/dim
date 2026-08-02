@@ -16,7 +16,12 @@ vi.mock("sonner", () => ({
   },
 }));
 
-import { notifyActionError, notifySaved } from "./action-feedback";
+import {
+  UNDOABLE_TOAST_DURATION_MS,
+  notifyActionError,
+  notifySaved,
+  notifyUndoable,
+} from "./action-feedback";
 
 describe("notifySaved", () => {
   it("fires toast.success with the given message", () => {
@@ -34,5 +39,32 @@ describe("notifyActionError", () => {
   it("fires toast.error with the given message", () => {
     notifyActionError("No se pudo guardar.");
     expect(error).toHaveBeenCalledWith("No se pudo guardar.");
+  });
+});
+
+describe("notifyUndoable (Q5 — first undo pattern)", () => {
+  it("fires toast.success with a Deshacer action and the extended duration", () => {
+    notifyUndoable("Te asignaste la denuncia", { onUndo: () => {} });
+    const [message, options] = success.mock.calls.at(-1) as [
+      string,
+      { duration: number; action: { label: string; onClick: () => void } },
+    ];
+    expect(message).toBe("Te asignaste la denuncia");
+    expect(options.duration).toBe(UNDOABLE_TOAST_DURATION_MS);
+    expect(options.action.label).toBe("Deshacer");
+  });
+
+  it("invokes the caller's inverse action when the toast action is clicked", () => {
+    const onUndo = vi.fn();
+    notifyUndoable("Listo", { onUndo });
+    const [, options] = success.mock.calls.at(-1) as [string, { action: { onClick: () => void } }];
+    options.action.onClick();
+    expect(onUndo).toHaveBeenCalledTimes(1);
+  });
+
+  it("honors a custom action label", () => {
+    notifyUndoable("Denuncia liberada", { label: "Volver a tomar", onUndo: () => {} });
+    const [, options] = success.mock.calls.at(-1) as [string, { action: { label: string } }];
+    expect(options.action.label).toBe("Volver a tomar");
   });
 });
