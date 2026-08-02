@@ -49,6 +49,16 @@ export function bucketOf(method: DispositionMethod | null | undefined): Disposit
 }
 
 /**
+ * Non-recommended disposal methods — the DeathRecordForm "No recomendadas"
+ * optgroup. Shared by the rabies-observation disposal warning (DeathRecordForm)
+ * and the /admin/observaciones disposal chip, so "non-recommended" can never
+ * drift between what the citizen is warned about and what the authority sees.
+ */
+export function isNonRecommendedDisposition(method: string | null | undefined): boolean {
+  return method === "owner_burial" || method === "household_waste";
+}
+
+/**
  * A disposition is traceable (Ley CABA 5470) when the method is a concrete,
  * known value (not null and not 'unknown') AND a handling facility is recorded.
  *

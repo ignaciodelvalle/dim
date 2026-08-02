@@ -10,6 +10,7 @@ import {
   LnSheetHeader,
   LnSubCard,
 } from "@/components/ui/Sheet";
+import { isNonRecommendedDisposition } from "@/lib/domain/disposition";
 import { diseasesForSpecies, findDisease } from "@/lib/reference/diseases";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
@@ -71,10 +72,13 @@ export function DeathRecordForm({
   action,
   species,
   defaults,
+  inRabiesObservation = false,
 }: {
   action: FormAction;
   species: string | null;
   defaults?: { occurredAt: string | null; notes: string | null };
+  /** True when the pet has an active rabies observation (pets.rabiesObservationStatus). */
+  inRabiesObservation?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
   // N3 redirect contract: the action returns `redirectTo` on success and the
@@ -104,7 +108,11 @@ export function DeathRecordForm({
   const isReportableDisease = selectedDiseaseDef?.reportable === true;
 
   const facilityHint = facilityHints[disposition] ?? defaultFacilityHint;
-  const showOwnerBurialHint = disposition === "owner_burial";
+  // Rabies-aware warning wins over the generic burial tips: telling someone
+  // HOW to bury properly while telling them NOT to bury would contradict
+  // itself, so the tips stay for the non-observed case only.
+  const showRabiesDisposalWarning = inRabiesObservation && isNonRecommendedDisposition(disposition);
+  const showOwnerBurialHint = disposition === "owner_burial" && !showRabiesDisposalWarning;
   const showVetDecidedAlone = deathAtClinic && vetContactedOwner === "no";
 
   return (
@@ -330,6 +338,22 @@ export function DeathRecordForm({
               </LnSelect>
             )}
           </LnField>
+
+          {showRabiesDisposalWarning && (
+            // Legal anchors per lib/reference/legal-knowledge-base.ts: the
+            // national anti-rabies framework (Ley 22.953/1983) and, for CABA,
+            // the regulated cremation process (Ley 5470/2015). The warning
+            // never blocks submission — the record reflects reality, and the
+            // server cascade already notifies the sanitary authority.
+            <LnCallout tone="danger" title="Tu mascota está en observación antirrábica">
+              Durante el período de observación antirrábica (Ley Nacional 22.953), la disposición
+              del cuerpo debe hacerse por canales autorizados —cremación en un establecimiento
+              habilitado o cementerio autorizado (en CABA lo regula la Ley 5470/2015)— para que la
+              autoridad sanitaria pueda descartar rabia. El método que elegiste no pasa por esos
+              canales. Podés registrarlo igual: la libreta refleja lo que pasó, y la autoridad
+              sanitaria de tu jurisdicción va a recibir el aviso.
+            </LnCallout>
+          )}
 
           {showOwnerBurialHint && (
             <LnCallout tone="warn">

@@ -25,6 +25,7 @@ import { signalAuthorityReport } from "@/lib/domain/authority";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { closeCase } from "@/lib/infra/case-helpers";
+import { dispositionMethodLabel } from "@/lib/utils/format";
 
 type CaseExecutor = Parameters<typeof closeCase>[1];
 
@@ -359,13 +360,19 @@ export async function createDeathRecord(
         });
         if (authorityIds.length > 0) {
           const { db, notifications } = await import("@/db");
+          // The disposal is always named (compliant or not): the authority's
+          // first question after a death-in-observation is whether the body
+          // remains analyzable — "sin registrar" is itself signal.
+          const dispositionSentence = `Disposición declarada: ${
+            dispositionMethod ? dispositionMethodLabel(dispositionMethod) : "sin registrar"
+          }${facility ? ` (${facility})` : ""}.`;
           await db.insert(notifications).values(
             authorityIds.map((authorityId) => ({
               userId: authorityId,
               notificationType: "rabies_observation_completed_dead_authority",
               severity: "urgent" as const,
               title: `URGENTE — fallecimiento durante observación antirrábica (${pet.name})`,
-              body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. Requiere revisión inmediata por riesgo de rabia.`,
+              body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. ${dispositionSentence} Requiere revisión inmediata por riesgo de rabia.`,
               relatedPetId: pet.id,
               relatedEventId: insertedEventId as string,
               // Authority recipient: surveillance hub (cannot open /mis-mascotas).

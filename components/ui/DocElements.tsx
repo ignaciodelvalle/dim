@@ -147,7 +147,7 @@ export function LnSectionHead({ num, title, meta, className = "" }: LnSectionHea
 
 // ---------- Callout banner ------------------------------------------------
 
-export type LnCalloutTone = "azul" | "warn";
+export type LnCalloutTone = "azul" | "warn" | "danger";
 
 export type LnCalloutProps = {
   tone?: LnCalloutTone;
@@ -158,9 +158,11 @@ export type LnCalloutProps = {
 
 export function LnCallout({ tone = "azul", title, children, className = "" }: LnCalloutProps) {
   const colors =
-    tone === "warn"
-      ? "bg-[var(--color-ln-warn-025)] border-[var(--color-ln-warn-100)] [border-left-color:var(--color-ln-warn)]"
-      : "bg-[var(--color-ln-celeste-050)] border-[var(--color-ln-celeste-100)] [border-left-color:var(--color-ln-azul)]";
+    tone === "danger"
+      ? "bg-[var(--color-ln-err-050)] border-[var(--color-ln-err-100)] [border-left-color:var(--color-ln-err)]"
+      : tone === "warn"
+        ? "bg-[var(--color-ln-warn-025)] border-[var(--color-ln-warn-100)] [border-left-color:var(--color-ln-warn)]"
+        : "bg-[var(--color-ln-celeste-050)] border-[var(--color-ln-celeste-100)] [border-left-color:var(--color-ln-azul)]";
 
   return (
     <div
