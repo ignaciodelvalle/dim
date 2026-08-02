@@ -36,7 +36,7 @@
 //   - loop/tick math stays INSIDE this component, reusing the existing
 //     exported domain primitives — domain/time-scrub.ts is NOT modified.
 
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -193,7 +193,11 @@ type Props = {
   temporalActive?: boolean;
 };
 
-export function TimeScrubber({
+// A4 (motion review, perf track): memoized so a parent re-render that doesn't
+// change any of this component's own props (e.g. an unrelated dock pane
+// updating) skips its render pass — the play loop already ticks via its own
+// setInterval and does not depend on the parent for that cadence.
+function TimeScrubberImpl({
   since,
   until,
   onChange,
@@ -619,7 +623,12 @@ export function TimeScrubber({
               {showHistogram && histogramBins && (
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-x-0 bottom-full mb-1 flex h-5 items-end gap-px"
+                  // A4: [container-type:inline-size] turns this div into the query
+                  // container the marker's `cqw` unit below resolves against — a
+                  // length, not a %, so translateX(Ncqw) moves the marker across
+                  // THIS box's width instead of its own 1px width (the classic
+                  // transform-percentage pitfall for a `w-px` element).
+                  className="pointer-events-none absolute inset-x-0 bottom-full mb-1 flex h-5 items-end gap-px [container-type:inline-size]"
                 >
                   {histogramBins.map((count, i) => (
                     <span
@@ -631,8 +640,14 @@ export function TimeScrubber({
                   ))}
                   {win.steps > 0 && (
                     <span
-                      className="absolute inset-y-0 w-px bg-ln-op-azul/80"
-                      style={{ left: `${(index / win.steps) * 100}%` }}
+                      // A4 (motion review): was `left: X%` (layout) — every play
+                      // step (PLAY_INTERVAL_MS = 1100ms) reflowed and popped the
+                      // marker to its new spot. transform/translateX is
+                      // compositor-only, and the transition below is plain CSS —
+                      // the global prefers-reduced-motion block (globals.css)
+                      // already collapses it, no useReducedMotion() needed here.
+                      className="absolute inset-y-0 left-0 w-px bg-ln-op-azul/80 transition-transform duration-150 ease-linear"
+                      style={{ transform: `translateX(${(index / win.steps) * 100}cqw)` }}
                     />
                   )}
                 </div>
@@ -828,3 +843,5 @@ export function TimeScrubber({
     </section>
   );
 }
+
+export const TimeScrubber = memo(TimeScrubberImpl);
