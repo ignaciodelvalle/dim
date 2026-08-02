@@ -1446,7 +1446,7 @@ export function SituationalMap({
         }
         // task #63: keep the bivariate suppression hatch in sync (no-op otherwise).
         applyProvinceBivariateSuppression(map, layer);
-        applyDim(map, layer);
+        applyDim(map, layer, reduced());
         continue;
       }
 
@@ -1498,7 +1498,7 @@ export function SituationalMap({
         addDivisionSuppressionLayer(map, layer, join.suppressed);
         mountDivisionNoDataLayer(map, layer.id, join.values, join.suppressed);
         mountedRef.current.add(layer.id);
-        applyDim(map, layer);
+        applyDim(map, layer, reduced());
         const bounds = divisionValueBounds(join.values);
         const hasSuppressed = join.suppressed.size > 0;
         if (bounds || hasSuppressed) {
@@ -1588,7 +1588,7 @@ export function SituationalMap({
       // F4: reconcile the dimmed state on every sync (covers toggling dim on a
       // layer that is already mounted). Dimmed layers are muted, not hidden, so
       // the operator still sees the current-state context — never AS-OF-t data.
-      applyDim(map, layer);
+      applyDim(map, layer, reduced());
     }
 
     // Commit the division-fill legend, but only when it actually changed —

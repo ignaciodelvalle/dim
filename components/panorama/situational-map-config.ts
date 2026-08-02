@@ -709,7 +709,29 @@ export function removeLayer(map: maplibregl.Map, id: string) {
 // dimmed layers — the operator keeps the current-state context while scrubbing —
 // but the reduced opacity signals "not reproducible in time" on the canvas.
 export const DIM_OPACITY = 0.18;
-export function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
+// A1 (motion review) — the dim/undim toggle now transitions instead of snapping,
+// same floor as DIVISION_FADE_MS: 0ms under prefers-reduced-motion. Applied only
+// to CONSTANT-valued opacity paint props (fill-opacity here, and the reference
+// layers' circle-opacity below) — maplibre snaps immediately when the destination
+// is a data-driven expression (see the ABANDONED note above), so the two
+// case-expression circle-opacity sites (choropleth cells, F1 graduated points)
+// are deliberately left untouched: a transition there would only ever animate
+// one direction and give a false sense of symmetry.
+export const DIM_TRANSITION_MS = 150;
+function setOpacityTransitioned(
+  map: maplibregl.Map,
+  layerId: string,
+  prop: "fill-opacity" | "circle-opacity",
+  value: number,
+  reducedMotion: boolean,
+) {
+  map.setPaintProperty(layerId, `${prop}-transition`, {
+    duration: reducedMotion ? 0 : DIM_TRANSITION_MS,
+    delay: 0,
+  });
+  map.setPaintProperty(layerId, prop, value);
+}
+export function applyDim(map: maplibregl.Map, layer: ActiveLayer, reducedMotion: boolean) {
   const dim = layer.dimmed === true;
   // map-QOL: the per-layer opacity multiplier (Personalizar slider) scales the
   // BASE opacities; the F4 dim state and the suppressed-cell muting win under it.
@@ -720,14 +742,26 @@ export function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
     if (layer.level === "province") {
       const fid = provinceFillLayerId(layer.id);
       if (map.getLayer(fid))
-        map.setPaintProperty(fid, "fill-opacity", dim ? DIM_OPACITY : scaled(DATA_FILL_OPACITY));
+        setOpacityTransitioned(
+          map,
+          fid,
+          "fill-opacity",
+          dim ? DIM_OPACITY : scaled(DATA_FILL_OPACITY),
+          reducedMotion,
+        );
       return;
     }
     // Locality mode with a division fill: mute the polygon fill alongside the
     // fallback circles so the whole layer dims as one while scrubbing.
     const dfid = divisionFillLayerId(layer.id);
     if (map.getLayer(dfid)) {
-      map.setPaintProperty(dfid, "fill-opacity", dim ? DIM_OPACITY : scaled(DATA_FILL_OPACITY));
+      setOpacityTransitioned(
+        map,
+        dfid,
+        "fill-opacity",
+        dim ? DIM_OPACITY : scaled(DATA_FILL_OPACITY),
+        reducedMotion,
+      );
     }
     // cursor #2 + #8: scale the k-anon hatch overlay in lockstep with the data
     // fill. Without this the hatch stays at full opacity while the fill dims to
@@ -737,7 +771,13 @@ export function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
     const sid = DIVISION_SUPPRESS_ID(layer.id);
     if (map.getLayer(sid)) {
       const hatchBase = map.hasImage(HATCH_IMAGE_ID) ? HATCH_FILL_OPACITY : SUPPRESS_SOLID_OPACITY;
-      map.setPaintProperty(sid, "fill-opacity", dim ? DIM_OPACITY : scaled(hatchBase));
+      setOpacityTransitioned(
+        map,
+        sid,
+        "fill-opacity",
+        dim ? DIM_OPACITY : scaled(hatchBase),
+        reducedMotion,
+      );
     }
     const cid = choroLayerId(layer.id);
     if (!map.getLayer(cid)) return;
@@ -778,8 +818,16 @@ export function applyDim(map: maplibregl.Map, layer: ActiveLayer) {
   // Reference layers (discrete pins with clustering).
   const pl = pointLayerId(layer.id);
   const cl = clusterLayerId(layer.id);
-  if (map.getLayer(pl)) map.setPaintProperty(pl, "circle-opacity", dim ? DIM_OPACITY : scaled(1));
-  if (map.getLayer(cl)) map.setPaintProperty(cl, "circle-opacity", dim ? DIM_OPACITY : scaled(0.8));
+  if (map.getLayer(pl))
+    setOpacityTransitioned(map, pl, "circle-opacity", dim ? DIM_OPACITY : scaled(1), reducedMotion);
+  if (map.getLayer(cl))
+    setOpacityTransitioned(
+      map,
+      cl,
+      "circle-opacity",
+      dim ? DIM_OPACITY : scaled(0.8),
+      reducedMotion,
+    );
 }
 
 // Layer-specific point popup copy (es-AR). Coarse layers (denuncias) state the
