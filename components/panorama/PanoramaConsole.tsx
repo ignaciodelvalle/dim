@@ -169,6 +169,7 @@ import {
 import {
   DEFAULT_PANORAMA_PRESET_ID,
   PANORAMA_PRESETS,
+  type PanoramaPreset,
   type PresetFraming,
   type PresetId,
   getPreset,
@@ -2586,7 +2587,13 @@ export function PanoramaConsole({
       // T2.7: overwriting an EXPLICIT operator window must not be silent —
       // surface the one-line notice (the overwrite semantics are unchanged).
       if (operatorPeriodRef.current !== null && operatorPeriodRef.current !== preset.periodPreset) {
-        setPeriodResetNotice(preset.periodPreset === "30d" ? "30 días" : "90 días");
+        // Exhaustive by type: widening the preset period union breaks this
+        // Record instead of silently mislabeling the notice (review 2026-08-01).
+        const resetLabels: Record<PanoramaPreset["periodPreset"], string> = {
+          "30d": "30 días",
+          "90d": "90 días",
+        };
+        setPeriodResetNotice(resetLabels[preset.periodPreset]);
       } else {
         setPeriodResetNotice(null);
       }

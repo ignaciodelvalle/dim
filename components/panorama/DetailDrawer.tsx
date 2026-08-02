@@ -844,6 +844,8 @@ function UnitHistorySection({
 // We only style it as a right-anchored, full-height sliding panel.
 export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
   const dialogRef = useRef<HTMLDialogElement>(null);
+  // True only while a pointer press that STARTED on the backdrop is in flight.
+  const backdropPressRef = useRef(false);
   const titleId = useId();
   const open = selected !== null;
 
@@ -885,8 +887,16 @@ export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
       // element itself` (it lands OUTSIDE every content descendant, which
       // would stop the event at that descendant); a click inside the panel
       // targets a descendant, so this only fires for the backdrop.
+      // The press must ALSO start on the backdrop: a text-selection drag that
+      // begins inside the panel and releases over the backdrop fires `click`
+      // on their common ancestor (this <dialog>), and closing there would
+      // destroy the operator's selection (review 2026-08-01, MINOR).
+      onPointerDown={(e) => {
+        backdropPressRef.current = e.target === dialogRef.current;
+      }}
       onClick={(e) => {
-        if (e.target === dialogRef.current) onClose();
+        if (e.target === dialogRef.current && backdropPressRef.current) onClose();
+        backdropPressRef.current = false;
       }}
       // Right-anchored full-height panel. `ml-auto mr-0` + max-h/h-full slides it
       // to the right edge; the native ::backdrop dims the rest.

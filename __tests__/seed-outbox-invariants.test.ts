@@ -17,8 +17,7 @@
 // and is out of scope here; this polices scripts/ only, same territory as
 // seed-case-kinds.test.ts.)
 
-import { readFileSync } from "node:fs";
-import { globSync } from "node:fs";
+import { globSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 

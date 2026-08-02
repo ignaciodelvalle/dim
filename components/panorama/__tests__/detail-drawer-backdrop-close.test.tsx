@@ -41,10 +41,11 @@ const SELECTED: SelectedFeature = {
 };
 
 describe("DetailDrawer — backdrop click closes the drawer (T4.6)", () => {
-  it("calls onClose when the click lands on the dialog itself (the backdrop)", () => {
+  it("calls onClose when press AND release land on the dialog itself (the backdrop)", () => {
     const onClose = vi.fn();
     render(<DetailDrawer selected={SELECTED} onClose={onClose} />);
     const dialog = screen.getByRole("dialog", { hidden: true });
+    fireEvent.pointerDown(dialog);
     fireEvent.click(dialog);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -52,7 +53,20 @@ describe("DetailDrawer — backdrop click closes the drawer (T4.6)", () => {
   it("does NOT call onClose when the click lands inside the panel content", () => {
     const onClose = vi.fn();
     render(<DetailDrawer selected={SELECTED} onClose={onClose} />);
+    fireEvent.pointerDown(screen.getByText("Refugio Esperanza"));
     fireEvent.click(screen.getByText("Refugio Esperanza"));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("does NOT close on a text-selection drag that starts inside and releases over the backdrop", () => {
+    // UI Events: when mousedown and mouseup hit different elements, `click`
+    // fires on their nearest common ancestor — here, the <dialog> itself.
+    // Closing there would destroy the operator's selection (review 2026-08-01).
+    const onClose = vi.fn();
+    render(<DetailDrawer selected={SELECTED} onClose={onClose} />);
+    const dialog = screen.getByRole("dialog", { hidden: true });
+    fireEvent.pointerDown(screen.getByText("Refugio Esperanza"));
+    fireEvent.click(dialog);
     expect(onClose).not.toHaveBeenCalled();
   });
 
