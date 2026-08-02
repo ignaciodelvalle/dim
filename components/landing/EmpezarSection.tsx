@@ -16,9 +16,16 @@ export function EmpezarSection() {
             Empezar
           </h2>
         </div>
-        <div className="lp-role-grid lp-reveal mt-[clamp(36px,5vw,54px)]">
-          {ROLES.map((r) => (
-            <article className="lp-role-card" data-tone={r.tone} key={r.tone}>
+        {/* Entrance sequencing (existing .lp-reveal + data-d mechanism):
+            heading first, then the two doors stagger in — owner door leads. */}
+        <div className="lp-role-grid mt-[clamp(36px,5vw,54px)]">
+          {ROLES.map((r, i) => (
+            <article
+              className="lp-role-card lp-reveal"
+              data-d={i + 1}
+              data-tone={r.tone}
+              key={r.tone}
+            >
               <span className="lp-ric" aria-hidden="true">
                 <Icon name={r.icon} size="lg" decorative />
               </span>

@@ -908,6 +908,16 @@ body {
 .lp.lp-motion .lp-reveal[data-d="4"] {
   transition-delay: 0.32s;
 }
+/* steps 5–6: same mechanism, two more beats — added for the per-card entrance
+   sequencing of the flat sections (life-moment cards 1..6, FAQ items 1..5).
+   Deliberately the same 0.08s cadence; this is choreography, not new
+   animation vocabulary. */
+.lp.lp-motion .lp-reveal[data-d="5"] {
+  transition-delay: 0.4s;
+}
+.lp.lp-motion .lp-reveal[data-d="6"] {
+  transition-delay: 0.48s;
+}
 @media (prefers-reduced-motion: reduce) {
   .lp.lp-motion .lp-reveal {
     opacity: 1 !important;
@@ -1175,6 +1185,20 @@ body {
 .lp .lp-hcardwrap {
   perspective: 1200px;
   width: min(400px, 92vw);
+  /* Deliberate one-time entrance for the credential card (landing choreography
+     2026-08-02). CSS-only via @starting-style, which keeps it fail-open by
+     construction: no JS involved, it always resolves to the visible state, and
+     the repo's global prefers-reduced-motion rule collapses the transition to
+     an instant render. Lives on the WRAP, not .lp-hcard — the card's own
+     transform channel belongs to the imperative edge-on flip. */
+  transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s
+    cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@starting-style {
+  .lp .lp-hcardwrap {
+    opacity: 0;
+    transform: translateY(16px);
+  }
 }
 .lp .lp-hcard {
   position: relative;

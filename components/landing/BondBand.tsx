@@ -39,10 +39,17 @@ export function BondBand() {
         <span className="lp-bond-scrim" aria-hidden="true" />
       </div>
       <div className="lp-wrap-wide lp-bond-inner">
-        <div className="lp-bond-copy lp-reveal">
-          <p className="lp-eyebrow lp-bond-eyebrow">El porqué</p>
-          <p className="lp-display lp-bond-title">Un vínculo para toda la vida.</p>
-          <p className="lp-bond-sub">Todo lo que miMAR protege empieza acá.</p>
+        {/* Deliberate entrance sequencing (same .lp-reveal + data-d mechanism as
+            the rest of the page): eyebrow first, then the thesis line, then the
+            closing sub — instead of the whole block fading as one. */}
+        <div className="lp-bond-copy">
+          <p className="lp-eyebrow lp-bond-eyebrow lp-reveal">El porqué</p>
+          <p className="lp-display lp-bond-title lp-reveal" data-d="1">
+            Un vínculo para toda la vida.
+          </p>
+          <p className="lp-bond-sub lp-reveal" data-d="2">
+            Todo lo que miMAR protege empieza acá.
+          </p>
         </div>
       </div>
     </section>

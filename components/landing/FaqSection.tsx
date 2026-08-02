@@ -15,9 +15,11 @@ export function FaqSection() {
             Preguntas frecuentes
           </h2>
         </div>
-        <div className="lp-faq lp-reveal mt-[clamp(30px,4vw,48px)]">
-          {FAQS.map(([q, a]) => (
-            <details key={q}>
+        {/* Entrance sequencing (existing .lp-reveal + data-d mechanism):
+            heading first, then the five objections stagger in 1..5. */}
+        <div className="lp-faq mt-[clamp(30px,4vw,48px)]">
+          {FAQS.map(([q, a], i) => (
+            <details className="lp-reveal" data-d={i + 1} key={q}>
               <summary>{q}</summary>
               <p className="lp-faq-a">{a}</p>
             </details>

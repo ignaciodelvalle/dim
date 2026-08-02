@@ -214,7 +214,9 @@ describe("life moments + FAQ + trust row", () => {
 describe("empezar — two doors only", () => {
   it("renders EXACTLY 2 role cards: dueño (primary) + organización — no government door", () => {
     const html = renderToStaticMarkup(<EmpezarSection />);
-    const cards = html.match(/class="lp-role-card"/g) ?? [];
+    // The cards carry entrance-choreography classes (lp-reveal + data-d) since
+    // 2026-08-02, so match on the class NAME, not the exact attribute value.
+    const cards = html.match(/class="lp-role-card[^"]*"/g) ?? [];
     expect(cards.length).toBe(2);
     expect(html).toContain("Soy dueño");
     expect(html).toContain("Soy organización");
