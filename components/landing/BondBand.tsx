@@ -20,7 +20,12 @@ import Image from "next/image";
 
 export function BondBand() {
   return (
-    <section className="lp-bond" aria-label="El vínculo que miMAR protege" data-section="bond-band">
+    <section
+      className="lp-bond"
+      id="vinculo"
+      aria-label="El vínculo que miMAR protege"
+      data-section="bond-band"
+    >
       <div className="lp-bond-media">
         <Image
           src={portada}

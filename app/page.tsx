@@ -10,6 +10,7 @@ import { FeaturesSection } from "@/components/landing/FeaturesSection";
 import { LandingFooter } from "@/components/landing/LandingFooter";
 import { LandingHero } from "@/components/landing/LandingHero";
 import { LandingNav } from "@/components/landing/LandingNav";
+import { MilestoneNav } from "@/components/landing/MilestoneNav";
 import { RevealManager } from "@/components/landing/RevealManager";
 import { StorySection } from "@/components/landing/StorySection";
 import { resolveDemoPetToken } from "@/components/landing/demo-pet";
@@ -138,6 +139,11 @@ export default async function Home() {
         <EmpezarSection />
       </main>
       <LandingFooter />
+      {/* Milestone "Continuar ↓" CTA — progressive-reveal choreography over the
+          six milestone sections above (FAQ + footer stay outside the sequence).
+          Fixed bottom-right, so it can never collide with the sticky nav's
+          sign-in/signup entry points; hidden past the last milestone. */}
+      <MilestoneNav />
     </div>
   );
 }

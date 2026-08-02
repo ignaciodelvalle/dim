@@ -915,6 +915,54 @@ body {
   }
 }
 
+/* ============ milestone "Continuar ↓" CTA ==================================
+   The one interactive element of the progressive-reveal choreography
+   (components/landing/MilestoneNav.tsx). Placement is load-bearing:
+   FIXED BOTTOM-RIGHT, because the sticky nav owns the TOP of the viewport at
+   every width — the 320–561px sign-in guarantee
+   (e2e/landing-signin-reachable.spec.ts) means the nav's /login and /signup
+   CTAs may occupy up to two wrapped rows up there, and a bottom-anchored pill
+   can never intersect them. Right-anchored + fixed adds no width, so it can
+   never introduce the horizontal scroll that same spec forbids. Sober by
+   design (card bg, hairline border): a government service's "next" affordance,
+   not a product-tour bubble. Hidden past the last milestone (the component
+   unmounts it). */
+.lp .lp-milestone-cta {
+  position: fixed;
+  right: 18px;
+  bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  z-index: var(--z-stripe);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px; /* touch target — same floor as the nav CTAs */
+  padding: 10px 18px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--color-ln-line-strong);
+  background: var(--color-ln-card);
+  color: var(--color-ln-ink);
+  font-family: var(--lp-sans);
+  font-size: var(--text-md);
+  font-weight: 600;
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.lp .lp-milestone-cta:hover {
+  border-color: var(--color-ln-ink);
+  box-shadow: var(--shadow-lg);
+}
+.lp .lp-milestone-cta:focus-visible {
+  outline: 2px solid var(--color-ln-azul);
+  outline-offset: 2px;
+}
+.lp .lp-milestone-cta .lp-milestone-ar {
+  transition: transform 0.18s;
+}
+.lp .lp-milestone-cta:hover .lp-milestone-ar {
+  transform: translateY(2px);
+}
+
 /* ============ nav (sticky, ABOVE the gob stripe — intentional order) ======= */
 .lp-nav {
   position: sticky;

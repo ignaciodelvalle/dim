@@ -47,7 +47,12 @@ export function CrisisBand() {
   }
 
   return (
-    <section className="lp-crisis" aria-label="Emergencias — sin cuenta" data-section="crisis-band">
+    <section
+      className="lp-crisis"
+      id="crisis"
+      aria-label="Emergencias — sin cuenta"
+      data-section="crisis-band"
+    >
       <div className="lp-wrap-wide lp-crisis-grid">
         {/* Owner job ("activá el modo perdido") lands on the owner's pets, not
             the finder board — /mis-mascotas preserves the destination through
