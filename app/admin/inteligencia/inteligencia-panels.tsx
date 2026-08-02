@@ -40,7 +40,7 @@ import {
 } from "@/lib/metrics";
 import { estimateDogPopulation, type getCensusPopulationsCached } from "@/lib/metrics/census";
 import { KPI_CATALOG, type KpiId } from "@/lib/metrics/kpi-catalog";
-import { formatDateShort } from "@/lib/utils/format";
+import { formatDateShort, formatPercent } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Per-panel budgets (T3.2) — priced to each panel's observed cost, NOT one
@@ -120,7 +120,10 @@ function DeltaCell({ row }: { row: PolicyOutcomeRow }) {
       <span aria-hidden="true">{up ? "↑" : "↓"} </span>
       <span className="sr-only">{up ? "Sube:" : "Baja:"} </span>
       {up ? "+" : ""}
-      {row.deltaPct}%
+      {/* T4.16 (2026-08-01): raw JS number rendered a "." decimal separator
+          (e.g. "41.3%") in an es-AR UI — formatPercent already appends "%",
+          the sign/arrow handling above is untouched. */}
+      {formatPercent(row.deltaPct)}
     </span>
   );
 }
@@ -260,7 +263,8 @@ export async function IntelQualityKpi({ load }: { load: QualityLoad }) {
     <OpKpi
       label={KPI_CATALOG.ghost_records_count.label}
       value={totalGhosts > 0 ? totalGhosts.toLocaleString("es-AR") : "0"}
-      sub={`${ghostPct}% del padrón evaluado · sin titular ni actividad`}
+      // T4.16 (2026-08-01): raw JS decimal ("." separator) in an es-AR UI.
+      sub={`${formatPercent(ghostPct)} del padrón evaluado · sin titular ni actividad`}
       tone={ghostPct > 20 ? "danger" : ghostPct > 10 ? "warn" : undefined}
       info={{
         definition:
@@ -439,14 +443,21 @@ export async function IntelIndexPanel({
                     <td className="py-2 pr-4">
                       <ScoreBar value={row.score} />
                     </td>
+                    {/* T4.16 (2026-08-01): raw JS decimals ("." separator) in
+                        an es-AR table — formatPercent's 1-decimal default
+                        matches the upstream rate rounding. */}
                     <td className="py-2 pr-4 text-right tabular-nums">
-                      {row.components.rabies ? `${row.components.rabies.rate}%` : "—"}
+                      {row.components.rabies ? formatPercent(row.components.rabies.rate) : "—"}
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums">
-                      {row.components.sterilization ? `${row.components.sterilization.rate}%` : "—"}
+                      {row.components.sterilization
+                        ? formatPercent(row.components.sterilization.rate)
+                        : "—"}
                     </td>
                     <td className="py-2 pr-4 text-right tabular-nums">
-                      {row.components.microchip ? `${row.components.microchip.rate}%` : "—"}
+                      {row.components.microchip
+                        ? formatPercent(row.components.microchip.rate)
+                        : "—"}
                     </td>
                     <td className="py-2 text-right tabular-nums text-ln-op-mute">
                       {row.impact === undefined

@@ -21,6 +21,7 @@ import {
   IntelIndexPanel,
   IntelPolicyKpi,
   IntelPolicyPanel,
+  IntelQualityKpi,
   IntelQualityPanel,
 } from "./inteligencia-panels";
 
@@ -102,5 +103,146 @@ describe("degraded KPI tiles — explicit 'sin datos', never zeros", () => {
     const html = renderToStaticMarkup(await IntelPolicyKpi({ load: ok([]) }));
     expect(html).toContain("Cambios de reglas");
     expect(html).not.toContain("Sin datos por demora");
+  });
+});
+
+// T4.16 (2026-08-01): five sites in this file interpolated a raw JS number
+// straight into a "%" string — a plain "." decimal separator inside an es-AR
+// UI (formatPercent renders "41,3%", the raw code rendered "41.3%"). Each
+// case below picks a value with a real fractional part so the assertion
+// distinguishes the two — a whole-number fixture (e.g. 50) would pass either
+// way, since formatPercent's "50,0%" and the raw "50%" only differ once a
+// decimal exists. These tests FAIL against the pre-fix code (which emits the
+// "." form and never the "," form).
+describe("es-AR decimal formatting (T4.16)", () => {
+  it("DeltaCell (policy panel Δ column) renders the comma decimal, not a raw JS float", async () => {
+    const html = renderToStaticMarkup(
+      await IntelPolicyPanel({
+        load: ok([
+          {
+            auditId: "audit-1",
+            action: "govt_business_rule_updated",
+            ruleType: "ppp_breed_list",
+            province: "Córdoba",
+            locality: null,
+            changedAt: new Date("2026-07-01T00:00:00Z"),
+            metricLabel: "Cobertura antirrábica",
+            eventType: "vaccination_administered",
+            before: 100,
+            after: 141,
+            deltaPct: 41.3,
+            afterDaysCovered: 30,
+            partialAfter: false,
+            suppressed: false,
+            deltaUnstable: false,
+          },
+        ]),
+        sp: {},
+      }),
+    );
+    expect(html).toContain("+41,3%");
+    expect(html).not.toContain("41.3%");
+  });
+
+  it("DeltaCell renders a negative delta with the comma decimal too", async () => {
+    const html = renderToStaticMarkup(
+      await IntelPolicyPanel({
+        load: ok([
+          {
+            auditId: "audit-2",
+            action: "govt_business_rule_updated",
+            ruleType: "ppp_breed_list",
+            province: "Santa Fe",
+            locality: null,
+            changedAt: new Date("2026-07-01T00:00:00Z"),
+            metricLabel: "Mordeduras",
+            eventType: "incident_reported",
+            before: 17,
+            after: 3,
+            deltaPct: -82.4,
+            afterDaysCovered: 30,
+            partialAfter: false,
+            suppressed: false,
+            deltaUnstable: false,
+          },
+        ]),
+        sp: {},
+      }),
+    );
+    expect(html).toContain("82,4%");
+    expect(html).not.toContain("82.4%");
+  });
+
+  it("ghost-records KPI sub-line renders the comma decimal, not a raw JS float", async () => {
+    const html = renderToStaticMarkup(
+      await IntelQualityKpi({
+        load: ok({
+          rows: [
+            {
+              province: "Buenos Aires",
+              total: 300,
+              missingLocality: 0,
+              missingSex: 0,
+              missingChip: 0,
+              orphans: 41,
+              dormant: 41,
+              ghosts: 41,
+              replacedChips: 0,
+              score: 90,
+              rank: 1,
+            },
+          ],
+          suppressedProvinces: 0,
+          unassigned: 0,
+        }),
+      }),
+    );
+    // 41/300 * 100 = 13.6666… → Math.round(*1000)/10 = 13.7
+    expect(html).toContain("13,7%");
+    expect(html).not.toContain("13.7%");
+  });
+
+  it("índice compuesto table renders each component rate with the comma decimal", async () => {
+    const html = renderToStaticMarkup(
+      await IntelIndexPanel({
+        load: ok([
+          [
+            {
+              province: "Córdoba",
+              metric: "rabies",
+              rate: 41.3,
+              target: 80,
+              gap: 38.7,
+              isOutlier: true,
+            },
+            {
+              province: "Córdoba",
+              metric: "sterilization",
+              rate: 62.5,
+              target: 70,
+              gap: 7.5,
+              isOutlier: true,
+            },
+            {
+              province: "Córdoba",
+              metric: "microchip",
+              rate: 15,
+              target: 50,
+              gap: 35,
+              isOutlier: true,
+            },
+          ],
+          {},
+        ]),
+        sp: {},
+      }),
+    );
+    expect(html).toContain("41,3%");
+    expect(html).toContain("62,5%");
+    // A whole-number rate (15) still goes through formatPercent — "15,0%",
+    // not the bare "15%" the raw interpolation used to emit. This is the
+    // case a whole-number-only fixture could not have caught.
+    expect(html).toContain("15,0%");
+    expect(html).not.toContain(">15%<");
   });
 });
