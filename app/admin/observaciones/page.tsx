@@ -27,6 +27,7 @@ import { formatDateShort, formatDiasAgo, speciesLabel } from "@/lib/utils/format
 import {
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
+  resolveObservationDeadline,
 } from "@/src/modules/surveillance/domain/rabies-observation";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -183,13 +184,18 @@ export default async function ObservacionesPage({
       and(inArray(petEvents.petId, petIds), eq(petEvents.eventType, "rabies_observation_started")),
     )
     .orderBy(desc(petEvents.occurredAt));
-  const startedByPet = new Map<string, { occurredAt: Date; observationUntil: Date | null }>();
+  const startedByPet = new Map<string, { occurredAt: Date; observationUntil: Date }>();
   for (const e of startedEvents) {
     if (startedByPet.has(e.petId)) continue;
     const payload = e.payload as Record<string, unknown>;
-    const observationUntil = payload?.observation_until
-      ? new Date(payload.observation_until as string)
-      : null;
+    // T4.13 (2026-08-01): the payload's observation_until is missing for
+    // older/seed observations — this used to render NO "Cierre estimado" at
+    // all, an operator-visible gap on the exact date the law obligates.
+    // resolveObservationDeadline is the SAME fallback
+    // close-eligible-observations.ts relies on to keep the auto-close sweep
+    // from stalling: derive the deadline from when the observation STARTED +
+    // the legal window, so it is always computable.
+    const observationUntil = resolveObservationDeadline(payload?.observation_until, e.occurredAt);
     startedByPet.set(e.petId, { occurredAt: e.occurredAt, observationUntil });
   }
 

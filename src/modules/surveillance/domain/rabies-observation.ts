@@ -84,6 +84,30 @@ export function computeObservationUntil(biteOccurredAt: Date): Date {
   return due;
 }
 
+/**
+ * T4.13 (2026-08-01): the closure deadline is ALWAYS computable — never
+ * genuinely absent — but the `rabies_observation_started` payload's
+ * `observation_until` field is missing (or malformed) on older/seed
+ * observations. Falling back to null there used to read as "no deadline",
+ * hiding the exact date the law obligates. This is the ONE fallback rule,
+ * extracted so it cannot drift between the two places it applies:
+ *   - the auto-close sweep (close-eligible-observations.ts), where a missing
+ *     deadline would stall a pet in EN CURSO forever, and
+ *   - the /admin/observaciones list, where it fed a bare "no Cierre estimado
+ *     shown" instead of the computable date.
+ *
+ * @param rawObservationUntil - The payload's `observation_until` value, as
+ *   read off the event (`unknown` because payload fields are untyped JSON).
+ * @param startedAt - The observation's `occurredAt` — the fallback anchor.
+ */
+export function resolveObservationDeadline(rawObservationUntil: unknown, startedAt: Date): Date {
+  const parsed =
+    typeof rawObservationUntil === "string" || rawObservationUntil instanceof Date
+      ? new Date(rawObservationUntil)
+      : null;
+  return parsed && Number.isFinite(parsed.getTime()) ? parsed : computeObservationUntil(startedAt);
+}
+
 // ---------------------------------------------------------------------------
 // Vaccine validity predicate
 // ---------------------------------------------------------------------------

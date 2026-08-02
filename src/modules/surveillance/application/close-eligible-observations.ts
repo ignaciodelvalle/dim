@@ -13,7 +13,7 @@
 
 import { validateEventPayload } from "@/lib/events/event-schemas";
 
-import { computeObservationUntil } from "../domain/rabies-observation";
+import { resolveObservationDeadline } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification } from "./types";
 
@@ -110,16 +110,16 @@ export async function closeEligibleObservations(
       }
 
       const startedPayload = startedEvent.payload as Record<string, unknown>;
-      const observationUntilRaw = startedPayload.observation_until as string | undefined;
-      const parsedUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
-      // Fallback deadline: when the started payload has no (or an invalid)
+      // Fallback deadline (T4.13 extracted this into the shared domain
+      // helper, 2026-08-01): when the started payload has no (or an invalid)
       // observation_until, derive it from when the observation started + the
       // legal 10-day window. Older/seed observations without the field would
       // otherwise stay EN CURSO forever — the deadline is always computable.
-      const observationUntil =
-        parsedUntil && Number.isFinite(parsedUntil.getTime())
-          ? parsedUntil
-          : computeObservationUntil(startedEvent.occurredAt);
+      // Reused verbatim by /admin/observaciones's "Cierre estimado" fallback.
+      const observationUntil = resolveObservationDeadline(
+        startedPayload.observation_until,
+        startedEvent.occurredAt,
+      );
 
       // 2. Not yet due — skip.
       if (observationUntil > now) {
