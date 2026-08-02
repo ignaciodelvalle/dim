@@ -160,9 +160,19 @@ export function NovedadesCard({
                     <div className="flex min-w-0 items-center gap-2">
                       {/* Count badge: the map doubles as a status board. Groups
                           with >1 subject get the count so 18 incidents no longer
-                          read as one row (Cowork M2). */}
+                          read as one row (Cowork M2).
+                          T4.15 (2026-08-01): the bare number reads as an event
+                          count, but the query counts DISTINCT pet_id
+                          (novedades-feed.ts fetchNovedadesGroupedFeed) — animals
+                          affected, not events (a pet with 2 events in the group
+                          still counts once). Name it so it never reads as
+                          disagreeing with an event total elsewhere on the board. */}
                       {group.count > 1 ? (
-                        <span className="shrink-0 rounded-full bg-ln-op-warn-bg px-2 py-0.5 text-xs font-semibold tabular-nums text-ln-op-warn">
+                        <span
+                          className="shrink-0 rounded-full bg-ln-op-warn-bg px-2 py-0.5 text-xs font-semibold tabular-nums text-ln-op-warn"
+                          title={`${group.count} animales afectados`}
+                          aria-label={`${group.count} animales afectados`}
+                        >
                           {group.count}
                         </span>
                       ) : null}

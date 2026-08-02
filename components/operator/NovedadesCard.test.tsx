@@ -96,3 +96,40 @@ describe("NovedadesCard — an empty feed says which emptiness it is", () => {
     expect(screen.queryByRole("status")).toBeNull();
   });
 });
+
+// T4.15 (2026-08-01): the count badge is a bare number with no label — it
+// reads as an event count, but fetchNovedadesGroupedFeed's query counts
+// DISTINCT pet_id (novedades-feed.ts), i.e. animals affected. A group with 3
+// events on the SAME pet still shows "3", so an unlabeled badge invites the
+// wrong read. Pin the disclosure so a regression that drops it fails here.
+describe("NovedadesCard — the count badge names what it counts (T4.15)", () => {
+  afterEach(cleanup);
+
+  function groupFeed(count: number): NovedadesGroupedFeed {
+    return feed({
+      groups: [
+        {
+          key: "incident_reported||",
+          eventType: "incident_reported",
+          province: "Córdoba",
+          locality: "Villa Allende",
+          count,
+          latestRecordedAt: new Date("2026-07-29T12:00:00Z"),
+        },
+      ],
+    });
+  }
+
+  it("carries a title/aria-label disclosing animals affected when count > 1", () => {
+    const { container } = render(<NovedadesCard feed={groupFeed(3)} />);
+    const badge = container.querySelector('[title="3 animales afectados"]');
+    expect(badge).not.toBeNull();
+    expect(badge?.getAttribute("aria-label")).toBe("3 animales afectados");
+    expect(badge?.textContent).toBe("3");
+  });
+
+  it("renders no badge at all for a single-subject group (unchanged behavior)", () => {
+    const { container } = render(<NovedadesCard feed={groupFeed(1)} />);
+    expect(container.querySelector('[title$="animales afectados"]')).toBeNull();
+  });
+});
