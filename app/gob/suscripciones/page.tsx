@@ -289,7 +289,7 @@ export default async function SuscripcionesPage({
                           ({a.jurisdictionProvince})
                         </span>
                       </>
-                    ) : null}
+                    ) : null}{" "}
                     <span className="ml-2 text-sm text-ln-op-mute">
                       {ALERT_DIRECTION_LABEL[a.direction] ?? a.direction}{" "}
                       {Number(a.threshold).toLocaleString("es-AR")}
