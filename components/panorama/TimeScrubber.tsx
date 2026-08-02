@@ -791,7 +791,7 @@ function TimeScrubberImpl({
                       <OverlayDisclosure
                         side="up"
                         summaryTestId={`rule-change-marker-${b.key}`}
-                        summaryClassName="inline-flex h-5 min-w-4 items-center justify-center gap-1 whitespace-nowrap rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-1 text-[11px] font-semibold tabular-nums text-ln-op-ink-2 hover:border-ln-op-azul"
+                        summaryClassName="inline-flex h-5 min-w-4 items-center justify-center gap-1 whitespace-nowrap rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-1 text-sm font-semibold tabular-nums text-ln-op-ink-2 hover:border-ln-op-azul"
                         panelClassName={`w-72 space-y-2 text-left ${
                           b.fraction > 0.5 ? "right-0" : "left-0"
                         }`}
