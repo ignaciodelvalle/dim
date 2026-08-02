@@ -29,6 +29,7 @@ import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { CaseStatus, CaseSubjectKind } from "@/db/schema";
+import { computeDueInfo, dueDateBadge } from "@/lib/domain/due-state";
 import { formatDate, pluralizeEs } from "@/lib/utils/format";
 import {
   type CaseKind,
@@ -46,6 +47,19 @@ import {
  * review window for escalated/unresolved cases.
  */
 export const CASE_SLA_WARNING_DAYS = 14;
+
+/**
+ * The case domain's deadline rule for the shared due-state normalization
+ * (lib/domain/due-state.ts): a case is "due" CASE_SLA_WARNING_DAYS after it
+ * was opened. This is the ONE place the case queue turns an openedAt into a
+ * dueAt — the badge below hands the result to computeDueInfo/dueDateBadge so
+ * "days past due" wording/threshold math is never hand-rolled here again
+ * (structural convergence 2026-08-02; /gob/acciones' worklist-core.ts applies
+ * the same openedAt + CASE_SLA_WARNING_DAYS rule).
+ */
+export function caseSlaDueAt(openedAt: Date): Date {
+  return new Date(openedAt.getTime() + CASE_SLA_WARNING_DAYS * 24 * 60 * 60 * 1000);
+}
 
 /**
  * Returns the number of whole days elapsed since the case was opened (floored).
@@ -429,21 +443,27 @@ export function CaseQueue({
                           {formatDate(row.openedAt)}
                         </time>
                         {/* SLA badge: only shown on non-closed cases past the warning
-                            threshold. title/aria-label are the badge's legend (PO
-                            interview 2026-07-23, item 6) — "14d" alone doesn't say
-                            what it counts. */}
+                            threshold (due-state "overdue" — the deadline is
+                            caseSlaDueAt, same rule /gob/acciones ranks by). Label,
+                            day count and tone come from the shared dueDateBadge so
+                            this queue can never disagree with the worklist on what
+                            "vencido" means. title stays the badge's legend (PO
+                            interview 2026-07-23, item 6) — the label alone doesn't
+                            say which deadline it counts against. */}
                         {row.closedAt === null &&
-                          ageCaseDays(row.openedAt) >= CASE_SLA_WARNING_DAYS && (
-                            <span
-                              title={`${ageCaseDays(row.openedAt)} días abierto desde la apertura del caso (≥${CASE_SLA_WARNING_DAYS} días = alerta SLA)`}
-                              aria-label={`${ageCaseDays(row.openedAt)} días abierto`}
-                            >
-                              <OpPill tone="escalated">
-                                {ageCaseDays(row.openedAt)}{" "}
-                                {pluralizeEs(ageCaseDays(row.openedAt), "día")}
-                              </OpPill>
-                            </span>
-                          )}
+                          (() => {
+                            const due = computeDueInfo(caseSlaDueAt(row.openedAt));
+                            if (due.state !== "overdue") return null;
+                            const badge = dueDateBadge(due);
+                            return (
+                              <span
+                                title={`${badge.label} — plazo SLA de ${CASE_SLA_WARNING_DAYS} días desde la apertura del caso`}
+                                aria-label={badge.label}
+                              >
+                                <OpPill tone={badge.tone}>{badge.label}</OpPill>
+                              </span>
+                            );
+                          })()}
                       </div>
                     </td>
                   </tr>

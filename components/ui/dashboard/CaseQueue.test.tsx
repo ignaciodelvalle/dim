@@ -121,13 +121,47 @@ describe("CaseQueue — urgency sort (age-days × kind-severity, default)", () =
   });
 });
 
-describe("CaseQueue — age badge legend (item 6a)", () => {
-  it("carries a title/aria-label explaining what the day count means", () => {
+describe("CaseQueue — SLA badge via shared due-state (structural convergence 2026-08-02)", () => {
+  // The badge now derives from computeDueInfo(caseSlaDueAt(openedAt)) +
+  // dueDateBadge — ONE "days past due" implementation shared with the
+  // /gob/acciones worklist. These assertions fail against the old bespoke
+  // inline badge (which rendered "{age} días" with a hand-rolled legend).
+  it("renders the shared dueDateBadge wording ('Venció hace …') at breach, not the raw age", () => {
+    // 20 days old with a 14-day SLA → 6 days past due.
     const old = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
     const html = renderToStaticMarkup(
       <CaseQueue rows={[{ ...ROWS[0], openedAt: old, closedAt: null, status: "open" }]} />,
     );
-    expect(html).toContain("días abierto");
+    expect(html).toContain("Venció hace");
+    // The count is the distance PAST the deadline (≈6), never the raw age (20).
+    expect(html).not.toMatch(/>20 días</);
+  });
+
+  it("carries a title legend naming the SLA window the deadline counts against", () => {
+    const old = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    const html = renderToStaticMarkup(
+      <CaseQueue rows={[{ ...ROWS[0], openedAt: old, closedAt: null, status: "open" }]} />,
+    );
+    expect(html).toContain("plazo SLA de 14 días desde la apertura del caso");
+  });
+
+  it("keeps the breach tone red (st-err) — danger at breach, same visual as before", () => {
+    const old = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+    const html = renderToStaticMarkup(
+      <CaseQueue rows={[{ ...ROWS[0], openedAt: old, closedAt: null, status: "open" }]} />,
+    );
+    expect(html).toContain("var(--color-st-err-bg)");
+  });
+
+  it("shows no badge before breach — dueSoon/onTime never render here (threshold preserved)", () => {
+    // 10 days old, 14-day SLA → dueSoon/onTime territory, badge absent.
+    const recent = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    const html = renderToStaticMarkup(
+      <CaseQueue rows={[{ ...ROWS[0], openedAt: recent, closedAt: null, status: "open" }]} />,
+    );
+    expect(html).not.toContain("Venció");
+    expect(html).not.toContain("Vence");
+    expect(html).not.toContain("var(--color-st-err-bg)");
   });
 });
 
