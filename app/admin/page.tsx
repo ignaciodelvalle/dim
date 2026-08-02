@@ -45,8 +45,13 @@ export default async function AdminDashboardPage() {
   // deltaV2 for decisions: compare 7d vs the approximated prior 7d window.
   // Shared helper (decisionsDeltaPct) is the single source of truth — same
   // approximation as /admin/sistema, so the two strips can't drift (C28).
+  // T4.10: also carries `priorBase` — the small-N guard floor AdminKpiStrip
+  // feeds to OpKpi via guardInput so a delta off a tiny prior week (n<5)
+  // renders with no colored verdict.
   const total7d = decisions.approved7d + decisions.rejected7d;
-  const decisionsDelta = decisionsDeltaPct(decisions);
+  const decisionsDeltaResult = decisionsDeltaPct(decisions);
+  const decisionsDelta = decisionsDeltaResult?.pct ?? null;
+  const decisionsPriorBase = decisionsDeltaResult?.priorBase ?? null;
 
   return (
     <div className="space-y-6">
@@ -107,6 +112,7 @@ export default async function AdminDashboardPage() {
             approved7d: decisions.approved7d,
             rejected7d: decisions.rejected7d,
             decisionsDelta,
+            decisionsPriorBase,
             decisionsDrillHref: decisionsAuditDrillHref(),
           }}
         />

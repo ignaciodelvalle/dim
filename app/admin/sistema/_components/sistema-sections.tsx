@@ -183,7 +183,11 @@ export async function SistemaKpiStrip({
   }
 
   const total7d = d.approved7d + d.rejected7d;
-  const decisionsDelta = decisionsDeltaPct(d);
+  // T4.10: `.priorBase` feeds AdminKpiStrip's guardInput so the tile suppresses
+  // the colored verdict when the prior-week base is unstably small (n<5).
+  const decisionsDeltaResult = decisionsDeltaPct(d);
+  const decisionsDelta = decisionsDeltaResult?.pct ?? null;
+  const decisionsPriorBase = decisionsDeltaResult?.priorBase ?? null;
 
   return (
     <>
@@ -196,6 +200,7 @@ export async function SistemaKpiStrip({
           approved7d: d.approved7d,
           rejected7d: d.rejected7d,
           decisionsDelta,
+          decisionsPriorBase,
           decisionsDrillHref: decisionsAuditDrillHref(),
           // ENO SLA degrades ALONE: the strip falls back to its 3-tile variant
           // (a real AdminKpiStrip mode) and the note below says why.

@@ -7,6 +7,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { KPI_CATALOG } from "./kpi-catalog";
+import { shouldSuppressDelta } from "./presentation-guards";
 import {
   TARGETS,
   computeDeltaPct,
@@ -208,20 +210,25 @@ describe("computeDeltaPct", () => {
 // ---------------------------------------------------------------------------
 
 describe("decisionsDeltaPct — value-pinning (C28)", () => {
-  it("growth case: {a7:10,r7:4,a30:30,r30:12} → +55.6", () => {
+  // T4.10: the function now returns `{ pct, priorBase }` (was a bare number)
+  // so the caller can feed `priorBase` into the KPI_CATALOG unstableDeltaBase
+  // guard — see the "guard boundary" block below for the base<5 case this
+  // unlocks. Every case here still pins the exact `pct`; `priorBase` is now
+  // asserted alongside it so the extraction that exposed it stays honest.
+  it("growth case: {a7:10,r7:4,a30:30,r30:12} → +55.6 on a priorBase of 9", () => {
     // total7d=14, total30d=42, prior23d=28, priorWeek=round(28/23*7)=9,
     // delta=computeDeltaPct(14,9)=round((14-9)/9*1000)/10=55.6
     expect(
       decisionsDeltaPct({ approved7d: 10, rejected7d: 4, approved30d: 30, rejected30d: 12 }),
-    ).toBe(55.6);
+    ).toEqual({ pct: 55.6, priorBase: 9 });
   });
 
-  it("decline case: {a7:2,r7:1,a30:40,r30:20} → -82.4", () => {
+  it("decline case: {a7:2,r7:1,a30:40,r30:20} → -82.4 on a priorBase of 17", () => {
     // total7d=3, total30d=60, prior23d=57, priorWeek=round(57/23*7)=17,
     // delta=computeDeltaPct(3,17)=round((3-17)/17*1000)/10=-82.4
     expect(
       decisionsDeltaPct({ approved7d: 2, rejected7d: 1, approved30d: 40, rejected30d: 20 }),
-    ).toBe(-82.4);
+    ).toEqual({ pct: -82.4, priorBase: 17 });
   });
 
   it("no baseline (prior23d === 0) → null (KPI omits the deltaV2 chip)", () => {
@@ -238,12 +245,53 @@ describe("decisionsDeltaPct — value-pinning (C28)", () => {
     ).toBeNull();
   });
 
-  it("priorWeek rounds to 0 (prior23d positive but tiny) → 0 via computeDeltaPct guard", () => {
+  it("priorWeek rounds to 0 (prior23d positive but tiny) → pct 0 via computeDeltaPct guard", () => {
     // total7d=10, total30d=11, prior23d=1, priorWeek=round(1/23*7)=0,
     // computeDeltaPct(10,0)=0 (Infinity guard)
     expect(
       decisionsDeltaPct({ approved7d: 10, rejected7d: 0, approved30d: 11, rejected30d: 0 }),
-    ).toBe(0);
+    ).toEqual({ pct: 0, priorBase: 0 });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 5b. decisionsDeltaPct × kpi_decisions_7d guard — the n=2 base T4.10 fixes.
+//
+// The bug: a delta computed off a priorBase of 1 or 2 decisions swung
+// wildly ("+900%") and painted the SAME green/red verdict as a delta off a
+// healthy base. `decisionsDeltaPct` now returns `priorBase` precisely so
+// this guard can suppress that verdict — pinned end to end here (base → the
+// catalog's own floor), not just at the pure-function boundary above.
+// ---------------------------------------------------------------------------
+
+describe("decisionsDeltaPct base feeding queue_decisions_7d's unstableDeltaBase guard (T4.10)", () => {
+  it("a priorBase of 2 (base 1→2 class) is BELOW the catalog floor — shouldSuppressDelta is true", () => {
+    // total7d=6, total30d=8, prior23d=2, priorWeek=round(2/23*7)=1 — even
+    // tighter than "1→2", but exercises the same "tiny base" class the floor
+    // exists for.
+    const result = decisionsDeltaPct({
+      approved7d: 6,
+      rejected7d: 0,
+      approved30d: 8,
+      rejected30d: 0,
+    });
+    expect(result?.priorBase).toBeLessThan(5);
+    expect(
+      result !== null && shouldSuppressDelta(KPI_CATALOG.queue_decisions_7d, result.priorBase),
+    ).toBe(true);
+  });
+
+  it("a healthy priorBase (growth case, priorBase=9) clears the floor — shouldSuppressDelta is false", () => {
+    const result = decisionsDeltaPct({
+      approved7d: 10,
+      rejected7d: 4,
+      approved30d: 30,
+      rejected30d: 12,
+    });
+    expect(result?.priorBase).toBe(9);
+    expect(
+      result !== null && shouldSuppressDelta(KPI_CATALOG.queue_decisions_7d, result.priorBase),
+    ).toBe(false);
   });
 });
 

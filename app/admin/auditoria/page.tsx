@@ -69,7 +69,7 @@ async function AuditoriaBody({ searchParams }: { searchParams: AuditoriaSearchPa
   const sp = await searchParams;
   // action is a (possibly comma-separated) list of known enum codes, validated
   // against AUDIT_ACTION_LABELS keys before trusting it — never a free-text ILIKE.
-  // Multi-action powers the "Decisiones 7d" KPI drill (approved + rejected).
+  // Multi-action powers the Decisiones 7d KPI drill (approved + rejected).
   const actionFilters = parseAuditActions(sp.action);
   const actorFilter = sp.actor?.trim() || null;
   // Date-range filter (date-only, YYYY-MM-DD). `until` is exclusive (whole `to`

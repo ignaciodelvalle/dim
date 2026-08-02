@@ -84,6 +84,7 @@ describe("AdminKpiStrip — omitPendingQueue prevents the duplicate 'Aprobacione
     approved7d: 7,
     rejected7d: 3,
     decisionsDelta: null,
+    decisionsPriorBase: null,
   };
 
   it("renders 'Aprobaciones pendientes' when omitPendingQueue is NOT set (e.g. /admin/sistema)", () => {

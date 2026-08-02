@@ -6,7 +6,7 @@
 // Default (no `action` param) is genuinely "todas las acciones" — no
 // blank-option trap here. This stays a `children` control (not a registered
 // OpFilterBar `axis`) for a DIFFERENT reason: a multi-action KPI drill (e.g.
-// "Decisiones 7d" = request_approved + request_rejected) can't be represented
+// Decisiones 7d = request_approved + request_rejected) can't be represented
 // in a single-select, so it renders as a read-only locked chip instead — the
 // SAME two-shape rendering the pre-migration <form> already did. Because this
 // control isn't an axis, OpFilterBar's own chip removal / "Limpiar todo" can't

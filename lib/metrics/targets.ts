@@ -370,20 +370,30 @@ export function computeDeltaPct(current: number, prior: number): number {
  * then omits the deltaV2 chip). This is the single source of truth so the two
  * pages can't drift (critique C28).
  *
+ * T4.10 (2026-08-01): `priorWeek` used to be discarded after computing the
+ * pct, so a delta computed against a near-zero base (e.g. priorWeek=0 or 1)
+ * rendered with the SAME green/red verdict as one computed against a healthy
+ * base — "+900%" reads as a real trend whether it came from 1→10 or 100→1000.
+ * The caller now gets `priorBase` back alongside `pct` so it can feed the
+ * KPI_CATALOG `guards.unstableDeltaBase` floor (kpi_decisions_7d) through
+ * OpKpi's `guardInput.priorBase`, the same mechanism every other flow-count
+ * delta on this board already uses (sterilizations_per_month et al.).
+ *
  * PURE — no DB, no side effects.
  *
  * @param d - The decisions counts from `fetchDecisionsMetrics`.
- * @returns The rounded percent change, or `null` when there is no prior baseline.
+ * @returns `{ pct, priorBase }`, or `null` when there is no prior baseline.
  */
 export function decisionsDeltaPct(d: {
   approved7d: number;
   rejected7d: number;
   approved30d: number;
   rejected30d: number;
-}): number | null {
+}): { pct: number; priorBase: number } | null {
   const total7d = d.approved7d + d.rejected7d;
   const total30d = d.approved30d + d.rejected30d;
   const prior23d = total30d - total7d; // approx prior 7d baseline ≈ prior23d/23*7
   if (prior23d <= 0) return null;
-  return computeDeltaPct(total7d, Math.round((prior23d / 23) * 7));
+  const priorBase = Math.round((prior23d / 23) * 7);
+  return { pct: computeDeltaPct(total7d, priorBase), priorBase };
 }

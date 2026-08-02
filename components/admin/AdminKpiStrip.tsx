@@ -38,11 +38,19 @@ export type AdminKpiStripData = {
   rejected7d: number;
   /**
    * Decisions: percent change vs the approximated prior 7d window, or null when
-   * there is no baseline. Compute with `decisionsDeltaPct` (lib/metrics).
+   * there is no baseline. Compute with `decisionsDeltaPct` (lib/metrics) —
+   * pass its `.pct`.
    */
   decisionsDelta: number | null;
   /**
-   * Drill href for the "Decisiones 7d" tile. Build with `decisionsAuditDrillHref`
+   * T4.10 (2026-08-01): the approximated prior-week base the delta above was
+   * computed against — `decisionsDeltaPct`'s `.priorBase`. Fed to OpKpi's
+   * `guardInput.priorBase` so a delta swung wildly by a near-zero base (the
+   * "n=2" class) renders with no colored verdict instead of a confident %.
+   */
+  decisionsPriorBase: number | null;
+  /**
+   * Drill href for the Decisiones 7d tile. Build with `decisionsAuditDrillHref`
    * (lib/ui/audit-filters) so the link carries the decision-action + last-7d
    * filters and lands on the reconcilable rows — not the all-time audit log.
    * Falls back to the unfiltered log when omitted.
@@ -149,7 +157,11 @@ export function AdminKpiStrip({
         const noDecisions = data.decisionsTotal7d === 0;
         return (
           <OpKpi
-            label="Decisiones 7d"
+            // Registry-import fence (lint:metric-labels): this label is now
+            // catalogued (queue_decisions_7d, T4.10) — import it instead of
+            // retyping the string, same convention as queue_pending_total
+            // above.
+            label={KPI_CATALOG.queue_decisions_7d.label}
             value={data.decisionsTotal7d}
             tone={noDecisions ? "neutral" : "ok"}
             sub={
@@ -158,14 +170,18 @@ export function AdminKpiStrip({
                 : `${data.approved7d} aprobadas · ${data.rejected7d} rechazadas`
             }
             href={data.decisionsDrillHref ?? "/admin/auditoria"}
-            info={{
-              definition: "Decisiones tomadas (aprobaciones + rechazos) en los últimos 7 días.",
-              formula: "request_approved + request_rejected en audit_log (últimos 7d)",
-            }}
             deltaV2={
               !noDecisions && data.decisionsDelta !== null
                 ? { value: data.decisionsDelta, period: "vs 7d anteriores (aprox.)" }
                 : undefined
+            }
+            // T4.10: routes the delta through queue_decisions_7d's
+            // unstableDeltaBase guard — a swing against a prior-week base
+            // under 5 decisions renders no colored verdict (guarded note),
+            // never a confident "+900%".
+            descriptorId="queue_decisions_7d"
+            guardInput={
+              data.decisionsPriorBase !== null ? { priorBase: data.decisionsPriorBase } : undefined
             }
           />
         );

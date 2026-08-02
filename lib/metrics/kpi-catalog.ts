@@ -125,7 +125,8 @@ export type KpiId =
   | "territorial_index_average_score"
   | "policy_outcome_rule_changes_analyzed"
   | "ghost_records_count"
-  | "queue_pending_total";
+  | "queue_pending_total"
+  | "queue_decisions_7d";
 
 /** Unit of the KPI's `value` field, for consistent formatting across surfaces. */
 export type KpiUnit = "percent" | "count" | "rate_per_10k" | "ratio" | "days";
@@ -2451,58 +2452,60 @@ export const KPI_CATALOG: Record<KpiId, KpiDefinition> = {
     question: "¿Cuántas solicitudes de aprobación están pendientes en la cobertura?",
     semaphore: { paintAgainst: "none" },
   },
+  // T4.10 (2026-08-01): AdminKpiStrip's delta painted a colored verdict against ANY prior-week base, incl. 1-2 decisions — noise, not a trend.
+  queue_decisions_7d: {
+    id: "queue_decisions_7d",
+    label: "Decisiones 7d",
+    numerator: "COUNT request_approved + request_rejected audit_log rows in the trailing 7 days",
+    denominator: "n/a — flow count vs an approximated prior-7d baseline (decisionsDeltaPct)",
+    source: "audit_log (request_approved, request_rejected)",
+    fetcherName: "fetchDecisionsMetrics",
+    fetcherPath: "lib/analytics/admin-metrics.ts",
+    cadence: "trailing 7d vs an approximated prior 7d (decisionsDeltaPct, lib/metrics/targets.ts)",
+    unit: "count",
+    suppression: "none",
+    caveat:
+      "Sin baseline dedicado de semana previa — se aproxima desde los días 8-30 de la ventana de 30d (decisionsDeltaPct). Compartido por /admin y /admin/sistema (C28).",
+    window: "7d",
+    species: "n/a",
+    basis: "flow",
+    question: "¿Cuántas decisiones se tomaron esta semana y cómo viene la tendencia?",
+    semaphore: { paintAgainst: "none" },
+    // Same floor as sterilizations_per_month — below priorBase=5 the % swing is noise.
+    guards: { unstableDeltaBase: { minPriorBase: 5 } },
+    ui: {
+      definition:
+        "Decisiones (aprobaciones + rechazos) tomadas en los últimos 7 días, con variación vs la semana anterior (aproximada).",
+      formula: "request_approved + request_rejected en audit_log (últimos 7d) vs semana previa",
+    },
+  },
 };
 
 // ---------------------------------------------------------------------------
-// FORECAST-A-META (2026-07-22) — the honest remainder.
+// FORECAST-A-META (2026-07-22) — the honest remainder, condensed
+// (file-size fence, 2026-08-01 — see docs/reviews/2026-07-22 for the
+// original per-KPI prose if the reasoning below needs re-deriving).
 //
-// Every target-bearing KPI in this catalog was checked for a genuine,
-// ALREADY-FETCHED per-bucket ratio trend (numerator AND denominator both
-// resolvable within the same bucket — the bar `forecast.trendSource` must
-// clear). Only `acquisition_adoption_rate` qualified. The rest, and WHY:
-//
-//   rabies_coverage_dogs_12m    — fetchRabiesVaccinationTrend (admin/programa)
-//                                 is vaccinations-applied/bucket, a FLOW of the
-//                                 numerator, not a recomputed coverage-% per
-//                                 bucket (the active-dog denominator is a "now"
-//                                 snapshot with no historical back-dating — see
-//                                 that fetcher's own doc comment). Would need a
-//                                 new fetchRabiesCoverageTrend; none exists.
-//   microchip_penetration       — same stock-ratio problem; zero trend fetched
-//                                 anywhere on its render surfaces (/gob home,
-//                                 /gob/padron, Panorama). Needs a new fetcher.
-//   mortality_disposal_traceability /
-//   mortality_unknown_disposal_rate — /gob/mortalidad fetches death COUNTS by
-//                                 cause (fetchDeathCausesTrend) and a plain
-//                                 death-count sparkline, neither a traceable/
-//                                 total ratio per bucket. Feasible in principle
-//                                 (both numerator and denominator are period
-//                                 flows, unlike the two stock ratios above) but
-//                                 no such fetcher exists yet.
-//   custody_return_rate         — /gob/adopciones fetches fetchAdoptionTrend
-//                                 (adoption_finalized COUNTS/bucket) for the
-//                                 adjacent adoptions_finalized tile — not the
-//                                 reversed/finalized RATIO the return-rate tile
-//                                 needs. Would need a paired reversed-count
-//                                 trend; none exists.
-//   eno_sla_compliance          — no trend fetched anywhere (/gob/outbox,
-//                                 /gob/sistema, /gob/programa, /admin/programa
-//                                 all render a snapshot only).
-//   reunification_rate          — /gob/perdidas has no trend fetch at all, and
-//                                 the KPI's own window is FIXED 30d (no period
-//                                 picker to bucket against in the first place).
-//   rabies_observation_compliance_10d — /gob/vigilancia fetches a rabies-
-//                                 OBSERVATION-STARTED count trend (a flow),
-//                                 not the closed-within-10-days/closed ratio.
-//   campaign_completion_rate    — CampanasScreen fetches an ENROLLMENT count
-//                                 sparkline (a flow), not attended/enrollment.
-//
-// All eight are FEASIBLE future work (each would need one new bucketed
-// fetcher mirroring the fetchKpiTrend/fetchAcquisitionTrend pattern) — they
-// are deliberately NOT wired here because doing so would violate the
-// zero-new-query-fan-out rule this task set. ppp_registry_compliance has a
-// target but `semaphore.paintAgainst: "none"` (uptake, not a legal-verdict
-// ratio) and no trend either way — excluded on both counts.
+// Every target-bearing KPI was checked for a genuine, ALREADY-FETCHED
+// per-bucket ratio trend (both numerator and denominator resolvable within
+// the same bucket — `forecast.trendSource` must clear). Only
+// `acquisition_adoption_rate` qualified. Excluded, each for a fetcher gap
+// (a FLOW/count trend exists but not the matching per-bucket RATIO; each is
+// feasible future work, not wired here to respect the zero-new-query-fan-out
+// rule this task set): rabies_coverage_dogs_12m (fetchRabiesVaccinationTrend
+// is vaccinations/bucket, not coverage-%/bucket — the "now" active-dog
+// denominator has no historical back-dating), microchip_penetration (zero
+// trend fetched anywhere), mortality_disposal_traceability /
+// mortality_unknown_disposal_rate (fetchDeathCausesTrend is a count, not a
+// traceable/total ratio), custody_return_rate (fetchAdoptionTrend counts
+// finalizations, not the reversed/finalized ratio), eno_sla_compliance (no
+// trend anywhere, snapshot only), reunification_rate (no trend fetch, and a
+// FIXED 30d window with no period picker to bucket against),
+// rabies_observation_compliance_10d (a started-count flow, not the
+// closed-within-10d/closed ratio), campaign_completion_rate (an enrollment
+// count, not attended/enrollment). ppp_registry_compliance has a target but
+// `semaphore.paintAgainst: "none"` (uptake, not a legal-verdict ratio) and no
+// trend either way — excluded on both counts.
 // ---------------------------------------------------------------------------
 
 /** All catalog entries as an array — convenience for iteration/rendering. */
