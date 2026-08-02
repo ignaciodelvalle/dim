@@ -45,6 +45,7 @@ import {
   EyeOff,
   FileText,
   Filter,
+  Flag,
   Gift,
   Handshake,
   Heart,
@@ -141,6 +142,8 @@ const ICON_MAP: Record<string, LucideIcon> = {
   fallecimiento: Circle,
   vet: Stethoscope,
   "medicacion-fin": XCircle,
+
+  "marca-regla": Flag,
 
   // ── Core semantic icons ──────────────────────────────────────────────────
   credenciales: IdCard,

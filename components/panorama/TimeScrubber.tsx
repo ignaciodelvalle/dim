@@ -798,7 +798,7 @@ function TimeScrubberImpl({
                         summary={
                           b.changes.length === 1 ? (
                             <>
-                              <span aria-hidden="true">⚑</span>
+                              <Icon name="marca-regla" size="sm" decorative />
                               <span className="sr-only">Cambio de regla</span>
                             </>
                           ) : (
@@ -863,7 +863,7 @@ function TimeScrubberImpl({
               → resultado table; this line is its terse traveling companion. */}
           {showMarkers && (
             <p className="text-xs text-ln-op-mute">
-              Marcas ⚑: cambios de reglas. Correlación temporal, no atribución.
+              Marcas: cambios de reglas. Correlación temporal, no atribución.
             </p>
           )}
 
