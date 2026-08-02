@@ -289,7 +289,14 @@ export async function IntelIndexPanel({
 }) {
   const result = await load;
   if (!result.ok) {
-    return <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />;
+    // A5: AnalyticsLoadFallback has no className prop (shared across a dozen
+    // analytics screens) — wrap instead. This panel is its own top-level
+    // Suspense (not a grid item), so the extra div is layout-safe.
+    return (
+      <div className="op-fade-in">
+        <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />
+      </div>
+    );
   }
   const [outlierRows, censusPopulations] = result.value;
   const indexRows = computeJurisdictionIndex(outlierRows);
@@ -348,7 +355,7 @@ export async function IntelIndexPanel({
   const panelIndexId = "intel-panel-indice-titulo";
 
   return (
-    <OpCard aria-labelledby={panelIndexId}>
+    <OpCard aria-labelledby={panelIndexId} className="op-fade-in">
       <OpCardHead
         title={<span id={panelIndexId}>Índice territorial compuesto</span>}
         actions={
@@ -500,13 +507,18 @@ export async function IntelPolicyPanel({
 }) {
   const result = await load;
   if (!result.ok) {
-    return <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />;
+    // A5: see IntelIndexPanel's identical note above.
+    return (
+      <div className="op-fade-in">
+        <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />
+      </div>
+    );
   }
   const policyRows = result.value;
   const panelPolicyId = "intel-panel-politica-titulo";
 
   return (
-    <OpCard aria-labelledby={panelPolicyId}>
+    <OpCard aria-labelledby={panelPolicyId} className="op-fade-in">
       <OpCardHead
         title={<span id={panelPolicyId}>Política → resultado</span>}
         actions={
@@ -615,13 +627,18 @@ export async function IntelQualityPanel({
 }) {
   const result = await load;
   if (!result.ok) {
-    return <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />;
+    // A5: see IntelIndexPanel's identical note above.
+    return (
+      <div className="op-fade-in">
+        <AnalyticsLoadFallback reason={result.reason} retryHref={retryHref(sp)} />
+      </div>
+    );
   }
   const quality = result.value;
   const panelQualityId = "intel-panel-calidad-titulo";
 
   return (
-    <OpCard aria-labelledby={panelQualityId}>
+    <OpCard aria-labelledby={panelQualityId} className="op-fade-in">
       <OpCardHead title={<span id={panelQualityId}>Calidad de datos por provincia</span>} />
       <OpCardBody>
         {quality.rows.length === 0 ? (

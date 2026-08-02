@@ -26,7 +26,9 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
   const hasDrift = (reconcile?.divergent ?? 0) > 0;
 
   return (
-    <OpCard>
+    // A5 (motion review): op-fade-in (globals.css) — this component is only
+    // used by app/admin/sistema's streamed SistemaDriftCard section.
+    <OpCard className="op-fade-in">
       <OpCardHead
         title="Deriva de caché · pets.status"
         actions={

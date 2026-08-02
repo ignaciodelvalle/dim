@@ -121,7 +121,10 @@ export function SectionDegradedCard({
   seconds: number;
 }) {
   return (
-    <OpCard>
+    // A5 (motion review): op-fade-in (globals.css) — every degraded section
+    // shares this component, so one class here covers every streamed section's
+    // "sorry, timed out" branch.
+    <OpCard className="op-fade-in">
       <OpCardHead title={title} />
       <OpCardBody>
         <DegradedBody reason={reason} seconds={seconds} />
@@ -146,7 +149,15 @@ export async function SistemaCronsBanner() {
     "admin/sistema crons-banner",
   );
   if (isDegraded(names)) return null;
-  return <CronsDownBanner failedCronNames={names} showSistemaLink={false} />;
+  // A5: CronsDownBanner has no className prop (shared with the admin landing
+  // page, out of this fix's scope) — wrap instead of threading a new prop
+  // through a component used elsewhere. This <Suspense> has no grid layout,
+  // so the extra div is layout-safe.
+  return (
+    <div className="op-fade-in">
+      <CronsDownBanner failedCronNames={names} showSistemaLink={false} />
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -174,7 +185,7 @@ export async function SistemaKpiStrip({
       ? ("timeout" as const)
       : ("error" as const);
     return (
-      <OpCard>
+      <OpCard className="op-fade-in">
         <OpCardBody>
           <DegradedBody reason={reason} seconds={SISTEMA_KPI_BUDGET_MS / 1000} />
         </OpCardBody>
@@ -190,7 +201,10 @@ export async function SistemaKpiStrip({
   const decisionsPriorBase = decisionsDeltaResult?.priorBase ?? null;
 
   return (
-    <>
+    // A5: AdminKpiStrip has no className prop (shared with /admin's landing
+    // strip) — wrap instead. No grid sits above this Suspense (page.tsx), so
+    // the extra div is layout-safe; AdminKpiStrip's own grid is unaffected.
+    <div className="op-fade-in">
       <AdminKpiStrip
         data={{
           totalPersonal: u.totalPersonal,
@@ -228,7 +242,7 @@ export async function SistemaKpiStrip({
           .
         </p>
       )}
-    </>
+    </div>
   );
 }
 
@@ -262,7 +276,7 @@ export async function SistemaStatCards({
       {isDegraded(u) ? (
         <SectionDegradedCard title="Usuarios" reason={u.degraded} seconds={seconds} />
       ) : (
-        <OpCard>
+        <OpCard className="op-fade-in">
           <OpCardHead title="Usuarios" />
           <OpCardBody>
             <StatRow label="Personal" value={u.totalPersonal} />
@@ -278,7 +292,7 @@ export async function SistemaStatCards({
       {isDegraded(q) ? (
         <SectionDegradedCard title="Aprobaciones" reason={q.degraded} seconds={seconds} />
       ) : (
-        <OpCard>
+        <OpCard className="op-fade-in">
           <OpCardHead title="Aprobaciones" />
           <OpCardBody>
             <StatRow label="Pendientes" value={q.pendingTotal} />
@@ -294,7 +308,7 @@ export async function SistemaStatCards({
       {isDegraded(d) ? (
         <SectionDegradedCard title="Decisiones" reason={d.degraded} seconds={seconds} />
       ) : (
-        <OpCard>
+        <OpCard className="op-fade-in">
           <OpCardHead title="Decisiones" />
           <OpCardBody>
             <StatRow label="Aprobadas · 7d / 30d" value={`${d.approved7d} / ${d.approved30d}`} />
@@ -433,7 +447,7 @@ export async function SistemaCronsCard() {
   }
 
   return (
-    <OpCard>
+    <OpCard className="op-fade-in">
       <OpCardHead
         title="Crons"
         actions={
@@ -592,7 +606,7 @@ export async function SistemaGovtActivity() {
   }
 
   if (govts.length === 0) {
-    return <p className="text-md text-ln-op-mute">No hay gobiernos activos.</p>;
+    return <p className="op-fade-in text-md text-ln-op-mute">No hay gobiernos activos.</p>;
   }
 
   // Surface the most active operators first, then cap the render so a
@@ -602,7 +616,7 @@ export async function SistemaGovtActivity() {
   const govtsTruncated = sortedGovts.length > GOVT_ACTIVITY_LIMIT;
 
   return (
-    <OpCard>
+    <OpCard className="op-fade-in">
       <div className="overflow-x-auto">
         <table className="w-full">
           <caption className="sr-only">
