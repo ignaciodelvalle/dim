@@ -183,6 +183,27 @@ function str(props: Record<string, unknown>, key: string): string | null {
 }
 
 /**
+ * T4.5 (2026-08-01): thread the clicked unit's province/locality into a drill
+ * href so the destination (perdidas/vigilancia/denuncias/programa — all
+ * already read these searchParams) opens scoped to the unit the operator just
+ * looked at, instead of dumping them back into the unfiltered national list.
+ * Appends to any existing query string (e.g. "?etapa=triage"); omits an
+ * absent/empty province or locality rather than writing a blank param — most
+ * individual points-mode dots (perdidas/mordeduras/zoonosis) carry neither by
+ * design (privacy invariant, see LostPointProps), so this is then a no-op.
+ */
+function withUnitScope(href: string, properties: Record<string, unknown>): string {
+  const province = str(properties, "province");
+  const locality = str(properties, "locality");
+  if (!province && !locality) return href;
+  const [base, qs] = href.split("?");
+  const params = new URLSearchParams(qs);
+  if (province) params.set("province", province);
+  if (locality) params.set("locality", locality);
+  return `${base}?${params.toString()}`;
+}
+
+/**
  * Row label for the administrative unit of a FOLDED detail cell (PO "Option A"):
  * the detail tier aggregates at the departamento/partido (the barrio in CABA), so
  * the value carried in `locality` is a DIVISION, never a bare locality — labeling
@@ -299,7 +320,7 @@ function AggregateUnitBody({
         />
         {periodLabel ? <Row label="Período" value={periodLabel} /> : null}
       </dl>
-      <DrillLink href={drillHref}>{drillLabel}</DrillLink>
+      <DrillLink href={withUnitScope(drillHref, properties)}>{drillLabel}</DrillLink>
     </>
   );
 }
@@ -373,7 +394,9 @@ export function FeatureBody({
           {/* F1 fusion (2026-07-22): Maltrato is now the Denuncias hub's
               "Triage" stage — link straight there instead of through the old
               /gob/maltrato redirect. */}
-          <DrillLink href="/gob/denuncias?etapa=triage">Ver bandeja de denuncias →</DrillLink>
+          <DrillLink href={withUnitScope("/gob/denuncias?etapa=triage", properties)}>
+            Ver bandeja de denuncias →
+          </DrillLink>
         </>
       );
     }
@@ -403,7 +426,7 @@ export function FeatureBody({
             <Row label="Estado" value={status ? (PET_STATUS_LABEL[status] ?? status) : "—"} />
             <Row label="Visto por última vez" value={shortDate(str(properties, "lastSeenAt"))} />
           </dl>
-          <DrillLink href="/gob/perdidas">Ver pérdidas →</DrillLink>
+          <DrillLink href={withUnitScope("/gob/perdidas", properties)}>Ver pérdidas →</DrillLink>
         </>
       );
     }
@@ -435,7 +458,9 @@ export function FeatureBody({
             <Row label="Gravedad" value={severity ? (SEVERITY_LABEL[severity] ?? severity) : "—"} />
             <Row label="Fecha" value={shortDate(str(properties, "occurredAt"))} />
           </dl>
-          <DrillLink href="/gob/vigilancia">Ver vigilancia →</DrillLink>
+          <DrillLink href={withUnitScope("/gob/vigilancia", properties)}>
+            Ver vigilancia →
+          </DrillLink>
         </>
       );
     }
@@ -450,7 +475,9 @@ export function FeatureBody({
             />
             <Row label="Detectado" value={shortDate(str(properties, "occurredAt"))} />
           </dl>
-          <DrillLink href="/gob/vigilancia">Ver vigilancia →</DrillLink>
+          <DrillLink href={withUnitScope("/gob/vigilancia", properties)}>
+            Ver vigilancia →
+          </DrillLink>
         </>
       );
     }
@@ -481,7 +508,9 @@ export function FeatureBody({
               }
             />
           </dl>
-          <DrillLink href="/gob/vigilancia">Ver vigilancia →</DrillLink>
+          <DrillLink href={withUnitScope("/gob/vigilancia", properties)}>
+            Ver vigilancia →
+          </DrillLink>
         </>
       );
     }
@@ -513,7 +542,7 @@ export function FeatureBody({
               }
             />
           </dl>
-          <DrillLink href="/gob/perdidas">Ver pérdidas →</DrillLink>
+          <DrillLink href={withUnitScope("/gob/perdidas", properties)}>Ver pérdidas →</DrillLink>
         </>
       );
     }
@@ -605,7 +634,9 @@ export function FeatureBody({
             />
           </dl>
           {/* F9 (2026-08-01): Analítica is the Programa hub's second vista. */}
-          <DrillLink href="/gob/programa?vista=analitica">Ver analítica →</DrillLink>
+          <DrillLink href={withUnitScope("/gob/programa?vista=analitica", properties)}>
+            Ver analítica →
+          </DrillLink>
         </>
       );
     }
@@ -841,11 +872,22 @@ export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
   }, [onClose]);
 
   return (
+    // biome-ignore lint/a11y/useKeyWithClickEvents: mouse-only backdrop affordance (unreachable by Tab); Escape is the keyboard-equivalent dismissal, wired via the native `cancel` listener above.
     <dialog
       ref={dialogRef}
       aria-labelledby={titleId}
       aria-modal="true"
       onClose={onClose}
+      // T4.6 (2026-08-01): the doc comment above (§ACCESSIBILITY) has always
+      // claimed "the backdrop is also a close target", but no handler ever
+      // implemented it — a click outside the sliding panel was a dead click.
+      // A click on the ::backdrop bubbles with `target === the <dialog>
+      // element itself` (it lands OUTSIDE every content descendant, which
+      // would stop the event at that descendant); a click inside the panel
+      // targets a descendant, so this only fires for the backdrop.
+      onClick={(e) => {
+        if (e.target === dialogRef.current) onClose();
+      }}
       // Right-anchored full-height panel. `ml-auto mr-0` + max-h/h-full slides it
       // to the right edge; the native ::backdrop dims the rest.
       className="ml-auto mr-0 h-full max-h-full w-full max-w-[360px] border-l border-ln-op-line bg-ln-op-card p-0 shadow-[0_18px_50px_rgba(20,40,60,.22)] [&::backdrop]:bg-black/40 open:flex open:flex-col"
