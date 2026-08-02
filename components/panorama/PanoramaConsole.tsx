@@ -27,6 +27,7 @@ import {
   JurisdictionSwitcher,
 } from "@/components/gob/JurisdictionSwitcher";
 import { CalendarHeatmap } from "@/components/panorama/CalendarHeatmap";
+import { ConsoleNotice } from "@/components/panorama/ConsoleNotice";
 import { ContextBar } from "@/components/panorama/ContextBar";
 import { DetailDrawer, type SelectedFeature } from "@/components/panorama/DetailDrawer";
 import { FiltroPanel } from "@/components/panorama/FiltroPanel";
@@ -4613,66 +4614,37 @@ export function PanoramaConsole({
                   operator's last board from localStorage, not the canonical
                   default. Same visual pattern as the personalizada note. */}
               {restoredBoardNotice && (
-                <output
-                  aria-live="polite"
-                  className="flex items-center gap-x-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-xs text-ln-op-ink-2"
-                >
+                <ConsoleNotice onDismiss={() => setRestoredBoardNotice(false)}>
                   <span>Continuando tu vista anterior.</span>
-                  <button
-                    type="button"
-                    aria-label="Descartar aviso"
-                    onClick={() => setRestoredBoardNotice(false)}
-                    className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
-                  >
-                    <Icon name="close" size="sm" decorative />
-                  </button>
-                </output>
+                </ConsoleNotice>
               )}
               {/* T2.7 — the preset reset the operator's explicit período; the
                   contract stands (preset defaults win) but never silently. */}
               {periodResetNotice !== null && (
-                <output
-                  aria-live="polite"
-                  className="flex items-center gap-x-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-xs text-ln-op-ink-2"
+                <ConsoleNotice
+                  dismissLabel="Descartar aviso de período"
+                  onDismiss={() => setPeriodResetNotice(null)}
                 >
                   <span>El período volvió a {periodResetNotice} con la vista.</span>
-                  <button
-                    type="button"
-                    aria-label="Descartar aviso de período"
-                    onClick={() => setPeriodResetNotice(null)}
-                    className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
-                  >
-                    <Icon name="close" size="sm" decorative />
-                  </button>
-                </output>
+                </ConsoleNotice>
               )}
               {/* #53 QOL — the honest "personalizada" moment: a hand-edit never
                   changes the board silently; one tap returns to the vista left. */}
               {personalizadaFrom !== null && activePresetId === null && (
-                <output
-                  aria-live="polite"
-                  className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-2.5 py-1.5 text-xs text-ln-op-ink-2"
-                >
+                <ConsoleNotice onDismiss={() => setPersonalizadaFrom(null)}>
                   <span>
                     Editaste la vista — ahora es{" "}
                     <span className="font-semibold">personalizada</span>.
                   </span>
-                  <button
-                    type="button"
+                  <OpButton
+                    variant="ghost"
+                    size="sm"
                     onClick={() => applyPreset(personalizadaFrom, "replace")}
-                    className="-my-1 rounded-[var(--radius-sm)] px-1 py-1 font-semibold text-ln-op-azul underline-offset-2 hover:underline"
+                    className="-my-1 px-1 py-1 font-semibold text-ln-op-azul underline-offset-2 hover:underline"
                   >
                     Volver a {getPreset(personalizadaFrom)?.label ?? personalizadaFrom}
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Descartar aviso"
-                    onClick={() => setPersonalizadaFrom(null)}
-                    className="-my-1 ml-auto rounded-[var(--radius-sm)] px-1.5 py-1 text-ln-op-mute hover:text-ln-op-ink"
-                  >
-                    <Icon name="close" size="sm" decorative />
-                  </button>
-                </output>
+                  </OpButton>
+                </ConsoleNotice>
               )}
               <KpiChips
                 kpis={kpis}

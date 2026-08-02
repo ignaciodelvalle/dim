@@ -136,7 +136,7 @@ const OPERATOR_LABEL = "operator (app/gob, app/admin, app/org)";
 // directory-based and everything under components/ lands here. That is a
 // measurement artifact, not a claim about the surface.
 // If a second disclosure pill appears, extract OpDisclosurePill and fold both.
-const CITIZEN_BASELINE = 310;
+const CITIZEN_BASELINE = 308;
 const CITIZEN_SCAN_GLOB = "{components,app/(app),app/(public),app/(auth)}/**/*.tsx";
 const CITIZEN_LABEL = "citizen (components/**, app/(app), app/(public), app/(auth))";
 
@@ -314,7 +314,7 @@ const OPERATOR_RADIUS_BASELINE = 18;
 // 2026-07-29: citizen lowered 105 → 104 in the same change — LostFiltersBars
 // raw "Buscar" (danger red, --radius-sm) migrated to LnButton primary, and its
 // "Limpiar" Link to LnButton anchor mode.
-const CITIZEN_RADIUS_BASELINE = 104;
+const CITIZEN_RADIUS_BASELINE = 102;
 
 function scanRadii({ label, glob, baseline, scriptName }) {
   const files = globSync(glob, { exclude: (p) => /\.test\.tsx$/.test(p) });
