@@ -198,13 +198,14 @@ export function ProvenanceCard({
       </div>
 
       <div className="flex items-center justify-between gap-2 border-t border-ln-op-line bg-ln-op-stripe px-5 py-3">
-        <button
-          type="button"
+        <OpButton
+          variant="ghost"
+          size="sm"
           onClick={copyLink}
-          className="text-left text-xs font-medium text-ln-op-azul hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul rounded-sm"
+          className="-mx-1 px-1 text-left text-xs font-medium text-ln-op-azul hover:underline"
         >
-          {copied ? "¡Enlace copiado!" : "Copiar enlace de esta vista (requiere acceso al sistema)"}
-        </button>
+          {copied ? "Enlace copiado" : "Copiar enlace de esta vista (requiere acceso al sistema)"}
+        </OpButton>
         <OpButton variant="ghost" size="sm" onClick={onClose}>
           Cerrar
         </OpButton>

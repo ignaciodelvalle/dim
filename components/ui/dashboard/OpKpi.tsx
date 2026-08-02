@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 
 import { Icon } from "@/components/Icon";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
+import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { ProvenanceCard, type ProvenanceContext } from "@/components/ui/dashboard/ProvenanceCard";
 import { KPI_CATALOG, type KpiId, formatKpiTarget, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import {
@@ -432,19 +433,20 @@ function InfoButton({
                 ProvenanceCard dialog. preventDefault carries the same
                 anchor-descendant rationale as the ⓘ trigger (Cowork B6). */}
             {descriptorId && (
-              <button
-                type="button"
-                onClick={(e) => {
+              <OpButton
+                variant="ghost"
+                size="sm"
+                onClick={(e: React.MouseEvent) => {
                   e.preventDefault();
                   e.stopPropagation();
                   closeNow();
                   setProvenanceMounted(true);
                   setProvenanceOpen(true);
                 }}
-                className="text-xs font-medium text-ln-op-azul hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul rounded-sm"
+                className="-mx-1 px-1 text-xs font-medium text-ln-op-azul hover:underline"
               >
                 Ver origen
-              </button>
+              </OpButton>
             )}
           </div>
         </>
