@@ -107,32 +107,32 @@ export function ObservationCloseInspector({ rows }: { rows: ObservationCloseRow[
             <div className="space-y-4">
               <dl className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 <div>
-                  <dt className="text-[11px] text-ln-op-mute">Especie</dt>
-                  <dd className="text-[13px] text-ln-op-ink">{row.speciesLabel}</dd>
+                  <dt className="text-sm text-ln-op-mute">Especie</dt>
+                  <dd className="text-md text-ln-op-ink">{row.speciesLabel}</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] text-ln-op-mute">{"Jurisdicción"}</dt>
-                  <dd className="text-[13px] text-ln-op-ink">
+                  <dt className="text-sm text-ln-op-mute">{"Jurisdicción"}</dt>
+                  <dd className="text-md text-ln-op-ink">
                     {row.locality ?? "—"}, {row.province ?? "—"}
                   </dd>
                 </div>
                 {row.ownerName && (
                   <div>
-                    <dt className="text-[11px] text-ln-op-mute">{"Dueño/a"}</dt>
-                    <dd className="text-[13px] text-ln-op-ink">{row.ownerName}</dd>
+                    <dt className="text-sm text-ln-op-mute">{"Dueño/a"}</dt>
+                    <dd className="text-md text-ln-op-ink">{row.ownerName}</dd>
                   </div>
                 )}
                 <div>
-                  <dt className="text-[11px] text-ln-op-mute">{"Observación"}</dt>
-                  <dd className="text-[13px] text-ln-op-ink">
+                  <dt className="text-sm text-ln-op-mute">{"Observación"}</dt>
+                  <dd className="text-md text-ln-op-ink">
                     {"Inicio: "}
                     {row.startedLabel}
                     {row.deadlineLabel ? ` · Cierre estimado: ${row.deadlineLabel}` : null}
                   </dd>
                 </div>
                 <div className="sm:col-span-2">
-                  <dt className="text-[11px] text-ln-op-mute">{"Token público"}</dt>
-                  <dd className="font-mono text-[11px] text-ln-op-mute">{row.publicToken}</dd>
+                  <dt className="text-sm text-ln-op-mute">{"Token público"}</dt>
+                  <dd className="font-mono text-sm text-ln-op-mute">{row.publicToken}</dd>
                 </div>
               </dl>
               <CloseObservationForm action={row.closeAction} />

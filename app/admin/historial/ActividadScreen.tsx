@@ -99,18 +99,18 @@ function HistorialRow({
   return (
     <li className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe">
       <div className="min-w-0 space-y-0.5">
-        <p className="text-[13px] text-ln-op-ink">{auditActionLabel(entry.action)}</p>
-        <p className="text-[12px] text-ln-op-mute">{actorName(entry.actorUserId)}</p>
+        <p className="text-md text-ln-op-ink">{auditActionLabel(entry.action)}</p>
+        <p className="text-sm text-ln-op-mute">{actorName(entry.actorUserId)}</p>
         {entry.approvalRequestId &&
           (token ? (
             <Link
               href={`/gob/cola/${token}`}
-              className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80"
+              className="font-mono text-sm text-ln-op-azul underline underline-offset-2 hover:opacity-80"
             >
               Ver solicitud →
             </Link>
           ) : (
-            <p className="font-mono text-[11px] text-ln-op-mute">
+            <p className="font-mono text-sm text-ln-op-mute">
               req: {entry.approvalRequestId.slice(0, 8)}…
             </p>
           ))}
@@ -318,7 +318,7 @@ export async function ActividadScreen({
       </OpFilterBar>
 
       {entries.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>
+        <p className="text-md text-ln-op-mute">No hay entradas que coincidan.</p>
       ) : (
         <OpCard>
           <OpCardHead

@@ -206,7 +206,7 @@ export async function AdminsScreen({
           <summary className="cursor-pointer text-sm text-ln-op-mute hover:text-ln-op-ink-2 select-none">
             Cuentas de sistema ({systemActive.length})
           </summary>
-          <p className="mt-1 text-[11px] text-ln-op-mute">
+          <p className="mt-1 text-sm text-ln-op-mute">
             Cuentas de servicio (backfills, jobs) — no son personas.
           </p>
           <ul className="mt-2 space-y-2">
@@ -261,7 +261,7 @@ function AdminRow({ admin }: AdminRowProps) {
               <div className="flex items-center gap-2">
                 <Link
                   href={`/admin/admins/${admin.id}`}
-                  className="text-[13px] font-semibold text-ln-op-azul hover:underline underline-offset-4"
+                  className="text-md font-semibold text-ln-op-azul hover:underline underline-offset-4"
                 >
                   {admin.displayName}
                 </Link>

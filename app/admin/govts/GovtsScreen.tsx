@@ -306,7 +306,7 @@ function GovtRow({ govt }: GovtRowProps) {
           <div className="min-w-0 space-y-0.5">
             <Link
               href={`/admin/govts/${govt.id}`}
-              className="text-[13px] font-semibold text-ln-op-azul hover:underline underline-offset-4"
+              className="text-md font-semibold text-ln-op-azul hover:underline underline-offset-4"
             >
               {govt.displayName}
             </Link>
