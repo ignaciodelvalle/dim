@@ -30,7 +30,9 @@ function anchorNames(html: string): { href: string; name: string }[] {
   for (const m of html.matchAll(anchorRe)) {
     const attrs = m[1];
     const inner = m[2];
-    const href = attrs.match(/href="([^"]*)"/)?.[1] ?? "";
+    // renderToStaticMarkup escapes & as &amp; inside attributes — decode so
+    // hrefs with query strings compare equal to their nav-presets source.
+    const href = (attrs.match(/href="([^"]*)"/)?.[1] ?? "").replace(/&amp;/g, "&");
     const ariaLabel = attrs.match(/aria-label="([^"]*)"/)?.[1];
     const text = inner
       .replace(/<[^>]+>/g, " ")
