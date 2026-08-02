@@ -89,7 +89,10 @@ function CastFila() {
   return (
     <div className="lp-castfila" data-section="cast-fila">
       <div className="lp-castfila-pet">
-        <LnPetPhoto alt={PAMPA.name} status="ok" size={148} />
+        {/* Same photo the hero credential shows — the striped FOTO placeholder
+            here broke narrative continuity (critique 2026-07-27, J2): the page
+            introduces Pampa with a real face, then the story forgot it. */}
+        <LnPetPhoto src="/landing/pampa-hero.jpg" alt={PAMPA.name} status="ok" size={148} />
         <span className="font-ln-serif text-xl font-semibold">{PAMPA.name}</span>
         <LnStatusFlag status="ok" />
       </div>
@@ -131,7 +134,13 @@ function Rail({ active }: { active: string }) {
   return (
     <nav className="lp-rail" aria-label="Capítulos" data-section="story-rail">
       <div className="lp-rail-head">
-        <LnPetPhoto alt={PAMPA.name} status={lost ? "lost" : "ok"} size={44} />
+        {/* Same Pampa photo as the hero + CastFila (J2 — narrative continuity). */}
+        <LnPetPhoto
+          src="/landing/pampa-hero.jpg"
+          alt={PAMPA.name}
+          status={lost ? "lost" : "ok"}
+          size={44}
+        />
         <span>
           <span className="lp-rail-name">{PAMPA.name}</span>
           <span className="mt-1 block">

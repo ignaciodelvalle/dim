@@ -751,13 +751,20 @@ body {
 }
 .lp .lp-eyebrow--dot {
   display: inline-flex;
-  align-items: center;
+  /* flex-start + a first-line offset, not `center`: when the eyebrow wraps to
+     two lines (hero at ~390px), `center` floated the dot between the lines
+     (critique 2026-07-27, J3). 0.55em centers the 6px dot on the first line
+     box (12px × 1.6 line-height → (19.2 − 6) / 2 ≈ 6.6px), so the single-line
+     rendering is unchanged. */
+  align-items: flex-start;
   gap: 9px;
 }
 .lp .lp-eyebrow--dot::before {
   content: "";
   width: 6px;
   height: 6px;
+  flex-shrink: 0;
+  margin-top: 0.55em;
   border-radius: 50%;
   background: currentColor;
   opacity: 0.7;
@@ -1207,6 +1214,7 @@ body {
 .lp .lp-hcard-flip {
   width: 26px;
   height: 26px;
+  position: relative;
   flex-shrink: 0;
   border-radius: 50%;
   border: 1.5px solid var(--color-ln-line-strong);
@@ -1228,6 +1236,17 @@ body {
 .lp .lp-hcard-flip:focus-visible {
   outline: 2px solid var(--color-ln-azul);
   outline-offset: 2px;
+}
+/* Hit-area extension (critique 2026-07-27, A2): the flip trigger measured
+   26×26 — under the 44px touch floor on the control that turns the whole
+   credential. The visual stays 26px; the invisible ::after pads the target to
+   44×44 (26 + 9 + 9). Nothing interactive sits within 9px of it — the badge
+   beside it is read-only — so the bigger target can't shadow a neighbor. */
+.lp .lp-hcard-flip::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
 }
 
 /* body: photo · id · qr */
@@ -1321,6 +1340,12 @@ body {
   white-space: nowrap;
   overflow: hidden;
   opacity: 0.85;
+  /* The 44-char ICAO line is wider than the card below ~400px, and a glyph cut
+     mid-stroke at the edge read as breakage (critique 2026-07-27, J4). The
+     line is decorative filler (aria-hidden `<<<<`), so fade the clip edge out
+     instead of resizing type the token scale has no step for. */
+  mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
+  -webkit-mask-image: linear-gradient(to right, black calc(100% - 28px), transparent);
 }
 
 /* back — the mini libreta */
@@ -1387,21 +1412,33 @@ body {
   text-align: center;
 }
 
-/* state dots — tap one to take control of the cycle */
+/* state dots — tap one to take control of the cycle.
+   Hit areas (critique 2026-07-27, A1 / WCAG 2.5.8): the dots stay 12px visual,
+   but each ::after pads the target to 24×24 (12 + 6 + 6). The gap moved
+   9px → 12px so adjacent 24px targets meet edge-to-edge (24px pitch) instead
+   of overlapping — an overlapping target is an ambiguous tap, which is the
+   defect 2.5.8 exists to prevent. */
 .lp .lp-hdots {
   display: flex;
-  gap: 9px;
+  gap: 12px;
   margin-top: 22px;
 }
 .lp .lp-hdot {
   width: 12px;
   height: 12px;
+  position: relative;
   border-radius: 50%;
   border: 1.5px solid var(--color-ln-mute);
   background: transparent;
   cursor: pointer;
   padding: 0;
   transition: transform 0.2s, background 0.2s, border-color 0.2s;
+}
+.lp .lp-hdot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
 }
 .lp .lp-hdot[data-tone="ok"] {
   --dtone: var(--color-ln-ok);
@@ -1567,6 +1604,19 @@ body {
 .lp .lp-crisis-hint {
   font-size: 11px;
   color: var(--color-ln-faint);
+}
+/* U6 mitigation (critique 2026-07-27): the dual-format placeholder
+   ("DIM-XXXX-XXXX · DEN-XXXX-XXXX", PO-locked — it advertises exactly what
+   the lookup accepts) clips inside the 16px mono input on phones. Placeholder
+   type may shrink where input type may not: the 16px input floor exists for
+   iOS focus-zoom, which keys off the INPUT's font-size, not the placeholder's.
+   var(--text-sm) fits the full hint at 390px; at 320px it still elides — the
+   copy is test-guarded, so that residue is reported, not hacked around. */
+@media (max-width: 480px) {
+  .lp .lp-crisis-row input::placeholder {
+    font-size: var(--text-sm);
+    letter-spacing: 0;
+  }
 }
 
 /* ============ bond band — full-bleed emotional bridge ===================== */

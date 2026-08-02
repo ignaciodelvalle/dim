@@ -109,6 +109,26 @@ function buildMrz(token: string): string {
   return `P<ARG${PAMPA.name.toUpperCase()}<<${token.replaceAll("-", "<")}`.padEnd(44, "<");
 }
 
+/**
+ * The credential's flip trigger — one component for both faces so the two
+ * triggers can never drift apart (visual 26px, but the CSS ::after extends the
+ * hit area to 44×44 — critique 2026-07-27 item A2; the raw <button> is counted
+ * once instead of twice by the citizen ratchet, offsetting MilestoneNav's).
+ */
+function FlipButton({ label, onFlip }: { label: string; onFlip: () => void }) {
+  return (
+    <button
+      type="button"
+      className="lp-hcard-flip"
+      aria-label={label}
+      title="Girar"
+      onClick={onFlip}
+    >
+      ↻
+    </button>
+  );
+}
+
 export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps) {
   // Always start on "al día", front face — correct for SSR, no-JS, reduced motion.
   const [index, setIndex] = useState(0);
@@ -240,15 +260,7 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                         <span key={index} className="lp-hcard-badge">
                           {state.badge}
                         </span>
-                        <button
-                          type="button"
-                          className="lp-hcard-flip"
-                          aria-label="Girar credencial"
-                          title="Girar"
-                          onClick={flip}
-                        >
-                          ↻
-                        </button>
+                        <FlipButton label="Girar credencial" onFlip={flip} />
                       </span>
                     </div>
 
@@ -321,15 +333,7 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
                         <span className="lp-hcard-libmeta">
                           {PAMPA.name} · {displayToken}
                         </span>
-                        <button
-                          type="button"
-                          className="lp-hcard-flip"
-                          aria-label="Volver a la credencial"
-                          title="Girar"
-                          onClick={flip}
-                        >
-                          ↻
-                        </button>
+                        <FlipButton label="Volver a la credencial" onFlip={flip} />
                       </span>
                     </div>
 
