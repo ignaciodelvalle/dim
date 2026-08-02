@@ -176,7 +176,7 @@ export function ProvenanceCard({
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           Origen del dato
         </p>
-        <h2 id={titleId} className="mt-1 text-[15px] font-semibold leading-snug text-ln-op-ink">
+        <h2 id={titleId} className="mt-1 text-base font-semibold leading-snug text-ln-op-ink">
           {descriptor.label}
         </h2>
         {descriptor.question && (
