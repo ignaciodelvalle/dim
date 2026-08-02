@@ -9,6 +9,11 @@
 //                  · ratio esterilización/natalidad (sub o tile 5)
 //   Trend        — TimeSeriesChart (sterilization_performed trend)
 //   Coropleta    — <PanoramaEmbed> (esterilización por provincia, capa panorama · #51)
+//   Tabla brecha — provinces below the 70% target, worst-first, linking to
+//                  the Alcance comunitario pipelines (IA audit 2026-08: the
+//                  campaign decision spanned Padrón ↔ Operativos with no
+//                  cross-link, and "which area is below target" degraded to
+//                  reading the choropleth instead of a ranked list)
 //   Freshness footer
 //
 // PANORAMA NOTE: The Paquete G Panorama layer/preset (population-control map layer
@@ -22,6 +27,8 @@
 // poblacion/page.tsx) — this is a RELOCATION, not a redesign: same
 // searchParams contract, same auth guard, same query logic. The exportHref
 // still targets /gob/poblacion/export — that API route is UNCHANGED.
+
+import Link from "next/link";
 
 import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { PanoramaEmbed } from "@/components/panorama/PanoramaEmbed";
@@ -53,14 +60,16 @@ import {
   fetchSterilizationCoverage,
   fetchSterilizationNatalidadRatio,
   fetchSterilizationTrend,
+  provinceSuppressionNotice,
   scopeTotalSuppressionNotice,
   toneForTarget,
 } from "@/lib/metrics";
+import type { ProvinceSterlizationRow } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatPercent, formatRate } from "@/lib/utils/format";
+import { formatPercent, formatRate, formatDelta as formatSignedDelta } from "@/lib/utils/format";
 import { gobEmbedView } from "@/src/modules/panorama/domain/embed-view";
 
 // Species domain axis — mirrors /gob/perdidas' SPECIES_OPTIONS exactly.
@@ -71,6 +80,147 @@ const SPECIES_OPTIONS = [
   { value: "cat", label: "Gato" },
   { value: "other", label: "Otra" },
 ];
+
+/** One below-target province of the sterilization-coverage ranking. */
+export type ProvinceGapRow = {
+  province: string;
+  /** Publishable coverage rate (0–100). */
+  ratePct: number;
+  /** Percentage points BELOW the target — positive, larger = worse. */
+  gapPp: number;
+};
+
+/**
+ * The below-target slice of `coverage.byProvince`, ranked worst-first (largest
+ * gap on top; ties alphabetical for a stable order).
+ *
+ * Withheld provinces are EXCLUDED, never fabricated: a suppressed row carries
+ * no publishable rate, so it cannot be ranked — its existence is announced via
+ * `provinceSuppressionNotice` beside the table instead (same discipline as the
+ * admin ranking, where withheld rows at least have a name to alphabetize; a
+ * gap ranking has nothing honest to print for them at all).
+ *
+ * Pure and exported so the ranking rule is unit-testable without Postgres.
+ */
+export function rankProvincesBelowTarget(
+  byProvince: readonly ProvinceSterlizationRow[],
+  targetPct: number = TARGETS.STERILIZATION_COVERAGE_PCT,
+): ProvinceGapRow[] {
+  const rows: ProvinceGapRow[] = [];
+  for (const row of byProvince) {
+    if (row.suppressed) continue;
+    if (row.ratePct >= targetPct) continue;
+    rows.push({
+      province: row.province,
+      ratePct: row.ratePct,
+      // One decimal, matching the display precision of the rate itself.
+      gapPp: Math.round((targetPct - row.ratePct) * 10) / 10,
+    });
+  }
+  return rows.sort((a, b) => b.gapPp - a.gapPp || a.province.localeCompare(b.province, "es"));
+}
+
+/** Rate color for a below-target row — warn near the target, danger far below
+ *  (same `toneForTarget` verdict the KPI tile uses; "ok" is unreachable here
+ *  because every ranked row is below target by construction). */
+function gapRateColor(ratePct: number): string {
+  const tone = toneForTarget(ratePct, TARGETS.STERILIZATION_COVERAGE_PCT);
+  return tone === "warn" ? "text-ln-op-warn" : "text-ln-op-danger";
+}
+
+/** Where a below-target province becomes an intervention: the Operativos hub's
+ *  Alcance comunitario pipelines. AlcanceScreen's searchParams contract only
+ *  scopes the overdue-rabies ZONE drill-down (`?zona=`+`?provincia=`, both
+ *  locality-grain) — there is no province-only scoping param yet, so this link
+ *  is deliberately unscoped and the copy beside it says so. */
+const ALCANCE_HREF = "/gob/operativos?vista=alcance";
+
+/**
+ * Ranked "provincias bajo la meta" table + cross-link to the outreach hub —
+ * the connective tissue the IA audit found missing: the choropleth above shows
+ * WHERE coverage is low, this answers "which provinces, how far below, in what
+ * order" as a list, and hands off to Operativos/Alcance to act on it.
+ *
+ * Reads the SAME `coverage.byProvince` rows the PanoramaEmbed choropleth is
+ * fed from (fetchSterilizationCoverage, one fetch) — no second query.
+ * Synchronous and exported so the render contract is testable without the
+ * screen's auth/DB dependencies.
+ */
+export function SterilizationGapCard({
+  byProvince,
+  suppressedCount,
+}: {
+  byProvince: readonly ProvinceSterlizationRow[];
+  suppressedCount: number;
+}) {
+  const rows = rankProvincesBelowTarget(byProvince);
+  const suppressionNote = provinceSuppressionNotice(suppressedCount);
+  const panelId = "panel-brecha-esterilizacion-titulo";
+  return (
+    <OpCard aria-labelledby={panelId}>
+      <OpCardHead
+        title={<span id={panelId}>Provincias por debajo de la meta de esterilización</span>}
+        actions={
+          <Link href={ALCANCE_HREF} className="text-sm text-ln-op-azul hover:underline">
+            Planificar alcance →
+          </Link>
+        }
+      />
+      <OpCardBody>
+        {rows.length === 0 ? (
+          <p className="text-sm text-ln-op-mute">
+            Ninguna provincia publicable está por debajo de la meta del 70%.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <caption className="pb-2 text-left text-sm text-ln-op-mute">
+                Provincias por debajo de la meta de esterilización (70%), mayor brecha primero.
+                Cobertura calculada a nivel provincia.
+              </caption>
+              <thead>
+                <tr className="border-b border-ln-op-line">
+                  <th scope="col" className="py-1.5 pr-4 text-left font-semibold text-ln-op-mute">
+                    Provincia
+                  </th>
+                  <th scope="col" className="py-1.5 pl-4 text-right font-semibold text-ln-op-mute">
+                    Cobertura
+                  </th>
+                  <th scope="col" className="py-1.5 pl-4 text-right font-semibold text-ln-op-mute">
+                    Brecha vs meta
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr key={row.province} className="border-b border-ln-op-line/50 last:border-0">
+                    <td className="py-1.5 pr-4 text-ln-op-ink">{row.province}</td>
+                    <td
+                      className={`py-1.5 pl-4 text-right tabular-nums font-medium ${gapRateColor(row.ratePct)}`}
+                    >
+                      {formatPercent(row.ratePct)}
+                    </td>
+                    <td className="py-1.5 pl-4 text-right tabular-nums text-ln-op-ink">
+                      {formatSignedDelta(-row.gapPp, { unit: " pp" })}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {suppressionNote && <p className="mt-2 text-xs text-ln-op-mute">{suppressionNote}</p>}
+        <p className="mt-3 text-sm text-ln-op-mute">
+          Armá la campaña en{" "}
+          <Link href={ALCANCE_HREF} className="underline underline-offset-2 hover:text-ln-op-ink">
+            Operativos · Alcance comunitario →
+          </Link>{" "}
+          — esa vista todavía no filtra por provincia.
+        </p>
+      </OpCardBody>
+    </OpCard>
+  );
+}
 
 export type PoblacionScreenProps = {
   searchParams: {
@@ -535,6 +685,17 @@ export async function PoblacionScreen({
             />
           </OpCardBody>
         </OpCard>
+      )}
+
+      {/* Ranked below-target table (IA audit 2026-08) — the same byProvince
+          rows the choropleth above paints (ONE fetchSterilizationCoverage
+          call), now readable as a worst-first list with the cross-link to
+          Operativos/Alcance that closes the Padrón ↔ Operativos gap. */}
+      {coverage.byProvince.length > 0 && (
+        <SterilizationGapCard
+          byProvince={coverage.byProvince}
+          suppressedCount={coverage.byProvinceSuppressedCount}
+        />
       )}
 
       <DashboardFreshnessFooter ctx={ctx} />
