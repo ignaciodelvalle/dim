@@ -44,6 +44,8 @@
 // 0. Type-only imports
 // ---------------------------------------------------------------------------
 
+import { randomUUID } from "node:crypto";
+
 import type { EventType } from "../db/schema";
 
 // Pure date/trend helpers for the multi-year history seed. Side-effect-free and
@@ -1904,7 +1906,7 @@ async function seedPets(
             vet_name: null,
             disposition_method: pick([
               "owner_burial",
-              "cremation",
+              "cremation_collective",
               "authorized_cemetery",
               "unknown",
             ]),
@@ -2137,7 +2139,10 @@ async function seedSetPieces(
             cause_detail: "sospecha de rabia — cluster NOA",
             confirmed_by_vet: true,
             vet_name: null,
-            disposition_method: "cremation",
+            // "cremation" (pre-fix) was NOT a deathRecorded enum member — the
+            // raw insert bypasses validation, and dashboards rendered it as
+            // unrecognized/other. Guarded by seed-disposition-methods.test.ts.
+            disposition_method: "cremation_collective",
             facility: "Crematorio Veterinario Salta",
             death_at_clinic: true,
             vet_contacted_owner: "yes",
@@ -2156,6 +2161,115 @@ async function seedSetPieces(
         extraEvents,
         isDeath ? "deceased" : "active",
       );
+    }
+
+    // Set-piece #7 — the non-compliant disposal beat (surveillance-disposal
+    // slice, S5): bite → observation → death DURING observation, owner chose
+    // a home burial despite the warning. Full spine (incident + observation
+    // started/ended + death) with explicit event ids so the events reference
+    // each other the way the real death cascade writes them. This is the
+    // pre-loaded fallback for the demo: /admin/observaciones shows the row
+    // with its danger disposal chip without needing a live run-through.
+    {
+      const biteAt = new Date(clusterStart + 13 * 24 * 3600 * 1000);
+      const observationUntil = new Date(biteAt.getTime() + 10 * 24 * 3600 * 1000);
+      const diedAt = new Date(biteAt.getTime() + 6 * 24 * 3600 * 1000);
+      const biteEventId = randomUUID();
+      const startedEventId = randomUUID();
+      const deathEventId = randomUUID();
+
+      const nonCompliantPetId = await insertSetPiecePet(
+        "Salta",
+        saltaLoc?.localityName ?? "Salta",
+        baseLat,
+        baseLng,
+        [
+          {
+            id: biteEventId,
+            eventType: "incident_reported" satisfies EventType,
+            occurredAt: biteAt,
+            recordedByUserId: ownerUserId,
+            authorRole: "vet",
+            authorVerified: true,
+            payload: {
+              source: "seed-panorama-setpiece",
+              incident_type: "bite_inflicted",
+              severity: "severe",
+              injuries_summary: "Mordedura NOA set-piece #7 — disposición no recomendada",
+              vet_involved: true,
+              location_description: "Salta capital",
+              rabies_vaccine_valid_at_incident: false,
+            },
+            ...writePoint(jitteredCoord(baseLat, baseLng, 0.005)),
+          },
+          {
+            id: startedEventId,
+            eventType: "rabies_observation_started" satisfies EventType,
+            occurredAt: biteAt,
+            recordedByUserId: ownerUserId,
+            authorRole: "govt",
+            authorVerified: true,
+            payload: {
+              source: "seed-panorama-setpiece",
+              bite_event_id: biteEventId,
+              observation_until: observationUntil.toISOString().slice(0, 10),
+              location: "in_situ",
+              official_site_organization_id: null,
+            },
+          },
+          {
+            id: deathEventId,
+            eventType: "death_recorded" satisfies EventType,
+            occurredAt: diedAt,
+            recordedByUserId: ownerUserId,
+            authorRole: "owner",
+            authorVerified: false,
+            payload: {
+              source: "seed-panorama-setpiece",
+              cause: "disease",
+              cause_detail: "sospecha de rabia — cluster NOA",
+              confirmed_by_vet: null,
+              vet_name: null,
+              disposition_method: "owner_burial",
+              facility: "patio del domicilio",
+              death_at_clinic: null,
+              clinic_name: null,
+              vet_contacted_owner: null,
+              vet_decided_alone: null,
+              owner_to_private_crematorium: null,
+              disease_code: null,
+              confirmed_by_lab: null,
+              is_reportable: false,
+              during_rabies_observation: true,
+            },
+          },
+          {
+            eventType: "rabies_observation_ended" satisfies EventType,
+            occurredAt: diedAt,
+            recordedByUserId: null,
+            authorRole: "system",
+            authorVerified: false,
+            payload: {
+              source: "seed-panorama-setpiece",
+              bite_event_id: biteEventId,
+              observation_started_event_id: startedEventId,
+              outcome: "dead",
+              closed_by_role: "system",
+              closure_notes: "Cierre automático por fallecimiento durante observación",
+              death_event_id: deathEventId,
+            },
+          },
+        ],
+        "deceased",
+      );
+
+      // Cache mirror of the spine above — what updateRabiesObservationStatus
+      // sets in the real cascade. The events carry the facts; this only makes
+      // the pets projection agree with them.
+      await db
+        .update(pets)
+        .set({ rabiesObservationStatus: "completed_dead" })
+        .where(eq(pets.id, nonCompliantPetId));
     }
   }
 
@@ -3598,7 +3712,7 @@ async function seedModelProvinceHistory(
                 vet_name: null,
                 disposition_method: pick([
                   "owner_burial",
-                  "cremation",
+                  "cremation_collective",
                   "authorized_cemetery",
                   "unknown",
                 ] as const),
