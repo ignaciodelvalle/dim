@@ -1,5 +1,20 @@
 # Backlog consolidado y plan autónomo — 2026-08-02
 
+> **EJECUTADO 2026-08-01/02** (corrida autónoma, 6 pistas, ~44 commits, review
+> adversa PUSH-READY, gate final verify + 13.850 tests verdes).
+> Resultado por tier: T1 completo (T1.2 resultó ser el "actual" de
+> suscripciones calculado nacional — scoping arreglado en la evaluación);
+> T2 completo (T2.1/T2.3/T2.5 eran una sola clase: dato viejo sin indicador de
+> vuelo; T2.4 era timezone UTC vs UTC-3, baseline de timezone quedó en CERO);
+> T3.1/T3.2 completos (shell síncrono + presupuesto por consulta), T3.3 resuelto
+> de rebote, T3.4/T3.5 NO REPRODUCEN (artefactos de la automatización de cowork);
+> T4: 10 arreglados, T4.2/T4.8/T4.12 ya estaban arreglados, resto diferido con
+> razón en el informe; T5 completo; T6: RA-7 F4 cerrado, F5/F6/F7 **ya estaban
+> cerrados en código** (este doc estaba desactualizado — ver PENDIENTES.md).
+> Pendientes del PO sin tocar: T7.3 tokens, T7.4/T7.5 datos staging, T7.6 kill
+> elevado del puerto 3000. Los `alert_firings` históricos conservan el
+> `observedValue` nacional (append-only, no se repara).
+
 Reanálisis completo. **Todo lo abierto entra acá**: los 42 hallazgos de la auditoría
 de cowork, lo que quedó de hoy, el `PENDIENTES.md` histórico (P1/P2/P3), y lo
 diferido hace tiempo. Lo que no entra al plan está **explícitamente diferido con

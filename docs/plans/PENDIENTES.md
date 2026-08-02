@@ -94,7 +94,7 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 | **RA-2 F5** | `replaceMicrochipVetAction` sigue usando el `redirect()` dentro de la acción que el resto migró, con comentario explicando por qué | `microchip/reemplazar/action.ts:118` |
 | **RA-2 F9** | Un `org.transfer.propose` concedido es **inerte**: la página chequea rol de membresía, nunca capacidades — y el mensaje "Solo roles admin o coordinator" es **falso** | `transferencias/nueva/page.tsx:52-53` |
 | **RA-2 F10** | "Enviar documentación" apunta a una página sin nada que enviar; `done: input.isVerified` **nunca puede darse vuelta desde adentro de la org** | `org-setup-checklist.ts:120-127` |
-| **RA-7 F4** | Un cambio de nivel fallido **vacía el canvas, pone los contadores en cero y no marca `degraded`** → la pantalla dice "sin datos" donde su propio docblock **prohíbe** ese texto y exige "no pudimos calcular esta capa a tiempo" | `PanoramaConsole.tsx:1967-1978`, `:2013-2023` |
+| ~~**RA-7 F4**~~ | **CERRADO 2026-08-01** — las tres ramas de settle del efecto de invalidación scope/period rutean por `layerFetchPatch` (la rama `catch` era la única sin migrar); test nuevo cubre el drill con fallo de red | pista B del backlog consolidado |
 
 ---
 
@@ -134,9 +134,9 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 
 | # | Qué |
 |---|---|
-| **RA-7 F5** | Dice **"se midieron 10 jurisdicciones"** cuando midió 24 — un tope de display reportado como conteo de medición |
-| **RA-7 F6** | **Cuatro respuestas distintas** a "cuántas celdas están protegidas", todas pudiendo estar en pantalla a la vez (píldora, pie del PNG, caption de Registros, línea del ranking) |
-| **RA-7 F7** | Un sello de cubo en **cualquier** capa se traga el aviso de tope de **todas** las otras |
+| ~~**RA-7 F5**~~ | **YA ESTABA CERRADO** (verificado 2026-08-01): `rankingAllInScope` corre sin tope (`limit: Infinity`, con test) — este doc estaba desactualizado, el modo de falla que la nota de arriba advierte |
+| ~~**RA-7 F6**~~ | **YA ESTABA CERRADO** (verificado 2026-08-01): `activeSuppressedCells` es la derivación única para píldora y pie del PNG; caption y ranking declaran su alcance propio (universos distintos, a propósito) |
+| ~~**RA-7 F7**~~ | **YA ESTABA CERRADO** (verificado 2026-08-01): `panoramaFreshnessCaption` agrega el aviso de tope en ambas ramas (cubo y vivo), cubierto por `cube-freshness.test.ts` |
 | **RA-7 F9/F10** | Dos claves de leyenda más que describen estados que el frame puede no contener; y el estado "falta un eje" del bivariado se **pinta pero nunca se declara** |
 | **RA-3 C8** | Diferenciación cruzada por **denominadores anidados** en datos abiertos: `perros_registrados` es subconjunto de `mascotas_activas`, la resta da las no-perro. Ambas celdas pasan su propio k-check; la regla conjunta compara **nombres** de columna |
 | **C1 5ª instancia** | El resto de la tira de KPIs (`microchip`, `ppp`, `reunificacion`, el pie de `coverageDenominator`) publica sobre un alcance retenido. **No se ensanchó a propósito** — mordeduras/zoonosis/denuncias tienen otros denominadores y meterlos bajo un veredicto calculado sobre mascotas registradas sería la sobre-corrección de RA-1 |
