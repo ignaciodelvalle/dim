@@ -233,6 +233,9 @@ import {
   unknownLayerIds,
 } from "@/components/panorama/panorama-console-helpers";
 
+// Stable empty fallback for the memo()-wrapped CalendarHeatmap (P4).
+const EMPTY_DAILY_COUNTS: Array<{ date: string; count: number }> = [];
+
 export function PanoramaConsole({
   defaultLayerId,
   defaultFeatures,
@@ -3216,8 +3219,11 @@ export function PanoramaConsole({
   const [informeGeneratedAt, setInformeGeneratedAt] = useState<Date | null>(null);
 
   // A2: ONE decision shared by the click and the preview hint (see its jsdoc).
-  const scopeForDrill = { province: effectiveScopeProvince, level };
-  const drillTargetFor = (k: string) => resolveRowDrillTarget(k, scopeForDrill);
+  // useCallback: feeds the memoized preview object below (P4 memo hygiene).
+  const drillTargetFor = useCallback(
+    (k: string) => resolveRowDrillTarget(k, { province: effectiveScopeProvince, level }),
+    [effectiveScopeProvince, level],
+  );
   const onRankedSelect = useCallback(
     (key: string) => {
       const drillTarget = resolveRowDrillTarget(key, { province: effectiveScopeProvince, level });
@@ -3738,15 +3744,22 @@ export function PanoramaConsole({
   // operator auditing "qué venimos haciendo" saw the bubbles on the map but zero
   // rows in the list with no explanation. Name the map-only reference layers in a
   // one-line disclosure above the table so the absence is honest, not a bug.
-  const referenceLayerLabels = activeLayers
-    .filter((l) => l.dataType === "reference")
-    .map((l) => l.label);
+  // Memoized: PanoramaDockRegistros is memo()-wrapped (P4) and fresh arrays
+  // every render would defeat it.
+  const referenceLayerLabels = useMemo(
+    () => activeLayers.filter((l) => l.dataType === "reference").map((l) => l.label),
+    [activeLayers],
+  );
   // Cowork QA ronda 3 §3: name the "Valor" column after the metric it shows.
-  const mapTableMetrics = activeAggregateLayers.map((l) => ({
-    label: l.label,
-    dataType: l.dataType,
-    level: l.level,
-  }));
+  const mapTableMetrics = useMemo(
+    () =>
+      activeAggregateLayers.map((l) => ({
+        label: l.label,
+        dataType: l.dataType,
+        level: l.level,
+      })),
+    [activeAggregateLayers],
+  );
   // Cowork QA ronda 3 §3: a rate layer drilled below province shows a per-unit
   // COUNT (not the %) — surface that caveat once so "conteo" is not mistaken for a
   // percentage (the % is a province-only figure in v1).
@@ -3781,7 +3794,13 @@ export function PanoramaConsole({
   // signalHistogramBins ?? aggregateHistogramBins — one series feeds both views,
   // so they never diverge (W1 #8). Empty array → the calendar narrates its own
   // empty/non-temporal state.
-  const scopeDailyCounts = pointsDailyCounts ?? aggregateDailyCounts ?? [];
+  // EMPTY_DAILY_COUNTS + useCallback: CalendarHeatmap is memo()-wrapped (P4);
+  // a fresh [] fallback or inline onDayClick arrow would defeat it every render.
+  const scopeDailyCounts = pointsDailyCounts ?? aggregateDailyCounts ?? EMPTY_DAILY_COUNTS;
+  const onCalendarDayClick = useCallback(
+    (date: string) => commitPeriod("custom", date, date),
+    [commitPeriod],
+  );
   const calendarMethodNote = `Total del alcance por día · ${
     timeBasis === "transaction"
       ? "por fecha de registro (lo que el Estado conocía)"
@@ -3792,6 +3811,14 @@ export function PanoramaConsole({
   // headerless RankedUnitsPanel + its "Ver tabla completa" toggle are retired. The
   // table carries the map linkage (highlightedKey/onHover) the list used to own,
   // so hover-sync survives; the k-anon suppressed-count line stays beneath it.
+  // Stable identity for the memo()-wrapped PanoramaDataTable (P4).
+  const rankingPreview = useMemo(
+    () => ({
+      measureLabel: rankingMeasureLabel,
+      drills: (key: string) => drillTargetFor(key) !== null,
+    }),
+    [rankingMeasureLabel, drillTargetFor],
+  );
   const dockRanking =
     effectiveRankingKind !== null && rankingLayer !== null ? (
       <div className="space-y-2">
@@ -3802,10 +3829,7 @@ export function PanoramaConsole({
           onSelect={onRankedSelect}
           highlightedKey={highlightedUnitKey}
           onHover={setHighlightedUnitKey}
-          preview={{
-            measureLabel: rankingMeasureLabel,
-            drills: (key) => drillTargetFor(key) !== null,
-          }}
+          preview={rankingPreview}
           dataUnavailable={rankingDataUnavailable}
           // C4: measurable vs suppressed vs blind — see PanoramaDataTable.
           measuredUnits={rankingAllInScope.length}
@@ -3885,7 +3909,7 @@ export function PanoramaConsole({
               ? "Activá una capa con dimensión temporal (denuncias, mordeduras, pérdidas, síntomas o zoonosis) para ver la actividad por día."
               : "Sin eventos registrados en este período y alcance."
           }
-          onDayClick={(date) => commitPeriod("custom", date, date)}
+          onDayClick={onCalendarDayClick}
         />
       </PanoramaStatSection>
       <PanoramaStatSection title="Ranking de unidades" subtitle={dockRankingSubtitle}>
