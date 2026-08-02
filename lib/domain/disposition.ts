@@ -3,7 +3,7 @@
 // The death_recorded event carries `disposition_method` (lib/event-schemas.ts)
 // and `facility` in its payload. This module is the single source of truth that
 // keeps the DeathRecordForm option list and the /gob/mortalidad dashboard in
-// agreement: bucketOf() collapses the raw method into the four buckets the
+// agreement: bucketOf() collapses the raw method into the five buckets the
 // disposition-mix tile shows, and isTraceable() encodes the Ley 5470 headline
 // (a death is traceable when its disposition method is known AND the facility
 // that handled it is recorded).
@@ -21,8 +21,20 @@ export type DispositionMethod =
   | "rendering"
   | "unknown";
 
-/** Normalized bucket for the disposition-mix tile (D3). */
-export type DispositionBucket = "cremation" | "burial" | "rendering" | "other";
+/**
+ * Normalized bucket for the disposition-mix tile (D3).
+ *
+ * "burial" used to merge authorized_cemetery and owner_burial into one bar —
+ * hiding exactly the split the surveillance beat needs (an authorized
+ * cemetery IS a compliant channel; a backyard burial is not). Honest split
+ * (surveillance-disposal slice, S4): authorized_burial vs home_burial.
+ */
+export type DispositionBucket =
+  | "cremation"
+  | "authorized_burial"
+  | "home_burial"
+  | "rendering"
+  | "other";
 
 /**
  * Bucket assignment for every known method. Anything not listed (a null method,
@@ -32,8 +44,8 @@ export type DispositionBucket = "cremation" | "burial" | "rendering" | "other";
 export const DISPOSITION_BUCKETS: Record<DispositionMethod, DispositionBucket> = {
   cremation_collective: "cremation",
   cremation_individual_ashes: "cremation",
-  authorized_cemetery: "burial",
-  owner_burial: "burial",
+  authorized_cemetery: "authorized_burial",
+  owner_burial: "home_burial",
   rendering: "rendering",
   household_waste: "other",
   unknown: "other",

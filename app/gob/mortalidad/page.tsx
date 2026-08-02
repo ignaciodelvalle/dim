@@ -57,7 +57,8 @@ export const dynamic = "force-dynamic";
 
 const BUCKET_LABELS: Record<string, string> = {
   cremation: "Cremación",
-  burial: "Sepultura / cementerio",
+  authorized_burial: "Cementerio autorizado",
+  home_burial: "Entierro en domicilio",
   rendering: "Reciclaje sanitario",
   other: "Otro / sin especificar",
 };

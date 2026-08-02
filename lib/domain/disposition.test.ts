@@ -19,8 +19,8 @@ describe("bucketOf", () => {
   const cases: Array<[DispositionMethod | null, DispositionBucket]> = [
     ["cremation_collective", "cremation"],
     ["cremation_individual_ashes", "cremation"],
-    ["authorized_cemetery", "burial"],
-    ["owner_burial", "burial"],
+    ["authorized_cemetery", "authorized_burial"],
+    ["owner_burial", "home_burial"],
     ["household_waste", "other"],
     ["rendering", "rendering"],
     ["unknown", "other"],

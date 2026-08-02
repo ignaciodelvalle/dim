@@ -155,7 +155,7 @@ const CABA = { province: "CABA", locality: "CABA" };
 
 describe("fetchMortalityDisposition — B2 disposition mix + B3 traceable rate", () => {
   it("computes bucket shares and traceable-disposal rate", async () => {
-    // 2 cremation (traceable), 1 burial (traceable), 1 rendering (traceable) = 4 deaths.
+    // 2 cremation, 1 home burial, 1 authorized burial, 1 rendering (all traceable) = 5 deaths.
     await seedDeath({ ...CABA, dispositionMethod: "cremation_collective", facility: "Crem A" });
     await seedDeath({
       ...CABA,
@@ -163,14 +163,19 @@ describe("fetchMortalityDisposition — B2 disposition mix + B3 traceable rate",
       facility: "Crem B",
     });
     await seedDeath({ ...CABA, dispositionMethod: "owner_burial", facility: "Patio" });
+    await seedDeath({ ...CABA, dispositionMethod: "authorized_cemetery", facility: "Cementerio" });
     await seedDeath({ ...CABA, dispositionMethod: "rendering", facility: "Planta" });
 
     const r = await fetchMortalityDisposition(ctxFor({ role: "govt" }, [CABA]));
 
-    expect(r.total).toBe(4);
+    expect(r.total).toBe(5);
     const byBucket = Object.fromEntries(r.byBucket.map((b) => [b.bucket, b.count]));
     expect(byBucket.cremation).toBe(2);
-    expect(byBucket.burial).toBe(1);
+    // The burial buckets are split (S4): a backyard burial must never hide
+    // inside the same bar as a compliant authorized cemetery.
+    expect(byBucket.home_burial).toBe(1);
+    expect(byBucket.authorized_burial).toBe(1);
+    expect(byBucket.burial).toBeUndefined();
     expect(byBucket.rendering).toBe(1);
     // All 4 have a known method + facility → traceable rate = 100%.
     expect(r.traceableRate).toBe(100);
