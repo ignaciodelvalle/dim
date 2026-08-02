@@ -99,6 +99,13 @@ beforeEach(() => {
       disconnect() {}
     } as unknown as typeof ResizeObserver);
 
+  // jsdom implements neither scrollIntoView nor the rAF timing the component
+  // uses around it (PetDetailTabsPanel.tsx ~189). Without this stub the call
+  // throws INSIDE a requestAnimationFrame callback AFTER the test completed —
+  // an unhandled async exception that intermittently kills the vitest worker
+  // fork ("Worker exited unexpectedly" with zero failed tests).
+  Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? vi.fn();
+
   window.history.replaceState(null, "", "/mis-mascotas/abc123");
   originalPushState = window.history.pushState.bind(window.history);
   originalReplaceState = window.history.replaceState.bind(window.history);
