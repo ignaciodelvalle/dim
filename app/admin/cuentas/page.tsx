@@ -73,9 +73,9 @@ export default async function CuentasPage({
           ¿Quién puede operar con privilegios, y con qué alcance?
         </h1>
         <p className="text-md text-ln-op-ink-2">
-          Cuentas de gobierno y administradores comparten la misma gramática de roster — buscar,
-          dar de alta, ajustar el alcance, desactivar — sobre dos registros distintos. Elegí el
-          registro en el que querés trabajar ahora.
+          Cuentas de gobierno y administradores comparten la misma gramática de roster — buscar, dar
+          de alta, ajustar el alcance, desactivar — sobre dos registros distintos. Elegí el registro
+          en el que querés trabajar ahora.
         </p>
       </header>
 
