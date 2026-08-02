@@ -19,19 +19,28 @@
 
 import type maplibregl from "maplibre-gl";
 
-import { HATCH_IMAGE_ID, buildHatchImageData } from "@/components/panorama/hatch-pattern";
+import {
+  HATCH_IMAGE_ID,
+  buildHatchImageData,
+  patternPixelRatio,
+} from "@/components/panorama/hatch-pattern";
 import { NO_DATA_IMAGE_ID, buildNoDataImageData } from "@/components/panorama/no-data-pattern";
 
 /** Idempotent: safe to call on every `load`, and on a style reload. */
 export function registerChoroplethPatterns(map: maplibregl.Map): void {
   try {
+    // V4 (PO 2026-08-02): ONE ratio backs both the declared pixelRatio here AND
+    // the bitmap's actual build scale inside each build*ImageData — see
+    // patternPixelRatio's doc comment in hatch-pattern.ts for why a mismatch
+    // between the two would matter.
+    const pixelRatio = patternPixelRatio();
     if (!map.hasImage(HATCH_IMAGE_ID)) {
       const hatch = buildHatchImageData();
-      if (hatch) map.addImage(HATCH_IMAGE_ID, hatch, { pixelRatio: 2 });
+      if (hatch) map.addImage(HATCH_IMAGE_ID, hatch, { pixelRatio });
     }
     if (!map.hasImage(NO_DATA_IMAGE_ID)) {
       const stipple = buildNoDataImageData();
-      if (stipple) map.addImage(NO_DATA_IMAGE_ID, stipple, { pixelRatio: 2 });
+      if (stipple) map.addImage(NO_DATA_IMAGE_ID, stipple, { pixelRatio });
     }
   } catch {
     // No canvas / addImage unavailable — both overlays degrade honestly.

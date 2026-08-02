@@ -23,6 +23,8 @@
 // Kept framework-light (DOM canvas only) so the SituationalMap and the CABA
 // inset share ONE pattern — the same no-data mark on every surface.
 
+import { patternPixelRatio } from "@/components/panorama/hatch-pattern";
+
 /** The map-image id every map registers the stipple tile under. */
 export const NO_DATA_IMAGE_ID = "pano-stipple-no-data";
 
@@ -59,7 +61,7 @@ export const NO_DATA_SWATCH_SIZE = "5px 5px";
 export function buildNoDataImageData(): ImageData | null {
   if (typeof document === "undefined") return null;
   const tile = 10;
-  const scale = 2; // matches addImage pixelRatio: 2 (crisp on hi-dpi)
+  const scale = patternPixelRatio(); // matches the addImage pixelRatio callers pass
   const w = tile * scale;
   const h = tile * scale;
   const canvas = document.createElement("canvas");

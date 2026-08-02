@@ -179,6 +179,23 @@ export function frameHasSuppressedMark(
 }
 
 /**
+ * V4 (map-mapa-nivel-2, PO 2026-08-02): the device-pixel-ratio-aware scale for
+ * BOTH pattern tiles (this hatch and no-data-pattern.ts's stipple) — a single
+ * source of truth so the bitmap's actual build scale and the `pixelRatio`
+ * declared at `map.addImage` can never drift apart (a mismatch there is what
+ * makes a hi-DPI pattern read soft or the tile repeat at the wrong pitch).
+ * Bounded [1,3]: floored so a 0/undefined devicePixelRatio (headless, old
+ * browsers) still builds a usable tile, capped so a >3x display doesn't blow
+ * up tile memory for a texture this small. SSR-guarded — only ever called from
+ * client-side map-init code, but `window` may still be absent under a bad
+ * import graph, so this fails safe to the previous hardcoded default (2).
+ */
+export function patternPixelRatio(): number {
+  if (typeof window === "undefined") return 2;
+  return Math.min(3, Math.max(1, Math.round(window.devicePixelRatio || 2)));
+}
+
+/**
  * Build the diagonal-hatch tile as ImageData. Transparent background + mid-slate
  * 45° strokes (readable on the light canvas). Returns null when no canvas is
  * available (SSR / no DOM), in which case the suppressed cells fall back to
@@ -187,7 +204,7 @@ export function frameHasSuppressedMark(
 export function buildHatchImageData(): ImageData | null {
   if (typeof document === "undefined") return null;
   const tile = 8;
-  const scale = 2; // matches addImage pixelRatio: 2 (crisp on hi-dpi)
+  const scale = patternPixelRatio(); // matches the addImage pixelRatio callers pass
   const w = tile * scale;
   const h = tile * scale;
   const canvas = document.createElement("canvas");
