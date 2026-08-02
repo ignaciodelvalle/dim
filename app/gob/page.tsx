@@ -512,6 +512,19 @@ export default async function GobiernoDashboardPage({
   if (selectedLocalitySlug) casosParams.set("locality", selectedLocalitySlug);
   const casosHref = casosParams.size > 0 ? `/gob/casos?${casosParams}` : "/gob/casos";
 
+  // Provenance context for every catalogued tile's "Ver origen" card. The
+  // scope line reuses the SAME resolved values the header discloses (C3 ONE
+  // VIEWSCOPE): the narrowed-view description when the URL filter narrows
+  // below the mandate, else the mandate label — never re-derived. Freshness
+  // defers to the DashboardFreshnessFooter this page renders at the bottom.
+  // No periodLabel: the home has no period picker, and each descriptor's own
+  // fixed window (12m/30d/now) is what the card states — threading a second
+  // period string here could only drift from the catalog's declaration.
+  const kpiProvenance = {
+    scopeLabel: narrowedView ?? scopeLabel,
+    pageHasFreshnessFooter: true,
+  };
+
   const queueItems: Array<{ href: string; label: string; count: number; descriptorId?: KpiId }> = [
     {
       href: "/gob/cola",
@@ -703,6 +716,7 @@ export default async function GobiernoDashboardPage({
             href="/gob/programa?vista=resumen#gob-programa-outliers-titulo"
             info={getKpiInfo("rabies_coverage_dogs_12m")}
             descriptorId="rabies_coverage_dogs_12m"
+            provenance={kpiProvenance}
           />
           <OpKpi
             label={KPI_CATALOG.sterilizations_per_month.label}
@@ -725,6 +739,7 @@ export default async function GobiernoDashboardPage({
             // esterilizaciones" panel of the Padrón hub's Población vista.
             href="/gob/padron?vista=poblacion#panel-esterilizacion-titulo"
             descriptorId="sterilizations_per_month"
+            provenance={kpiProvenance}
             guardInput={{ priorBase: sterilizations.prevCount }}
           />
           <OpKpi
@@ -758,6 +773,7 @@ export default async function GobiernoDashboardPage({
             href="/gob/vigilancia"
             info={getKpiInfo("bites_per_10k")}
             descriptorId="bites_per_10k"
+            provenance={kpiProvenance}
           />
           <OpKpi
             label={KPI_CATALOG.open_rabies_observations.label}
@@ -779,6 +795,7 @@ export default async function GobiernoDashboardPage({
             href="/gob/vigilancia"
             info={getKpiInfo("open_rabies_observations")}
             descriptorId="open_rabies_observations"
+            provenance={kpiProvenance}
           />
           <OpKpi
             label={KPI_CATALOG.open_bite_cases.label}
@@ -788,6 +805,7 @@ export default async function GobiernoDashboardPage({
             href="/gob/vigilancia"
             info={getKpiInfo("open_bite_cases")}
             descriptorId="open_bite_cases"
+            provenance={kpiProvenance}
           />
           <OpKpi
             label={KPI_CATALOG.notified_diseases.label}
@@ -801,6 +819,7 @@ export default async function GobiernoDashboardPage({
             href="/gob/vigilancia"
             info={getKpiInfo("notified_diseases")}
             descriptorId="notified_diseases"
+            provenance={kpiProvenance}
           />
           <OpKpi
             label={KPI_CATALOG.microchip_penetration.label}
@@ -815,6 +834,7 @@ export default async function GobiernoDashboardPage({
             // already uses.
             href="/gob/padron?vista=censo#panel-embudo-titulo"
             descriptorId="microchip_penetration"
+            provenance={kpiProvenance}
             // Red-team 2026-07 #3: 0-pet padrón (e.g. out-of-mandate locality
             // filter) renders "—", not a fabricated 0%.
             guardInput={{ n: microchipPenetration.active }}
@@ -848,6 +868,7 @@ export default async function GobiernoDashboardPage({
             // "Riesgo PPP" vista (base: ppp).
             href="/gob/panorama?preset=riesgo-ppp"
             descriptorId="ppp_registry_compliance"
+            provenance={kpiProvenance}
           />
 
           {/* Mortalidad y disposición (§5 narrative) — the third citizen-
@@ -865,6 +886,7 @@ export default async function GobiernoDashboardPage({
             sub="últimos 12 meses"
             href="/gob/mortalidad"
             descriptorId="mortality_deaths_12m"
+            provenance={kpiProvenance}
             guardInput={{ n: mortality.total }}
           />
           <OpKpi
@@ -874,6 +896,7 @@ export default async function GobiernoDashboardPage({
             sub="últimos 12 meses"
             href="/gob/mortalidad"
             descriptorId="mortality_disposal_traceability"
+            provenance={kpiProvenance}
             guardInput={{ n: mortality.total }}
           />
         </div>
@@ -940,6 +963,7 @@ export default async function GobiernoDashboardPage({
                 value={formatCount(item.count)}
                 href={item.href}
                 descriptorId={item.descriptorId}
+                provenance={kpiProvenance}
               />
             </div>
           ))}
@@ -968,6 +992,7 @@ export default async function GobiernoDashboardPage({
               sub="a vos"
               href="/gob/denuncias?etapa=triage&queue=mine"
               descriptorId="my_assigned_welfare_reports"
+              provenance={kpiProvenance}
             />
           </div>
         </section>

@@ -76,6 +76,16 @@ export type AdminKpiStripData = {
  * the surrounding <section>/heading; this returns the tiles wrapped in a grid
  * so the layout stays consistent across both pages.
  */
+/**
+ * Provenance context for the strip's catalogued tiles ("Ver origen" card).
+ * The admin portal is national by definition (the pending tile's own caveat:
+ * "todas las jurisdicciones") — no page-level filter narrows it, so the scope
+ * is a static truth, not a recomputation. Period/freshness are NOT threaded:
+ * the card falls back to the catalog's own window declaration and an honest
+ * "No disponible." (neither admin page renders a freshness footer).
+ */
+const ADMIN_PROVENANCE = { scopeLabel: "Nacional (todas las jurisdicciones)" };
+
 export function AdminKpiStrip({
   data,
   omitPendingQueue = false,
@@ -145,6 +155,11 @@ export function AdminKpiStrip({
             definition: "Solicitudes de aprobación en estado pendiente en este momento.",
             caveat: "Incluye solicitudes de todas las jurisdicciones.",
           }}
+          // Provenance: the tile renders the catalogued queue_pending_total —
+          // the descriptor unlocks "Ver origen" (and honestly tags the stock
+          // as period-invariant, which it is).
+          descriptorId="queue_pending_total"
+          provenance={ADMIN_PROVENANCE}
         />
       )}
       {(() => {
@@ -183,6 +198,7 @@ export function AdminKpiStrip({
             guardInput={
               data.decisionsPriorBase !== null ? { priorBase: data.decisionsPriorBase } : undefined
             }
+            provenance={ADMIN_PROVENANCE}
           />
         );
       })()}
@@ -206,6 +222,11 @@ export function AdminKpiStrip({
               sub={headline.sub}
               href="/admin/outbox"
               info={getKpiInfo("eno_sla_compliance")}
+              // Provenance: same catalogued KPI the info already resolves —
+              // the descriptor unlocks "Ver origen" (its zeroDenominator guard
+              // is manualEnforcement via enoSlaHeadline/enoSlaTone above).
+              descriptorId="eno_sla_compliance"
+              provenance={ADMIN_PROVENANCE}
             />
           );
         })()}
