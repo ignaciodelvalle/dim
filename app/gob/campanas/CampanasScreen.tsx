@@ -27,6 +27,7 @@ import {
   type OpFilterAxis,
   OpFilterBar,
   OpKpi,
+  OpSortHeader,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
@@ -42,6 +43,7 @@ import {
   windows,
 } from "@/lib/metrics";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
+import { parseUrlSort, sortRowsByUrlSort } from "@/lib/ui/url-sort";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
 
@@ -58,6 +60,9 @@ export type CampanasScreenProps = {
     province?: string;
     locality?: string;
     kind?: string;
+    /** Q4 (URL sort) — Alcance geográfico column sort, see parseUrlSort below. */
+    orden?: string;
+    dir?: string;
   };
   /**
    * True when rendered as the Operativos hub's "Campañas" tab
@@ -146,6 +151,21 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
   // every downstream sub-fetch (offerings, outcomes, geo reach, sparkline,
   // prevTotals) — the whole dashboard stays internally consistent.
   const dashboard = await fetchCampaignDashboard(ctx, { serviceKind });
+
+  // Q4 (URL sort) — ?orden=&dir= re-sorts the Alcance geográfico rows
+  // SERVER-SIDE before render. geoReach is the complete k-anon-suppressed
+  // rollup (no pagination; withheld localities are already OUT of `rows` and
+  // declared via suppressedCount), so the URL's claimed order covers the
+  // whole published set. Default keeps the fetcher's own volume order.
+  const geoSort = parseUrlSort(sp, ["localidad", "provincia", "asistencias"] as const, {
+    key: "asistencias",
+    dir: "desc",
+  });
+  const geoRows = sortRowsByUrlSort(dashboard.geoReach.rows, geoSort, {
+    localidad: (a, b) => a.locality.localeCompare(b.locality, "es"),
+    provincia: (a, b) => (a.province ?? "").localeCompare(b.province ?? "", "es"),
+    asistencias: (a, b) => a.attendedCount - b.attendedCount,
+  });
 
   // Determine the "period label" string for delta display.
   const periodLabel = "vs período anterior";
@@ -495,23 +515,36 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
               <OpCardBody>
                 <table className="w-full text-sm border-collapse">
                   <caption className="sr-only">
-                    Asistencias por localidad en campañas sanitarias
+                    Asistencias por localidad en campañas sanitarias (ordenable por columna)
                   </caption>
                   <thead>
+                    {/* Q4 (URL sort) — OpSortHeader cells; the rows below are
+                        `geoRows`, re-sorted server-side from the same params. */}
                     <tr className="border-b border-ln-op-line">
-                      <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
-                        Localidad
-                      </th>
-                      <th scope="col" className="py-1 text-left font-semibold text-ln-op-mute">
-                        Provincia
-                      </th>
-                      <th scope="col" className="py-1 text-right font-semibold text-ln-op-mute">
-                        Asistencias
-                      </th>
+                      <OpSortHeader
+                        sortKey="localidad"
+                        label="Localidad"
+                        defaultDir="asc"
+                        current={geoSort}
+                        className="py-1 text-left font-semibold text-ln-op-mute"
+                      />
+                      <OpSortHeader
+                        sortKey="provincia"
+                        label="Provincia"
+                        defaultDir="asc"
+                        current={geoSort}
+                        className="py-1 text-left font-semibold text-ln-op-mute"
+                      />
+                      <OpSortHeader
+                        sortKey="asistencias"
+                        label="Asistencias"
+                        current={geoSort}
+                        className="py-1 text-right font-semibold text-ln-op-mute"
+                      />
                     </tr>
                   </thead>
                   <tbody>
-                    {dashboard.geoReach.rows.map((r) => (
+                    {geoRows.map((r) => (
                       <tr
                         key={`${r.province ?? "?"}·${r.locality}`}
                         className="border-b border-ln-op-line/50"

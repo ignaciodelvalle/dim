@@ -42,7 +42,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { OutreachRabiesReminderList } from "@/components/gob/OutreachRabiesReminderList";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpCard, OpCardBody, OpCardHead, OpKpi } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpKpi, OpSortHeader } from "@/components/ui/dashboard";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -57,6 +57,7 @@ import {
 } from "@/lib/infra/outreach-pipelines";
 import { buildProjectionContext } from "@/lib/metrics";
 import { windows } from "@/lib/metrics/period";
+import { type UrlSort, parseUrlSort, sortRowsByUrlSort } from "@/lib/ui/url-sort";
 import { formatCount } from "@/lib/utils/format";
 
 export type AlcanceScreenProps = {
@@ -74,7 +75,13 @@ export type AlcanceScreenProps = {
    * an empty string, so "no locality" is a real, distinguishable zone rather
    * than indistinguishable from "no zone selected".
    */
-  searchParams?: { zona?: string; provincia?: string };
+  searchParams?: {
+    zona?: string;
+    provincia?: string;
+    /** Q4 (URL sort) — red-zones column sort, see parseUrlSort below. */
+    orden?: string;
+    dir?: string;
+  };
 };
 
 /** Sentinel for a null province/locality in the `?zona=`/`?provincia=` URL params. */
@@ -128,11 +135,14 @@ function OverdueRabiesPipelineCard({
   overdueResult,
   overdueByLocality,
   zone,
+  zoneSort,
 }: {
   panelId: string;
   overdueResult: OverdueRabiesResult;
   overdueByLocality: ReturnType<typeof aggregateOverdueByLocality>;
   zone: ZoneSelection;
+  /** Q4 — the current URL sort the aggregates table headers report. */
+  zoneSort: UrlSort;
 }) {
   return (
     <OpCard aria-labelledby={panelId}>
@@ -174,6 +184,7 @@ function OverdueRabiesPipelineCard({
           <ZoneAggregates
             overdueByLocality={overdueByLocality}
             totalPets={overdueResult.pets.length}
+            zoneSort={zoneSort}
           />
         )}
       </OpCardBody>
@@ -236,9 +247,12 @@ const ZONE_ACTION_LINK_CLASSES =
 function ZoneAggregates({
   overdueByLocality,
   totalPets,
+  zoneSort,
 }: {
   overdueByLocality: ReturnType<typeof aggregateOverdueByLocality>;
   totalPets: number;
+  /** Q4 — the current URL sort the table headers report. */
+  zoneSort: UrlSort;
 }) {
   return (
     <>
@@ -281,19 +295,35 @@ function ZoneAggregates({
       </ul>
       <table className="hidden w-full text-sm border-collapse sm:table">
         <caption className="sr-only">
-          Localidades con mascotas con antirrábica vencida, de mayor a menor
+          Localidades con mascotas con antirrábica vencida, ordenable por columna (por defecto de
+          mayor a menor)
         </caption>
         <thead>
+          {/* Q4 (URL sort) — OpSortHeader cells; the page re-sorted
+              overdueByLocality server-side from the same params, so the <sm
+              card list above follows the same order. Acción is not a sort
+              axis. */}
           <tr className="border-b border-ln-op-line">
-            <th scope="col" className="py-1.5 text-left font-semibold text-ln-op-mute">
-              Localidad
-            </th>
-            <th scope="col" className="py-1.5 text-left font-semibold text-ln-op-mute">
-              Provincia
-            </th>
-            <th scope="col" className="py-1.5 text-right font-semibold text-ln-op-mute">
-              Vencidas
-            </th>
+            <OpSortHeader
+              sortKey="localidad"
+              label="Localidad"
+              defaultDir="asc"
+              current={zoneSort}
+              className="py-1.5 text-left font-semibold text-ln-op-mute"
+            />
+            <OpSortHeader
+              sortKey="provincia"
+              label="Provincia"
+              defaultDir="asc"
+              current={zoneSort}
+              className="py-1.5 text-left font-semibold text-ln-op-mute"
+            />
+            <OpSortHeader
+              sortKey="vencidas"
+              label="Vencidas"
+              current={zoneSort}
+              className="py-1.5 text-right font-semibold text-ln-op-mute"
+            />
             <th scope="col" className="py-1.5 text-right font-semibold text-ln-op-mute">
               Acción
             </th>
@@ -380,7 +410,24 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
 
   // Pipeline (a) geo-first aggregation — in-memory fold over the SAME query
   // above, no second DB round-trip (PO decision 3).
-  const overdueByLocality = aggregateOverdueByLocality(overdueResult.pets);
+  //
+  // Q4 (URL sort): ?orden=&dir= re-sorts the complete aggregate SERVER-SIDE
+  // (no pagination — the whole set is here), so both renderings of the same
+  // array (the <sm card list and the sm+ table) follow one order. Default
+  // keeps the fold's own worst-volume-first order.
+  const zoneSort = parseUrlSort(searchParams ?? {}, ["localidad", "provincia", "vencidas"], {
+    key: "vencidas",
+    dir: "desc",
+  });
+  const overdueByLocality = sortRowsByUrlSort(
+    aggregateOverdueByLocality(overdueResult.pets),
+    zoneSort,
+    {
+      localidad: (a, b) => (a.locality ?? "").localeCompare(b.locality ?? "", "es"),
+      provincia: (a, b) => (a.province ?? "").localeCompare(b.province ?? "", "es"),
+      vencidas: (a, b) => a.count - b.count,
+    },
+  );
 
   // Zone drill-down: `?zona=`/`?provincia=` select ONE locality's named list.
   // Absent `zona` = aggregates view (the default, PII-free page load).
@@ -468,6 +515,7 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
         overdueResult={overdueResult}
         overdueByLocality={overdueByLocality}
         zone={zone}
+        zoneSort={zoneSort}
       />
 
       {/* Pipeline (b): Stray-scan density */}

@@ -49,9 +49,10 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
+import { parseUrlSort, sortRowsByUrlSort } from "@/lib/ui/url-sort";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatCount, formatRate, pluralizeEs, todayIsoInAr } from "@/lib/utils/format";
-import { DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
+import { DISEASE_SUMMARY_SORT_KEYS, DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 import { rabiesComplianceRows } from "./_components/rabies-compliance-rows";
 import {
@@ -69,6 +70,9 @@ export default async function GobVigilanciaPage({
     to?: string;
     province?: string;
     locality?: string;
+    /** Q4 (URL sort) — disease-summary column sort, see parseUrlSort below. */
+    orden?: string;
+    dir?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -234,6 +238,22 @@ export default async function GobVigilanciaPage({
 
   const signals = signalsPeriod ?? signals30d;
   const summary = computeDiseaseSummary(signals30d);
+
+  // Q4 (URL sort) — ?orden=&dir= re-sorts the disease summary SERVER-SIDE
+  // before render. This array is the complete 30-day rollup (no pagination),
+  // so the URL's claimed order is the true order over the whole set — the
+  // honesty precondition url-sort.ts documents. Default mirrors
+  // computeDiseaseSummary's own order (30-day count, worst-volume first).
+  const diseaseSort = parseUrlSort(sp, DISEASE_SUMMARY_SORT_KEYS, {
+    key: "d30",
+    dir: "desc",
+  });
+  const sortedSummary = sortRowsByUrlSort(summary, diseaseSort, {
+    enfermedad: (a, b) => a.diseaseName.localeCompare(b.diseaseName, "es"),
+    h24: (a, b) => a.count24h - b.count24h,
+    d7: (a, b) => a.count7d - b.count7d,
+    d30: (a, b) => a.count30d - b.count30d,
+  });
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
@@ -881,7 +901,7 @@ export default async function GobVigilanciaPage({
         />
         <OpCardBody className="p-0">
           <div className="px-4 py-3">
-            <DiseaseSummaryTable summary={summary} />
+            <DiseaseSummaryTable summary={sortedSummary} sort={diseaseSort} />
           </div>
         </OpCardBody>
       </OpCard>
