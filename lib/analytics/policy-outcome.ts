@@ -235,24 +235,66 @@ export type RuleChangeRow = {
 };
 
 /**
+ * Jurisdiction scope to restrict `fetchRuleChanges` to. Mirrors
+ * `countEventsInWindow`'s province/locality params: national rules
+ * (province null) always pass through — a jurisdiction-scoped caller must
+ * still see the national rules that govern it. A bare `{ locality }` with no
+ * province is ignored (locality is only meaningful once province is set).
+ */
+export type RuleChangeScope = {
+  province?: string;
+  locality?: string;
+};
+
+/**
  * Recent govt_business_rules mutations from the audit log, newest first.
  * Payload fields were written by the business-rules writers
  * (create/update/delete-business-rule.ts) — ruleType + jurisdiction.
+ *
+ * `scope` restricts results to a jurisdiction (G1 posture — an unfiltered
+ * fetch from a jurisdiction-scoped surface like /gob/panorama would leak
+ * other jurisdictions' rule history). Unscoped (default) stays
+ * platform-wide, which is what today's only caller — the admin-only
+ * /admin/inteligencia page via `fetchPolicyOutcomes` — needs.
+ *
+ *   - `scope.province` set: national rules (province null) OR rows whose
+ *     province matches, any locality within that province.
+ *   - `scope.province` + `scope.locality` both set: national rules, OR
+ *     province-wide rows for that province (locality null), OR exact
+ *     province+locality matches. Rows for a DIFFERENT locality in the same
+ *     province are excluded.
  */
 export async function fetchRuleChanges(
   limit: number = POLICY_OUTCOME_MAX_CHANGES,
+  scope?: RuleChangeScope,
 ): Promise<RuleChangeRow[]> {
+  const provinceCol = sql<string | null>`${auditLog.payload}->'jurisdiction'->>'province'`;
+  const localityCol = sql<string | null>`${auditLog.payload}->'jurisdiction'->>'locality'`;
+
+  const conditions = [inArray(auditLog.action, [...RULE_CHANGE_ACTIONS])];
+  if (scope?.province) {
+    conditions.push(
+      scope.locality
+        ? sql`(
+            ${provinceCol} IS NULL
+            OR (${provinceCol} = ${scope.province} AND ${localityCol} IS NULL)
+            OR (${provinceCol} = ${scope.province} AND ${localityCol} = ${scope.locality})
+          )`
+        : sql`(${provinceCol} IS NULL OR ${provinceCol} = ${scope.province})`,
+    );
+  }
+
   const rows = await db
     .select({
       auditId: auditLog.id,
       action: auditLog.action,
       ruleType: sql<string | null>`${auditLog.payload}->>'ruleType'`,
-      province: sql<string | null>`${auditLog.payload}->'jurisdiction'->>'province'`,
-      locality: sql<string | null>`${auditLog.payload}->'jurisdiction'->>'locality'`,
+      province: provinceCol,
+      locality: localityCol,
       changedAt: auditLog.performedAt,
     })
     .from(auditLog)
-    .where(inArray(auditLog.action, [...RULE_CHANGE_ACTIONS]))
+    .where(and(...conditions))
     .orderBy(desc(auditLog.performedAt))
     .limit(limit);
 
