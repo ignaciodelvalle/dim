@@ -40,13 +40,20 @@ import type React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
-import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
 import { REFERENCE_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 import { Sparkline } from "./Sparkline";
+
+// Local copy of KPI_CATALOG.reunification_rate.label (lib/metrics/kpi-catalog.ts)
+// — this file only needs ONE label, so importing the full catalog (~2.5k lines,
+// every KPI's numerator/denominator/guards) was pure bundle weight (P2, perf
+// sweep 2026-08-02, ~95KB off 109 pages). Same string already lives duplicated
+// in get-panorama-kpis.ts:864 and app/gob/perdidas/page.tsx — keep in sync if
+// the canonical label ever changes.
+const REUNIFICATION_RATE_LABEL = "Tasa de reunificación";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -532,7 +539,7 @@ export function FeatureBody({
           <dl>
             <Row label={unitRowLabel(properties, isProvince)} value={place || "—"} />
             <Row
-              label={KPI_CATALOG.reunification_rate.label}
+              label={REUNIFICATION_RATE_LABEL}
               value={
                 suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
