@@ -906,8 +906,9 @@ export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
         backdropPressRef.current = false;
       }}
       // Right-anchored full-height panel. `ml-auto mr-0` + max-h/h-full slides it
-      // to the right edge; the native ::backdrop dims the rest.
-      className="ml-auto mr-0 h-full max-h-full w-full max-w-[360px] border-l border-ln-op-line bg-ln-op-card p-0 shadow-[0_18px_50px_rgba(20,40,60,.22)] [&::backdrop]:bg-black/40 open:flex open:flex-col"
+      // to the right edge; the native ::backdrop dims the rest. A2 (motion
+      // review): op-drawer-enter (globals.css) adds the slide+fade entrance.
+      className="op-drawer-enter ml-auto mr-0 h-full max-h-full w-full max-w-[360px] border-l border-ln-op-line bg-ln-op-card p-0 shadow-[0_18px_50px_rgba(20,40,60,.22)] [&::backdrop]:bg-black/40 open:flex open:flex-col"
     >
       {selected && (
         <>
