@@ -171,7 +171,7 @@ export async function triageWelfareReportAction(input: {
 
   await flushNotifications(result.notifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   return { ok: true };
 }
@@ -204,7 +204,7 @@ export async function startWelfareReportAction(input: {
 
   await flushNotifications(result.notifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   return { ok: true };
 }
@@ -240,7 +240,7 @@ export async function closeWelfareReportAction(input: {
 
   await flushNotifications(result.notifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   return { ok: true };
 }
@@ -264,7 +264,7 @@ export async function passWelfareToTriageAction(input: {
   if (!result.ok) return { error: result.error };
 
   revalidatePath("/admin/moderacion");
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   return { ok: true };
 }
 
@@ -339,9 +339,8 @@ export async function approveDenunciaModerationAction(input: {
 
   if (!result.ok) return { error: result.error };
 
-  revalidatePath("/gob/moderacion");
+  revalidatePath("/gob/denuncias");
   revalidatePath("/admin/moderacion");
-  revalidatePath("/gob/maltrato");
   return { ok: true };
 }
 
@@ -371,7 +370,7 @@ export async function rejectDenunciaAsAbuseAction(input: {
 
   if (!result.ok) return { error: result.error };
 
-  revalidatePath("/gob/moderacion");
+  revalidatePath("/gob/denuncias");
   revalidatePath("/admin/moderacion");
   return { ok: true };
 }
@@ -398,7 +397,7 @@ export async function escalateDenunciaToAdminAction(input: {
 
   if (!result.ok) return { error: result.error };
 
-  revalidatePath("/gob/moderacion");
+  revalidatePath("/gob/denuncias");
   revalidatePath("/admin/moderacion");
   return { ok: true };
 }
@@ -425,7 +424,7 @@ export async function assignWelfareToMeAction(reportId: string): Promise<AssignR
 
   if (!result.ok) return result;
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${reportId}`);
   return { ok: true };
 }
@@ -452,7 +451,7 @@ export async function unassignWelfareAction(reportId: string): Promise<AssignRes
 
   if (!result.ok) return result;
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${reportId}`);
   return { ok: true };
 }
@@ -611,7 +610,7 @@ export async function deriveWelfareToOrgAction(input: {
 
   await flushNotifications(pendingNotifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   revalidatePath(`/org/${targetOrg.publicToken}/maltrato/recibidos`);
   return { ok: true };
