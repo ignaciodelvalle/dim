@@ -250,7 +250,11 @@ export function KpiChips({
   // We have values to show; a pending refetch just refreshes them in place.
   const refreshing = pending;
   // Subtle "updating" affordance: dim slightly + announce busy, never unmount.
-  const refreshingClass = refreshing ? "opacity-60 transition-opacity" : "";
+  // A3 (motion review): `transition-opacity` must stay present in BOTH states —
+  // it used to live only in the `refreshing` branch, so the class disappeared
+  // at the exact moment the value settled and the reveal went untransitioned.
+  // Only the opacity VALUE toggles now.
+  const refreshingClass = refreshing ? "opacity-60" : "opacity-100";
   // T2.1 — during a time scrub the numbers on screen are the PREVIOUS frame's
   // while the refetch is in flight, and the opacity dim alone read as a style,
   // not a claim. One terse line names the day the strip is moving to, so a
@@ -275,7 +279,7 @@ export function KpiChips({
         <ul
           aria-label="Indicadores de esta vista"
           aria-busy={refreshing}
-          className={`m-0 flex list-none flex-col gap-1.5 p-0 ${refreshingClass}`}
+          className={`m-0 flex list-none flex-col gap-1.5 p-0 transition-opacity ${refreshingClass}`}
         >
           {shown.map((kpi) => (
             <KpiCard
@@ -296,7 +300,10 @@ export function KpiChips({
   const shownRelevant = relevant.slice(0, MAX_CHIPS);
 
   return (
-    <div className={`flex flex-col gap-1.5 ${refreshingClass}`} aria-busy={refreshing}>
+    <div
+      className={`flex flex-col gap-1.5 transition-opacity ${refreshingClass}`}
+      aria-busy={refreshing}
+    >
       <ul
         aria-label="Indicadores de esta vista"
         className="m-0 flex list-none flex-col gap-1.5 p-0"
