@@ -205,8 +205,16 @@ const ALERT_ACTIONS: Partial<Record<KpiId, { route: string; label: string; query
   },
   // Situación layer — perdidas' decision is literally about reunification follow-up.
   reunification_rate: { route: "/gob/perdidas", label: "Ver en Pérdidas" },
-  // Vigilancia owns rabies-observation surveillance.
-  rabies_observation_compliance_10d: { route: "/gob/vigilancia", label: "Ver en Vigilancia" },
+  // G8 (obligations-worklist, 2026-08): the deadline-breach alert counts
+  // observations already PAST the 10-day legal window — an act-now signal,
+  // not a trend to study. It now lands on the deadline worklist
+  // (/gob/acciones), where those exact observations rank first and each row
+  // carries its "Cerrar →" resolution, instead of the Vigilancia dashboard
+  // (which keeps owning the analytical escalation-gap alert below).
+  rabies_observation_compliance_10d: {
+    route: "/gob/acciones",
+    label: "Ver en Acciones que vencen",
+  },
   // Campañas owns its own completion-rate decision 1:1. F2 fusion (2026-07-22):
   // /gob/campanas is now the Operativos hub's "campanas" tab (the hub's
   // default is "alcance", so the query suffix is required to land on the

@@ -176,7 +176,11 @@ describe("buildBriefingAlerts — surveillance urgency signals (claim #4)", () =
     expect(alert.title).toContain("3 observaciones rábicas superan");
     expect(alert.title).toContain("plazo legal de 10 días");
     expect(alert.severity).toBe("alta");
-    expect(alert.actionHref).toBe("/gob/vigilancia");
+    // G8 (obligations-worklist): an act-now breach count lands on the
+    // deadline worklist — where those observations rank first and carry
+    // their "Cerrar →" resolution — not on the Vigilancia dashboard.
+    expect(alert.actionHref).toBe("/gob/acciones");
+    expect(alert.actionLabel).toBe("Ver en Acciones que vencen");
   });
 
   it("merges urgency signals into the SAME ranked/capped list as target-gap alerts, alta before media", () => {
