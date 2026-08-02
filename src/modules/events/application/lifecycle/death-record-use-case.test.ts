@@ -380,6 +380,54 @@ describe("createDeathRecord", () => {
     );
   });
 
+  // G7 (2026-08-02): the authority signal is no longer a silent void no-op.
+  // The use-case passes the recording actor (for the pending-transmission
+  // audit row) and surfaces the honest { delivered: false, v1_noop } marker
+  // in its own result so no downstream can pretend the report was sent.
+  it("passes the recording actor and surfaces the honest authoritySignal marker", async () => {
+    mockSignalAuthorityReport.mockResolvedValue({
+      delivered: false,
+      v1_noop: true,
+      target: "snvs_v2",
+      auditRecorded: true,
+    });
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flush = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createDeathRecord(
+      { ...baseInput, diseaseCode: "rabies_confirmed", confirmedByLab: true, isReportable: true },
+      { repo, transaction: tx, flushNotifications: flush },
+    );
+
+    expect(mockSignalAuthorityReport).toHaveBeenCalledWith(
+      expect.objectContaining({ reportedByUserId: userId }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.authoritySignal).toEqual(
+        expect.objectContaining({ delivered: false, v1_noop: true }),
+      );
+    }
+  });
+
+  it("returns authoritySignal: null when the death is not reportable", async () => {
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flush = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createDeathRecord(
+      { ...baseInput, diseaseCode: null, isReportable: false },
+      { repo, transaction: tx, flushNotifications: flush },
+    );
+
+    expect(mockSignalAuthorityReport).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.authoritySignal).toBeNull();
+    }
+  });
+
   describe("urgent authority fan-out — the notification names the disposal", () => {
     // Shared setup: pet in observation, started event found, one authority in
     // jurisdiction — the fan-out inserts a notification row we can inspect.

@@ -21,7 +21,7 @@
 
 import "server-only";
 
-import { signalAuthorityReport } from "@/lib/domain/authority";
+import { type AuthoritySignalResult, signalAuthorityReport } from "@/lib/domain/authority";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 import { closeCase } from "@/lib/infra/case-helpers";
@@ -87,6 +87,13 @@ export type CreateDeathRecordResult =
       insertedEventId: string | null;
       rabiesObservationClosed: boolean;
       diseaseCode: string | null;
+      /**
+       * Honest authority-transmission state for reportable deaths (G7):
+       * `{ delivered: false, v1_noop: true, ... }` until the SNVS 2.0 API
+       * exists. Null when no report obligation applied (non-reportable death
+       * or idempotency noop). Callers must never render this as "sent".
+       */
+      authoritySignal: AuthoritySignalResult | null;
     }
   | { ok: false; error: string };
 
@@ -338,8 +345,12 @@ export async function createDeathRecord(
   await deps.flushNotifications(pendingNotifications);
 
   // Post-tx: signal authority report when disease is reportable.
+  // G7: no longer a silent no-op — signalAuthorityReport durably records the
+  // pending-transmission obligation (audit_log, v1_noop marker) and returns
+  // the honest { delivered: false } state surfaced in this use-case's result.
+  let authoritySignal: AuthoritySignalResult | null = null;
   if (isReportable && diseaseCode && insertedEventId) {
-    await signalAuthorityReport({
+    authoritySignal = await signalAuthorityReport({
       eventId: insertedEventId,
       petId: pet.id,
       diseaseCode,
@@ -347,6 +358,7 @@ export async function createDeathRecord(
       occurredAt,
       jurisdictionProvince: pet.jurisdictionProvince ?? null,
       jurisdictionLocality: pet.jurisdictionLocality ?? null,
+      reportedByUserId: recordedByUserId,
     });
   }
 
@@ -387,5 +399,5 @@ export async function createDeathRecord(
     }
   }
 
-  return { ok: true, insertedEventId, rabiesObservationClosed, diseaseCode };
+  return { ok: true, insertedEventId, rabiesObservationClosed, diseaseCode, authoritySignal };
 }
