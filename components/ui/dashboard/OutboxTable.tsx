@@ -22,6 +22,7 @@ import {
   buildBreachCue,
   buildStatusLabel,
   enoExternalDeliveryNote,
+  isPendingExternalTransmission,
 } from "@/lib/infra/outbox-list";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 
@@ -60,6 +61,21 @@ const BREACH_PILL_LABEL: Record<BreachCue, string> = {
   breach: "Incumplimiento",
   failed: "Fallido",
 };
+
+/**
+ * G7 (2026-08-02): the delivered-cue pill must not read "Entregado" for a row
+ * whose transmission has no external receiving endpoint (eno_authority) —
+ * that pill was the exact lie enoExternalDeliveryNote used to footnote. The
+ * honest pending-transmission state comes from buildStatusLabel (status
+ * 'delivered' + targetKind), rendered neutral instead of green: nothing was
+ * delivered externally, so nothing has earned an all-clear tone.
+ */
+function cuePill(cue: BreachCue, status: OutboxStatus, targetKind: string) {
+  if (cue === "delivered" && isPendingExternalTransmission(status, targetKind)) {
+    return { tone: "neutral" as PillTone, label: buildStatusLabel(status, targetKind) };
+  }
+  return { tone: BREACH_PILL_TONE[cue], label: BREACH_PILL_LABEL[cue] };
+}
 
 // Re-export so filter <option> labels stay in sync across pages.
 export { buildStatusLabel };
@@ -148,6 +164,7 @@ export function OutboxTable({
         <tbody>
           {rows.map((row) => {
             const cue: BreachCue = buildBreachCue(row.status, row.slaDueAt);
+            const pill = cuePill(cue, row.status, row.targetKind);
             const jurisdiction = [row.targetJurisdictionLocality, row.targetJurisdictionProvince]
               .filter(Boolean)
               .join(", ");
@@ -159,8 +176,8 @@ export function OutboxTable({
                 key={row.id}
                 className={`border-t border-ln-op-line ${cue === "breach" ? "bg-ln-op-danger-bg" : "hover:bg-ln-op-stripe"}`}
               >
-                <td className="py-2 px-3 whitespace-nowrap">
-                  <OpPill tone={BREACH_PILL_TONE[cue]}>{BREACH_PILL_LABEL[cue]}</OpPill>
+                <td className="py-2 px-3">
+                  <OpPill tone={pill.tone}>{pill.label}</OpPill>
                 </td>
                 <td className="py-2 px-3 whitespace-nowrap text-sm text-ln-op-ink-2">
                   {OUTBOX_TARGET_KIND_LABEL[row.targetKind] ?? row.targetKind}

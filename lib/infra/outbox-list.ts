@@ -45,9 +45,63 @@ export function isSlaBreached(status: OutboxStatus, slaDueAt: Date): boolean {
 }
 
 /**
- * Maps an outbox status to a human-readable Spanish label.
+ * Honest status wording for an external-authority row whose transmission has
+ * no receiving endpoint yet (C2 language contract, 2026-07-22 — PO-locked
+ * phrasing; promoted from footnote to STATUS on 2026-08-02, G7).
+ *
+ * One constant feeds both the status label and the delivery note so the two
+ * renderings can never drift apart.
  */
-export function buildStatusLabel(status: OutboxStatus): string {
+export const ENO_PENDING_TRANSMISSION_STATUS =
+  "Registrada y auditada — transmisión a la autoridad pendiente de endpoint receptor";
+
+/**
+ * ENO honest-delivery note (C2 language contract, 2026-07-22 — PO-locked).
+ *
+ * Our outbox pipeline genuinely generates, queues, SLA-tracks and audit-logs
+ * every ENO notification (AGENTS.md: "Measures OUR outbox pipeline, not
+ * external delivery"). But an eno_authority row completes its pipeline leg
+ * with status 'delivered' — which a reader parses as "the health authority
+ * received this", when no external receiving endpoint exists yet. This note
+ * states reality instead of implying external transmission, and deliberately
+ * never says "próximamente" (the pipeline is real and running TODAY; only the
+ * external leg is missing). Returns null for every other target_kind —
+ * govt_webhook/audit_export/internal_dashboard all resolve to a real,
+ * already-built destination with no such gap.
+ */
+export function enoExternalDeliveryNote(targetKind: string): string | null {
+  if (targetKind !== "eno_authority") return null;
+  return `${ENO_PENDING_TRANSMISSION_STATUS}.`;
+}
+
+/**
+ * G7 (2026-08-02): TRUE for exactly the rows whose "Entregado" label was a
+ * lie — status 'delivered' on a target_kind with no external receiving
+ * endpoint (today only eno_authority; anchored on enoExternalDeliveryNote so
+ * the endpoint-less class has ONE definition). 'delivered' there means OUR
+ * outbox pipeline processed and audit-logged the row (lib/infra/
+ * outbox-drainer.ts v1 no-op handler) — the external authority never
+ * received anything. Never true for pending/failed (those labels are honest
+ * as-is) nor for the internal target kinds, whose 'delivered' is genuine.
+ */
+export function isPendingExternalTransmission(status: OutboxStatus, targetKind: string): boolean {
+  return status === "delivered" && enoExternalDeliveryNote(targetKind) !== null;
+}
+
+/**
+ * Maps an outbox status to a human-readable Spanish label.
+ *
+ * Pass the row's `targetKind` whenever a CONCRETE row is being labeled: a
+ * 'delivered' eno_authority row then reads the honest pending-transmission
+ * state instead of "Entregado" (G7 — enoExternalDeliveryNote documents why
+ * "Entregado" is a lie for that class). Omitting `targetKind` is only valid
+ * for kind-agnostic contexts (the status <select> options in
+ * lib/ui/outbox-filter-axes.ts), where no row exists to be honest about.
+ */
+export function buildStatusLabel(status: OutboxStatus, targetKind?: string): string {
+  if (targetKind !== undefined && isPendingExternalTransmission(status, targetKind)) {
+    return ENO_PENDING_TRANSMISSION_STATUS;
+  }
   switch (status) {
     case "delivered":
       return "Entregado";
@@ -60,25 +114,6 @@ export function buildStatusLabel(status: OutboxStatus): string {
       return String(_exhaustive);
     }
   }
-}
-
-/**
- * ENO honest-delivery note (C2 language contract, 2026-07-22 — PO-locked).
- *
- * Our outbox pipeline genuinely generates, queues, SLA-tracks and audit-logs
- * every ENO notification (AGENTS.md: "Measures OUR outbox pipeline, not
- * external delivery"). But an eno_authority row's status can still read
- * "Entregado" (buildStatusLabel) — which a reader parses as "the health
- * authority received this", when no external receiving endpoint exists yet.
- * This note states reality instead of implying external transmission, and
- * deliberately never says "próximamente" (the pipeline is real and running
- * TODAY; only the external leg is missing). Returns null for every other
- * target_kind — govt_webhook/audit_export/internal_dashboard all resolve to a
- * real, already-built destination with no such gap.
- */
-export function enoExternalDeliveryNote(targetKind: string): string | null {
-  if (targetKind !== "eno_authority") return null;
-  return "Registrada y auditada — transmisión a la autoridad pendiente de endpoint receptor.";
 }
 
 /**

@@ -7,10 +7,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ENO_PENDING_TRANSMISSION_STATUS,
   applyOutboxFilters,
   buildBreachCue,
   buildStatusLabel,
   enoExternalDeliveryNote,
+  isPendingExternalTransmission,
   isSlaBreached,
 } from "@/lib/infra/outbox-list";
 
@@ -55,6 +57,64 @@ describe("buildStatusLabel", () => {
 
   it("maps pending to the expected Spanish label", () => {
     expect(buildStatusLabel("pending")).toBe("Pendiente");
+  });
+
+  // G7 (2026-08-02): a delivered eno_authority row must NEVER read
+  // "Entregado" — no external receiving endpoint exists, so 'delivered' only
+  // means our pipeline processed the row. The honest pending-transmission
+  // state IS the status, not a footnote.
+  describe("G7 — endpoint-less external-authority rows", () => {
+    it("relabels delivered+eno_authority to the honest pending-transmission state", () => {
+      expect(buildStatusLabel("delivered", "eno_authority")).toBe(ENO_PENDING_TRANSMISSION_STATUS);
+    });
+
+    it("never shows 'Entregado' for a delivered eno_authority row", () => {
+      expect(buildStatusLabel("delivered", "eno_authority")).not.toBe("Entregado");
+      expect(buildStatusLabel("delivered", "eno_authority")).not.toMatch(/entregad/i);
+    });
+
+    it("keeps 'Entregado' for genuinely-delivered internal target kinds", () => {
+      expect(buildStatusLabel("delivered", "govt_webhook")).toBe("Entregado");
+      expect(buildStatusLabel("delivered", "audit_export")).toBe("Entregado");
+      expect(buildStatusLabel("delivered", "internal_dashboard")).toBe("Entregado");
+    });
+
+    it("only relabels the delivered status — pending/failed eno rows keep honest labels", () => {
+      expect(buildStatusLabel("pending", "eno_authority")).toBe("Pendiente");
+      expect(buildStatusLabel("failed", "eno_authority")).toBe("Fallido");
+    });
+
+    it("keeps the kind-agnostic label when no targetKind is given (filter options)", () => {
+      expect(buildStatusLabel("delivered")).toBe("Entregado");
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isPendingExternalTransmission — the endpoint-less delivered class (G7)
+// ---------------------------------------------------------------------------
+
+describe("isPendingExternalTransmission", () => {
+  it("is true exactly for delivered + eno_authority", () => {
+    expect(isPendingExternalTransmission("delivered", "eno_authority")).toBe(true);
+  });
+
+  it("is false for every other status of an eno_authority row", () => {
+    expect(isPendingExternalTransmission("pending", "eno_authority")).toBe(false);
+    expect(isPendingExternalTransmission("failed", "eno_authority")).toBe(false);
+  });
+
+  it("is false for delivered rows of real, already-built destinations", () => {
+    expect(isPendingExternalTransmission("delivered", "govt_webhook")).toBe(false);
+    expect(isPendingExternalTransmission("delivered", "audit_export")).toBe(false);
+    expect(isPendingExternalTransmission("delivered", "internal_dashboard")).toBe(false);
+  });
+
+  it("stays anchored on enoExternalDeliveryNote (one definition of the class)", () => {
+    // If a target kind gains a note, it must also gain the honest relabel.
+    expect(isPendingExternalTransmission("delivered", "eno_authority")).toBe(
+      enoExternalDeliveryNote("eno_authority") !== null,
+    );
   });
 });
 

@@ -22,7 +22,12 @@ import {
 import { db, eventNotificationOutbox, petEvents, pets } from "@/db";
 import type { EventType } from "@/db/schema";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { buildBreachCue, buildStatusLabel, enoExternalDeliveryNote } from "@/lib/infra/outbox-list";
+import {
+  buildBreachCue,
+  buildStatusLabel,
+  enoExternalDeliveryNote,
+  isPendingExternalTransmission,
+} from "@/lib/infra/outbox-list";
 import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
 
 import { RetryOutboxButton } from "./RetryOutboxButton";
@@ -106,6 +111,13 @@ export default async function AdminOutboxDetailPage({
 
   const canRetry = row.status === "pending" || row.status === "failed";
 
+  // G7 (2026-08-02): a 'delivered' eno_authority row completed OUR pipeline
+  // leg only — no external receiving endpoint exists, so "Entregado" (and the
+  // green all-clear tone) would be a lie. buildStatusLabel already renders the
+  // honest pending-transmission state when given targetKind; this flag drives
+  // the tone + the footer line below.
+  const pendingExternal = isPendingExternalTransmission(row.status, row.targetKind);
+
   return (
     <div className="max-w-3xl space-y-6">
       <OpCrumbs
@@ -119,15 +131,15 @@ export default async function AdminOutboxDetailPage({
       {cue === "breach" && (
         <OpBreach
           title="Incumplimiento de SLA detectado"
-          detail={`Este item supero el deadline de entrega. Estado: ${buildStatusLabel(row.status)}.`}
+          detail={`Este item supero el deadline de entrega. Estado: ${buildStatusLabel(row.status, row.targetKind)}.`}
         />
       )}
 
       {/* Header */}
       <header className="space-y-1">
         <div className="flex items-center gap-2">
-          <OpPill tone={STATUS_PILL_TONE[row.status] ?? "neutral"}>
-            {buildStatusLabel(row.status)}
+          <OpPill tone={pendingExternal ? "neutral" : (STATUS_PILL_TONE[row.status] ?? "neutral")}>
+            {buildStatusLabel(row.status, row.targetKind)}
           </OpPill>
         </div>
         <h1 className="text-title font-semibold text-ln-op-ink">
@@ -143,7 +155,9 @@ export default async function AdminOutboxDetailPage({
         <OpCardBody>
           <dl className="grid grid-cols-2 gap-x-4 gap-y-1">
             <dt className="text-sm text-ln-op-mute">Estado</dt>
-            <dd className="text-sm text-ln-op-ink">{buildStatusLabel(row.status)}</dd>
+            <dd className="text-sm text-ln-op-ink">
+              {buildStatusLabel(row.status, row.targetKind)}
+            </dd>
 
             <dt className="text-sm text-ln-op-mute">Intentos</dt>
             <dd className="text-sm text-ln-op-ink">{row.attempts}</dd>
@@ -309,7 +323,11 @@ export default async function AdminOutboxDetailPage({
         />
       )}
 
-      {row.status === "delivered" && (
+      {/* G7: the success footer is reserved for rows whose delivery is REAL.
+          A 'delivered' eno_authority row only completed our internal pipeline
+          leg — the honest pending-transmission state is already the row's
+          status and note above, so no all-clear line is earned. */}
+      {row.status === "delivered" && !pendingExternal && (
         <p className="text-sm text-ln-op-ok font-semibold">
           Esta fila ya fue entregada exitosamente. No se requiere acción.
         </p>
