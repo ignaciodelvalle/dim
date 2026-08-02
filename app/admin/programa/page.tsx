@@ -1,12 +1,11 @@
 // /admin/programa — Resumen ejecutivo del programa (Paquete H).
 //
 // Executive summary: North-Star KPIs + outliers + PII oversight + data quality
-// + cron health.
+// + a cron-health link-out (Sistema owns the actual cron read — see below).
 //
 // Data sources:
 //   fetchEnoSla          ← lib/surveillance-metrics.ts  (A7)
 //   fetchQueueHealth     ← lib/admin-metrics.ts
-//   fetchCronRuns        ← lib/admin-metrics.ts
 //   fetchDataQuality     ← lib/metrics/program-health.ts
 //   fetchCrossJurisdictionOutliers ← lib/metrics/program-health.ts
 //   fetchPiiOversight    ← lib/metrics/program-health.ts
@@ -18,6 +17,11 @@
 // (evaluateAlertSubscriptions + create/toggle/delete) was promoted to its own
 // page at /admin/suscripciones (thin wrapper over /gob/suscripciones) — see
 // that file for the full rationale. This page keeps only a discovery link.
+//
+// TRIMMED (leanness sweep, 2026-08-02): this page used to fetch fetchCronRuns
+// and render its own full cron list — a byte-for-byte duplicate read of
+// /admin/sistema's SistemaCronsCard, which owns cron health as its whole
+// purpose. The "Salud de crons" card below is now a link-out, not a fetch.
 
 import { inArray } from "drizzle-orm";
 
@@ -29,20 +33,18 @@ import {
   OpCardHead,
   OpFilterBar,
   OpKpi,
-  OpPill,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
 import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { db, profiles } from "@/db";
-import { fetchCronRuns, fetchQueueHealth } from "@/lib/analytics/admin-metrics";
+import { fetchQueueHealth } from "@/lib/analytics/admin-metrics";
 import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { fetchMicrochipPenetration } from "@/lib/analytics/compliance-metrics";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { adminProvinceHref } from "@/lib/infra/admin-province-link";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 import {
   K_ANON_MIN,
   NO_CENSUS_NOTE,
@@ -78,21 +80,9 @@ import { windows } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { AR_TIME_ZONE, formatDateShort, formatPercent, pluralizeEs } from "@/lib/utils/format";
+import { formatDateShort, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
-
-type CronTone = "ok" | "danger" | "open";
-const CRON_STATUS_TONE: Record<string, CronTone> = {
-  ok: "ok",
-  failed: "danger",
-  running: "open",
-};
-const CRON_STATUS_LABEL: Record<string, string> = {
-  ok: "OK",
-  failed: "Fallo",
-  running: "Corriendo",
-};
 
 const METRIC_LABEL: Record<string, string> = {
   rabies: "Antirrábica",
@@ -167,7 +157,6 @@ export default async function AdminProgramaPage({
       fetchMicrochipPenetration(adminCtx),
       fetchEnoSla(adminCtx),
       fetchQueueHealth(),
-      fetchCronRuns(),
       fetchDataQuality(adminCtx),
       fetchCrossJurisdictionOutliers(adminCtx),
       fetchPiiOversight(adminCtx),
@@ -194,7 +183,6 @@ export default async function AdminProgramaPage({
     microchip,
     enoSla,
     queue,
-    crons,
     dataQuality,
     outliers,
     piiOversight,
@@ -824,47 +812,22 @@ export default async function AdminProgramaPage({
               </OpCardBody>
             </OpCard>
 
-            {/* Cron health */}
+            {/* Cron health (leanness sweep, 2026-08-02): this card used to
+                embed its own copy of the cron list, read off the same
+                fetchCronRuns() that /admin/sistema's SistemaCronsCard already
+                renders as its whole reason to exist — two live copies of the
+                same read, one of them dead weight. Sistema owns cron health;
+                this link-outs there instead, same pattern as the ENO SLA KPI
+                tile above (href="/admin/outbox"). */}
             <OpCard aria-labelledby={panelCronsId}>
               <OpCardHead title={<span id={panelCronsId}>Salud de crons</span>} />
               <OpCardBody>
-                {crons.length === 0 ? (
-                  <p className="text-[13px] text-ln-op-mute">Sin crons registrados.</p>
-                ) : (
-                  <ul className="space-y-2" aria-label="Estado de los crons del sistema">
-                    {crons.map((c) => (
-                      <li
-                        key={c.cronName}
-                        className="flex items-baseline justify-between gap-3 text-sm"
-                        aria-label={`${c.cronName}: ${c.lastStatus ?? "desconocido"}`}
-                      >
-                        {/* M2 (cowork demo): es-AR label; raw key on `title`. */}
-                        <span
-                          className="text-ln-op-ink-2 truncate max-w-[160px]"
-                          title={c.cronName}
-                        >
-                          {cronDisplayLabel(c.cronName)}
-                        </span>
-                        <span className="flex items-center gap-1.5 tabular-nums text-[11px] shrink-0">
-                          {c.lastRunAt
-                            ? new Date(c.lastRunAt).toLocaleString("es-AR", {
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                timeZone: AR_TIME_ZONE,
-                              })
-                            : "—"}
-                          {c.lastStatus && (
-                            <OpPill tone={CRON_STATUS_TONE[c.lastStatus] ?? "neutral"}>
-                              {CRON_STATUS_LABEL[c.lastStatus] ?? c.lastStatus}
-                            </OpPill>
-                          )}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <a
+                  href="/admin/sistema"
+                  className="inline-flex items-center gap-1 text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                >
+                  Ver salud de crons en Sistema →
+                </a>
               </OpCardBody>
             </OpCard>
           </div>
