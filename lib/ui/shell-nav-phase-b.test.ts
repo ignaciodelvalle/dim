@@ -78,7 +78,10 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   // into ONE /admin/directorio hub entry.
   "/admin/directorio",
   "/admin/reglas",
-  "/admin/historial",
+  // /admin/historial REMOVED (audit-trail fusion, 2026-08-02): absorbed into
+  // the Auditoría hub as the "Actividad" vista — matches
+  // nav-presets.test.ts's ADMIN_HREF_SNAPSHOT. /gob/historial stays (the
+  // govt twin is jurisdiction-scoped, not part of the fusion).
   "/admin/auditoria",
   "/admin/outbox",
   "/admin/sistema",

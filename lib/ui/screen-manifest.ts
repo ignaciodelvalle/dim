@@ -437,7 +437,21 @@ const ADMIN_SERVICIOS: ScreenManifestEntry = {
 };
 const ADMIN_DIRECTORIO = twin("/admin/directorio", GOB_DIRECTORIO, "profundidad");
 const ADMIN_REGLAS = twin("/admin/reglas", GOB_REGLAS, "profundidad");
-const ADMIN_HISTORIAL = twin("/admin/historial", GOB_HISTORIAL, "profundidad");
+
+// NOT a twin() of GOB_HISTORIAL anymore: audit-trail fusion (2026-08-02)
+// absorbed /admin/historial into the Auditoría hub as the "actividad" vista
+// — both admin surfaces queried the same audit_log at the same universal
+// admin scope. The route still exists as a page.tsx file (permanent redirect
+// into /admin/auditoria?vista=actividad, preserving query params — see
+// lib/ui/auditoria-hub-redirect.ts), so it still needs a manifest entry to
+// satisfy the coverage fence; it has no nav entry anymore. /gob/historial is
+// NOT absorbed — the govt twin is jurisdiction-scoped and keeps its own
+// route, decision and nav entry (GOB_HISTORIAL above is untouched).
+const ADMIN_HISTORIAL: ScreenManifestEntry = {
+  route: "/admin/historial",
+  layer: "profundidad",
+  decision: "[Absorbida] Redirige a /admin/auditoria?vista=actividad — ver ADMIN_AUDITORIA.",
+};
 
 const ADMIN_ALERTAS: ScreenManifestEntry = {
   route: "/admin/alertas",
@@ -473,10 +487,16 @@ const ADMIN_SISTEMA: ScreenManifestEntry = {
   decision: "¿Algún cron dejó de correr y necesito reintentarlo o escalarlo?",
 };
 
+// Audit-trail fusion (2026-08-02, structural convergence): this screen now
+// OWNS both readings of the admin audit log as tabbed vistas
+// (?vista=sensibles|actividad) — the global sensitive-changes registro (its
+// pre-fusion view, the default) and the period-scoped operator-activity
+// audit absorbed from /admin/historial. Both vistas query the SAME audit_log
+// at the SAME universal admin scope.
 const ADMIN_AUDITORIA: ScreenManifestEntry = {
   route: "/admin/auditoria",
   layer: "profundidad",
-  decision: "¿Quién hizo qué cambio sensible, y necesito investigarlo?",
+  decision: "¿Quién hizo qué (cambio sensible o actividad del período), y necesito investigarlo?",
 };
 
 const ADMIN_GOVTS: ScreenManifestEntry = {

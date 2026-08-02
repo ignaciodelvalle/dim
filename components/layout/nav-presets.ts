@@ -716,7 +716,13 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       // chrome. Only the renamed /admin/jurisdicciones bookmark still 308s
       // (to /admin/reglas).
       { href: "/admin/reglas", label: "Reglas", matchPrefix: "/admin/reglas" },
-      { href: "/admin/historial", label: "Historial", matchPrefix: "/admin/historial" },
+      // /admin/historial REMOVED from nav (audit-trail fusion, 2026-08-02):
+      // absorbed into the Auditoría hub as the "Actividad" vista
+      // (?vista=sensibles|actividad) — both admin surfaces queried the same
+      // audit_log at the same universal scope. The route survives only as a
+      // permanent redirect into /admin/auditoria?vista=actividad for old
+      // links/bookmarks. /gob/historial (jurisdiction-scoped) keeps its own
+      // nav entry above — the govt twin is NOT part of the fusion.
       // WS-L — Libro de eventos (event-sourcing visible; read-only).
       { href: "/admin/libro", label: "Libro de eventos", matchPrefix: "/admin/libro" },
     ],

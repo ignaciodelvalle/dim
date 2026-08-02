@@ -728,7 +728,11 @@ const ADMIN_HREF_SNAPSHOT = new Set([
   // Directorio hub) — replaces the former separate /admin/usuarios,
   // /admin/organizaciones, /admin/servicios entries.
   "/admin/directorio",
-  "/admin/historial",
+  // /admin/historial REMOVED from nav (audit-trail fusion, 2026-08-02):
+  // absorbed into the Auditoría hub as the "Actividad" vista
+  // (?vista=sensibles|actividad). The route still exists as a permanent
+  // redirect, but it has no nav entry. /gob/historial (jurisdiction-scoped)
+  // is NOT part of the fusion and keeps its entry in the gob snapshot.
   "/admin/auditoria",
   "/admin/outbox",
   "/admin/sistema",
@@ -1179,11 +1183,13 @@ describe("C3 — gob /historial label honesty fix", () => {
     expect(item?.label).not.toBe("Mi actividad");
   });
 
-  it('/admin/historial retains its original "Historial" label (both now say "Historial")', () => {
+  // Audit-trail fusion (2026-08-02): the admin twin no longer has a nav entry
+  // — it was absorbed into the Auditoría hub as the "Actividad" vista, and
+  // the route survives only as a permanent redirect. The GOB entry above is
+  // deliberately untouched (jurisdiction-scoped, not part of the fusion).
+  it("/admin/historial has NO nav entry anymore (absorbed into the Auditoría hub)", () => {
     const allAdminItems = ADMIN_NAV_SECTIONS.flatMap((s) => s.items);
-    const item = allAdminItems.find((i) => i.href === "/admin/historial");
-    expect(item).toBeDefined();
-    expect(item?.label).toBe("Historial");
+    expect(allAdminItems.find((i) => i.href === "/admin/historial")).toBeUndefined();
   });
 });
 
