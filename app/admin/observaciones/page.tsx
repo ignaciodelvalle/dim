@@ -21,6 +21,7 @@ import {
   fetchObservaciones,
   parseObservacionEstado,
 } from "@/lib/metrics/observaciones-query";
+import { observationDispositionChip } from "@/lib/ui/observation-disposition-chip";
 import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateShort, formatDiasAgo, speciesLabel } from "@/lib/utils/format";
@@ -199,6 +200,32 @@ export default async function ObservacionesPage({
     startedByPet.set(e.petId, { occurredAt: e.occurredAt, observationUntil });
   }
 
+  // Disposal facts for rows closed by death (S3, surveillance-disposal slice):
+  // the latest death_recorded event carries disposition_method + the
+  // during_rabies_observation flag — this is that flag's first consumer. The
+  // chip logic lives in lib/ui/observation-disposition-chip.ts.
+  const deadPetIds = rows.filter((r) => r.status === "completed_dead").map((r) => r.petId);
+  const deathByPet = new Map<
+    string,
+    { dispositionMethod: string | null; duringRabiesObservation: boolean }
+  >();
+  if (deadPetIds.length > 0) {
+    const deathEvents = await db
+      .select({ petId: petEvents.petId, payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(inArray(petEvents.petId, deadPetIds), eq(petEvents.eventType, "death_recorded")))
+      .orderBy(desc(petEvents.occurredAt));
+    for (const e of deathEvents) {
+      if (deathByPet.has(e.petId)) continue; // desc order → latest wins
+      const payload = e.payload as Record<string, unknown>;
+      deathByPet.set(e.petId, {
+        dispositionMethod:
+          typeof payload?.disposition_method === "string" ? payload.disposition_method : null,
+        duringRabiesObservation: payload?.during_rabies_observation === true,
+      });
+    }
+  }
+
   const ownerRows = await db
     .select({
       petId: ownerships.petId,
@@ -231,6 +258,10 @@ export default async function ObservacionesPage({
         {rows.map((r) => {
           const started = startedByPet.get(r.petId);
           const status = r.status;
+          const dispositionChip = observationDispositionChip(
+            status,
+            deathByPet.get(r.petId) ?? null,
+          );
           return (
             <li key={r.petId}>
               <OpCard>
@@ -264,6 +295,9 @@ export default async function ObservacionesPage({
                     </div>
                     <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
                       <OpPill tone={STATUS_PILL[status]}>{STATUS_LABEL[status]}</OpPill>
+                      {dispositionChip && (
+                        <OpPill tone={dispositionChip.tone}>{dispositionChip.label}</OpPill>
+                      )}
                       {status === "in_progress" && (
                         <Link
                           href={`/admin/observaciones/${r.petPublicToken}`}
