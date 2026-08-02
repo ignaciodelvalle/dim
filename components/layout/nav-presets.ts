@@ -672,7 +672,16 @@ export const ADMIN_NAV_SECTIONS: NavSection[] = [
       // role-aware (admin keeps the escalation-inbox semantics via
       // includeEscalated). A thin admin-scoped hub stub is the fase-3 cleanup
       // if the chrome jump bothers operators in practice.
-      { href: "/admin/moderacion", label: "Moderación", matchPrefix: "/admin/moderacion" },
+      // T4.9 (2026-08-01): label-only fix — this entry ALWAYS lands the admin
+      // in gob chrome (the redirect above), so an unadorned "Moderación" reads
+      // as an in-portal link and the chrome jump surprises the operator. Match
+      // DetailDrawer's existing "abre en portal Gobierno ↗" convention instead
+      // of building an in-portal stub (out of scope per the backlog item).
+      {
+        href: "/admin/moderacion",
+        label: "Moderación ↗ Gobierno",
+        matchPrefix: "/admin/moderacion",
+      },
       { href: "/admin/outbox", label: "Bandeja de salida", matchPrefix: "/admin/outbox" },
     ],
   },

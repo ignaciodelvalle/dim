@@ -851,6 +851,20 @@ describe("ADMIN_NAV_SECTIONS — section invariants", () => {
     expect(hrefs).not.toContain("/admin/poblacion");
   });
 
+  // T4.9 (2026-08-01): /admin/moderacion permanently redirects into gob chrome
+  // (see the comment on this nav item) — an unadorned "Moderación" label reads
+  // as an in-portal link, so the operator gets no warning before the chrome
+  // jumps out from under them. Match DetailDrawer's "abre en portal Gobierno ↗"
+  // convention instead of building an in-portal stub.
+  it("labels the Moderación entry as a cross-portal jump, matching the DrillLink convention (T4.9)", () => {
+    const bandejaSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Bandeja operativa");
+    const moderacion = bandejaSection?.items.find((i) => i.href === "/admin/moderacion");
+    expect(moderacion?.label).toBe("Moderación ↗ Gobierno");
+    // The href/matchPrefix stay put — the [id] detail routes still live under
+    // /admin/moderacion/ and depend on this prefix for rail highlighting.
+    expect(moderacion?.matchPrefix).toBe("/admin/moderacion");
+  });
+
   it("includes /admin/libro and /admin/inteligencia in the Profundidad section (C6a)", () => {
     const profSection = ADMIN_NAV_SECTIONS.find((s) => s.label === "Profundidad");
     const hrefs = profSection?.items.map((i) => i.href) ?? [];
