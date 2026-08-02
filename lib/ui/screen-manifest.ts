@@ -195,6 +195,16 @@ const GOB_RUPGA: ScreenManifestEntry = {
   decision: "[Absorbida] Redirige a /gob/directorio?registro=credenciales — ver GOB_DIRECTORIO.",
 };
 
+// G5 (obligations-worklist, 2026-08): the cross-domain deadline worklist —
+// the one bandeja ranked by VENCIMIENTO instead of by count. Composes the
+// three deadline-bearing domains (observaciones antirrábicas, denuncias de
+// maltrato, casos regulatorios) into one flat list, most overdue first.
+const GOB_ACCIONES: ScreenManifestEntry = {
+  route: "/gob/acciones",
+  layer: "bandeja",
+  decision: "¿Qué obligación vence primero en mi jurisdicción?",
+};
+
 const GOB_DENUNCIAS: ScreenManifestEntry = {
   route: "/gob/denuncias",
   layer: "bandeja",
@@ -500,6 +510,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   GOB_OPERATIVOS,
   GOB_DECOMISOS,
   GOB_RUPGA,
+  GOB_ACCIONES,
   GOB_DENUNCIAS,
   GOB_MODERACION,
   GOB_MALTRATO,

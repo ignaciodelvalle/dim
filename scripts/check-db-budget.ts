@@ -79,6 +79,10 @@ export const DASHBOARD_PAGES = [
   "app/gob/analytics/AnalyticsScreen.tsx",
   "app/gob/page.tsx",
   "app/gob/vigilancia/page.tsx",
+  // G5 (obligations-worklist, 2026-08): /gob/acciones' 3-domain parallel
+  // fan-out (observaciones + denuncias + casos). The withDbBudget wrapping
+  // lives in the loader module, not the page, so that is the scan target.
+  "app/gob/acciones/_lib/worklist-io.ts",
 ] as const;
 
 // The route-handler globs scanned.

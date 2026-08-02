@@ -502,6 +502,10 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
   "/gob/suscripciones", // promoted out of /gob/programa's alert sub-panel (2026-07-21)
   "/gob/denuncias", // C6a — Denuncias hub (Moderación → Triage → Caso front door)
+  // G5 (obligations-worklist, 2026-08): the cross-domain deadline worklist —
+  // observaciones + denuncias + casos in ONE list ranked by vencimiento;
+  // leads the Bandeja operativa section.
+  "/gob/acciones",
 ]);
 
 describe("GOB_NAV_SECTIONS — section invariants", () => {
@@ -535,6 +539,14 @@ describe("GOB_NAV_SECTIONS — section invariants", () => {
     expect(hrefs).toContain("/gob/denuncias");
     const denuncias = bandejaSection?.items.find((i) => i.href === "/gob/denuncias");
     expect(denuncias?.label).toBe("Denuncias");
+  });
+
+  it("leads the Bandeja operativa section with /gob/acciones (G5 — the deadline worklist)", () => {
+    const bandejaSection = GOB_NAV_SECTIONS.find((s) => s.label === "Bandeja operativa");
+    expect(bandejaSection?.items[0]).toMatchObject({
+      href: "/gob/acciones",
+      label: "Acciones que vencen",
+    });
   });
 
   it("does NOT include /gob/moderacion or /gob/maltrato anywhere (F1 fusion — absorbed into the Denuncias hub as stages)", () => {

@@ -527,6 +527,10 @@ export const GOB_NAV_SECTIONS: NavSection[] = [
     // disputas for old links/bookmarks; it has no nav entry anymore.
     label: "Bandeja operativa",
     items: [
+      // G5 (obligations-worklist, 2026-08): the cross-domain deadline
+      // worklist LEADS the section — it answers "¿qué vence primero?"
+      // across every queue below it, so it is the section's entry point.
+      { href: "/gob/acciones", label: "Acciones que vencen", matchPrefix: "/gob/acciones" },
       { href: "/gob/denuncias", label: "Denuncias", matchPrefix: "/gob/denuncias" },
       // Renamed from "Cola" (PO interview 2026-07-23, item 5): "Cola" alone
       // read as ambiguous against "cola de denuncias" — the approvals queue

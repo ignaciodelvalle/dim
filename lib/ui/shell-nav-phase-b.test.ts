@@ -60,6 +60,9 @@ const GOB_HREF_SNAPSHOT = new Set([
   "/gob/outbox", // gov-vis — ENO SLA / notification monitor scoped to jurisdiction
   "/gob/suscripciones", // promoted out of /gob/programa's alert sub-panel (2026-07-21)
   "/gob/denuncias", // C6a — Denuncias hub (Moderación → Triage → Caso front door)
+  // G5 (obligations-worklist, 2026-08): the cross-domain deadline worklist —
+  // leads the Bandeja operativa section.
+  "/gob/acciones",
 ]);
 
 const ADMIN_HREF_SNAPSHOT = new Set([
