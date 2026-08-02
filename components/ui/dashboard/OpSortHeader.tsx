@@ -59,7 +59,9 @@ export function OpSortHeader({
 
   // Same param algebra as serverNavCommit (set updates, then drop stale
   // keys), rendered as an href instead of imperatively assigned.
-  const params = new URLSearchParams(searchParams.toString());
+  // useSearchParams() is nullable outside a live navigation context
+  // (static prerender, renderToStaticMarkup in tests) — treat as empty.
+  const params = new URLSearchParams(searchParams?.toString() ?? "");
   for (const [key, value] of Object.entries(next)) params.set(key, value);
   for (const key of resetParams) params.delete(key);
 
