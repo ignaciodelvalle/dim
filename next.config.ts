@@ -22,6 +22,22 @@ const nextConfig: NextConfig = {
           { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=(self)" },
         ],
       },
+      {
+        // Panorama basemap GeoJSON (public/geo/*) is immutable PER DEPLOY (see
+        // components/panorama/geojson-cache.ts) but the filenames are NOT
+        // content-hashed/versioned — so `immutable` would be wrong (a new
+        // deploy reuses the same URL for changed content). 1 day + SWR lets
+        // repeat visits skip the round-trip within a deploy's lifetime while
+        // still revalidating well before a typical deploy cadence (perf sweep
+        // P3, 2026-08-02).
+        source: "/geo/:path*",
+        headers: [
+          {
+            key: "Cache-Control",
+            value: "public, max-age=86400, stale-while-revalidate=604800",
+          },
+        ],
+      },
     ];
   },
   images: {
