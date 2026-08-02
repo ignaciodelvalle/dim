@@ -529,6 +529,71 @@ h6 {
   }
 }
 
+/* ---- Panorama console: entrance micro-motion (A2 / A5 / A6) --------------- */
+/* Plain CSS transitions, so the prefers-reduced-motion block above already
+ * collapses these to ~0ms — no separate JS floor needed (unlike the MapLibre
+ * paint transitions, which run inside imperative handlers the media query
+ * can't reach). @starting-style + transition-behavior:allow-discrete lets a
+ * newly-displayed element (a <dialog> opening, a conditionally-rendered
+ * panel) transition FROM its pre-render state instead of popping in. */
+
+/* A2 — DetailDrawer: native <dialog> slides in from the right edge it is
+ * anchored to (ml-auto), with its ::backdrop fading in alongside. Scoped to
+ * this class, not the bare `dialog` selector — other native dialogs in the
+ * app (ConfirmDialog, etc.) keep their current behavior. */
+.op-drawer-enter {
+  transition:
+    transform 180ms ease-out,
+    opacity 180ms ease-out,
+    overlay 180ms ease-out allow-discrete,
+    display 180ms ease-out allow-discrete;
+}
+.op-drawer-enter[open] {
+  transform: translateX(0);
+  opacity: 1;
+}
+@starting-style {
+  .op-drawer-enter[open] {
+    transform: translateX(12px);
+    opacity: 0;
+  }
+}
+.op-drawer-enter::backdrop {
+  transition: opacity 180ms ease-out, overlay 180ms ease-out allow-discrete, display 180ms ease-out
+    allow-discrete;
+}
+.op-drawer-enter[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  .op-drawer-enter[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* A5 / A6 — streamed Suspense sections and conditional console panels. Fade
+ * only (no layout-affecting property); A6 adds an 8px settle via translateY. */
+.op-fade-in {
+  transition: opacity 150ms ease-out;
+  opacity: 1;
+}
+@starting-style {
+  .op-fade-in {
+    opacity: 0;
+  }
+}
+.op-panel-enter {
+  transition: transform 120ms ease-out, opacity 120ms ease-out;
+  transform: translateY(0);
+  opacity: 1;
+}
+@starting-style {
+  .op-panel-enter {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+}
+
 /* ---- Skeleton shimmer (Wave 2 Item 8) ------------------------------------- */
 /* Base: --color-ln-line / --color-ln-card for owner/public surfaces.
  * Operator surfaces override via .op-surface wrapper or utility class swap.
