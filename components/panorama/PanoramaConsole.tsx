@@ -18,7 +18,7 @@
 // The URL is the state; localStorage only remembers the last board so a bare
 // URL can offer a one-time, subtle restore.
 
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
@@ -90,6 +90,7 @@ import {
   sumSuppressedTableUnits,
   summarizeDockRecords,
 } from "@/components/panorama/panorama-map-table";
+import type { RuleChangeMarkerDatum } from "@/components/panorama/rule-change-markers";
 import {
   buildMapTableCaption,
   deriveLiveScopeLabel,
@@ -268,6 +269,12 @@ export function PanoramaConsole({
   // gates on this so a non-seeded (normal) render keeps today's behavior.
   const hasSeed = seededPresetId != null && seededLayers != null && seededLayers.length > 0;
   const searchParams = useSearchParams();
+  // política → resultado: which surface hosts this console. The marker card's
+  // single link out points at /admin/inteligencia (the Política → resultado
+  // table with the full causality caveat) — admin-only, so a gob operator
+  // gets NO link rather than a dead 403 (presentation only; the marker FETCH
+  // is scope-enforced server-side regardless).
+  const pathname = usePathname();
   // panorama-redesign Fase 1: per-key fetch cancellation. Key = layer id for
   // /api/panorama/[layer] fetches, "kpis" for the KPI strip — last click wins
   // per key; superseded fetches abort instead of racing the UI state.
@@ -2492,6 +2499,41 @@ export function PanoramaConsole({
     until,
   ]);
 
+  // política → resultado (2026-08-02): recent rule changes for the scrubber's
+  // marker layer. Scope-DEPENDENT but period-independent-ish — markers outside
+  // the active window are dropped client-side by the bucketer, so the fetch
+  // keys on the effective scope only (one tiny audit-log read per scope
+  // change, never per frame). The province/locality params are a FILTER
+  // REQUEST only: the route intersects them with the actor's jurisdiction
+  // server-side (G1 — /gob/panorama access control), national rules always
+  // included. A failed fetch keeps the last markers (annotation, not truth).
+  const [ruleChangeMarkers, setRuleChangeMarkers] = useState<RuleChangeMarkerDatum[]>([]);
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (effectiveScopeProvince) params.set("province", effectiveScopeProvince);
+    if (effectiveScopeLocality) params.set("locality", effectiveScopeLocality);
+    const qs = params.toString();
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/panorama/rule-changes${qs ? `?${qs}` : ""}`, {
+          headers: { accept: "application/json" },
+          signal: signalFor("rule-changes"),
+        });
+        if (!res.ok) return;
+        const body = (await res.json()) as { changes?: RuleChangeMarkerDatum[] };
+        if (!cancelled) setRuleChangeMarkers(body.changes ?? []);
+      } catch (err) {
+        if (!isAbortError(err)) {
+          console.error("[panorama] rule-changes fetch failed:", err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [effectiveScopeProvince, effectiveScopeLocality, signalFor]);
+
   // panorama-redesign Fase 1: preset map framing (camera-only). Set on preset
   // activation from the preset's optional `framing` field; the token is a
   // monotonic counter so re-clicking the same preset re-frames (new object
@@ -3756,6 +3798,10 @@ export function PanoramaConsole({
         // generic "Al último evento") until the new cutoff lands.
         watermark={scrubberWatermark}
         histogramBins={signalHistogramBins ?? aggregateHistogramBins}
+        // política → resultado: rule-change markers (scope-enforced fetch above)
+        // + the card's single link out — admin surface only (see `pathname`).
+        ruleChangeMarkers={ruleChangeMarkers}
+        ruleChangeDetailHref={pathname?.startsWith("/admin") ? "/admin/inteligencia" : undefined}
         // Cowork QA ronda 3 §5: keep "Ahora" an always-available escape hatch while
         // a temporal frame is active, so a stuck delta is never uncleanable.
         temporalActive={scrubbing}

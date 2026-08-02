@@ -36,9 +36,18 @@
 //   - loop/tick math stays INSIDE this component, reusing the existing
 //     exported domain primitives — domain/time-scrub.ts is NOT modified.
 
+import Link from "next/link";
 import { memo, useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { OverlayDisclosure } from "@/components/panorama/OverlayDisclosure";
+import {
+  RULE_CHANGE_ACTION_LABELS,
+  type RuleChangeMarkerDatum,
+  bucketRuleChangeMarkers,
+  ruleChangeRuleLabel,
+  ruleChangeScopeLabel,
+} from "@/components/panorama/rule-change-markers";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
 import {
   type ScrubWindow,
@@ -183,6 +192,22 @@ type Props = {
    */
   watermark?: Date | null;
   /**
+   * política → resultado (2026-08-02): recent rule changes drawn as markers
+   * along the track — Detalle mode only (Simple stays clean). Each marker is
+   * TRANSACTION-BASIS BY CONSTRUCTION (`changedAt` = audit performed_at, when
+   * the change was registered in DIM), positioned at that instant on the
+   * shared axis. Fetched scope-filtered SERVER-SIDE by the parent (national
+   * rules always included). Absent/empty → no marker layer.
+   */
+  ruleChangeMarkers?: RuleChangeMarkerDatum[];
+  /**
+   * The marker card's single link out — the surface carrying the full
+   * "Correlación temporal — no implica causalidad" analysis (the Política →
+   * resultado table). Only provided where the viewer can actually open it
+   * (/admin/inteligencia is admin-only; a gob operator gets no dead link).
+   */
+  ruleChangeDetailHref?: string;
+  /**
    * Cowork QA ronda 3 §5: TRUE when the PARENT still holds a non-null `asOf` (a
    * temporal frame is active). The "Ahora" reset is normally disabled at the live
    * edge (nothing to clear), but if the parent's `asOf` lingers while the slider
@@ -212,6 +237,8 @@ function TimeScrubberImpl({
   initialAsOf = null,
   watermark = null,
   histogramBins,
+  ruleChangeMarkers,
+  ruleChangeDetailHref,
   temporalActive = false,
 }: Props) {
   // Rebuild the day-stepped axis only when the window endpoints change. Compare
@@ -487,6 +514,43 @@ function TimeScrubberImpl({
 
   const sinceLabel = formatAsOfLabel(dayIndexToDate(win, 0));
 
+  // Q3 keyboard shortcuts — Espacio = play/pausa while focus is WITHIN the
+  // scrubber region. Keydown on the section container, NO document-level
+  // listener (a dock control must never hijack the page's keyboard). Guards:
+  //   - buttons/summaries/links already activate on Space natively (the
+  //     focused play button toggles by itself; a loop chip or "Ahora" must
+  //     not ALSO flip playback) — skip them and let the browser work;
+  //   - text-entry elements would type a space — skip them (defensive; the
+  //     scrubber has none today);
+  //   - the range input has NO native Space action, so the shortcut claims it
+  //     (←/→ stay the input's NATIVE arrows: step=1 over the 0..steps domain
+  //     is already one day/month per press — extended, not re-implemented).
+  const onSectionKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLElement>) => {
+      if (e.key !== " " && e.key !== "Spacebar") return;
+      if (e.repeat || !scrubbable) return;
+      const target = e.target as HTMLElement;
+      if (target.closest("button, summary, a, select, textarea, [contenteditable='true']")) return;
+      if (target instanceof HTMLInputElement && target.type !== "range") return;
+      e.preventDefault();
+      togglePlay();
+    },
+    [scrubbable, togglePlay],
+  );
+
+  // política → resultado: rule-change markers bucketed onto the track.
+  // Detalle-only (v1 — Simple stays clean); out-of-window changes are dropped
+  // by the bucketer, co-located ones merge into an "N cambios" chip (the
+  // histogram's 48-bucket index math — see rule-change-markers.ts).
+  const markerBuckets = useMemo(
+    () =>
+      scrubDetail && ruleChangeMarkers && ruleChangeMarkers.length > 0
+        ? bucketRuleChangeMarkers(ruleChangeMarkers, win)
+        : [],
+    [scrubDetail, ruleChangeMarkers, win],
+  );
+  const showMarkers = scrubbable && markerBuckets.length > 0;
+
   // task #65: the mini-histogram's tallest bin, for normalizing bar heights. Only
   // rendered when there are bins AND a scrubbable window (a degenerate window has
   // no track to hang it under).
@@ -507,6 +571,10 @@ function TimeScrubberImpl({
     <section
       className="space-y-2 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card/40 p-3"
       aria-labelledby={labelId}
+      // Q3: Espacio = play/pausa while focus is within the scrubber region —
+      // a region-scoped shortcut on the section's OWN keydown (never a
+      // document listener). See onSectionKeyDown for the guards.
+      onKeyDown={onSectionKeyDown}
     >
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
         <p id={labelId} className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -588,12 +656,21 @@ function TimeScrubberImpl({
               positioned (bottom-full) with no flow space of its own, so it used
               to overlap the header/disclaimer above. `pt-6` reserves exactly its
               height (h-5 + mb-1 = 24px) in the flow, only when it will render. */}
-          <div className={`flex items-center gap-2.5 ${showHistogram ? "pt-6" : ""}`}>
+          {/* política → resultado: `pb-7` mirrors the histogram's `pt-6` trick —
+              the marker band below is absolutely positioned (top-full) with no
+              flow space of its own, so reserve exactly its height (h-6 + mt-1 =
+              28px) in the flow, only when it will render. */}
+          <div
+            className={`flex items-center gap-2.5 ${showHistogram ? "pt-6" : ""} ${
+              showMarkers ? "pb-7" : ""
+            }`}
+          >
             <button
               type="button"
               onClick={togglePlay}
               disabled={!scrubbable}
               aria-pressed={playing}
+              aria-keyshortcuts="Space"
               aria-label={
                 playing ? "Pausar reproducción" : "Reproducir la formación de la situación"
               }
@@ -686,6 +763,78 @@ function TimeScrubberImpl({
                 aria-valuenow={index}
                 aria-valuetext={asOfLabel}
               />
+              {/* política → resultado: rule-change markers under the track.
+                  Positioned with the SAME container-query transform the
+                  histogram playhead uses (translateX in cqw — compositor-safe,
+                  no per-render layout), at dateToDayIndex/win.steps — the exact
+                  fraction the thumb occupies on that day. TRANSACTION BASIS BY
+                  CONSTRUCTION: the card always reads "Cambio registrado el …",
+                  never "vigente desde", regardless of the replay-basis toggle
+                  (a marker is when the change entered DIM, not when the
+                  real-world decision happened — that date is unknowable).
+                  Stays visible during playback: it annotates the axis the
+                  playhead crosses (like the histogram), it is not
+                  configuration, so the two-step fold does not apply.
+                  stopPropagation keeps a chip tap from ALSO seeking the track
+                  (the wrapper's pointerdown owns click-to-seek). */}
+              {showMarkers && (
+                <div
+                  className="absolute inset-x-0 top-full mt-1 h-6 [container-type:inline-size]"
+                  onPointerDown={(e) => e.stopPropagation()}
+                >
+                  {markerBuckets.map((b) => (
+                    <div
+                      key={b.key}
+                      className="absolute left-0 top-0"
+                      style={{ transform: `translateX(calc(${b.fraction * 100}cqw - 50%))` }}
+                    >
+                      <OverlayDisclosure
+                        side="up"
+                        summaryTestId={`rule-change-marker-${b.key}`}
+                        summaryClassName="inline-flex h-5 min-w-4 items-center justify-center gap-1 whitespace-nowrap rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-1 text-[11px] font-semibold tabular-nums text-ln-op-ink-2 hover:border-ln-op-azul"
+                        panelClassName={`w-72 space-y-2 text-left ${
+                          b.fraction > 0.5 ? "right-0" : "left-0"
+                        }`}
+                        summary={
+                          b.changes.length === 1 ? (
+                            <>
+                              <span aria-hidden="true">⚑</span>
+                              <span className="sr-only">Cambio de regla</span>
+                            </>
+                          ) : (
+                            `${b.changes.length} cambios`
+                          )
+                        }
+                      >
+                        <ul className="m-0 list-none space-y-2 p-0">
+                          {b.changes.map((c) => (
+                            <li key={c.auditId} className="space-y-0.5">
+                              <p className="text-sm font-semibold text-ln-op-ink">
+                                {ruleChangeRuleLabel(c.ruleType)}{" "}
+                                <span className="font-normal text-ln-op-mute">
+                                  ({RULE_CHANGE_ACTION_LABELS[c.action]})
+                                </span>
+                              </p>
+                              <p className="text-xs text-ln-op-mute">{ruleChangeScopeLabel(c)}</p>
+                              <p className="text-xs text-ln-op-mute">
+                                Cambio registrado el {formatAsOfDayLong(new Date(c.changedAt))}
+                              </p>
+                            </li>
+                          ))}
+                        </ul>
+                        {ruleChangeDetailHref && (
+                          <Link
+                            href={ruleChangeDetailHref}
+                            className="inline-block text-xs font-medium text-ln-op-azul hover:underline"
+                          >
+                            Ver análisis en Inteligencia →
+                          </Link>
+                        )}
+                      </OverlayDisclosure>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <button
@@ -707,6 +856,16 @@ function TimeScrubberImpl({
             <span className="tabular-nums">{sinceLabel}</span>
             <span className="tabular-nums">Último evento</span>
           </div>
+
+          {/* The caveat TRAVELS WITH the marker layer (research-locked design):
+              the map must never become the most persuasive unhedged surface —
+              the full "no implica causalidad" analysis lives with the Política
+              → resultado table; this line is its terse traveling companion. */}
+          {showMarkers && (
+            <p className="text-xs text-ln-op-mute">
+              Marcas ⚑: cambios de reglas. Correlación temporal, no atribución.
+            </p>
+          )}
 
           {/* Detalle: date-tick references along the track.
               CONFIGURATION, so hidden while playing (PO 2026-08-01 — see the

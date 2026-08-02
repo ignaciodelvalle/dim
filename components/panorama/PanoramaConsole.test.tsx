@@ -36,6 +36,9 @@ let cachedSearchParams: URLSearchParams | null = null;
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: routerPush, replace: routerReplace, refresh: routerRefresh }),
+  // política → resultado: the console reads the pathname to decide whether the
+  // marker card may link out to /admin/inteligencia (admin-only surface).
+  usePathname: () => window.location.pathname,
   useSearchParams: () => {
     const key = window.location.search;
     if (cachedSearchParams === null || cachedSearchKey !== key) {
@@ -237,7 +240,12 @@ describe("PanoramaConsole onPreset — fluid shallow commit (supersedes the 0e94
         // separate scope-total call with its own period lifecycle.
         .filter(
           (u) =>
-            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+            u.startsWith("/api/panorama/") &&
+            !u.includes("/kpis") &&
+            !u.includes("histogram=1") &&
+            // The rule-change marker fetch is scope-keyed, period-independent
+            // (markers outside the window are dropped client-side).
+            !u.includes("/rule-changes"),
         );
       expect(layerCalls.some((u) => u.includes("/api/panorama/cobertura"))).toBe(true);
       expect(layerCalls.some((u) => u.includes("/api/panorama/zoonosis"))).toBe(true);
@@ -292,7 +300,12 @@ describe("PanoramaConsole — Desierto veterinario vista (new-vistas wave)", () 
         .map((c) => String(c[0]))
         .filter(
           (u) =>
-            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+            u.startsWith("/api/panorama/") &&
+            !u.includes("/kpis") &&
+            !u.includes("histogram=1") &&
+            // The rule-change marker fetch is scope-keyed, period-independent
+            // (markers outside the window are dropped client-side).
+            !u.includes("/rule-changes"),
         );
       expect(layerCalls.some((u) => u.includes("/api/panorama/desierto-veterinario"))).toBe(true);
       for (const u of layerCalls) expect(u).toContain("period=90d");
@@ -381,7 +394,12 @@ describe("PanoramaConsole — Tendencia vista (new-vistas wave)", () => {
         .map((c) => String(c[0]))
         .filter(
           (u) =>
-            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+            u.startsWith("/api/panorama/") &&
+            !u.includes("/kpis") &&
+            !u.includes("histogram=1") &&
+            // The rule-change marker fetch is scope-keyed, period-independent
+            // (markers outside the window are dropped client-side).
+            !u.includes("/rule-changes"),
         );
       expect(layerCalls.some((u) => u.includes("/api/panorama/tendencia"))).toBe(true);
       for (const u of layerCalls) expect(u).toContain("period=30d");
@@ -411,7 +429,12 @@ describe("PanoramaConsole — Riesgo PPP vista (new-vistas wave, declared bivari
         .map((c) => String(c[0]))
         .filter(
           (u) =>
-            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+            u.startsWith("/api/panorama/") &&
+            !u.includes("/kpis") &&
+            !u.includes("histogram=1") &&
+            // The rule-change marker fetch is scope-keyed, period-independent
+            // (markers outside the window are dropped client-side).
+            !u.includes("/rule-changes"),
         );
       // BOTH axes of the declared pair load through the ordinary layer path —
       // the bivariate join reads the same caches, no side-channel fetch.
@@ -794,7 +817,12 @@ describe("PanoramaConsole — browser Back re-derives the board from the popped 
         .map((c) => String(c[0]))
         .filter(
           (u) =>
-            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+            u.startsWith("/api/panorama/") &&
+            !u.includes("/kpis") &&
+            !u.includes("histogram=1") &&
+            // The rule-change marker fetch is scope-keyed, period-independent
+            // (markers outside the window are dropped client-side).
+            !u.includes("/rule-changes"),
         );
       expect(layerCalls.some((u) => u.includes("/api/panorama/cobertura"))).toBe(true);
       expect(layerCalls.some((u) => u.includes("/api/panorama/zoonosis"))).toBe(true);
@@ -862,7 +890,12 @@ describe("PanoramaConsole — PERÍODO commits shallow, no reload (Root B, QA #3
         .map((c) => String(c[0]))
         .filter(
           (u) =>
-            u.startsWith("/api/panorama/") && !u.includes("/kpis") && !u.includes("histogram=1"),
+            u.startsWith("/api/panorama/") &&
+            !u.includes("/kpis") &&
+            !u.includes("histogram=1") &&
+            // The rule-change marker fetch is scope-keyed, period-independent
+            // (markers outside the window are dropped client-side).
+            !u.includes("/rule-changes"),
         );
       expect(
         layerCalls.some((u) => u.includes("/api/panorama/cobertura") && u.includes("period=30d")),
@@ -1709,7 +1742,10 @@ describe("PanoramaConsole — server-seeded first-visit fast path (perf plan 1.2
           !u.includes("asOf=") &&
           // The scrubber histogram (?histogram=1) is a separate scope-total call,
           // not a seeded-layer FEATURE load — this assertion guards the latter.
-          !u.includes("histogram=1"),
+          !u.includes("histogram=1") &&
+          // Same for the rule-change marker fetch: one tiny scope-keyed
+          // audit-log read for the scrubber's marker layer, not a layer load.
+          !u.includes("/rule-changes"),
       );
     const kpiCalls = fetchMock.mock.calls
       .map((c) => String(c[0]))
