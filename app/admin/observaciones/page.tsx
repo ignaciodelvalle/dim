@@ -17,6 +17,7 @@ import {
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, ownerships, petEvents, profiles } from "@/db";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { computeDueInfo, dueDateBadge } from "@/lib/domain/due-state";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   type ObservacionesScope,
@@ -28,10 +29,7 @@ import { surveillanceEyebrow } from "@/lib/ui/surveillance-eyebrow";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateShort, formatDiasAgo, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
-import {
-  observationOverdueLabel,
-  observationOverdueState,
-} from "@/src/modules/surveillance/domain/observation-overdue";
+import { OBSERVATION_DUE_SOON_DAYS } from "@/src/modules/surveillance/domain/observation-overdue";
 import {
   RABIES_OBSERVATION_STATUSES,
   type RabiesObservationStatus,
@@ -332,11 +330,15 @@ export default async function ObservacionesPage({
           );
           // Deadline pressure only matters while the observation is LIVE —
           // closed rows carry their outcome pill instead.
-          const overdue =
+          // Same due-state normalization + wording the /gob worklist uses, so
+          // one observation reads identically on both screens (a badge only on
+          // overdue / vence-pronto rows — on-time keeps just its "Cierre
+          // estimado" date).
+          const due =
             status === "in_progress" && started
-              ? observationOverdueState(started.observationUntil, now)
+              ? computeDueInfo(started.observationUntil, now, OBSERVATION_DUE_SOON_DAYS)
               : null;
-          const overdueLabel = overdue ? observationOverdueLabel(overdue) : null;
+          const dueBadge = due && due.state !== "onTime" ? dueDateBadge(due) : null;
           return (
             <li key={r.petId}>
               <OpCard>
@@ -370,11 +372,7 @@ export default async function ObservacionesPage({
                     </div>
                     <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
                       <OpPill tone={STATUS_PILL[status]}>{STATUS_LABEL[status]}</OpPill>
-                      {overdue && overdueLabel && (
-                        <OpPill tone={overdue.state === "overdue" ? "danger" : "open"}>
-                          {overdueLabel}
-                        </OpPill>
-                      )}
+                      {dueBadge && <OpPill tone={dueBadge.tone}>{dueBadge.label}</OpPill>}
                       {dispositionChip && (
                         <OpPill tone={dispositionChip.tone}>{dispositionChip.label}</OpPill>
                       )}

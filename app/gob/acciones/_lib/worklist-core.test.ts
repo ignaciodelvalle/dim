@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { WELFARE_SLA_DAYS } from "@/app/gob/maltrato/_lib/welfare-sla";
-import { CASE_SLA_WARNING_DAYS } from "@/components/ui/dashboard/CaseQueue";
+import { CASE_SLA_WARNING_DAYS } from "@/src/modules/cases/domain/case-sla";
 
 import {
   type CaseWorklistRow,

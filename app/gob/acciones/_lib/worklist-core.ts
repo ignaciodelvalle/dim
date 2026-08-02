@@ -16,10 +16,14 @@
 //   - caso regulatorio: openedAt + CASE_SLA_WARNING_DAYS (the shared
 //     CaseQueue's own ≥14-day SLA-alert convention).
 
-import { CASE_SLA_WARNING_DAYS } from "@/components/ui/dashboard/CaseQueue";
 import { type DueInfo, compareDueInfo, computeDueInfo } from "@/lib/domain/due-state";
 import { speciesLabel } from "@/lib/utils/format";
 import { type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
+// PURE module (NOT the "use client" CaseQueue.tsx): importing it from the client
+// component would make CASE_SLA_WARNING_DAYS a throw-on-coerce Proxy in this RSC
+// server module and silently kill the caso domain.
+import { caseSlaDueAt } from "@/src/modules/cases/domain/case-sla";
+import { OBSERVATION_DUE_SOON_DAYS } from "@/src/modules/surveillance/domain/observation-overdue";
 import {
   type WelfareReportSeverity,
   welfareReportKindLabel,
@@ -136,7 +140,9 @@ export function mapObservationRows(rows: ObservationWorklistRow[], now: Date): W
     code: r.petPublicToken,
     province: r.province,
     locality: r.locality,
-    due: computeDueInfo(r.dueAt, now),
+    // Same due-soon window as /admin/observaciones (OBSERVATION_DUE_SOON_DAYS),
+    // so the same observation reads identically on both screens.
+    due: computeDueInfo(r.dueAt, now, OBSERVATION_DUE_SOON_DAYS),
     action: {
       type: "link" as const,
       href: `/admin/observaciones/${r.petPublicToken}`,
@@ -182,7 +188,7 @@ export function mapCaseRows(rows: CaseWorklistRow[], now: Date): WorklistItem[] 
     code: r.publicCode,
     province: r.jurisdictionProvince,
     locality: r.jurisdictionLocality,
-    due: computeDueInfo(new Date(r.openedAt.getTime() + CASE_SLA_WARNING_DAYS * DAY_MS), now),
+    due: computeDueInfo(caseSlaDueAt(r.openedAt), now),
     action: { type: "link" as const, href: `/gob/casos/${r.publicCode}`, label: "Ver" },
   }));
 }

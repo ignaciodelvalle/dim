@@ -37,7 +37,12 @@ export function selectObservacion(url: string, currentHasCerrar: boolean): void 
   if (currentHasCerrar) {
     window.history.replaceState(null, "", url);
   } else {
-    pushedDepth += 1;
+    // At most ONE pushed entry per inspector session: this branch only runs
+    // when the current URL has no `?cerrar=` (so nothing is pushed yet), and
+    // pushState makes it carry one — a subsequent select hits the replaceState
+    // branch above. `= 1` (not `+= 1`) so close() always pops exactly one,
+    // even if two selects race before the URL reflects the first push.
+    pushedDepth = 1;
     window.history.pushState(null, "", url);
   }
 }

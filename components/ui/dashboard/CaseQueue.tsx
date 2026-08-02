@@ -36,6 +36,7 @@ import {
   caseKindLabel,
   caseKindSeverityWeight,
 } from "@/src/modules/cases/domain/case-kinds";
+import { CASE_SLA_WARNING_DAYS, caseSlaDueAt } from "@/src/modules/cases/domain/case-sla";
 
 // ---------------------------------------------------------------------------
 // SLA / age helpers (exported for testability)
@@ -46,20 +47,12 @@ import {
  * Visual-only: no auto-close occurs. 14 days aligns with the typical org
  * review window for escalated/unresolved cases.
  */
-export const CASE_SLA_WARNING_DAYS = 14;
-
-/**
- * The case domain's deadline rule for the shared due-state normalization
- * (lib/domain/due-state.ts): a case is "due" CASE_SLA_WARNING_DAYS after it
- * was opened. This is the ONE place the case queue turns an openedAt into a
- * dueAt — the badge below hands the result to computeDueInfo/dueDateBadge so
- * "days past due" wording/threshold math is never hand-rolled here again
- * (structural convergence 2026-08-02; /gob/acciones' worklist-core.ts applies
- * the same openedAt + CASE_SLA_WARNING_DAYS rule).
- */
-export function caseSlaDueAt(openedAt: Date): Date {
-  return new Date(openedAt.getTime() + CASE_SLA_WARNING_DAYS * 24 * 60 * 60 * 1000);
-}
+// The SLA deadline rule lives in a PURE module (src/modules/cases/domain/
+// case-sla.ts), not here: the RSC server graph (/gob/acciones' worklist-core.ts)
+// must import CASE_SLA_WARNING_DAYS too, and a "use client" export becomes a
+// throw-on-coerce Proxy there. Re-exported so this component's own consumers and
+// tests keep their import path.
+export { CASE_SLA_WARNING_DAYS, caseSlaDueAt };
 
 /**
  * Returns the number of whole days elapsed since the case was opened (floored).
