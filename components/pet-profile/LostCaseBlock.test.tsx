@@ -35,6 +35,7 @@ const episode = {
   placeName: "Plaza Italia",
   ownerNote: "Salió por la puerta del frente",
   sightingsCount: 2,
+  lastSeenAt: new Date("2026-06-20T10:00:00Z"),
   lastSeenLat: null,
   lastSeenLng: null,
 };

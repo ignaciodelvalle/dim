@@ -1,5 +1,3 @@
-import Link from "next/link";
-
 import { Icon } from "@/components/Icon";
 import { LOST_SCAN_FEED_CAP } from "@/lib/infra/lost-mode";
 
@@ -76,17 +74,17 @@ interface Props {
   totalScans: number;
   /** Total sightings count (since case opened). */
   totalSightings: number;
-  /** Link to the case audit. */
-  caseHref: string;
 }
 
-export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Props) {
+// Chrome-less by design (QA 2026-08-03 redesign): the caller owns the section
+// header ("Avistamientos y escaneos" + "Ver caso" link in LostCaseBlock's
+// ScanFeedSection) — this component renders only the feed body. The old
+// bordered card + "Actividad" heading stacked a second box and a second
+// title inside the parent section.
+export function LostScanFeed({ items, totalScans, totalSightings }: Props) {
   const possessionCount = items.filter((it) => it.kind === "finder").length;
   return (
-    <section
-      aria-labelledby="lp-feed-h"
-      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
-    >
+    <div>
       {/* Possession callout — the most important signal in the feed: someone
           reported they physically HAVE the pet. Surfaced above everything. */}
       {possessionCount > 0 && (
@@ -102,15 +100,6 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
           </p>
         </div>
       )}
-
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-feed-h" className="text-base font-semibold text-ln-ink ">
-          Actividad
-        </h2>
-        <Link href={caseHref} className="text-xs font-medium text-ln-azul hover:underline">
-          Ver caso →
-        </Link>
-      </div>
 
       <div className="mb-3 grid grid-cols-2 gap-2">
         <CountBox value={totalScans} label={totalScans === 1 ? "escaneo" : "escaneos"} />
@@ -137,7 +126,7 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }
 

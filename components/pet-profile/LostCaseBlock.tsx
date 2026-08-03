@@ -27,11 +27,10 @@
 //      there is no duplication.
 //   3. Last-seen + update — owner: a one-line summary (place · locality ·
 //      date) with a single "actualizar" link in the primary strip; the full
-//      LostLastSeenCard (map, sightings count, its own copy-link) moved
-//      into "Más opciones". Org: plain read-only summary, no edit
-//      affordance (LostLastSeenCard always renders an edit link, so org gets
-//      a simpler custom summary instead of that component — the component
-//      itself stays byte-for-byte unchanged per design).
+//      LostLastSeenCard (map + caption, flat section since the QA 2026-08-03
+//      redesign) lives in "Más opciones". Org: plain read-only summary, no
+//      edit affordance (LostLastSeenCard always renders an edit link, so org
+//      gets a simpler inline summary instead of that component).
 //   4. Scans/sightings/finder feed — LostScanFeed, visible to both roles;
 //      owner: inside "Más opciones"; org: always visible (no toggle to hide
 //      behind for a role that has no share/toggle content anyway).
@@ -84,7 +83,6 @@ import { LostShareCard } from "@/components/pet-profile/LostShareCard";
 import { MarkFoundInlineForm } from "@/components/pet-profile/MarkFoundInlineForm";
 import { SheetTriggerLink } from "@/components/pet-profile/SheetTriggerLink";
 import { LnAlert } from "@/components/ui/Alert";
-import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import type { LostEpisode } from "@/lib/infra/lost-mode";
 import { credentialQrUrl } from "@/lib/infra/site-url";
 import { formatDateShort, foundParticiple, lostThirdPersonPhrase } from "@/lib/utils/format";
@@ -189,7 +187,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
             <p className="mt-0.5 text-sm text-[var(--color-ln-ink-2)]">
               <Link
                 href={caseHref}
-                className="text-[var(--color-ln-ink-2)] underline-offset-2 hover:underline"
+                className="font-ln-mono text-sm tracking-[.02em] text-[var(--color-ln-ink-2)] underline-offset-2 hover:underline"
               >
                 {episode.publicCode}
               </Link>
@@ -245,7 +243,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               </span>
               <span style={{ color: "var(--color-ln-mute)" }}>
                 {" "}
-                · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.openedAt)}
+                · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.lastSeenAt)}
               </span>
             </p>
             <Link
@@ -275,109 +273,129 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               Más opciones
             </summary>
 
-            <div className="mt-3 flex flex-col gap-4">
-              <LnCard>
-                <LnCardHead
-                  title="Última vez visto"
-                  label={
-                    <Link
-                      href={editLastSeenHref}
-                      className="text-[var(--color-ln-azul)] no-underline hover:underline"
-                    >
-                      actualizar
-                    </Link>
-                  }
-                />
-                <LostLastSeenCard
-                  placeName={episode.placeName ?? "Ubicación no especificada"}
-                  localityLabel={episode.jurisdictionLocality ?? "—"}
-                  at={episode.openedAt}
-                  note={episode.ownerNote}
-                  editHref={editLastSeenHref}
-                  publicUrl={publicUrl}
-                  sightingsCount={episode.sightingsCount}
-                  lastSeenLat={episode.lastSeenLat}
-                  lastSeenLng={episode.lastSeenLng}
-                />
-              </LnCard>
-
-              <LnCard>
-                <LnCardHead
-                  title="Avistamientos y escaneos"
-                  label={
-                    <span style={{ color: "var(--color-ln-seal)" }}>
-                      {sightingsCount + scanCount} total
-                    </span>
-                  }
-                />
-                <LnCardBody>
-                  <LostScanFeed
-                    items={scans}
-                    totalScans={scanCount}
-                    totalSightings={sightingsCount}
-                    caseHref={caseHref}
-                  />
-                </LnCardBody>
-              </LnCard>
-
-              {/* LostDisclosureCard already renders its own <section> —
-                  same no-nested-chrome treatment as LostShareCard above. */}
-              <LostDisclosureCard
-                prefs={prefs}
-                toggleAction={toggleAction}
-                publicHref={publicHref}
-                ownerFirstName={ownerFirstName}
+            {/* Flat sections with hairline dividers (QA 2026-08-03 redesign):
+                the previous LnCard wrappers stacked card chrome on top of the
+                children's own section chrome — boxes inside boxes inside the
+                lost-block border. Every child now renders the same flat
+                section pattern (serif h3 + small muted icon + mono action on
+                the right), matching LostShareCard / LostDisclosureCard. */}
+            <div className="mt-4 flex flex-col gap-5">
+              <LostLastSeenCard
+                placeName={episode.placeName}
+                localityLabel={episode.jurisdictionLocality}
+                at={episode.lastSeenAt}
+                note={episode.ownerNote}
+                editHref={editLastSeenHref}
+                lastSeenLat={episode.lastSeenLat}
+                lastSeenLng={episode.lastSeenLng}
               />
+
+              <div className="border-t border-[var(--color-ln-line-2)] pt-4">
+                <ScanFeedSection
+                  scans={scans}
+                  scanCount={scanCount}
+                  sightingsCount={sightingsCount}
+                  caseHref={caseHref}
+                />
+              </div>
+
+              <div className="border-t border-[var(--color-ln-line-2)] pt-4">
+                <LostDisclosureCard
+                  prefs={prefs}
+                  toggleAction={toggleAction}
+                  publicHref={publicHref}
+                  ownerFirstName={ownerFirstName}
+                />
+              </div>
             </div>
           </details>
         </div>
       ) : (
-        <div
-          className="grid gap-4 p-4 lg:grid-cols-2"
-          style={{ background: "var(--color-ln-card)" }}
-        >
-          <LnCard>
-            <LnCardHead title="Última vez visto" />
-            <LnCardBody>
-              <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
-                <span className="font-semibold">
-                  {episode.placeName ?? "Ubicación no especificada"}
-                </span>
-                <span style={{ color: "var(--color-ln-mute)" }}>
-                  {" "}
-                  · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.openedAt)}
-                </span>
+        <div className="flex flex-col gap-5 p-4" style={{ background: "var(--color-ln-card)" }}>
+          {/* Read-only last-seen summary (REQ-5.3: no edit affordance) — same
+              flat section pattern as the owner variant. */}
+          <section aria-labelledby="lp-loc-org-h">
+            <h3
+              id="lp-loc-org-h"
+              className="m-0 mb-2 flex items-center gap-1.5 font-ln-serif text-md font-semibold"
+              style={{ color: "var(--color-ln-ink)" }}
+            >
+              <span className="text-[var(--color-ln-mute)]">
+                <Icon name="ubicacion" size="sm" decorative />
+              </span>
+              Última vez visto
+            </h3>
+            <p className="m-0 text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
+              <span className="font-semibold">
+                {episode.placeName ?? "Ubicación no especificada"}
+              </span>
+              <span style={{ color: "var(--color-ln-mute)" }}>
+                {" "}
+                · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.lastSeenAt)}
+              </span>
+            </p>
+            {episode.ownerNote && (
+              <p className="mt-1 text-sm italic" style={{ color: "var(--color-ln-mute)" }}>
+                "{episode.ownerNote}"
               </p>
-              {episode.ownerNote && (
-                <p className="mt-1.5 text-md italic" style={{ color: "var(--color-ln-mute)" }}>
-                  "{episode.ownerNote}"
-                </p>
-              )}
-            </LnCardBody>
-          </LnCard>
+            )}
+          </section>
 
           {/* Avistamientos y escaneos — capability 4, visible to both roles */}
-          <LnCard>
-            <LnCardHead
-              title="Avistamientos y escaneos"
-              label={
-                <span style={{ color: "var(--color-ln-seal)" }}>
-                  {sightingsCount + scanCount} total
-                </span>
-              }
+          <div className="border-t border-[var(--color-ln-line-2)] pt-4">
+            <ScanFeedSection
+              scans={scans}
+              scanCount={scanCount}
+              sightingsCount={sightingsCount}
+              caseHref={caseHref}
             />
-            <LnCardBody>
-              <LostScanFeed
-                items={scans}
-                totalScans={scanCount}
-                totalSightings={sightingsCount}
-                caseHref={caseHref}
-              />
-            </LnCardBody>
-          </LnCard>
+          </div>
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// ScanFeedSection — flat "Avistamientos y escaneos" section, shared by the
+// owner ("Más opciones") and org (always-visible) variants. Same section
+// header pattern as LostLastSeenCard / LostDisclosureCard.
+// ---------------------------------------------------------------------------
+
+function ScanFeedSection({
+  scans,
+  scanCount,
+  sightingsCount,
+  caseHref,
+}: {
+  scans: ScanFeedItem[];
+  scanCount: number;
+  sightingsCount: number;
+  caseHref: string;
+}) {
+  return (
+    <section aria-labelledby="lp-feed-h">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
+        <h3
+          id="lp-feed-h"
+          className="m-0 flex items-center gap-1.5 font-ln-serif text-md font-semibold"
+          style={{ color: "var(--color-ln-ink)" }}
+        >
+          <span className="text-[var(--color-ln-mute)]">
+            <Icon name="ojo" size="sm" decorative />
+          </span>
+          Avistamientos y escaneos
+        </h3>
+        <Link
+          href={caseHref}
+          className="font-ln-mono text-xs tracking-[.04em] no-underline hover:underline"
+          style={{ color: "var(--color-ln-azul)" }}
+        >
+          Ver caso →
+        </Link>
+      </div>
+      <LostScanFeed items={scans} totalScans={scanCount} totalSightings={sightingsCount} />
+    </section>
   );
 }
 

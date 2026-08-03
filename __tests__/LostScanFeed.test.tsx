@@ -42,7 +42,6 @@ function renderFeed(items: ScanFeedItem[]): string {
       items,
       totalScans: 0,
       totalSightings: items.length,
-      caseHref: "/casos/LOS-00001",
     }),
   );
 }

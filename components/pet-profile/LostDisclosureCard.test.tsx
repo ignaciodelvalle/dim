@@ -61,6 +61,35 @@ it("fires the success toast after a toggle resolves", async () => {
   expect(toastError).not.toHaveBeenCalled();
 });
 
+it("shows the concrete public preview on the name row when disclosure is on (QA 2026-08-03)", () => {
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+    />,
+  );
+
+  expect(screen.getByText('El público ve "Lo busca Nacho".')).toBeInTheDocument();
+  // The old standalone footer preview line is gone.
+  expect(screen.queryByText(/Hoy verán/)).not.toBeInTheDocument();
+});
+
+it("keeps the generic name-row description when disclosure is off", () => {
+  render(
+    <LostDisclosureCard
+      prefs={{ ...prefs, discloseFirstNameWhenLost: false }}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+    />,
+  );
+
+  expect(screen.getByText("El público ve quién busca a la mascota.")).toBeInTheDocument();
+  expect(screen.queryByText(/Lo busca Nacho/)).not.toBeInTheDocument();
+});
+
 it("fires the error toast when the bound action rejects", async () => {
   const toggleAction = vi.fn().mockRejectedValue(new Error("boom"));
   render(
