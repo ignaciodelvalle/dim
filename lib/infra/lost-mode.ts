@@ -21,8 +21,12 @@ export type LostEpisode = {
   /** Municipality / locality label for display. */
   jurisdictionLocality: string | null;
   /**
-   * Best-effort place name from the status_changed event payload
-   * (location_description field). Used by LostLastSeenCard.
+   * Best-effort place name: the status_changed event's location_description,
+   * OVERLAID by the latest owner-authored "actualizar última ubicación"
+   * update when one carries an address (QA 2026-08-03: before the overlay,
+   * an owner who set the address via "editar" never saw it reflected — the
+   * update writes a new note_added event, and this read only looked at the
+   * originating status_changed).
    */
   placeName: string | null;
   /** Owner note from the status_changed event (reason field). */
@@ -30,14 +34,20 @@ export type LostEpisode = {
   /** Number of sightings logged after the original open (approximation). */
   sightingsCount: number;
   /**
-   * Precise latitude from the status_changed event row (locationLat column).
-   * Null when the owner did not drop a pin at mark-lost time.
-   * Stored as numeric string by Drizzle — parse with Number() before use.
+   * When the displayed location was reported: the latest owner update's
+   * occurredAt when the overlay applies, else openedAt.
+   */
+  lastSeenAt: Date;
+  /**
+   * Precise latitude (numeric string from Drizzle — parse with Number()).
+   * From the CURRENT last-seen record: the latest owner update carrying
+   * location data when one exists (applied atomically with placeName and
+   * lastSeenAt — never mixed across events), else the originating
+   * status_changed row. Null when that record has no pin.
    */
   lastSeenLat: string | null;
   /**
-   * Precise longitude from the status_changed event row (locationLng column).
-   * Null when the owner did not drop a pin at mark-lost time.
+   * Precise longitude — same sourcing/overlay as lastSeenLat.
    */
   lastSeenLng: string | null;
 };
@@ -79,6 +89,9 @@ export function publicSightingMapCenter(input: {
  * Also fetches the originating status_changed event to extract:
  *   - location_description → placeName for LostLastSeenCard
  *   - reason → ownerNote for LostLastSeenCard
+ * then overlays the latest owner-authored "actualizar última ubicación"
+ * update (note_added kind='sighting' with location data) onto
+ * placeName / coords / lastSeenAt — see LostEpisode field docs.
  *
  * sightingsCount is derived from note_added events where
  * payload->>'kind' = 'sighting' since the episode opened.
@@ -125,7 +138,7 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
     .limit(1);
 
   const payload = (originEvent?.payload ?? {}) as Record<string, unknown>;
-  const placeName =
+  let placeName =
     typeof payload.location_description === "string" && payload.location_description.trim()
       ? payload.location_description.trim()
       : null;
@@ -135,14 +148,66 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
   // Coords from the event row — set when the owner dropped a pin in
   // LocationFields at mark-lost time. Drizzle returns numeric columns as
   // strings; callers parse with Number() before passing to map components.
-  const lastSeenLat =
+  let lastSeenLat =
     originEvent?.locationLat !== null && originEvent?.locationLat !== undefined
       ? String(originEvent.locationLat)
       : null;
-  const lastSeenLng =
+  let lastSeenLng =
     originEvent?.locationLng !== null && originEvent?.locationLng !== undefined
       ? String(originEvent.locationLng)
       : null;
+
+  // Overlay: the latest owner-authored location update for this episode.
+  // "Actualizar última ubicación" (updateLostLastSeen) appends a
+  // note_added(kind='sighting') event instead of mutating the origin
+  // status_changed (append-only invariant), so the CURRENT location must be
+  // derived from the newest owner update that actually carries location data
+  // (an address in payload.location_description and/or a dropped pin).
+  // authorRole='owner' excludes anonymous finder sightings ('scanner') —
+  // finder-supplied text is unvetted and must never become the headline.
+  const [ownerUpdate] = await db
+    .select({
+      payload: petEvents.payload,
+      locationLat: petEvents.locationLat,
+      locationLng: petEvents.locationLng,
+      occurredAt: petEvents.occurredAt,
+    })
+    .from(petEvents)
+    .where(
+      and(
+        eq(petEvents.petId, petId),
+        eq(petEvents.eventType, "note_added"),
+        eq(petEvents.caseId, caseRow.id),
+        eq(petEvents.authorRole, "owner"),
+        sql`${petEvents.payload}->>'kind' = 'sighting'`,
+        sql`(${petEvents.payload}->>'location_description' IS NOT NULL OR ${petEvents.locationLat} IS NOT NULL)`,
+      ),
+    )
+    .orderBy(desc(petEvents.occurredAt))
+    .limit(1);
+
+  let lastSeenAt = openedAt;
+  if (ownerUpdate) {
+    // ATOMIC replacement: the chosen update becomes the current last-seen
+    // record as a unit — place, coords and timestamp all come from the same
+    // event (or become null together). Mixing fields across events produced
+    // contradictions (fresh-review F4): a text-only update would relabel the
+    // ORIGIN pin with an address it isn't at, and a pin-only update would
+    // resurrect an address the owner had already superseded.
+    const updatePayload = (ownerUpdate.payload ?? {}) as Record<string, unknown>;
+    placeName =
+      typeof updatePayload.location_description === "string" &&
+      updatePayload.location_description.trim()
+        ? updatePayload.location_description.trim()
+        : null;
+    const hasUpdateCoords = ownerUpdate.locationLat != null && ownerUpdate.locationLng != null;
+    lastSeenLat = hasUpdateCoords ? String(ownerUpdate.locationLat) : null;
+    lastSeenLng = hasUpdateCoords ? String(ownerUpdate.locationLng) : null;
+    lastSeenAt =
+      ownerUpdate.occurredAt instanceof Date
+        ? ownerUpdate.occurredAt
+        : new Date(ownerUpdate.occurredAt as string);
+  }
 
   // Real sightings count: note_added events scoped to this case via caseId.
   // Belt-and-suspenders: also require occurredAt >= openedAt in case any legacy
@@ -168,6 +233,7 @@ export async function fetchLostEpisodeForPet(petId: string): Promise<LostEpisode
     placeName,
     ownerNote,
     sightingsCount: sightingsResult?.total ?? 0,
+    lastSeenAt,
     lastSeenLat,
     lastSeenLng,
   };

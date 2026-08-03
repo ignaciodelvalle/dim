@@ -203,6 +203,47 @@ export async function fetchLostPets(
     }
   }
 
+  // Owner last-seen updates (fresh-review F5, QA 2026-08-03): "actualizar
+  // última ubicación" appends an owner-authored note_added(kind='sighting')
+  // event; the CURRENT pin for the map may live there, not on the
+  // status_changed origin. Applied atomically per pet when the update is
+  // newer than its latest mark-lost event (updates of a previous episode
+  // necessarily predate it): the update's coords win even when it has none
+  // (text-only update → the old pin no longer describes the current
+  // last-seen record). Same semantics as fetchLostEpisodeForPet.
+  const ownerUpdateRows = await db
+    .select({
+      petId: petEvents.petId,
+      occurredAt: petEvents.occurredAt,
+      locationLat: petEvents.locationLat,
+      locationLng: petEvents.locationLng,
+    })
+    .from(petEvents)
+    .where(
+      and(
+        inArray(petEvents.petId, petIds),
+        eq(petEvents.eventType, "note_added"),
+        eq(petEvents.authorRole, "owner"),
+        sql`${petEvents.payload}->>'kind' = 'sighting'`,
+        sql`(${petEvents.payload}->>'location_description' IS NOT NULL OR ${petEvents.locationLat} IS NOT NULL)`,
+      ),
+    )
+    .orderBy(desc(petEvents.occurredAt));
+
+  const ownerUpdateByPet = new Map<
+    string,
+    { occurredAt: Date; locationLat: string | null; locationLng: string | null }
+  >();
+  for (const e of ownerUpdateRows) {
+    if (!ownerUpdateByPet.has(e.petId)) {
+      ownerUpdateByPet.set(e.petId, {
+        occurredAt: e.occurredAt,
+        locationLat: e.locationLat,
+        locationLng: e.locationLng,
+      });
+    }
+  }
+
   // Resolve the active owner's display name via ownerships → profiles.
   const ownerMap = new Map<string, string>();
   const activeOwnerRows = await db
@@ -227,6 +268,10 @@ export async function fetchLostPets(
   return baseRows
     .map((r): LostPetRow => {
       const meta = lostMetaByPet.get(r.petId);
+      const update = ownerUpdateByPet.get(r.petId);
+      // Current-episode owner update supersedes the origin coords atomically.
+      const current =
+        meta && update && update.occurredAt.getTime() >= meta.occurredAt.getTime() ? update : meta;
       return {
         petId: r.petId,
         petPublicToken: r.petPublicToken,
@@ -236,8 +281,8 @@ export async function fetchLostPets(
         province: r.province,
         locality: r.locality,
         markedLostAt: meta?.occurredAt ?? null,
-        lastSeenLat: meta?.locationLat ? Number(meta.locationLat) : null,
-        lastSeenLng: meta?.locationLng ? Number(meta.locationLng) : null,
+        lastSeenLat: current?.locationLat ? Number(current.locationLat) : null,
+        lastSeenLng: current?.locationLng ? Number(current.locationLng) : null,
         ownerDisplayName: ownerMap.get(r.petId) ?? null,
       };
     })

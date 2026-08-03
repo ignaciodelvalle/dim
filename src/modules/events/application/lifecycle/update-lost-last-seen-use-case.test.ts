@@ -78,6 +78,7 @@ const baseParams = {
     authorVerified: false,
   },
   text: "La vi cerca de la plaza San Martín",
+  locationDescription: "Plaza San Martín",
   locationLat: "-34.6037",
   locationLng: "-58.3816",
   clientIdempotencyKey: "update-key-1",
@@ -135,6 +136,9 @@ describe("updateLostLastSeen", () => {
     expect(payload.kind).toBe("sighting");
     expect(payload.category).toBe("otro");
     expect(payload.text).toBe(baseParams.text);
+    // The address travels as its own field so fetchLostEpisodeForPet can
+    // overlay it as placeName (QA 2026-08-03 last-seen fix).
+    expect(payload.location_description).toBe("Plaza San Martín");
   });
 
   it("never emits a status_changed event (append-only — lost→lost is not a real transition)", async () => {

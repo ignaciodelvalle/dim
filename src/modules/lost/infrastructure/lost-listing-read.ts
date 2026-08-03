@@ -201,6 +201,52 @@ export async function queryLostListing(
           .orderBy(desc(petEvents.occurredAt))
       : [];
 
+  // Owner last-seen updates (fresh-review F5, QA 2026-08-03): "actualizar
+  // última ubicación" appends an owner-authored note_added(kind='sighting')
+  // event, so the CURRENT description may live there, not on the
+  // status_changed origin — the owner profile, poster and public credential
+  // already read it that way. Disclosing pets only (Item-27: non-disclosing
+  // pets never have location fetched), and only the description text — the
+  // listing card never shows coords, so we select a presence boolean instead
+  // of the values to keep the atomic-replacement semantics without pulling
+  // coordinates into memory.
+  const ownerUpdateRows =
+    disclosingIds.length > 0
+      ? await db
+          .select({
+            petId: petEvents.petId,
+            occurredAt: petEvents.occurredAt,
+            locationDescription: sql<
+              string | null
+            >`nullif(trim(${petEvents.payload}->>'location_description'), '')`,
+          })
+          .from(petEvents)
+          .where(
+            and(
+              inArray(petEvents.petId, disclosingIds),
+              eq(petEvents.eventType, "note_added"),
+              eq(petEvents.authorRole, "owner"),
+              sql`${petEvents.payload}->>'kind' = 'sighting'`,
+              sql`(${petEvents.payload}->>'location_description' IS NOT NULL OR ${petEvents.locationLat} IS NOT NULL)`,
+            ),
+          )
+          .orderBy(desc(petEvents.occurredAt))
+      : [];
+
+  // Latest owner update per pet (rows are already occurredAt desc).
+  const ownerUpdateByPet = new Map<
+    string,
+    { occurredAt: Date; locationDescription: string | null }
+  >();
+  for (const e of ownerUpdateRows) {
+    if (!ownerUpdateByPet.has(e.petId)) {
+      ownerUpdateByPet.set(e.petId, {
+        occurredAt: e.occurredAt instanceof Date ? e.occurredAt : new Date(e.occurredAt as string),
+        locationDescription: e.locationDescription,
+      });
+    }
+  }
+
   // Merge into a unified map: disclosing pets get their location payload,
   // non-disclosing pets get a null payload so location is never present.
   const latestLostByPet = new Map<
@@ -256,9 +302,21 @@ export async function queryLostListing(
             meta.payload.last_known_location.trim()
           ? meta.payload.last_known_location.trim()
           : null;
+    // Overlay: an owner update that belongs to the CURRENT episode
+    // (occurredAt >= the latest mark-lost event — updates of a previous
+    // episode necessarily predate it) replaces the origin description
+    // atomically: its own description wins even when null (the owner's
+    // newest record was a pin-only update; relabeling it with a superseded
+    // address would lie — same semantics as fetchLostEpisodeForPet).
+    const ownerUpdate = ownerUpdateByPet.get(row.petId);
+    const currentDescription =
+      ownerUpdate && ownerUpdate.occurredAt.getTime() >= occurredAt.getTime()
+        ? ownerUpdate.locationDescription
+        : rawDescription;
     // lastSeenDescription is null for non-disclosing pets because their
-    // payload was never fetched — rawDescription is already null.
-    const lastSeenDescription = row.discloseLastLocationWhenLost ? rawDescription : null;
+    // payload was never fetched — rawDescription is already null and the
+    // overlay query excluded them.
+    const lastSeenDescription = row.discloseLastLocationWhenLost ? currentDescription : null;
 
     allItems.push({
       petId: row.petId,

@@ -15,11 +15,15 @@
 // caseId with payload->>'kind' = 'sighting') instead of inventing a new
 // event kind or a fake status transition.
 //
-// The ORIGINAL status_changed event (and therefore LostEpisode.placeName /
-// ownerNote / lastSeenLat / lastSeenLng surfaced by LostLastSeenCard) is
-// intentionally left untouched — it is the immutable record of when the
-// pet was first marked lost. The update is a new fact layered on top, not
-// a correction of that record.
+// The ORIGINAL status_changed event is intentionally left untouched — it is
+// the immutable record of when the pet was first marked lost. The update is
+// a new fact layered on top, not a correction of that record. The read model
+// (fetchLostEpisodeForPet, lib/infra/lost-mode.ts) overlays the LATEST
+// owner-authored update onto the episode's placeName/coords/lastSeenAt, so
+// the profile reflects what the owner typed here without mutating the spine.
+// `locationDescription` is carried as its own payload field
+// (location_description) because `text` composes address + note for the
+// feed and can't be split back apart reliably.
 //
 // Guard: returns an error (no write) when there is no OPEN lost_pet_episode
 // case for the pet. The page only renders this flow when
@@ -49,6 +53,8 @@ export type UpdateLostLastSeenParams = {
   };
   /** Free-text update from the owner (address/reference + any note). */
   text: string | null;
+  /** The address/reference alone — overlaid as placeName by the read model. */
+  locationDescription: string | null;
   locationLat: string | null;
   locationLng: string | null;
   clientIdempotencyKey: string | null;
@@ -88,6 +94,7 @@ export async function updateLostLastSeen(
     recordedByUserId,
     eventAuthorship,
     text,
+    locationDescription,
     locationLat,
     locationLng,
     clientIdempotencyKey,
@@ -113,6 +120,7 @@ export async function updateLostLastSeen(
     category: "otro",
     text: noteText,
     kind: "sighting",
+    location_description: locationDescription?.trim() || null,
   });
 
   await deps.transaction((tx) =>

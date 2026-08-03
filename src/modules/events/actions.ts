@@ -1527,6 +1527,7 @@ export async function updateLostLastSeenAction(
         authorVerified: boolean;
       },
       text,
+      locationDescription,
       locationLat: normalizedLoc.lat != null ? String(normalizedLoc.lat) : null,
       locationLng: normalizedLoc.lng != null ? String(normalizedLoc.lng) : null,
       clientIdempotencyKey,

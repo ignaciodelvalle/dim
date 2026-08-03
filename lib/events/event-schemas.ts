@@ -721,6 +721,12 @@ const noteAdded = z
       // OPTIONAL/nullable so every pre-existing note (and non-sighting note)
       // validates unchanged; forward-only, no backfill of old events.
       location_source: z.enum(["gps", "pin_manual", "geocodificada"]).nullable().optional(),
+      // Owner "actualizar última ubicación" updates (kind=sighting authored by
+      // the owner): the pretty address line, kept separate from `text` (which
+      // composes address + note for the feed) so fetchLostEpisodeForPet can
+      // overlay it as the episode's current placeName. OPTIONAL/nullable so
+      // every pre-existing note validates unchanged; forward-only, no backfill.
+      location_description: z.string().nullable().optional(),
       // P0e finder-in-possession extended fields. Optional so that plain notes
       // and sighting notes continue to validate without changes. kind=finder_in_possession
       // rows MUST include these; enforcement is at the action layer (server-side checks).

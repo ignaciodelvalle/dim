@@ -28,7 +28,7 @@ const BASE_PROPS = {
   distinguishingFeatures: "mancha en la oreja derecha",
   photoUrl: null,
   placeName: "Parque Centenario",
-  lostSince: new Date("2026-05-01T12:00:00Z"),
+  lastSeenAt: new Date("2026-05-01T12:00:00Z"),
   ownerFirstName: "María",
   ownerPhone: "+5491100000000",
   locationDisclosed: true,

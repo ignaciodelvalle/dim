@@ -67,7 +67,7 @@ import {
   statusLabel,
 } from "@/lib/utils/format";
 import { withDbBudget, withDbBudgetOrThrow } from "@/src/modules/panorama/application/db-budget";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -1101,12 +1101,60 @@ async function loadCredentialViewData(pet: Pet) {
     const [ownerRow] = ownerRows;
     const [latestLostEvent] = latestLostEventRows;
 
+    // Overlay parity with fetchLostEpisodeForPet (fresh-review F1, QA
+    // 2026-08-03): "actualizar última ubicación" appends an owner-authored
+    // note_added(kind='sighting') event — append-only spine — so the CURRENT
+    // last-seen location may live there, not on the status_changed origin.
+    // Without this, the public credential a finder scans showed the origin
+    // address while the owner profile, poster and sighting map showed the
+    // update. Same ATOMIC semantics (place + coords + never mixed across
+    // events) and same S4 defense-in-depth: location key/columns projected
+    // as SQL NULL when not disclosed. Scoped to the current episode by
+    // occurredAt >= the latest mark-lost event (owner updates of a previous
+    // episode necessarily predate it). authorRole='owner' keeps unvetted
+    // finder sightings out of the headline.
+    let ownerUpdate:
+      | {
+          locationText: string | null;
+          // numeric columns come back as string from Drizzle; readPoint
+          // normalizes (same shape as latestLostEvent above).
+          locationLat: string | number | null;
+          locationLng: string | number | null;
+          occurredAt: Date;
+        }
+      | undefined;
+    if (latestLostEvent) {
+      [ownerUpdate] = await db
+        .select({
+          locationText: showLocation
+            ? sql<string | null>`nullif(trim(${petEvents.payload}->>'location_description'), '')`
+            : sql<string | null>`null`,
+          locationLat: showLocation ? petEvents.locationLat : sql<number | null>`null`,
+          locationLng: showLocation ? petEvents.locationLng : sql<number | null>`null`,
+          occurredAt: petEvents.occurredAt,
+        })
+        .from(petEvents)
+        .where(
+          and(
+            eq(petEvents.petId, pet.id),
+            eq(petEvents.eventType, "note_added"),
+            eq(petEvents.authorRole, "owner"),
+            gte(petEvents.occurredAt, latestLostEvent.occurredAt),
+            sql`${petEvents.payload}->>'kind' = 'sighting'`,
+            sql`(${petEvents.payload}->>'location_description' IS NOT NULL OR ${petEvents.locationLat} IS NOT NULL)`,
+          ),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(1);
+    }
+
+    const lastSeenSource = ownerUpdate ?? latestLostEvent;
     const textLocation =
-      typeof latestLostEvent?.locationText === "string" && latestLostEvent.locationText.length > 0
-        ? latestLostEvent.locationText
+      typeof lastSeenSource?.locationText === "string" && lastSeenSource.locationText.length > 0
+        ? lastSeenSource.locationText
         : null;
     // Fallback: precise lat/lng captured on the event row itself (null unless disclosed).
-    const eventPoint = latestLostEvent ? readPoint(latestLostEvent) : null;
+    const eventPoint = lastSeenSource ? readPoint(lastSeenSource) : null;
     const geoLocation =
       !textLocation && eventPoint
         ? `${eventPoint.lat.toFixed(6)}, ${eventPoint.lng.toFixed(6)}`

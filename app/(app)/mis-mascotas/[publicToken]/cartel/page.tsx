@@ -56,7 +56,8 @@ export default async function CartelPage({
     );
   }
 
-  // Fetch lost episode (placeName + lostSince).
+  // Fetch lost episode (placeName + lastSeenAt, both reflecting the latest
+  // owner location update — see fetchLostEpisodeForPet's overlay).
   const episode = await fetchLostEpisodeForPet(pet.id);
 
   // Resolve owner first name + phone from the active ownership row.
@@ -116,7 +117,7 @@ export default async function CartelPage({
         distinguishingFeatures={pet.distinguishingFeatures ?? null}
         photoUrl={photoUrl}
         placeName={episode?.placeName ?? null}
-        lostSince={episode?.openedAt ?? null}
+        lastSeenAt={episode?.lastSeenAt ?? null}
         ownerFirstName={ownerFirstName}
         ownerPhone={ownerPhone}
         locationDisclosed={pet.discloseLastLocationWhenLost}

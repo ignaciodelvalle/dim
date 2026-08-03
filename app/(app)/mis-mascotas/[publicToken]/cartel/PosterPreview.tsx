@@ -29,7 +29,13 @@ export type PosterPreviewProps = {
   photoUrl: string | null;
   // Lost episode
   placeName: string | null;
-  lostSince: Date | null;
+  /**
+   * The date printed next to "Vista por última vez" — the LAST-SEEN date
+   * (episode.lastSeenAt), not the mark-lost date. Renamed from `lostSince`
+   * (fresh-review F3): after an owner location update the poster printed the
+   * new address with the old date.
+   */
+  lastSeenAt: Date | null;
   // Owner contact — already filtered by disclosure prefs (null = not disclosed)
   ownerFirstName: string | null;
   ownerPhone: string | null;
@@ -51,7 +57,7 @@ export function PosterPreview({
   distinguishingFeatures,
   photoUrl,
   placeName,
-  lostSince,
+  lastSeenAt,
   ownerFirstName,
   ownerPhone,
   locationDisclosed,
@@ -62,8 +68,8 @@ export function PosterPreview({
 
   const identityParts = [species, breed, sex, age].filter(Boolean).join(" · ");
 
-  const lostSinceLabel = lostSince
-    ? lostSince.toLocaleDateString("es-AR", {
+  const lastSeenLabel = lastSeenAt
+    ? lastSeenAt.toLocaleDateString("es-AR", {
         day: "numeric",
         month: "long",
         year: "numeric",
@@ -179,16 +185,16 @@ export function PosterPreview({
         )}
 
         {/* Last seen (gated by disclosure pref) */}
-        {locationDisclosed && (placeName || lostSinceLabel) && (
+        {locationDisclosed && (placeName || lastSeenLabel) && (
           <div className="text-sm text-[var(--color-ln-ink)] space-y-0.5">
             {placeName && (
               <p>
                 <span className="font-semibold">{lastSeenHeadingLabel(sexRaw)}:</span> {placeName}
               </p>
             )}
-            {lostSinceLabel && (
+            {lastSeenLabel && (
               <p>
-                <span className="font-semibold">Fecha:</span> {lostSinceLabel}
+                <span className="font-semibold">Fecha:</span> {lastSeenLabel}
               </p>
             )}
           </div>
