@@ -16,16 +16,14 @@
       mostrar *"No pudimos cargar los indicadores"* (presupuesto de DB del free-tier de
       staging). En la recarga carga perfecto. **Abrí V2, V4 y V5 una vez cada una** un
       rato antes — quedan calientes y no fallan en vivo.
-- [ ] **Reseteá la alerta de V1 a `disparada`.** ⚠️ Hoy figura en estado *"Reconocida"*
-      y jurisdicción *"CABA"* (toda la ciudad). Si querés mostrar el beat en vivo de
-      "Reconocer → la fila cambia", volvela a `disparada`. Si no, arrancás desde
-      "Reconocida" y funciona igual (solo perdés esa micro-transición).
+- [ ] **Corré el prep de DB** — un solo archivo:
+      [`scripts/sql/pre-demo-prep-staging.sql`](../../scripts/sql/pre-demo-prep-staging.sql)
+      en el SQL Editor de Supabase (proyecto staging). Deja DOS cosas listas:
+      (1) la alerta de V1 vuelve a `disparada` para el beat "Reconocer → la fila cambia";
+      (2) una mascota de `owner@` queda en observación antirrábica ABIERTA para el beat 5b.
+      El SELECT de la Parte 2 te imprime **qué token** usar en 5b — anotalo.
 - [ ] **5 perfiles pre-logueados** en 5 pestañas/navegadores separados (NO loguearse en
       vivo — rate limit 5/min por email). Reparto abajo.
-- [ ] **Beat 5b (muerte en observación):** ⚠️ hoy `owner@` **no tiene** ninguna mascota
-      en observación antirrábica en staging. Sin el re-seed, este beat va por el
-      **fallback de narración honesta** (ver Acto 5b). El aviso de entierro genérico SÍ
-      funciona; el aviso rabia-específico necesita la mascota en observación.
 - [ ] **Celular con cámara** a mano para el QR de Pampa (`DIM-PAMP-0001`).
 - [ ] Validá la versión desplegada: en el HTML, `<meta name="mimar-version">` debe decir
       el commit vigente.
@@ -165,11 +163,13 @@ Buscar → aparece la oferta recién publicada → reservás → confirmación.
 
 > ⚠️ **Estado validado:** el formulario de fallecimiento y el **aviso de entierro
 > funcionan**. Al elegir "Sepultura por el propietario" aparece la recomendación sanitaria
-> (profundidad, zoonosis, acuíferos, zona remota). PERO el aviso RABIA-específico y la
-> cascada (cerrar observación + notificar autoridad) necesitan una mascota **en
-> observación antirrábica**, y hoy `owner@` no tiene ninguna en staging. **Elegí una vía:**
+> (profundidad, zoonosis, acuíferos, zona remota). El aviso RABIA-específico y la cascada
+> necesitan una mascota **en observación antirrábica** — que el prep de DB del Acto 0
+> (`pre-demo-prep-staging.sql`, Parte 2) deja lista. **Si lo corriste, vas por Vía A**
+> (usá el token que imprimió el SELECT). Si no, Vía B (narración honesta).
 
-**Vía A — con re-seed (ideal):** perfil 4, mascota en observación → registrar fallecimiento
+**Vía A — con el prep corrido (ideal):** perfil 4, la mascota que quedó en observación →
+registrar fallecimiento
 → **"Sepultura por el propietario"** → salta el aviso rabia-consciente → confirmás **a
 pesar del aviso** → se dispara la cascada.
 
@@ -259,6 +259,6 @@ marcha en Palermo — Refugio Test."*
 | Crear oferta (Act 3) | Campaña sembrada `DEMO-SVO-CABA-RABIES`, ya aprobada y visible |
 | Reserva (Act 4) | Turnos ya confirmados de esa campaña |
 | Firma del vet (Act 5) | Libreta de Pampa: antirrábica ya firmada por matriculado |
-| Muerte en observación (5b) | Narración honesta (vía B arriba) |
+| Muerte en observación (5b) | Vía A si corriste el prep de DB; si no, narración honesta (vía B) |
 | Scrub de Salta (V4) | Capturas del dry-run |
 | KPIs de Panorama no cargan | Recargar la vista (free-tier: la 2ª carga anda) |
