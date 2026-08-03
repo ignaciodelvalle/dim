@@ -44,6 +44,40 @@ export function isLocalDatabase(url: string = resolveUrl()): boolean {
  * (__tests__/_helpers/db-overrides.ts), set LOCAL inside the transaction so it
  * cannot leak to another session.
  */
+/**
+ * Reset the auth login rate-limit buckets (fixture cleanup, NOT a weakening
+ * of the control).
+ *
+ * WHY: `auth_login_email` is 5/min · 20/hour keyed on the EMAIL and enforced
+ * before GoTrue, and `loginAs`'s session cache lives in worker-process module
+ * state — but Playwright REPLACES the worker after every test failure (and
+ * `retries: 1` doubles the churn), so each failure empties the cache and costs
+ * a real sign-in. A handful of genuine failures therefore exhausts
+ * owner@dim.test's hourly budget and cascades into "Demasiados intentos" for
+ * every later spec (CI run 30852554456: 12 refusals on top of ~4 real
+ * failures). Clearing the buckets before a REAL sign-in makes the suite's
+ * login cost independent of worker churn while the limiter itself stays
+ * fully active in the app — the control is exercised on every login, and
+ * e2e/auth.spec.ts still walks the form's refusal paths on its own.
+ *
+ * LOCAL ONLY — same guard as deletePetsByNamePrefix: a no-op against any
+ * non-local database.
+ */
+export async function resetAuthLoginRateLimits(): Promise<void> {
+  const url = resolveUrl();
+  if (!isLocalDatabase(url)) return;
+
+  const sql = postgres(url, { max: 1, onnotice: () => {} });
+  try {
+    await sql`DELETE FROM rate_limit_buckets
+      WHERE bucket_key LIKE ${"auth_login_ip:%"} OR bucket_key LIKE ${"auth_login_email:%"}`;
+  } catch {
+    // Best-effort: a failed reset just means the next login spends real budget.
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
   const url = resolveUrl();
   if (!isLocalDatabase(url)) {

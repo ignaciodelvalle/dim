@@ -14,6 +14,7 @@ import {
   NOT_FOUND_HEADING,
   type OwnerPii,
 } from "../_page-identity";
+import { resetAuthLoginRateLimits } from "./_db-cleanup";
 
 export const SHARED_PASSWORD = "Test1234!";
 
@@ -164,6 +165,13 @@ export async function loginAs(
   // that logs in as the same account more than 5 times a minute (or 20 an hour)
   // is rate-limited no matter what address it presents.
   await page.setExtraHTTPHeaders({ "x-real-ip": uniqueIp() });
+  // Real sign-ins only happen on a cold session cache — i.e. after Playwright
+  // replaced the worker (it does so on EVERY test failure, and retries double
+  // it), so their count scales with failures, not with the suite. Clear the
+  // login buckets first so one genuine failure cannot cascade into
+  // "Demasiados intentos" for every spec after it (local DB only — no-op
+  // elsewhere; see resetAuthLoginRateLimits).
+  await resetAuthLoginRateLimits();
   await page.goto("/login");
   // Let hydration finish before interacting — clicks dispatched before React
   // attaches handlers are silently dropped (clickthrough audit 2026-07-03,
@@ -313,6 +321,16 @@ export async function assertRealPage(
   page: Page,
   expected: string | RegExp,
   marker?: Locator,
+  opts: {
+    /**
+     * Accept a page that renders the BrandedNotFound COMPONENT. For
+     * /acceso-denegado — the app's deliberate access-denied surface — the
+     * boundary IS the page under test (app/acceso-denegado/page.tsx reuses
+     * BrandedNotFound by design), so refusing to measure it would leave the
+     * surface unmeasured, not un-vacuous. Every other caller keeps the guard.
+     */
+    allowBrandedNotFound?: boolean;
+  } = {},
 ): Promise<void> {
   const label = typeof expected === "string" ? expected : String(expected);
   const actual = new URL(page.url()).pathname;
@@ -332,14 +350,16 @@ export async function assertRealPage(
     ).toMatch(expected);
   }
 
-  await expect(
-    page.getByTestId(BRANDED_NOT_FOUND_TESTID),
-    `${label}: rendered the branded not-found boundary — measuring it would pass vacuously`,
-  ).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: NOT_FOUND_HEADING }),
-    `${label}: rendered a not-found heading — measuring it would pass vacuously`,
-  ).toHaveCount(0);
+  if (!opts.allowBrandedNotFound) {
+    await expect(
+      page.getByTestId(BRANDED_NOT_FOUND_TESTID),
+      `${label}: rendered the branded not-found boundary — measuring it would pass vacuously`,
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("heading", { name: NOT_FOUND_HEADING }),
+      `${label}: rendered a not-found heading — measuring it would pass vacuously`,
+    ).toHaveCount(0);
+  }
   await expect(page.getByText(CRASH_BOUNDARY), `${label}: the page crashed`).toHaveCount(0);
   if (marker) {
     await expect(marker, `${label}: the page's own content never rendered`).toBeVisible({
@@ -403,7 +423,15 @@ export async function fileDenunciaAt(
   browser: Browser,
   coords: { latitude: number; longitude: number },
 ): Promise<string> {
-  const context = await browser.newContext();
+  // Distinct apparent origin per denuncia — the anonymous submit is IP
+  // rate-limited at 1/min + 3/hour (welfare_anon, src/modules/welfare/
+  // actions.ts), and the serial suite walks this wizard from several specs
+  // (synthetic-monitor c/d, admin/gob case-detail-shell). One shared IP trips
+  // the per-minute budget on the SECOND walk; a unique TEST-NET-3 address per
+  // walk models what it simulates — different citizens filing reports.
+  const context = await browser.newContext({
+    extraHTTPHeaders: { "x-real-ip": uniqueIp() },
+  });
   try {
     const page = await context.newPage();
     return await walkDenunciaWizard(page, { coords });

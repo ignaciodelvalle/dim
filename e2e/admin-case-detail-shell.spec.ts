@@ -79,7 +79,10 @@ test("admin case detail keeps the operator shell", async ({ page }) => {
 
   // 2. Operator rail is present (an /admin nav link only the operator shell
   //    renders — the admin analogue of the gob spec's /gob/panorama probe).
-  await expect(page.locator('a[href="/admin/panorama"]').first()).toBeVisible();
+  // Prefix match, not exact: nav-presets renders the rail link with a preset
+  // query (/admin/panorama?preset=bienestar&period=90d) — the gob spec's probe
+  // already matched by prefix for the same reason.
+  await expect(page.locator('a[href^="/admin/panorama"]').first()).toBeVisible();
 
   // 3. The public citizen browse nav is ABSENT — the exact chrome the bug
   //    exposed to the QA tester.

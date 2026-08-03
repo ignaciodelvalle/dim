@@ -12,6 +12,7 @@ import {
   fileDenunciaAt,
   loginAs,
   pickCard,
+  uniqueIp,
 } from "./demo/_helpers";
 
 /**
@@ -196,8 +197,11 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
       await fileDenunciaAt(browser, USHUAIA_POINT);
       await page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
     }
+    // The console heading is "Denuncias (N en total)" — the old "Denuncias de
+    // maltrato" title is gone (/gob/maltrato now lands on the unified
+    // /gob/denuncias console; row links still point at /gob/maltrato/DEN-…).
     await expect(
-      page.getByRole("heading", { name: /denuncias de maltrato/i }),
+      page.getByRole("heading", { name: /denuncias \(\d+ en total\)/i }),
       "maltrato console heading",
     ).toBeVisible({ timeout: 20_000 });
     // The queue renders ALL tabpanels in the DOM (urgent/mine/all); inactive
@@ -233,6 +237,11 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
   // ------------------------------------------------------------------------
   test("(d) anon denuncia wizard → reference code", async ({ page }) => {
     test.setTimeout(90_000);
+    // Distinct apparent origin: the anon submit is IP rate-limited at
+    // 1/min + 3/hour (welfare_anon) and (c) just filed a denuncia from this
+    // same suite — without this header the submit here is the "2nd in a
+    // minute" and is refused. Same TEST-NET-3 pattern as fileDenunciaAt.
+    await page.setExtraHTTPHeaders({ "x-real-ip": uniqueIp() });
     // Clearly-marked synthetic report so operators can ignore it.
     const description =
       "PRUEBA SINTÉTICA - monitoreo automatico QA, ignorar. No hay animal real involucrado.";
@@ -315,7 +324,10 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
     // Success: redirect to the comprobante + the reference-code screen.
     await page.waitForURL(/\/denuncias\/codigo\//, { timeout: 40_000 });
     await expect(
-      page.getByText(/tu código de seguimiento|denuncia registrada/i),
+      // The comprobante's actual copy is "Tu denuncia fue registrada." —
+      // the old /denuncia registrada/ pattern missed the "fue" and reported
+      // a rendered success screen as a failure.
+      page.getByText(/tu código de seguimiento|denuncia fue registrada/i),
       "reference-code screen rendered",
     ).toBeVisible({ timeout: 20_000 });
   });

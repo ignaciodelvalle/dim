@@ -78,11 +78,23 @@ test.describe("authenticated operator surfaces — axe-clean (WCAG 2.1 AA, WS-C)
   }
 });
 
-// These operator routes redirect non-privileged owners. The redirect destination
-// (/ for admin, /mis-mascotas for gob) must be axe-clean.
+// These operator routes redirect non-privileged owners. The redirect
+// DESTINATION is the subject, and both destinations changed after this table
+// was written (CI-red unit, 2026-08-03 — the stale patterns were 2 of the 16
+// standing failures):
+//   /admin → requireAdminOrRedirect bounces to "/", but the root page never
+//     renders for a signed-in owner — it chains through pathForRole → /inicio
+//     → /mis-mascotas/<most-urgent-pet>, so the SETTLED page an owner actually
+//     sees (and axe must measure) is the pet profile. owner@dim.test always
+//     has pets (seed-test-users guarantees 3), so the chain never stops at "/".
+//   /gob → requireAdminOrGovtOrRedirect sends personal-role users to
+//     /acceso-denegado?portal=gob (A4 — deliberately no longer the silent
+//     bounce to /mis-mascotas this pattern encoded).
 const OPERATOR_REDIRECT_SOURCES = [
-  { path: "/admin", redirectPattern: /^\/$/ },
-  { path: "/gob", redirectPattern: /\/mis-mascotas/ },
+  { path: "/admin", redirectPattern: /\/mis-mascotas/, allowBrandedNotFound: false },
+  // /acceso-denegado deliberately renders the BrandedNotFound component
+  // (app/acceso-denegado/page.tsx) — the boundary IS the surface to measure.
+  { path: "/gob", redirectPattern: /\/acceso-denegado/, allowBrandedNotFound: true },
 ] as const;
 
 test.describe("operator routes — redirect targets are axe-clean (WCAG 2.1 AA)", () => {
@@ -90,7 +102,7 @@ test.describe("operator routes — redirect targets are axe-clean (WCAG 2.1 AA)"
     await loginAs(page, ACCOUNTS.owner);
   });
 
-  for (const { path, redirectPattern } of OPERATOR_REDIRECT_SOURCES) {
+  for (const { path, redirectPattern, allowBrandedNotFound } of OPERATOR_REDIRECT_SOURCES) {
     test(`a11y(axe) ${path} redirect target — WCAG 2.1 AA`, async ({ page }) => {
       await page.goto(path);
 
@@ -104,7 +116,7 @@ test.describe("operator routes — redirect targets are axe-clean (WCAG 2.1 AA)"
       // prose label here ("/admin -> redirect target") is what the old version
       // did, and since assertRealPage only used its second argument for error
       // text, the destination was never checked at all.
-      await assertRealPage(page, redirectPattern);
+      await assertRealPage(page, redirectPattern, undefined, { allowBrandedNotFound });
 
       const results = await new AxeBuilder({ page })
         .withTags(["wcag2a", "wcag2aa", "wcag21aa"])

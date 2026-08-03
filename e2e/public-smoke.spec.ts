@@ -234,7 +234,14 @@ for (const { path, description, expectedStatus, surface } of [
     // page.tsx: `if (!share) notFound()` — the branded boundary IS this route's
     // invalid-token surface. Keyed on the testid, not the copy, so a wording
     // change cannot disarm it.
-    expectedStatus: 404,
+    //
+    // Status 200, not 404: the route streams (a Suspense skeleton flushes the
+    // shell before the token lookup resolves — CSP/no-prerender move), so
+    // notFound() fires after headers went out and the status can no longer
+    // carry the verdict. The SURFACE assertion below is the real guard; the
+    // 200 is declared so a future return to a blocking 404 shows up here as
+    // a deliberate shape change rather than silently passing both ways.
+    expectedStatus: 200,
     surface: (page: Page) => page.getByTestId(BRANDED_NOT_FOUND_TESTID),
   },
   {
