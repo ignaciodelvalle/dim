@@ -390,14 +390,16 @@ function LostListingCard({ item }: { item: LostListingItem }) {
           {/* Last-seen box — gated by the owner's privacy flag. When there is no
               disclosed sighting location we say so EXPLICITLY rather than omit the
               line: on a lost-pet board an absent last-seen is decision-relevant
-              (the searcher shouldn't assume a location that isn't there). */}
-          {item.lastSeenDescription ? (
+              (the searcher shouldn't assume a location that isn't there). A
+              pin-only record (map point, no address) says so instead — the
+              credential DOES show a map, so "sin ubicación" would contradict it. */}
+          {item.lastSeenDescription || item.lastSeenHasPin ? (
             <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2 space-y-0.5">
               <p className="font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-seal)]">
                 Visto por última vez
               </p>
               <p className="text-xs text-[var(--color-ln-ink)] font-medium line-clamp-2">
-                {item.lastSeenDescription}
+                {item.lastSeenDescription ?? "Punto marcado en el mapa — ver credencial"}
               </p>
             </div>
           ) : (

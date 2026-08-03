@@ -105,6 +105,12 @@ export type LostListingItem = {
   /** Pre-applied privacy: null when the owner opted out via
    *  `discloseLastLocationWhenLost = false`, even if the event had it. */
   lastSeenDescription: string | null;
+  /** Presence only — whether the current last-seen record carries a map pin
+   *  (coords never enter this DTO, same standard as hasMicrochip). Lets the
+   *  card say "Punto marcado en el mapa" instead of claiming no location
+   *  exists when the record is pin-only. Always false when the owner opted
+   *  out of location disclosure. */
+  lastSeenHasPin: boolean;
   /** Whether the pet has any `sterilization_performed` event. */
   isSterilized: boolean;
   /** Owner-controlled flag governing whether the public sees last-seen

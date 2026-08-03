@@ -162,7 +162,11 @@ export async function queryLostListing(
   const disclosingIds = baseRows.filter((r) => r.discloseLastLocationWhenLost).map((r) => r.petId);
   const nonDisclosingIds = petIds.filter((id) => !disclosingIds.includes(id));
 
-  // Fetch location-carrying events only for disclosing pets.
+  // Fetch location-carrying events only for disclosing pets. hasPin is a
+  // presence BOOLEAN (the listing never shows coords, so the values stay out
+  // of memory — same standard as hasMicrochip above); it feeds the
+  // "Punto marcado en el mapa" fallback when the record has a pin but no
+  // address.
   const disclosingEventRows =
     disclosingIds.length > 0
       ? await db
@@ -170,6 +174,7 @@ export async function queryLostListing(
             petId: petEvents.petId,
             occurredAt: petEvents.occurredAt,
             payload: petEvents.payload,
+            hasPin: sql<boolean>`${petEvents.locationLat} IS NOT NULL`,
           })
           .from(petEvents)
           .where(
@@ -206,10 +211,8 @@ export async function queryLostListing(
   // event, so the CURRENT description may live there, not on the
   // status_changed origin — the owner profile, poster and public credential
   // already read it that way. Disclosing pets only (Item-27: non-disclosing
-  // pets never have location fetched), and only the description text — the
-  // listing card never shows coords, so we select a presence boolean instead
-  // of the values to keep the atomic-replacement semantics without pulling
-  // coordinates into memory.
+  // pets never have location fetched), and only the description text + the
+  // hasPin presence boolean — never the coordinate values.
   const ownerUpdateRows =
     disclosingIds.length > 0
       ? await db
@@ -219,6 +222,7 @@ export async function queryLostListing(
             locationDescription: sql<
               string | null
             >`nullif(trim(${petEvents.payload}->>'location_description'), '')`,
+            hasPin: sql<boolean>`${petEvents.locationLat} IS NOT NULL`,
           })
           .from(petEvents)
           .where(
@@ -236,13 +240,14 @@ export async function queryLostListing(
   // Latest owner update per pet (rows are already occurredAt desc).
   const ownerUpdateByPet = new Map<
     string,
-    { occurredAt: Date; locationDescription: string | null }
+    { occurredAt: Date; locationDescription: string | null; hasPin: boolean }
   >();
   for (const e of ownerUpdateRows) {
     if (!ownerUpdateByPet.has(e.petId)) {
       ownerUpdateByPet.set(e.petId, {
         occurredAt: e.occurredAt instanceof Date ? e.occurredAt : new Date(e.occurredAt as string),
         locationDescription: e.locationDescription,
+        hasPin: e.hasPin,
       });
     }
   }
@@ -251,20 +256,22 @@ export async function queryLostListing(
   // non-disclosing pets get a null payload so location is never present.
   const latestLostByPet = new Map<
     string,
-    { occurredAt: Date; payload: Record<string, unknown> | null }
+    { occurredAt: Date; payload: Record<string, unknown> | null; hasPin: boolean }
   >();
   for (const e of disclosingEventRows) {
     if (!latestLostByPet.has(e.petId)) {
       latestLostByPet.set(e.petId, {
         occurredAt: e.occurredAt,
         payload: (e.payload ?? {}) as Record<string, unknown>,
+        hasPin: e.hasPin,
       });
     }
   }
   for (const e of nonDisclosingEventRows) {
     if (!latestLostByPet.has(e.petId)) {
-      // payload is intentionally null — location was never fetched (Item 27).
-      latestLostByPet.set(e.petId, { occurredAt: e.occurredAt, payload: null });
+      // payload is intentionally null — location was never fetched (Item 27),
+      // and pin presence is not disclosed either.
+      latestLostByPet.set(e.petId, { occurredAt: e.occurredAt, payload: null, hasPin: false });
     }
   }
 
@@ -309,14 +316,17 @@ export async function queryLostListing(
     // newest record was a pin-only update; relabeling it with a superseded
     // address would lie — same semantics as fetchLostEpisodeForPet).
     const ownerUpdate = ownerUpdateByPet.get(row.petId);
-    const currentDescription =
-      ownerUpdate && ownerUpdate.occurredAt.getTime() >= occurredAt.getTime()
-        ? ownerUpdate.locationDescription
-        : rawDescription;
+    const updateWins = ownerUpdate && ownerUpdate.occurredAt.getTime() >= occurredAt.getTime();
+    const currentDescription = updateWins ? ownerUpdate.locationDescription : rawDescription;
+    // Pin presence travels with the SAME winning record (atomic — a pin-only
+    // update's pin must not be paired with the origin's address or vice
+    // versa). Feeds the "Punto marcado en el mapa" fallback on the card.
+    const currentHasPin = updateWins ? ownerUpdate.hasPin : meta.hasPin;
     // lastSeenDescription is null for non-disclosing pets because their
     // payload was never fetched — rawDescription is already null and the
     // overlay query excluded them.
     const lastSeenDescription = row.discloseLastLocationWhenLost ? currentDescription : null;
+    const lastSeenHasPin = row.discloseLastLocationWhenLost ? currentHasPin : false;
 
     allItems.push({
       petId: row.petId,
@@ -333,6 +343,7 @@ export async function queryLostListing(
       hasMicrochip: row.hasMicrochip,
       markedLostAt: occurredAt,
       lastSeenDescription,
+      lastSeenHasPin,
       isSterilized: row.isSterilized,
       discloseLastLocationWhenLost: row.discloseLastLocationWhenLost,
     });

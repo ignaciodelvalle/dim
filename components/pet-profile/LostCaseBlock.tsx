@@ -155,6 +155,15 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
   const sightingsCount = episode.sightingsCount;
   const scanCount = scans.filter((s) => s.kind === "scan").length;
 
+  // Pin-only last-seen record (address null, coords present — e.g. the owner
+  // updated with just a map pin): say so instead of "Ubicación no
+  // especificada", which contradicts the map shown in LostLastSeenCard and
+  // on the public credential (cursor pre-push review 2026-08-03).
+  const hasLastSeenPin = episode.lastSeenLat != null && episode.lastSeenLng != null;
+  const lastSeenLabel =
+    episode.placeName ??
+    (hasLastSeenPin ? "Punto marcado en el mapa" : "Ubicación no especificada");
+
   return (
     <div
       data-section="lost-case-block"
@@ -238,9 +247,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               to a single glanceable line + one edit affordance. */}
           <div className="mt-4 flex items-center justify-between gap-3 border-t border-[var(--color-ln-line)] pt-3">
             <p className="m-0 min-w-0 truncate text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
-              <span className="font-semibold">
-                {episode.placeName ?? "Ubicación no especificada"}
-              </span>
+              <span className="font-semibold">{lastSeenLabel}</span>
               <span style={{ color: "var(--color-ln-mute)" }}>
                 {" "}
                 · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.lastSeenAt)}
@@ -326,9 +333,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
               Última vez visto
             </h3>
             <p className="m-0 text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
-              <span className="font-semibold">
-                {episode.placeName ?? "Ubicación no especificada"}
-              </span>
+              <span className="font-semibold">{lastSeenLabel}</span>
               <span style={{ color: "var(--color-ln-mute)" }}>
                 {" "}
                 · {episode.jurisdictionLocality ?? "—"} · {formatDateShort(episode.lastSeenAt)}
