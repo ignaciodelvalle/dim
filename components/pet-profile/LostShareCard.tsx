@@ -15,7 +15,7 @@
 // disclosure prefs — fixed 2026-07-04 (Cursor audit #735 flagged the prior
 // text as disclosure-blind despite this same claim).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { Icon } from "@/components/Icon";
 
@@ -30,6 +30,15 @@ interface Props {
 
 export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
   const [copied, setCopied] = useState(false);
+  // Mounted flag instead of reading `navigator` during render: SSR has no
+  // navigator, so the conditional button hydrated differently than it
+  // server-rendered (React #418 on every lost-pet profile). First client
+  // render now matches the server (no button), and the button appears
+  // after mount only where Web Share actually exists.
+  const [canNativeShare, setCanNativeShare] = useState(false);
+  useEffect(() => {
+    if ("share" in navigator) setCanNativeShare(true);
+  }, []);
 
   function copy() {
     void navigator.clipboard?.writeText(publicUrl).then(() => {
@@ -95,7 +104,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
         </a>
       </div>
 
-      {typeof navigator !== "undefined" && "share" in navigator && (
+      {canNativeShare && (
         <button
           type="button"
           onClick={nativeShare}
