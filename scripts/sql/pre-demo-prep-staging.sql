@@ -1,36 +1,56 @@
--- Beat 5b (demo) — pone UNA mascota de owner@dim.test en observación antirrábica
--- ABIERTA, para que el PO pueda registrar el fallecimiento en vivo y disparar el
--- aviso rabia-consciente + la cascada (cerrar observación, cerrar caso, notificar).
+-- PREP DE STAGING PARA LA DEMO — correr UNA vez, poco antes de presentar.
 --
--- STAGING ONLY. Aplicar a la DB remota es tarea de Ignacio (necesita el .env de
--- staging). Correr como UNA transacción; el SELECT final imprime la mascota elegida.
+-- STAGING ONLY. Aplicar a la DB remota es tarea de Ignacio (SQL Editor de
+-- Supabase del proyecto de staging, o psql con el DATABASE_URL de staging).
+-- Son DOS transacciones independientes; corré cada una y mirá su SELECT final.
 --
--- Qué dispara el beat (validado en código 2026-08-02):
---   DeathRecordForm: showRabiesDisposalWarning = inRabiesObservation && disposición-no-recomendada
---   inRabiesObservation = pets.rabies_observation_status === 'in_progress'
--- Por eso este script setea ese cache + escribe la observación completa (evento +
--- caso abierto) para que /admin/observaciones y la cascada sean coherentes.
+-- Qué deja listo:
+--   PARTE 1 — resetea la alerta de esterilización de CABA a 'disparada'
+--             (hoy quedó 'Reconocida'), para el beat en vivo "Reconocer → la fila cambia".
+--   PARTE 2 — pone UNA mascota de owner@ en observación antirrábica ABIERTA,
+--             para el beat 5b (registrar fallecimiento → aviso rabia + cascada).
 --
--- Elección de mascota: la PRIMERA (alfabética) mascota ACTIVA, especie perro, de
--- owner@, que NO esté ya en observación, NO bajo custodia, y sin caso de mordedura
--- abierto. Excluye a Pampa (insignia) y a Rocco/DIM-DEMO-0001 (bajo custodia).
---
--- Ventana: mordedura hace 2 días → observación vence en 8 (ABIERTA, mid-window),
--- así el fallecimiento ocurre DENTRO de la observación.
---
--- Idempotente: si owner@ ya tiene una mascota en observación por este script
--- (source='demo-5b'), no hace nada nuevo.
+-- Ambas son idempotentes y traen su bloque de REVERTIR al final.
 
+-- ===========================================================================
+-- PARTE 1 — reset de la alerta a 'disparada'
+-- ===========================================================================
+BEGIN;
+
+UPDATE alert_firings
+SET status = 'disparada',
+    acknowledged_at = NULL, acknowledged_by = NULL,
+    investigation_code = NULL,
+    contacted_govt_user_id = NULL, contacted_at = NULL,
+    resolved_at = NULL, resolved_by = NULL
+WHERE metric_key = 'sterilization_coverage_pct'
+  AND observed_value = 38 AND threshold = 70
+  AND status <> 'disparada';
+
+-- Confirmá: debe quedar 'disparada'. fired_at NO se toca (mantiene el SLA vencido).
+SELECT id, metric_key, jurisdiction_province, jurisdiction_locality,
+       observed_value, threshold, status, fired_at
+FROM alert_firings
+WHERE metric_key = 'sterilization_coverage_pct' AND observed_value = 38 AND threshold = 70;
+
+COMMIT;
+
+-- ===========================================================================
+-- PARTE 2 — mascota de owner@ en observación antirrábica ABIERTA (beat 5b)
+-- ===========================================================================
+-- Elige la PRIMERA (alfabética) mascota ACTIVA, especie perro, de owner@, que no
+-- esté ya en observación, no bajo custodia, sin caso de mordedura abierto.
+-- Excluye a Pampa (insignia) y a Rocco/DIM-DEMO-0001 (bajo custodia).
+-- Ventana: mordedura hace 2 días → observación vence en 8 (ABIERTA, mid-window).
+-- Dispara showRabiesDisposalWarning: pets.rabies_observation_status='in_progress'.
 BEGIN;
 
 WITH owner_user AS (
   SELECT id FROM auth.users WHERE email = 'owner@dim.test'
 ),
-already AS (  -- ¿ya corrimos este beat?
-  SELECT 1
-  FROM pet_events e
-  WHERE e.event_type = 'rabies_observation_started'
-    AND e.payload->>'source' = 'demo-5b'
+already AS (
+  SELECT 1 FROM pet_events e
+  WHERE e.event_type = 'rabies_observation_started' AND e.payload->>'source' = 'demo-5b'
 ),
 chosen AS (
   SELECT p.id, p.public_token, p.name, p.jurisdiction_province AS prov,
@@ -44,22 +64,19 @@ chosen AS (
     AND p.deleted_at IS NULL
     AND (p.rabies_observation_status IS DISTINCT FROM 'in_progress')
     AND p.public_token NOT IN ('DIM-PAMP-0001', 'DIM-DEMO-0001')
-    -- no bajo custodia (sin ownership shelter_custody activa)
     AND NOT EXISTS (
       SELECT 1 FROM ownerships oc
       WHERE oc.pet_id = p.id AND oc.role = 'shelter_custody' AND oc.ended_at IS NULL
     )
-    -- sin caso de mordedura abierto
     AND NOT EXISTS (
       SELECT 1 FROM cases c
       WHERE c.primary_pet_id = p.id AND c.case_kind = 'bite_incident' AND c.status = 'open'
     )
-    -- solo si el beat no fue sembrado ya
     AND NOT EXISTS (SELECT 1 FROM already)
   ORDER BY p.name
   LIMIT 1
 ),
-bite AS (  -- 1) la mordedura reportada (hace 2 días)
+bite AS (
   INSERT INTO pet_events
     (pet_id, event_type, occurred_at, recorded_at, author_role, author_verified, payload)
   SELECT id, 'incident_reported',
@@ -70,7 +87,7 @@ bite AS (  -- 1) la mordedura reportada (hace 2 días)
   FROM chosen
   RETURNING pet_id
 ),
-caso AS (  -- 2) el expediente de mordedura ABIERTO
+caso AS (
   INSERT INTO cases
     (public_code, case_kind, status, primary_subject_kind, primary_pet_id,
      jurisdiction_province, jurisdiction_locality, locality_id, opened_at, opened_reason)
@@ -80,7 +97,7 @@ caso AS (  -- 2) el expediente de mordedura ABIERTO
   FROM chosen c
   RETURNING id, primary_pet_id, opened_at
 ),
-obs AS (  -- 3) la observación antirrábica INICIADA (vence en 8 días)
+obs AS (
   INSERT INTO pet_events
     (pet_id, event_type, occurred_at, recorded_at, author_role, author_verified, payload, case_id)
   SELECT primary_pet_id, 'rabies_observation_started', opened_at, opened_at,
@@ -92,13 +109,12 @@ obs AS (  -- 3) la observación antirrábica INICIADA (vence en 8 días)
   FROM caso
   RETURNING pet_id
 )
--- 4) el cache que /adoptar, la libreta y el form de muerte leen
 UPDATE pets
 SET rabies_observation_status = 'in_progress', updated_at = now()
 WHERE id IN (SELECT pet_id FROM obs);
 
--- Mostrá la mascota elegida (para el PO). Si no imprime filas, el beat ya estaba
--- sembrado o no había mascota elegible — revisá antes de la demo.
+-- Este SELECT te dice qué mascota quedó en observación (el token para el beat 5b).
+-- Si no imprime filas: el beat ya estaba sembrado o no había mascota elegible.
 SELECT p.public_token, p.name, p.jurisdiction_locality, p.rabies_observation_status
 FROM pets p
 JOIN pet_events e ON e.pet_id = p.id
@@ -107,11 +123,13 @@ WHERE e.event_type = 'rabies_observation_started' AND e.payload->>'source' = 'de
 COMMIT;
 
 -- ===========================================================================
--- REVERTIR (si querés limpiar después de la demo) — correr como transacción:
+-- REVERTIR DESPUÉS DE LA DEMO (opcional) — cada bloque como transacción
 -- ===========================================================================
+-- -- Parte 2:
 -- BEGIN;
 -- UPDATE pets SET rabies_observation_status = NULL, updated_at = now()
 --   WHERE id IN (SELECT primary_pet_id FROM cases WHERE public_code = 'DEMO-BITE-5B-01');
 -- DELETE FROM pet_events WHERE payload->>'source' = 'demo-5b';
 -- DELETE FROM cases WHERE public_code = 'DEMO-BITE-5B-01';
 -- COMMIT;
+-- -- Parte 1: no requiere revertir (resolvés la alerta en el propio cierre de la demo).
