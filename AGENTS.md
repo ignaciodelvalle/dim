@@ -455,7 +455,6 @@ None of these are blockers for v1. The data model accepts them without rework; t
 
 **Privacy**: internal UUIDs (foster volunteer/org, the pet fallback in `pet_marked_lost`, microchip's secondary pet) travel as `OpenedReasonAudit` — they reach the prose and are structurally unreachable from any renderer. Never put an id in params.
 
-**Origin**: `transfer-custody.ts` — the change of legal responsible — passed a bare template string for months, rendering "Apertura automática — direct custody handoff to_role=owner" to funcionarios. English plus a raw enum key in a Spanish wrapper, so it read like a translation.
 
 ### `PetTransfer` — owner→owner handshake (P3-2)
 - `id`, `public_token` (`PTR-XXXX-XXXX`), `pet_id` (fk → pets)
@@ -769,25 +768,12 @@ Share-view tracking (Tier-2 libreta share tokens) moved out of `pet_events` and 
 
 ### Deprecated event types
 
-These event_types existed in earlier versions but are no longer written by any flow. **Note:** DB will be wiped before the next migration cycle (per 2026-05-19 catalog cleanup plan), so historical rows with these types will not be preserved — no catch-all renderer required. The Zod registry has dropped them; any seed scripts that still write them are stale and will be regenerated post-wipe.
-
-| Deprecated                       | Replacement                                                            | Deprecated since |
-| -------------------------------- | ---------------------------------------------------------------------- | ---------------- |
-| `lab_work_performed`             | `clinical_info_logged` with `sub_kind='lab_work'`                      | 2026-05-18       |
-| `imaging_performed`              | `clinical_info_logged` with `sub_kind='imaging'`                       | 2026-05-18       |
-| `surgery_performed`              | `clinical_info_logged` with `sub_kind='surgery'`                       | 2026-05-18       |
-| `allergy_detected`               | `clinical_info_logged` with `sub_kind='allergy_detection'`             | 2026-05-18       |
-| `adoption_application_reviewed`  | Application-table status field already captures the "in review" stage | 2026-05-18       |
-| `foster_proposal_accepted`       | `foster_proposal_resolved` with `outcome='accepted'`                   | 2026-05-19       |
-| `foster_proposal_rejected`       | `foster_proposal_resolved` with `outcome='rejected'`                   | 2026-05-19       |
-| `foster_proposal_cancelled`      | `foster_proposal_resolved` with `outcome='cancelled'`                  | 2026-05-19       |
-| `foster_proposal_expired`        | `foster_proposal_resolved` with `outcome='expired'`                    | 2026-05-19       |
-| `adoption_application_approved`  | `adoption_application_resolved` with `outcome='approved'`              | 2026-05-19       |
-| `adoption_application_rejected`  | `adoption_application_resolved` with `outcome='rejected'`              | 2026-05-19       |
-| `adoption_revoked`               | `adoption_reversed` with `actor='shelter'` or `'court'`                | 2026-05-19       |
-| `adoption_withdrawn`             | `adoption_reversed` with `actor='adopter'`                             | 2026-05-19       |
-| `libreta_shared_viewed`          | Moved out of `pet_events` into the `share_telemetry` table             | 2026-05-19       |
-| `microchip_revoked`              | `microchip_replaced` with `new_chip_number=null`                       | 2026-05-19       |
+Fifteen event types were retired in the 2026-05-18/19 catalog cleanup (`lab_work_performed`
+→ `clinical_info_logged`, the `foster_proposal_*` / `adoption_application_*` pairs →
+their `_resolved` forms, and so on). They are absent from both `EVENT_TYPES` and the
+Zod registry, so no flow can write them. The full old→new mapping lives in
+`docs/archive/2026-05-19-deprecated-event-types.md` — consult it only when an old plan
+or seed script names one.
 
 The `incident_type='dog_attack'` value inside `incident_reported.payload` is also deprecated in favor of the unambiguous `incident_type='bite_suffered'`. Historical rows with `dog_attack` are preserved by keeping the value in the Zod enum.
 
@@ -847,7 +833,7 @@ When designing a new event with 3+ semantically-similar variants, prefer this um
 
 **Already built — `death_recorded.payload.disposition_method`** (`cremation_collective | cremation_individual_ashes | authorized_cemetery | owner_burial | household_waste | rendering | unknown`), plus optional `facility` (the cremation center / vet clinic that handled the disposition). Captured today by `DeathRecordForm`, normalized via `lib/domain/disposition.ts`, and projected by `lib/analytics/mortality-metrics.ts` into the `/gob/mortalidad` dashboard (Ley CABA 5470 traceability). Read from the JSONB payload (`payload->>'disposition_method'`) — not denormalized to a column.
 
-**Payload evolution policy (PO-approved, 2026-07-08 — the ghost-payload incident).** A ghost-payload class shipped where 14+ panorama/analytics surfaces read `payload->>'key'` keys that no writer schema ever emitted (only a one-off raw-insert seed did) — Postgres returns NULL for a missing JSONB key instead of erroring, so the bug was silently invisible until someone diffed a dashboard against the raw event log (commits c01bec56 / 9e57a7b7). Three rules, enforced by `pnpm lint:events` (`scripts/check-event-payload-parity.ts`) in the `verify` pipeline:
+**Payload evolution policy (PO-approved, 2026-07-08).** Surfaces once read `payload->>'key'` keys no writer schema emitted — Postgres returns NULL for a missing JSONB key instead of erroring, so 14+ dashboards were silently wrong (commits c01bec56 / 9e57a7b7). Three rules, enforced by `pnpm lint:events` (`scripts/check-event-payload-parity.ts`) in the `verify` pipeline:
 
 1. **Payload keys are never reused with a different meaning.** Once a key name has shipped for an event type, its meaning is fixed forever — a later PR that wants a different shape for "the same concept" adds a NEW key (or a new `sub_kind`/discriminator variant), never redefines what an existing key means. Old rows in the immutable log would silently misparse otherwise.
 2. **Readers may only query keys a writer schema emits.** Every `payload->>'key'` (SQL) or `.payload.key` (JS) read anywhere in `app/`, `src/`, `lib/` must be a key some schema in `lib/events/event-schemas.ts` is capable of writing — enforced mechanically by `lint:events`, not by review discipline alone. A justified exception (a genuinely legacy key still read for historical rows, no longer written) goes in `scripts/event-parity-baseline.json` with a mandatory reason string; empty is the goal.
@@ -1309,7 +1295,7 @@ Operator surfaces (`/gob/*`, `/admin/*`) get from an aggregate to a single recor
   - **Selection state machine** is pure in `lib/domain/bulk-select.ts` (`toggleSelection`, `toggleSelectPage`, `isPageFullySelected`, `isReasonValid`, `selectionSummary`) — keep selection logic there, not inlined in components.
   - **Destructive actions require a reason whose minimum matches the actual server action** (`bulkRejectRequestsAction` ≥ 5; `bulkRevokeAction` ≥ 30 chars + ≥1 evidence attachment). The revoke flow keeps its evidence-upload modal — a reason-only `ConfirmDialog` cannot collect attachments. Never weaken these minimums in the UI.
   - The header checkbox selects the **page**, not the whole query, for irreversible/notifying actions.
-### 5. Pet profile order: identity/credential → alerts (lost leads) → capture → faces
+### 6. Pet profile order: identity/credential → alerts (lost leads) → capture → faces
 
 Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/handoffs/2026-07-01-pet-profile-two-face-lean-handoff.md) and the pet-document-redesign change (2026-07-02, S2/S3 — lost-as-case-block + anotar-as-sheet; DocFrame/Credencial/Libreta visual rewrite lands in a follow-up batch, this stub only covers the structural/navigation change). The owner profile at /mis-mascotas/[publicToken] is TWO FACES OF ONE DOCUMENT and MUST present blocks in this order:
 
@@ -1319,7 +1305,7 @@ Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/han
 4. **Everything else lives behind "⋯ Más"** — permanent credentials (PPP, perro de servicio) render as compact rows on the credential; editar/transferir/buscar-hogar/devolución/viaje/ficha/contactos live in the ⋯ Más sheet. No section chrome on the document.
 
 **Anotar is a sheet, not a page.** The canonical capture hub is `?sheet=anotar` (SheetMounter, reusing `app/(app)/mis-mascotas/[publicToken]/anotar/CaptureBox.tsx`) — triggered from the action row and the sticky mobile CTA, same mounting pattern as Compartir/Más/Marcar-perdida. `/anotar` survives ONLY as a fallback host page (deep links, e2e, the `/eventos/nuevo` redirect doctrine) rendering identical content via the shared `CaptureOptionsList` component — it is not the primary interaction anymore. `/eventos/nuevo` is a permanent redirect to `/anotar`; the `/eventos/nuevo/*` form sub-routes remain the URL-addressable form targets. Org viewers never get an Anotar entry point anywhere (action row, sticky CTA, or a hand-typed `?sheet=anotar` — SheetMounter denies it server-side for non-owner accessPath).
-### 5. `AppShell` is the single role-variant application chrome (Item 7 — complete)
+### 7. `AppShell` is the single role-variant application chrome (Item 7 — complete)
 
 `components/layout/AppShell.tsx` is the **only** application chrome. The historical three chrome systems (`LnOwnerNav`, `AppHeader`, `OpShell`) have been deleted (Item 7, Phase D — PRs #630–#634). Do not reintroduce per-surface chrome wrappers.
 
@@ -1340,29 +1326,27 @@ If a new feature seems to need an exception, write the exception into the PR des
 
 ## Open questions / future work
 
+> Genuinely OPEN items only. Anything shipped moves to the Feature inventory;
+> anything decided moves to the section that owns it. Struck-through change-log
+> entries were pruned 2026-08-04 — this is not a diary.
+
 - Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `docs/archive/mimar-go-to-market.md`)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
-- ~~**`/pro` portal**~~ — removed in Sprint 1A Phase B. Independent vets now create a clinic org via `/cuenta/crear-consultorio` and operate from `/org/[orgToken]`.
 - **`/gob` portal** and **`/admin` portal** — built. `/gob` is govt scope-bound (locality approvals + regional dashboards via `requireAdminOrGovtOrRedirect()`); `/admin` holds universal-scope surfaces. Admin page spec v2.2 and the fases 10-14 follow-up plan are both archived (implemented). See Feature inventory → Admin & govt.
 - **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA interoperability is an open integration question; the goal is to complement it.
-- ~~**Decomiso → temporary welfare-authority custody → refugio chain**~~ — shipped, complete end to end. `app/gob/decomisos/**` + `src/modules/decomiso/application/*`: execute → accept-handoff / reject-handoff / reassign / return-to-owner → closed, phase-labeled dashboard. (Corrected 2026-07-21; this had drifted stale as an "open question.")
 - **Bulk operations for high-capacity refugios** — El Campito-scale shelters (200+ animals) need table-shaped UIs for bulk intake, vaccination logging, listing edits. Deferred to a later iteration; schema does not change.
 - **Cross-org transfer UX** — refugio-to-refugio handoffs need a sender-confirms / receiver-accepts flow. Event always emitted on completion (`custody_transferred`).
 - Government dashboards: three audiences in scope (sanitary authority, analyst, welfare officer); build order TBD by where adoption lands first
 - **Mascotas CABA program integration** — the GCBA's existing (non-digitalized) free-vet-attention program. DIM is the data layer it lacks; explore as a partnership path.
 - **Dangerous breed registry export** — Ley CABA 4078 / Ley Prov 14.107. Pet flag + attestation event ✅ shipped; **export provincial pendiente** (placeholder por ahora — la atestación se persiste localmente y se muestra en el perfil identificando como PPP, pero el push automático al registro municipal/provincial es futuro). Spec abierta: nombrar cuando se priorice integración real.
-- **Non-owner reporting flow — completo (queue + export).** `welfare_reports` table con `subjectKind` enum polimórfico (`registered_pet | unowned_animal | location | general`) cubre el caso del subject no registrado sin necesidad de ghost_subject pets. Form público + anonymous + 5 attachments + bridge a pet_events vivo en `src/modules/welfare/actions.ts` + `app/denuncias/nueva/`. Polish del plan `2026-05-18-welfare-reports-polish.md` shipped: bridge copia `locationLat/locationLng` a los 3 pet_events emitidos, `LocationMap` montado en las 2 detail pages de denuncia (auth + anon), rate-limit persistente para anonymous (`rate_limit_buckets` + `enforceRateLimit`, 1/min + 3/hour por IP). **Todos los gaps operativos resueltos:** (a) welfare-officer queue en `/gob/maltrato` — queue con filtros, asignación y detail page; (b) moderation queue en `/admin/moderacion` — queue + detail page; (c) export a fiscalía MPF CABA — `src/modules/welfare/application/generate-mpf-export.ts`. La spec `docs/archive/2026-05-18-maltreatment-reporting-design.md` quedó **superseded** (movida a `docs/archive/` en sprint 1 PR-007) — NO seguirla. Ver Feature inventory arriba.
 - **Vaccination-due warning to owner** — when a vaccination approaches or passes its `next_due_at`. Confirmed via `docs/legal-framework-full.md` (2026-05-18 pass) that NO Argentine norm requires the system to warn — the obligation rests on the owner to keep vaccinations current (Ley 22.953, DL 8056, Ord. 41.831). A system-side warning is a UX feature, not a compliance requirement. Future spec if product decides to implement.
 - Materialized views for expensive projections — keep event log as source of truth, cache when query latency justifies
-- Campaign management UX — narrower gap than previously stated. Org-side submission and govt-side monitoring/approval are both real, shipped screens (not stubs); what's still missing is govt directly creating/scheduling a campaign (gov-side scheduling, slot allocation) — today only orgs submit offerings and govt reviews/monitors them. Referenced by `campaign_id` in vaccination/sterilization events. Campaigns belong to clinics or sanitary authorities, not individual vets. (Corrected 2026-07-21.)
 - Lost/found feature expansion beyond simple status flip
 - Push notifications (iOS PWA limitations — may need native shell eventually). EAH 2018 finding: social media is the dominant channel for pet-health info reaching households; shareability is first-order.
 - Native mobile via React Native sharing the data layer
 - Per-pet "emergency info" public flag toggle
-- **Captura rápida (sin LLM, shipped)** — Spanish-only text interface that detects which event type the user is describing via local regex patterns and opens the corresponding form with slots pre-filled. Lives at `/mis-mascotas/[publicToken]/anotar`. Determinístico, $0 en tokens, cero red. Implementation: `lib/events/event-capture-registry.ts` (slot map) + `lib/events/event-capture-matcher.ts` (regex patterns + date extraction) + `buildCaptureDeeplink(eventType, publicToken, slots)`. Registry routes are either absolute paths (`/eventos/nuevo/…` for full-page forms) or `?sheet=…` shorthands for forms migrated to SheetMounter (peso, nota, medicacion, sintoma). Reference form for the URL-prefill pattern: `app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/vacuna/VaccinationForm.tsx` (full-page) and `SheetMounter.tsx` (sheet route). Covers ~9 forms with slot fill (vacuna, antiparasitario, peso, vet, microchip, esterilización, fallecimiento, checkin, nota); the 5 complex forms (medicación inicio/fin, mordedura, síntoma, clínico) are reachable via intent detection but open empty.
 
 - **Agente conversacional con LLM (deferred, future)** — Layer on top of the captura-rápida registry: same `EVENT_CAPTURE_REGISTRY` becomes tool definitions for Claude/GPT; the local matcher stays as offline fallback. **Forward-compat that holds today:** (a) every event-creation route is URL-addressable with query-param prefill — new event forms MUST accept their payload fields as `searchParams` and register their slots in `event-capture-registry.ts`. (b) Per-event-type Zod schemas (`lib/events/event-schemas.ts`, `validateEventPayload`) double as function-calling tool definitions — the same schema validates the human form submit and any future LLM structured output. (c) The slugs at `/mis-mascotas/[token]/eventos/nuevo/*` are public contract — rename before launch, freeze after. **Design principles when the LLM lands:** agent proposes, user confirms — never silent writes to `pet_events`; audio is not persisted (events are the source of truth, not the recording); the agent reads as well as writes — natural-language queries open filtered timeline projections, not a parallel chat surface. Legally-fraught events (`abandonment_reported`, `maltreatment_reported`, `dangerous_breed_attested`) are out of agent scope — those force the full manual flow with all disclaimers visible. LLM provider, hosting jurisdiction, voice (Web Speech API) and iOS PWA audio fallback TBD when implementation lands.
-
 ## Test-runner conventions (Item 29 — Wave 5)
 
 These conventions were locked after fixing chronic worker-exit errors and suite
