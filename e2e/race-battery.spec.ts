@@ -358,10 +358,32 @@ test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
           r2.page.waitForLoadState("networkidle").catch(() => {}),
         ]);
         await r1.page.waitForTimeout(1_500);
-        await Promise.allSettled([
-          r1.page.getByRole("button", { name: /^aceptar$/i }).click({ timeout: 15_000 }),
-          r2.page.getByRole("button", { name: /^aceptar$/i }).click({ timeout: 15_000 }),
+        // "Aceptar" only OPENS a ConfirmDialog — `handleAccept` is wired to the
+        // dialog's "Aceptar transferencia" button (AcceptTransferActions.tsx).
+        // Clicking the trigger alone accepted NOTHING, so the race never
+        // happened and the post-condition below counted 0 pets for owner2
+        // (CI run 30872663182 — visible only after actionTimeout stopped this
+        // spec from hanging first). Each racer must confirm; the confirms are
+        // what race.
+        async function acceptWithConfirm(p: Page): Promise<void> {
+          await p.getByRole("button", { name: /^aceptar$/i }).click({ timeout: 15_000 });
+          await p
+            .getByRole("button", { name: /^aceptar transferencia$/i })
+            .click({ timeout: 15_000 });
+        }
+        const accepts = await Promise.allSettled([
+          acceptWithConfirm(r1.page),
+          acceptWithConfirm(r2.page),
         ]);
+        // A race where BOTH contenders failed to even submit proves nothing —
+        // and allSettled would hide it, leaving the count assertion below to
+        // report a transfer bug that never happened. Surface it here instead.
+        expect(
+          accepts.some((r) => r.status === "fulfilled"),
+          `neither session could submit the accept: ${accepts
+            .map((r) => (r.status === "rejected" ? String(r.reason).split("\n")[0] : "ok"))
+            .join(" | ")}`,
+        ).toBe(true);
         await r1.page.waitForTimeout(3_000);
 
         // Neither context may show a crash / error boundary.
@@ -415,7 +437,11 @@ test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
             backToken = href.split("/transferencias/")[1]?.split(/[?#]/)[0] ?? "";
           }
           await owner.page.goto(`/transferencias/${backToken}`, { waitUntil: "domcontentloaded" });
+          // Trigger + confirm — same two-step accept as the race above.
           await owner.page.getByRole("button", { name: /^aceptar$/i }).click({ timeout: 15_000 });
+          await owner.page
+            .getByRole("button", { name: /^aceptar transferencia$/i })
+            .click({ timeout: 15_000 });
           await owner.page.waitForTimeout(2_000);
         } catch {
           test.info().annotations.push({
