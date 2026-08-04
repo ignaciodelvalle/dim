@@ -170,6 +170,81 @@ usan el patrón `expect(true).toBe(true)`: un fixture faltante ahora **tira**).
 
 ---
 
+## Bloque 1-bis — CONSTRUIDO PERO SIN CABLEAR (censo 04/08)
+
+Cinco cazas paralelas sobre navegación, comportamiento, datos, configuración y
+la feature de viaje. Regla de clasificación: **deliberado** = hay evidencia
+escrita de que está afuera a propósito; **huérfano** = no la hay.
+
+### Le mienten al usuario (primero, y no es deuda técnica)
+
+1. **Los formularios públicos de contacto y voluntariado de refugios escriben
+   en un pozo ciego.** `org_contact_messages` tiene escritor (`submitOrgContact`)
+   y **cero lectores**; el portal de la org **no tiene bandeja**; el caso de uso
+   devuelve `notifications: []`. La copy promete *"¡Genial! Tu mensaje llegó"*,
+   *"te contactan por email"*, *"solo lo usamos para que puedan responderte"*.
+   Cada voluntario que se ofreció le habló a una tabla que nadie puede abrir.
+2. **El outbox de eventos no entrega nada.** `deliverOutboxRow` es un no-op
+   documentado para todos los destinos: audita lo que *habría* enviado y marca
+   "entregado". Encima, `/admin/outbox` muestra badges de SLA incumplido y su
+   botón "Reintentar" promete recogida "en 5 min" cuando el drenaje corre en el
+   cron diario. Las notificaciones ENO no llegan a ninguna autoridad.
+3. **La ventana de observación antirrábica es configurable y no cambia nada.**
+   `report-bite.ts:107` usa la constante `RABIES_OBSERVATION_DAYS = 10`; la
+   regla `rabies_observation_window` la lee **sólo** el KPI. Una provincia con
+   14 días por ley la configura, y el sistema sigue cerrando a los 10 —
+   mientras el tablero califica esos cierres contra 14.
+4. **La lista de espera de la chapita no la puede leer nadie.** El sheet dice
+   "te avisamos cuando estén disponibles"; `notified_at` y `notes` no tienen ni
+   un escritor ni un lector, y los índices creados para listar interesados
+   están sin usar.
+5. **`share_telemetry` guarda `viewer_ip_hash` + `user_agent` en cada vista de
+   libreta compartida y nunca tuvo lector.** En un proyecto con minimización de
+   datos declarada bajo Ley 25.326, eso es una inconsistencia de postura.
+
+### Rutas y flujos huérfanos (clase chapita)
+
+- **`/cuenta/desactivar`** — baja de cuentas de gobierno con chequeo de
+  cobertura. Cero enlaces. El comentario que la anuncia está arriba de una
+  sección gateada a cuentas personales: **una cuenta govt no tiene por dónde
+  darse de baja**.
+- **`/admin/observaciones/[token]/microchip/reemplazar`** — reemplazo/revocación
+  de chip del lado admin, inalcanzable. El gemelo del lado org sí está cableado.
+- `/cuenta/renunciar` — duplicado sin enlace de un sheet que sí funciona.
+
+### Comportamiento construido sin puerta de entrada
+
+- **Un vet no puede registrar un diagnóstico de enfermedad**:
+  `recordDiseaseDiagnosisAction` está completa (matrícula verificada, chequeos
+  de plausibilidad, cascada de señal de brote) y no la invoca ninguna UI.
+- **`disease_reported` no tiene escritor** y los tableros de gobierno **lo
+  leen**: las fichas de lepto/hidatidosis sólo pueden mostrar cero (o datos de
+  seed en demo). Extiende y agrava el issue #759.
+- **Una propuesta de devolución al dueño no se puede cancelar**: la acción
+  existe, el evento existe, el botón nunca se construyó.
+- **Las reglas de agenda no se pueden editar**: el commit dice "CRUD", hay
+  create y delete; `updateScheduleRuleAction` está entera sin usar.
+- `tattoo_updated` sin escritor; `quickCaptureAction` con un docstring que
+  afirma que Anotar la usa (Anotar usa un matcher de cliente).
+
+### Correcciones a informes propios (verificadas a mano)
+
+- **NO hay IDOR vivo en `signTimelineAttachments`.** La review del 11/07 dice
+  "STILL PRESENT"; el código tiene `eq(attachments.petId, pet.id)` con
+  comentario de "seguridad load-bearing". El documento está vencido. La acción
+  sí está huérfana: es peso muerto, no superficie de ataque.
+- **El hub de credencial física NO estaba sin arrancar** (mi triage lo dijo):
+  shippeó con otros nombres (`/chapita`). Buscar por el nombre que propuso el
+  plan y concluir ausencia es el mismo error que cazamos todo el día.
+
+### Limpio de verdad (no re-auditar)
+
+Las 16 capacidades tienen enforcement; los toggles `disclose_*_when_lost` están
+cableados escritor-a-lector; los 10 tipos de regla tienen consumidor real; la
+fachada de viaje ya fue desarmada por un "UX honesty pass" propio.
+
+---
+
 ## Bloque 2 — decisiones del PO, ya convertidas en trabajo
 
 | Decisión | Trabajo concreto |
