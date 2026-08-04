@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan: Design-System Hardening & Regression Prevention — post-remediación
 
 > **Para Claude Code. Corre DESPUÉS de [`2026-06-20-ux-audit-remediation.md`](./2026-06-20-ux-audit-remediation.md).**

@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # `lib/` Bucketize Plan — taxonomy + per-file migration recipe
 
 > Created: 2026-06-26

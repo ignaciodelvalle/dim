@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan: Panorama UI overhaul + chrome operador — handoff a CC (4 PRs)
 
 > **🧭 Orden global: ver [`2026-06-23-CONSOLIDATED-demo-panorama-cc.md`](./2026-06-23-CONSOLIDATED-demo-panorama-cc.md)** (orquestador). Este doc tiene el detalle file-level de los 4 PRs; el orquestador los ubica en las olas y pliega los fixes de cámara B2 (seed Microchip/Antirrábica en PR-3) y B3 (mapa negro en PR-2).

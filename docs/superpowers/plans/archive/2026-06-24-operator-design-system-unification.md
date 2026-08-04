@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan: Tier operador — unificación del design system (estado, badges, botones)
 
 > **Para Claude Code — ejecución 100% autónoma.** Remediación de la critique de frontend del tier **operador**

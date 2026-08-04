@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan CONSOLIDADO — Demo-readiness + Panorama + fixes de cámara (orquestador CC)
 
 > **Para Claude Code — single source of truth del orden.** Consolida **todo lo pendiente** después del cierre del

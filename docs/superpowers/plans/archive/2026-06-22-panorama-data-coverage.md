@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan: Cobertura de datos del seed vs. las métricas propuestas
 
 > **Para Claude Code.** Análisis de si el dataset (`seed:panorama`) genera **suficientes datos para que cada

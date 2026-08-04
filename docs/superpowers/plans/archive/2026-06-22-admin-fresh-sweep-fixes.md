@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan: Admin portal — fresh sweep fixes (post Fases 0-2)
 
 > **Para Claude Code — ejecución autónoma.** Barrido en vivo de **todas** las pantallas admin sobre el branch

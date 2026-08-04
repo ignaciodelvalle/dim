@@ -1,5 +1,24 @@
 # Spec-later tracker
 
+> ## ⏳ LAS TRES ENTRADAS ESPERAN A TERCEROS (marcado 2026-08-04)
+>
+> Ninguna de estas tres es trabajo de ingeniería pendiente: **las tres están
+> bloqueadas por una decisión o un dato que no depende de nosotros.** Se
+> marcan así para que ningún agente ni persona las levante como tarea.
+>
+> 1. **PPP CABA export** — falta saber si la Ciudad expone API o es carga
+>    manual de PDF, y con qué campos/firma. Producto + legal con la
+>    Subsecretaría de Bienestar Animal.
+> 2. **Credencial de perro de asistencia (Ley 26.858)** — decisión de producto
+>    y de validación documental.
+> 3. **Documentos de viaje (`pet_attachments`)** — decisión de esquema (tabla
+>    dedicada vs. `attachments` polimórfica) + la pregunta de producto de una
+>    página de documentos vs. CTAs por documento.
+>
+> El resto del documento explica cada bloqueo con su evidencia. **No arrancar
+> ninguna sin que la decisión de afuera esté cerrada.**
+
+
 > Created: 2026-05-27 · Owner: producto + ingeniería · Cadence: revisar en cada planning de sprint.
 
 This document holds features that have a `// TODO(spec-later)` or `// DEFERRED`

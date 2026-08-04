@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan de ejecución autónoma — Portal Admin demo-readiness (para Claude Code)
 
 > **🧭 Orden global: ver [`2026-06-23-CONSOLIDATED-demo-panorama-cc.md`](./2026-06-23-CONSOLIDATED-demo-panorama-cc.md)** (orquestador). Este doc tiene el detalle file-level de los WP; el orquestador define en qué ola corre cada uno y cómo se dedup con Panorama/nav-diferida y los fixes de cámara B1/B2/B3.

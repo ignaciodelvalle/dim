@@ -1,3 +1,5 @@
+> **▶ ARCHIVADO 2026-08-04** — triage de planes: el trabajo que describe está shippeado (verificado contra el árbol). Se conserva por su método y su evidencia; como plan de trabajo, está cerrado.
+
 # Plan — Remediación de los 5 errores del Supabase advisor (seguridad)
 
 > **✅ DONE — Implemented in PR #733 / #734 (2026-06-24).**
