@@ -314,8 +314,25 @@ test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
       await owner.page.waitForTimeout(1_500); // hydration (#39 dropped-click guard)
       await owner.page.getByLabel(/email del receptor/i).fill(ACCOUNTS.owner2);
       await owner.page.getByRole("button", { name: /enviar propuesta/i }).click();
-      await owner.page.waitForURL(/\/transferencias\//, { timeout: 30_000 });
+      // The action's client-side navigation drops often enough to matter (the
+      // Next 15.5.x post-action nav drop this repo documents in
+      // lib/ui/full-page-action-nav.ts). Give the URL a short chance, then
+      // READ the freshly created proposal from the transfers index instead of
+      // spending 30s waiting for a navigation that already did its work
+      // server-side. Two 150s-budget tests died on waits like this one.
+      await owner.page.waitForURL(/\/transferencias\//, { timeout: 10_000 }).catch(() => {});
       transferToken = owner.page.url().split("/transferencias/")[1]?.split(/[?#]/)[0] ?? "";
+      if (!transferToken) {
+        await owner.page.goto("/transferencias", { waitUntil: "domcontentloaded" });
+        await owner.page.waitForLoadState("networkidle").catch(() => {});
+        const href =
+          (await owner.page
+            .locator('a[href^="/transferencias/"]')
+            .first()
+            .getAttribute("href")
+            .catch(() => null)) ?? "";
+        transferToken = href.split("/transferencias/")[1]?.split(/[?#]/)[0] ?? "";
+      }
       expect(transferToken, "fresh transfer token").toBeTruthy();
 
       // Two owner2 sessions race the accept.

@@ -225,29 +225,38 @@ test("2 — keyboard arrows navigate to the neighbor pet route and back", async 
 
     // The window-level listener handles ←/→ (no focus target needed).
     //
-    // DIRECTION-AGNOSTIC: the arrows CLAMP — no wrap-around (pinned by
-    // PetCredentialCarousel's own unit tests), so when /inicio's most-urgent
-    // pick lands on the LAST pet in strip order, ArrowRight is a legitimate
-    // no-op (CI run 30867634835 sat 20s on exactly that). Try right; if the
-    // URL hasn't moved, the start pet is the right edge — go left instead.
-    await page.keyboard.press("ArrowRight");
-    const movedRight = await page
-      .waitForURL((u) => PROFILE_RE.test(u.pathname) && tokenFromUrl(u.href) !== startToken, {
-        timeout: 5_000,
-      })
-      .then(
-        () => true,
-        () => false,
-      );
-    const forwardKey = movedRight ? "ArrowRight" : "ArrowLeft";
-    const backKey = movedRight ? "ArrowLeft" : "ArrowRight";
-    if (!movedRight) {
-      await page.keyboard.press(forwardKey);
-      await page.waitForURL(
-        (u) => PROFILE_RE.test(u.pathname) && tokenFromUrl(u.href) !== startToken,
-        { timeout: 20_000 },
-      );
-    }
+    // DIRECTION FROM THE DOM, NOT FROM A PROBE. The arrows CLAMP — no
+    // wrap-around (pinned by PetCredentialCarousel's unit tests) — so when
+    // /inicio's most-urgent pick lands on the LAST pet in strip order,
+    // ArrowRight is a legitimate no-op (CI run 30867634835 sat 20s on that).
+    // The first fix probed with a short-timeout ArrowRight and fell back to
+    // ArrowLeft, which RACED itself: on a cold runner the right press landed
+    // after the 5s probe gave up, the fallback press then walked back to the
+    // start pet, and the wait for "a different token" could never resolve
+    // (run 30869355207). The switcher already states the position —
+    // "X — mascota N de M (actual)" — so read N/M and pick the only key that
+    // can move.
+    const switcherNav = page.getByTestId("pet-carousel-avatars");
+    await expect(switcherNav, "switcher present").toBeVisible({ timeout: 20_000 });
+    const currentLabel =
+      (await switcherNav
+        .getByRole("button", { name: /\(actual\)/ })
+        .first()
+        .getAttribute("aria-label")) ?? "";
+    const position = currentLabel.match(/mascota (\d+) de (\d+)/i);
+    expect(position, `switcher states a position (got "${currentLabel}")`).toBeTruthy();
+    const index = Number(position?.[1]);
+    const total = Number(position?.[2]);
+    expect(total, "more than one live pet in the strip").toBeGreaterThan(1);
+    // At the right edge only ArrowLeft can move; anywhere else ArrowRight can.
+    const forwardKey = index < total ? "ArrowRight" : "ArrowLeft";
+    const backKey = forwardKey === "ArrowRight" ? "ArrowLeft" : "ArrowRight";
+
+    await page.keyboard.press(forwardKey);
+    await page.waitForURL(
+      (u) => PROFILE_RE.test(u.pathname) && tokenFromUrl(u.href) !== startToken,
+      { timeout: 20_000 },
+    );
     const neighborToken = tokenFromUrl(page.url());
     expect(neighborToken, "URL changed to a different, real pet route").not.toBe(startToken);
     expect(neighborToken).toBeTruthy();
@@ -625,8 +634,35 @@ test("10 — lost pet: public page shows the lost banner; owner profile shows Lo
       page.getByRole("heading", { name: /^Marcar como perdid(?:o|a|o\/a)$/ }),
       "mark-lost wizard opened",
     ).toBeVisible({ timeout: 20_000 });
-    await page.getByRole("button", { name: /^marcar como perdid(?:o|a|o\/a)$/i }).click();
-    await page.waitForURL(/\/mis-mascotas\/DIM-/, { timeout: 30_000 });
+    // WALK THE WIZARD. Marking lost is a MULTI-STEP flow (MarkLostWizard:
+    // location → optional details → disclosure), and the final "Marcar como
+    // perdida" submit only exists on the LAST step. This test used to click
+    // that name straight away, which — with no action timeout configured —
+    // waited FOREVER for a button that step 1 never renders, burning the whole
+    // 150s test budget with no assertion error to name the cause (CI runs
+    // 30867634835 / 30869355207, and it reproduced locally). Same sequence
+    // e2e/crisis-seams.spec.ts (a) already walks.
+    await page.getByRole("button", { name: /^continuar →$/i }).click();
+    const hasDetailsStep = await page
+      .getByText(/sin chip ni tatuaje/i)
+      .isVisible()
+      .catch(() => false);
+    if (hasDetailsStep) {
+      await page.getByRole("button", { name: /^continuar →$/i }).click();
+    }
+    await expect(
+      page.getByText(/qué se muestra al público/i),
+      "reached the disclosure step",
+    ).toBeVisible({ timeout: 20_000 });
+    await page
+      .getByRole("button", { name: /^marcar como perdid(?:o|a|o\/a)$/i })
+      .click({ timeout: 20_000 });
+    // Do NOT wait on the post-action URL: the client half of the N3 contract
+    // (useActionRedirect → window.location.assign) drops often enough that
+    // such a wait burns budget for nothing — the documented Next 15.5.x
+    // behaviour in lib/ui/full-page-action-nav.ts. The mutation is what
+    // matters and the profile assertion below is what proves it.
+    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
 
     // (a) Owner profile — LostCaseBlock with the "marcar encontrada" action.
     await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" });
