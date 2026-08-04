@@ -163,6 +163,23 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 
 ---
 
+## 🔵 Features no construidas — migradas de la cola del 24/06
+
+> Verificadas contra el árbol el **2026-08-04**. Son las DOS únicas filas que
+> sobrevivieron de `2026-06-24-CONSOLIDATED-pending-backlog.md` (8,5 de sus 11
+> ítems ya estaban hechos). Se migran ANTES de archivar esa cola porque no
+> figuraban acá: la cola nueva no la duplicaba, la ignoraba.
+
+| # | Qué | Evidencia (04/08) | Bloquea |
+|---|---|---|---|
+| **A1** | **Chapa física `/t/[serial]` no construida.** No existe tabla `pet_tags`, ni la ruta `app/t/[serial]`, ni eventos `tag_activated`/`tag_revoked`. La spec `specs/2026-05-18-physical-tag-design.md` está "🟢 Ready for CC" desde mayo y **su plan nunca se escribió**. | `ls app/t` → no existe; `rg "pet_tags" db/schema.ts` → 0 | Decisiones D4 (fabricante) y D5 (distribución) de la propia spec: son placeholders explícitos, no trabajo de ingeniería. El hub de credencial física YA funciona con el canal `printable_qr` (`/mis-mascotas/[token]/chapita`) |
+| **A5** | **Found-pet form sin dual-routing al refugio de origen.** El componente sólo recibe `publicToken`, sin `orgId` ni opt-in. | `FoundPetForm.tsx`: `rg "organization|refugio|origin"` → 0 | Decisión de producto: ¿el hallazgo de una mascota con refugio de origen le avisa también al refugio? AGENTS ya se corrigió para no afirmar que lo hace |
+
+**Residual de ops (no es código)**: el toggle de leaked-password protection en el
+dashboard de Supabase (A9 de la cola vieja).
+
+---
+
 ## Decisiones del PO ya tomadas sobre esta cola
 - **`/gob/perdidas`**: la supresión **queda**. Des-suprimir después es una línea; shipear el tier desnudo no es reversible.
 - **Primer admin**: al backlog. No bloquea hasta provisionar un municipio real.
