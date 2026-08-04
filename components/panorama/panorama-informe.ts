@@ -24,6 +24,7 @@ import {
   serializeViewScope,
   viewScopeDigest,
 } from "@/lib/ui/view-scope-descriptor";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 /** One KPI as the console strip renders it (value + estado-actual + delta). */
 export type InformeKpiInput = {
@@ -216,7 +217,27 @@ export type InformeModel = {
 
 const RANKING_LIMIT = 10;
 
-/** es-AR datetime for the generation stamp — "12/07/2026 14:30". */
+/**
+ * es-AR datetime for the generation stamp — "12/07/2026, 11:30" (the comma is
+ * the locale's own separator; the previous docblock promised a format without
+ * it, which was one more small thing this line said and did not do).
+ *
+ * TWO defects in one line, both found on 2026-08-04 (the copy audit predicted
+ * the timezone one; the PO saw the result on a printed report):
+ *
+ *  - NO `timeZone`, so the stamp rendered the SERVER's clock. On Vercel that is
+ *    UTC — three hours off, on the generation stamp of a document a government
+ *    official signs and files. The docblock above claimed "14:30" while the
+ *    code produced a different hour entirely.
+ *  - NO `hourCycle`, so es-AR + `hour: "2-digit"` produced the hybrid
+ *    "05:39 p. m." — a zero-padded 12-hour clock with a meridiem, neither the
+ *    24-hour convention the rest of the product uses nor a clean 12-hour one.
+ *    Same defect fixed in the canonical formatDateTime the same day.
+ *
+ * This is the hand-rolled-date-formatting class the copy audit counted: ~35
+ * files, 9 distinct shapes. The fence that closes the class is queued (COPY-8);
+ * this is the one instance that reached a printed government artifact.
+ */
 function formatGeneratedAt(now: Date): string {
   return now.toLocaleString("es-AR", {
     day: "2-digit",
@@ -224,6 +245,8 @@ function formatGeneratedAt(now: Date): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hourCycle: "h23",
+    timeZone: AR_TIME_ZONE,
   });
 }
 

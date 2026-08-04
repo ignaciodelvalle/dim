@@ -105,6 +105,24 @@ describe("buildInformeModel", () => {
     expect(m.generatedAtLabel).toContain("2026");
   });
 
+  // REGRESSION (2026-08-04). The assertion above is `toContain("2026")`, which
+  // is exactly why this shipped: the stamp rendered in the SERVER's timezone
+  // (UTC on Vercel — three hours off on a document an official files) and as the
+  // hybrid "05:39 p. m." clock, and "2026" was in it either way. A weak
+  // assertion is how a defect reaches a printed government artifact.
+  //
+  // The instant is pinned with an explicit Z so the expectation does not depend
+  // on the test runner's own timezone — the bug being guarded is precisely that
+  // the formatter inherited an ambient zone.
+  it("stamps in Argentina time on a 24-hour clock, whatever the server's zone", () => {
+    const m = buildInformeModel(
+      // 14:30 UTC is 11:30 in Argentina (UTC-3, no DST).
+      baseInput({ generatedAt: new Date("2026-07-12T14:30:00Z") }),
+    );
+    expect(m.generatedAtLabel).toBe("12/07/2026, 11:30");
+    expect(m.generatedAtLabel).not.toMatch(/[ap]\.?\s?m\.?/i);
+  });
+
   it("tags stock KPIs as 'estado actual' and passes deltas through", () => {
     const m = buildInformeModel(baseInput());
     const cobertura = m.kpis.find((k) => k.id === "cobertura");
