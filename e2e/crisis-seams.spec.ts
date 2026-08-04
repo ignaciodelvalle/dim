@@ -358,10 +358,16 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     const vaccineInput = page.locator('input[name="vaccineName"]').first();
     await expect(vaccineInput).toBeVisible({ timeout: 20_000 });
     await vaccineInput.fill("Antirrábica");
-    await page
-      .locator('input[name="occurredAt"]')
-      .first()
-      .fill(new Date().toISOString().slice(0, 10));
+    // ART-local date, NOT toISOString(): the server rejects future dates in
+    // ARGENTINA time, and from ~21:00 ART onward the UTC date is already
+    // TOMORROW — so every evening run (CI's usual window) submitted a
+    // "future" vaccine and got "La fecha no puede ser futura." rendered into
+    // an alert nothing read. This single line is why the seam "passed
+    // locally" for whoever ran it in the morning.
+    const todayArt = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Argentina/Buenos_Aires",
+    }).format(new Date());
+    await page.locator('input[name="occurredAt"]').first().fill(todayArt);
 
     const submitBtn = page.getByRole("button", { name: /registrar vacuna/i }).first();
     // Server signs the event and hands back ?firmado=1 for the client to
@@ -380,6 +386,23 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       (url) => url.searchParams.get("firmado") === "1",
       45_000,
     ).catch(() => {});
+
+    // Same-day duplicate prompt (P4 item 4): seed-test-users already records
+    // an Antirrábica for this pet DATED THE SEED DAY — which on a fresh CI
+    // database is TODAY — so the action answers with the "¿Registrar otra
+    // igual?" confirm round-trip instead of inserting, and the run-3/run-4
+    // CI failures were this prompt sitting unanswered (locally the dev DB's
+    // own same-day rows trip it identically). Confirming is the real user
+    // path for a legitimate second dose; answer it and wait again.
+    const sameDayConfirm = page.getByRole("button", { name: /registrar otra igual/i });
+    if (await sameDayConfirm.count()) {
+      await submitAndWait(
+        page,
+        sameDayConfirm,
+        (url) => url.searchParams.get("firmado") === "1",
+        45_000,
+      ).catch(() => {});
+    }
 
     // --- Owner POV #2: the signed vaccine is now in the pet's libreta -------
     // TWO assertions, because either alone can pass vacuously:

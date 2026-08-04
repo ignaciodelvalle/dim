@@ -224,20 +224,41 @@ test("2 — keyboard arrows navigate to the neighbor pet route and back", async 
     expect(startToken).toBeTruthy();
 
     // The window-level listener handles ←/→ (no focus target needed).
+    //
+    // DIRECTION-AGNOSTIC: the arrows CLAMP — no wrap-around (pinned by
+    // PetCredentialCarousel's own unit tests), so when /inicio's most-urgent
+    // pick lands on the LAST pet in strip order, ArrowRight is a legitimate
+    // no-op (CI run 30867634835 sat 20s on exactly that). Try right; if the
+    // URL hasn't moved, the start pet is the right edge — go left instead.
     await page.keyboard.press("ArrowRight");
-    await page.waitForURL(
-      (u) => PROFILE_RE.test(u.pathname) && tokenFromUrl(u.href) !== startToken,
-      { timeout: 20_000 },
-    );
+    const movedRight = await page
+      .waitForURL((u) => PROFILE_RE.test(u.pathname) && tokenFromUrl(u.href) !== startToken, {
+        timeout: 5_000,
+      })
+      .then(
+        () => true,
+        () => false,
+      );
+    const forwardKey = movedRight ? "ArrowRight" : "ArrowLeft";
+    const backKey = movedRight ? "ArrowLeft" : "ArrowRight";
+    if (!movedRight) {
+      await page.keyboard.press(forwardKey);
+      await page.waitForURL(
+        (u) => PROFILE_RE.test(u.pathname) && tokenFromUrl(u.href) !== startToken,
+        { timeout: 20_000 },
+      );
+    }
     const neighborToken = tokenFromUrl(page.url());
     expect(neighborToken, "URL changed to a different, real pet route").not.toBe(startToken);
     expect(neighborToken).toBeTruthy();
     await expect(page.locator("#main-content")).toHaveCount(1);
     await expect(page.getByTestId("pet-carousel-avatars")).toBeVisible();
 
-    await page.keyboard.press("ArrowLeft");
+    await page.keyboard.press(backKey);
     await page.waitForURL((u) => tokenFromUrl(u.href) === startToken, { timeout: 20_000 });
-    expect(tokenFromUrl(page.url()), "ArrowLeft returned to the original pet").toBe(startToken);
+    expect(tokenFromUrl(page.url()), "the opposite arrow returned to the original pet").toBe(
+      startToken,
+    );
   } finally {
     await context.close();
   }
