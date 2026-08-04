@@ -52,12 +52,23 @@ export function PanoramaSuppressionNotice({ states }: Props) {
               narrower sets (one total's own cells; one layer). Without each
               saying what it counts, a reader seeing 12 here and 3 there reads a
               contradiction rather than a subset. */}
-          {`${suppressed.total.toLocaleString("es-AR")} celdas con menos de 5 casos ocultas por privacidad (k-anonimato) en las capas activas de esta vista`}
+          {/* Agreement runs past the noun: with total === 1 this used to read
+              "1 celdas … ocultas", disagreeing twice. pluralizeEs handles the
+              noun but not the participle, so the two forms are spelled out. */}
+          {`${suppressed.total.toLocaleString("es-AR")} ${
+            suppressed.total === 1
+              ? "celda con menos de 5 casos oculta"
+              : "celdas con menos de 5 casos ocultas"
+          } por privacidad (k-anonimato) en las capas activas de esta vista`}
         </span>
       )}
       {noLocality.total > 0 && (
         <span className={PILL_CLASS} title={breakdownTitle(noLocality.breakdown)}>
-          {`${noLocality.total.toLocaleString("es-AR")} registros sin localidad asignada — visibles solo a nivel provincial`}
+          {`${noLocality.total.toLocaleString("es-AR")} ${
+            noLocality.total === 1
+              ? "registro sin localidad asignada — visible"
+              : "registros sin localidad asignada — visibles"
+          } solo a nivel provincial`}
         </span>
       )}
     </div>

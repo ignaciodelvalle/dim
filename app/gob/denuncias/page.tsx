@@ -176,8 +176,18 @@ export default async function GobDenunciasPage({
           active stage's own content dominates the fold; the Caso link-out
           stays fully present, just de-emphasized to match its "step 3 of the
           journey, not today's queue" role. */}
+      {/* QA del PO 2026-08-04: la tarjeta se leía como un panel huérfano al pie
+          de la pantalla. La causa no era la posición (ya se había bajado por el
+          hallazgo #5 de qa-triage) sino el NÚMERO: las pestañas de arriba se
+          llaman "Moderación" y "Triage", sin numerar, así que "Paso 3" era lo
+          único numerado de la pantalla y apuntaba a un paso 1 y un paso 2 que no
+          figuran en ninguna parte.
+          Y el número era además inexacto: la escalada a caso regulatorio es
+          CONDICIONAL, no una etapa por la que pasa toda denuncia. "Paso 3" la
+          presentaba como obligatoria. La prosa de abajo ya explica el rol; el
+          número sólo prometía una secuencia que la pantalla no muestra. */}
       <OpCard>
-        <OpCardHead title={<span className="text-sm font-semibold">Paso 3 · Caso</span>} />
+        <OpCardHead title={<span className="text-sm font-semibold">Casos regulatorios</span>} />
         <OpCardBody className="flex flex-wrap items-center justify-between gap-4">
           <p className="max-w-prose text-md text-ln-op-ink-2">
             Denuncias escaladas a un caso regulatorio, con seguimiento formal.

@@ -41,6 +41,105 @@ const SOURCE_GLOB = "{app,components,lib,src}/**/*.{ts,tsx}";
 export const ADHOC_PLURAL_RE =
   /[!=]==?\s*1\s*\?\s*(?:(["'`])\1\s*:\s*(["'`])e?s\2|(["'`])e?s\3\s*:\s*(["'`])\4)/g;
 
+/**
+ * Arm 2 (copy audit 2026-08-04) — an interpolated COUNT immediately followed by
+ * a hardcoded plural noun, with no agreement at all.
+ *
+ * The original rule only caught the ternary shape, so it was blind to the worse
+ * bug: a template that never even tries. The live example was
+ * `${suppressed.total.toLocaleString("es-AR")} celdas … ocultas`, which renders
+ * "1 celdas … ocultas" — disagreeing twice, on a government privacy notice.
+ *
+ * Deliberately narrow to stay useful:
+ *   - only fires inside `${…}` interpolation followed by whitespace,
+ *   - the following word must end in s/es and be ≥4 chars (skips "s", "es",
+ *     and short function-word noise),
+ *   - a LITERAL number never matches, because the count has to be an
+ *     interpolation to be variable in the first place,
+ *   - lines already calling `pluralizeEs` are exempt (that IS the fix),
+ *   - Spanish words that are invariant or not nouns are listed in
+ *     PLURAL_ARM2_STOPWORDS below rather than being guessed at.
+ *
+ * False positives are expected where a count is provably > 1 or fixed. That is
+ * what the baseline ratchet is for — grandfather them, never widen the regex to
+ * accommodate one.
+ *
+ * A SCREAMING_CASE interpolation is skipped on purpose: `${MIN_NOTES_LEN}
+ * caracteres` is a validation FLOOR, not a count of things being described —
+ * the sentence is "at least N characters", where N is a fixed constant and the
+ * singular case cannot occur in practice. Including them produced 236 files on
+ * first run, most of them that shape. A fence nobody can burn down is a fence
+ * nobody reads.
+ */
+export const COUNT_PLURAL_NOUN_RE = /\$\{([^}]*)\}\s+([a-záéíóúñ]{4,}(?:es|s))\b/gi;
+
+/** TRUE for `${MIN_NOTES_LEN}`-shaped interpolations — a fixed limit, not a count. */
+export function isConstantInterpolation(expr: string): boolean {
+  return /^[A-Z][A-Z0-9_]*$/.test(expr.trim());
+}
+
+/** Words that end in s/es but are not count-agreeing nouns in our copy. */
+export const PLURAL_ARM2_STOPWORDS = new Set([
+  "menos",
+  "mas",
+  "más",
+  "menos",
+  "menores",
+  "mayores",
+  "menos",
+  "antes",
+  "despues",
+  "después",
+  "entonces",
+  "atras",
+  "atrás",
+  "quizas",
+  "quizás",
+  "jamas",
+  "jamás",
+  "ademas",
+  "además",
+  "solamente",
+  "gratis",
+  "lunes",
+  "martes",
+  "miercoles",
+  "miércoles",
+  "jueves",
+  "viernes",
+  "crisis",
+  "analisis",
+  "análisis",
+  "dosis",
+  "pais",
+  "país",
+  "mes",
+  "res",
+  // English words that happen to end in s — this repo writes logs, dev-facing
+  // errors and code comments in English, and none of them are es-AR UI copy.
+  "appears",
+  "weeks",
+  "days",
+  "hours",
+  "minutes",
+  "seconds",
+  "items",
+  "rows",
+  "files",
+  "results",
+  "changes",
+  "errors",
+  "columns",
+  "records",
+  "events",
+  "values",
+  "times",
+  "bytes",
+  "pets",
+  "notifications",
+  "attempts",
+]);
+
 const TEST_SUFFIXES = [".test.ts", ".test.tsx", ".spec.ts", ".spec.tsx", ".d.ts"];
 
 type BaselineFile = {
@@ -61,6 +160,19 @@ export function findAdhocPlurals(src: string): PluralHit[] {
     if (trimmed.startsWith("//") || trimmed.startsWith("*")) continue;
     for (const match of lines[i].matchAll(ADHOC_PLURAL_RE)) {
       const start = Math.max(0, (match.index ?? 0) - 20);
+      hits.push({
+        line: i + 1,
+        snippet: lines[i].slice(start, (match.index ?? 0) + match[0].length).trim(),
+      });
+    }
+    // Arm 2 — interpolated count followed by a bare plural noun. A line that
+    // already calls pluralizeEs is doing the right thing by definition.
+    if (lines[i].includes("pluralizeEs")) continue;
+    for (const match of lines[i].matchAll(COUNT_PLURAL_NOUN_RE)) {
+      if (isConstantInterpolation(match[1] ?? "")) continue;
+      const word = (match[2] ?? "").toLowerCase();
+      if (PLURAL_ARM2_STOPWORDS.has(word)) continue;
+      const start = Math.max(0, (match.index ?? 0) - 24);
       hits.push({
         line: i + 1,
         snippet: lines[i].slice(start, (match.index ?? 0) + match[0].length).trim(),
