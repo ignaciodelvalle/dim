@@ -113,23 +113,27 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 | **NUEVO 31/07** | **Cuatro fences `.ts` cargan su propia copia byte-idéntica de `stripComments`.** Ya existe el módulo compartido (`scripts/lib/strip-comments.mjs`) y `tsx` resuelve `.mjs` desde `.ts` sin ceremonia. Migrarlos |
 
 ### Tests que no guardan nada
+
+> **El bloque e2e cerró el 2026-08-04.** El rojo permanente (33 ubicaciones) se
+> retiró en seis pasadas; CI verde entero por primera vez desde el 30/07. Las
+> causas raíz están catalogadas en `e2e/README.md` y en engram
+> (`ci/e2e-standing-red`). Lo tachado abajo ya no es trabajo.
 | # | Qué |
 |---|---|
-| **E2E no es un gate — 33 ubicaciones rojas** | Medido 31/07 comparando dos corridas: **antes de esta ola ya había 30**, incluidas las dos de `cross-tenant-isolation`. No es una regresión nuestra: es que **el gate de e2e hace meses que no dice nada**. Mientras siga así, "CI verde" significa "CI menos e2e" |
-| **El presupuesto de login POR EMAIL** | La causa de 9 de las rojas nuevas (`synthetic-monitor`): `login refused for owner@dim.test`. El workaround de `x-real-ip` en `demo/_helpers.ts:166` cubre el presupuesto **por IP** y su propio comentario aclara que el **por email** (5/min, 20/hora, indexado por la dirección) queda afuera. ~20 specs comparten las mismas cuentas semilla. Jubilar `final-seams` corrió el scheduling y varios cayeron en la misma ventana. Opciones: cuenta por spec, subir el tope en entorno de test, o serializar |
-| **E2E `a11y-operator-auth`** | Dos tests describen una **IA retirada**, mismo patrón que `owner-shell`: esperan que un operador sin permisos caiga en `/` y en `/mis-mascotas`, y cae en `/mis-mascotas/DIM-…` y en `/acceso-denegado`. **Rojos en CI desde antes de esta ola** — hay que decidir cuál es el destino correcto y después arreglar el test |
-| **E2E `crisis-seams` (d)** | La adopción no transfiere fuera de la custodia del refugio, o el test no lo ve. Rojo en CI desde antes de esta ola |
+| ~~**E2E no es un gate — 33 ubicaciones rojas**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. Medido 31/07 comparando dos corridas: **antes de esta ola ya había 30**, incluidas las dos de `cross-tenant-is… |
+| ~~**El presupuesto de login POR EMAIL**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. La causa de 9 de las rojas nuevas (`synthetic-monitor`): `login refused for owner@dim.test`. El workaround de … |
+| ~~**E2E `a11y-operator-auth`**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. Dos tests describen una **IA retirada**, mismo patrón que `owner-shell`: esperan que un operador sin permisos … |
+| ~~**E2E `crisis-seams` (d)**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. La adopción no transfiere fuera de la custodia del refugio, o el test no lo ve. Rojo en CI desde antes de esta… |
 | **`PanoramaConsole` "finding 1"** | `waitFor` con el presupuesto por defecto de 1s; en CI tardó 1541 ms y se pasó. **47 `waitFor` sin timeout explícito en ese archivo.** No subir uno suelto: o se decide un presupuesto para el archivo, o se acepta el flake declarado |
 | **RA-4 F8** | Un test de scope de gobierno que **nunca ejecutó una aserción** desde que se escribió: el primer test del archivo deja al usuario en un estado que hace fallar su `submit`, y el `if (!submit.ok) return` se traga todo |
 | **RA-4 F9** | Un guard cross-org que **nunca llama a la acción que guarda** — la aserción de cierre es tautológica por construcción |
 | **RA-4 F5-F7** | El `pet-carousel-dots` muerto, el chequeo de "cero disfrazado de supresión" que nunca inspecciona un numérico, y warn-and-skip en tests de constraint |
 | **RA-9 EI-4/5/6** | Dos gates de axe que se auto-jubilan con `test.skip` sobre data vacía (uno es el "momento héroe", Ley 26.653) · `qa-panorama-a11y.ts` es un generador de reportes vendido como gate (no lo cita nadie) · dos aserciones de touch-target que matchean el documento entero |
 | **RA-7 F8** | `cube-parity` es **vacuo justo donde importa**: a grano provincia compara literales contra literales; a grano nacional el loop de valores saltea toda celda suprimida |
-| **P2.8** | `rls/matrix` tiene guards por celda que lanzan, pero el patrón hermano sigue vivo en **13 tests de aislamiento cross-tenant** |
-| **P2.5** | `owner-ia-p6` 1/2/10 y `synthetic` (c)/(d) trabados en skeletons de Suspense pasado el presupuesto de 8s |
+| ~~**P2.8**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. `rls/matrix` tiene guards por celda que lanzan, pero el patrón hermano sigue vivo en **13 tests de aislamiento… |
+| ~~**P2.5**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. `owner-ia-p6` 1/2/10 y `synthetic` (c)/(d) trabados en skeletons de Suspense pasado el presupuesto de 8s… |
 
 ---
-
 ## 🟡 P3 — el panorama contándose distinto a sí mismo
 
 | # | Qué |
@@ -186,6 +190,23 @@ dashboard de Supabase (A9 de la cola vieja).
 - **Deuda estética**: **el fence primero**, después el codemod. (Fence hecho.)
 - **Las 7 barreras de a11y**: todas ahora. (Hechas.)
 - **`final-seams`**: investigar los 4 antes de decidir. (Hecho: ninguno era defecto de producto, spec jubilada, y la única cobertura que se pierde quedó escrita en el header de `crisis-seams`.)
+
+## Decisiones del PO — 2026-08-04
+
+- **Walk-in de Atender**: el evento entra, marcado con provenance de walk-in no
+  verificado, y el dueño recibe aviso inmediato. La irreversibilidad se acepta;
+  la irreversibilidad **silenciosa** no.
+- **Migración 0156 (comentario de rollback falso)**: se corrige **fuera del
+  archivo**. El ledger guarda sha256 de los bytes y `migrate.ts --strict` falla
+  con deriva: no se edita una migración aplicada, ni sus comentarios.
+- **`/gob` "métricas dentro de rango"**: estado honesto "sin medición
+  suficiente". Calcular metas reales por jurisdicción es trabajo aparte y no
+  bloquea sacar la afirmación falsa.
+- **PRs**: cerradas las 30 ya absorbidas en `integration/all-20260703`
+  (verificadas con `merge-base --is-ancestor` una por una). Quedan #760 (la
+  rama viva), #762 (review slice, "do not merge") y #707 (docs, sin absorber).
+- Y las doce decisiones de alcance de la corrida nocturna: ver
+  `docs/plans/2026-08-04-plan-nocturno-TAREAS.md`.
 
 ## Pendiente de decisión del PO
 - **El walk-in de Atender usa conocer el token del QR como prueba de consentimiento.** Cualquier organización con `event.write` puede escribir eventos permanentes e irreversibles sobre **cualquier mascota del país** desde una foto de la chapita. Es diseño, no bug.
