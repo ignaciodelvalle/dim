@@ -74,6 +74,39 @@ Hoy compiten `docs/plans/PENDIENTES.md` (31/07) y
 
 ---
 
+## Bloque R — batería de reviews de limpieza final
+
+> **Premisa nueva: a partir de ahora entra gente de afuera a mirar.** Eso cambia
+> el criterio. Hasta hoy el repo tenía que ser correcto; ahora tiene que ser
+> **legible por alguien sin contexto y sin acceso a Ignacio**. Un tercero no
+> pregunta: asume. Si el README miente, cree la mentira; si hay 126 ramas, no
+> sabe cuál es la viva; si un doc afirma una garantía que no existe, la da por
+> cierta y construye encima.
+>
+> **Reglas de la batería**: todas son read-only y corren en paralelo. Ninguna
+> arregla nada — producen **hallazgos con evidencia** que entran a la cola
+> única. Los arreglos son trabajo aparte y pasan por `verify` + `test` + e2e.
+> Cada review declara además **qué NO miró**, para que su verde no se lea como
+> más de lo que es.
+
+| # | Review | La pregunta que contesta | Criterio de "limpio" |
+|---|---|---|---|
+| **R1** | **Arranque en frío** | ¿Alguien clona y llega a la app corriendo con datos, siguiendo el README **literalmente**, sin preguntar nada? | Camino completo verificado en carpeta limpia. Hoy falta `.env.example` (existe `docs/ops/env-handling.md`, pero el que llega no sabe que existe). |
+| **R2** | **Afirmaciones sin cita** | ¿Qué garantías de DB, seguridad, privacidad o legales se afirman **sin apuntar a un archivo**? | Cada garantía apunta a su enforcement, o se reescribe como intención. **Esta es la clase que se escapó hoy**: el CHECK de `account_type` sobrevivió a la auditoría porque no citaba nada. |
+| **R3** | **Superficie de riesgo** | ¿Hay algo en el repo que no quieras que lea un tercero? Secretos, PII real en seeds/fixtures, tokens en docs, datos personales en tests | Cero secretos; el mail personal que viaja a Nominatim (decisión tomada: **queda**) documentado donde se ve, no escondido en un `User-Agent`. |
+| **R4** | **Ruido del repo** | ¿La lista de ramas/PRs/archivos sigue siendo señal? | **126 ramas remotas (66 ya mergeadas a HEAD)**, **46 worktrees de agentes abandonados** en `.claude/worktrees/`, 13 PRs mergeadas abiertas, scripts huérfanos y código comentado. Que la lista vuelva a informar. |
+| **R5** | **¿Los gates dicen la verdad?** | Con CI en verde, **¿qué queda garantizado y qué no?** | Cada fence declara su cobertura Y su punto ciego. Entra acá todo el bloque P2 (linters de authz con glob plano, `check-rls-coverage` que no mira contenido, el fence N3 con globs incompletos). |
+| **R6** | **Nombres e idioma** | ¿Un lector nuevo entiende que DIM y MiMAR son **el mismo producto** (codename vs marca)? ¿La frontera es-AR-UI / English-code se sostiene? | Sin ambigüedad de producto; sin castellano en identificadores ni inglés en UI. |
+| **R7** | **Navegabilidad de docs** | Desde "quiero cambiar X", ¿llego a los archivos correctos en menos de 3 saltos? | Un camino claro README → arquitectura → módulo. Los 18 planes activos + specs + archive **no** pueden ser el primer contacto. |
+| **R8** | **Trazabilidad** | ¿El "por qué" de una decisión rara se recupera **sin preguntarle a Ignacio**? | El porqué vive en el commit, el ADR o el comentario — no sólo en la cabeza del PO ni en un chat. |
+| **R9** | **Adversarial final** (billed, con OK explícito) | ¿Qué encuentra un revisor fresco y hostil sobre el rango completo? | Cursor read-only + `/code-review ultra` + review de seguridad. Cero hallazgos confirmados sin decisión registrada. |
+
+**Orden sugerido**: R1-R4 primero (son los que golpean en los primeros diez
+minutos de un tercero), R5-R8 después, R9 al final sobre el árbol ya limpio —
+un revisor adversarial gastado en ruido es plata tirada.
+
+---
+
 ## Bloque 0-bis — barrido de auditoría todavía por hacer
 
 La auditoría de docs de hoy contrastó los documentos contra el código **que
