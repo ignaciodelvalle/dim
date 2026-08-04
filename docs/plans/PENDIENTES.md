@@ -216,7 +216,7 @@ dashboard de Supabase (A9 de la cola vieja).
 | **CSS-5** | **`table-layout: fixed`** en `MapDataTable.tsx:278` y `PanoramaDataTable.tsx:403` (+ anchos de columna explícitos) | Con layout `auto` los anchos se recalculan del contenido en cada cambio de datos, así que las columnas **saltan** mientras el funcionario mueve el período. Interfaz que se mueve sola sin que nadie la toque | S |
 | **CSS-6** | **`scroll-snap-stop: always`** en el tablist del dock (`PanoramaDock.tsx:176,224`) | Ya usa `snap-x`/`snap-start`; sin `always` un swipe rápido en móvil se pasa de largo varias pestañas. Viaja con CSS-5 | XS |
 | **CSS-7** | **Unificar los 6 stagger hardcodeados** de `globals.css:899-920` en una regla con `calc(var(--d) * 80ms)` | Consistencia interna, ~20 líneas menos. **Expectativa honesta: el usuario no ve ninguna diferencia.** Entra por "consistente", no por "pulido" | XS |
-| **CSS-8** | `content-visibility: auto` en las 5 listas de `<li>` topeadas alto (`admin/observaciones` 500, `gob/vigilancia/brotes` 500, `gob/perdidas` 500, `org/mascotas` 200, `gob/cola` 200) | **NO es un compromiso: es "medir primero".** No hay medición y no hay librería de virtualización en el repo. Los topes son techos, no valores típicos — si en la realidad son 30 filas, la tarea no existe y se borra. **Restricción crítica**: containment NO se aplica de forma confiable a `<tr>`/`<tbody>`, así que las tablas quedan fuera; sólo filas de bloque. Regresión obligatoria: Ctrl+F y el deep-link `?signalId=` (`OutbreakSignalRow.tsx:60`) tienen que seguir llegando al contenido salteado | M (gated) |
+| **CSS-8** | `content-visibility: auto` en las 5 listas de `<li>` topeadas alto (`admin/observaciones` 500, `gob/vigilancia/brotes` 500, `gob/perdidas` 500, `org/mascotas` 200, `gob/cola` 200) | **CONFIRMADA por el PO (04/08)**: `/gob/perdidas` con el filtro "todas" lista efectivamente las 500. No es un techo teórico — son 500 tarjetas multi-elemento maquetadas y pintadas de una, y no hay librería de virtualización en el repo. **Restricción crítica**: containment NO se aplica de forma confiable a `<tr>`/`<tbody>`, así que las tablas quedan fuera; sólo filas de bloque. Regresión obligatoria: Ctrl+F y el deep-link `?signalId=` (`OutbreakSignalRow.tsx:60`) tienen que seguir llegando al contenido salteado | M |
 
 **Rechazados con razón** (no reabrir sin evidencia nueva):
 
@@ -336,6 +336,42 @@ lo que este barrido terminó de confirmar.
   rama viva), #762 (review slice, "do not merge") y #707 (docs, sin absorber).
 - Y las doce decisiones de alcance de la corrida nocturna: ver
   `docs/plans/2026-08-04-plan-nocturno-TAREAS.md`.
+
+### Ronda de decisiones de los barridos (2026-08-04, tarde)
+
+- **D1 — origen de la transferencia al resolver disputa**: los titulares que el
+  propio caso de uso cierra. **EJECUTADO**, commit `34f0fd60`.
+- **D2 — contacto del denunciante**: lo ve **cualquier operador con alcance**
+  (como hoy), y se **documenta**. Restringirlo al asignado rompe la derivación
+  entre turnos y guardias, que es una necesidad operativa real. Lo que faltaba
+  no era el candado sino que estuviera escrito.
+- **D3 — provincia entera fuera de CABA: SE CONSTRUYE AHORA.** Extender el
+  centinela `WHOLE_PROVINCE_LOCALITY` a cualquier provincia, no sólo CABA. (El
+  default propuesto era postergarlo; el PO decidió adelantarlo.)
+- **D4 — HEIC: SE TRANSCODIFICA EN EL SERVIDOR**, no se rechaza. (El default
+  propuesto era rechazar; el PO eligió la solución de fondo.) **Consecuencia
+  que queda registrada a propósito**: transcodificar necesita una librería de
+  imágenes del lado servidor y pega contra el tamaño y el tiempo de ejecución
+  de la función en Vercel, así que **no es un arreglo del día**. Hasta que
+  salga, el GPS del domicilio de un denunciante anónimo **sigue viajando** en
+  cada foto tomada con iPhone. La ventana de exposición está abierta y es
+  conocida — no implícita.
+- **D10 — nexo de bienestar cerrado**: el acceso de lectura a la mascota
+  **expira con el caso**. El fundamento era el caso; cerrado el caso,
+  desaparece el fundamento (principio de finalidad, Ley 25.326).
+- **Email de adopciones (COPY-2)**: **se le muestra el email del postulante al
+  refugio**. El dato ya existe en el perfil; es cablear lo construido y deja la
+  copy verdadera sin tocarla.
+- **CSS-8 deja de estar gateada**: el PO verificó que `/gob/perdidas` con el
+  filtro "todas" **lista efectivamente las 500 filas**. Ya no es un techo
+  teórico: son 500 tarjetas multi-elemento maquetadas y pintadas de una, sin
+  virtualización en el repo. Se saca el "medir primero".
+
+Las seis decisiones restantes (D5 a D9, D11) se ejecutan con el default
+propuesto salvo aviso: reconfirmar KA1/KA2 como riesgo aceptado, sumar KA4 al
+documento de limitaciones, ocultar Parquet, mantener el "Sin datos suficientes"
+honesto, mantener la ventana fija de 30 días ya rotulada, y dejar de recolectar
+`share_telemetry` si no aparece un lector con sentido de producto.
 
 ## Pendiente de decisión del PO
 - **El walk-in de Atender usa conocer el token del QR como prueba de consentimiento.** Cualquier organización con `event.write` puede escribir eventos permanentes e irreversibles sobre **cualquier mascota del país** desde una foto de la chapita. Es diseño, no bug.
