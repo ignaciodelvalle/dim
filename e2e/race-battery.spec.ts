@@ -312,8 +312,17 @@ test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
       });
       await owner.page.waitForLoadState("networkidle").catch(() => {});
       await owner.page.waitForTimeout(1_500); // hydration (#39 dropped-click guard)
-      await owner.page.getByLabel(/email del receptor/i).fill(ACCOUNTS.owner2);
-      await owner.page.getByRole("button", { name: /enviar propuesta/i }).click();
+      // EXPLICIT TIMEOUTS on every locator action in this spec: playwright.
+      // config.ts sets no actionTimeout, so a locator that never resolves
+      // waits FOREVER — it does not throw, it silently eats the 150s test
+      // budget and reports "Test timeout exceeded" with no cause named. That
+      // is what killed this test in CI runs 30867634835 / 30869355207 /
+      // 30871111745 (the hang was in the cleanup block below, inside a
+      // try/catch that a hang can never reach).
+      await owner.page.getByLabel(/email del receptor/i).fill(ACCOUNTS.owner2, { timeout: 15_000 });
+      await owner.page
+        .getByRole("button", { name: /enviar propuesta/i })
+        .click({ timeout: 15_000 });
       // The action's client-side navigation drops often enough to matter (the
       // Next 15.5.x post-action nav drop this repo documents in
       // lib/ui/full-page-action-nav.ts). Give the URL a short chance, then
@@ -383,10 +392,28 @@ test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
           await r1.page.goto(`/mis-mascotas/${petToken}?sheet=transferir-mascota`, {
             waitUntil: "domcontentloaded",
           });
-          await r1.page.getByLabel(/email del receptor/i).fill(ACCOUNTS.owner);
-          await r1.page.getByRole("button", { name: /enviar propuesta/i }).click();
-          await r1.page.waitForURL(/\/transferencias\//, { timeout: 20_000 });
-          const backToken = r1.page.url().split("/transferencias/")[1]?.split(/[?#]/)[0] ?? "";
+          await r1.page.waitForLoadState("networkidle").catch(() => {});
+          await r1.page.waitForTimeout(1_500); // hydration, same guard as the send above
+          // Bounded (see the note on the sender flow above): an unbounded
+          // fill/click here is what hung the test — inside a try/catch that a
+          // hang never reaches, so the annotation below never fired either.
+          await r1.page.getByLabel(/email del receptor/i).fill(ACCOUNTS.owner, { timeout: 15_000 });
+          await r1.page
+            .getByRole("button", { name: /enviar propuesta/i })
+            .click({ timeout: 15_000 });
+          await r1.page.waitForURL(/\/transferencias\//, { timeout: 20_000 }).catch(() => {});
+          let backToken = r1.page.url().split("/transferencias/")[1]?.split(/[?#]/)[0] ?? "";
+          if (!backToken) {
+            await r1.page.goto("/transferencias", { waitUntil: "domcontentloaded" });
+            await r1.page.waitForLoadState("networkidle").catch(() => {});
+            const href =
+              (await r1.page
+                .locator('a[href^="/transferencias/"]')
+                .first()
+                .getAttribute("href", { timeout: 10_000 })
+                .catch(() => null)) ?? "";
+            backToken = href.split("/transferencias/")[1]?.split(/[?#]/)[0] ?? "";
+          }
           await owner.page.goto(`/transferencias/${backToken}`, { waitUntil: "domcontentloaded" });
           await owner.page.getByRole("button", { name: /^aceptar$/i }).click({ timeout: 15_000 });
           await owner.page.waitForTimeout(2_000);

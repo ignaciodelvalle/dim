@@ -1,6 +1,7 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
 import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
+import { resetAuthLoginRateLimits } from "./demo/_db-cleanup";
 import { ACCOUNTS, discoverPetToken, resolveOrgToken } from "./demo/_helpers";
 
 /**
@@ -98,6 +99,13 @@ type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 const stateCache = new Map<string, StorageState>();
 
 async function login(page: Page, email: string) {
+  // This spec keeps its own login (storageState reuse predates the shared
+  // helper), so it must ALSO clear the auth buckets — otherwise it is the one
+  // spec that still starves auth_login_email for everything after it, which
+  // is exactly what it did on a local full-file run. See
+  // resetAuthLoginRateLimits: local-DB fixture cleanup, no-op elsewhere, and
+  // the limiter stays fully active in the app.
+  await resetAuthLoginRateLimits();
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByLabel(/contraseña/i).fill(PASSWORD);

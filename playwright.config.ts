@@ -89,6 +89,18 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "off",
+    // Playwright's default actionTimeout is 0 — NO LIMIT. A locator action on
+    // an element that never appears (a submit button that lives on the NEXT
+    // wizard step, a field a sheet did not render) therefore waits forever:
+    // it never throws, so try/catch cannot catch it, and the test dies on its
+    // own budget reporting "Test timeout exceeded" with nothing naming the
+    // cause. That signature cost three CI runs to diagnose across two specs
+    // (owner-ia-p6 test 10's mark-lost submit; race-battery (c)'s cleanup
+    // fill, which sat inside a try/catch that a hang can never reach).
+    // A bounded action turns the same bug into a normal, LEGIBLE failure
+    // naming the locator. 15s is well clear of the slowest legitimate
+    // interaction measured on a cold CI runner.
+    actionTimeout: 15_000,
   },
 
   projects: [
