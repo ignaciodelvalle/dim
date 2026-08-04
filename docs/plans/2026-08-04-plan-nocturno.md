@@ -19,13 +19,70 @@ acabamos de pagar con siete iteraciones.
 
 ---
 
-## Bloque 0 — higiene de cola (mecánico, sin criterio)
+## Bloque 0 — LIMPIEZA (obligatorio, corre primero)
 
-1. **Cerrar las 13 PRs absorbidas**, cada una con un comentario que diga en qué
+> **Por qué va primero y por qué no es opcional.** Hoy, en un solo día, se
+> encontraron: un bloque entero de PENDIENTES.md describiendo como abierto lo
+> que ya estaba verde, 44 rutas muertas en la documentación, una sección de
+> privacidad que se contradecía a sí misma, un README afirmando un CHECK de
+> base de datos que una migración había borrado, 13 PRs abiertas ya mergeadas,
+> y **dos documentos declarándose cada uno "la fuente única de pendientes"**.
+> Ninguno de esos era un bug de producto: todos eran **registros que mienten**.
+> Un plan nocturno que arranca leyendo registros podridos gasta la noche
+> arreglando cosas arregladas. Esto se limpia antes de tocar código.
+
+### 0.1 — Una sola cola (la decisión estructural)
+
+Hoy compiten `docs/plans/PENDIENTES.md` (31/07) y
+`docs/superpowers/plans/2026-06-24-CONSOLIDATED-pending-backlog.md` (24/06),
+**ambos** autodenominados fuente única. Acción:
+
+1. Verificar ítem por ítem cada cola contra el código (en curso).
+2. Fusionar los sobrevivientes en **una** cola — `PENDIENTES.md` — y **archivar**
+   la otra con una nota de a dónde se fue cada cosa.
+3. Regla que queda escrita en la cola sobreviviente: **todo ítem lleva la
+   evidencia con la que se verificó y la fecha**. Un ítem sin evidencia
+   re-verificable no entra.
+
+### 0.2 — Cerrar lo que ya está cerrado
+
+4. **Cerrar las 13 PRs absorbidas**, cada una con un comentario que diga en qué
    rama quedó. No tocar #760 (la nuestra) ni #762 (review slice, "do not merge").
-2. **Actualizar PENDIENTES.md**: cerrar el bloque e2e con la evidencia del run
-   verde, y mover a "decidido" las tres decisiones de hoy. El propio documento
-   se quemó dos veces por listar como pendiente algo resuelto.
+5. **Cerrar el bloque e2e de PENDIENTES.md** con la evidencia del run verde
+   (`30873868074`), incluyendo las filas "E2E no es un gate — 33 ubicaciones
+   rojas", el presupuesto de login por email, `a11y-operator-auth`,
+   `crisis-seams (d)`, el `pet-carousel-dots` muerto y P2.5.
+6. **Mover a "decidido"** las tres decisiones que el PO tomó hoy.
+
+### 0.3 — Los otros registros
+
+7. **Triage de los 18 planes activos** en `docs/superpowers/plans/`: los que
+   describen trabajo ya shippeado se archivan; los vivos declaran qué falta.
+8. **`spec-later-tracker`**: sus 3 entradas están bloqueadas por decisiones
+   EXTERNAS (export PPP CABA, credencial de perro guía Ley 26.858, documentos de
+   viaje). No son trabajo nuestro — quedan marcadas como "esperando a terceros"
+   para que nadie las levante como tarea.
+9. **37 TODO/FIXME en código productivo**: barrido de clasificación — cuáles son
+   deuda real y cuáles son comentarios que envejecieron. No arreglarlos todos;
+   convertir los reales en ítems de la cola y borrar los muertos.
+
+### 0.4 — Que no se vuelva a pudrir
+
+10. Antes de cerrar la corrida, **re-verificar el propio plan**: cada ítem que
+    quedó abierto se vuelve a contrastar contra el árbol. Lo que se arregló
+    durante la noche se marca cerrado **con la evidencia**, no con una promesa.
+
+---
+
+## Bloque 0-bis — barrido de auditoría todavía por hacer
+
+La auditoría de docs de hoy contrastó los documentos contra el código **que
+citaban**. El claim del CHECK de `account_type` se escapó porque no citaba nada
+— apareció después, cruzando la cola vieja contra el árbol. Falta:
+
+- Barrer AGENTS.md/README buscando afirmaciones **sin cita** sobre garantías de
+  la base de datos, de seguridad o de privacidad, y verificar cada una. Son las
+  peligrosas: nadie las chequea justamente porque no apuntan a ningún archivo.
 
 ---
 
