@@ -110,42 +110,7 @@ número o el mecanismo equivocado manda a alguien al lugar equivocado:
     quedó abierto se vuelve a contrastar contra el árbol. Lo que se arregló
     durante la noche se marca cerrado **con la evidencia**, no con una promesa.
 
----
-
-## Bloque R — batería de reviews de limpieza final
-
-> **Premisa nueva: a partir de ahora entra gente de afuera a mirar.** Eso cambia
-> el criterio. Hasta hoy el repo tenía que ser correcto; ahora tiene que ser
-> **legible por alguien sin contexto y sin acceso a Ignacio**. Un tercero no
-> pregunta: asume. Si el README miente, cree la mentira; si hay 126 ramas, no
-> sabe cuál es la viva; si un doc afirma una garantía que no existe, la da por
-> cierta y construye encima.
->
-> **Reglas de la batería**: todas son read-only y corren en paralelo. Ninguna
-> arregla nada — producen **hallazgos con evidencia** que entran a la cola
-> única. Los arreglos son trabajo aparte y pasan por `verify` + `test` + e2e.
-> Cada review declara además **qué NO miró**, para que su verde no se lea como
-> más de lo que es.
-
-| # | Review | La pregunta que contesta | Criterio de "limpio" |
-|---|---|---|---|
-| **R1** | **Arranque en frío** | ¿Alguien clona y llega a la app corriendo con datos, siguiendo el README **literalmente**, sin preguntar nada? | Camino completo verificado en carpeta limpia. Hoy falta `.env.example` (existe `docs/ops/env-handling.md`, pero el que llega no sabe que existe). |
-| **R2** | **Afirmaciones sin cita** | ¿Qué garantías de DB, seguridad, privacidad o legales se afirman **sin apuntar a un archivo**? | Cada garantía apunta a su enforcement, o se reescribe como intención. **Esta es la clase que se escapó hoy**: el CHECK de `account_type` sobrevivió a la auditoría porque no citaba nada. |
-| **R3** | **Superficie de riesgo** | ¿Hay algo en el repo que no quieras que lea un tercero? Secretos, PII real en seeds/fixtures, tokens en docs, datos personales en tests | Cero secretos; el mail personal que viaja a Nominatim (decisión tomada: **queda**) documentado donde se ve, no escondido en un `User-Agent`. |
-| **R4** | **Ruido del repo** | ¿La lista de ramas/PRs/archivos sigue siendo señal? | **126 ramas remotas (66 ya mergeadas a HEAD)**, **46 worktrees de agentes abandonados** en `.claude/worktrees/`, 13 PRs mergeadas abiertas, scripts huérfanos y código comentado. Que la lista vuelva a informar. |
-| **R5** | **¿Los gates dicen la verdad?** | Con CI en verde, **¿qué queda garantizado y qué no?** | Cada fence declara su cobertura Y su punto ciego. Entra acá todo el bloque P2 (linters de authz con glob plano, `check-rls-coverage` que no mira contenido, el fence N3 con globs incompletos). |
-| **R6** | **Nombres e idioma** | ¿Un lector nuevo entiende que DIM y MiMAR son **el mismo producto** (codename vs marca)? ¿La frontera es-AR-UI / English-code se sostiene? | Sin ambigüedad de producto; sin castellano en identificadores ni inglés en UI. |
-| **R7** | **Navegabilidad de docs** | Desde "quiero cambiar X", ¿llego a los archivos correctos en menos de 3 saltos? | Un camino claro README → arquitectura → módulo. Los 18 planes activos + specs + archive **no** pueden ser el primer contacto. |
-| **R8** | **Trazabilidad** | ¿El "por qué" de una decisión rara se recupera **sin preguntarle a Ignacio**? | El porqué vive en el commit, el ADR o el comentario — no sólo en la cabeza del PO ni en un chat. |
-| **R9** | **Adversarial final** (billed, con OK explícito) | ¿Qué encuentra un revisor fresco y hostil sobre el rango completo? | Cursor read-only + `/code-review ultra` + review de seguridad. Cero hallazgos confirmados sin decisión registrada. |
-
-**Orden sugerido**: R1-R4 primero (son los que golpean en los primeros diez
-minutos de un tercero), R5-R8 después, R9 al final sobre el árbol ya limpio —
-un revisor adversarial gastado en ruido es plata tirada.
-
----
-
-## Bloque 0-bis — barrido de auditoría todavía por hacer
+### 0.5 — El barrido que la auditoría de hoy NO cubrió
 
 La auditoría de docs de hoy contrastó los documentos contra el código **que
 citaban**. El claim del CHECK de `account_type` se escapó porque no citaba nada
@@ -157,41 +122,7 @@ citaban**. El claim del CHECK de `account_type` se escapó porque no citaba nada
 
 ---
 
-## Bloque 1 — 🔴 P1: **CERRADO ENTERO** (verificado 04/08)
-
-Los cuatro ítems de la sección "rompe algo para un usuario" **ya están
-arreglados**. Verificado uno por uno contra el árbol, no contra el documento:
-
-| # | Estado | Evidencia |
-|---|---|---|
-| RA-2 F4 — chip distinto al canónico en silencio | **HECHO** | `checkChipMatchesCanonical` rechaza el chip en conflicto ANTES de la transacción (`lib/domain/microchip-validation.ts:78-115`); el docblock del guard narra el modo de falla viejo |
-| RA-2 F5 — `redirect()` dentro de la acción | **HECHO** | `microchip/reemplazar/action.ts:117-122` devuelve `{ redirectTo }` (contrato N3), en la versión org y en la admin |
-| RA-2 F9 — `org.transfer.propose` inerte + mensaje falso | **HECHO** | la página llama `requireCapability("org.transfer.propose", org.id)` (`transferencias/nueva/page.tsx:37-47`) |
-| RA-2 F10 — "Enviar documentación" a la nada | **HECHO** | la verificación es ahora un estado de espera declarado (`waitingOn: "mimar"`, `href: null`) y no traba el onboarding |
-
-> **La trampa que dejó atrás.** Las citas de RA-2 F4 en la cola
-> (`microchip-use-case.ts:124`, `events-repository.ts:197`) **hoy apuntan al
-> arreglo, no al defecto**. Alguien que las siga de buena fe "re-arregla"
-> código que funciona. Es la tercera vez que este documento cae en el mismo
-> modo de falla — y es el argumento más fuerte para la regla de evidencia
-> fechada del Bloque 0.
-
-**Consecuencia para la corrida**: no hay trabajo P1. El plan arranca en el
-Bloque 2 (decisiones) y su peso real está en el Bloque 3 (fences).
-
----
-
-## Bloque 2 — decisiones de hoy, ya convertidas en trabajo
-
-| Decisión | Trabajo concreto |
-|---|---|
-| Walk-in de Atender: **aviso + provenance** | El evento sigue entrando, marcado con provenance de walk-in no verificado, y el dueño recibe notificación inmediata. La irreversibilidad se acepta; la irreversibilidad **silenciosa** no. |
-| `/gob` métricas: **estado honesto sin datos** | Reemplazar "las métricas con meta están dentro de rango" por "sin medición suficiente". Calcular metas reales por jurisdicción es trabajo aparte y **no bloquea** sacar la afirmación falsa. |
-| Migración 0156: **corregir fuera del archivo** | La corrección va a docs + índice de migraciones. El ledger guarda sha256 de los bytes y `migrate.ts --strict` falla con deriva: no se edita una migración aplicada, ni sus comentarios. |
-
----
-
-## Bloque 3 — 🟠 P2: los fences mienten (**el peso real de la corrida**)
+## Bloque 1 — LOS GATES MIENTEN (el peso real de la corrida)
 
 Verificado ítem por ítem el 04/08. **Todos REALES** — es el único bloque que
 sobrevivió entero a la verificación. Con los números corregidos, porque los del
@@ -239,7 +170,17 @@ usan el patrón `expect(true).toBe(true)`: un fixture faltante ahora **tira**).
 
 ---
 
-## Bloque 4 — issues de GitHub abiertos (10)
+## Bloque 2 — decisiones del PO, ya convertidas en trabajo
+
+| Decisión | Trabajo concreto |
+|---|---|
+| Walk-in de Atender: **aviso + provenance** | El evento sigue entrando, marcado con provenance de walk-in no verificado, y el dueño recibe notificación inmediata. La irreversibilidad se acepta; la irreversibilidad **silenciosa** no. |
+| `/gob` métricas: **estado honesto sin datos** | Reemplazar "las métricas con meta están dentro de rango" por "sin medición suficiente". Calcular metas reales por jurisdicción es trabajo aparte y **no bloquea** sacar la afirmación falsa. |
+| Migración 0156: **corregir fuera del archivo** | La corrección va a docs + índice de migraciones. El ledger guarda sha256 de los bytes y `migrate.ts --strict` falla con deriva: no se edita una migración aplicada, ni sus comentarios. |
+
+---
+
+## Bloque 3 — issues de GitHub: 7 reales de 10
 
 **Verificados uno por uno el 04/08** contra el árbol. De los 10: **1 ya estaba
 arreglado** (#758 — cerrar), **2 necesitan re-scope** (#756 el bug de copy ya se
@@ -261,7 +202,7 @@ no de ingeniería), y **7 son reales**.
 
 ---
 
-## Bloque 5 — 🟡 P3 / ⚪ P4 (declarada)
+## Bloque 4 — 🟡 P3 / ⚪ P4 (deuda declarada)
 
 - **P3**: panorama contándose distinto a sí mismo — denominadores anidados en
   datos abiertos (`perros_registrados` ⊂ `mascotas_activas`, la resta despeja
@@ -271,6 +212,39 @@ no de ingeniería), y **7 son reales**.
 - **P4**: 21 pesos tipográficos inertes, 19 tamaños bajo el piso del ratchet, la
   libreta de vacunas que clipea a 390px, `role="img"` tragándose subárboles,
   `?chip=a&chip=b` → 500 (falla cerrado, sin fuga), el logo post-demo.
+
+---
+
+## Bloque R — batería de reviews de limpieza final
+
+> **Premisa nueva: a partir de ahora entra gente de afuera a mirar.** Eso cambia
+> el criterio. Hasta hoy el repo tenía que ser correcto; ahora tiene que ser
+> **legible por alguien sin contexto y sin acceso a Ignacio**. Un tercero no
+> pregunta: asume. Si el README miente, cree la mentira; si hay 126 ramas, no
+> sabe cuál es la viva; si un doc afirma una garantía que no existe, la da por
+> cierta y construye encima.
+>
+> **Reglas de la batería**: todas son read-only y corren en paralelo. Ninguna
+> arregla nada — producen **hallazgos con evidencia** que entran a la cola
+> única. Los arreglos son trabajo aparte y pasan por `verify` + `test` + e2e.
+> Cada review declara además **qué NO miró**, para que su verde no se lea como
+> más de lo que es.
+
+| # | Review | La pregunta que contesta | Criterio de "limpio" |
+|---|---|---|---|
+| **R1** | **Arranque en frío** | ¿Alguien clona y llega a la app corriendo con datos, siguiendo el README **literalmente**, sin preguntar nada? | Camino completo verificado en carpeta limpia. Hoy falta `.env.example` (existe `docs/ops/env-handling.md`, pero el que llega no sabe que existe). |
+| **R2** | **Afirmaciones sin cita** | ¿Qué garantías de DB, seguridad, privacidad o legales se afirman **sin apuntar a un archivo**? | Cada garantía apunta a su enforcement, o se reescribe como intención. **Esta es la clase que se escapó hoy**: el CHECK de `account_type` sobrevivió a la auditoría porque no citaba nada. |
+| **R3** | **Superficie de riesgo** | ¿Hay algo en el repo que no quieras que lea un tercero? Secretos, PII real en seeds/fixtures, tokens en docs, datos personales en tests | Cero secretos; el mail personal que viaja a Nominatim (decisión tomada: **queda**) documentado donde se ve, no escondido en un `User-Agent`. |
+| **R4** | **Ruido del repo** | ¿La lista de ramas/PRs/archivos sigue siendo señal? | **126 ramas remotas (66 ya mergeadas a HEAD)**, **46 worktrees de agentes abandonados** en `.claude/worktrees/`, 13 PRs mergeadas abiertas, scripts huérfanos y código comentado. Que la lista vuelva a informar. |
+| **R5** | **¿Los gates dicen la verdad?** | Con CI en verde, **¿qué queda garantizado y qué no?** | Cada fence declara su cobertura Y su punto ciego. Entra acá todo el bloque P2 (linters de authz con glob plano, `check-rls-coverage` que no mira contenido, el fence N3 con globs incompletos). |
+| **R6** | **Nombres e idioma** | ¿Un lector nuevo entiende que DIM y MiMAR son **el mismo producto** (codename vs marca)? ¿La frontera es-AR-UI / English-code se sostiene? | Sin ambigüedad de producto; sin castellano en identificadores ni inglés en UI. |
+| **R7** | **Navegabilidad de docs** | Desde "quiero cambiar X", ¿llego a los archivos correctos en menos de 3 saltos? | Un camino claro README → arquitectura → módulo. Los 18 planes activos + specs + archive **no** pueden ser el primer contacto. |
+| **R8** | **Trazabilidad** | ¿El "por qué" de una decisión rara se recupera **sin preguntarle a Ignacio**? | El porqué vive en el commit, el ADR o el comentario — no sólo en la cabeza del PO ni en un chat. |
+| **R9** | **Adversarial final** (billed, con OK explícito) | ¿Qué encuentra un revisor fresco y hostil sobre el rango completo? | Cursor read-only + `/code-review ultra` + review de seguridad. Cero hallazgos confirmados sin decisión registrada. |
+
+**Orden sugerido**: R1-R4 primero (son los que golpean en los primeros diez
+minutos de un tercero), R5-R8 después, R9 al final sobre el árbol ya limpio —
+un revisor adversarial gastado en ruido es plata tirada.
 
 ---
 
@@ -286,6 +260,33 @@ no de ingeniería), y **7 son reales**.
   acumulado), como quedó documentado en `e2e/README.md`.
 - Migraciones: forward-only, inmutables, y **aplicarlas a una DB remota es
   decisión de Ignacio**, no del agente.
+
+---
+
+## Apéndice A — verificado CERRADO (no es trabajo)
+
+Los cuatro ítems de la sección "rompe algo para un usuario" **ya están
+arreglados**. Verificado uno por uno contra el árbol, no contra el documento:
+
+| # | Estado | Evidencia |
+|---|---|---|
+| RA-2 F4 — chip distinto al canónico en silencio | **HECHO** | `checkChipMatchesCanonical` rechaza el chip en conflicto ANTES de la transacción (`lib/domain/microchip-validation.ts:78-115`); el docblock del guard narra el modo de falla viejo |
+| RA-2 F5 — `redirect()` dentro de la acción | **HECHO** | `microchip/reemplazar/action.ts:117-122` devuelve `{ redirectTo }` (contrato N3), en la versión org y en la admin |
+| RA-2 F9 — `org.transfer.propose` inerte + mensaje falso | **HECHO** | la página llama `requireCapability("org.transfer.propose", org.id)` (`transferencias/nueva/page.tsx:37-47`) |
+| RA-2 F10 — "Enviar documentación" a la nada | **HECHO** | la verificación es ahora un estado de espera declarado (`waitingOn: "mimar"`, `href: null`) y no traba el onboarding |
+
+> **La trampa que dejó atrás.** Las citas de RA-2 F4 en la cola
+> (`microchip-use-case.ts:124`, `events-repository.ts:197`) **hoy apuntan al
+> arreglo, no al defecto**. Alguien que las siga de buena fe "re-arregla"
+> código que funciona. Es la tercera vez que este documento cae en el mismo
+> modo de falla — y es el argumento más fuerte para la regla de evidencia
+> fechada del Bloque 0.
+
+**Consecuencia para la corrida**: no hay trabajo P1. El peso está en el
+Bloque 1 (gates).
+
+También quedó verificado cerrado: la cola vieja del 24/06 (8,5 de 11 ítems),
+~12 de los 18 planes activos, el issue #758, y todo el bloque e2e.
 
 ---
 
