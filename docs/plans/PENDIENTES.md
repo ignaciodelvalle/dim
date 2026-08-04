@@ -199,6 +199,47 @@ dashboard de Supabase (A9 de la cola vieja).
 
 ---
 
+## 🟡 Pulido de interfaz — auditoría de propiedades CSS, 2026-08-04
+
+> Origen: `docs/reviews/2026-08-04-css-properties-audit.md` (100 propiedades
+> clasificadas: 44 en uso, 41 fuera de alcance, 7 resueltas de otra forma,
+> 8 oportunidades). Criterio del PO para aceptar: **¿hace la interfaz más
+> pulida, seria y consistente?** Lo que no pasa ese filtro se rechaza abajo con
+> su razón, para que nadie lo vuelva a proponer sin argumento nuevo.
+
+| # | Qué | Por qué entra | Tamaño |
+|---|---|---|---|
+| ~~**CSS-1**~~ | ~~`print-color-adjust: exact` en el cartel de búsqueda~~ | ~~"PERDIDO" se imprimía blanco sobre blanco~~ — **HECHO**, commit `77d49aca` | ~~S~~ |
+| **CSS-2** | **Transición de apertura/cierre del dock de panorama.** `PanoramaDock.tsx:148-161` necesita una altura explícita en la rama colapsada + una clase `.op-dock` en `globals.css` (NO un valor arbitrario de Tailwind: lo prohíbe la nota en `PanoramaDock.tsx:133-135`) | Es el ítem #1 de `2026-07-12-panorama-design-critique.md:301`, el valor ya está especificado en el handoff v2C (`README.md:157`), y es el control que el operador toca más veces por turno: un panel que teletransporta sobre un mapa vivo le cuesta reorientarse cada vez. `prefers-reduced-motion` sale gratis — `globals.css:522-530` ya colapsa toda duración. **Riesgo**: el panel de línea de tiempo usa `height:auto`+`maxHeight`, que no anima; transicionar `max-height` ahí o aceptar que esa rama no anime. NO usar `interpolate-size` | S |
+| **CSS-3** | **Tres anillos de foco faltantes**: `PosterPreview.tsx:235` (textarea editable), `SharesManager.tsx:213` (input de URL para compartir), `OrgHero.tsx:97` (link "Verificado") | WCAG 2.4.7 Focus Visible, nivel AA, en un producto atado a la Ley 26.653. En los tres el arreglo correcto es **borrar** `focus:outline-none` y dejar actuar al anillo global (`globals.css:514-517`) — se resuelve quitando líneas, no agregando | S |
+| **CSS-4** | **`ScrollToSignal.tsx:22` hace `scrollIntoView({behavior:"smooth"})` sin guardar** | El CSS global de movimiento reducido no alcanza a un scroll imperativo de JS — el repo lo sabe y lo documenta en `globals.css:533-538`; este archivo es el único que se olvidó. El patrón correcto ya existe en `Field.tsx:340-342` | S |
+| **CSS-5** | **`table-layout: fixed`** en `MapDataTable.tsx:278` y `PanoramaDataTable.tsx:403` (+ anchos de columna explícitos) | Con layout `auto` los anchos se recalculan del contenido en cada cambio de datos, así que las columnas **saltan** mientras el funcionario mueve el período. Interfaz que se mueve sola sin que nadie la toque | S |
+| **CSS-6** | **`scroll-snap-stop: always`** en el tablist del dock (`PanoramaDock.tsx:176,224`) | Ya usa `snap-x`/`snap-start`; sin `always` un swipe rápido en móvil se pasa de largo varias pestañas. Viaja con CSS-5 | XS |
+| **CSS-7** | **Unificar los 6 stagger hardcodeados** de `globals.css:899-920` en una regla con `calc(var(--d) * 80ms)` | Consistencia interna, ~20 líneas menos. **Expectativa honesta: el usuario no ve ninguna diferencia.** Entra por "consistente", no por "pulido" | XS |
+| **CSS-8** | `content-visibility: auto` en las 5 listas de `<li>` topeadas alto (`admin/observaciones` 500, `gob/vigilancia/brotes` 500, `gob/perdidas` 500, `org/mascotas` 200, `gob/cola` 200) | **NO es un compromiso: es "medir primero".** No hay medición y no hay librería de virtualización en el repo. Los topes son techos, no valores típicos — si en la realidad son 30 filas, la tarea no existe y se borra. **Restricción crítica**: containment NO se aplica de forma confiable a `<tr>`/`<tbody>`, así que las tablas quedan fuera; sólo filas de bloque. Regresión obligatoria: Ctrl+F y el deep-link `?signalId=` (`OutbreakSignalRow.tsx:60`) tienen que seguir llegando al contenido salteado | M (gated) |
+
+**Rechazados con razón** (no reabrir sin evidencia nueva):
+
+- **`hyphens`** — `lang="es-AR"` haría que funcione y las celdas de 390px son un
+  caso plausible, pero **no se vio ninguna palabra rompiendo**. Se verifica en
+  la revisión de viewports; si rompe, entra con caso.
+- **`orphans` / `widows`** — Firefox no las soporta en 2026 y `break-inside:
+  avoid` ya cubre lo importante (`expediente-print.css:56`,
+  `libreta-print.css:8`). Una propiedad que la mitad de los navegadores ignora
+  **produce inconsistencia, no la resuelve**.
+- **`counter-increment`** — borraría el numerado en JS del landing
+  (`StorySection.tsx:160,179,193`), pero la salida vive en `content` generado:
+  no se selecciona, no se copia y los lectores de pantalla la anuncian dispar.
+  En un producto atado a la Ley 26.653 es un retroceso disfrazado de limpieza.
+
+**Nota sobre el método**: los tres ítems de mayor valor (CSS-2, CSS-3, CSS-4)
+**no salieron de la lista de 100 propiedades** — salieron de leer el código con
+la lista al lado. Y el hallazgo grande (CSS-1) fue una propiedad que no estaba
+usada en ninguna parte del repositorio. Vale para la próxima: el rendimiento de
+una lista de propiedades está en lo que te obliga a mirar, no en la lista.
+
+---
+
 ## Decisiones del PO ya tomadas sobre esta cola
 - **`/gob/perdidas`**: la supresión **queda**. Des-suprimir después es una línea; shipear el tier desnudo no es reversible.
 - **Primer admin**: al backlog. No bloquea hasta provisionar un municipio real.
