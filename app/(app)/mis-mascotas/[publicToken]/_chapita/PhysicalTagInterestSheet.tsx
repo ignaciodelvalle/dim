@@ -86,10 +86,16 @@ export function PhysicalTagInterestSheet({
         </h2>
       </div>
 
+      {/* "Te avisamos cuando estén disponibles" era una promesa sin mecanismo
+          (auditoría 2026-08-04): nadie podía LEER la lista de anotados — el
+          único lector era una consulta por mascota+usuario que responde "¿ya
+          pediste vos?". Ahora la demanda se agrupa por localidad en
+          /admin/programa, y como el aviso resultante es MANUAL, la copy dice
+          eso y no promete un correo automático que no existe. */}
       {interested ? (
         <p className="text-sm text-[var(--color-ln-ink-2)]">
-          Te avisamos cuando estén disponibles para {petName}.
-          {requestedAt ? ` Solicitado el ${DATE_FMT.format(requestedAt)}.` : null}
+          Quedaste anotado. Te vamos a escribir cuando haya un canal disponible en tu zona.
+          {requestedAt ? ` Anotado el ${DATE_FMT.format(requestedAt)}.` : null}
         </p>
       ) : (
         <>

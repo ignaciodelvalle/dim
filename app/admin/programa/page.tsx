@@ -82,6 +82,8 @@ import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateShort, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
+import { PhysicalTagDemandCard } from "./PhysicalTagDemandCard";
+
 export const dynamic = "force-dynamic";
 
 const METRIC_LABEL: Record<string, string> = {
@@ -833,6 +835,18 @@ export default async function AdminProgramaPage({
           </div>
         </div>
       </details>
+
+      {/* Physical-tag demand (audit 2026-08-04). The "Me interesa" sheet told
+          owners "te avisamos cuando estén disponibles" and wrote a row that
+          NOTHING could list — the only reader was a per-pet/per-user check
+          answering "did you already ask?". Same shape as the shelter contact
+          form whose messages nobody could open.
+
+          It lives on the executive summary, not on Sistema, because the
+          decision it feeds is a product one: the manufacturer and distribution
+          calls that block the physical tag are made per municipality, and this
+          is the only place that says where the demand actually is. */}
+      <PhysicalTagDemandCard />
 
       <DashboardFreshnessFooter ctx={adminCtx} />
     </div>
