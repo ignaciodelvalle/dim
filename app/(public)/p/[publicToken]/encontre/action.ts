@@ -19,10 +19,19 @@
 // P0g: photo also inserted into the attachments table (linked to the event) so
 // the historial / eventos / EventTimeline surfaces can render it for free.
 
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { attachments, cases, db, notifications, ownerships, petEvents, pets } from "@/db";
+import {
+  attachments,
+  cases,
+  db,
+  notifications,
+  organizationMemberships,
+  ownerships,
+  petEvents,
+  pets,
+} from "@/db";
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
@@ -149,12 +158,27 @@ export async function reportFinderInPossessionAction(
     };
   }
 
-  // Resolve owner.
-  const [owner] = await db
-    .select({ userId: ownerships.ownerUserId })
+  // Resolve the person to notify (ROUTE-1, audit 2026-08-04).
+  //
+  // This used to be a bare `.limit(1)` over every ACTIVE ownership row with no
+  // role filter and no ordering — so on a pet with an active foster, Postgres
+  // was free to hand back the foster and the finder's alert went to them
+  // instead of the titular. On the recovery path, which is exactly where
+  // mis-routing hurts.
+  //
+  // A role filter alone would be worse, not better: a pet in shelter custody
+  // has no `owner` row at all, and filtering would turn a mis-routed alert into
+  // NO alert. So the rows are ranked instead — titular first, then the
+  // institution holding custody, then whoever is caring for it — and the winner
+  // is the first that exists. Same shape as the resolve-dispute fix.
+  const activeHolders = await db
+    .select({ userId: ownerships.ownerUserId, role: ownerships.role })
     .from(ownerships)
-    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)))
-    .limit(1);
+    .where(and(eq(ownerships.petId, pet.id), isNull(ownerships.endedAt)));
+  const owner =
+    activeHolders.find((r) => r.role === "owner" && r.userId) ??
+    activeHolders.find((r) => r.role === "shelter_custody" && r.userId) ??
+    activeHolders.find((r) => r.userId);
   if (!owner?.userId) return { ok: false, error: "No se encontró un dueño activo." };
 
   // Rate limit — consumed only AFTER validation passes (tester fix #6): a
@@ -357,6 +381,74 @@ export async function reportFinderInPossessionAction(
     ctaUrl: `/mis-mascotas/${publicToken}`,
   };
   await db.insert(notifications).values(possessionNotification);
+
+  // A5 — the origin shelter also hears about it (PO decision 2026-08-04).
+  //
+  // A shelter that placed this pet has territorial reach and motivation the
+  // titular may not: it is a real second chance at recovery. The PO chose
+  // ALWAYS over opt-in, knowing the cost, and the cost is worth naming here
+  // because the code is where it becomes real: the shelter learns that an
+  // animal it no longer owns turned up, and roughly where — without the titular
+  // having asked for that. The mitigation is disclosure, not suppression: the
+  // pet's own profile states that the origin shelter is alerted, so the titular
+  // is never surprised by it.
+  //
+  // "Origin shelter" = the organization whose shelter_custody row was closed
+  // most recently. That is the handoff that produced the current titular
+  // (adoption, or a return to owner), and it is derived rather than stored so a
+  // pet that passed through two shelters credits the one that placed it.
+  //
+  // Deliberately does NOT carry the finder's contact details — only that the
+  // pet appeared and where. The finder shared their phone with the TITULAR, not
+  // with an institution they never chose.
+  const [originShelter] = await db
+    .select({ orgId: ownerships.ownerOrganizationId })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.petId, pet.id),
+        eq(ownerships.role, "shelter_custody"),
+        sql`${ownerships.ownerOrganizationId} IS NOT NULL`,
+        sql`${ownerships.endedAt} IS NOT NULL`,
+      ),
+    )
+    .orderBy(desc(ownerships.endedAt))
+    .limit(1);
+
+  if (originShelter?.orgId) {
+    const shelterAdmins = await db
+      .select({ userId: organizationMemberships.userId })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, originShelter.orgId),
+          isNull(organizationMemberships.leftAt),
+        ),
+      );
+
+    if (shelterAdmins.length > 0) {
+      const shelterNotifications = shelterAdmins.map((m) => ({
+        userId: m.userId,
+        notificationType: "origin_shelter_pet_found",
+        title: `Apareció ${pet.name}, que salió de tu refugio`,
+        body: `Alguien reportó tenerla en su poder${
+          locationLabel ? ` en ${locationLabel}` : ""
+        }. El titular ya fue avisado.`,
+        severity: "info" as const,
+        category: "perdidas",
+        relatedPetId: pet.id,
+        ctaLabel: "Ver mascota",
+        ctaUrl: `/p/${publicToken}`,
+      }));
+      // Best-effort: the finder's report is already recorded and the titular
+      // already notified. A failure here must never surface to the finder.
+      try {
+        await db.insert(notifications).values(shelterNotifications);
+      } catch (err) {
+        reportError("encontre:origin-shelter-notify", err, { petId: pet.id });
+      }
+    }
+  }
 
   // Web Push leg (ADR 2026-07-18 §4): urgent hallazgo en posesión — best-effort,
   // never throws, so it cannot affect the finder's already-recorded submission.

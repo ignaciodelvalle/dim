@@ -368,6 +368,42 @@ lo que este barrido terminó de confirmar.
   teórico: son 500 tarjetas multi-elemento maquetadas y pintadas de una, sin
   virtualización en el repo. Se saca el "medir primero".
 
+### A1 (chapa física) y A5 — decisiones del PO, 2026-08-04
+
+**A1 queda DESBLOQUEADA para ingeniería.** Las tres decisiones que definían el
+modelo de datos están tomadas:
+
+- **Serial: lo genera miMAR.** Controlamos formato y unicidad. **Consecuencia
+  obligatoria de diseño**: `/t/[serial]` es una URL pública, así que el serial
+  tiene que ser un token OPACO con el mismo criterio que `publicToken` — un
+  serial secuencial deja recorrer el padrón probando números.
+- **Activación: la chapa sale en blanco y la vincula el dueño.** Habilita stock
+  en mostrador de veterinarias y municipios, que es lo que el PO quiere.
+  **Riesgo que esto introduce y hay que resolver en el diseño, no después**: una
+  chapa en blanco robada antes de activarse la puede vincular cualquiera que la
+  tenga en la mano. Mitigación mínima: activación sólo con sesión iniciada, un
+  código de activación impreso APARTE del serial visible (el serial va en el
+  QR; el código, en el envoltorio), una sola vinculación por chapa, y quedar
+  revocable con traza de auditoría.
+- **Transferencia: la chapa sigue válida y viaja con la mascota.** Coherente con
+  el invariante #1 — la chapa identifica a la MASCOTA, no al titular.
+  Consecuencia aceptada: el dueño anterior conserva para siempre el
+  conocimiento de qué serial lleva ese animal.
+
+Sigue pendiente lo que NO es ingeniería: quién fabrica y cómo se distribuye.
+La tarjeta de demanda por localidad (`/admin/programa`, commit `1450a311`) es
+la entrada para esa decisión.
+
+**A5: el refugio de origen se entera SIEMPRE**, no por opt-in. Implementado.
+El PO eligió la cobertura por sobre el opt-in conociendo el costo, y el costo
+queda escrito porque en el código se vuelve real: un refugio se entera de que
+apareció un animal que ya no es suyo, y aproximadamente dónde, sin que el
+titular lo haya pedido. **Mitigación adoptada: divulgación, no supresión** — el
+aviso NO lleva el contacto del hallador (esa persona compartió su teléfono con
+el titular, no con una institución que no eligió), y el perfil de la mascota
+debe declarar que el refugio de origen recibe el aviso. *Pendiente: que el
+perfil lo declare — hoy el comportamiento existe y la divulgación no.*
+
 Las seis decisiones restantes (D5 a D9, D11) se ejecutan con el default
 propuesto salvo aviso: reconfirmar KA1/KA2 como riesgo aceptado, sumar KA4 al
 documento de limitaciones, ocultar Parquet, mantener el "Sin datos suficientes"

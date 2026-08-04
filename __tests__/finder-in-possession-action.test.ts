@@ -132,28 +132,46 @@ let idempotencyReturnEvent = false;
 function buildMockDb(petStatus = "lost") {
   let selectCallCount = 0;
 
+  // Positional fake: each terminated select returns the next fixture in order.
+  //
+  // Terminating on `.limit()` ALONE was a trap (2026-08-04): the action's owner
+  // lookup stopped calling `.limit(1)` — it now reads every active ownership row
+  // so it can RANK them (ROUTE-1) — and the chain silently handed back the
+  // builder object instead of rows, so `.find` was not a function. The chain is
+  // thenable now, so a query that ends at `.where()` resolves the same way and
+  // this fake stops depending on how a query happens to be spelled.
+  function nextResult(): unknown[] {
+    selectCallCount++;
+    if (selectCallCount === 1) {
+      // pet query
+      return [{ id: PET_ID, name: "Luna", status: petStatus }];
+    }
+    if (selectCallCount === 2) {
+      // active holders — ranked by role, titular wins
+      return [{ userId: OWNER_USER_ID, role: "owner" }];
+    }
+    if (selectCallCount === 3) {
+      // idempotency query
+      return idempotencyReturnEvent ? [{ id: "existing-event-id" }] : [];
+    }
+    if (selectCallCount === 4) {
+      // open case query
+      return [{ id: CASE_ID }];
+    }
+    // Origin-shelter lookup and anything after it: this fixture's pet never
+    // passed through a shelter, so the A5 notification block is skipped.
+    return [];
+  }
+
   const selectChain = {
     from: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     innerJoin: vi.fn(() => selectChain),
     leftJoin: vi.fn(() => selectChain),
-    limit: vi.fn(async () => {
-      selectCallCount++;
-      if (selectCallCount === 1) {
-        // pet query
-        return [{ id: PET_ID, name: "Luna", status: petStatus }];
-      }
-      if (selectCallCount === 2) {
-        // owner query
-        return [{ userId: OWNER_USER_ID }];
-      }
-      if (selectCallCount === 3) {
-        // idempotency query
-        return idempotencyReturnEvent ? [{ id: "existing-event-id" }] : [];
-      }
-      // open case query
-      return [{ id: CASE_ID }];
-    }),
+    orderBy: vi.fn(() => selectChain),
+    limit: vi.fn(async () => nextResult()),
+    // Thenable: resolves a chain that ends at `.where()` / `.orderBy()`.
+    then: (resolve: (v: unknown[]) => unknown) => resolve(nextResult()),
   };
 
   // insertChain supports .values().returning() (petEvents) and .values() alone
