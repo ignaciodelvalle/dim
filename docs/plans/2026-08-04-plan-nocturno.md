@@ -37,9 +37,17 @@ Hoy compiten `docs/plans/PENDIENTES.md` (31/07) y
 `docs/superpowers/plans/2026-06-24-CONSOLIDATED-pending-backlog.md` (24/06),
 **ambos** autodenominados fuente única. Acción:
 
-1. Verificar ítem por ítem cada cola contra el código (en curso).
-2. Fusionar los sobrevivientes en **una** cola — `PENDIENTES.md` — y **archivar**
-   la otra con una nota de a dónde se fue cada cosa.
+1. Verificar ítem por ítem cada cola contra el código.
+   **Cola vieja (24/06) — VERIFICADA 2026-08-04**: de sus 11 ítems accionables,
+   **8,5 están hechos**. Sólo sobreviven **A1** (chapa física `/t/[serial]` — no
+   existe `pet_tags` ni la ruta; spec activa, decisiones de producto abiertas) y
+   la mitad-feature de **A5** (dual-routing del formulario "¿Encontraste?" al
+   refugio de origen). Residual de ops: el toggle de leaked-password en el
+   dashboard de Supabase (A9), que no es código.
+2. **Ojo con el orden**: A1 y A5 **no están en `PENDIENTES.md`**. Archivar la
+   cola vieja sin migrarlos primero **pierde su único contenido vivo** — la
+   cola nueva no la está duplicando, la está ignorando. Migrar esas dos filas
+   (con su evidencia), recién después archivar con nota de a dónde fue cada cosa.
 3. Regla que queda escrita en la cola sobreviviente: **todo ítem lleva la
    evidencia con la que se verificó y la fecha**. Un ítem sin evidencia
    re-verificable no entra.
