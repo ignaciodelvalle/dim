@@ -1,7 +1,12 @@
 # Strangler Finish Plan — `app/actions/` migration backlog
 
 > Created: 2026-06-26  
-> Status: **PLANNED — not started**  
+> Status: **🟡 PARCIAL — verificado 2026-08-04.** El encabezado decía "not
+> started" y el grueso está hecho: `app/actions/` bajó a ~70 archivos / ~5.900
+> líneas (el plan hablaba de ~20.000). **Residual real**: los dos flujos que el
+> propio plan marcaba como críticos siguen gordos y no son shims —
+> `app/actions/decomiso.ts` (506 líneas) y `return-to-owner.ts` (263). Ese es
+> el alcance que queda; el resto del documento es historia.  
 > Owner: TBD (multi-session program)  
 > CI guard: `pnpm lint:actions` (baseline: `scripts/action-line-budget-baseline.json`)
 

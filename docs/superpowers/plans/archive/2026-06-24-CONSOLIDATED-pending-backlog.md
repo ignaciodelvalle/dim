@@ -1,5 +1,24 @@
 # Plan CONSOLIDADO — Backlog de pendientes (auditoría docs↔código, 2026-06-24)
 
+> ## ⛔ ARCHIVADO 2026-08-04 — NO USAR COMO COLA
+>
+> Verificado ítem por ítem contra el árbol el 04/08: **8,5 de sus 11 ítems
+> accionables ya estaban hechos** (A2, A3, A4, A6, A7, A8, A9, A10, A11 y la
+> mitad-doc de A5). Este documento se declaraba "fuente única de pendientes" al
+> mismo tiempo que `docs/plans/PENDIENTES.md` — dos colas únicas es el defecto
+> que ambas existen para cazar.
+>
+> **Las dos filas vivas se migraron a `docs/plans/PENDIENTES.md`** (sección
+> "Features no construidas"): **A1** (chapa física `/t/[serial]`) y la
+> mitad-feature de **A5** (dual-routing del found-form). El residual de ops
+> (toggle de leaked-password en el dashboard de Supabase) quedó anotado ahí
+> mismo.
+>
+> Se conserva por su valor histórico: el método de auditoría y la evidencia de
+> cada hallazgo siguen siendo útiles. **Como lista de trabajo pendiente, está
+> muerto.**
+
+
 > **Fuente única de pendientes.** Resultado de una auditoría exhaustiva docs↔código con **AGENTS.md como catálogo maestro** (§573 eventos, §768 dashboards, §972 feature inventory, §1177 open questions) + los 50 specs y 36 planes activos, **verificada contra el código real** por dominio (eventos/libreta, owner/público, org, casos/welfare/surveillance, dashboards/métricas/Panorama, identidad/legal/infra).
 > Método: 6 barridos paralelos read-only; cada claim contrastado contra `db/schema.ts`, `lib/**`, `src/modules/**`, rutas `app/**`. Los hallazgos de peso (privacidad, integridad DB) se re-verificaron a mano.
 > Severidad: 🔴 correctitud/seguridad/privacidad · 🟡 feature faltante o fricción · 🟢 polish/decisión.

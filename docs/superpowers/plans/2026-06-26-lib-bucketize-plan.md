@@ -1,7 +1,15 @@
 # `lib/` Bucketize Plan — taxonomy + per-file migration recipe
 
 > Created: 2026-06-26
-> Status: **PLANNED — not started** (ratchet active; files migrating iteratively)
+> Status: **✅ COMPLETADO — verificado 2026-08-04.** `lib/` root tiene CERO
+> archivos `.ts` sueltos; todo vive en `lib/{domain,infra,reference,analytics,
+> events,ui,utils}/` y `pnpm lint:lib-root` mantiene la puerta cerrada.
+>
+> El encabezado decía "PLANNED — not started" con el trabajo terminado, y eso
+> tuvo consecuencia: esta misma migración dejó **44 rutas muertas** en
+> AGENTS/README/CLAUDE que nadie corrigió (arregladas el 04/08), porque el
+> documento que habría avisado que la mudanza ocurrió decía que no había
+> ocurrido.
 > Owner: TBD (multi-session program)
 > CI guard: `pnpm lint:lib-root` (baseline: `scripts/lib-root-baseline.json`)
 
