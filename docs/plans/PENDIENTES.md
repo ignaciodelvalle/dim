@@ -86,17 +86,23 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 
 ---
 
-## 🔴 P1 — rompe algo para un usuario, sin cola
+## 🔴 P1 — **VACÍA** (verificada el 2026-08-04)
 
-| # | Qué | Dónde |
-|---|---|---|
-| **RA-2 F4** | Firmar un chip distinto al canónico **deja el canónico intacto en silencio**: la espina guarda el chip B verificado, la ficha sigue mostrando el A, sin aviso | `microchip-use-case.ts:124`, `events-repository.ts:197` |
-| **RA-2 F5** | `replaceMicrochipVetAction` sigue usando el `redirect()` dentro de la acción que el resto migró, con comentario explicando por qué | `microchip/reemplazar/action.ts:118` |
-| **RA-2 F9** | Un `org.transfer.propose` concedido es **inerte**: la página chequea rol de membresía, nunca capacidades — y el mensaje "Solo roles admin o coordinator" es **falso** | `transferencias/nueva/page.tsx:52-53` |
-| **RA-2 F10** | "Enviar documentación" apunta a una página sin nada que enviar; `done: input.isVerified` **nunca puede darse vuelta desde adentro de la org** | `org-setup-checklist.ts:120-127` |
-| ~~**RA-7 F4**~~ | **CERRADO 2026-08-01** — las tres ramas de settle del efecto de invalidación scope/period rutean por `layerFetchPatch` (la rama `catch` era la única sin migrar); test nuevo cubre el drill con fallo de red | pista B del backlog consolidado |
-
----
+> Los cuatro ítems que vivían acá (RA-2 F4, F5, F9, F10) **ya están
+> arreglados**, verificados uno por uno contra el árbol:
+>
+> | Ítem | Evidencia del arreglo |
+> |---|---|
+> | F4 chip distinto al canónico | `checkChipMatchesCanonical` rechaza el conflicto ANTES de la transacción (`lib/domain/microchip-validation.ts:78-115`) |
+> | F5 `redirect()` en la acción | `microchip/reemplazar/action.ts:117-122` devuelve `{ redirectTo }` (N3) |
+> | F9 `org.transfer.propose` inerte | la página llama `requireCapability(...)` (`transferencias/nueva/page.tsx:37-47`) |
+> | F10 "Enviar documentación" a la nada | verificación como estado de espera declarado (`waitingOn: "mimar"`) |
+>
+> **Aviso de método**: las citas viejas de F4 (`microchip-use-case.ts:124`,
+> `events-repository.ts:197`) apuntaban al ARREGLO, no al defecto. Quien las
+> siguiera de buena fe "re-arreglaba" código que funciona. Fue la tercera vez
+> que este documento cayó en ese modo de falla — de ahí la regla de evidencia
+> fechada de arriba.
 
 ## 🟠 P2 — el gate miente
 
@@ -106,11 +112,11 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 | **RA-8 estructural** | **10 archivos `"use server"` invisibles a los tres linters de authz** (el glob es plano). Incluye 8 acciones de escritura médica en atender y tres exports sin guard |
 | **RA-8 estructural** | `check-authz-scoping` **se derrota con un comentario** — la palabra "jurisdiction" en cualquier parte del cuerpo cuenta como prueba. Baseline: 41 acciones tenant-guarded pero sin scopear |
 | **RA-8 estructural** | `check-rls-coverage` solo verifica que **exista** una política, nunca su contenido, roles, cláusula `TO` ni GRANTs. Por eso R1 pasó limpio con tres políticas |
-| **RA-8 estructural** | **8 políticas sin cláusula `TO`** → caen a `PUBLIC` (incluye anon). Hoy son seguras por accidente, vía predicados `auth.uid()`, no por diseño |
+| **RA-8 estructural** | **10 políticas sin cláusula `TO`** (en 8 tablas; `achievement_views` aporta 3 — recontado 04/08) → caen a `PUBLIC` (incluye anon). Hoy son seguras por accidente, vía predicados `auth.uid()`, no por diseño |
 | **RA-8 estructural** | `middleware.ts` **no hace autorización**. Cada ruta se auto-gatea, sin red de seguridad |
-| **RA-2 F16** | `lint:nav` prohíbe **solo `router.refresh(`** mientras su docblock nombra push/replace. **20 sitios vivos** |
-| **RA-2 F15** | El fence N3 reporta **cero deuda falsamente** — 8 `redirect()` en módulos de caso de uso, fuera de sus dos globs |
-| **NUEVO 31/07** | **Cuatro fences `.ts` cargan su propia copia byte-idéntica de `stripComments`.** Ya existe el módulo compartido (`scripts/lib/strip-comments.mjs`) y `tsx` resuelve `.mjs` desde `.ts` sin ceremonia. Migrarlos |
+| **RA-2 F16** | `lint:nav` prohíbe **solo `router.refresh(`** mientras su docblock nombra push/replace. **~25 líneas vivas en 22 archivos** (recontado 04/08) |
+| **RA-2 F15** | El fence N3 reporta **cero deuda falsamente**. Recontado 04/08: ya tiene **cuatro** globs (el agujero de `action.ts` se cerró); lo que queda fuera son los **módulos de caso de uso** — ~12 `redirect()` en 10 archivos bajo `src/modules/*/application/**` |
+| **NUEVO 31/07** | **Dos fences cargan su propia copia de `stripComments`** (`check-confused-deputy.ts`, `check-router-refresh.ts`) — recontado 04/08: los otros dos ya re-exportan del módulo compartido. Ya existe el módulo compartido (`scripts/lib/strip-comments.mjs`) y `tsx` resuelve `.mjs` desde `.ts` sin ceremonia. Migrarlos |
 
 ### Tests que no guardan nada
 
@@ -124,12 +130,12 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 | ~~**El presupuesto de login POR EMAIL**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. La causa de 9 de las rojas nuevas (`synthetic-monitor`): `login refused for owner@dim.test`. El workaround de … |
 | ~~**E2E `a11y-operator-auth`**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. Dos tests describen una **IA retirada**, mismo patrón que `owner-shell`: esperan que un operador sin permisos … |
 | ~~**E2E `crisis-seams` (d)**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. La adopción no transfiere fuera de la custodia del refugio, o el test no lo ve. Rojo en CI desde antes de esta… |
-| **`PanoramaConsole` "finding 1"** | `waitFor` con el presupuesto por defecto de 1s; en CI tardó 1541 ms y se pasó. **47 `waitFor` sin timeout explícito en ese archivo.** No subir uno suelto: o se decide un presupuesto para el archivo, o se acepta el flake declarado |
+| **`PanoramaConsole` "finding 1"** | `waitFor` con el presupuesto por defecto de 1s; en CI tardó 1541 ms y se pasó. **59 `waitFor` sin timeout explícito en ese archivo** (recontado 04/08: eran 47 cuando se escribió esto). No subir uno suelto: o se decide un presupuesto para el archivo, o se acepta el flake declarado |
 | **RA-4 F8** | Un test de scope de gobierno que **nunca ejecutó una aserción** desde que se escribió: el primer test del archivo deja al usuario en un estado que hace fallar su `submit`, y el `if (!submit.ok) return` se traga todo |
 | **RA-4 F9** | Un guard cross-org que **nunca llama a la acción que guarda** — la aserción de cierre es tautológica por construcción |
 | **RA-4 F5-F7** | El `pet-carousel-dots` muerto, el chequeo de "cero disfrazado de supresión" que nunca inspecciona un numérico, y warn-and-skip en tests de constraint |
-| **RA-9 EI-4/5/6** | Dos gates de axe que se auto-jubilan con `test.skip` sobre data vacía (uno es el "momento héroe", Ley 26.653) · `qa-panorama-a11y.ts` es un generador de reportes vendido como gate (no lo cita nadie) · dos aserciones de touch-target que matchean el documento entero |
-| **RA-7 F8** | `cube-parity` es **vacuo justo donde importa**: a grano provincia compara literales contra literales; a grano nacional el loop de valores saltea toda celda suprimida |
+| **RA-9 EI-4/5/6** | **Tres** self-skips dependientes de datos en `public-smoke.spec.ts` (recontado 04/08), dos de ellos gates de axe que se auto-jubilan con `test.skip` sobre data vacía (uno es el "momento héroe", Ley 26.653) · `qa-panorama-a11y.ts` es un generador de reportes vendido como gate (no lo cita nadie) · dos aserciones de touch-target que matchean el documento entero |
+| **RA-7 F8** | `cube-parity` es **vacuo en su mitad nacional**: el loop de valores saltea toda celda suprimida (`if (!cp) continue`). Corregido 04/08: la cláusula de grano provincia era falsa — `normFeatures` compara dos sets calculados de forma independiente, es una comparación real |
 | ~~**P2.8**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. `rls/matrix` tiene guards por celda que lanzan, pero el patrón hermano sigue vivo en **13 tests de aislamiento… |
 | ~~**P2.5**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. `owner-ia-p6` 1/2/10 y `synthetic` (c)/(d) trabados en skeletons de Suspense pasado el presupuesto de 8s… |
 
