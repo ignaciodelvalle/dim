@@ -232,6 +232,36 @@ dashboard de Supabase (A9 de la cola vieja).
   no se selecciona, no se copia y los lectores de pantalla la anuncian dispar.
   En un producto atado a la Ley 26.653 es un retroceso disfrazado de limpieza.
 
+### Movimiento e impresión — barridos del 2026-08-04
+
+> `docs/reviews/2026-08-04-motion-audit.md` y `.../print-surfaces-audit.md`.
+
+| # | Qué | Por qué | Tamaño |
+|---|---|---|---|
+| **PRN-1** | **Test que emule medios de impresión.** `emulateMedia` da **cero** en todo el repo | Es la causa de que estos defectos sobrevivieran. Sin esto, el cartel que arreglamos hoy se rompe de nuevo mañana y nadie se entera. **Va antes que los arreglos**, no después | M |
+| **PRN-2** | **`/p/[publicToken]` sin hoja de impresión.** El chip `perdida` es `background: var(--color-ln-err); color:#fff` (`globals.css:3553-3557`) y es **el único portador textual de la situación** (`:3590-3596`) | Al imprimir la credencial de una mascota perdida, el fondo se cae y la página no dice en ningún lado que está perdida. Es la página que más se escanea e imprime. Mismo mecanismo que CSS-1 | S |
+| **PRN-3** | **Expediente de maltrato e informe de panorama se truncan a una página** (PREDICHO). Los dos escapan del shell con `position:absolute`, pero su ancestro posicionado es el `AppShell` con `fixed inset-0 overflow-hidden` | El informe promete en su encabezado que ranking, notas de método y k-anonimato "nunca se descartan". **Requiere papel para confirmar** — imprimir `/gob/maltrato/<id>` con timeline largo y buscar el pie que sólo existe al imprimir | M |
+| **PRN-4** | **QR de la chapita con `margin: 0`** (`chapita/page.tsx:59-63`) — sin zona de silencio | Un QR sin margen blanco alrededor falla al escanear. (La tinta del QR **sí** está a salvo: `qrcode` pinta con `fill`/`stroke` de SVG, que `print-color-adjust` no toca) | S |
+| **MOT-1** | **Tokens de movimiento: hoy hay 18 duraciones distintas y 8 curvas, y CERO tokens** (verificado: `--duration-*`/`--ease-*` no existen). La curva más usada, `cubic-bezier(0.4,0,0.2,1)`, monta **~433 utilidades de Tailwind y nadie la eligió ni la escribió** | Un sistema de diseño con 18 duraciones no tiene ninguna. Set propuesto: 150/180/300/600/1500ms + 2 curvas, eligiendo en cada rol **el valor que ya tiene más instancias**. La adopción es mayormente borrado, sin valores arbitrarios nuevos | M |
+| **MOT-2** | **165 `loading.tsx` cortan de golpe.** `.op-fade-in` existe, funciona y se usa 19 veces en 3 archivos | Sistémico y ya resuelto en el repo: es cablear lo construido, no construir | M |
+| **MOT-3** | **`prefers-reduced-motion`: 19 sitios bien guardados, 3 sin guardar.** El nuevo es `p/[publicToken]/CredentialActionBar.tsx:75` — scroll suave sin guardar en la **página pública de mascota perdida** | Verificado hoy. Es la superficie que abre un desconocido con una mano, tenso, en el celular. Peor radio de impacto de los tres. Los otros dos: `ScrollToSignal.tsx:22` (= CSS-4) y `PetDetailTabsPanel.tsx:190` | S |
+| **MOT-4** | `ConfirmDialog.tsx:190-206` aparece de golpe en ~20 llamados de acción irreversible · nueve disclosures donde **el chevron anima y el panel teletransporta** · `KpiChips` salta mientras `OpKpi` interpola | El estado a medias es peor que cualquiera de los dos extremos. `AnimatedNumber`/`useCountUp` está construido, guardado y testeado, cableado a **un** consumidor — no a la superficie donde ver cambiar el número es todo el punto | M |
+
+**No animar** (tan valioso como la lista de arriba): salida de filas en colas de
+operador · flujos de emergencia (perdida, mordedura, maltrato — ahí el arreglo
+es **quitar** movimiento, no suavizarlo) · celdas de tabla durante un cambio de
+valor (se arregla con `table-layout`, no easeando el salto) · **salida** de
+diálogo mientras el usuario espera un resultado · filas de la espina de eventos
+· el fade de divisiones durante un scrub.
+
+**Dos "no" con razón**: **View Transitions** no es viable todavía — con 165
+`loading.tsx`, el modelo RSC haría que la transición anime **hacia el esqueleto**,
+la mitad equivocada del problema. Y la prohibición de `interpolate-size`
+**generaliza más allá del dock**: es un opt-in a nivel `:root` que cambia la
+interpolación de `auto` en todo el documento, así que habilitarlo para un panel
+cambia en silencio las nueve disclosures. Para esas, `grid-template-rows: 0fr →
+1fr` ya lo resuelve sin opt-in global.
+
 **Nota sobre el método**: los tres ítems de mayor valor (CSS-2, CSS-3, CSS-4)
 **no salieron de la lista de 100 propiedades** — salieron de leer el código con
 la lista al lado. Y el hallazgo grande (CSS-1) fue una propiedad que no estaba
