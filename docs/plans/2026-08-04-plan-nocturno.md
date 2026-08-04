@@ -64,8 +64,20 @@ Hoy compiten `docs/plans/PENDIENTES.md` (31/07) y
 
 ### 0.3 — Los otros registros
 
-7. **Triage de los 18 planes activos** en `docs/superpowers/plans/`: los que
-   describen trabajo ya shippeado se archivan; los vivos declaran qué falta.
+7. **Triage de los 18 planes activos — HECHO 04/08.** Resultado: **~12 están
+   shippeados** y se archivan. Siguen vivos sólo tres: `spec-later-tracker`
+   (registro, no plan), `bite-from-unowned-animal` (backlog explícitamente
+   gateado) y `physical-credential-hub` (nunca arrancado). Dos necesitan
+   decisión: `executive-e2e-readiness` (re-correr el gate hoy que está verde) y
+   `strangler-finish-plan` (residual real: `app/actions/decomiso.ts` 506 líneas
+   y `return-to-owner.ts` 263 siguen gordos, no son shims).
+
+   > **Dos planes tienen el encabezado al revés**: `lib-bucketize-plan.md` y
+   > `strangler-finish-plan.md` dicen "PLANNED — not started" y el trabajo está
+   > hecho (el primero, entero: `lib/` root tiene **cero** `.ts` sueltos). Y no
+   > es anécdota: **esa bucketización es justo la que dejó 44 rutas muertas en
+   > los docs hoy.** El documento que te habría avisado que pasó, dice que no
+   > pasó. Corregir encabezados antes de archivar.
 8. **`spec-later-tracker`**: sus 3 entradas están bloqueadas por decisiones
    EXTERNAS (export PPP CABA, credencial de perro guía Ley 26.858, documentos de
    viaje). No son trabajo nuestro — quedan marcadas como "esperando a terceros"
@@ -135,15 +147,15 @@ citaban**. El claim del CHECK de `account_type` se escapó porque no citaba nada
 | RA-2 F9 | Un `org.transfer.propose` concedido es **inerte** — la página chequea rol de membresía, nunca capacidades, y el mensaje "Solo roles admin o coordinator" **es falso** | `app/org/[orgToken]/transferencias/nueva/page.tsx:43` |
 | RA-2 F10 | "Enviar documentación" lleva a una página sin nada que enviar; `done: input.isVerified` nunca se da vuelta desde dentro de la org | `org-setup-checklist.ts:120` |
 | RA-2 F5 | `replaceMicrochipVetAction` usa el `redirect()` dentro de la acción que el resto ya migró (contrato N3) | `microchip/reemplazar/action.ts:118` |
-| **#758** | `govt_assignments` matchea jurisdicción por **string exacto**: un alta con "CABA" ve cero de las 3.421 mascotas de "Ciudad Autónoma de Buenos Aires" | issue #758 |
+| ~~**#758**~~ | ~~`govt_assignments` por string exacto~~ — **YA ARREGLADO, verificado 04/08**: `lib/domain/jurisdiction-canonical.ts` (`resolveCanonicalJurisdiction`), migración `0117_govt_assignments_locality_canonical.sql`, y un test de regresión que nombra el issue. **Cerrar el issue.** | — |
 
-> **#758 es la misma clase de falla que nos mordió hoy en e2e**: la denuncia con
-> jurisdicción NULL era invisible para todo operador y nada lo decía. Ahí el
-> origen era un geocode fallido; acá, una grafía no canónica. **El patrón es
-> "scope por igualdad exacta sobre texto libre, sin validación en el alta y sin
-> señal cuando no matchea"** — vale arreglar la clase, no la instancia:
-> canonicalizar/validar contra `ar_localities` al crear la asignación, y que un
-> scope que no resuelve **se note**.
+> **Nota de método, porque casi lo repito yo.** Al leer #758 lo conecté con lo
+> que nos mordió hoy en e2e (un scope que no matchea deja el caso invisible y
+> nada avisa) y propuse "arreglar la clase, no la instancia". La verificación
+> mostró que **ya está arreglado, con canonicalización + migración + test que
+> cita el issue**. La conexión conceptual era correcta; la premisa de que
+> seguía abierto, no. Es exactamente el error que este bloque existe para
+> evitar: **el issue seguía abierto en GitHub, no en el código.**
 
 ---
 
@@ -181,16 +193,21 @@ Ahora que los tests son honestos, este es el bloque con más valor: son gates qu
 
 ## Bloque 4 — issues de GitHub abiertos (10)
 
+**Verificados uno por uno el 04/08** contra el árbol. De los 10: **1 ya estaba
+arreglado** (#758 — cerrar), **2 necesitan re-scope** (#756 el bug de copy ya se
+arregló, queda sólo la feature; #141 el código y el script de backfill están en
+`main` desde los PRs #142/#453 — lo que queda es **ejecutarlo**, tarea de ops,
+no de ingeniería), y **7 son reales**.
+
 | # | Qué | Clase |
 |---|---|---|
-| #758 | jurisdicción por string exacto (ver Bloque 1) | bug, datos huérfanos |
 | #755 | Los badges del hero se aplastan contra el QR a 320px exactos | bug visual |
-| #141 | Replay de notificaciones ENO perdidas (diagnósticos pre-fix) | bug, datos |
+| #141 | Replay de notificaciones ENO — **el código y el script ya están en `main`**; queda EJECUTARLO contra los datos históricos | ops, no ingeniería |
 | #754 | Drop de `pet_achievement_views` — migración destructiva, review propio | riesgo |
 | #753 | Endurecer provenance de `dangerous_breed_attested`: quién puede emitirlo y con qué evidencia | integridad |
 | #759 | No existe writer de UI/server-action para los tipos de evento de vigilancia | feature |
 | #757 | Guiar al vet al canal profesional cuando actúa sobre una mascota que tiene en tránsito personal | feature |
-| #756 | Acceso de escritura del vet vía link de libreta compartida — **flujo publicitado, no construido** | feature |
+| #756 | Acceso de escritura del vet vía link de libreta compartida. **El aviso engañoso ya se sacó** (hoy dice "Vista de sólo lectura"); queda la feature | feature, re-scopear |
 | #752 | Rediseñar credencial pública `/p/{token}` + cartel al lenguaje visual de la Credencial DNI | diseño |
 | #751 | Extraer helpers compartidos de pet-list/reminders + doctrina de footer en mis-turnos | refactor |
 
