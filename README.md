@@ -43,7 +43,7 @@ The full design — principles, data model, event catalog, privacy tiers, dashbo
 | `govt` | institutional | `/gob` | Locality-scoped approvals and regional dashboards. Multi-locality via `govt_assignments`. |
 | `admin` | institutional | `/admin` | Universal scope. Creates institutional accounts, global audit, universal business rules. |
 
-Account type is DB-enforced via CHECK constraint on `profiles.account_type`. Personal accounts (`owner`, `vet`) can own pets and have Mi Argentina identity. Institutional accounts (`govt`, `admin`) have neither — they are service accounts for governance work.
+The `account_type ↔ role` invariant (personal→{owner,vet}, institutional→{govt,admin}) is enforced at the **app layer only**. Migration 0015 added a DB CHECK and migration 0016 **dropped it** — see that file for the reason (the ORM's non-atomic two-column UPDATE tripped it on an intermediate row state). Do not assume the database refuses a mismatched pair. Personal accounts (`owner`, `vet`) can own pets and have Mi Argentina identity. Institutional accounts (`govt`, `admin`) have neither — they are service accounts for governance work.
 
 ## Stack
 
