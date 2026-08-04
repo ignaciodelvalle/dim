@@ -93,6 +93,7 @@ Before writing a new event type, walk through `docs/event-design-checklist.md`. 
 | Design rules (UI conventions) | [#design-rules-ui-conventions](#design-rules-ui-conventions) | Forms, buttons, chrome, a11y |
 | Open questions / future work | [#open-questions--future-work](#open-questions--future-work) | What is deferred / out of scope |
 | Test-runner conventions | [#test-runner-conventions-item-29--wave-5](#test-runner-conventions-item-29--wave-5) | Test suite setup, pool, teardown |
+| **e2e (Playwright)** | `e2e/README.md` (not in this file) | Writing/fixing a browser test; CI's E2E job. Runs against the BUILT app on :3333 with a fresh `db:bootstrap` DB — NOT part of `pnpm verify`; also runs nightly vs staging (`.github/workflows/e2e-nightly.yml`). |
 | **Privacy checklist** | [#privacidad-y-manejo-de-datos](#privacidad-y-manejo-de-datos) | **Any public route, token, or PII field** |
 | How Claude should work | [#how-claude-should-work-in-this-repo](#how-claude-should-work-in-this-repo) | Working norms |
 
@@ -1442,6 +1443,18 @@ Long-standing fences (pre-dating this section): `lint:tokens`, `lint:locality`,
 `lint:authz-orgtoken`, `lint:deps`, `lint:rls`, `lint:actions`, `lint:lib-root`,
 `lint:mocks`, `lint:buttons`, `lint:nav`, `lint:notifications`,
 `lint:db-budget`, `lint:metric-labels`, `lint:opened-reason`.
+
+**The non-obvious ones, spelled out** (the rest are self-describing from their
+script name — read `package.json`, do not trust an inventory here):
+
+| Fence | Rule you must follow |
+|---|---|
+| `lint:lib-root` | **Nothing new goes in `lib/` root.** Every module lives in a bucket by role: `lib/domain` (pure rules), `lib/infra` (I/O, DB, external services), `lib/reference` (static catalogs), `lib/analytics`, `lib/events`, `lib/ui`, `lib/utils`. This is why a doc citing `lib/foo.ts` is always stale. |
+| `lint:spine` | Invariant #3, checked against the live DB: every `pets` row must have its `pet_registered` event. A cache row with no spine event is a cache outranking the log. |
+| `lint:action-redirect` | Server actions RETURN `redirectTo` (the N3 contract); they do not call `redirect()` themselves. |
+| `lint:csp-prerender` | No prerendered page may exist — every route needs a per-request CSP nonce. |
+| `lint:ci-parity` | The fences CI runs must equal the fences `verify` runs; drift here is how a gate goes quiet. |
+| `lint:seed-ids` | Static twin of `check-seed-hygiene`: no seed script may write a seed-marker literal into a RENDERABLE column (displayName/description/name), so demo scaffolding can never surface as real content. |
 
 **New fences, waves S + M:**
 

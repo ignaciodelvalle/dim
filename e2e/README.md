@@ -50,10 +50,49 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
 
 ## Conventions
 
+- **CI's fresh-seed DB is the judge, not your laptop.** `pnpm db:bootstrap`
+  seeds reference data + `scripts/seed-test-users.ts` and STOPS — no cases, no
+  lost pets, no share tokens, and none of the demo/storyline seeds. A dev DB
+  accumulates state (a lost first pet, an emptied refugio, same-day duplicate
+  events) that makes local runs of some specs fail or pass for reasons the code
+  has nothing to do with. Iterate locally on ONE spec; trust the CI verdict for
+  the suite.
 - No hardcoded DB ids/tokens — discover them from a real page at runtime
   (`a[href^="/adoptar/DIM"]`, `a[href^="/mis-mascotas/DIM"]`, etc.) and
-  `test.skip(...)` when the seed doesn't have the fixture you need.
+  `test.skip(...)` when the seed doesn't have the fixture you need. Note org
+  tokens are `DIM-`-prefixed too: capture the `/mascotas/<pet>` segment, not
+  the first `DIM-` match in an href.
 - Deterministic only: web-first assertions (`expect(locator).toBeVisible()`),
   no arbitrary `sleep`, no reliance on `Date.now()`/random.
 - Shared login/demo-account helpers live in `demo/_helpers.ts`
   (`loginAs`, `ACCOUNTS`).
+
+### Hard-won rules (2026-08-03/04, retiring a standing CI red)
+
+- **Rate limits are real and the suite trips them.** `auth_login_email` is
+  5/min · 20/hour keyed on the EMAIL (a unique `x-real-ip` does nothing), and
+  Playwright REPLACES the worker after every failure — emptying `loginAs`'s
+  session cache, so real sign-ins scale with FAILURES, not with tests. A few
+  genuine failures used to starve every later spec. `loginAs` now calls
+  `resetAuthLoginRateLimits()` (`demo/_db-cleanup.ts`, local DB only) before a
+  real sign-in. Any spec with its own private login MUST do the same. The
+  anonymous denuncia is 1/min per IP — pass a unique `uniqueIp()` per walk.
+- **Never assert a 404 by HTTP status.** Streaming routes flush the shell
+  before the scoped lookup resolves, so `notFound()` fires after headers went
+  out and a DENIED page answers **200** with the branded boundary rendered.
+  Assert the surface (`branded-not-found` testid), never `response.status()`.
+- **Never wait on a post-action URL.** The client half of the N3 contract
+  (`useActionRedirect` → `window.location.assign`) drops often enough to
+  matter — the documented Next 15.5.x behaviour in
+  `lib/ui/full-page-action-nav.ts`. Assert the OUTCOME the mutation produces;
+  if you need an id the redirect carried, read it from the index page instead.
+- **Dates must be ART-local**, not `toISOString()`. The server rejects future
+  dates in Argentina time, and from ~21:00 ART the UTC date is already
+  tomorrow — that made a seam pass every morning and fail every night.
+  Use `Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })`.
+- **Walk multi-step wizards.** Mark-lost and denuncia submits live on the LAST
+  step; clicking that button's name from step 1 waits for an element that step
+  never renders. `playwright.config.ts` now sets `actionTimeout: 15s` so this
+  fails legibly instead of silently eating the test budget (Playwright's
+  default is 0 — no limit — and an unbounded action cannot be caught by
+  `try/catch`, because it never throws).

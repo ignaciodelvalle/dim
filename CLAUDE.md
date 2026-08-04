@@ -21,6 +21,8 @@ Stack: Next.js 15 (App Router) + React 19 + TypeScript, Supabase (Postgres + RLS
 
 `pnpm verify` + `pnpm test` green (paste actual output as evidence) AND committed. Conventional commits, no AI attribution. Migrations are forward-only and immutable (`db/migrations/NNNN_*.sql`); recount the next free integer at write time — never hardcode one from a plan. Writing a migration file is agent work; applying it to a remote DB is Ignacio-gated.
 
+**e2e is a separate gate** — Playwright is NOT in `pnpm verify`; it runs as CI's own job (and nightly vs staging). Touching a browser-facing flow means checking that job, not just the local suite. Conventions and the hard-won traps live in `e2e/README.md` — read it before writing or fixing a spec.
+
 ## Delivery strategy (decided — do not re-ask)
 
 `delivery_strategy: single-pr` with `size:exception` is the project default (PO decision, three consecutive changes: pet-document-redesign #593, admin-rules-console #604, jurisdiction-compliance 2026-07-03). When an SDD forecast recommends chained PRs, note it in the summary but do not stop to ask. Still structure work-unit commits so a later split remains possible.
