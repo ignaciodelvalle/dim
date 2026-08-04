@@ -21,7 +21,7 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 2. **Events are append-only** — every fact about a pet's life is an immutable event. No event is ever edited or deleted. Corrections are new events.
 3. **Projections are first-class** — every view (owner timeline, public credential, vet record, govt dashboard) is `(events, filters) → view`. No view is source of truth.
 4. **Spanish UI, English code** — variable names, function names, comments in English. User-facing strings in Spanish (es-AR).
-5. **No DNI in plaintext** — `profiles.dni_number` was dropped (migration `0106_dni_less_identity.sql`). Use `lib/dni-hash.ts` `hashDni()` for equality, `dniLast4()` for display.
+5. **No DNI in plaintext** — `profiles.dni_number` was dropped (migration `0106_dni_less_identity.sql`). Use `lib/utils/dni-hash.ts` `hashDni()` for equality, `dniLast4()` for display.
 6. **Mi Argentina alignment** — no design decision breaks the federation premise.
 
 ### Where things live
@@ -31,12 +31,12 @@ Ultimate trajectory: **Mi Argentina integration** — federation with the Argent
 | Domain specs & plans index | `docs/superpowers/README.md` |
 | External-agent handoffs + orientation protocol | `docs/design/handoffs/README.md` — auditors/proposers MUST read it; canonical checkout only, never `.claude/worktrees/` |
 | Implementation plans | `docs/superpowers/plans/` |
-| 47 event types (`EVENT_TYPES` const) | `db/schema.ts` |
-| Per-event Zod schemas | `lib/event-schemas.ts` |
-| Libreta sanitaria event filter | `lib/libreta-sanitaria.ts` |
+| Event types — the `EVENT_TYPES` const IS the count (48 at last read; recount there, never trust a number written here) | `db/schema.ts` |
+| Per-event Zod schemas | `lib/events/event-schemas.ts` |
+| Libreta sanitaria event filter | `lib/infra/libreta-sanitaria.ts` |
 | Metrics / projection primitives | `lib/metrics/` (context, scope, period, anonymity, population, cache) |
 | Supabase client helpers | `lib/supabase/` |
-| DNI hashing (no plaintext) | `lib/dni-hash.ts` |
+| DNI hashing (no plaintext) | `lib/utils/dni-hash.ts` |
 | RLS policies (owner tables) | `db/rls.sql`, `db/welfare_rls.sql`, `db/organizations_rls.sql` |
 | RLS coverage test | `__tests__/rls/coverage.test.ts` |
 | Scan retention / 90d TTL purge | `lib/infra/scan-retention.ts` |
@@ -157,7 +157,7 @@ DIM is rooted in concrete data about the city it was designed for. Figures below
 | ORM              | Drizzle                             |
 | File storage     | Supabase Storage                    |
 | Maps             | MapLibre + OpenStreetMap            |
-| Tests            | Vitest (Playwright later)           |
+| Tests            | Vitest (unit + db) · Playwright e2e (`e2e/`, see `e2e/README.md`) |
 | Lint/format      | Biome                               |
 | Package manager  | pnpm                                |
 | Local dev        | Supabase CLI (Docker)               |
@@ -329,8 +329,8 @@ DIM must be designed around — not against — the Argentine legal landscape fo
 | Law                              | Scope                                                                                  | What it implies for DIM                                                                                                              |
 | -------------------------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
 | **Ley CABA 4078 (2012)**         | Registro de perros potencialmente peligrosos (dangerous-breed registry, CABA owners). | A `potentially_dangerous_breed` flag on `pets` plus an attestation event for owner registration. **Now a *measured* compliance metric (C7), not just a data field**: `fetchDangerousBreedCompliance` reports attested / flagged by jurisdiction (graceful 0% until the attestation form ships). |
-| **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. **Now a *measured* compliance metric**: microchip penetration (C1) + ISO-validity (C2) report adoption of the legal chip mandate by jurisdiction (`lib/compliance-metrics.ts`). |
-| **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload carries a `disposition_method` field (`cremation_collective \| cremation_individual_ashes \| authorized_cemetery \| owner_burial \| household_waste \| rendering \| unknown`) for traceability. Normalized by `lib/disposition.ts`; projected by `lib/mortality-metrics.ts`. |
+| **Ley Provincial 14.107 (2010)** | Provincial dangerous-breed registry; **obligatory microchip identification**.          | Microchip data is a real legal artifact, not just a feature. Province-level aggregation matters; our `jurisdiction_province` covers this. **Now a *measured* compliance metric**: microchip penetration (C1) + ISO-validity (C2) report adoption of the legal chip mandate by jurisdiction (`lib/analytics/compliance-metrics.ts`). |
+| **Ley CABA 5470 (2015)**         | Cremation process for canines and felines in CABA.                                     | `death_recorded` event payload carries a `disposition_method` field (`cremation_collective \| cremation_individual_ashes \| authorized_cemetery \| owner_burial \| household_waste \| rendering \| unknown`) for traceability. Normalized by `lib/domain/disposition.ts`; projected by `lib/analytics/mortality-metrics.ts`. |
 | **Ley Nacional 14.346 (1954)**   | Malos tratos / actos de crueldad contra animales.                                      | `maltreatment_reported` events need to eventually feed real complaint pipelines (denuncia integration is downstream of UI).          |
 | **Ley Nacional 25.326 (2000)**   | Protección de Datos Personales. Arts. 4° (purpose), 14 (acceso), 16 (supresión).       | `purpose data_purpose` + `deleted_at` baseline on every PII table; export/erase RPCs (compliance PR 1) live at `/cuenta/privacidad`. |
 | **Ley Nacional 26.653 (2010)**   | Accesibilidad de la Información en las Páginas Web (WCAG 2.1 AA via Disp. ONTI 6/2019). | Focus ring tokens + biome a11y rules at error level + `docs/a11y/contrast-audit.md` (compliance PR 2).                              |
@@ -344,10 +344,17 @@ None of these are blockers for v1. The data model accepts them without rework; t
 
 ## Data model
 
-### `User`
+### `User` (`profiles`)
 - `id` (uuid, pk), `email` (unique), `display_name`, `phone?`, `avatar_url?`
-- `dni_number?`, `dni_verified` (bool, default false) — Mi Argentina-ready
+- `account_type` (personal | institutional, CHECK-enforced), `role`
+- `dni_hash?`, `dni_last4?`, `dni_verified` (bool, default false) — Mi Argentina-ready.
+  There is **no `dni_number` column**: migration 0106 dropped it (invariant #5 — no DNI
+  in plaintext). Hash with `lib/utils/dni-hash.ts`.
 - `created_at`, `updated_at`
+
+> The authoritative shape of every entity below is `db/schema.ts`. These sketches carry
+> the INVARIANTS and the reasoning; when a field list disagrees with the schema, the
+> schema wins — and the sketch is the bug.
 
 ### `Organization` — peer to user; clinic / shelter / rescue network / sanitary authority
 - `id` (uuid, pk)
@@ -363,7 +370,7 @@ None of these are blockers for v1. The data model accepts them without rework; t
 - `tier_0_show_branding` (bool, default false) — opt-in to appear on public credentials of pets in this org's custody / recent followup window
 - `jurisdiction_country` (default `'AR'`), `jurisdiction_province?`, `jurisdiction_locality?` — HQ location
 - `status` (enum: `active | suspended | dissolved`)
-- `capacity_dogs?`, `capacity_cats?`, `capacity_other?`, `capacity_total?` (integer NULL) — declared shelter capacity (Wave 3 Item 16, migration 0102). All nullable — capacity is optional. Occupancy is always derived from active `shelter_custody` ownerships via `lib/org-census.ts` (pure projection — see §Projections). Only editable by org admins in the `/configuracion` page "Capacidad" section, which is gated to `shelter | rescue_network` org types.
+- `capacity_dogs?`, `capacity_cats?`, `capacity_other?`, `capacity_total?` (integer NULL) — declared shelter capacity (Wave 3 Item 16, migration 0102). All nullable — capacity is optional. Occupancy is always derived from active `shelter_custody` ownerships via `lib/analytics/org-census.ts` (pure projection — see §Projections). Only editable by org admins in the `/configuracion` page "Capacidad" section, which is gated to `shelter | rescue_network` org types.
 - `created_at`, `updated_at`, `created_by_user_id`
 
 ### `OrganizationCoverage` — where the org operates
@@ -387,7 +394,7 @@ None of these are blockers for v1. The data model accepts them without rework; t
 - `species`, `breed?`, `name`, `sex` (male|female|unknown)
 - `date_of_birth?`, `birth_date_is_estimated` (bool) — DOB is computed from the years+months input on signup; flagged as estimated by default
 - `color?`, `distinguishing_features?`
-- **Identifiers (microchip / tattoo):** live in `pet_identifications` — see `PetIdentification` below. The legacy parallel columns on `pets` (`microchip_id`, `microchip_country_code`, `tattoo_code`, etc.) were **dropped by migration `0084_drop_legacy_chip_tattoo_columns.sql`**; the dual-write window opened by compliance PR 0 is closed. Readers go through `lib/chip-lookup.ts`.
+- **Identifiers (microchip / tattoo):** live in `pet_identifications` — see `PetIdentification` below. The legacy parallel columns on `pets` (`microchip_id`, `microchip_country_code`, `tattoo_code`, etc.) were **dropped by migration `0084_drop_legacy_chip_tattoo_columns.sql`**; the dual-write window opened by compliance PR 0 is closed. Readers go through `lib/infra/chip-lookup.ts`.
 - `primary_photo_id?` (fk → Attachment)
 - `status` (active|lost|deceased), `deceased_at?`
 - **Health & lifestyle (owner self-reported):**
@@ -396,11 +403,11 @@ None of these are blockers for v1. The data model accepts them without rework; t
   - `known_allergies?` (text[]) — same pattern; distinct from the `allergy_detected` event which records discovery
   - `training_level?` (none|basic|intermediate|advanced|professional)
 - **Legal & insurance:**
-  - `potentially_dangerous_breed` (bool, default false) — auto-set at registration via `lib/breeds.ts` from breed + species; drives the `dangerous_breed_attested` flow (Ley CABA 4078, Ley Prov 14.107)
+  - `potentially_dangerous_breed` (bool, default false) — auto-set at registration via `lib/reference/breeds.ts` from breed + species; drives the `dangerous_breed_attested` flow (Ley CABA 4078, Ley Prov 14.107)
   - `insurance_company?`, `insurance_policy_number?`
 - **Jurisdiction (coarse aggregation tag, never coordinates):**
   - `jurisdiction_country` (default `'AR'`)
-  - `jurisdiction_province?`, `jurisdiction_locality?` — `jurisdiction_province` is stored as the canonical display name from `lib/ar-provincias.ts` (e.g. `"Buenos Aires"`, `"CABA"`) and enforced by a 24-value CHECK constraint on every table that holds the column (migration 0055). Wire format from `LocationFields` is the ISO code; server actions pipe it through `canonicalProvinceNameForStorage()` in `lib/jurisdiction-canonical.ts` before writing.
+  - `jurisdiction_province?`, `jurisdiction_locality?` — `jurisdiction_province` is stored as the canonical display name from `lib/reference/ar-provincias.ts` (e.g. `"Buenos Aires"`, `"CABA"`) and enforced by a 24-value CHECK constraint on every table that holds the column (migration 0055). Wire format from `LocationFields` is the ISO code; server actions pipe it through `canonicalProvinceNameForStorage()` in `lib/domain/jurisdiction-canonical.ts` before writing.
 - `created_at`, `updated_at`
 - **No precise home coordinates stored on pet.** Location precision lives on events when relevant, not on the pet's home.
 
@@ -482,7 +489,7 @@ None of these are blockers for v1. The data model accepts them without rework; t
 - `author_verified` (bool, default false) — true only when both: the relevant org is `verified=true` AND the author has `can_write_pet_events=true` in their membership
 - `payload` (jsonb), `notes?`, `created_at`
 - **Location (interim, v1):** `location_lat?`, `location_lng?` — numeric(10,7) lat/lng pair for events that carry precise location (vet visit, scan GPS, found-pet). Migrating to PostGIS `geography(Point, 4326)` as `location_point?` is deferred until we need radius search or polygon-based projections; Drizzle `customType` makes the lift-and-shift straightforward.
-- **SENASA alignment columns (compliance PR 3, all nullable):** `tipo_evento_code` (FK → `ref.tipo_evento_sanitario`), `lote_biologico`, `laboratorio`, `vencimiento_biologico`, `via_aplicacion_code` (FK → `ref.via_aplicacion`), `vet_matricula`, `vet_jurisdiccion_code` (FK → `ref.jurisdiccion_sanitaria`), `establecimiento_renspa`, `proxima_dosis_at`, `firmado_at`, `firma_hash` (Ley 25.506 placeholder). Helpers en `lib/sanitary-vocab.ts`. Legacy events sin `tipo_evento_code` siguen funcionando como antes; el form `/vet/eventos/nuevo` los populará cuando se reescriba al orden del PDF Res. 580/2014.
+- **SENASA alignment columns (compliance PR 3, all nullable):** `tipo_evento_code` (FK → `ref.tipo_evento_sanitario`), `lote_biologico`, `laboratorio`, `vencimiento_biologico`, `via_aplicacion_code` (FK → `ref.via_aplicacion`), `vet_matricula`, `vet_jurisdiccion_code` (FK → `ref.jurisdiccion_sanitaria`), `establecimiento_renspa`, `proxima_dosis_at`, `firmado_at`, `firma_hash` (Ley 25.506 placeholder). Helpers en `lib/reference/sanitary-vocab.ts`. Legacy events sin `tipo_evento_code` siguen funcionando como antes; el form `/vet/eventos/nuevo` los populará cuando se reescriba al orden del PDF Res. 580/2014.
 - **Append-only. Never edit, never delete. Correct by adding a new event.**
 
 ### `Reminder`
@@ -578,7 +585,7 @@ The Credencial is **identity**. The Libreta is **history**. The Eventos are the 
 
 ### Event types in the Libreta
 
-A canonical, code-locked list of `event_type`s belongs to the Libreta. Lives in `lib/libreta-sanitaria.ts`:
+A canonical, code-locked list of `event_type`s belongs to the Libreta. Lives in `lib/infra/libreta-sanitaria.ts`:
 
 ```ts
 export const LIBRETA_SANITARIA_EVENT_TYPES = [
@@ -612,7 +619,7 @@ Explicitly **outside the Libreta** (identity, custody, welfare, or system signal
 - `abandonment_reported`, `maltreatment_reported` — welfare denuncia, not health
 - `note_added` — owner annotations live in a separate "Notas del dueño" view, not in the Libreta proper
 
-**Rule for new event types.** Every addition to `EVENT_TYPES` declares explicitly whether it belongs to the Libreta. The decision is made at the moment of registration (one-line edit to `lib/libreta-sanitaria.ts`, OR an inline comment confirming it deliberately does not belong). The PR that adds an event type must close the question, not defer it.
+**Rule for new event types.** Every addition to `EVENT_TYPES` declares explicitly whether it belongs to the Libreta. The decision is made at the moment of registration (one-line edit to `lib/infra/libreta-sanitaria.ts`, OR an inline comment confirming it deliberately does not belong). The PR that adds an event type must close the question, not defer it.
 
 ### UI surfaces
 
@@ -633,7 +640,7 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 ### Code conventions
 
-- `lib/libreta-sanitaria.ts` owns `LIBRETA_SANITARIA_EVENT_TYPES`, `isLibretaSanitariaEvent(eventType)`, and a Drizzle clause helper for filtering queries.
+- `lib/infra/libreta-sanitaria.ts` owns `LIBRETA_SANITARIA_EVENT_TYPES`, `isLibretaSanitariaEvent(eventType)`, and a Drizzle clause helper for filtering queries.
 - The component formerly used as `<EventTimeline>` remains the rendering primitive but the canonical mount on the pet profile is `<LibretaSanitaria>` — a thin wrapper applying the filter and Libreta-specific empty-state copy.
 - User-facing strings consistently use *"libreta sanitaria"*, *"tu libreta"*, *"registrar en la libreta"*, *"quedó en la libreta de Negrita"* — never *"evento"* outside admin/debug surfaces.
 - Code-level identifiers (table names, function names, internal types) stay English (`pet_events`, `EventTimeline`, etc.). Spanish UI, English code — the existing rule applies.
@@ -646,7 +653,7 @@ The naming is not cosmetic. It is the conceptual surface that makes DIM legible 
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
-Grouped by purpose for navigation. Adding a new event type is a one-line edit to the `EVENT_TYPES` const in `db/schema.ts` — no database migration. The Zod schema lands in `lib/event-schemas.ts` in the same PR (a CI test in `__tests__/event-schemas.test.ts` enforces 100% coverage — the `UNIMPLEMENTED` allowlist is now empty).
+Grouped by purpose for navigation. Adding a new event type is a one-line edit to the `EVENT_TYPES` const in `db/schema.ts` — no database migration. The Zod schema lands in `lib/events/event-schemas.ts` in the same PR (a CI test in `__tests__/event-schemas.test.ts` enforces 100% coverage — the `UNIMPLEMENTED` allowlist is now empty).
 
 **Lifecycle**
 
@@ -838,13 +845,13 @@ When designing a new event with 3+ semantically-similar variants, prefer this um
 - `pet_registered.payload.acquisition_method` — `adopted | rescued | purchased | bred | gift | unknown`. Adoption/rescue is the growing modality per EAH 2018; surfacing it lets us measure that trend over time.
 - `pet_registered.payload.potentially_dangerous_breed` (boolean) — flips on the Ley CABA 4078 / Ley Prov 14.107 attestation requirement. Possibly a dedicated `dangerous_breed_attested` event for the legal record itself.
 
-**Already built — `death_recorded.payload.disposition_method`** (`cremation_collective | cremation_individual_ashes | authorized_cemetery | owner_burial | household_waste | rendering | unknown`), plus optional `facility` (the cremation center / vet clinic that handled the disposition). Captured today by `DeathRecordForm`, normalized via `lib/disposition.ts`, and projected by `lib/mortality-metrics.ts` into the `/gob/mortalidad` dashboard (Ley CABA 5470 traceability). Read from the JSONB payload (`payload->>'disposition_method'`) — not denormalized to a column.
+**Already built — `death_recorded.payload.disposition_method`** (`cremation_collective | cremation_individual_ashes | authorized_cemetery | owner_burial | household_waste | rendering | unknown`), plus optional `facility` (the cremation center / vet clinic that handled the disposition). Captured today by `DeathRecordForm`, normalized via `lib/domain/disposition.ts`, and projected by `lib/analytics/mortality-metrics.ts` into the `/gob/mortalidad` dashboard (Ley CABA 5470 traceability). Read from the JSONB payload (`payload->>'disposition_method'`) — not denormalized to a column.
 
 **Payload evolution policy (PO-approved, 2026-07-08 — the ghost-payload incident).** A ghost-payload class shipped where 14+ panorama/analytics surfaces read `payload->>'key'` keys that no writer schema ever emitted (only a one-off raw-insert seed did) — Postgres returns NULL for a missing JSONB key instead of erroring, so the bug was silently invisible until someone diffed a dashboard against the raw event log (commits c01bec56 / 9e57a7b7). Three rules, enforced by `pnpm lint:events` (`scripts/check-event-payload-parity.ts`) in the `verify` pipeline:
 
 1. **Payload keys are never reused with a different meaning.** Once a key name has shipped for an event type, its meaning is fixed forever — a later PR that wants a different shape for "the same concept" adds a NEW key (or a new `sub_kind`/discriminator variant), never redefines what an existing key means. Old rows in the immutable log would silently misparse otherwise.
 2. **Readers may only query keys a writer schema emits.** Every `payload->>'key'` (SQL) or `.payload.key` (JS) read anywhere in `app/`, `src/`, `lib/` must be a key some schema in `lib/events/event-schemas.ts` is capable of writing — enforced mechanically by `lint:events`, not by review discipline alone. A justified exception (a genuinely legacy key still read for historical rows, no longer written) goes in `scripts/event-parity-baseline.json` with a mandatory reason string; empty is the goal.
-3. **Schema evolution is read-side upcasters, never event rewrites.** Events are append-only (core invariant #2) — a payload shape change never touches existing rows. When a schema's meaning must evolve, bump `payload_version` and add a v(n-1)→v(n) mapping in `lib/event-upcasters.ts` (see `docs/superpowers/event-versioning.md`) so historical rows still read correctly under the new shape.
+3. **Schema evolution is read-side upcasters, never event rewrites.** Events are append-only (core invariant #2) — a payload shape change never touches existing rows. When a schema's meaning must evolve, bump `payload_version` and add a v(n-1)→v(n) mapping in `lib/events/event-upcasters.ts` (see `docs/superpowers/event-versioning.md`) so historical rows still read correctly under the new shape.
 
 ## Privacy tiers (the public surface)
 
@@ -870,7 +877,7 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - Vaccination coverage by barrio — % of registered pets with up-to-date core vaccines, overdue counts and approximate density
 - Active campaign performance — enrollments, completions, no-shows, geographic reach
 - Mortality clusters — `death_recorded` events by cause and week, map overlay
-- Antibiotic / antimicrobial use density (AMR surveillance) — **A12**, antimicrobial `medication_started` per 1,000 active pets, `lib/surveillance-metrics.ts` `fetchAmrDensity` (classifier `isAntimicrobial` in `lib/drugs.ts`; uncatalogued codes shown as a provisional raw count, not folded into the rate)
+- Antibiotic / antimicrobial use density (AMR surveillance) — **A12**, antimicrobial `medication_started` per 1,000 active pets, `lib/analytics/surveillance-metrics.ts` `fetchAmrDensity` (classifier `isAntimicrobial` in `lib/reference/drugs.ts`; uncatalogued codes shown as a provisional raw count, not folded into the rate)
 - 10-day rabies-observation compliance + breaches — **A8/A9**, `fetchRabiesObservationCompliance` (Ord. CABA 41.831 art. 9); open-past-10d observations surface as a live `OpBreach`
 - ENO-notification SLA — **A7**, `fetchEnoSla` over `event_notification_outbox` (`target_kind='eno_authority'`): on-time %, breached-row count, median latency. Measures OUR outbox pipeline, not external delivery
 - Mortality clusters — `death_recorded` events by cause and week, by-locality breakdown (`/gob/mortalidad`, live; per-death geo heat layer deferred — payload carries no `location_point`)
@@ -878,7 +885,7 @@ Build for **flexibility and big scope** — three audiences are intended consume
 - Reportable-death share — `death_recorded.is_reportable` + `disease_code` breakdown (`/gob/mortalidad`, live)
 - Antibiotic / antimicrobial use density (AMR surveillance)
 - Sterilization rate trend by jurisdiction
-- **Microchip penetration (C1)** — chipped active pets / active pets, by jurisdiction (Ley Prov 14.107). `lib/compliance-metrics.ts → fetchMicrochipPenetration`; locality breakdown is k-anon suppressed. Surfaced on `/gob` Panel.
+- **Microchip penetration (C1)** — chipped active pets / active pets, by jurisdiction (Ley Prov 14.107). `lib/analytics/compliance-metrics.ts → fetchMicrochipPenetration`; locality breakdown is k-anon suppressed. Surfaced on `/gob` Panel.
 - **ISO-validity rate (C2)** — chipped pets with well-formed decomposed ISO fields (`iso_country_code`/`iso_manufacturer_code`/`iso_national_id`) / all chipped (Res. SENASA 284/2024). `fetchIsoValidity`; surfaced on `/gob/usuarios` (Registro).
 - **Chip-fraud signal (C5)** — `microchip_replaced` grouped by `reason`, highlighting `fraud_detected` + `duplicate_detected`. A signal for human review, NOT an auto-classification. `fetchChipReplacementSignal`; surfaced as an `OpBreach` on `/gob/usuarios`.
 - **Dangerous-breed registry compliance (C7)** — PPP-flagged pets attested / all PPP-flagged (Ley CABA 4078 / Prov 14.107). `fetchDangerousBreedCompliance`. **Degrades gracefully**: until a `dangerous_breed_attested` writer-form exists the attested count is 0, so C7 reads an honest "registry adoption 0%" (a true signal, not a bug). Surfaced on `/gob` Panel.
@@ -894,7 +901,7 @@ Build for **flexibility and big scope** — three audiences are intended consume
 ### Animal-welfare officer (case-driven)
 - Maltreatment / abandonment report queue with map and assignment workflow
 - Lost-pet hotspots (density maps from `status_changed → lost` events)
-- **Reunification rate (D4)** — lost episodes returned to `active` / all lost, plus median days-to-recovery (UK ~39% benchmark). `lib/compliance-metrics.ts → fetchReunificationRate`; period-aware, jurisdiction-scoped. Surfaced on `/gob/perdidas`.
+- **Reunification rate (D4)** — lost episodes returned to `active` / all lost, plus median days-to-recovery (UK ~39% benchmark). `lib/analytics/compliance-metrics.ts → fetchReunificationRate`; period-aware, jurisdiction-scoped. Surfaced on `/gob/perdidas`.
 - **Seizures / decomisos (D5)** — `shelter_intake_recorded(intake_reason='seizure')` grouped by `seizure_motive`, by period (Ley 14.346 enforcement throughput). `fetchSeizures`; surfaced on `/gob/decomisos`.
 - Stray / found-pet sighting feed (anonymous `credential_scanned` events on unowned pets, when that flow exists)
 - Owner-of-record gaps — unmicrochipped pets in welfare cases
@@ -959,7 +966,7 @@ RLS history and coverage:
 - All PII / tenant-scoped tables have RLS enabled (migration 0086, the
   authoritative list is in `__tests__/rls/coverage.test.ts → RLS_REQUIRED`).
 - `__tests__/rls/matrix.test.ts` exercises SELECT via supabase-js (PostgREST)
-  for the role × table matrix (4 roles × 9 tables currently under test).
+  for the role × table matrix (the table list is `ALL_TABLES` in that file — read it there).
 - `pnpm rls:smoke` runs a cross-account smoke against a live local stack.
 - `e2e/cross-tenant-isolation.spec.ts` (Wave 5 Item 26) validates both the
   action-edge authz and the PostgREST RLS layer end-to-end via Playwright.
@@ -975,11 +982,15 @@ When adding a new PII or tenant-scoped table:
 ## Scan privacy model (Wave 5 Item 28)
 
 When the public credential page `/p/[publicToken]` is viewed, `app/actions/scans.ts`
-inserts a `credential_scanned` event into `pet_events`.  The scan event has a strict
-privacy contract enforced at the insert site — **no IP address and no geolocation are
-ever stored** in the payload.  The payload contains only:
-- `is_self_scan: boolean` — `true` when the viewer is the current owner.
-- `viewer_authenticated: boolean` — `true` when the viewer is logged in.
+inserts a `credential_scanned` event into `pet_events`.
+
+> **The payload contract lives in one place — Privacidad §5 (`#privacidad-y-manejo-de-datos`).**
+> This section used to state "no IP address and no geolocation are ever stored", which
+> Task #45 (scan-location capture, PO decision obs #733) superseded: scanner rows now
+> carry a COARSE `scan_ip_area` (city precision max, never the raw IP) and, only when the
+> pet is lost AND the scanner explicitly granted browser geolocation, `scan_coords` /
+> `scan_accuracy_m`. Privacidad §5 has the full rule table with enforcement sites; do not
+> re-derive it here — one of the two copies will drift, and this is the copy that did.
 
 Author role assignment:
 - `author_role = 'owner'` — viewer is the pet's current owner (self-scan).
@@ -998,16 +1009,9 @@ scanner events older than the TTL.  Every purged row produces an `audit_log` ent
 (action `scan_event_purged`).  The general mutation escape hatch
 (`app.allow_event_mutation`) is unaffected and still requires an accountable actor UUID.
 
-**Owner-dashboard impact:**  
-`lib/infra/owner-nudges.ts` counts external scans within a `SCAN_ACTIVITY_WINDOW_DAYS = 90`
-window — intentionally aligned with the TTL.  After purge, the count remains accurate
-because the retained rows are exactly the rows the window sees.  The scan-activity
-nudge is informational only (never a surveillance signal) and derives from the owner's
-own pets.
-
-**Ties Item 31:**  
-This section is the "scan privacy" entry for the consolidated "Privacidad y manejo de
-datos" checklist that Item 31 will build.
+(The owner-nudges consumer that used to be documented here was deleted as dead code on
+2026-07-21 — see the feature inventory. `/inicio` is a redirect-only router, not a
+dashboard.)
 
 ## Identity model & DNI handling (Wave 5 Item 25a)
 
@@ -1019,7 +1023,7 @@ migration 0106. The columns that replace it:
 |---|---|---|
 | `miarg_sub` | `text unique` | Opaque, stable subject ID from Mi Argentina OIDC |
 | `identity_source` | `'miarg' \| 'legacy'` | How identity was verified |
-| `dni_hash` | `text` (HMAC-SHA256 hex) | Equality matching only — see `lib/dni-hash.ts` |
+| `dni_hash` | `text` (HMAC-SHA256 hex) | Equality matching only — see `lib/utils/dni-hash.ts` |
 | `dni_last4` | `text(4)` | Human disambiguation in operator UI — NOT an identifier |
 | `dni_verified` | `bool` | Whether DNI has been verified |
 | `dni_verified_at` | `timestamptz` | When verification happened |
@@ -1030,7 +1034,7 @@ leaked, the entire hash table can be reversed via rainbow table (Argentine DNI
 space is finite). Never commit the production pepper.
 
 **Where-clauses:** `WHERE dni_hash = hashDni(input)` — never `WHERE dni_number = input`.
-See `lib/dni-hash.ts` for `hashDni()` and `dniLast4()` helpers.
+See `lib/utils/dni-hash.ts` for `hashDni()` and `dniLast4()` helpers.
 
 **OIDC scaffold (Item 25a — stub only):**
 `lib/infra/miarg-oidc.ts` defines the integration shape for Mi Argentina OIDC.
@@ -1045,7 +1049,7 @@ The `profiles_institutional_no_pii` CHECK now also excludes `miarg_sub`.
 **Checklist for any agent touching auth or profiles:**
 - Never write `dni_number` — that column is gone.
 - Never select or return raw DNI — use `dni_last4` for display, `dni_hash` for equality.
-- The `hashDni()` function in `lib/dni-hash.ts` is the canonical path.
+- The `hashDni()` function in `lib/utils/dni-hash.ts` is the canonical path.
 - `erase_subject_data()` (migration 0106) nulls `dni_hash`, `dni_last4`, `miarg_sub`.
 
 **Ties Item 31:** this section is the "identity + DNI" entry for the consolidated
@@ -1080,9 +1084,9 @@ Schema `ref.*` (compliance PR 3, migration 0060) ancla los vocabularios SENASA e
 | `ref.jurisdiccion_sanitaria` | 4 sembradas (CABA, BA, Santa Fe, Córdoba); las 20 restantes ISO 3166-2:AR son research follow-up | Decreto-Ley 9.686/1981 (CVPBA), Ley 14.072 (CVPCABA) |
 | `ref.identification_kind_norma` | 4 — bridge cada `pet_identifications.kind` a su Res. SENASA / Ord. CABA correspondiente | PR 0 + Res. SENASA 284/2024 |
 
-Helpers en `lib/sanitary-vocab.ts`: `tipoEventoLabel`, `tipoEventoNorma`, `requiresLote`, `requiresVia`, `notificableEno`. El test `__tests__/sanitary-vocab.test.ts` pinea el TS mirror contra el DB seed en cada CI.
+Helpers en `lib/reference/sanitary-vocab.ts`: `tipoEventoLabel`, `tipoEventoNorma`, `requiresLote`, `requiresVia`, `notificableEno`. El test `__tests__/sanitary-vocab.test.ts` pinea el TS mirror contra el DB seed en cada CI.
 
-`pet_events.notificable_eno=true` codes (vacunacion_antirrabica / observacion_antirrabica / mordedura_notificada) deberían disparar un row en `event_notification_outbox` con `target_kind='eno_authority'` — la integración auto-fire queda como follow-up. La **latencia de ese outbox ya se mide** (metric **A7**, `lib/surveillance-metrics.ts` `fetchEnoSla`, superficie `/gob/vigilancia`): on-time %, filas en breach y mediana de latencia. El auto-fire sigue siendo follow-up; lo que se monitorea hoy es el SLA de nuestra cola, no la entrega externa.
+`pet_events.notificable_eno=true` codes (vacunacion_antirrabica / observacion_antirrabica / mordedura_notificada) deberían disparar un row en `event_notification_outbox` con `target_kind='eno_authority'` — la integración auto-fire queda como follow-up. La **latencia de ese outbox ya se mide** (metric **A7**, `lib/analytics/surveillance-metrics.ts` `fetchEnoSla`, superficie `/gob/vigilancia`): on-time %, filas en breach y mediana de latencia. El auto-fire sigue siendo follow-up; lo que se monitorea hoy es el SLA de nuestra cola, no la entrega externa.
 
 ## Feature inventory
 
@@ -1106,7 +1110,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | ✅ | Marcar encontrada / coordinar devolución refugio→owner | `/mis-mascotas/[publicToken]/devolucion` |
 | ✅ | Vecino-en-tránsito (custody flow para vecino con stray) | `/mis-mascotas/nueva?custodyKind=transito` |
 | ✅ | Reservar turnos en campaigns/clinics, ver agenda propia | `/turnos/buscar` + `/mis-turnos` |
-| ✅ | Captura rápida (URL-prefill + matcher local sin LLM) | `/mis-mascotas/[publicToken]/anotar` + `lib/event-capture-registry.ts` |
+| ✅ | Captura rápida (URL-prefill + matcher local sin LLM) | `/mis-mascotas/[publicToken]/anotar` + `lib/events/event-capture-registry.ts` |
 | ✅ | Owner home `/inicio` — NO es un dashboard: es un server-redirect a la credencial de la mascota más urgente (mismo rank compartido `rankOwnerCarousel`). Cero mascotas vivas → redirige a `/mis-mascotas` (índice + bandeja). Reenvía su query (`?sheet=anotar`) al destino. Aplica la misma vet-gate que `/mis-mascotas` (`resolveVetLanding` salvo `?as=owner`). | `/inicio` + `lib/analytics/owner-dashboard.ts` (`fetchLivePetsForCarouselRanking`) |
 | ✅ | Carrusel de credenciales del owner — se hojea entre las mascotas vivas (urgent-first) DENTRO de `/mis-mascotas/[publicToken]`; el índice `/mis-mascotas` es lista de filas + bandeja + In memoriam. La nav owner tiene 2 tabs (Mis mascotas, Denuncias) — no hay tab "Inicio". | `/mis-mascotas/[publicToken]` (`PetCredentialCarousel`) + `lib/domain/owner-carousel.ts` |
 | ⚪ | Estado sanitario — nudges per-pet derivados de eventos propios (vacuna vencida, sin microchip, próximo recordatorio, scans de credencial, esterilización) fueron diseñados, testeados y privacy-reviewed, pero el componente host (`PetHealthStatusStrip`) fue eliminado en la consolidación "tarjeta-todo". El motor (`lib/infra/owner-nudges.ts`) quedó huérfano (cero callers fuera de su propio test) y se removió como dead code el 2026-07-21 — sin surface owner-facing hoy. Remontarlo es una decisión de producto separada, no un bug. | ninguno hoy |
@@ -1181,7 +1185,7 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 | ✅ | Admin page completo (4 roles, account_type institutional, split `/gob` vs `/admin`) | spec v2.2 (`2026-05-17-admin-page-design.md`) + fases 10-14 (`2026-05-18-admin-page-next-phases-design.md`), ambos planes archivados |
 | ✅ | `/gob` portal scope-bound por localidad / jurisdicción | `requireAdminOrGovtOrRedirect()` en `lib/infra/auth-guards.ts`; admin ve scope universal, govt filtra por sus `govt_assignments`; todos los helpers de `lib/analytics/govt-dashboards.ts` aceptan el par `actor + jurisdictions` |
 | ✅ | Government dashboards (sanitary / analyst / welfare officer) | `/gob/mortalidad`, `/gob/vigilancia`, `/gob/programa` (hub: `?vista=resumen\|analitica`), `/gob/padron` (hub: `?vista=censo\|poblacion`) — UI completa con proyecciones sobre el event log. `/gob/analytics`, `/gob/poblacion` y `/gob/censo` sobreviven solo como redirects hacia su hub (fusiones F8/F9); no tienen entrada de nav. |
-| ✅ | Admin rules console — `govt_business_rules` + registry declarativo de 8 tipos, cascade locality > province > country > default | `/admin/reglas` + `lib/domain/rule-types-registry.ts` + `lib/infra/business-rules-resolver.ts` (migración 0116) |
+| ✅ | Admin rules console — `govt_business_rules` + registry declarativo de tipos de regla (contá los del registry, no este número), cascade locality > province > country > default | `/admin/reglas` + `lib/domain/rule-types-registry.ts` + `lib/infra/business-rules-resolver.ts` (migración 0116) |
 | 🟢 | Rules-engine v2: jurisdiction-aware compliance (obligation types + legal baseline versionado + honest compliance surface + métricas jurisdiction-aware) | SDD change `jurisdiction-compliance` — spec/design/tasks en engram (`sdd/jurisdiction-compliance/*`); número de migración a determinar (0118 ya está tomado por `event_amended_target_idx`) |
 
 ### Identity & legal
@@ -1191,7 +1195,7 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 | ✅ | Microchip implant event + tracking (`microchip_implanted`) | — |
 | 🟡 | Dangerous breed (PPP) registry support — Ley CABA 4078 / Prov 14.107 | flag + attestation event ✅ shipped (column `pets.potentially_dangerous_breed` + event `dangerous_breed_attested`); export provincial pendiente (placeholder por ahora, ver spec `2026-05-19-ppp-pet-profile-display-design.md` cuando se escriba el export real) |
 | ✅ | Disposition method en `death_recorded` — Ley CABA 5470 | shipped: `DISPOSITION_METHODS` enum en `src/modules/events/domain/death-rules.ts` (`cremation_collective | cremation_individual_ashes | authorized_cemetery | owner_burial | household_waste | rendering | unknown`) + opcional `facility` + form en `app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/fallecimiento/`. `createDeathRecordAction` valida y persiste |
-| ✅ | Acquisition method en `pet_registered` — EAH 2018 trend tracking | shipped: `petAcquisitionMethodEnum` (`adopted | purchased | found_stray | gift | born_in_litter | other`) + columna `pets.acquisitionMethod` + validación Zod en `pet_registered.payload.acquisition_method` (`lib/event-schemas.ts:76`). UI en `PetForm` recolecta |
+| ✅ | Acquisition method en `pet_registered` — EAH 2018 trend tracking | shipped: `petAcquisitionMethodEnum` (`adopted | purchased | found_stray | gift | born_in_litter | other`) + columna `pets.acquisitionMethod` + validación Zod en `pet_registered.payload.acquisition_method` (`lib/events/event-schemas.ts:76`). UI en `PetForm` recolecta |
 | ⚪ | DNI verification provider (RENAPER directo vs intermediary) | — |
 | ⚪ | Mi Argentina integration — OAuth y/o emisión federada de credenciales | — |
 
@@ -1199,12 +1203,12 @@ The operator situational map — jurisdiction-fenced choropleth + graduated symb
 
 | Estado | Feature | Ubicación |
 |---|---|---|
-| ✅ | Event sourcing hardening (Zod schemas estrictos + append-only triggers + validateEventPayload) | `lib/event-schemas.ts` + DB triggers |
+| ✅ | Event sourcing hardening (Zod schemas estrictos + append-only triggers + validateEventPayload) | `lib/events/event-schemas.ts` + DB triggers |
 | ✅ | Bidirectional geocoding (text ↔ map pin via Nominatim/OSM) | `components/LocationFields` |
 | ✅ | Cron infra (CRON_SECRET + helper-lib + thin route) | `app/api/cron/*` |
-| ✅ | RLS aplicada en todas las tablas PII/tenant (43 tablas) — authz model documentado (Wave 5 Item 26) | migrations 0086 + 0105; `__tests__/rls/coverage.test.ts`; `e2e/cross-tenant-isolation.spec.ts` |
+| ✅ | RLS aplicada en todas las tablas PII/tenant (la lista viva es `RLS_REQUIRED` en el coverage test) — authz model documentado (Wave 5 Item 26) | migrations 0086 + 0105; `__tests__/rls/coverage.test.ts`; `e2e/cross-tenant-isolation.spec.ts` |
 | ✅ | RLS smoke test cross-account vía PostgREST (extendido Item 26: pet_identifications, pet_transfers) | `pnpm rls:smoke` |
-| ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/archive/2026-06-18-unified-app-shell.md` |
+| ✅ | Unified `AppShell` (one role-variant chrome: citizen/operator/landing) — Item 7, strangler A→D complete | `components/layout/AppShell.tsx` + `lib/ui/shell-nav.ts` (auth-aware `resolveShellNav`). All surfaces migrated; legacy `LnOwnerNav`/`AppHeader`/`OpShell` deleted (Phase D). Plan: `docs/superpowers/plans/archive/2026-06-18-unified-app-shell.md` |
 | ✅ | Localities catalog INDEC (catalog reference) | `ar_localities` table + `scripts/import-indec-localities.ts`; seeded via `db:bootstrap` step 4; graceful fallback + vendored-CSV override (`INDEC_LOCALITIES_CSV`). Runbook: `docs/ops/remote-supabase-bootstrap-runbook.md` §3 + `docs/ops/db-bootstrap-runbook.md` |
 | ✅ | Public-credential resilience — `/p/[publicToken]` reads are budgeted and fail-soft; a partial/slow read renders an honest degraded state instead of a 500 or an infinite spinner | `app/(public)/p/[publicToken]/DegradedCredentialCard.tsx` + `CredentialStreamedSections.tsx`; structured single-line JSON error logging for Vercel via `lib/infra/report-error.ts` |
 | ✅ | Durable rate limiting on public search endpoints (`rate_limit_buckets`, DB-backed, IP-and-endpoint keyed, cross-worker-safe) | `localities_search` (`src/modules/localities/application/search/search-localities.ts`), `performed_by_search` (`src/modules/search/application/performed-by/search-performed-by.ts`) |
@@ -1283,13 +1287,13 @@ CTAs in any flow MUST use one of these verb shapes, in priority order:
 
 ### 3. `WizardShell` is the only multi-step chrome
 
-Multi-step flows (≥3 sections, or ≥1 destructive step) MUST use `components/poncho/Wizard/WizardShell`. The shell owns the back arrow, the step counter, the progress bar's a11y label, and the optional cancel link. Step labels and submit-button copy are caller-supplied; consumers do not re-implement the chrome.
+Multi-step flows (≥3 sections, or ≥1 destructive step) MUST use `components/ui/WizardShell.tsx`. The shell owns the back arrow, the step counter, the progress bar's a11y label, and the optional cancel link. Step labels and submit-button copy are caller-supplied; consumers do not re-implement the chrome.
 
 If a flow has only two screens (a form and a confirm), do not use the wizard — use a single page with a `<ConfirmDialog>` or a SuccessScreen.
 
 ### 4. `SuccessScreen` closes "trámite"-style flows
 
-Denuncia, adoption application, intake, devolución, mordedura, and similar bureaucratic flows MUST end on `components/poncho/SuccessScreen` (PR-011 onward). The screen surfaces the confirmation code, a short description of what happens next, and 2–3 contextual actions. Silent redirects after the final submit are forbidden for these flows — the user must see the receipt.
+Denuncia, adoption application, intake, devolución, mordedura, and similar bureaucratic flows MUST end on `components/ui/SuccessScreen.tsx` (PR-011 onward). The screen surfaces the confirmation code, a short description of what happens next, and 2–3 contextual actions. Silent redirects after the final submit are forbidden for these flows — the user must see the receipt.
 
 Lightweight inline edits (toggle, save profile field) keep their existing inline `<Toast>` confirmation; SuccessScreen is for full trámites only.
 
@@ -1298,11 +1302,11 @@ Lightweight inline edits (toggle, save profile field) keep their existing inline
 Operator surfaces (`/gob/*`, `/admin/*`) get from an aggregate to a single record via the **omnibox**, and act on many records via the **bulk bar**. Both are jurisdiction-aware and PII-disciplined.
 
 - **Global search (`OpOmnibox`)** lives in the `OpTopbar` `actions` slot (mounted in `app/gob/layout.tsx` + `app/admin/layout.tsx`). Focus with `/` or ⌘K. It searches pets (name / DIM token / active microchip code), persons (name / DNI, via `searchUsers`) and cases (public code). Query is debounced 250ms; results are grouped by type and keyboard-navigable (`role="combobox"` + `aria-activedescendant`; dropdown `role="listbox"` + `role="option"`).
-  - **Scoping is non-negotiable:** scope comes from `requireAdminOrGovtOrRedirect()`. Admin = universal; govt = their assigned jurisdiction(s); **govt with zero assignments returns empty without a DB hit**. Pet scope is `pets.jurisdiction_province ∈ assignments`; cases by `(province, locality)`; persons delegate to the audited `searchUsers` semi-join. Logic in `lib/omnibox-search.ts`; auth + logging in `app/actions/omnibox-search.ts`.
+  - **Scoping is non-negotiable:** scope comes from `requireAdminOrGovtOrRedirect()`. Admin = universal; govt = their assigned jurisdiction(s); **govt with zero assignments returns empty without a DB hit**. Pet scope is `pets.jurisdiction_province ∈ assignments`; cases by `(province, locality)`; persons delegate to the audited `searchUsers` semi-join. Logic in `lib/infra/omnibox-search.ts`; auth + logging in `app/actions/omnibox-search.ts`.
   - **Every non-empty query logs one `pii_queried` audit row** via `logPiiQueryForAuthority(..., "omnibox")` — same trail as `/gob/usuarios`. `surface` is a JSONB payload value, not a column; new surfaces never need a migration.
   - Do NOT add a parallel search path that skips the scope or the log.
 - **Bulk-select (`OpBulkBar { count, actions[] }`)** is the generic sticky action bar. It owns no selection state and calls no server action — the queue holds the selected `Set` and each action supplies `onRun(reason)`. Hidden at `count === 0`; otherwise shows "N seleccionados" + actions + "Limpiar". `role="region" aria-label="Acciones en lote"`; count `aria-live="polite"`.
-  - **Selection state machine** is pure in `lib/bulk-select.ts` (`toggleSelection`, `toggleSelectPage`, `isPageFullySelected`, `isReasonValid`, `selectionSummary`) — keep selection logic there, not inlined in components.
+  - **Selection state machine** is pure in `lib/domain/bulk-select.ts` (`toggleSelection`, `toggleSelectPage`, `isPageFullySelected`, `isReasonValid`, `selectionSummary`) — keep selection logic there, not inlined in components.
   - **Destructive actions require a reason whose minimum matches the actual server action** (`bulkRejectRequestsAction` ≥ 5; `bulkRevokeAction` ≥ 30 chars + ≥1 evidence attachment). The revoke flow keeps its evidence-upload modal — a reason-only `ConfirmDialog` cannot collect attachments. Never weaken these minimums in the UI.
   - The header checkbox selects the **page**, not the whole query, for irreversible/notifying actions.
 ### 5. Pet profile order: identity/credential → alerts (lost leads) → capture → faces
@@ -1320,7 +1324,7 @@ Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/han
 `components/layout/AppShell.tsx` is the **only** application chrome. The historical three chrome systems (`LnOwnerNav`, `AppHeader`, `OpShell`) have been deleted (Item 7, Phase D — PRs #630–#634). Do not reintroduce per-surface chrome wrappers.
 
 - **Nav source is `components/layout/nav-presets.ts`** — `OWNER_NAV`, `PUBLIC_NAV`, `GOB_NAV(_SECTIONS)`, `ADMIN_NAV(_SECTIONS)`, `buildOrgNav`. Do not introduce per-component nav literals. `OWNER_NAV` is **2 items** — Mis mascotas→`/mis-mascotas`, Denuncias→`/denuncias/mias` (PO ronda 4, 2026-07-15). The former "Inicio" tab was REMOVED: `/inicio` is only a server-redirect into the most-urgent pet's credential, so the tab never highlighted (the carousel marks "Mis mascotas" active) and it bypassed the vet gate. The `/inicio` route stays (post-login landing + bookmarks + Asentar fallback); only the nav entry died. Supersedes the 2026-07-02 three-item split (decision #645). Each item owns a single, disjoint `matchPrefix`.
-- **The variant + nav decision is auth-aware, not route-group-based** — `lib/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end). The separate "Volver a mi app" return chip only renders where the active nav has no equivalent destination of its own — token-landing surfaces (no nav at all) and the operator variant stranded on a public page (ADMIN_NAV/GOB_NAV/org nav have no pets-home link). For the citizen+owner/vet case, OWNER_NAV's own "Mis mascotas" item already IS the guaranteed ≤1-click return, so `showReturn` is never set there (the return chip used to duplicate it on every citizen page).
+- **The variant + nav decision is auth-aware, not route-group-based** — `lib/ui/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end). The separate "Volver a mi app" return chip only renders where the active nav has no equivalent destination of its own — token-landing surfaces (no nav at all) and the operator variant stranded on a public page (ADMIN_NAV/GOB_NAV/org nav have no pets-home link). For the citizen+owner/vet case, OWNER_NAV's own "Mis mascotas" item already IS the guaranteed ≤1-click return, so `showReturn` is never set there (the return chip used to duplicate it on every citizen page).
 - **Three variants:**
   - `citizen` — top masthead with Argentina stripe + footer. Owner portal, public surfaces, marketing landing.
   - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals. **Exception — the situational console** (`/gob|admin/panorama`): a viewport-locked "fixed console" (`100dvh`, no page scroll; the map is fixed like the rail and fills everything except slim bars, with floating overlay chrome + a bottom dock). It is the one operator surface that never page-scrolls (v2C, `#21`).
@@ -1339,7 +1343,6 @@ If a new feature seems to need an exception, write the exception into the PR des
 - Mi Argentina integration: third-party OAuth via Argentina.gob.ar SSO when available, vs. eventual official credential adoption (see `docs/archive/mimar-go-to-market.md`)
 - DNI verification provider when we get there (RENAPER direct vs. intermediary like Didit / Truora)
 - ~~**`/pro` portal**~~ — removed in Sprint 1A Phase B. Independent vets now create a clinic org via `/cuenta/crear-consultorio` and operate from `/org/[orgToken]`.
-- **`/org/[orgToken]` portal** — currently lives at `app/refugio/`. Code rename plan: `docs/superpowers/plans/archive/2026-05-17-code-rename-refugio-to-org.md`.
 - **`/gob` portal** and **`/admin` portal** — built. `/gob` is govt scope-bound (locality approvals + regional dashboards via `requireAdminOrGovtOrRedirect()`); `/admin` holds universal-scope surfaces. Admin page spec v2.2 and the fases 10-14 follow-up plan are both archived (implemented). See Feature inventory → Admin & govt.
 - **Lost-pet broadcast distribution** — Argentine channel mix (WhatsApp share-intent + Instagram Story template + barrio Facebook groups + verified-refugio voluntario alerts via `organization_coverage`). Animales BA interoperability is an open integration question; the goal is to complement it.
 - ~~**Decomiso → temporary welfare-authority custody → refugio chain**~~ — shipped, complete end to end. `app/gob/decomisos/**` + `src/modules/decomiso/application/*`: execute → accept-handoff / reject-handoff / reassign / return-to-owner → closed, phase-labeled dashboard. (Corrected 2026-07-21; this had drifted stale as an "open question.")
@@ -1356,9 +1359,9 @@ If a new feature seems to need an exception, write the exception into the PR des
 - Push notifications (iOS PWA limitations — may need native shell eventually). EAH 2018 finding: social media is the dominant channel for pet-health info reaching households; shareability is first-order.
 - Native mobile via React Native sharing the data layer
 - Per-pet "emergency info" public flag toggle
-- **Captura rápida (sin LLM, shipped)** — Spanish-only text interface that detects which event type the user is describing via local regex patterns and opens the corresponding form with slots pre-filled. Lives at `/mis-mascotas/[publicToken]/anotar`. Determinístico, $0 en tokens, cero red. Implementation: `lib/event-capture-registry.ts` (slot map) + `lib/event-capture-matcher.ts` (regex patterns + date extraction) + `buildCaptureDeeplink(eventType, publicToken, slots)`. Registry routes are either absolute paths (`/eventos/nuevo/…` for full-page forms) or `?sheet=…` shorthands for forms migrated to SheetMounter (peso, nota, medicacion, sintoma). Reference form for the URL-prefill pattern: `app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/vacuna/VaccinationForm.tsx` (full-page) and `SheetMounter.tsx` (sheet route). Covers ~9 forms with slot fill (vacuna, antiparasitario, peso, vet, microchip, esterilización, fallecimiento, checkin, nota); the 5 complex forms (medicación inicio/fin, mordedura, síntoma, clínico) are reachable via intent detection but open empty.
+- **Captura rápida (sin LLM, shipped)** — Spanish-only text interface that detects which event type the user is describing via local regex patterns and opens the corresponding form with slots pre-filled. Lives at `/mis-mascotas/[publicToken]/anotar`. Determinístico, $0 en tokens, cero red. Implementation: `lib/events/event-capture-registry.ts` (slot map) + `lib/events/event-capture-matcher.ts` (regex patterns + date extraction) + `buildCaptureDeeplink(eventType, publicToken, slots)`. Registry routes are either absolute paths (`/eventos/nuevo/…` for full-page forms) or `?sheet=…` shorthands for forms migrated to SheetMounter (peso, nota, medicacion, sintoma). Reference form for the URL-prefill pattern: `app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/vacuna/VaccinationForm.tsx` (full-page) and `SheetMounter.tsx` (sheet route). Covers ~9 forms with slot fill (vacuna, antiparasitario, peso, vet, microchip, esterilización, fallecimiento, checkin, nota); the 5 complex forms (medicación inicio/fin, mordedura, síntoma, clínico) are reachable via intent detection but open empty.
 
-- **Agente conversacional con LLM (deferred, future)** — Layer on top of the captura-rápida registry: same `EVENT_CAPTURE_REGISTRY` becomes tool definitions for Claude/GPT; the local matcher stays as offline fallback. **Forward-compat that holds today:** (a) every event-creation route is URL-addressable with query-param prefill — new event forms MUST accept their payload fields as `searchParams` and register their slots in `event-capture-registry.ts`. (b) Per-event-type Zod schemas (`lib/event-schemas.ts`, `validateEventPayload`) double as function-calling tool definitions — the same schema validates the human form submit and any future LLM structured output. (c) The slugs at `/mis-mascotas/[token]/eventos/nuevo/*` are public contract — rename before launch, freeze after. **Design principles when the LLM lands:** agent proposes, user confirms — never silent writes to `pet_events`; audio is not persisted (events are the source of truth, not the recording); the agent reads as well as writes — natural-language queries open filtered timeline projections, not a parallel chat surface. Legally-fraught events (`abandonment_reported`, `maltreatment_reported`, `dangerous_breed_attested`) are out of agent scope — those force the full manual flow with all disclaimers visible. LLM provider, hosting jurisdiction, voice (Web Speech API) and iOS PWA audio fallback TBD when implementation lands.
+- **Agente conversacional con LLM (deferred, future)** — Layer on top of the captura-rápida registry: same `EVENT_CAPTURE_REGISTRY` becomes tool definitions for Claude/GPT; the local matcher stays as offline fallback. **Forward-compat that holds today:** (a) every event-creation route is URL-addressable with query-param prefill — new event forms MUST accept their payload fields as `searchParams` and register their slots in `event-capture-registry.ts`. (b) Per-event-type Zod schemas (`lib/events/event-schemas.ts`, `validateEventPayload`) double as function-calling tool definitions — the same schema validates the human form submit and any future LLM structured output. (c) The slugs at `/mis-mascotas/[token]/eventos/nuevo/*` are public contract — rename before launch, freeze after. **Design principles when the LLM lands:** agent proposes, user confirms — never silent writes to `pet_events`; audio is not persisted (events are the source of truth, not the recording); the agent reads as well as writes — natural-language queries open filtered timeline projections, not a parallel chat surface. Legally-fraught events (`abandonment_reported`, `maltreatment_reported`, `dangerous_breed_attested`) are out of agent scope — those force the full manual flow with all disclaimers visible. LLM provider, hosting jurisdiction, voice (Web Speech API) and iOS PWA audio fallback TBD when implementation lands.
 
 ## Test-runner conventions (Item 29 — Wave 5)
 
@@ -1374,11 +1377,11 @@ every file, even the ~44% that never touch Postgres):
 - **`unit`** — files whose transitive import graph provably never reaches
   `db/index.ts`. Runs in **parallel** (default workers), `setupFiles:
   __tests__/setup-env.ts` (env-only, no `DATABASE_URL`/`SUPABASE_URL` forcing,
-  no pool-drain `globalSetup`). ~387 files, ~31s.
+  no pool-drain `globalSetup`). See the run's own summary for file counts and timing.
 - **`db`** — files that do reach the DB client. Runs **serially**
   (`fileParallelism: false`), `setupFiles: __tests__/setup.ts` (URL-forcing) +
   `globalSetup: __tests__/global-setup.ts` (postgres.js pool-drain teardown) —
-  byte-for-byte the old behavior. ~495 files, ~10min.
+  byte-for-byte the old behavior. See the run's own summary for file counts and timing.
 
 Membership is **mechanical, not a maintained manifest**:
 `__tests__/db-reachability.ts` (`computeTestPartition()`) walks the import
@@ -1398,7 +1401,7 @@ cross-project concern in Vitest 4).
 `NODE_ENV=test`:
 
 - `max: 3` — prevents exhausting the local Supabase limit (100 connections)
-  across the `db` project's ~495 serial files.
+  across the `db` project's serial files.
 - `idle_timeout: 20 s` — returns connections quickly between files.
 - `max_lifetime: 60 s` — recycles long-lived connections.
 - `connect_timeout: 10 s` — fails fast when the local stack is not running.
@@ -1430,7 +1433,7 @@ preserved because seed pets go through the REAL writers.
 
 If bootstrap creates pets whose `publicToken` does not start with `DIM-`
 (e.g. direct INSERT with a synthetic token), the sweep ignores them by design.
-Use `generatePublicToken()` from `lib/publicToken.ts` for any seed pet whose
+Use `generatePublicToken()` from `lib/infra/publicToken.ts` for any seed pet whose
 cache fitness you want CI to enforce.
 
 ### Migration idempotency
@@ -1444,7 +1447,7 @@ All migrations use `IF EXISTS` / `IF NOT EXISTS` guards — do not remove them.
 
 ### Fences (the `pnpm verify` chain)
 
-`pnpm verify` is `typecheck && lint` + **~30 `lint:*` fences** + `build`, in
+`pnpm verify` is `typecheck && lint` + **every `lint:*` fence in package.json** (46 at last read — package.json is the source of truth, this number is not) + `build`, in
 that order (`package.json` → `verify` script is the literal source of truth —
 read it before assuming this list, it grows). Each fence is a standalone
 `pnpm lint:<name>` script so it can be run in isolation while iterating.
@@ -1488,7 +1491,7 @@ file, not the plan that proposed them):
 
 ### Test suite state
 
-~882 test files (387 `unit` + 495 `db`, see the two-project split above). A
+The suite spans both vitest projects (see the two-project split above); `pnpm test` prints the live file count. A
 theater audit (mutation-probe + matrix sweep) found the suite under 0.5%
 theater. **Review rule that came out of it: no self-referential assertions** —
 a test must assert `f(x)` against an independently-stated expected value, never
@@ -1509,8 +1512,8 @@ Migration `0106_dni_less_identity.sql` dropped `profiles.dni_number`. The DNI is
 
 | Rule | Enforcement |
 |---|---|
-| Equality matching → `WHERE dni_hash = hashDni(input)` | `lib/dni-hash.ts` → `hashDni()` |
-| Human disambiguation (operator UI only) → `dni_last4` | `lib/dni-hash.ts` → `dniLast4()` |
+| Equality matching → `WHERE dni_hash = hashDni(input)` | `lib/utils/dni-hash.ts` → `hashDni()` |
+| Human disambiguation (operator UI only) → `dni_last4` | `lib/utils/dni-hash.ts` → `dniLast4()` |
 | Subject erasure → nulls `dni_hash`, `dni_last4`, `miarg_sub` | `erase_subject_data()` (migration 0106) |
 | Institutional accounts → `dni_hash IS NULL` (CHECK enforced) | `profiles_institutional_no_pii` constraint |
 
@@ -1567,7 +1570,7 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 | Rule | Enforcement |
 |---|---|
 | `suppressSmallCells(rows, { k: 5 })` on every public aggregate | `lib/metrics/anonymity.ts` → `suppressSmallCells` |
-| Govt outreach pipelines log `pii_queried` per query | `lib/outreach-pipelines.ts` → `logOutreachPiiQuery` |
+| Govt outreach pipelines log `pii_queried` per query | `lib/infra/outreach-pipelines.ts` → `logOutreachPiiQuery` |
 | **Name your denominator** — every aggregate names what it excludes AND against which denominator it is computed; coverage % carries the double denominator (registry + estimated census). See [§ Dashboards design law](#dashboards--projections-the-consumers). | `lib/metrics/census.ts` → `computeCensusCoverage`; `lib/analytics/govt-home-kpis.ts` → `fetchRabiesCoverage` |
 
 ### 7. Subject rights (Ley 25.326)

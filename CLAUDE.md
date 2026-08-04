@@ -14,7 +14,7 @@ Stack: Next.js 15 (App Router) + React 19 + TypeScript, Supabase (Postgres + RLS
 2. **Events are append-only** — never edit or delete; corrections are new events.
 3. **Facts are event-sourced; caches declare themselves** — medical/custody lifecycle facts live only in the append-only event spine; operational caches (`pets.*` columns, ownerships) and curated metadata are dual-written **by design**, with explicit boundaries and drift detection (`rederivePetCache`). No cache ever outranks the spine; no dashboard reads pretend a cache is the log. (Honest-hybrid rewording, PO 2026-07-24 — the old "every view is a projection" slogan overclaimed.)
 4. **Spanish (es-AR) UI, English code** — identifiers, comments, and docs in English.
-5. **No DNI in plaintext** — `lib/dni-hash.ts` (`hashDni()` for equality, `dniLast4()` for display).
+5. **No DNI in plaintext** — `lib/utils/dni-hash.ts` (`hashDni()` for equality, `dniLast4()` for display).
 6. **Mi Argentina federation is the premise** — no decision may harm that path.
 
 ## Definition of Done
