@@ -57,6 +57,23 @@ export function deriveMasSheetItems(input: MasSheetInput): MasSheetItem[] {
     return items;
   }
 
+  // Chapa física — THE ENTRY POINT THAT WAS MISSING. `?sheet=chapita`
+  // (PhysicalTagInterestSheet) has been mounted, data-wired (interest state +
+  // the jurisdiction's physical_credential_channels) and reachable by URL since
+  // ADR-17b — but NOTHING in the UI linked to it, so the whole surface was
+  // dead weight: the printable-QR page it fronts, the interest toggle, and the
+  // per-jurisdiction channel copy were all unreachable by clicking. This is the
+  // remainder of the physical-credential-hub plan's Fase D.
+  //
+  // Placed AFTER the deceased early-return above on purpose: page.tsx nulls the
+  // chapita data for deceased pets (and for org viewers), so the row must not
+  // outlive the data that fills its sheet.
+  items.push({
+    id: "chapita",
+    label: "Chapa física",
+    href: `/mis-mascotas/${pet.publicToken}?sheet=chapita`,
+  });
+
   if (ownershipRole === "owner" && pet.status === "active") {
     items.push({
       id: "transfer-pet",

@@ -73,3 +73,26 @@ describe("deriveMasSheetItems — active pet, unaffected existing behavior", () 
     expect(items.some((i) => i.id === "contacts")).toBe(true);
   });
 });
+
+describe("deriveMasSheetItems — chapa física entry point", () => {
+  it("offers the chapita sheet to an owner viewer", () => {
+    const items = deriveMasSheetItems(baseInput());
+    const chapita = items.find((i) => i.id === "chapita");
+    expect(chapita?.href).toBe("/mis-mascotas/abc123?sheet=chapita");
+    // Live row, not a placeholder: the sheet's printable-QR channel is ON by
+    // default and links to a real page.
+    expect(chapita?.disabled).toBeUndefined();
+  });
+
+  it("does NOT offer it for a deceased pet — page.tsx nulls the sheet's data there", () => {
+    const items = deriveMasSheetItems(
+      baseInput({ pet: { species: "dog", status: "deceased", publicToken: "abc123" } }),
+    );
+    expect(items.map((i) => i.id)).not.toContain("chapita");
+  });
+
+  it("offers it to a foster too (accessPath owner), who can print a tag for the pet they hold", () => {
+    const items = deriveMasSheetItems(baseInput({ ownershipRole: "foster" }));
+    expect(items.map((i) => i.id)).toContain("chapita");
+  });
+});
