@@ -78,6 +78,41 @@ export async function resetAuthLoginRateLimits(): Promise<void> {
   }
 }
 
+/**
+ * Repair a case's jurisdiction when the geocode never resolved (fixture
+ * repair, local DB only).
+ *
+ * WHY: the denuncia wizard fills cases.jurisdiction_province/locality from a
+ * SERVER-SIDE call to nominatim.openstreetmap.org fired when the pin drops —
+ * the app never derives jurisdiction from the coordinates itself. When that
+ * external call flakes (CI runners get throttled by Nominatim routinely), the
+ * report still submits but lands with NULL jurisdiction, and listCasesForGovt
+ * shows it to nobody — so a spec that filed a denuncia to prime a govt queue
+ * asserts against an empty list for reasons outside the app. This sets the
+ * jurisdiction the CALLER already knows (it chose the pin), and ONLY when the
+ * geocode left it NULL — a resolved jurisdiction is never overwritten.
+ */
+export async function ensureCaseJurisdiction(
+  publicCode: string,
+  province: string,
+  locality: string,
+): Promise<void> {
+  const url = resolveUrl();
+  if (!isLocalDatabase(url)) return;
+  if (!publicCode) return;
+
+  const sql = postgres(url, { max: 1, onnotice: () => {} });
+  try {
+    await sql`UPDATE cases
+      SET jurisdiction_province = ${province}, jurisdiction_locality = ${locality}
+      WHERE public_code = ${publicCode} AND jurisdiction_province IS NULL`;
+  } catch {
+    // Best-effort — the spec's own queue assertion reports the outcome.
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
   const url = resolveUrl();
   if (!isLocalDatabase(url)) {

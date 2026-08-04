@@ -462,14 +462,50 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
     const orgToken = await resolveOrgToken(page, /Refugio Test/i);
     await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
     await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
-    const petLink = page.locator(`a[href^="/org/${orgToken}/mascotas/DIM-"]`).first();
-    await expect(petLink, "org portal lists a held animal").toBeVisible({ timeout: 20_000 });
-    const heldToken =
-      ((await petLink.getAttribute("href")) ?? "").match(/DIM-[A-Z0-9-]+/)?.[0] ?? "";
-    expect(heldToken, "org-held pet token resolved at runtime").toMatch(/^DIM-/);
+    const petLinks = page.locator(`a[href^="/org/${orgToken}/mascotas/DIM-"]`);
+    await expect(petLinks.first(), "org portal lists a held animal").toBeVisible({
+      timeout: 20_000,
+    });
+    // The portal may still list a pet whose custody just ENDED — crisis-seams
+    // (d) finalizes a real adoption earlier in the serial run (twice, with the
+    // retry), and an ex-held pet renders WITHOUT the org-access notice this
+    // test asserts. The subject here is the held-pet viewer UX, not the
+    // portal's listing policy, so probe the listed candidates and settle on
+    // the first one that is still genuinely under custody.
+    // Capture the segment AFTER /mascotas/ — org tokens are DIM-prefixed too,
+    // so a bare DIM-… match on the full href grabs the ORG token and sends
+    // the probe to /mis-mascotas/<org token>, which can never render the
+    // notice. (The pre-refactor code had the same latent bug.)
+    const hrefs = await petLinks.evaluateAll((as) =>
+      as.map(
+        (a) => (a.getAttribute("href") ?? "").match(/\/mascotas\/(DIM-[A-Z0-9-]+)/)?.[1] ?? "",
+      ),
+    );
+    const candidates = [...new Set(hrefs.filter(Boolean))];
+    expect(candidates.length, "org-held pet tokens resolved at runtime").toBeGreaterThan(0);
 
-    await page.goto(`/mis-mascotas/${heldToken}`);
-    await page.waitForLoadState("domcontentloaded");
+    let heldToken = "";
+    for (const candidate of candidates) {
+      await page.goto(`/mis-mascotas/${candidate}`);
+      await page.waitForLoadState("domcontentloaded");
+      if (new URL(page.url()).pathname !== `/mis-mascotas/${candidate}`) continue;
+      // waitFor, not an instant count(): the profile STREAMS — the notice
+      // arrives after domcontentloaded, so a synchronous probe skips every
+      // genuinely-held candidate.
+      const found = await page
+        .getByText(/como miembro de/i)
+        .first()
+        .waitFor({ state: "visible", timeout: 8_000 })
+        .then(
+          () => true,
+          () => false,
+        );
+      if (found) {
+        heldToken = candidate;
+        break;
+      }
+    }
+    expect(heldToken, "a listed pet still under custody renders the org viewer").toMatch(/^DIM-/);
 
     expect(new URL(page.url()).pathname, "org viewer stays on the pet route").toBe(
       `/mis-mascotas/${heldToken}`,

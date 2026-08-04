@@ -5,6 +5,7 @@ import { type OwnerPii, describePiiLeaks, findPiiLeaks } from "./_page-identity"
 import {
   ACCOUNTS,
   DEMO_PHOTOS,
+  USHUAIA_JURISDICTION,
   USHUAIA_POINT,
   assertRealPage,
   discoverOwnerPii,
@@ -194,7 +195,7 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
     // coverage (ACCOUNTS.govt is seeded on Ushuaia + El Calafate), because a
     // govt queue matches jurisdiction on an exact province/locality pair.
     if ((await page.locator('a[href^="/gob/maltrato/"]:visible').count()) === 0) {
-      await fileDenunciaAt(browser, USHUAIA_POINT);
+      await fileDenunciaAt(browser, USHUAIA_POINT, USHUAIA_JURISDICTION);
       await page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
     }
     // The console heading is "Denuncias (N en total)" — the old "Denuncias de

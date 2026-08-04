@@ -45,9 +45,10 @@
  * in addition to browser navigation for the full-stack path.
  */
 
-import { type Page, expect, test } from "@playwright/test";
+import { type Page, type Response, expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
+import { BRANDED_NOT_FOUND_TESTID, NOT_FOUND_HEADING } from "./_page-identity";
 import { assertRealPage } from "./demo/_helpers";
 
 // ---------------------------------------------------------------------------
@@ -82,6 +83,56 @@ const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
 // Helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * PostgREST client that ACTUALLY carries the user's JWT.
+ *
+ * The old pattern — `createClient(...)` then `auth.setSession({ access_token,
+ * refresh_token: "" })` — fails silently in supabase-js v2 (an empty refresh
+ * token is rejected), leaving the client ANONYMOUS. Every probe built on it
+ * was reading as anon, and it went unnoticed for as long as `pets` was
+ * anon-readable — the exact RLS hole migration 0165 closed. Once anon reads
+ * returned [], the positive control (Owner A reads own pet) failed and, worse,
+ * the negative probes ("Owner A cannot read B") had been passing VACUOUSLY.
+ * Attaching the JWT as the Authorization header is the reliable, session-free
+ * way to make PostgREST requests as the user.
+ */
+function clientAs(accessToken: string) {
+  return createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+/**
+ * Assert a navigation resolved to the NOT-FOUND surface without leaking data
+ * — streaming-safe.
+ *
+ * These scoping tests used to assert `response.status() === 404`. Routes that
+ * stream (a Suspense skeleton flushes the shell before the scoped lookup
+ * resolves) call notFound() AFTER headers went out, so the denied page now
+ * answers 200 with the branded boundary rendered in its place — the status
+ * can no longer carry the verdict (same reality public-smoke documents for
+ * /libreta/compartir). What proves the denial is the SURFACE: the not-found
+ * boundary is visible and no error boundary rendered. Callers with a known
+ * target (e.g. Owner B's pet name) additionally assert its absence.
+ */
+async function expectNotFoundSurface(
+  page: Page,
+  response: Response | null,
+  label: string,
+): Promise<void> {
+  const status = response?.status() ?? 0;
+  expect([200, 404], `${label} — unexpected HTTP status ${status}`).toContain(status);
+  await expect(
+    page
+      .getByTestId(BRANDED_NOT_FOUND_TESTID)
+      .or(page.getByRole("heading", { name: NOT_FOUND_HEADING }))
+      .first(),
+    label,
+  ).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText(/application error/i)).not.toBeVisible();
+}
+
 /** Sign in as Owner A and return the Supabase userId. */
 async function signInOwnerA(): Promise<{ userId: string; accessToken: string }> {
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
@@ -99,10 +150,7 @@ async function signInOwnerA(): Promise<{ userId: string; accessToken: string }> 
 
 /** Resolve the first pet token (public_token) visible to Owner A. */
 async function getOwnerAPetToken(accessToken: string): Promise<string | null> {
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+  const client = clientAs(accessToken);
   // pets.public_token is the URL segment used in /mis-mascotas/[token].
   const { data } = await client.from("pets").select("public_token").limit(1);
   return data && data.length > 0 ? (data[0].public_token as string) : null;
@@ -132,10 +180,7 @@ async function signInOwnerB(): Promise<{ userId: string; accessToken: string } |
 async function getOwnerBPet(
   accessToken: string,
 ): Promise<{ token: string; id: string; name: string } | null> {
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+  const client = clientAs(accessToken);
   const { data } = await client.from("pets").select("id, public_token, name").limit(1);
   return data && data.length > 0
     ? {
@@ -152,7 +197,11 @@ async function loginAsOwnerA(page: Page): Promise<void> {
   await page.getByLabel(/correo electrónico/i).fill(OWNER_A_EMAIL);
   await page.getByLabel(/contraseña/i).fill(OWNER_A_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL(/\/inicio/, { timeout: 15_000 });
+  // Wait for LEAVING /login, never for /inicio: that pathname is a
+  // redirect-only router the address bar NEVER shows (owners land directly on
+  // /mis-mascotas/<pet>). The same stale wait killed e2e/owner-shell.spec.ts
+  // in every CI run before a11y-operator-auth documented it.
+  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
 }
 
 /**
@@ -271,7 +320,11 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
     // one discoverPetToken() already relies on: every card links to
     // /mis-mascotas/DIM-…, so a rendered pet is always a matching href.
     await expect(
-      page.locator(`a[href="/mis-mascotas/${ownerAPetToken}"]`),
+      // .first(): the index legitimately renders more than one anchor to the
+      // same pet (card + strip), which trips strict mode.
+      page
+        .locator(`a[href="/mis-mascotas/${ownerAPetToken}"]`)
+        .first(),
       "Owner A's own pet never rendered on /mis-mascotas — the negative assertions below would pass vacuously",
     ).toBeVisible({ timeout: 20_000 });
 
@@ -327,8 +380,13 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
 
     const response = await page.goto("/mis-mascotas/not-a-real-pet-token-00000000");
 
-    // Must be 404 (not 500, not 200 with another user's data).
-    expect(response?.status()).toBe(404);
+    // Not-found surface, never a 500 or another user's data (streaming-safe —
+    // see expectNotFoundSurface).
+    await expectNotFoundSurface(
+      page,
+      response,
+      "fabricated pet token must resolve to the not-found surface",
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -342,11 +400,19 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
 
     const response = await page.goto(`/mis-mascotas/${ownerBPetToken}`);
 
-    // B's real token exists, but A must not be able to open it.
-    expect(response?.status(), "cross-tenant leak: Owner A opened Owner B's real pet page").toBe(
-      404,
+    // B's real token exists, but A must see the not-found surface, and none
+    // of B's data (streaming-safe — see expectNotFoundSurface).
+    await expectNotFoundSurface(
+      page,
+      response,
+      "cross-tenant leak: Owner A opened Owner B's real pet page",
     );
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
+    if (ownerBPetName) {
+      await expect(
+        page.getByText(ownerBPetName),
+        "cross-tenant leak: Owner B's pet name rendered for Owner A",
+      ).toHaveCount(0);
+    }
   });
 
   // -------------------------------------------------------------------------
@@ -357,10 +423,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
     test.skip(!ownerBUserId, "owner2 fixture absent — no real Owner B identity to probe.");
 
     const { accessToken } = await signInOwnerA();
-    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+    const client = clientAs(accessToken);
 
     const { data: ownershipRows } = await client
       .from("ownerships")
@@ -388,10 +451,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read ownerships filtered to a different user id", async () => {
     const { accessToken } = await signInOwnerA();
-    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+    const client = clientAs(accessToken);
 
     // Attempt to read ownerships scoped to a fabricated (different) user id.
     const FABRICATED_ID = "00000000-dead-beef-0000-000000000000";
@@ -412,10 +472,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read profiles for a fabricated user id", async () => {
     const { accessToken } = await signInOwnerA();
-    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+    const client = clientAs(accessToken);
 
     const FABRICATED_ID = "00000000-dead-beef-0000-000000000001";
     const { data } = await client
@@ -433,10 +490,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read pet_events for a fabricated pet id", async () => {
     const { accessToken } = await signInOwnerA();
-    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+    const client = clientAs(accessToken);
 
     const FABRICATED_PET_ID = "00000000-dead-beef-0000-000000000002";
     const { data } = await client
@@ -456,10 +510,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read pet_identifications for unowned pet", async () => {
     const { accessToken } = await signInOwnerA();
-    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+    const client = clientAs(accessToken);
 
     const FABRICATED_PET_ID = "00000000-dead-beef-0000-000000000003";
     const { data } = await client
@@ -481,10 +532,7 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
   // -------------------------------------------------------------------------
   test("PostgREST: Owner A cannot read pet_transfers for fabricated owner ids", async () => {
     const { accessToken } = await signInOwnerA();
-    const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-    await client.auth.setSession({ access_token: accessToken, refresh_token: "" });
+    const client = clientAs(accessToken);
 
     const FABRICATED_OWNER_ID = "00000000-dead-beef-0000-000000000004";
     const { data } = await client
@@ -537,11 +585,11 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
     // resolves to the same 404 — the page never leaks that a request exists.
     const response = await page.goto("/gob/cola/00000000-dead-beef-0000-0000000000aa");
 
-    expect(
-      response?.status(),
+    await expectNotFoundSurface(
+      page,
+      response,
       "govt scope leak: operator reached an out-of-scope/foreign approval request",
-    ).toBe(404);
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -561,10 +609,10 @@ test.describe("cross-tenant isolation — Owner A cannot access Owner B data", (
     // notFound() without leaking whether the org exists.
     const response = await page.goto("/org/DIM-ORG-NOT-A-REAL-TOKEN/mascotas");
 
-    expect(
-      response?.status(),
+    await expectNotFoundSurface(
+      page,
+      response,
       "cross-org leak: org admin reached a portal for an org they don't belong to",
-    ).toBe(404);
-    await expect(page.getByText(/application error/i)).not.toBeVisible();
+    );
   });
 });

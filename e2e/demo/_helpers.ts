@@ -14,7 +14,7 @@ import {
   NOT_FOUND_HEADING,
   type OwnerPii,
 } from "../_page-identity";
-import { resetAuthLoginRateLimits } from "./_db-cleanup";
+import { ensureCaseJurisdiction, resetAuthLoginRateLimits } from "./_db-cleanup";
 
 export const SHARED_PASSWORD = "Test1234!";
 
@@ -422,6 +422,13 @@ export async function discoverOwnerPii(page: Page, email: string): Promise<Owner
 export async function fileDenunciaAt(
   browser: Browser,
   coords: { latitude: number; longitude: number },
+  /**
+   * The jurisdiction the caller CHOSE by picking the pin. When provided and
+   * the server-side Nominatim geocode flaked (routine on CI runners), the
+   * case's NULL jurisdiction is repaired to this — see
+   * ensureCaseJurisdiction; a resolved jurisdiction is never overwritten.
+   */
+  jurisdiction?: { province: string; locality: string },
 ): Promise<string> {
   // Distinct apparent origin per denuncia — the anonymous submit is IP
   // rate-limited at 1/min + 3/hour (welfare_anon, src/modules/welfare/
@@ -434,7 +441,11 @@ export async function fileDenunciaAt(
   });
   try {
     const page = await context.newPage();
-    return await walkDenunciaWizard(page, { coords });
+    const code = await walkDenunciaWizard(page, { coords });
+    if (jurisdiction) {
+      await ensureCaseJurisdiction(code, jurisdiction.province, jurisdiction.locality);
+    }
+    return code;
   } finally {
     await context.close();
   }
@@ -732,6 +743,11 @@ export async function pickLocality(
  */
 export const PALERMO_POINT = { latitude: -34.578, longitude: -58.424 };
 export const USHUAIA_POINT = { latitude: -54.8019, longitude: -68.303 };
+/** The jurisdiction USHUAIA_POINT resolves to — exact strings from
+ *  scripts/seed-test-users.ts's govt@dim.test coverage. Pass alongside
+ *  USHUAIA_POINT to fileDenunciaAt so a flaked Nominatim call cannot strand
+ *  the case outside every operator's scope. */
+export const USHUAIA_JURISDICTION = { province: "Tierra del Fuego", locality: "Ushuaia" };
 
 export async function walkDenunciaWizard(
   page: Page,

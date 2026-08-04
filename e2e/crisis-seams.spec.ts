@@ -279,8 +279,12 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       await confirm.click();
       await page.waitForLoadState("networkidle").catch(() => {});
       // Re-fetch fresh (the found server action revalidates; avoid a client-cached
-      // view of the just-cleared lost state).
-      await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" });
+      // view of the just-cleared lost state). The goto races the action's own
+      // client-side navigation (useActionRedirect fires window.location.assign
+      // on its own schedule), and losing that race surfaces as
+      // net::ERR_ABORTED — not a page failure. Tolerate it; the reload right
+      // after re-establishes a deterministic fresh document either way.
+      await page.goto(`/mis-mascotas/${token}`, { waitUntil: "domcontentloaded" }).catch(() => {});
       await page.reload({ waitUntil: "domcontentloaded" });
       await expect(page.locator('[data-section="lost-case-block"]')).toHaveCount(0, {
         timeout: 20_000,
@@ -858,12 +862,28 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     // The /adoption surface only resolves pets still under the org's active
     // shelter custody, so after a successful finalize it reports the pet as
     // unavailable — proving the custody transfer committed. Reload fresh.
+    //
+    // One retry on the submit itself: a click dispatched before hydration
+    // attaches handlers is silently dropped (the recurring task-#39 failure
+    // mode, worst on CI cold starts) — when the reload still shows the
+    // finalize form, the first click never reached the action; submit once
+    // more before judging the transfer.
+    const custodyGone = page.getByText(/animal no disponible|no figura bajo custodia/i).first();
     await page.goto(`/org/${orgToken}/mascotas/${petToken}/adoption`, {
       waitUntil: "domcontentloaded",
     });
     await page.waitForLoadState("networkidle").catch(() => {});
+    const retrySubmit = page.getByRole("button", { name: /finalizar adopci/i });
+    if ((await custodyGone.count()) === 0 && (await retrySubmit.count()) > 0) {
+      await retrySubmit.click();
+      await page.waitForLoadState("networkidle").catch(() => {});
+      await page.goto(`/org/${orgToken}/mascotas/${petToken}/adoption`, {
+        waitUntil: "domcontentloaded",
+      });
+      await page.waitForLoadState("networkidle").catch(() => {});
+    }
     await expect(
-      page.getByText(/animal no disponible|no figura bajo custodia/i).first(),
+      custodyGone,
       "pet transferred out of the refugio's custody after the adoption was finalized",
     ).toBeVisible({ timeout: 20_000 });
 

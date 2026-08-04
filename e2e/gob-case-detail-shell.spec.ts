@@ -1,6 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { ACCOUNTS, USHUAIA_POINT, expectQueueRow, fileDenunciaAt, loginAs } from "./demo/_helpers";
+import {
+  ACCOUNTS,
+  USHUAIA_JURISDICTION,
+  USHUAIA_POINT,
+  expectQueueRow,
+  fileDenunciaAt,
+  loginAs,
+} from "./demo/_helpers";
 
 // Task #47 regression: a government operator opening a case from /gob must
 // STAY inside the operator shell (rail + topbar), not be dropped into the
@@ -36,7 +43,7 @@ test("govt case detail keeps the operator shell", async ({ browser, page }) => {
   await page.goto("/gob/casos");
   await page.waitForLoadState("networkidle").catch(() => {});
   if ((await page.locator('a[href^="/gob/casos/"]').count()) === 0) {
-    await fileDenunciaAt(browser, USHUAIA_POINT);
+    await fileDenunciaAt(browser, USHUAIA_POINT, USHUAIA_JURISDICTION);
     await page.goto("/gob/casos");
     await page.waitForLoadState("networkidle").catch(() => {});
   }
