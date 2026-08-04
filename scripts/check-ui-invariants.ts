@@ -200,6 +200,43 @@ export const ACCENT_WORDS: Array<{ bad: string; good: string; re: RegExp }> = [
   { bad: "despues", good: "después", re: /\bdespues\b/g },
 ];
 
+/**
+ * Accent words safe to scan across the WIDE file set (app + components + lib +
+ * src), added by the copy audit 2026-08-04.
+ *
+ * Why a second list instead of widening ACCENT_WORDS. The words above are safe
+ * in `app/**` and `components/**` but NOT outside them: `lib/` and
+ * `src/modules/` legitimately use "accion", "jurisdiccion", "adopcion" and
+ * "notificacion" as IDENTIFIERS — payload keys, situation slugs, icon names.
+ * Widening the old list produced 44 hits of which most were symbols, not copy.
+ * A fence that cries wolf teaches people to allowlist, which is worse than no
+ * fence.
+ *
+ * The bar for THIS list is absolute: an adverb, a preposition or an inflected
+ * verb/adjective form that cannot name a symbol in any language convention this
+ * repo uses. Nouns do not qualify, however tempting — that is precisely how the
+ * false positives above got in. If you want to add a noun, make the rule scan
+ * string literals first.
+ *
+ * camelCase is safe by construction: `\bproximo\b` does not match
+ * `proximoReintento`, because the following `R` is a word character.
+ */
+export const ACCENT_WORDS_WIDE: Array<{ bad: string; good: string; re: RegExp }> = [
+  { bad: "proximamente", good: "próximamente", re: /\bproximamente\b/g },
+  { bad: "proximo", good: "próximo", re: /\bproximo\b/g },
+  { bad: "proxima", good: "próxima", re: /\bproxima\b/g },
+  { bad: "Proximo", good: "Próximo", re: /\bProximo\b/g },
+  { bad: "Proxima", good: "Próxima", re: /\bProxima\b/g },
+  { bad: "ultimo", good: "último", re: /\bultimo\b/g },
+  { bad: "ultima", good: "última", re: /\bultima\b/g },
+  { bad: "Ultimo", good: "Último", re: /\bUltimo\b/g },
+  { bad: "Ultima", good: "Última", re: /\bUltima\b/g },
+  { bad: "Ultimos", good: "Últimos", re: /\bUltimos\b/g },
+  { bad: "supero", good: "superó", re: /\bsupero\b/g },
+  { bad: "tambien", good: "también", re: /\btambien\b/g },
+  { bad: "segun", good: "según", re: /\bsegun\b/g },
+];
+
 // Lines that should be excluded from accent rule matching:
 // - Pure TypeScript/import lines
 // - URL/path strings (contain / or :// )
@@ -484,11 +521,31 @@ const TOUCH_TARGET_FILES = globSync("{app,components}/**/*.tsx").filter((f) => {
   );
 });
 
-// Screaming enum + accent rules: exclude components/ui/ (same as token linter)
+// Screaming enum rule: exclude components/ui/ (same as token linter)
 const EXCLUDE_PATH_PREFIXES_NOUI = [...EXCLUDE_PATH_PREFIXES_DEFAULT, "components/ui/"];
 const STANDARD_FILES = globSync("{app,components}/**/*.{ts,tsx}").filter((f) => {
   const p = f.replaceAll("\\", "/");
   return !EXCLUDE_PATH_PREFIXES_NOUI.some(
+    (prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`),
+  );
+});
+
+// Accent rule gets its OWN, WIDER file set (copy audit 2026-08-04).
+//
+// Rule 3 used to ride STANDARD_FILES, which never looks at `src/**` or `lib/**`
+// — so es-AR copy living outside app/components was unguarded. That is not a
+// hypothetical: user-facing Spanish lives in `src/modules/**` use cases and
+// error messages, and `lib/**` holds label catalogues and formatters. The
+// unaccented "proximamente" that shipped on a GOVERNMENT surface sat outside
+// the old glob.
+//
+// Deliberately WIDER than the enum rule and deliberately INCLUDING
+// components/ui/: a missing accent is wrong wherever it renders, and unlike the
+// screaming-enum heuristic it has no reason to skip primitives. The word list
+// is conservative (see ACCENT_WORDS) precisely so widening the scope is safe.
+const ACCENT_FILES = globSync("{app,components,lib,src}/**/*.{ts,tsx}").filter((f) => {
+  const p = f.replaceAll("\\", "/");
+  return !EXCLUDE_PATH_PREFIXES_DEFAULT.some(
     (prefix) => p.startsWith(prefix) || p.includes(`/${prefix}`),
   );
 });
@@ -604,25 +661,35 @@ function runScan(): void {
   }
 
   // --- Rule 3: Missing es-AR accents ---
-  for (const file of STANDARD_FILES) {
-    const relPath = normalizeRelPath(file);
-    const lines = readFileSync(file, "utf8").split(/\r?\n/);
-    lines.forEach((line, i) => {
-      if (isCodeOnlyLine(line)) return;
-      for (const { bad, good, re } of ACCENT_WORDS) {
-        re.lastIndex = 0;
-        for (const match of line.matchAll(re)) {
-          const key = `${relPath}:${bad}`;
-          if (ACCENT_ALLOWLIST.has(key)) continue;
-          // Skip matches inside URL path segments
-          if (isInsidePath(line, match.index ?? 0, bad)) continue;
-          console.error(
-            `${file}:${i + 1}:${(match.index ?? 0) + 1}: missing accent "${bad}" → "${good}" in Spanish copy`,
-          );
-          hits += 1;
+  // Two passes with different reach: the original word list keeps its original
+  // app+components scope (those words double as identifiers in lib/ and src/),
+  // while ACCENT_WORDS_WIDE — adverbs and verb forms only — sweeps lib/ and
+  // src/ too. See the comment on ACCENT_WORDS_WIDE for why they cannot be one
+  // list.
+  for (const [files, words] of [
+    [STANDARD_FILES, ACCENT_WORDS],
+    [ACCENT_FILES, ACCENT_WORDS_WIDE],
+  ] as const) {
+    for (const file of files) {
+      const relPath = normalizeRelPath(file);
+      const lines = readFileSync(file, "utf8").split(/\r?\n/);
+      lines.forEach((line, i) => {
+        if (isCodeOnlyLine(line)) return;
+        for (const { bad, good, re } of words) {
+          re.lastIndex = 0;
+          for (const match of line.matchAll(re)) {
+            const key = `${relPath}:${bad}`;
+            if (ACCENT_ALLOWLIST.has(key)) continue;
+            // Skip matches inside URL path segments
+            if (isInsidePath(line, match.index ?? 0, bad)) continue;
+            console.error(
+              `${file}:${i + 1}:${(match.index ?? 0) + 1}: missing accent "${bad}" → "${good}" in Spanish copy`,
+            );
+            hits += 1;
+          }
         }
-      }
-    });
+      });
+    }
   }
 
   // --- Rule 6: snake_case internal token in JSX text ---

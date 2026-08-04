@@ -131,7 +131,7 @@ export default async function AdminOutboxDetailPage({
       {cue === "breach" && (
         <OpBreach
           title="Incumplimiento de SLA detectado"
-          detail={`Este item supero el deadline de entrega. Estado: ${buildStatusLabel(row.status, row.targetKind)}.`}
+          detail={`Este ítem superó el deadline de entrega. Estado: ${buildStatusLabel(row.status, row.targetKind)}.`}
         />
       )}
 
@@ -162,10 +162,10 @@ export default async function AdminOutboxDetailPage({
             <dt className="text-sm text-ln-op-mute">Intentos</dt>
             <dd className="text-sm text-ln-op-ink">{row.attempts}</dd>
 
-            <dt className="text-sm text-ln-op-mute">Ultimo intento</dt>
+            <dt className="text-sm text-ln-op-mute">Último intento</dt>
             <dd className="text-sm text-ln-op-ink">{fmt(row.lastAttemptAt)}</dd>
 
-            <dt className="text-sm text-ln-op-mute">Proximo reintento</dt>
+            <dt className="text-sm text-ln-op-mute">Próximo reintento</dt>
             <dd className="text-sm text-ln-op-ink">{fmt(row.nextRetryAt)}</dd>
 
             <dt className="text-sm text-ln-op-mute">Entregado</dt>
@@ -197,7 +197,7 @@ export default async function AdminOutboxDetailPage({
           {row.lastError && (
             <div className="mt-3 space-y-1">
               <p className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">
-                Ultimo error
+                Último error
               </p>
               <pre className="rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd p-3 text-xs text-ln-op-danger overflow-auto whitespace-pre-wrap break-words">
                 {row.lastError}

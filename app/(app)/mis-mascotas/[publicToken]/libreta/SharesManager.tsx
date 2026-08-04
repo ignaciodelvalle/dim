@@ -268,7 +268,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
                     ? "Sin vistas"
                     : `${share.viewCountCached} vista${share.viewCountCached !== 1 ? "s" : ""}`}
                   {share.lastViewedAtCached &&
-                    ` · Ultima: ${new Date(share.lastViewedAtCached).toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}`}
+                    ` · Última: ${new Date(share.lastViewedAtCached).toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}`}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">

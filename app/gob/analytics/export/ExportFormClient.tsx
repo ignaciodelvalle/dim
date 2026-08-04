@@ -129,7 +129,7 @@ export function ExportFormClient({
           </label>
           <label className="flex items-center gap-2 text-[13px] cursor-pointer opacity-50">
             <input type="radio" name="format" value="parquet" disabled />
-            {"Parquet — proximamente"}
+            {"Parquet — próximamente"}
           </label>
         </div>
       </fieldset>
