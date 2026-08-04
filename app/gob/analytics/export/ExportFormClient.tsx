@@ -127,9 +127,18 @@ export function ExportFormClient({
             <input type="radio" name="format" value="json" className="accent-ln-op-azul" />
             JSON
           </label>
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer opacity-50">
+          {/* Deshabilitado a propósito, no por olvido (decisión del PO
+              2026-08-04, principio P1): una opción deshabilitada está bien
+              cuando la cosa hace falta de verdad pero no la podemos hacer
+              ahora. Lo que se corrige es la PROMESA: "próximamente" anunciaba
+              una fecha que nadie fijó. "Todavía no disponible" dice lo mismo
+              sin comprometer un plazo. Mismo idioma que ADR-17c. */}
+          <label
+            className="flex items-center gap-2 text-[13px] opacity-50"
+            title="Formato columnar para procesamiento analítico. Todavía no está construido."
+          >
             <input type="radio" name="format" value="parquet" disabled />
-            {"Parquet — próximamente"}
+            Parquet — todavía no disponible
           </label>
         </div>
       </fieldset>

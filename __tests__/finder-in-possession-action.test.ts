@@ -170,7 +170,11 @@ function buildMockDb(petStatus = "lost") {
     leftJoin: vi.fn(() => selectChain),
     orderBy: vi.fn(() => selectChain),
     limit: vi.fn(async () => nextResult()),
-    // Thenable: resolves a chain that ends at `.where()` / `.orderBy()`.
+    // The object this fake stands in for — Drizzle's query builder — IS a
+    // thenable by design: `await db.select().from(x).where(y)` resolves with no
+    // terminal call. A double that is not thenable can only emulate the queries
+    // that happen to end in `.limit()`, and that gap is exactly what broke here.
+    // biome-ignore lint/suspicious/noThenProperty: emulating Drizzle's thenable query builder
     then: (resolve: (v: unknown[]) => unknown) => resolve(nextResult()),
   };
 

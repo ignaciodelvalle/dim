@@ -404,6 +404,51 @@ el titular, no con una institución que no eligió), y el perfil de la mascota
 debe declarar que el refugio de origen recibe el aviso. *Pendiente: que el
 perfil lo declare — hoy el comportamiento existe y la divulgación no.*
 
+### Ronda 3 de decisiones del PO — 2026-08-04, tarde
+
+- **Export de imagen del mapa: ENCUADRAR AL ALCANCE antes de exportar.** Hoy la
+  imagen es lo que entra en pantalla, así que un funcionario nacional **nunca**
+  puede exportar el país. El mapa se ajusta a los límites del alcance elegido,
+  exporta, y vuelve a la vista del operador. Cuidado con CABA, que es un
+  recuadro aparte.
+- **`share_telemetry`: dejar de recolectar y BORRAR lo acumulado.** El borrado
+  es irreversible y toca datos: va con migración, y aplicarla a la base remota
+  es decisión de Ignacio.
+
+#### Dos principios del PO que exceden su pregunta
+
+**P1 — Una opción deshabilitada es aceptable cuando la cosa hace falta de
+verdad pero no la podemos hacer ahora.** No es ruido por definición: es ruido
+cuando anuncia algo que nadie quiere. Esto ratifica el idioma ADR-17c (fila
+deshabilitada + insignia) y explica por qué "Rastreo GPS · Próximamente" se
+borró —nadie lo pidió— mientras "Viaje y movilidad" se quedó. Aplicado a
+Parquet: **se queda deshabilitado**, pero sin prometer una fecha que nadie fijó.
+
+**P2 — No renderizar la estructura de algo vacío. Ocultar, o mostrar lo
+MÍNIMO.** Vale para reportes y para tableros: ¿qué sentido tiene ver el
+esqueleto de una tabla sin filas? Reemplaza el default propuesto para "Peores
+10": no alcanza con el vacío honesto adentro de la tarjeta — **la tarjeta no va**
+cuando no hay datos que la justifiquen.
+
+> **Límite que NO se puede cruzar al aplicar P2.** Hay dos vacíos distintos y
+> colapsarlos rompería una obligación de privacidad:
+>
+> - **Ausente** — no hay datos. Se oculta la estructura entera. Es P2.
+> - **Suprimido** — SÍ hay datos, y están ocultos por k-anonimato. Acá el aviso
+>   es obligatorio: si desaparece en silencio, el operador lee "no pasa nada"
+>   donde en realidad pasa algo protegido, y encima perdemos la declaración de
+>   supresión que el producto promete. **La supresión siempre se declara**,
+>   aunque no se muestre el dato.
+>
+> Toda aplicación de P2 tiene que distinguir los dos casos antes de ocultar.
+
+| # | Tarea nueva de estos principios | Tamaño |
+|---|---|---|
+| **P2-1** | **Helper compartido `absent` vs `suprimido`.** Hoy `dataUnavailable` es un solo booleano que viaja al panel de ranking desde dos superficies (`PanoramaConsole.tsx:3910` y `:4200`). P2 exige ocultar la estructura cuando no hay datos, pero la supresión por k-anonimato **siempre se declara**. Un booleano no puede decidir eso: hace falta un estado de tres valores (`hay datos` / `no hay` / `hay pero están protegidos`) y que el panel oculte sólo el del medio | M |
+| **P2-2** | **Inventario de estructuras vacías** en tableros e informes, aplicando P2 con el límite de P2-1. Candidatos ya conocidos: el ranking, las 101 superficies de estado vacío que el barrido de copy contó, y las leyendas que describen estados que el cuadro puede no contener (P3, RA-7 F9/F10) | M |
+| **MAP-1** | **Encuadrar al alcance antes de exportar la imagen del mapa.** Hoy exporta lo que entra en pantalla, así que el país nunca entra. Ajustar a los límites del alcance elegido, exportar, restaurar la vista del operador. Ojo con CABA: es un recuadro aparte | M |
+| **TEL-1** | **Dejar de recolectar `share_telemetry` y borrar lo acumulado.** El borrado es irreversible y va con migración; aplicarla a la base remota es decisión de Ignacio | S |
+
 Las seis decisiones restantes (D5 a D9, D11) se ejecutan con el default
 propuesto salvo aviso: reconfirmar KA1/KA2 como riesgo aceptado, sumar KA4 al
 documento de limitaciones, ocultar Parquet, mantener el "Sin datos suficientes"
