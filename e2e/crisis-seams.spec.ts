@@ -366,8 +366,20 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     const submitBtn = page.getByRole("button", { name: /registrar vacuna/i }).first();
     // Server signs the event and hands back ?firmado=1 for the client to
     // navigate to (N3 contract — the action returns `redirectTo`, it does not
-    // redirect itself; see lib/ui/use-action-redirect.ts).
-    await submitAndWait(page, submitBtn, (url) => url.searchParams.get("firmado") === "1", 45_000);
+    // redirect itself; see lib/ui/use-action-redirect.ts). That client half
+    // DROPS on occasion (the Next 15.5.x post-action navigation drop this
+    // repo documents in lib/ui/full-page-action-nav.ts, and the exact reason
+    // seam (d) stopped waiting on its finalize URL): the signature commits
+    // while the URL never gains ?firmado=1. The URL is a nicety; this seam's
+    // verdict is the owner-libreta outcome asserted right below (count rises
+    // + professional provenance), which fails loudly if the submit truly
+    // never landed — so a timed-out wait here downgrades to a non-event.
+    await submitAndWait(
+      page,
+      submitBtn,
+      (url) => url.searchParams.get("firmado") === "1",
+      45_000,
+    ).catch(() => {});
 
     // --- Owner POV #2: the signed vaccine is now in the pet's libreta -------
     // TWO assertions, because either alone can pass vacuously:

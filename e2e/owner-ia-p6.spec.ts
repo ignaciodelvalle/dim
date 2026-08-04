@@ -193,14 +193,18 @@ test("1 — owner /inicio redirects into the most-urgent pet profile with band d
     expect(url, "final URL is a real pet profile route").toMatch(PROFILE_RE);
     expect(tokenFromUrl(url), "resolved a concrete DIM token").toBeTruthy();
 
-    // Both faces mount the dots; scope to the visible (front) face.
-    const dotsGroup = page.locator("[data-section='flip-front']").getByTestId("pet-carousel-dots");
-    await expect(dotsGroup, "band dots present for >1 live pet").toBeVisible();
-    const dots = dotsGroup.getByRole("button", { name: /Mascota \d+ de \d+/ });
-    expect(await dots.count(), "position dots rendered").toBeGreaterThan(1);
+    // The in-band dots died with the avatar strip: PetSwitcherAvatars renders
+    // a nav[data-testid="pet-carousel-avatars"] ABOVE the document, one photo
+    // button per LIVE pet labeled "X — mascota N de M" ("(actual)" marks the
+    // current one). Same contract (visible switcher, >1 live pet, exactly one
+    // current), new surface.
+    const switcher = page.getByTestId("pet-carousel-avatars");
+    await expect(switcher, "pet switcher present for >1 live pet").toBeVisible();
+    const avatarButtons = switcher.getByRole("button", { name: /mascota \d+ de \d+/i });
+    expect(await avatarButtons.count(), "avatar buttons rendered").toBeGreaterThan(1);
     await expect(
-      dotsGroup.locator("button[aria-current='true']"),
-      "the current pet has an active dot",
+      switcher.getByRole("button", { name: /\(actual\)/ }),
+      "the current pet is marked as actual",
     ).toHaveCount(1);
   } finally {
     await context.close();
@@ -229,9 +233,7 @@ test("2 — keyboard arrows navigate to the neighbor pet route and back", async 
     expect(neighborToken, "URL changed to a different, real pet route").not.toBe(startToken);
     expect(neighborToken).toBeTruthy();
     await expect(page.locator("#main-content")).toHaveCount(1);
-    await expect(
-      page.locator("[data-section='flip-front']").getByTestId("pet-carousel-dots"),
-    ).toBeVisible();
+    await expect(page.getByTestId("pet-carousel-avatars")).toBeVisible();
 
     await page.keyboard.press("ArrowLeft");
     await page.waitForURL((u) => tokenFromUrl(u.href) === startToken, { timeout: 20_000 });
@@ -512,7 +514,7 @@ test("8 — org viewer of a held pet gets no carousel chrome and no emergency bl
     );
 
     await expect(page.getByText(/como miembro de/i), "org access notice present").toBeVisible();
-    await expect(page.getByTestId("pet-carousel-dots")).toHaveCount(0);
+    await expect(page.getByTestId("pet-carousel-avatars")).toHaveCount(0);
 
     // Reveal the (deferred) Libreta face via the band turn button (the single
     // flip control — the tablist is gone, tarjeta-todo), then assert the
@@ -560,7 +562,7 @@ test("9 — public /p/{pet} renders with no auth, no carousel chrome, no contact
     await expect(page.getByText("Credencial pública", { exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
-    await expect(page.getByTestId("pet-carousel-dots")).toHaveCount(0);
+    await expect(page.getByTestId("pet-carousel-avatars")).toHaveCount(0);
 
     // No contact PII on an ACTIVE credential: no lost-mode owner disclosure, and
     // no phone-number pattern anywhere in the body.

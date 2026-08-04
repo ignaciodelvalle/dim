@@ -187,32 +187,40 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
   test("(c) govt maltrato rows + panorama canvas paints", async ({ browser, page }) => {
     await loginAs(page, ACCOUNTS.govt);
 
-    // Maltrato queue (all cases) must render actionable rows.
+    // Legacy /gob/maltrato entry still lands on the unified Denuncias hub —
+    // the heading is "Denuncias (N en total)"; "Denuncias de maltrato" is gone.
     await page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
-    // `pnpm db:bootstrap` creates no cases at all, so on a fresh CI database
-    // this queue is legitimately empty and the row assertion below has nothing
-    // to find. File one the way a citizen does — inside THIS operator's
-    // coverage (ACCOUNTS.govt is seeded on Ushuaia + El Calafate), because a
-    // govt queue matches jurisdiction on an exact province/locality pair.
-    if ((await page.locator('a[href^="/gob/maltrato/"]:visible').count()) === 0) {
-      await fileDenunciaAt(browser, USHUAIA_POINT, USHUAIA_JURISDICTION);
-      await page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
-    }
-    // The console heading is "Denuncias (N en total)" — the old "Denuncias de
-    // maltrato" title is gone (/gob/maltrato now lands on the unified
-    // /gob/denuncias console; row links still point at /gob/maltrato/DEN-…).
     await expect(
       page.getByRole("heading", { name: /denuncias \(\d+ en total\)/i }),
       "maltrato console heading",
     ).toBeVisible({ timeout: 20_000 });
-    // The queue renders ALL tabpanels in the DOM (urgent/mine/all); inactive
-    // panels carry [hidden] and precede the active one, so a bare .first() on
-    // a global row selector lands on a display:none row (verified against the
-    // live staging DOM: div#tabpanel-urgent[hidden] comes first). Match only
-    // VISIBLE rows.
+
+    // `pnpm db:bootstrap` creates no cases at all, so on a fresh CI database
+    // the hub is legitimately empty. File one the way a citizen does — inside
+    // THIS operator's coverage (ACCOUNTS.govt is seeded on Ushuaia +
+    // El Calafate), because a govt queue matches jurisdiction on an exact
+    // province/locality pair.
+    //
+    // A fresh anon denuncia enters the MODERACIÓN stage (the F1 fusion made
+    // moderation the pipeline's front door — crisis-seams (c) walks exactly
+    // "flagged anon denuncia → ADMIN passes to triage"), so the actionable
+    // row for a just-filed case lives under etapa=moderacion and links to
+    // /gob/moderacion/{code} — NOT under the etapa=triage default this test
+    // used to assert (CI run 30865512613: Triage tab jurisdiction-filtered
+    // empty while Moderación carried the filed cases). Match only VISIBLE
+    // rows: inactive queue tabpanels stay in the DOM with [hidden].
+    const anyActionableRow = page.locator(
+      'a[href^="/gob/maltrato/"]:visible, a[href^="/gob/moderacion/"]:visible',
+    );
+    if ((await anyActionableRow.count()) === 0) {
+      await fileDenunciaAt(browser, USHUAIA_POINT, USHUAIA_JURISDICTION);
+    }
+    await page.goto("/gob/denuncias?etapa=moderacion&queue=all", {
+      waitUntil: "domcontentloaded",
+    });
     await expect(
-      page.locator('a[href^="/gob/maltrato/"]:visible').first(),
-      "maltrato queue has at least one actionable (visible) case row",
+      anyActionableRow.first(),
+      "hub has at least one actionable (visible) case row for this operator",
     ).toBeVisible({ timeout: 20_000 });
 
     // Panorama map paints a canvas within 60s.
