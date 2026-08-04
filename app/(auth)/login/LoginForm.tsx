@@ -1,7 +1,7 @@
 "use client";
 
 import { type AuthFormState, loginAction } from "@/app/actions/auth";
-import { LnField, LnInput } from "@/components/ui/Field";
+import { LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useActionState, useState } from "react";
 
@@ -96,10 +96,9 @@ export function LoginFormView({
           </LnField>
           <LnField label="Contraseña" required>
             {({ id, describedBy, invalid }) => (
-              <LnInput
+              <LnPasswordInput
                 id={id}
                 name="password"
-                type="password"
                 autoComplete="current-password"
                 required
                 aria-describedby={describedBy}

@@ -1,7 +1,7 @@
 "use client";
 
 import { type UpdatePasswordState, updatePasswordAction } from "@/app/actions/password-reset";
-import { LnField, LnInput } from "@/components/ui/Field";
+import { LnField, LnPasswordInput } from "@/components/ui/Field";
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect } from "react";
 
@@ -22,10 +22,9 @@ export function UpdatePasswordForm() {
     <form action={formAction} className="space-y-4">
       <LnField label="Nueva contraseña" required hint="Mínimo 8 caracteres.">
         {({ id, describedBy, invalid }) => (
-          <LnInput
+          <LnPasswordInput
             id={id}
             name="password"
-            type="password"
             autoComplete="new-password"
             minLength={8}
             required
@@ -36,10 +35,9 @@ export function UpdatePasswordForm() {
       </LnField>
       <LnField label="Repetir contraseña" required>
         {({ id, describedBy, invalid }) => (
-          <LnInput
+          <LnPasswordInput
             id={id}
             name="confirmPassword"
-            type="password"
             autoComplete="new-password"
             minLength={8}
             required

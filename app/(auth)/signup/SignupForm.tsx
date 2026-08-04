@@ -7,7 +7,7 @@ import {
   signupAction,
 } from "@/app/actions/auth";
 import { LocationFields } from "@/components/LocationFields";
-import { LnCheckbox, LnField, LnInput } from "@/components/ui/Field";
+import { LnCheckbox, LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
 import { useStepFocus } from "@/lib/ui/use-step-focus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -227,10 +227,9 @@ export function SignupForm({
           </LnField>
           <LnField label="Contraseña" required hint="Mínimo 8 caracteres.">
             {({ id, describedBy, invalid }) => (
-              <LnInput
+              <LnPasswordInput
                 id={id}
                 name="password"
-                type="password"
                 autoComplete="new-password"
                 minLength={8}
                 required
@@ -241,10 +240,9 @@ export function SignupForm({
           </LnField>
           <LnField label="Repetir contraseña" required>
             {({ id, describedBy, invalid }) => (
-              <LnInput
+              <LnPasswordInput
                 id={id}
                 name="confirmPassword"
-                type="password"
                 autoComplete="new-password"
                 minLength={8}
                 required

@@ -1,5 +1,8 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
+import { useState } from "react";
+
 /**
  * Wave 2 Item 9 — mobile hardening applied to all LN form primitives:
  *  - font-size ≥ 16px on mobile (prevents iOS auto-zoom on focus)
@@ -386,6 +389,52 @@ export function LnInput({ invalid = false, mono = false, className = "", ...rest
       {...withLocalizedValidity<HTMLInputElement>(rest)}
       {...withMobileFocusScroll<HTMLInputElement>(rest)}
     />
+  );
+}
+
+// ---------- Password input (con revelar) ----------------------------------
+
+/**
+ * LnPasswordInput — campo de contraseña con botón de revelar.
+ *
+ * POR QUÉ (crítica de diseño 2026-07-27, hallazgo U5): sin este toggle, "el
+ * no-técnico tipea a ciegas en el teléfono y falla más". El hallazgo nombraba
+ * sólo el login, pero el caso peor son signup y reseteo: ahí se tipea una
+ * contraseña NUEVA a ciegas, dos veces, y un error se descubre recién al
+ * comparar.
+ *
+ * Decisiones:
+ * - `type="button"` — un botón sin type dentro de un form ES submit por
+ *   defecto: revelar la contraseña enviaría el formulario.
+ * - Vuelve a `password` al desmontar no hace falta, pero el estado es local por
+ *   campo: revelar uno no revela el otro (importa en signup/reset, que tienen
+ *   dos).
+ * - 44px de área táctil (fence `lint:ui` / a11y-touch-targets), con el ícono
+ *   más chico centrado adentro.
+ * - `aria-pressed` en vez de cambiar el label: el lector de pantalla anuncia el
+ *   estado sin que el nombre del control cambie bajo el foco.
+ */
+export function LnPasswordInput({ invalid = false, className = "", ...rest }: LnInputProps) {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <LnInput
+        {...rest}
+        invalid={invalid}
+        type={visible ? "text" : "password"}
+        className={["pr-12", className].filter(Boolean).join(" ")}
+      />
+      <button
+        type="button"
+        onClick={() => setVisible((v) => !v)}
+        aria-pressed={visible}
+        aria-label={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        title={visible ? "Ocultar contraseña" : "Mostrar contraseña"}
+        className="absolute right-0 top-0 flex h-11 w-11 items-center justify-center text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+      >
+        <Icon name={visible ? "anonimo" : "ojo"} size="sm" decorative />
+      </button>
+    </div>
   );
 }
 
