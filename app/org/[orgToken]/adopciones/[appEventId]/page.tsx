@@ -9,11 +9,13 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime } from "@/lib/utils/format";
 import { isUuid } from "@/lib/utils/uuid";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -21,6 +23,27 @@ import { requireCapability } from "@/src/modules/organizations/infrastructure/au
 import { ReviewButtons } from "./ReviewButtons";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * The applicant's email, read from `auth.users` at render time.
+ *
+ * Not mirrored anywhere on purpose: `profiles` deliberately has no email column
+ * (no PII duplication, and subject erasure has ONE place to happen), and the
+ * append-only event payload is the last place it should live — an immutable
+ * spine outlives the right to be forgotten.
+ *
+ * Best-effort by design: an auth hiccup degrades to "sin email registrado", it
+ * never breaks a shelter's review screen.
+ */
+async function resolveApplicantEmail(applicantUserId: string | null): Promise<string | null> {
+  if (!applicantUserId) return null;
+  try {
+    const { data } = await createAdminClient().auth.admin.getUserById(applicantUserId);
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export default async function AdoptionReviewDetailPage({
   params,
@@ -97,8 +120,26 @@ export default async function AdoptionReviewDetailPage({
         .limit(1)
     : [undefined];
 
+  // The applicant's EMAIL (copy audit 2026-08-04, PO decision). Five strings
+  // across the adoption flow tell the applicant the shelter will get in touch,
+  // and this screen — the shelter's only view of them — showed Nombre and
+  // Teléfono and nothing else. A phone-only channel does not honour "te
+  // contactamos por email", so the promise was unkeepable from here.
+  //
+  // Read from `auth.users` at render time rather than mirrored anywhere: the
+  // profiles table deliberately has no email column (no PII duplication, and
+  // subject erasure has ONE place to happen), and the append-only event payload
+  // is the last place it should live — an immutable spine outlives the right to
+  // be forgotten. Same targeted `getUserById` pattern as
+  // app/admin/admins/[userId]/page.tsx; one call per page load (ADR-8).
+  //
+  // Best-effort: an auth hiccup must degrade to "sin email registrado", never
+  // break a shelter's review screen.
+  const applicantEmail = await resolveApplicantEmail(applicantUserId);
+
   // PII access trail (V1-9). The org reviewer is now reading the applicant's
-  // full identity (name, phone, housing). Record one audit row per page view.
+  // full identity (name, phone, EMAIL, housing). Record one audit row per page
+  // view.
   // This is a server-component fetch, so it fires once per load — not on every
   // client re-render. Best-effort: a failed audit write must NOT block the
   // render (same posture as the best-effort notification inserts elsewhere).
@@ -166,6 +207,25 @@ export default async function AdoptionReviewDetailPage({
         <OpCardBody>
           <dl className="space-y-2">
             <Row label="Nombre" value={applicant?.displayName ?? "(perfil no encontrado)"} />
+            {/* Email always rendered, even when absent: its absence is
+                information the reviewer needs — it tells them the only channel
+                left is the phone. A row that silently disappears reads as "no
+                email column here", not as "this person has none". */}
+            <Row
+              label="Email"
+              value={
+                applicantEmail ? (
+                  <a
+                    href={`mailto:${applicantEmail}`}
+                    className="text-ln-op-azul underline underline-offset-2"
+                  >
+                    {applicantEmail}
+                  </a>
+                ) : (
+                  "Sin email registrado"
+                )
+              }
+            />
             {applicant?.phone && <Row label="Teléfono" value={applicant.phone} />}
             <Row label="Tipo de vivienda" value={housingTypeLabel(payload.housing_type)} />
           </dl>
@@ -269,7 +329,7 @@ async function recordAdopterPiiView(args: {
   }
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">
       <dt className="text-sm text-ln-op-mute w-32">{label}</dt>

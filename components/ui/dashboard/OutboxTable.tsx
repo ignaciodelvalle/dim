@@ -21,7 +21,7 @@ import {
   type BreachCue,
   buildBreachCue,
   buildStatusLabel,
-  enoExternalDeliveryNote,
+  externalDeliveryNote,
   isPendingExternalTransmission,
 } from "@/lib/infra/outbox-list";
 import { AR_TIME_ZONE } from "@/lib/utils/format";
@@ -65,7 +65,7 @@ const BREACH_PILL_LABEL: Record<BreachCue, string> = {
 /**
  * G7 (2026-08-02): the delivered-cue pill must not read "Entregado" for a row
  * whose transmission has no external receiving endpoint (eno_authority) —
- * that pill was the exact lie enoExternalDeliveryNote used to footnote. The
+ * that pill was the exact lie externalDeliveryNote used to footnote. The
  * honest pending-transmission state comes from buildStatusLabel (status
  * 'delivered' + targetKind), rendered neutral instead of green: nothing was
  * delivered externally, so nothing has earned an all-clear tone.
@@ -185,11 +185,11 @@ export function OutboxTable({
                       this row means our outbox pipeline processed it, not
                       that the external health authority received it — no
                       receiving endpoint exists yet. */}
-                  {enoExternalDeliveryNote(row.targetKind) && (
+                  {externalDeliveryNote(row.targetKind) && (
                     <span
                       className="ml-1 cursor-help text-ln-op-mute"
-                      title={enoExternalDeliveryNote(row.targetKind) ?? undefined}
-                      aria-label={enoExternalDeliveryNote(row.targetKind) ?? undefined}
+                      title={externalDeliveryNote(row.targetKind) ?? undefined}
+                      aria-label={externalDeliveryNote(row.targetKind) ?? undefined}
                     >
                       ⓘ
                     </span>

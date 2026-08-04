@@ -82,7 +82,15 @@ describe("OutboxTable — Intentos states a real zero instead of looking blank",
     );
     // The jurisdiction cell legitimately dashes when both parts are null; the
     // attempts cell must not add a second, meaningless one.
-    expect(html.split("—")).toHaveLength(2);
+    //
+    // Counts a cell whose ENTIRE content is an em dash, not every em dash in
+    // the document (2026-08-04): honest status wording now legitimately
+    // contains one mid-sentence — "Registrada y auditada — envío al webhook
+    // pendiente de receptor" — and a document-wide count made this fence fire
+    // on copy that is not a blank cell at all. This is the stricter assertion,
+    // not the looser one: it names the thing the test is actually about.
+    const bareDashCells = html.match(/>—</g) ?? [];
+    expect(bareDashCells).toHaveLength(1);
   });
 
   it("still shows the count once there is one", () => {

@@ -3,8 +3,22 @@ import "server-only";
 import { createClient as createSdkClient } from "@supabase/supabase-js";
 
 // Service-role admin client — bypasses Row Level Security.
-// ONLY import this module from app/actions/admin-institutional.ts.
+//
 // The service-role key must NEVER appear in logs, error messages, or bundles.
+//
+// Import rule (corrected 2026-08-04 — the previous comment said "ONLY import
+// this module from app/actions/admin-institutional.ts", which stopped being
+// true long ago: the transfers repository, the invite flow, the admin detail
+// page and the adoption review page all import it legitimately). A stale
+// restriction is worse than none, because a security reviewer reads it as an
+// enforced invariant and stops looking.
+//
+// The real rule: this module may be imported ONLY from server-side code that
+// has already authorized the caller, and every use must be justified by data
+// that genuinely lives outside Postgres — in practice `auth.users`, whose
+// email column has no Drizzle mirror on purpose (no PII duplication, and
+// erasure has one place to happen). Reaching for it to skip an RLS policy is
+// always wrong; add the policy instead.
 //
 // Module-level cache is safe here because the service-role client has no
 // per-request session state (unlike the cookie-bound server.ts client).

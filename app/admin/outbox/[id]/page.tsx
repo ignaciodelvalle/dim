@@ -3,7 +3,11 @@
 //
 // IMPORTANT — the "Reintentar ahora" button does NOT deliver synchronously.
 // It resets next_retry_at = now() and status = pending so the drainer cron
-// picks the row up within 5 minutes. This is documented in the UI.
+// picks the row up on its NEXT run, which is once a day at 04:00
+// (`0 4 * * *` — vercel.json and lib/cron/cron-registry.ts; the dispatcher
+// explains that the Hobby plan cannot schedule sub-daily). This docblock said
+// "within 5 minutes" until 2026-08-04, as did the UI: five minutes is
+// BACKOFF_MINUTES[0], the first backoff step, not the drain cadence.
 
 import { eq } from "drizzle-orm";
 import Link from "next/link";
@@ -25,7 +29,7 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import {
   buildBreachCue,
   buildStatusLabel,
-  enoExternalDeliveryNote,
+  externalDeliveryNote,
   isPendingExternalTransmission,
 } from "@/lib/infra/outbox-list";
 import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
@@ -188,10 +192,8 @@ export default async function AdminOutboxDetailPage({
               that the external health authority received it — no receiving
               endpoint exists yet. States reality; never "próximamente" (the
               pipeline itself is real and running today). */}
-          {enoExternalDeliveryNote(row.targetKind) && (
-            <p className="mt-3 text-sm text-ln-op-mute">
-              {enoExternalDeliveryNote(row.targetKind)}
-            </p>
+          {externalDeliveryNote(row.targetKind) && (
+            <p className="mt-3 text-sm text-ln-op-mute">{externalDeliveryNote(row.targetKind)}</p>
           )}
 
           {row.lastError && (
@@ -313,9 +315,17 @@ export default async function AdminOutboxDetailPage({
           title="Reintentar manualmente"
           body={
             <span className="space-y-2 block">
+              {/* "máximo 5 minutos" era falso por un factor de ~288 (auditoría
+                  de copy 2026-08-04). Los 5 minutos son el PRIMER escalón del
+                  backoff (BACKOFF_MINUTES[0] en lib/infra/outbox-drainer.ts),
+                  no la cadencia del drenaje: el drenaje corre una vez por día a
+                  las 04:00 (`0 4 * * *` en vercel.json y cron-registry.ts, y el
+                  despachador explica que el plan Hobby no admite sub-diario).
+                  El código lo sabía; la copy no. */}
               <span className="block">
                 Este botón no entrega la notificación al instante. La vuelve a poner en cola para
-                que el sistema la reintente en el próximo ciclo de envío (máximo 5 minutos).
+                que el sistema la reintente en la próxima corrida del drenaje, que se ejecuta una
+                vez por día a las 04:00.
               </span>
               <RetryOutboxButton rowId={row.id} />
             </span>

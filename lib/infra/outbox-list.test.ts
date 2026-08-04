@@ -11,7 +11,7 @@ import {
   applyOutboxFilters,
   buildBreachCue,
   buildStatusLabel,
-  enoExternalDeliveryNote,
+  externalDeliveryNote,
   isPendingExternalTransmission,
   isSlaBreached,
 } from "@/lib/infra/outbox-list";
@@ -73,10 +73,23 @@ describe("buildStatusLabel", () => {
       expect(buildStatusLabel("delivered", "eno_authority")).not.toMatch(/entregad/i);
     });
 
-    it("keeps 'Entregado' for genuinely-delivered internal target kinds", () => {
-      expect(buildStatusLabel("delivered", "govt_webhook")).toBe("Entregado");
-      expect(buildStatusLabel("delivered", "audit_export")).toBe("Entregado");
-      expect(buildStatusLabel("delivered", "internal_dashboard")).toBe("Entregado");
+    // CORRECTED 2026-08-04 (copy audit). This test used to assert the OPPOSITE
+    // — that these three keep "Entregado" because they are "genuinely
+    // delivered". They are not: deliverOutboxRow routes all four kinds into the
+    // same v1 no-op branch, whose audit payload says `v1_noop: true` and "real
+    // receiver not yet implemented". The test was defending the defect.
+    it("never shows 'Entregado' for any kind — v1 has no real receiver", () => {
+      for (const kind of ["govt_webhook", "audit_export", "internal_dashboard"]) {
+        expect(buildStatusLabel("delivered", kind)).not.toMatch(/entregad/i);
+      }
+    });
+
+    it("gives each kind its own destination-accurate wording", () => {
+      expect(buildStatusLabel("delivered", "govt_webhook")).toMatch(/webhook/i);
+      expect(buildStatusLabel("delivered", "audit_export")).toMatch(/exportación/i);
+      expect(buildStatusLabel("delivered", "internal_dashboard")).toMatch(/tablero/i);
+      // A govt_webhook row must not borrow the ENO phrasing.
+      expect(buildStatusLabel("delivered", "govt_webhook")).not.toMatch(/autoridad/i);
     });
 
     it("only relabels the delivered status — pending/failed eno rows keep honest labels", () => {
@@ -104,40 +117,54 @@ describe("isPendingExternalTransmission", () => {
     expect(isPendingExternalTransmission("failed", "eno_authority")).toBe(false);
   });
 
-  it("is false for delivered rows of real, already-built destinations", () => {
-    expect(isPendingExternalTransmission("delivered", "govt_webhook")).toBe(false);
-    expect(isPendingExternalTransmission("delivered", "audit_export")).toBe(false);
-    expect(isPendingExternalTransmission("delivered", "internal_dashboard")).toBe(false);
+  // CORRECTED 2026-08-04: in v1 every kind is endpoint-less, so a delivered row
+  // of ANY kind is pending external transmission.
+  it("is true for delivered rows of every kind — none has a receiver in v1", () => {
+    expect(isPendingExternalTransmission("delivered", "govt_webhook")).toBe(true);
+    expect(isPendingExternalTransmission("delivered", "audit_export")).toBe(true);
+    expect(isPendingExternalTransmission("delivered", "internal_dashboard")).toBe(true);
   });
 
-  it("stays anchored on enoExternalDeliveryNote (one definition of the class)", () => {
+  it("is false for a kind with no note — the class has one definition", () => {
+    // The escape hatch that lets a real receiver ship: drop the kind from
+    // PENDING_TRANSMISSION_BY_KIND and both the status and the note follow.
+    expect(isPendingExternalTransmission("delivered", "kind_with_real_receiver")).toBe(false);
+  });
+
+  it("stays anchored on externalDeliveryNote (one definition of the class)", () => {
     // If a target kind gains a note, it must also gain the honest relabel.
     expect(isPendingExternalTransmission("delivered", "eno_authority")).toBe(
-      enoExternalDeliveryNote("eno_authority") !== null,
+      externalDeliveryNote("eno_authority") !== null,
     );
   });
 });
 
 // ---------------------------------------------------------------------------
-// enoExternalDeliveryNote — C2 honest-delivery note (2026-07-22)
+// externalDeliveryNote — C2 honest-delivery note (2026-07-22)
 // ---------------------------------------------------------------------------
 
-describe("enoExternalDeliveryNote", () => {
+describe("externalDeliveryNote", () => {
   it("returns the honest external-transmission note for eno_authority", () => {
-    const note = enoExternalDeliveryNote("eno_authority");
+    const note = externalDeliveryNote("eno_authority");
     expect(note).toBe(
       "Registrada y auditada — transmisión a la autoridad pendiente de endpoint receptor.",
     );
   });
 
   it("never says 'próximamente' (the pipeline itself is real, running today)", () => {
-    expect(enoExternalDeliveryNote("eno_authority")).not.toMatch(/próximamente/i);
+    expect(externalDeliveryNote("eno_authority")).not.toMatch(/próximamente/i);
   });
 
-  it("returns null for every other target_kind (a real, already-built destination)", () => {
-    expect(enoExternalDeliveryNote("govt_webhook")).toBeNull();
-    expect(enoExternalDeliveryNote("audit_export")).toBeNull();
-    expect(enoExternalDeliveryNote("internal_dashboard")).toBeNull();
+  // CORRECTED 2026-08-04: the old assertion encoded the false claim that these
+  // three "resolve to a real, already-built destination". They do not.
+  it("returns a note for all four v1 kinds", () => {
+    for (const kind of ["eno_authority", "govt_webhook", "audit_export", "internal_dashboard"]) {
+      expect(externalDeliveryNote(kind)).not.toBeNull();
+    }
+  });
+
+  it("returns null for an unknown kind (so a real receiver can opt out)", () => {
+    expect(externalDeliveryNote("kind_with_real_receiver")).toBeNull();
   });
 });
 

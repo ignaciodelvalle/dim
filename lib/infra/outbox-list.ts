@@ -59,33 +59,57 @@ export const ENO_PENDING_TRANSMISSION_STATUS =
  * ENO honest-delivery note (C2 language contract, 2026-07-22 — PO-locked).
  *
  * Our outbox pipeline genuinely generates, queues, SLA-tracks and audit-logs
- * every ENO notification (AGENTS.md: "Measures OUR outbox pipeline, not
- * external delivery"). But an eno_authority row completes its pipeline leg
- * with status 'delivered' — which a reader parses as "the health authority
- * received this", when no external receiving endpoint exists yet. This note
- * states reality instead of implying external transmission, and deliberately
- * never says "próximamente" (the pipeline is real and running TODAY; only the
- * external leg is missing). Returns null for every other target_kind —
- * govt_webhook/audit_export/internal_dashboard all resolve to a real,
- * already-built destination with no such gap.
+ * every notification (AGENTS.md: "Measures OUR outbox pipeline, not external
+ * delivery"). But a row completes its pipeline leg with status 'delivered' —
+ * which a reader parses as "the recipient received this", when no external
+ * receiving endpoint exists yet. These notes state reality instead of implying
+ * transmission, and deliberately never say "próximamente" (the pipeline is real
+ * and running TODAY; only the external leg is missing).
+ *
+ * CORRECTION 2026-08-04 (copy audit). This used to return null for every kind
+ * except eno_authority, on the written claim that "govt_webhook/audit_export/
+ * internal_dashboard all resolve to a real, already-built destination with no
+ * such gap". That claim was FALSE, and the file it cited proves it:
+ * `deliverOutboxRow` (lib/infra/outbox-drainer.ts) routes ALL FOUR kinds into
+ * the same v1 branch, whose audit payload literally carries `v1_noop: true` and
+ * `"real receiver not yet implemented"`. Three quarters of the console kept
+ * saying "Entregado" for rows that were never sent anywhere.
+ *
+ * This is the day's recurring shape and worth naming: a fix lands on one
+ * instance, and the comment written alongside it asserts the rest of the class
+ * is fine without anyone having checked.
+ *
+ * The eno_authority wording is PO-locked (C2 language contract) and is
+ * reproduced verbatim; the siblings get their own destination-accurate
+ * phrasing rather than being folded into it.
  */
-export function enoExternalDeliveryNote(targetKind: string): string | null {
-  if (targetKind !== "eno_authority") return null;
-  return `${ENO_PENDING_TRANSMISSION_STATUS}.`;
+const PENDING_TRANSMISSION_BY_KIND: Record<string, string> = {
+  eno_authority: ENO_PENDING_TRANSMISSION_STATUS,
+  govt_webhook: "Registrada y auditada — envío al webhook pendiente de receptor",
+  audit_export: "Registrada y auditada — exportación pendiente de destino",
+  internal_dashboard: "Registrada y auditada — sin publicación a tablero (v1)",
+};
+
+export function externalDeliveryNote(targetKind: string): string | null {
+  const status = PENDING_TRANSMISSION_BY_KIND[targetKind];
+  return status ? `${status}.` : null;
 }
 
 /**
- * G7 (2026-08-02): TRUE for exactly the rows whose "Entregado" label was a
- * lie — status 'delivered' on a target_kind with no external receiving
- * endpoint (today only eno_authority; anchored on enoExternalDeliveryNote so
- * the endpoint-less class has ONE definition). 'delivered' there means OUR
- * outbox pipeline processed and audit-logged the row (lib/infra/
- * outbox-drainer.ts v1 no-op handler) — the external authority never
- * received anything. Never true for pending/failed (those labels are honest
- * as-is) nor for the internal target kinds, whose 'delivered' is genuine.
+ * G7 (2026-08-02, widened 2026-08-04): TRUE for exactly the rows whose
+ * "Entregado" label is a lie — status 'delivered' on a target_kind with no
+ * external receiving endpoint. In v1 that is ALL FOUR kinds, not just
+ * eno_authority: `deliverOutboxRow` sends every one of them down the same
+ * no-op branch. 'delivered' means OUR outbox pipeline processed and
+ * audit-logged the row — nobody received anything.
+ *
+ * Anchored on externalDeliveryNote so the endpoint-less class has ONE
+ * definition: when a real receiver ships for a kind, drop it from
+ * PENDING_TRANSMISSION_BY_KIND and both the status and the note follow.
+ * Never true for pending/failed — those labels are honest as-is.
  */
 export function isPendingExternalTransmission(status: OutboxStatus, targetKind: string): boolean {
-  return status === "delivered" && enoExternalDeliveryNote(targetKind) !== null;
+  return status === "delivered" && externalDeliveryNote(targetKind) !== null;
 }
 
 /**
@@ -93,14 +117,17 @@ export function isPendingExternalTransmission(status: OutboxStatus, targetKind: 
  *
  * Pass the row's `targetKind` whenever a CONCRETE row is being labeled: a
  * 'delivered' eno_authority row then reads the honest pending-transmission
- * state instead of "Entregado" (G7 — enoExternalDeliveryNote documents why
+ * state instead of "Entregado" (G7 — externalDeliveryNote documents why
  * "Entregado" is a lie for that class). Omitting `targetKind` is only valid
  * for kind-agnostic contexts (the status <select> options in
  * lib/ui/outbox-filter-axes.ts), where no row exists to be honest about.
  */
 export function buildStatusLabel(status: OutboxStatus, targetKind?: string): string {
   if (targetKind !== undefined && isPendingExternalTransmission(status, targetKind)) {
-    return ENO_PENDING_TRANSMISSION_STATUS;
+    // Per-kind, not the ENO string for everyone: the four destinations differ,
+    // and a govt_webhook row reading "transmisión a la autoridad" would trade
+    // one inaccuracy for another.
+    return PENDING_TRANSMISSION_BY_KIND[targetKind] ?? ENO_PENDING_TRANSMISSION_STATUS;
   }
   switch (status) {
     case "delivered":
