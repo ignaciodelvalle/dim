@@ -173,6 +173,15 @@ servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero
 
 ---
 
+## 🔴 P1 (nuevo) — hallazgo de cumplimiento, 2026-08-04
+
+| # | Qué | Evidencia | Por qué es P1 |
+|---|---|---|---|
+| **PRIV-1** | **`push_subscriptions` sobrevive al borrado de sujeto.** El endpoint de push y las claves `p256dh`/`auth` del cliente quedan vivos después de un borrado completo bajo Ley 25.326 art. 16. La cascada `user_id → profiles.id ON DELETE CASCADE` existe (`db/schema.ts:1567`) pero **es inalcanzable**: nada borra filas de `profiles` — `erase_subject_data` hace soft-delete (`migrations/0059`) y la acción de cuenta borra sólo `auth.users`, que no tiene FK a `profiles` (`db/schema.ts:401`). Ninguna de las migraciones de borrado (0106/0129/0130/0131/0159) toca la tabla. | verificado 04/08 en el barrido T10 | Es un dato personal identificador (endpoint de dispositivo) que persiste después de que el titular ejerció su derecho de supresión. **Fix**: agregar la revocación/borrado de `push_subscriptions` a `erase_subject_data` |
+| **ROUTE-1** | El form "¿Encontraste esta mascota?" busca al dueño **sin filtrar `role='owner'` y sin ORDER BY** con `.limit(1)`: en una mascota con tránsito activo el aviso del hallador puede ir al foster en lugar del titular. | `app/(public)/p/[publicToken]/encontre/action.ts:152-158` | Es el camino de recuperación de una mascota perdida — justo donde el mis-ruteo duele |
+
+---
+
 ## 🔵 Features no construidas — migradas de la cola del 24/06
 
 > Verificadas contra el árbol el **2026-08-04**. Son las DOS únicas filas que

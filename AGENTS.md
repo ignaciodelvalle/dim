@@ -251,8 +251,8 @@ When multiple rules conflict, **more specific wins**: locality > province > coun
 These are the invariants the schema and application writers enforce together.
 
 1. **Account type ↔ role match.** `profiles.account_type='personal'` ⟹ `role ∈ {owner, vet}`. `profiles.account_type='institutional'` ⟹ `role ∈ {govt, admin}`. **Enforced in the application layer** by every writer that sets these columns (`createInstitutionalAccountForAuthority`, approval mutation handlers, the `handle_new_user` trigger). A DB-level CHECK constraint (`profiles_account_type_role_match`) was added in migration 0015 but **dropped in migration 0016** (`db/migrations/0016_drop_role_match_check.sql`) because Drizzle + postgres-js fires the constraint on the intermediate row state during a two-column UPDATE in the same statement, breaking the test suite. The invariant is intentionally enforced at the app layer only — do NOT add the CHECK back without resolving that Drizzle behavior.
-2. **Institutional accounts have no personal-identity fields.** When `account_type='institutional'`, `dni_hash IS NULL`, `miarg_sub IS NULL`, `dni_verified=false`, `matricula_number IS NULL`, `matricula_jurisdiccion IS NULL`, `matricula_verified=false`. CHECK constraint (`profiles_institutional_no_pii`). Note: `dni_number` was dropped in migration 0106 (Wave 5 Item 25a).
-3. **Institutional accounts cannot own pets.** A trigger on `ownerships` rejects any INSERT or UPDATE that would tie an institutional account to a pet via `owner_user_id`. The trigger uses `errcode='restrict_violation'` and a clear Spanish message.
+2. **Institutional accounts have no personal-identity fields.** When `account_type='institutional'`, `dni_hash IS NULL`, `miarg_sub IS NULL`, `matricula_number IS NULL`, `matricula_jurisdiccion IS NULL` — **sólo estas cuatro columnas de texto** están en el CHECK (`db/schema.ts:517-520`); los booleanos `dni_verified`/`matricula_verified` y `dni_last4` quedaron FUERA a propósito (migración 0015) y son enforcement de aplicación. CHECK constraint (`profiles_institutional_no_pii`). Note: `dni_number` was dropped in migration 0106 (Wave 5 Item 25a).
+3. **Institutional accounts cannot own pets.** A trigger on `ownerships` rejects any INSERT or UPDATE that would tie an institutional account to a pet via `owner_user_id`. The trigger uses `errcode='restrict_violation'` (`db/migrations/0015_admin_page_closure.sql:54-83`). El mensaje está en inglés, no en español.
 4. **Last admin cannot be deactivated.** Server-action precondition counts `account_type='institutional' AND role='admin' AND deactivated_at IS NULL` and refuses if the deactivation would leave fewer than one.
 5. **Govt cannot self-deactivate if any locality is uncovered.** Server-action precondition checks coverage for every `govt_assignment` of the deactivating user.
 
@@ -421,7 +421,7 @@ None of these are blockers for v1. The data model accepts them without rework; t
 - `transferred_from_id?` — chains custody history across users and orgs
 - `created_at`
 - **Polymorphic holder.** Exactly one of (`owner_user_id`, `owner_organization_id`) is set per row, enforced via CHECK constraint. `Ownership` is the projection; the source of truth for transfers is always a `custody_transferred` or `adoption_finalized` event.
-- **Active-owner constraint.** At most one active row per pet where `role='owner'`. Multiple `shelter_custody`, `foster`, `caretaker`, or `co_owner` rows can coexist with an active `owner`, or with each other when there is no permanent owner yet.
+- **Active-owner constraint.** At most one active row per pet where `role='owner'` — índice único parcial `ownerships_one_active_owner_per_pet` (`db/schema.ts:1116`). Multiple `shelter_custody`, `foster`, `caretaker`, or `co_owner` rows can coexist with an active `owner`, or with each other when there is no permanent owner yet.
 - **Role semantics:**
   - `owner` — permanent legal owner. The single accountable party. Person *or* organization.
   - `shelter_custody` — temporary custody pending permanent placement. Used by refugios *and* by individual citizens who pick up strays. Person *or* organization. Refugios are never `owner` in DIM — they hold `shelter_custody` until adoption finalizes. The vecino-helps-stray case uses the same role with `owner_user_id` set and no org link.
@@ -549,8 +549,12 @@ insert used the shared `db` pool, not a caller-supplied transaction handle
 - `p256dh`, `auth` — client encryption keys from the `PushSubscription` object
 - `revoked_at?` — **soft revoke**. A 410/404 from the push service, or the user
   toggling push off in `/cuenta`, sets this instead of deleting the row —
-  keeps an auditable trail. Hard delete only happens via the `profiles`
-  erasure cascade.
+  keeps an auditable trail. **El borrado duro NO ocurre nunca** (verificado
+  2026-08-04): la cascada desde `profiles` existe pero es inalcanzable — nada
+  borra filas de `profiles` (`erase_subject_data` hace soft-delete; la acción
+  de cuenta borra sólo `auth.users`, que no tiene FK a `profiles`). El endpoint
+  de push y sus claves sobreviven a un borrado de sujeto. Hallazgo de
+  cumplimiento abierto (Ley 25.326 art. 16) en `docs/plans/PENDIENTES.md`.
 - `created_at`
 
 RLS: owner-only (`user_id = auth.uid()`) for SELECT/INSERT/UPDATE; no DELETE
@@ -852,7 +856,7 @@ When designing a new event with 3+ semantically-similar variants, prefer this um
 | 3    | Owner, authenticated in app           | Everything, including scan history with locations. Editable.                                                                          |
 | 4    | (future) Verified vet via portal      | Tier 2 by default + can write events                                                                                                  |
 
-**Organization branding on public credentials.** When a pet's current `Ownership` row is held by a verified organization (or held one recently, within the post-adoption followup window declared on `adoption_finalized`), Tier 0 may display a "Bajo seguimiento de [Org Name] ✓" badge. The badge is gated by two boolean flags that must both be true: `organizations.tier0ShowBranding` (org opt-in) and `pets.tier0ShowOriginOrg` (per-pet opt-in, label "Refugio de origen", default `false`). Unverified orgs do not appear on public credentials. The "Did you find this pet?" contact form (`/p/[publicToken]/encontre`) does **not** dual-route to the originating refugio — it routes to the legal owner only.
+**Organization branding on public credentials.** When a pet's current `Ownership` row is held by a verified organization (or held one recently, within the post-adoption followup window declared on `adoption_finalized`), Tier 0 may display a "Bajo seguimiento de [Org Name] ✓" badge. The badge is gated by `organizations.verified AND organizations.tier0ShowOriginOrg` (`lib/infra/origin-org.ts:100`). **NO existe opt-in por mascota** — corregido 2026-08-04: este párrafo prometía un control `pets.tier0ShowOriginOrg` que no existe, y nombraba `tier0ShowBranding`, que es OTRO flag (autoría en el timeline). La organización decide sola. (texto viejo, label "Refugio de origen", default `false`). Unverified orgs do not appear on public credentials. The "Did you find this pet?" contact form (`/p/[publicToken]/encontre`) does **not** dual-route to the originating refugio — it routes to the legal owner only.
 
 ## Dashboards & projections (the consumers)
 
@@ -921,7 +925,7 @@ Surfaces and their basis:
 
 - **Coarse public aggregates require no consent.** Counts of vaccinated pets per barrio per month, with no per-pet attribution, can power public dashboards without owner opt-in — there's no individual signal to expose.
 - **Granular research/welfare contribution is opt-in.** Owners can opt their pet's events (with location, with timing) into datasets beyond coarse counts. Default off; clearly communicated; revocable.
-- **PII never leaves the database in projections.** Owner names, phone numbers, exact addresses never appear in public or analyst views. `jurisdiction_locality` (barrio) is the smallest unit exposed publicly.
+- **PII never leaves the database in AGGREGATE projections** (dashboards, datos abiertos): ahí rigen k-anonimato y supresión, y `jurisdiction_locality` es la unidad más chica publicada. **Las superficies públicas CONSENTIDAS son la excepción declarada**: credencial de mascota perdida (nombre del dueño + contacto + coordenadas, con su opt-in), libreta compartida (nombre) y comprobante de denuncia (coordenadas gruesas). Corregido 2026-08-04 — como absoluto la frase era falsa, y es la clase de frase que alguien cita ante un regulador.
 - **k-anonymity for small cells — enforced.** Any aggregate that would expose fewer than `k` pets in a region (default `k=5`) is suppressed or rolled up to the next coarser jurisdiction level. Prevents accidental re-identification in sparse data. **Enforcement boundary: `lib/metrics/anonymity.ts` → `suppressSmallCells`.** The `SuppressedCells` branded type makes it a compile-time error to return a raw cell array without suppression.
 - **Authorized actors (vet portal, gov portal, when they exist) see PII within their legitimate scope only**, gated by Postgres Row Level Security. The data layer enforces tier visibility, not just the app code.
 ### Authorization architecture (Wave 5 Item 26)
