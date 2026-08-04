@@ -197,6 +197,25 @@ dashboard de Supabase (A9 de la cola vieja).
 - **Las 7 barreras de a11y**: todas ahora. (Hechas.)
 - **`final-seams`**: investigar los 4 antes de decidir. (Hecho: ninguno era defecto de producto, spec jubilada, y la única cobertura que se pierde quedó escrita en el header de `crisis-seams`.)
 
+## TODO/FIXME en código — clasificados 2026-08-04 (no hay deuda oculta)
+
+Barrido de los 37 marcadores en código productivo. **Resultado: están sanos.**
+Casi todos llevan dueño explícito y ninguno esconde trabajo sin registrar:
+
+| Etiqueta | Cuántos | Qué los bloquea |
+|---|---|---|
+| `TODO(25b)` / `TODO(mi-argentina)` | ~6 | Credenciales de Mi Argentina (OIDC). **Externo** — el stub devuelve 404 con la puerta cerrada |
+| `TODO(PO)` | 3 | Decisiones tuyas: sink de observabilidad (Sentry/Vercel/otro), citas por corredor de viaje |
+| `TODO(E5-followup)` | 3 | Esperan que exista un tipo de evento `pet_acquired` |
+| `TODO(F2-prov-ba-v2)` | 3 | Export PPP de Prov. BA diferido hasta reglamentación municipal de Ley 14.107 |
+| `TODO(eno)` / `TODO(authority-integration)` | 2 | Integración con canales oficiales — mismo bloqueo que el outbox |
+| `operator-vocabulary.ts` | 3 | No son deuda: son instrucciones de cómo agregar una entrada nueva |
+| Falso positivo | 1 | `event-capture-matcher.ts:446` dice "el cuerpo de la nota es TODO el texto" — el "todo" español, no un marcador |
+
+**Conclusión**: no hay TODO huérfano ni sin dueño. La deuda real de este
+proyecto no vive en los comentarios del código — vive en los documentos, que es
+lo que este barrido terminó de confirmar.
+
 ## Decisiones del PO — 2026-08-04
 
 - **Walk-in de Atender**: el evento entra, marcado con provenance de walk-in no
