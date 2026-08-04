@@ -143,6 +143,12 @@ const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC/mordedura/nuevo",
   "/org/ORG-ABC/servicios",
   "/org/ORG-ABC/miembros",
+  // Added deliberately 2026-08-04: the org message inbox. The two public
+  // profile sheets ("Contactar" / "Sumate como voluntario") wrote to
+  // org_contact_messages and nothing read that table, so this is the reading
+  // half. Gated on `member.invite`, same bar as Miembros — hence the Equipo
+  // section. Sibling fence: components/layout/nav-presets.test.ts.
+  "/org/ORG-ABC/mensajes",
   "/org/ORG-ABC/cobertura",
   "/org/ORG-ABC/admin/permisos",
   "/org/ORG-ABC/configuracion",

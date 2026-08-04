@@ -112,6 +112,15 @@ export async function resolveDisputeUseCase(
             "Para una transferencia tenés que indicar el usuario o la organización destino.",
           );
         }
+        // Symmetric guard: the payload's "to" actor is exclusive (toCount <= 1)
+        // and the ownerships row has a polymorphic-holder CHECK. Without this,
+        // a caller passing both would fail deep inside the tx with a raw Zod or
+        // constraint error instead of a readable one.
+        if (input.transferToUserId && input.transferToOrgId) {
+          throw new Error(
+            "Una transferencia tiene un solo destino: indicá el usuario o la organización, no ambos.",
+          );
+        }
 
         // Validate target user/org existence to prevent orphaned ownership rows.
         if (input.transferToUserId) {
@@ -142,19 +151,41 @@ export async function resolveDisputeUseCase(
           }
         }
 
-        // Find the active foster row (if any) so the custody_transferred
-        // payload can link to the foster_ended that we'll emit too.
-        const [fosterRow] = await tx
-          .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId })
+        // Every active ownership row for this pet, read ONCE before we close
+        // them below. Both things we need live in here: the foster row (to link
+        // the foster_ended we emit) and the outgoing holder that becomes the
+        // transfer's "from" actor.
+        const activeRows = await tx
+          .select({
+            id: ownerships.id,
+            role: ownerships.role,
+            ownerUserId: ownerships.ownerUserId,
+            ownerOrganizationId: ownerships.ownerOrganizationId,
+          })
           .from(ownerships)
-          .where(
-            and(
-              eq(ownerships.petId, dispute.petId),
-              eq(ownerships.role, "foster"),
-              isNull(ownerships.endedAt),
-            ),
-          )
-          .limit(1);
+          .where(and(eq(ownerships.petId, dispute.petId), isNull(ownerships.endedAt)));
+
+        const fosterRow = activeRows.find((r) => r.role === "foster");
+
+        // The "from" actor of custody_transferred (audit 2026-08-04). This was
+        // hardcoded null/null with from_role "owner", which the payload refine
+        // rejects ("at least one of from_user_id / from_organization_id must be
+        // set") — so validateEventPayload threw INSIDE this transaction and
+        // every resolution-by-transfer rolled back with a raw error in the
+        // operator's face. The provenance was always available right here: it is
+        // the holder whose row we are about to close.
+        //
+        // `owner` outranks `shelter_custody` because from_role admits only those
+        // two (custodyTransferred in lib/events/event-schemas.ts) and a
+        // permanent owner is the more meaningful predecessor when both exist.
+        const fromRow =
+          activeRows.find((r) => r.role === "owner") ??
+          activeRows.find((r) => r.role === "shelter_custody");
+        if (!fromRow) {
+          throw new Error(
+            "No se puede transferir: la mascota no tiene titular ni custodia activa que registrar como origen.",
+          );
+        }
 
         let fosterEndedEventId: string | null = null;
         const now = new Date();
@@ -192,11 +223,11 @@ export async function resolveDisputeUseCase(
         }
 
         const transferPayload = validateEventPayload("custody_transferred", {
-          from_user_id: null,
-          from_organization_id: null,
+          from_user_id: fromRow.ownerUserId,
+          from_organization_id: fromRow.ownerOrganizationId,
           to_user_id: input.transferToUserId ?? null,
           to_organization_id: input.transferToOrgId ?? null,
-          from_role: "owner",
+          from_role: fromRow.role === "shelter_custody" ? "shelter_custody" : "owner",
           to_role: input.transferToOrgId ? "shelter_custody" : "owner",
           matched_against_pet_id: null,
           foster_ended_event_id: fosterEndedEventId,

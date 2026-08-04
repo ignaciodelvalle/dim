@@ -26,7 +26,7 @@
 //     - rejects short resolution summary (< 100 chars)
 //     - rejects ownership_transferred without a transfer target
 //     - rejects resolving an already-resolved dispute
-//     - ownership_transferred rolls back atomically when schema rejects null from
+//     - ownership_transferred commits and records the outgoing holder as from
 //
 //   withdrawDisputeUseCase:
 //     - happy path: status=withdrawn + pet flag cleared + audit row
@@ -774,10 +774,15 @@ describe("resolveDisputeUseCase", () => {
     expect(loserError).not.toMatch(/23505|duplicate key|violates/i);
   });
 
-  it("ownership_transferred rolls back atomically when schema rejects null 'from'", async () => {
+  // REGRESSION (V1-9, fixed 2026-08-04). The "from" actor used to be hardcoded
+  // null/null, which the custody_transferred refine rejects, so every
+  // resolution-by-transfer rolled back. It now comes from the ownership row the
+  // use case closes. Like its sibling in __tests__/custody-disputes.test.ts,
+  // this test used to pin the broken behavior.
+  it("ownership_transferred commits and records the outgoing holder as 'from'", async () => {
     const { petId, disputeToken } = await seedOpenDispute(
       generatePublicToken(),
-      "UC CD Resolve Xfer Rollback",
+      "UC CD Resolve Xfer",
     );
 
     const result = await resolveDisputeUseCase(adminSession(), {
@@ -787,32 +792,35 @@ describe("resolveDisputeUseCase", () => {
       transferToUserId: transfereeUserId,
     });
 
-    // Schema rejects null from_* — surfaces as a clean error.
-    expect(result).toHaveProperty("error");
-    expect((result as { error: string }).error).toContain("custody_transferred");
+    expect(result).not.toHaveProperty("error");
 
-    // Dispute remains open (atomic rollback).
     const [dispute] = await db
       .select({ status: custodyDisputes.status })
       .from(custodyDisputes)
       .where(eq(custodyDisputes.publicToken, disputeToken))
       .limit(1);
-    expect(dispute?.status).toBe("open");
+    expect(dispute?.status).toBe("resolved");
 
-    // No new ownership row for transferee.
-    const transfereeRows = await db
-      .select({ id: ownerships.id })
-      .from(ownerships)
-      .where(and(eq(ownerships.petId, petId), eq(ownerships.ownerUserId, transfereeUserId)));
-    expect(transfereeRows).toHaveLength(0);
-
-    // Original owner row still active.
-    const [activeOwn] = await db
+    // Custody moved to the transferee, and only there.
+    const activeRows = await db
       .select({ ownerUserId: ownerships.ownerUserId })
       .from(ownerships)
-      .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)))
+      .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+    expect(activeRows).toHaveLength(1);
+    expect(activeRows[0].ownerUserId).toBe(transfereeUserId);
+
+    // The event carries real provenance instead of a null pair.
+    const [transferEvent] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transferred")))
       .limit(1);
-    expect(activeOwn?.ownerUserId).toBe(ownerUserId);
+    const payload = transferEvent?.payload as {
+      from_user_id: string | null;
+      from_role: string;
+    };
+    expect(payload.from_user_id).toBe(ownerUserId);
+    expect(payload.from_role).toBe("owner");
   });
 });
 
