@@ -587,6 +587,8 @@ export async function submitOrgContactAction(
   );
 
   if (!result.ok) return { ok: false, error: result.error };
+  // El mensaje ya está guardado; esto es lo que hace que un humano se entere.
+  await flushNotifications(result.notifications);
   return { ok: true, error: null };
 }
 

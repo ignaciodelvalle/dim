@@ -57,8 +57,9 @@ export function SerVoluntarioSheet({ orgToken, orgDisplayName }: Props) {
     >
       <div className="space-y-5">
         <p className="text-sm text-[var(--color-ln-ink-2)]">
-          {orgDisplayName} recibe tu interés y te contactan por email para coordinar. Pueden ser
-          tareas puntuales (eventos, traslados) o ayuda más regular.
+          Tu ofrecimiento entra en la bandeja de {orgDisplayName} y les avisamos. Si te convocan, te
+          escriben al correo que dejes. Pueden ser tareas puntuales (eventos, traslados) o ayuda más
+          regular.
         </p>
 
         {state.ok ? (

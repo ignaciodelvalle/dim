@@ -16,6 +16,13 @@ import type { UseCaseResult } from "./types";
 export interface SubmitOrgContactRepo {
   findOrgByToken: OrgRepository["findOrgByToken"];
   insertContact: OrgRepository["insertContact"];
+  /**
+   * Admins de la org — destinatarios del aviso. Sin esto el mensaje entraba a
+   * `org_contact_messages` y NADIE se enteraba: la tabla no tenía lector, el
+   * portal no tenía bandeja, y el caso de uso devolvía `notifications: []`
+   * mientras la UI prometía "te contactan por email" (auditoría 2026-08-04).
+   */
+  adminRecipients: OrgRepository["adminRecipients"];
 }
 
 // ---------------------------------------------------------------------------
@@ -112,5 +119,22 @@ export async function submitOrgContact(
   };
   await repo.insertContact(contactInput);
 
-  return { ok: true, value: {}, notifications: [] };
+  // Avisar a los admins de la org. El mensaje ya está persistido; la
+  // notificación es lo que lo vuelve legible por un humano — sin ella, la
+  // promesa de la UI ("te contactan") no la puede cumplir nadie.
+  const admins = await repo.adminRecipients(org.id);
+  const esVoluntario = input.kind === "volunteer";
+  const notifications = admins.map((admin) => ({
+    userId: admin.userId,
+    notificationType: esVoluntario ? "org_volunteer_message" : "org_contact_message",
+    title: esVoluntario ? "Alguien quiere ser voluntario" : "Mensaje nuevo de contacto",
+    body: esVoluntario
+      ? `${name ?? "Una persona"} se ofreció como voluntario/a y dejó ${email} para que la contacten.`
+      : `${name ?? "Una persona"} escribió desde el perfil público y dejó ${email} para que le respondan.`,
+    severity: "info" as const,
+    ctaLabel: "Ver mensajes",
+    ctaUrl: `/org/${input.orgToken}/mensajes`,
+  }));
+
+  return { ok: true, value: {}, notifications };
 }

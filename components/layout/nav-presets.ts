@@ -299,6 +299,19 @@ export function buildOrgNav(orgToken: string, opts: OrgNavOptions = {}): NavSect
       shelterOnly: true,
     },
     {
+      // Bandeja de mensajes públicos (auditoría 2026-08-04). Gateada en
+      // `member.invite` — la misma vara que "Miembros", porque es el permiso
+      // que representa "administro esta organización de cara afuera". Sin gate,
+      // un miembro con CERO capacidades la veía, y el fence de navegación
+      // (con razón) lo rechazó: un foster sin permisos no atiende la
+      // correspondencia institucional.
+      href: `/org/${orgToken}/mensajes`,
+      label: "Mensajes",
+      matchPrefix: `/org/${orgToken}/mensajes`,
+      requiredCapability: "member.invite",
+      section: "Equipo",
+    },
+    {
       href: `/org/${orgToken}/admin/permisos`,
       label: "Permisos",
       matchPrefix: `/org/${orgToken}/admin`,

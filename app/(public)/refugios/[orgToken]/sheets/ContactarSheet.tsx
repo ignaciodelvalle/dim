@@ -96,7 +96,8 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
           <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)]/40 bg-[var(--color-ln-ok)]/10 p-4 text-sm text-[var(--color-ln-ink)]">
             <p className="font-medium">Mensaje enviado.</p>
             <p className="mt-1 text-xs text-[var(--color-ln-ink-2)]">
-              El equipo de {orgDisplayName} te va a responder por email cuando pueda.
+              Tu mensaje entra en la bandeja de {orgDisplayName} y les avisamos. La respuesta llega
+              al correo que dejaste, y depende de ellos: miMAR no responde por la organización.
             </p>
           </div>
         ) : (

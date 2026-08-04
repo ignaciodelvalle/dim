@@ -139,8 +139,9 @@ describe("buildOrgNavFlat", () => {
     expect(labels).toEqual(["Panel"]);
   });
 
-  it("produces 19 items when all capabilities are granted and role is admin", () => {
-    expect(buildOrgNavFlat("ORG-ABC", FULL_NAV)).toHaveLength(19);
+  it("produces 20 items when all capabilities are granted and role is admin", () => {
+    // 20 desde 2026-08-04: se sumó "Mensajes" (bandeja de contacto público).
+    expect(buildOrgNavFlat("ORG-ABC", FULL_NAV)).toHaveLength(20);
   });
 
   it("hides Agenda, Ingresos, Check-ins, Mordeduras and Permisos without their capabilities", () => {
@@ -985,6 +986,9 @@ const ORG_HREF_SNAPSHOT = new Set([
   "/org/ORG-ABC/intake",
   "/org/ORG-ABC/transitos",
   "/org/ORG-ABC/voluntarios",
+  // Sumado 2026-08-04: bandeja de mensajes públicos — cierra el pozo ciego de
+  // org_contact_messages (tabla con escritor y sin lector).
+  "/org/ORG-ABC/mensajes",
   "/org/ORG-ABC/mascotas",
   "/org/ORG-ABC/transferencias",
   "/org/ORG-ABC/adopciones",
@@ -1094,6 +1098,8 @@ describe("buildOrgNav — nav diet (primary jobs + collapsible Administración)"
     expect(section(sections, "Equipo")?.items.map((i) => i.label)).toEqual([
       "Miembros",
       "Voluntarios",
+      // Sumado 2026-08-04 — la bandeja de mensajes públicos.
+      "Mensajes",
       "Permisos",
     ]);
   });
