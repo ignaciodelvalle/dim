@@ -22,6 +22,8 @@
 // page renders a soft throttle notice (not a 429 hard error) to preserve UX.
 // Token entropy widening is tracked as a follow-up (would invalidate existing tokens).
 
+import "./credential-print.css";
+
 import { Icon } from "@/components/Icon";
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";

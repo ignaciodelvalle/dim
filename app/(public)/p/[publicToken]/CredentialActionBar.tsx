@@ -80,7 +80,9 @@ export function CredentialActionBar(props: CredentialActionBarProps) {
     <nav
       aria-label="Acción principal"
       data-section="sticky-action-bar"
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-ln-line-strong bg-ln-card px-4 pt-3 sm:hidden"
+      // `no-print`: a fixed bottom bar prints on top of the credential on every
+      // page. credential-print.css hides it (print-surfaces audit 2026-08-04).
+      className="no-print fixed inset-x-0 bottom-0 z-40 border-t border-ln-line-strong bg-ln-card px-4 pt-3 sm:hidden"
       // Tailwind can't express the env() addition; safe-area keeps the bar
       // above the iOS home indicator (390px-first requirement).
       style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom))" }}
