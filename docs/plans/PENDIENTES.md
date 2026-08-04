@@ -232,6 +232,30 @@ dashboard de Supabase (A9 de la cola vieja).
   no se selecciona, no se copia y los lectores de pantalla la anuncian dispar.
   En un producto atado a la Ley 26.653 es un retroceso disfrazado de limpieza.
 
+### Copy y voz es-AR — barrido del 2026-08-04
+
+> `docs/reviews/2026-08-04-copy-voice-audit.md`. 4 🔴 · 31 🟠 · 26 🟡 · 12 🟢.
+> **10 clases sistémicas, ~145 instancias.** Las seis instancias que se pasaron
+> como semilla estaban todas presentes; una era peor de lo reportado.
+
+| # | Qué | Por qué | Tamaño |
+|---|---|---|---|
+| ~~**COPY-1**~~ | ~~Reloj híbrido "05:39 p. m."~~ | ~~`formatDateTime()` canónico sin `hourCycle`~~ — **HECHO**, `d649d744`. Quedan 2 sitios en panorama | ~~S~~ |
+| **COPY-2** | 🔴 **Adopciones promete un email que el refugio no tiene.** Cinco strings le dicen al postulante que el refugio le va a escribir; la pantalla de revisión (`app/org/[orgToken]/adopciones/[appEventId]/page.tsx:164-173`) muestra **sólo Nombre y Teléfono** — verificado hoy | Es EXACTAMENTE el bug del formulario de contacto que arreglamos hoy, en otro flujo y sin arreglar. `submit-org-contact.ts:19-25` ya tiene el post-mortem escrito con fecha de hoy | M |
+| **COPY-3** | 🔴 **El outbox promete reintento en "máximo 5 minutos" y el drenaje corre `0 4 * * *`** — 288× de diferencia. `vercel.json`, `cron-registry.ts:69` y `drain-outbox/route.ts:10` coinciden; el comentario del despachador explica que el plan Hobby no permite sub-diario | El código lo sabe, la copy no. **Y falta lo otro**: el no-op v1 alcanza a los CUATRO tipos, pero la honestidad G7 se aplicó sólo a `eno_authority` mientras su comentario afirma que los otros tres "resuelven a un destino real ya construido" — falso, `outbox-drainer.ts:59-104` los manda a la misma rama con `v1_noop: true` | M |
+| **COPY-4** | **Ensanchar `check-ui-invariants.ts` Rule 3**: hoy sólo barre `app/**` y `components/**` (nunca `src/**`) y conoce 13 palabras | ~30 líneas de config cierran las **30** faltas de ortografía —incluida la 🔴 `"proximamente"` en superficie de gobierno— y hacen imposible que entre la número 31. Mejor relación de todo el reporte | S |
+| **COPY-5** | **23 diccionarios de estado a mano; `open` se dice de 5 maneras.** `MaltratoQueueScreen.tsx:455-460` tiene escrita la regla ("ONE status vocabulary… Never an inline synonym here") y la pantalla de org para las MISMAS filas hardcodea `"En seguimiento"`/`"Triagueada"` contra las canónicas `"En curso"`/`"Revisada"` | Un import en `app/org/[orgToken]/maltrato/recibidos/page.tsx` (~8 líneas) cierra dos contradicciones entre superficies y deja el ejemplo trabajado para los otros 22 | M |
+| **COPY-6** | **29 sitios sin concordancia de plural** ("1 celdas… ocultas") | Ensanchar `check-pluralize-es.ts`, que ya existe | M |
+| **COPY-7** | **89 de 101 estados vacíos sin llamada a la acción** | Un estado vacío es una invitación, no una lápida. Se cierra agregando `emptyAction` a los primitivos de tabla | M |
+| **COPY-8** | **~35 archivos con formateo de fecha a mano, 9 formas distintas**; `panorama-informe.ts:219` **perdió la zona horaria** | Fence. Mismo patrón que MOT-1: no hay sistema, hay 9 | M |
+| **COPY-9** | **16 sitios en tuteo + 2 en usted** (15 de 18 en la feature de decomiso) · 6 decimales con punto · `"Error desconocido"` en 5 archivos | Deriva de registro concentrada en una feature: se arregla de una | S |
+| **COPY-10** | **Dos tests defienden el defecto**: `event-payload-details.test.ts:58` y `libreta-export-route.test.ts:149,192` afirman el decimal con punto `"12.50 kg"` — que llega al PDF de la libreta sanitaria | Tercera vez hoy que un test protege un bug en vez de cazarlo | S |
+
+**Verificado limpio** (no asumido): cero disculpas, cero `window.confirm`, cero
+"¿estás seguro?" pelado —los 24 diálogos nombran la consecuencia—, cero locales
+`es-AR` faltantes, cero `¿`/`¡` ausentes, cero aria-labels en inglés, cero tuteo
+en superficies de ciudadano.
+
 ### Movimiento e impresión — barridos del 2026-08-04
 
 > `docs/reviews/2026-08-04-motion-audit.md` y `.../print-surfaces-audit.md`.
