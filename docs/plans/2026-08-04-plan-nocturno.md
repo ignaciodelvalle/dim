@@ -86,6 +86,24 @@ Hoy compiten `docs/plans/PENDIENTES.md` (31/07) y
    deuda real y cuáles son comentarios que envejecieron. No arreglarlos todos;
    convertir los reales en ítems de la cola y borrar los muertos.
 
+### 0.3-bis — Corregir las descripciones que quedaron mintiendo
+
+La verificación del 04/08 encontró **ocho ítems cuya descripción ya no describe
+la realidad**, incluso donde el problema de fondo sigue vivo. Un ítem con el
+número o el mecanismo equivocado manda a alguien al lugar equivocado:
+
+- "8 políticas sin `TO`" → **son 10** (en 8 tablas).
+- Fence N3: "fuera de sus **dos** globs, 8 `redirect()`" → tiene **cuatro**
+  globs y la deuda son **~12 `redirect()` en 10 archivos** de casos de uso.
+- "Cuatro copias de `stripComments`" → quedan **dos**.
+- `PanoramaConsole`: "47 `waitFor`" → **59**.
+- `lint:nav`: "20 sitios vivos" → **~25 líneas en 22 archivos**.
+- RA-9 EI-4: "dos gates de axe" → **tres** self-skips.
+- RA-7 F8: la primera cláusula **mischaracteriza** el test de grano provincia.
+- **RA-2 F4: sus citas apuntan hoy al arreglo, no al defecto.**
+- **RA-4 F6 es inverificable como está escrito** — sin archivo ni símbolo. Se
+  reescribe con evidencia o se cierra.
+
 ### 0.4 — Que no se vuelva a pudrir
 
 10. Antes de cerrar la corrida, **re-verificar el propio plan**: cada ítem que
@@ -139,23 +157,27 @@ citaban**. El claim del CHECK de `account_type` se escapó porque no citaba nada
 
 ---
 
-## Bloque 1 — 🔴 P1: rompe algo para un usuario
+## Bloque 1 — 🔴 P1: **CERRADO ENTERO** (verificado 04/08)
 
-| # | Qué | Dónde |
+Los cuatro ítems de la sección "rompe algo para un usuario" **ya están
+arreglados**. Verificado uno por uno contra el árbol, no contra el documento:
+
+| # | Estado | Evidencia |
 |---|---|---|
-| RA-2 F4 | Firmar un chip distinto al canónico deja el canónico intacto **en silencio**: la espina guarda el chip B verificado, la ficha sigue mostrando el A | `microchip-*` use-case |
-| RA-2 F9 | Un `org.transfer.propose` concedido es **inerte** — la página chequea rol de membresía, nunca capacidades, y el mensaje "Solo roles admin o coordinator" **es falso** | `app/org/[orgToken]/transferencias/nueva/page.tsx:43` |
-| RA-2 F10 | "Enviar documentación" lleva a una página sin nada que enviar; `done: input.isVerified` nunca se da vuelta desde dentro de la org | `org-setup-checklist.ts:120` |
-| RA-2 F5 | `replaceMicrochipVetAction` usa el `redirect()` dentro de la acción que el resto ya migró (contrato N3) | `microchip/reemplazar/action.ts:118` |
-| ~~**#758**~~ | ~~`govt_assignments` por string exacto~~ — **YA ARREGLADO, verificado 04/08**: `lib/domain/jurisdiction-canonical.ts` (`resolveCanonicalJurisdiction`), migración `0117_govt_assignments_locality_canonical.sql`, y un test de regresión que nombra el issue. **Cerrar el issue.** | — |
+| RA-2 F4 — chip distinto al canónico en silencio | **HECHO** | `checkChipMatchesCanonical` rechaza el chip en conflicto ANTES de la transacción (`lib/domain/microchip-validation.ts:78-115`); el docblock del guard narra el modo de falla viejo |
+| RA-2 F5 — `redirect()` dentro de la acción | **HECHO** | `microchip/reemplazar/action.ts:117-122` devuelve `{ redirectTo }` (contrato N3), en la versión org y en la admin |
+| RA-2 F9 — `org.transfer.propose` inerte + mensaje falso | **HECHO** | la página llama `requireCapability("org.transfer.propose", org.id)` (`transferencias/nueva/page.tsx:37-47`) |
+| RA-2 F10 — "Enviar documentación" a la nada | **HECHO** | la verificación es ahora un estado de espera declarado (`waitingOn: "mimar"`, `href: null`) y no traba el onboarding |
 
-> **Nota de método, porque casi lo repito yo.** Al leer #758 lo conecté con lo
-> que nos mordió hoy en e2e (un scope que no matchea deja el caso invisible y
-> nada avisa) y propuse "arreglar la clase, no la instancia". La verificación
-> mostró que **ya está arreglado, con canonicalización + migración + test que
-> cita el issue**. La conexión conceptual era correcta; la premisa de que
-> seguía abierto, no. Es exactamente el error que este bloque existe para
-> evitar: **el issue seguía abierto en GitHub, no en el código.**
+> **La trampa que dejó atrás.** Las citas de RA-2 F4 en la cola
+> (`microchip-use-case.ts:124`, `events-repository.ts:197`) **hoy apuntan al
+> arreglo, no al defecto**. Alguien que las siga de buena fe "re-arregla"
+> código que funciona. Es la tercera vez que este documento cae en el mismo
+> modo de falla — y es el argumento más fuerte para la regla de evidencia
+> fechada del Bloque 0.
+
+**Consecuencia para la corrida**: no hay trabajo P1. El plan arranca en el
+Bloque 2 (decisiones) y su peso real está en el Bloque 3 (fences).
 
 ---
 
@@ -169,25 +191,51 @@ citaban**. El claim del CHECK de `account_type` se escapó porque no citaba nada
 
 ---
 
-## Bloque 3 — 🟠 P2: los fences mienten
+## Bloque 3 — 🟠 P2: los fences mienten (**el peso real de la corrida**)
 
-Ahora que los tests son honestos, este es el bloque con más valor: son gates que
-**reportan verde sobre algo que no miran**.
+Verificado ítem por ítem el 04/08. **Todos REALES** — es el único bloque que
+sobrevivió entero a la verificación. Con los números corregidos, porque los del
+documento ya no daban:
 
-- **10 archivos `"use server"` invisibles a los tres linters de authz** (el glob
-  es plano). Incluye 8 acciones de escritura médica en atender.
-- **`check-authz-scoping` se derrota con un comentario**: la palabra
-  "jurisdiction" en cualquier parte del cuerpo cuenta como prueba.
-- **`check-rls-coverage` sólo verifica que exista una política**, nunca su
-  contenido, roles, cláusula `TO` ni GRANTs.
-- **8 políticas sin cláusula `TO`** → caen a `PUBLIC` (incluye anon). Hoy son
-  seguras **por accidente**, vía predicados `auth.uid()`, no por diseño.
-- `lint:nav` prohíbe sólo `router.refresh(` mientras su docblock nombra
-  push/replace — **20 sitios vivos**.
-- El fence N3 reporta **cero deuda falsamente**: 8 `redirect()` en módulos de
-  caso de uso quedan fuera de sus dos globs.
-- Cuatro fences cargan su propia copia byte-idéntica de `stripComments`
-  existiendo ya `scripts/lib/strip-comments.mjs`.
+| Qué | Verificado | Corrección al documento |
+|---|---|---|
+| **10 archivos `"use server"` fuera del glob** de los tres linters de authz (`check-authz-guards.ts:455`) — incluye `atender/actions.ts` con 8 exports de escritura médica | REAL, conteo exacto | los tres comparten `listActionFiles`, así que el punto ciego es **uno solo, triplicado** |
+| **`check-authz-scoping` se derrota con un comentario** (`:114-141`): corre `/jurisdiction/i` contra el cuerpo **sin stripear comentarios** | REAL | baseline de 41 acciones, coincide |
+| **`check-rls-coverage` no mira contenido**: sólo `relrowsecurity` + que exista ≥1 policy | REAL | nunca inspecciona roles, `TO`, `USING` ni GRANTs |
+| **Políticas sin cláusula `TO`** → caen a `PUBLIC` | REAL | **son 10, no 8** (en 8 tablas; `achievement_views` aporta 3). Siguen seguras por predicado `auth.uid()`, no por diseño |
+| **`middleware.ts` no hace autorización** (`:95-235`): sólo refresh de sesión, CSP, redirects, headers | REAL | cada ruta se auto-gatea, sin red |
+| **`lint:nav` sólo prohíbe `router.refresh(`** mientras su docblock nombra push/replace | REAL | **~25 líneas vivas en 22 archivos**, no 20 |
+| **El fence N3 reporta cero deuda falsamente** | REAL, mecanismo distinto | ya tiene **cuatro** globs (el agujero de `action.ts` se cerró); lo que queda fuera son los **módulos de caso de uso**: ~12 `redirect()` en 10 archivos bajo `src/modules/*/application/**` |
+| **Copias propias de `stripComments`** | PARCIAL | quedan **dos** (`check-confused-deputy.ts`, `check-router-refresh.ts`), no cuatro — tres fences ya re-exportan del módulo compartido |
+
+### Tests que no guardan nada — mitad cerrada hoy
+
+**Cerrados (hoy)**: todo el bloque e2e (33 rojas → 0), el presupuesto de login
+por email, `a11y-operator-auth`, `crisis-seams (d)`, el `pet-carousel-dots`
+muerto, P2.5 (skeletons de Suspense) y **P2.8** (los 13 tests cross-tenant ya no
+usan el patrón `expect(true).toBe(true)`: un fixture faltante ahora **tira**).
+
+**Siguen reales**:
+
+- **RA-4 F8** — un test de scope de gobierno que **nunca ejecutó una aserción**:
+  un test anterior promueve al usuario a `vet`, así que el submit siempre falla
+  y el test retorna en el `if (!submit.ok) return;` (`admin-decisions.test.ts:477`).
+- **RA-4 F9** — un guard cross-org que **nunca llama a la acción que guarda**;
+  el assert final filtra la fila de org2 por el id de org1: cero filas **por
+  construcción del WHERE**.
+- **`PanoramaConsole`** — **59** `waitFor` sin timeout explícito (eran 47 cuando
+  se escribió el ítem), sin presupuesto declarado por archivo.
+- **RA-9 EI-4/5/6** — **tres** self-skips dependientes de datos en
+  `public-smoke.spec.ts` (no dos), incluido el "momento héroe" de la Ley 26.653;
+  `qa-panorama-a11y.ts` no lo invoca ningún script ni workflow; dos asserts de
+  touch-target sobre el documento entero.
+- **RA-7 F8 `cube-parity`** — **la mitad**: el loop nacional saltea toda celda
+  suprimida (`if (!cp) continue`), eso es vacuo y es verdad. Pero "a grano
+  provincia compara literales contra literales" **mischaracteriza el test**:
+  `normFeatures` compara dos sets calculados de forma independiente.
+- **RA-4 F6** — **INVERIFICABLE como está escrito**: no cita archivo ni símbolo,
+  y todos los tests de supresión-vs-cero que se encontraron sí inspeccionan
+  valores. O se reescribe con evidencia, o se cierra.
 
 ---
 
