@@ -29,12 +29,19 @@ const SPANISH_DATE_FORMAT = new Intl.DateTimeFormat("es-AR", {
   timeZone: AR_TIME_ZONE,
 });
 
+// hourCycle "h23" for the same reason as the two formatters below it: without
+// it, es-AR + hour:"2-digit" renders the hybrid "05:39 p. m." — a zero-padded
+// 12-hour clock with a meridiem, which is neither the 24-hour convention the
+// rest of the product uses nor a clean 12-hour one. This helper is the
+// canonical formatDateTime(), so the leak reached every consumer of it while
+// its two neighbours in this file were already fixed (copy audit 2026-08-04).
 const SPANISH_DATETIME_FORMAT = new Intl.DateTimeFormat("es-AR", {
   day: "numeric",
   month: "long",
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  hourCycle: "h23",
   timeZone: AR_TIME_ZONE,
 });
 
