@@ -106,6 +106,7 @@ const { requestVetUpgradeForUser } = await import(
 const {
   approvalRequests,
   auditLog,
+  cases,
   db,
   govtAssignments,
   notifications,
@@ -119,7 +120,7 @@ const {
   profiles,
   reminders,
 } = await import("../db");
-const { generatePublicToken } = await import("@/lib/infra/publicToken");
+const { generatePublicToken, generatePrefixedToken } = await import("@/lib/infra/publicToken");
 // Safe to import: does NOT transitively pull in lib/supabase/admin.ts
 // (server-only), unlike createInstitutionalAccountForAuthority. Used to
 // canonicalize govt_assignments locations before this script inserts them
@@ -986,6 +987,195 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
+// Step 10 — the two PUBLIC fixtures the bootstrap seed never had
+// ---------------------------------------------------------------------------
+//
+// e2e/_seed-profile.ts said it out loud: "pnpm db:bootstrap: reference data +
+// seed-test-users and STOPS. No cases, no lost pets, no adoption listings."
+// Two axe gates in e2e/public-smoke.spec.ts resolve their fixture off the
+// RENDERED /perdidas and /adoptar pages, so with nothing lost and nothing
+// listed they SKIPPED on every CI run — including the audit of the lost-mode
+// credential, which is the Ley 26.653 hero surface. A gate that can only skip
+// is not a gate.
+//
+// These two steps close that, minimally and deterministically: one lost pet off
+// the owner's existing pets, one adoption listing off the shelter's. No new
+// pets, no randomness beyond the tokens the pets already carry.
+
+/** Mark the owner's first pet lost — spine event + open case + projection. */
+async function seedLostPet(ownerUserId: string): Promise<void> {
+  log("STEP", "10/11 — lost pet (e2e fixture: /perdidas + the lost-mode credential)");
+
+  const [existingLost] = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, ownerUserId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+        eq(pets.status, "lost"),
+      ),
+    )
+    .limit(1);
+  if (existingLost) {
+    log("SKIP", "owner already has a lost pet");
+    return;
+  }
+
+  const [pet] = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      name: pets.name,
+      status: pets.status,
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, ownerUserId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+        eq(pets.status, "active"),
+      ),
+    )
+    .orderBy(pets.createdAt)
+    .limit(1);
+  if (!pet) {
+    log("SKIP", "owner has no active pet to mark lost");
+    return;
+  }
+
+  // The episode case, exactly as setPetLostWriter opens it. Not optional
+  // decoration: a status='lost' pet with no open lost_pet_episode is the stale
+  // state the profile renders as a banner, and the spine fence counts it.
+  const casePublicCode = generatePrefixedToken("CAS");
+  const [caseRow] = await db
+    .insert(cases)
+    .values({
+      publicCode: casePublicCode,
+      caseKind: "lost_pet_episode",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: pet.province,
+      jurisdictionLocality: pet.locality,
+      openedByUserId: ownerUserId,
+      openedReason: `Pet ${pet.publicToken} marked as lost by owner — se escapó por el portón`,
+    })
+    .returning({ id: cases.id });
+
+  const now = new Date();
+  await db.insert(petEvents).values({
+    petId: pet.id,
+    eventType: "status_changed",
+    occurredAt: now,
+    recordedAt: now,
+    recordedByUserId: ownerUserId,
+    authorRole: "owner",
+    caseId: caseRow.id,
+    payload: {
+      payload_version: 1,
+      from_status: pet.status,
+      to_status: "lost",
+      location_description: "Palermo, CABA (última vez visto en Av. Santa Fe al 3200)",
+      reason: null,
+      // Affirmative consent, stated explicitly (migration 0158 made the column
+      // defaults fail-closed): this fixture DOES disclose, because the surface
+      // under audit is the disclosing credential.
+      disclosure_prefs_snapshot: {
+        first_name: true,
+        phone: true,
+        email: false,
+        last_location: true,
+        finder_form: true,
+      },
+    },
+  });
+
+  // Projection: status + the 5 disclosure columns, same set the writer updates.
+  await db
+    .update(pets)
+    .set({
+      status: "lost",
+      discloseFirstNameWhenLost: true,
+      disclosePhoneWhenLost: true,
+      discloseEmailWhenLost: false,
+      discloseLastLocationWhenLost: true,
+      allowFinderFormWhenLost: true,
+      updatedAt: now,
+    })
+    .where(eq(pets.id, pet.id));
+
+  log("OK", `lost pet ${pet.name} (${pet.publicToken}) · caso ${casePublicCode}`);
+}
+
+/** List the shelter's first pet for adoption — the /adoptar public fixture. */
+async function seedAdoptionListing(orgId: string, actorUserId: string): Promise<void> {
+  log("STEP", "11/11 — adoption listing (e2e fixture: /adoptar + the public pet detail)");
+
+  const [pet] = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      name: pets.name,
+      adoptionListedAt: pets.adoptionListedAt,
+    })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerOrganizationId, orgId),
+        eq(ownerships.role, "shelter_custody"),
+        isNull(ownerships.endedAt),
+        eq(pets.status, "active"),
+      ),
+    )
+    .orderBy(pets.createdAt)
+    .limit(1);
+  if (!pet) {
+    log("SKIP", "org holds no active pet in custody");
+    return;
+  }
+  if (pet.adoptionListedAt) {
+    log("SKIP", `${pet.name} already listed for adoption`);
+    return;
+  }
+
+  const now = new Date();
+  // The full gate queryAdoptionListing checks: eligible + listed + not paused,
+  // on an active shelter_custody row of a VERIFIED shelter org (provisionOrg
+  // already verifies it). Anything less and the listing exists in the table
+  // while the public page stays empty — which is exactly the failure mode this
+  // fixture is here to prevent.
+  await db
+    .update(pets)
+    .set({
+      adoptionEligible: true,
+      adoptionEligibilitySetAt: now,
+      adoptionEligibilitySetByUserId: actorUserId,
+      adoptionListedAt: now,
+      adoptionListingPausedAt: null,
+      adoptionStory: "Llegó al refugio como callejera y se recuperó muy bien. Busca familia.",
+      adoptionRequirements: "Casa con patio cerrado. Visita previa.",
+      adoptionEnergyLevel: "medium",
+      adoptionSizeEstimate: "medium",
+      adoptionAgeBucket: "adult",
+      adoptionGoodWithKids: true,
+      adoptionGoodWithDogs: true,
+      updatedAt: now,
+    })
+    .where(eq(pets.id, pet.id));
+
+  log("OK", `adoption listing ${pet.name} (${pet.publicToken})`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -1106,6 +1296,8 @@ async function main() {
   await seedOwnerPets(ownerId);
   await seedOwnerBPet(ownerBId);
   await seedShelterPets(orgId, orgAdminUserId);
+  await seedLostPet(ownerId);
+  await seedAdoptionListing(orgId, orgAdminUserId);
 
   log("DONE", "seed complete");
   console.log("\n=== Access summary ===");
