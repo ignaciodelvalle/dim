@@ -128,7 +128,7 @@ export async function validateReassignDecomiso(
 
   // Validate new receiver org.
   if (!input.newReceiverOrgId?.trim()) {
-    return { ok: false, error: "Debe seleccionar un nuevo refugio destinatario." };
+    return { ok: false, error: "Seleccioná un nuevo refugio destinatario." };
   }
   if (input.newReceiverOrgId === govtOrg.id) {
     return {

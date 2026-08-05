@@ -9,6 +9,7 @@ import { createInstitutionalAccountAction } from "@/app/actions/admin-institutio
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { OpButton } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 type SuccessState = {
   profileId: string;
@@ -49,7 +50,7 @@ export function CreateAdminForm() {
         notifySaved("Cuenta admin creada");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
     } finally {
       setLoading(false);
     }

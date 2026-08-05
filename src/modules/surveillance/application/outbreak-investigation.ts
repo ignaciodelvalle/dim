@@ -481,7 +481,7 @@ export async function closeInvestigation(
       return {
         ok: false,
         error:
-          "Para cerrar como resuelta, registra primero un informe epidemiologico final (o ingresa el texto del informe en este formulario).",
+          "Para cerrar como resuelta, registrá primero un informe epidemiologico final (o ingresá el texto del informe en este formulario).",
       };
     }
   }

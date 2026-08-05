@@ -10,6 +10,7 @@ import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPan
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { OpButton } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 // One row per assigned locality. provinceName is the canonical display
 // name from ar_provincias (resolved via LocalityPickerAcross), passed to
@@ -84,7 +85,7 @@ export function CreateGovtForm() {
         notifySaved("Cuenta de gobierno creada");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
     } finally {
       setLoading(false);
     }

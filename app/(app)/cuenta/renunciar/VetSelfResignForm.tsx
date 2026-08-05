@@ -9,6 +9,7 @@ import { useState } from "react";
 
 import { vetSelfResignAction } from "@/app/actions/profile-self-service";
 import { LnCheckbox } from "@/components/ui/Field";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 export function VetSelfResignForm() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export function VetSelfResignForm() {
       // survives the router navigation without extra state management.
       router.push("/cuenta?banner=resignation_confirmed");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
       setLoading(false);
     }
   }

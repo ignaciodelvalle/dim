@@ -223,17 +223,17 @@ export function DecomisoForm({
   // --- Validation ---
   function validate(): string | null {
     if (subjectMode === "registered_pet") {
-      if (!petPreview) return "Busca y confirma la mascota antes de continuar.";
+      if (!petPreview) return "Buscá y confirmá la mascota antes de continuar.";
     } else {
-      if (!unownedSpecies.trim()) return "Indica la especie del animal sin registrar.";
+      if (!unownedSpecies.trim()) return "Indicá la especie del animal sin registrar.";
     }
-    if (!seizureMotive) return "Selecciona el motivo del decomiso.";
+    if (!seizureMotive) return "Seleccioná el motivo del decomiso.";
     if (seizureMotive === "otro" && !seizureMotiveOtherDetail.trim()) {
-      return "Especifica el detalle cuando el motivo es 'Otro'.";
+      return "Especificá el detalle cuando el motivo es 'Otro'.";
     }
-    if (!receiverOrgId) return "Selecciona el refugio o red de rescate destinataria.";
+    if (!receiverOrgId) return "Seleccioná el refugio o red de rescate destinataria.";
     if (attachments.length < 2) {
-      return "Adjunta al menos 2 archivos: una foto del animal y el acta administrativa.";
+      return "Adjuntá al menos 2 archivos: una foto del animal y el acta administrativa.";
     }
     return null;
   }
@@ -359,7 +359,7 @@ export function DecomisoForm({
           {subjectMode === "registered_pet" && (
             <div className="space-y-3">
               <p className="text-sm text-ln-op-mute">
-                Ingresa el token DIM-XXXX-XXXX de la mascota registrada.
+                Ingresá el token DIM-XXXX-XXXX de la mascota registrada.
               </p>
               <div className="flex gap-2">
                 <div className="flex-1">
@@ -451,7 +451,7 @@ export function DecomisoForm({
           {subjectMode === "unowned_animal" && (
             <div className="space-y-3">
               <p className="text-sm text-ln-op-mute">
-                Describe el animal. Se creara un registro en el sistema para este decomiso. La
+                Describí el animal. Se creará un registro en el sistema para este decomiso. La
                 jurisdicción se asignará desde tu organización sanitaria.
               </p>
 
@@ -469,7 +469,7 @@ export function DecomisoForm({
                     onChange={(e) => setUnownedSpecies(e.target.value)}
                     className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
                   >
-                    <option value="">{"— Selecciona —"}</option>
+                    <option value="">{"— Seleccioná —"}</option>
                     <option value="dog">Perro</option>
                     <option value="cat">Gato</option>
                     <option value="other">Otro</option>
@@ -590,7 +590,7 @@ export function DecomisoForm({
               onChange={(e) => setSeizureMotive(e.target.value as SeizureMotive | "")}
               className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
             >
-              <option value="">{"— Selecciona un motivo —"}</option>
+              <option value="">{"— Seleccioná un motivo —"}</option>
               {(Object.entries(SEIZURE_MOTIVE_LABELS) as [SeizureMotive, string][]).map(
                 ([value, label]) => (
                   <option key={value} value={value}>
@@ -614,7 +614,7 @@ export function DecomisoForm({
                 value={seizureMotiveOtherDetail}
                 onChange={(e) => setSeizureMotiveOtherDetail(e.target.value)}
                 rows={3}
-                placeholder="Describe el motivo especifico del decomiso"
+                placeholder="Describí el motivo específico del decomiso"
                 className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
               />
             </div>
@@ -710,12 +710,12 @@ export function DecomisoForm({
                 type="text"
                 value={receiverSearch}
                 onChange={(e) => setReceiverSearch(e.target.value)}
-                placeholder="Escribe para filtrar..."
+                placeholder="Escribí para filtrar..."
                 className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
               />
               {receiverOrgs.length === 0 ? (
                 <p className="text-sm text-ln-op-mute py-2">
-                  No hay refugios verificados disponibles. Contacta al administrador.
+                  No hay refugios verificados disponibles. Contactá al administrador.
                 </p>
               ) : (
                 <ul className="max-h-48 overflow-y-auto divide-y divide-ln-op-line-2 rounded-[var(--radius-md)] border border-ln-op-line">

@@ -80,7 +80,7 @@ export function OpenInvestigationForm({
           rows={4}
           required
           minLength={10}
-          placeholder="Describe la situación epidemiológica que motiva la apertura..."
+          placeholder="Describí la situación epidemiológica que motiva la apertura..."
           className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
         <p className="text-sm text-ln-op-mute tabular-nums">{reason.trim().length} caracteres</p>

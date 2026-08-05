@@ -15,6 +15,7 @@ import {
 } from "@/components/pet-profile/EmergencyContactFields";
 import { looksLikeArPhone } from "@/lib/reference/ar-phone";
 import { notifySaved } from "@/lib/ui/action-feedback";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 function PhoneFormatWarning({ value }: { value: string }) {
   if (!value || looksLikeArPhone(value)) return null;
@@ -160,7 +161,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
         notifySaved("Perfil actualizado");
       }
     } catch (err) {
-      setGlobalError(err instanceof Error ? err.message : "Error desconocido");
+      setGlobalError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
     } finally {
       setLoading(false);
     }

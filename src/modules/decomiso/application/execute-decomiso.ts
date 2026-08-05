@@ -114,7 +114,7 @@ export async function validateExecuteDecomiso(
 
   // ---- Validate receiver org ---------------------------------------------
   if (!input.intendedReceiverOrganizationId?.trim()) {
-    return { ok: false, error: "Debe seleccionar un refugio destinatario." };
+    return { ok: false, error: "Seleccioná un refugio destinatario." };
   }
 
   const [receiverOrg] = await dbInstance

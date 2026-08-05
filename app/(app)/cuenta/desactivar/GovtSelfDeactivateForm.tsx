@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { govtSelfDeactivateAction } from "@/app/actions/profile-self-service";
 import { LnCheckbox } from "@/components/ui/Field";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 type LocalityRow = {
   province: string;
@@ -45,7 +46,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
 
       router.push("/cuenta?banner=govt_deactivated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
       setLoading(false);
     }
   }

@@ -124,7 +124,7 @@ export default async function IntakeMatchPage({
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">Coincidencia de microchip</h1>
         <p className="text-[13px] text-ln-op-mute">
-          Este chip ya esta registrado en miMAR. Confirma si es el mismo animal.
+          Este chip ya esta registrado en miMAR. Confirmá si es el mismo animal.
         </p>
       </header>
 
