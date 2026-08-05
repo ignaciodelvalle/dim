@@ -145,7 +145,11 @@ describe("physical tag continuity across an owner→owner transfer", () => {
       {
         repo: TransfersRepository,
         actor: { user: { id: newOwnerId } },
-        transaction: (cb) => db.transaction(cb as Parameters<typeof db.transaction>[0]),
+        // The use-case declares `transaction` generically over its callback's
+        // return type; drizzle's own signature is narrower, so the bridge is
+        // cast on both ends (same shape the thin server action uses).
+        transaction: <T>(cb: (tx: unknown) => Promise<T>) =>
+          db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>,
       },
     );
     expect(result.ok).toBe(true);
