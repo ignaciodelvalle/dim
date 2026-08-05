@@ -238,6 +238,98 @@ export function findUntokenizedButtonRadii(src) {
 }
 
 // ---------------------------------------------------------------------------
+// CSS button rules (2026-08-05) — the same two properties, in stylesheets
+// ---------------------------------------------------------------------------
+//
+// WHY: every rule above reads .tsx and matches Tailwind utilities. A button
+// styled by a STYLESHEET is invisible to all of it, and the landing is styled by
+// a stylesheet. globals.css:811 carries the confession in its own comment: the
+// commit that declared the two radius tokens named "the landing 8px" as one of
+// the four drifting surfaces, then did not fix it, "because the fence it added
+// reads `rounded-*` utilities in JSX and .lp-btn is CSS". The result shipped:
+// "Crear cuenta" was a rectangle while /signup, one click away, was all pills.
+// Widening this scan found a second one still live — `.lp .lp-lost-btn` at a raw
+// 10px — which is fixed in the same change.
+//
+// The lint:tokens CSS scan (scripts/css-token-scan.ts) does count raw radii and
+// below-floor font sizes per FILE, but as one aggregate budget: a new 8px button
+// radius lands inside globals.css's existing headroom and nothing goes red. This
+// rule is button-CONTEXT and starts at zero, so it cannot hide there.
+//
+// FLOOR: the font-size floor is --text-xs, read from app/globals.css — the same
+// floor css-token-scan uses. Deliberately not a stricter button-specific number:
+// that would be a design decision, and this fence's job is to enforce the ones
+// already made, not to invent one.
+const CSS_SCAN_GLOB = "app/**/*.css";
+
+/**
+ * Selectors that style a button: the bare `button` element, any class carrying
+ * `btn` as part of its name (`.lp-btn`, `.ln-btn--ghost`, `.btn`), or an
+ * attribute selector pinning the input type.
+ */
+const CSS_BUTTON_SELECTOR =
+  /(?:^|[\s,>+~])button\b|\.[\w-]*btn[\w-]*|\[type=["']?(?:button|submit)/i;
+
+/** A radius value that is already one of the two sanctioned tokens, or a shape. */
+const CSS_RADIUS_OK = /var\(\s*--radius-(?:pill|op-btn)\b/;
+
+const CSS_TEXT_XS_DECL = /--text-xs:\s*(\d+(?:\.\d+)?)px/;
+const DEFAULT_FONT_FLOOR_PX = 10;
+
+/** The --text-xs floor in px, read from a stylesheet source. */
+export function cssFontFloorPx(globalsCss) {
+  const m = CSS_TEXT_XS_DECL.exec(globalsCss);
+  return m === null ? DEFAULT_FONT_FLOOR_PX : Number(m[1]);
+}
+
+/** Minimum px expressed by a font-size value (px and rem; em is unknowable). */
+function minPxIn(value) {
+  const pxs = [
+    ...[...value.matchAll(/(\d+(?:\.\d+)?)px/g)].map((m) => Number(m[1])),
+    ...[...value.matchAll(/(\d+(?:\.\d+)?)rem/g)].map((m) => Number(m[1]) * 16),
+  ];
+  return pxs.length === 0 ? null : Math.min(...pxs);
+}
+
+/**
+ * Button-context violations in one stylesheet.
+ *
+ * The walker matches innermost `selector { decls }` blocks — `[^{}]*` cannot
+ * cross a brace, so a rule nested in an `@media` is found on its own and the
+ * captured selector never carries the at-rule prelude.
+ *
+ * Comments are stripped first (newline-preserving, so reported lines stay true):
+ * globals.css documents this very rule in prose that quotes the values it
+ * forbids, and a fence that read its own documentation would flag it.
+ */
+export function findCssButtonViolations(css, floorPx = DEFAULT_FONT_FLOOR_PX) {
+  const src = stripComments(css);
+  const out = { radius: [], fontBelowFloor: [] };
+  const blockRe = /([^{}]*)\{([^{}]*)\}/g;
+  let m = blockRe.exec(src);
+  while (m !== null) {
+    const selector = m[1].trim().replace(/\s+/g, " ");
+    const body = m[2];
+    if (CSS_BUTTON_SELECTOR.test(selector)) {
+      const line = src.slice(0, m.index).split("\n").length;
+      for (const d of body.matchAll(/border-radius\s*:\s*([^;]+)/gi)) {
+        const value = d[1].trim();
+        const isShapeOrZero = /^0(px|%)?$/.test(value) || /^\d+(?:\.\d+)?%$/.test(value);
+        if (CSS_RADIUS_OK.test(value) || isShapeOrZero) continue;
+        out.radius.push({ line, selector, value });
+      }
+      for (const d of body.matchAll(/font-size\s*:\s*([^;]+)/gi)) {
+        const value = d[1].trim();
+        const min = minPxIn(value);
+        if (min !== null && min < floorPx) out.fontBelowFloor.push({ line, selector, value });
+      }
+    }
+    m = blockRe.exec(src);
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Core logic (exported for unit tests)
 // ---------------------------------------------------------------------------
 
@@ -353,6 +445,66 @@ function scanRadii({ label, glob, baseline, scriptName }) {
   return true;
 }
 
+/** Button-context violations in stylesheets. Both baselines start at ZERO: the
+ *  scan found exactly one hit on its first run (`.lp .lp-lost-btn`'s raw 10px)
+ *  and it was fixed in the same change rather than baselined, so the rule
+ *  begins its life as an absolute ban. Do not raise these — a button styled in
+ *  CSS drifts exactly the way a button styled in JSX does, and this fence exists
+ *  because nothing was watching the CSS half for months. */
+const CSS_BUTTON_RADIUS_BASELINE = 0;
+const CSS_BUTTON_FONT_BASELINE = 0;
+
+function scanCssButtons() {
+  const files = globSync(CSS_SCAN_GLOB)
+    .map((f) => f.replaceAll("\\", "/"))
+    .sort();
+
+  if (files.length === 0) {
+    console.error("✗ check-raw-buttons: no stylesheets found for the CSS button scan.");
+    return false;
+  }
+
+  const globals = files.find((f) => f.endsWith("app/globals.css"));
+  const floorPx = cssFontFloorPx(globals === undefined ? "" : readFileSync(globals, "utf8"));
+
+  const radiusHits = [];
+  const fontHits = [];
+  for (const file of files) {
+    const { radius, fontBelowFloor } = findCssButtonViolations(readFileSync(file, "utf8"), floorPx);
+    for (const h of radius) radiusHits.push({ file, ...h });
+    for (const h of fontBelowFloor) fontHits.push({ file, ...h });
+  }
+
+  let ok = true;
+
+  if (radiusHits.length > CSS_BUTTON_RADIUS_BASELINE) {
+    for (const h of radiusHits) {
+      console.error(`${h.file}:${h.line}: { ${h.selector} } border-radius: ${h.value}`);
+    }
+    console.error(
+      `\n✗ ${radiusHits.length} untokenized button radius in CSS — baseline allows ${CSS_BUTTON_RADIUS_BASELINE}. A button's radius comes from ONE of two tokens: --radius-pill (citizen) or --radius-op-btn (operator). This rule exists because the landing's buttons drifted for months inside a stylesheet no button fence read.`,
+    );
+    ok = false;
+  }
+
+  if (fontHits.length > CSS_BUTTON_FONT_BASELINE) {
+    for (const h of fontHits) {
+      console.error(`${h.file}:${h.line}: { ${h.selector} } font-size: ${h.value}`);
+    }
+    console.error(
+      `\n✗ ${fontHits.length} button font-size below the --text-xs floor (${floorPx}px) in CSS — baseline allows ${CSS_BUTTON_FONT_BASELINE}. lint:tokens counts these per FILE, where a new one hides inside globals.css's existing budget; in button context it starts at zero.`,
+    );
+    ok = false;
+  }
+
+  if (ok) {
+    console.log(
+      `✓ [css] button rules clean — ${files.length} stylesheet(s) scanned, 0 untokenized button radii and 0 button font-sizes below the ${floorPx}px floor.`,
+    );
+  }
+  return ok;
+}
+
 function runScan() {
   const operatorOk = scanSurface({
     label: OPERATOR_LABEL,
@@ -382,7 +534,9 @@ function runScan() {
     scriptName: "CITIZEN_RADIUS_BASELINE",
   });
 
-  if (!operatorOk || !citizenOk || !operatorRadiusOk || !citizenRadiusOk) {
+  const cssOk = scanCssButtons();
+
+  if (!operatorOk || !citizenOk || !operatorRadiusOk || !citizenRadiusOk || !cssOk) {
     process.exit(1);
   }
 }

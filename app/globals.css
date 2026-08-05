@@ -2365,7 +2365,11 @@ body {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 10px;
+  /* Canon D.1 again, same fence-blindness as .lp-btn above: this was a raw 10px
+     while the CTA one screen up is a pill. Not a second exemption — the same
+     PO decision (X2-S2, 2026-07-29), the same stylesheet, and nothing looked at
+     stylesheets until check-raw-buttons.mjs learned to read .css (2026-08-05). */
+  border-radius: var(--radius-pill);
   padding: 12px 10px;
   font-size: 13px;
   font-weight: 700;

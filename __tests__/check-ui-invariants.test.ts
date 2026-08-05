@@ -393,3 +393,86 @@ describe("isPayloadFragmentRenderedAsCopy — Rule 6 Arm B", () => {
     expect(frag).toBeFalsy();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Rule 6 — CSS button rules (findCssButtonViolations)
+// ---------------------------------------------------------------------------
+//
+// The gap this closes: every other button rule in the repo reads .tsx and
+// matches Tailwind utilities, and the landing is styled by a stylesheet.
+// globals.css:811 says so in its own comment — the commit that declared the two
+// radius tokens named "the landing 8px" as a drifting surface and then left it,
+// "because the fence it added reads `rounded-*` utilities in JSX and .lp-btn is
+// CSS". Widening the scan found a second live one, `.lp .lp-lost-btn` at 10px.
+
+import { readFileSync } from "node:fs";
+
+import { cssFontFloorPx, findCssButtonViolations } from "@/scripts/check-raw-buttons.mjs";
+
+describe("findCssButtonViolations", () => {
+  it("flags an untokenized radius on a btn-named class", () => {
+    const { radius } = findCssButtonViolations(".lp .lp-btn { border-radius: 10px; }");
+    expect(radius).toHaveLength(1);
+    expect(radius[0]).toMatchObject({ value: "10px", selector: ".lp .lp-btn" });
+  });
+
+  it("accepts the two sanctioned radius tokens", () => {
+    const css = [
+      ".lp .lp-btn { border-radius: var(--radius-pill); }",
+      ".op-btn { border-radius: var(--radius-op-btn); }",
+    ].join("\n");
+    expect(findCssButtonViolations(css).radius).toEqual([]);
+  });
+
+  it("accepts a percentage radius — that is a SHAPE, not a scale step", () => {
+    expect(findCssButtonViolations("button.avatar { border-radius: 50%; }").radius).toEqual([]);
+  });
+
+  it("flags the bare button element and [type=submit], not arbitrary classes", () => {
+    expect(findCssButtonViolations("button { border-radius: 4px; }").radius).toHaveLength(1);
+    expect(
+      findCssButtonViolations('input[type="submit"] { border-radius: 4px; }').radius,
+    ).toHaveLength(1);
+    expect(findCssButtonViolations(".lp-card { border-radius: 4px; }").radius).toEqual([]);
+  });
+
+  it("finds a rule nested inside an @media without swallowing the prelude", () => {
+    const css = "@media (min-width: 700px) {\n  .lp .lp-btn { border-radius: 8px; }\n}";
+    const { radius } = findCssButtonViolations(css);
+    expect(radius).toHaveLength(1);
+    expect(radius[0].selector).toBe(".lp .lp-btn");
+  });
+
+  it("flags a button font-size below the floor, in px and in rem", () => {
+    const css = [".lp-btn { font-size: 8px; }", "button.small { font-size: 0.5rem; }"].join("\n");
+    expect(findCssButtonViolations(css, 10).fontBelowFloor).toHaveLength(2);
+  });
+
+  it("accepts a button font-size at or above the floor", () => {
+    expect(findCssButtonViolations(".lp-btn { font-size: 15px; }", 10).fontBelowFloor).toEqual([]);
+  });
+
+  it("ignores the values named in a comment — globals.css documents this rule in prose", () => {
+    const css = [
+      "/* This was border-radius: 8px and font-size: 8px until 2026-07-31. */",
+      ".lp .lp-btn { border-radius: var(--radius-pill); font-size: 15px; }",
+    ].join("\n");
+    const { radius, fontBelowFloor } = findCssButtonViolations(css, 10);
+    expect(radius).toEqual([]);
+    expect(fontBelowFloor).toEqual([]);
+  });
+});
+
+describe("cssFontFloorPx", () => {
+  it("reads the floor from the --text-xs declaration", () => {
+    expect(cssFontFloorPx("  --text-xs: 10px;\n  --text-sm: 12px;")).toBe(10);
+  });
+
+  it("falls back to 10px when the token is absent", () => {
+    expect(cssFontFloorPx(":root { --color: red; }")).toBe(10);
+  });
+
+  it("agrees with the floor the real stylesheet declares", () => {
+    expect(cssFontFloorPx(readFileSync("app/globals.css", "utf8"))).toBe(10);
+  });
+});
