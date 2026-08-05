@@ -59,13 +59,23 @@ describe("countRedirectCalls", () => {
 // Scan coverage
 // ---------------------------------------------------------------------------
 //
-// The fence's only real failure was here, and neither predicate above could see
-// it: the globs listed `actions.ts` (plural) but not `action.ts` (singular), so
-// every route-colocated action was skipped. The baseline read `{}` and the run
-// printed "0 baselined call(s) across 0 file(s)" while three post-mutation
-// redirect() calls sat in the tree — and a review cited that empty baseline as
-// evidence the debt was being tracked. These tests pin the scan SET, so
-// narrowing the globs goes red instead of going quiet.
+// BOTH of the fence's real failures were here, and no predicate above could see
+// either one:
+//
+//   1. (2026-08-01) The globs listed `actions.ts` (plural) but not `action.ts`
+//      (singular), so every route-colocated action was skipped. The baseline
+//      read `{}` and the run printed "0 baselined call(s) across 0 file(s)"
+//      while three post-mutation redirect() calls sat in the tree — and a review
+//      cited that empty baseline as evidence the debt was being tracked.
+//
+//   2. (2026-08-05) Every candidate had to DECLARE "use server". But the
+//      strangler migration moved the writers — and their redirect() calls —
+//      into src/modules/**/application/**, leaving four-line wrappers holding
+//      the directive. Eleven redirect() calls ran inside Server Action call
+//      stacks while the baseline was empty and the header called the fence
+//      "an absolute ban".
+//
+// These tests pin the scan SET, so narrowing it goes red instead of going quiet.
 
 describe("listServerActionFiles", () => {
   const files = listServerActionFiles();
@@ -84,10 +94,33 @@ describe("listServerActionFiles", () => {
     );
   });
 
-  it("returns only modules that declare themselves server actions", () => {
+  it("scans application use-cases, which do NOT declare the directive", () => {
+    // The directive is on the wrapper (app/actions/auth.ts is four lines of
+    // `return _logoutAction(...args)`); the redirect() is here. Requiring the
+    // directive on this tier is exactly the blindness it exists to fix.
+    for (const useCase of [
+      "src/modules/auth/application/logout.ts",
+      "src/modules/pets/application/intake/create-intake.ts",
+      "src/modules/adoption/application/apply-intent/start-apply-intent.ts",
+    ]) {
+      expect(files).toContain(useCase);
+      expect(isServerActionModule(readFileSync(useCase, "utf8"))).toBe(false);
+    }
+  });
+
+  it("every file outside the use-case tier declares itself a server action", () => {
     expect(files.length).toBeGreaterThan(0);
-    for (const f of files) {
+    const declared = files.filter((f) => !f.includes("/application/"));
+    expect(declared.length).toBeGreaterThan(0);
+    for (const f of declared) {
       expect(isServerActionModule(readFileSync(f, "utf8"))).toBe(true);
+    }
+  });
+
+  it("excludes tests from the scan set", () => {
+    for (const f of files) {
+      expect(f).not.toMatch(/\.test\.[jt]sx?$/);
+      expect(f).not.toContain("__tests__");
     }
   });
 });

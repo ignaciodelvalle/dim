@@ -7,7 +7,6 @@
 import { db, reminders } from "@/db";
 import { parseDateInput } from "@/lib/utils/format";
 import { and, eq, isNull } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 import type { ReminderFormState } from "./types";
 
@@ -66,5 +65,6 @@ export async function createVaccineReminder(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // Nav contract N3: RETURN the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }

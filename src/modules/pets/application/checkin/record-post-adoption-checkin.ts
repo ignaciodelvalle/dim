@@ -24,7 +24,6 @@ import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { and, asc, desc, eq, isNull } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 import type { CheckinFormState } from "./types";
 
@@ -207,5 +206,6 @@ export async function recordPostAdoptionCheckin(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // Nav contract N3: RETURN the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }

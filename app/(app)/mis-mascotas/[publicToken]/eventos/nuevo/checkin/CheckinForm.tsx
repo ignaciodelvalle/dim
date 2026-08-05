@@ -7,6 +7,7 @@ import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { AttachmentField } from "../AttachmentField";
@@ -33,6 +34,9 @@ export function CheckinForm({
   autoConfirm?: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // Nav contract N3 — the use-case returns redirectTo instead of calling
+  // redirect(); this performs the full document navigation.
+  const isNavigating = useActionRedirect(state.redirectTo, state);
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const formRef = useRef<HTMLFormElement>(null);
@@ -91,7 +95,7 @@ export function CheckinForm({
         tone="azul"
         ctaLabel="Enviar check-in"
         formId={FORM_ID}
-        isPending={isPending}
+        isPending={isPending || isNavigating}
       />
     </>
   );

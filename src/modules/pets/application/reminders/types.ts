@@ -2,6 +2,13 @@
 
 export type ReminderFormState = {
   error: string | null;
+  /**
+   * Nav contract N3: on success the use-case RETURNS the destination and the
+   * calling form performs the navigation (useActionRedirect). It does not call
+   * redirect() — the App Router drops a Server Action's own redirect and the
+   * user watches nothing happen. See lib/ui/use-action-redirect.ts.
+   */
+  redirectTo?: string;
 };
 
 // ---------------------------------------------------------------------------
