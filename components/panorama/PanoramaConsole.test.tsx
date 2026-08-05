@@ -17,12 +17,51 @@
 //
 // Scope: the onPreset commit path + board persistence. The map and the other
 // panels are mocked out — they pull in maplibre-gl and are irrelevant here.
+//
+// ─── ASYNC BUDGET (file-level, deliberate) ─────────────────────────────────
+// This file waits on async settle 59 times (`waitFor`) plus `findBy*`. Every
+// one of them used to run on Testing Library's 1000 ms default, and CI ate a
+// 1541 ms flake against it — a console whose fetch fan-out (features + KPIs +
+// histogram + rule-change markers) legitimately takes longer than a second on
+// a cold, contended runner.
+//
+// The fix is a BUDGET FOR THE FILE, not a per-call patch: WAITFOR_BUDGET_MS is
+// installed as Testing Library's `asyncUtilTimeout`, which is the single value
+// `waitFor` and `findBy*` both read at call time. So every wait in this file
+// inherits it without 59 edits, and a call site that genuinely needs longer
+// still passes its own `{ timeout }` (an explicit option always wins).
+//
+// Note for anyone tempted to "fix" a slow wait elsewhere: Vitest's `testTimeout`
+// does NOT reach this — it bounds the TEST, while `waitFor` bounds itself and
+// fails first with its own message.
+//
+// 5000 ms is chosen as ~3× the worst measured settle (1541 ms) on CI-class
+// hardware: wide enough that runner contention cannot turn a passing assertion
+// red, tight enough that a genuine hang still fails in seconds instead of
+// riding the test budget.
 
 import "@testing-library/jest-dom/vitest";
 
-import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  configure,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+/**
+ * Async settle budget for THIS FILE — see the header note. Read by every
+ * `waitFor` / `findBy*` below (Testing Library's `asyncUtilTimeout`), so the
+ * budget lives in exactly one place instead of 59.
+ */
+const WAITFOR_BUDGET_MS = 5_000;
+configure({ asyncUtilTimeout: WAITFOR_BUDGET_MS });
 
 const routerPush = vi.fn();
 const routerReplace = vi.fn();
