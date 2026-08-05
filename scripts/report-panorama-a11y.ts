@@ -1,15 +1,27 @@
-// Panorama a11y QA harness (task #43) — axe-core + keyboard checks.
+// Panorama a11y REPORT — axe-core + keyboard probes. NOT A GATE.
 //
-// Re-runs axe-core 4.11.4 (repo node_modules, NO CDN) across the Panorama
-// console states the audit covered, and drives the keyboard paths the audit
-// flagged, to confirm the WCAG/Ley 26.653 fixes landed:
+// ─── Read this before quoting its output ──────────────────────────────────
+// This script MEASURES; it never enforces. It exits 0 with violations on the
+// page (the only non-zero exit is an unhandled crash), no script or workflow
+// invokes it, and it needs a human-started server plus a login — so nothing
+// here can turn a run red. It was named `qa-panorama-a11y.ts`, which read like
+// one of the `scripts/check-*.ts` gates wired into `pnpm verify`; it was not,
+// and its clean output has never meant "Panorama is accessible".
+//
+// The ENFORCING a11y checks are the Playwright axe scans — `e2e/public-smoke.
+// spec.ts`, `e2e/a11y-*.spec.ts` — which run in CI and fail on violations.
+// If a finding here matters, it belongs in one of those.
+//
+// What it is for: a rich, human-read snapshot (per-state violation lists,
+// keyboard-path probes, screenshots, a JSON report) while working on the
+// Panorama console — the states the task-#43 audit covered, re-measured:
 //   A1 dangling aria-controls, A3 nested-interactive (map), A4 orphaned
 //   listitem (presets), A2/A5/A6 contrast, M1 focus-restore + M2 announce
 //   (scope pill), M3 roving dock tablist.
 //
 // Usage (server must be running on :3000 with the fresh build):
-//   pnpm exec tsx scripts/qa-panorama-a11y.ts --email=admin@dim.test
-//   pnpm exec tsx scripts/qa-panorama-a11y.ts --email=lucas@dim.test
+//   pnpm exec tsx scripts/report-panorama-a11y.ts --email=admin@dim.test
+//   pnpm exec tsx scripts/report-panorama-a11y.ts --email=lucas@dim.test
 
 import { writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -190,6 +202,13 @@ async function main() {
     writeFileSync(outFile, JSON.stringify(report, null, 2));
     console.log(`\n  wrote ${outFile}`);
     console.log(`  keyboard checks: ${JSON.stringify(kb, null, 2)}`);
+    // Say it where the output is read, not only in the header: a reader who
+    // scrolls to the end must not mistake a quiet run for a passing gate.
+    console.log(
+      "\n  NOTE: this is a REPORT, not a gate — it exits 0 with violations present.\n" +
+        "  The enforcing a11y checks are the Playwright axe scans (e2e/public-smoke.spec.ts,\n" +
+        "  e2e/a11y-*.spec.ts), which run in CI and fail on violations.",
+    );
   } finally {
     await browser.close();
   }
