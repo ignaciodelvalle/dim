@@ -349,9 +349,15 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     // primary-suppressed department also loses its smallest visible sibling, so
     // no lone hidden cell is recoverable by subtraction. The two sides run that
     // pass over DIFFERENT inputs — the cube over the complete province, live
-    // over an arbitrary truncated subset (`.limit(PER_LAYER_CAP)` carries no
-    // ORDER BY) — so they legitimately promote different cells, or the cube
-    // promotes where live has ≥2 primaries and promotes nothing.
+    // over a TRUNCATED subset of it — so they legitimately promote different
+    // cells, or the cube promotes where live has ≥2 primaries and promotes
+    // nothing. (That subset is no longer ARBITRARY: since 2026-08-05 the cap
+    // orders by `n DESC, province, locality`, so live keeps the largest
+    // localities and the same subset on every run. Deterministic and closer to
+    // the cube — which TIGHTENS these bounds, it does not relax them: live
+    // undercounts less, so fewer departments fall under k that the cube clears.
+    // What stays true is that the two inputs are still DIFFERENT, which is all
+    // this argument needs.)
     //
     // Measured on this seed (microchip, department grain): Córdoba has exactly
     // ONE sub-k department (14154, count 3) and the cube promotes 14070

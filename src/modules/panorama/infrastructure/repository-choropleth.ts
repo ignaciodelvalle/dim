@@ -9,7 +9,9 @@
 import {
   type SQL,
   and,
+  asc,
   countDistinct,
+  desc,
   eq,
   gte,
   inArray,
@@ -369,7 +371,16 @@ export async function noLocalityByProvince(
 
 // Build the per-locality rollup join. `whereExtra` adds the metric-specific
 // predicate (e.g. rabies vaccination). `scopeClause` is the pets-scope clause.
-async function rollupPetsPerLocality(
+//
+// EXPORTED for one reason: the cap's determinism contract (largest-first,
+// totally ordered) is only observable AT THIS GRAIN. Every loader folds these
+// rows to departments and then k-anon-suppresses them, which erases both the
+// ordering and the identity of the localities the cap dropped — a test written
+// against a loader cannot tell "the cap kept the biggest" from "the cap kept
+// whatever". Not part of the module's public surface: it is deliberately absent
+// from the ./repository barrel, and no production caller outside this file uses
+// it. See __tests__/choropleth-rollup-determinism.test.ts.
+export async function rollupPetsPerLocality(
   whereExtra: SQL[],
   scopeClause: SQL | null,
 ): Promise<RollupRow[]> {
@@ -393,6 +404,26 @@ async function rollupPetsPerLocality(
     .from(pets)
     .where(and(...conditions))
     .groupBy(pets.jurisdictionProvince, pets.jurisdictionLocality)
+    // WHICH localities survive the cap is a PRODUCT decision, not the planner's
+    // (PO 2026-08-05). Without an ORDER BY, `LIMIT` keeps whatever rows the
+    // aggregate happened to emit first, so the national + department view could
+    // serve a DIFFERENT subset on two consecutive loads of the same data — the
+    // map flickered cells in and out and nobody could tell a real change from a
+    // reshuffle. `n DESC` keeps the LARGEST localities, the ones whose omission
+    // would distort the picture most, and makes the truncated set a function of
+    // the data alone.
+    // The (province, locality) tiebreaker is what actually buys DETERMINISM:
+    // counts tie constantly in the tail (dozens of localities at n=1), and
+    // `n DESC` alone would still let the planner choose among equals. The pair
+    // is the group key, hence unique per row — a total order, no residual
+    // ambiguity at the cap boundary.
+    // COST: the grouped set is already fully materialized by the aggregate
+    // (~1-3k rows), so this adds one top-N sort over it, not a re-scan.
+    .orderBy(
+      desc(countDistinct(pets.id)),
+      asc(pets.jurisdictionProvince),
+      asc(pets.jurisdictionLocality),
+    )
     .limit(PER_LAYER_CAP)
     .as("agg");
 
@@ -421,7 +452,15 @@ async function rollupPetsPerLocality(
         sql`${arLocalities.removedAt} IS NULL`,
       ),
     )
-    .groupBy(agg.province, agg.locality, agg.n);
+    .groupBy(agg.province, agg.locality, agg.n)
+    // The subquery's ORDER BY decides WHICH rows survive the cap; it does not
+    // survive the join (SQL preserves no ordering across one). Re-stating the
+    // same total order here makes the RETURNED array deterministic too, which
+    // matters downstream: `complementarySuppress` promotes "the smallest visible
+    // sibling", and on a tie it takes whichever the iteration order reaches
+    // first. Same rows in the same order → the same cell is promoted on every
+    // load.
+    .orderBy(desc(agg.n), asc(agg.province), asc(agg.locality));
 
   return rows
     .filter((r) => r.province !== null && r.locality !== null)
