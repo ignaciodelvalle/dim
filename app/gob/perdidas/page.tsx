@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
@@ -538,6 +539,19 @@ export default async function GobPerdidasPage({
                           q
                             ? `No se encontraron mascotas para "${q}" con el estado seleccionado.`
                             : "No hay mascotas con este estado para tu cobertura."
+                        }
+                        // A dead end with an active filter is worse than a
+                        // dead end with none — give the operator a way back
+                        // (copy audit 2026-08-04, S8).
+                        action={
+                          q || sp.species || sp.status ? (
+                            <Link
+                              href="/gob/perdidas"
+                              className="text-sm text-ln-op-azul hover:underline"
+                            >
+                              Limpiar filtros
+                            </Link>
+                          ) : undefined
                         }
                       />
                     ) : (

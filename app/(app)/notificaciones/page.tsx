@@ -8,6 +8,7 @@ import { Suspense } from "react";
 import { markAllNotificationsReadAction } from "@/app/actions/notifications";
 import { NotificationCard } from "@/components/NotificationCard";
 import { LnButton } from "@/components/ui/Button";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { type UrlTabItem, UrlTabs } from "@/components/ui/UrlTabs";
 import { db, notifications, pets } from "@/db";
 import {
@@ -182,15 +183,22 @@ export default async function NotificacionesPage({
   const listBody = (
     <>
       {rows.length === 0 ? (
-        <div className="py-8 text-center">
-          <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ink-2)]">
-            {EMPTY_CATEGORY_TITLES[activeCat]}
-          </p>
-          <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
-            {EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
-              "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo."}
-          </p>
-        </div>
+        <LnEmptyState
+          title={EMPTY_CATEGORY_TITLES[activeCat]}
+          description={
+            EMPTY_CATEGORY_DESCRIPTIONS[activeCat] ??
+            "Tu bandeja está vacía. Te avisaremos por acá cuando haya algo nuevo."
+          }
+          // Passive surface — nothing to "create" here, but a dead end is still
+          // a dead end (copy audit 2026-08-04, S8). Point the owner back at
+          // their pets instead of leaving them on an empty inbox with nowhere
+          // to go.
+          action={
+            <LnButton href="/mis-mascotas" variant="ghost" size="sm">
+              Ver mis mascotas
+            </LnButton>
+          }
+        />
       ) : (
         <ul className="flex flex-col gap-2.5">
           {groups.map((entry) => {

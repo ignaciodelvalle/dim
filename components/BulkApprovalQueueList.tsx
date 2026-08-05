@@ -99,9 +99,18 @@ function rowStateDisplay(type: ApprovalRequestType): {
 export function BulkApprovalQueueList({
   items,
   detailUrlPrefix,
+  historyHref,
 }: {
   items: QueueItem[];
   detailUrlPrefix: string;
+  /**
+   * Link to the portal's decision history (e.g. `${base}/historial`). Shown
+   * as the empty-state CTA — there is nothing to "create" on a review queue,
+   * but an empty inbox still shouldn't be a dead end (copy audit 2026-08-04,
+   * S8). Optional so tests/callers without a history route keep today's
+   * action-less empty state.
+   */
+  historyHref?: string;
 }) {
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -182,6 +191,13 @@ export function BulkApprovalQueueList({
         icon="solicitud"
         title="No hay solicitudes pendientes"
         description="No hay solicitudes pendientes en tu jurisdicción. Cuando lleguen nuevas solicitudes las vas a ver acá."
+        action={
+          historyHref ? (
+            <Link href={historyHref} className="text-sm text-ln-op-azul hover:underline">
+              Ver historial de decisiones
+            </Link>
+          ) : undefined
+        }
       />
     );
   }

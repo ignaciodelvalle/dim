@@ -21,6 +21,7 @@
 // visible; province/locality stack under the code.
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { useCallback, useMemo, useState } from "react";
 
 import { CaseStatusBadge } from "@/components/ui/dashboard/CaseStatusBadge";
@@ -138,6 +139,20 @@ export interface CaseQueueProps {
   /** Empty-state message. */
   emptyMessage?: string;
   /**
+   * Optional CTA rendered under `emptyMessage` (a link or button) — e.g.
+   * "Limpiar filtros" when the empty result is filter-caused, or a link back
+   * to a related screen. Omit for a plain message-only empty state (today's
+   * default, still valid for queues where there is genuinely nothing to do —
+   * see components/ui/EmptyState.tsx's `action` prop for the sibling
+   * pattern used outside table/queue primitives). Added copy audit
+   * 2026-08-04 (S8): `emptyMessage`-only primitives had no CTA slot at all,
+   * so an empty queue could never invite an action even when one existed.
+   * NEVER pair this with a k-anonymity/suppression message — "no data" and
+   * "hidden by suppression" are different epistemic states and a cheerful
+   * CTA over a suppression notice misrepresents which one this is.
+   */
+  emptyAction?: ReactNode;
+  /**
    * When false, the built-in status filter chips (Todos / Abiertos / Cerrados)
    * are not rendered. Use this on surfaces that own a richer external filter
    * form (e.g. /admin/casos, which filters status alongside kind + province)
@@ -199,6 +214,7 @@ export function CaseQueue({
   truncated = false,
   totalCount,
   emptyMessage = "No hay casos en esta cola.",
+  emptyAction,
   showStatusChips = true,
   extraFilterParams,
 }: CaseQueueProps) {
@@ -311,9 +327,10 @@ export function CaseQueue({
 
       {/* Table */}
       {rows.length === 0 ? (
-        <p className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          {emptyMessage}
-        </p>
+        <div className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute space-y-2">
+          <p>{emptyMessage}</p>
+          {emptyAction && <div>{emptyAction}</div>}
+        </div>
       ) : (
         // Q2 (sticky headers): the header sticks to THIS wrapper, so the
         // wrapper must be the scrolling element — `position: sticky` fails

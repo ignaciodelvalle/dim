@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Suspense } from "react";
 
 import { and, desc, eq, inArray, isNull } from "drizzle-orm";
@@ -202,7 +203,17 @@ export default async function ObservacionesPage({
           nature="no-signal"
           icon={<Icon name="eye-off" decorative />}
           title="Sin observaciones registradas en miMAR"
-          body="La ausencia de observaciones no implica ausencia de casos por escalar — no hay observaciones que coincidan con estos filtros en tu cobertura. Revisá la brecha de escalamiento (mordeduras vs. observaciones) en Vigilancia."
+          body={
+            <>
+              La ausencia de observaciones no implica ausencia de casos por escalar — no hay
+              observaciones que coincidan con estos filtros en tu cobertura. Revisá la brecha de
+              escalamiento (mordeduras vs. observaciones) en{" "}
+              <Link href="/gob/vigilancia" className="underline hover:no-underline">
+                Vigilancia
+              </Link>
+              .
+            </>
+          }
         />
       </div>
     );

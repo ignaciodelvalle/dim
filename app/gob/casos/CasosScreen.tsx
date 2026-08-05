@@ -312,6 +312,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
     queueRows,
     totalCount,
     emptyMessage,
+    hasFilters,
   } = await loadCasosForViewer(sp, scope);
 
   // Q1 (CSV export parity) — the shared CaseQueue CSV projection: exactly the
@@ -434,6 +435,13 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
               // page (cursor set) these are the NEXT 50, not the most recent.
               totalCount={rawCursor ? undefined : totalCount}
               emptyMessage={emptyMessage}
+              emptyAction={
+                hasFilters ? (
+                  <Link href="/gob/casos" className="text-sm text-ln-op-azul hover:underline">
+                    Limpiar filtros
+                  </Link>
+                ) : undefined
+              }
             />
           </Suspense>
         </>

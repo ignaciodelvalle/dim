@@ -277,15 +277,22 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
         </p>
       )}
 
-      {/* Empty state */}
+      {/* Empty state — a review queue with nothing pending is a GOOD state, not
+          a dead end, but it still shouldn't strand the operator with no next
+          step (copy audit 2026-08-04, S8). Point back at the org's own pets. */}
       {rows.length === 0 ? (
-        <p className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          {activeStatus === "pending"
-            ? "No tenés postulaciones pendientes de revisión."
-            : activeStatus === "approved"
-              ? "Todavía no aprobaste ninguna postulación."
-              : "Todavía no rechazaste ninguna postulación."}
-        </p>
+        <div className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute space-y-2">
+          <p>
+            {activeStatus === "pending"
+              ? "No tenés postulaciones pendientes de revisión."
+              : activeStatus === "approved"
+                ? "Todavía no aprobaste ninguna postulación."
+                : "Todavía no rechazaste ninguna postulación."}
+          </p>
+          <Link href={`/org/${orgToken}/mascotas`} className="text-ln-op-azul hover:underline">
+            Ver mascotas en custodia
+          </Link>
+        </div>
       ) : (
         <>
           {/* Select-all toggle — only shown for pending (bulk actions apply to pending) */}

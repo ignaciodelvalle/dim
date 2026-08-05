@@ -39,6 +39,18 @@ import type { ReactNode } from "react";
  *    `role="status"` since it is information the operator should notice,
  *    not decorative chrome.
  *  - Icon is decorative (aria-hidden).
+ *
+ * `action` (copy audit 2026-08-04, S8): an empty state without a next step is
+ * a dead end, not a status message — pass a Link/LnButton here whenever there
+ * is something the user could do about it (a CTA to create the first record,
+ * a "Limpiar filtros" link, a link back to a related screen). NEVER pair an
+ * `action` with `nature="no-signal"`/`"protected"` copy that is disclosing a
+ * k-anonymity suppression or a "we don't have this data" epistemic gap — a
+ * cheerful CTA over a suppression notice misrepresents which one this is.
+ * Table/queue primitives that pre-date this component and take a plain
+ * `emptyMessage` string (no ReactNode slot) — e.g.
+ * components/ui/dashboard/CaseQueue.tsx — get the same treatment via a
+ * sibling `emptyAction?: ReactNode` prop instead of this one.
  */
 
 export type LnEmptyStateProps = {

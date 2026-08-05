@@ -141,6 +141,7 @@ export default async function ColaPage({
 
       <BulkApprovalQueueList
         detailUrlPrefix={`${base}/cola`}
+        historyHref={`${base}/historial`}
         items={pending.map((req) => ({
           publicToken: req.publicToken,
           type: req.type,
