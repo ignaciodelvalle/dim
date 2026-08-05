@@ -485,3 +485,30 @@ create policy "audit log visible to actor or admin"
 -- the append-only trigger (with app.allow_audit_mutation GUC bypass for
 -- test cleanup) — no RLS rule needed.
 
+
+-- ============================================================================
+-- pet_tags — physical tag lifecycle (migration 0169)
+-- ============================================================================
+alter table public.pet_tags enable row level security;
+
+-- SELECT own: the activating user, or a current owner of the linked pet.
+-- Explicit TO authenticated (0168 posture). The public /t/[serial] resolver
+-- reads through the server (BYPASSRLS) with a {status, publicToken}-only
+-- projection; anon never reads this table.
+drop policy if exists "pet_tags select own" on public.pet_tags;
+create policy "pet_tags select own"
+  on public.pet_tags
+  for select
+  to authenticated
+  using (
+    activated_by_user_id = (select auth.uid())
+    or pet_id in (
+      select o.pet_id from public.ownerships o
+      where o.owner_user_id = (select auth.uid())
+        and o.ended_at is null
+    )
+  );
+
+-- No INSERT / UPDATE / DELETE policies: issuance, activation and revocation
+-- flow through server actions (Drizzle BYPASSRLS). RLS is the PostgREST
+-- backstop only.

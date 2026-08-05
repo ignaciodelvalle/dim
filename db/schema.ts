@@ -4286,6 +4286,84 @@ export type PetIdentification = typeof petIdentifications.$inferSelect;
 export type NewPetIdentification = typeof petIdentifications.$inferInsert;
 
 // ============================================================================
+// Pet tags — physical tag (chapa) lifecycle (migration 0169)
+// ============================================================================
+// One row per manufactured tag. Serial `TAG-XXXX-XXXX` printed as QR; the
+// wrapper-printed activation code is stored ONLY as a peppered HMAC hash
+// (lib/utils/tag-code-hash.ts) — the plaintext code exists only in the admin
+// issuance CSV response and is NEVER persisted or SELECTed back by app code.
+//
+// State machine (one-way, CHECK-enforced): unactivated -> active -> revoked.
+// `revoked` is terminal (no reuse). A blank tag has no pet_id so it cannot be
+// revoked (the tag_revoked spine event needs a pet — design D4). Custody
+// transfer never touches this table: the tag stays active on the same pet.
+
+export const PET_TAG_REVOKE_REASONS = [
+  "lost",
+  "damaged",
+  "transfer",
+  "fraud",
+  "owner_request",
+  "other",
+] as const;
+export type PetTagRevokeReason = (typeof PET_TAG_REVOKE_REASONS)[number];
+
+export type PetTagStatus = "unactivated" | "active" | "revoked";
+
+export const petTags = pgTable(
+  "pet_tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serial: text("serial").notNull(),
+    // HMAC-SHA256 hex. Never SELECTed by app code — the evidence gate compares
+    // inside a SQL predicate (lib/infra/tag-lookup.ts, chip-lookup.ts shape).
+    activationCodeHash: text("activation_code_hash").notNull(),
+    status: text("status").notNull().default("unactivated").$type<PetTagStatus>(),
+    loteId: text("lote_id"),
+    petId: uuid("pet_id").references(() => pets.id),
+    activatedByUserId: uuid("activated_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedReason: text("revoked_reason").$type<PetTagRevokeReason | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // PII baseline (pii.apply_baseline in migration 0169).
+    createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+    purpose: dataPurposeEnum("purpose"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
+  },
+  (table) => ({
+    serialUnique: uniqueIndex("pet_tags_serial_unique").on(table.serial),
+    petIdx: index("pet_tags_pet_idx").on(table.petId).where(sql`${table.petId} IS NOT NULL`),
+    loteIdx: index("pet_tags_lote_idx").on(table.loteId).where(sql`${table.loteId} IS NOT NULL`),
+    statusValid: check(
+      "pet_tags_status_valid",
+      sql`${table.status} IN ('unactivated','active','revoked')`,
+    ),
+    revokedReasonValid: check(
+      "pet_tags_revoked_reason_valid",
+      sql`${table.revokedReason} IS NULL OR ${table.revokedReason} IN ('lost','damaged','transfer','fraud','owner_request','other')`,
+    ),
+    stateMachine: check(
+      "pet_tags_state_machine",
+      sql`(${table.status} = 'unactivated' AND ${table.petId} IS NULL AND ${table.activatedAt} IS NULL AND ${table.revokedAt} IS NULL)
+        OR (${table.status} = 'active' AND ${table.petId} IS NOT NULL AND ${table.activatedAt} IS NOT NULL AND ${table.revokedAt} IS NULL)
+        OR (${table.status} = 'revoked' AND ${table.petId} IS NOT NULL AND ${table.activatedAt} IS NOT NULL AND ${table.revokedAt} IS NOT NULL AND ${table.revokedReason} IS NOT NULL)`,
+    ),
+  }),
+);
+
+export type PetTag = typeof petTags.$inferSelect;
+export type NewPetTag = typeof petTags.$inferInsert;
+
+// ============================================================================
 // SENASA reference vocabularies (compliance PR 3, migration 0060)
 // ============================================================================
 // Tablas semi-estáticas en schema `ref.*` referenciadas por pet_events
