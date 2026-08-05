@@ -357,6 +357,16 @@ const ADMIN_PANEL = twin("/admin", GOB_PANEL, "briefing");
 const ADMIN_PANORAMA = twin("/admin/panorama", GOB_PANORAMA, "situacion");
 const ADMIN_PROGRAMA = twin("/admin/programa", GOB_PROGRAMA, "programa");
 
+// Admin-only, no gob twin: issuing physical tags is a national supply act, not
+// a jurisdictional one. Sits in "programa" next to ADMIN_PROGRAMA, whose
+// per-locality demand card is the INPUT to this decision (A1, 2026-08-05).
+// Action-shaped surface, so the decision reads as the action.
+const ADMIN_CHAPAS: ScreenManifestEntry = {
+  route: "/admin/chapas",
+  layer: "programa",
+  decision: "Emito un lote de chapas en blanco y entrego sus códigos de activación.",
+};
+
 // NOT twin()s of GOB_CENSO/GOB_POBLACION: F8 fusion (2026-07-22) absorbed
 // both into the gob Padrón hub, but /admin/censo and /admin/poblacion
 // redirect into the ADMIN's OWN Padrón hub (/admin/padron — its own hub
@@ -578,6 +588,7 @@ export const SCREEN_MANIFEST: readonly ScreenManifestEntry[] = [
   ADMIN_PANORAMA,
   ADMIN_OBSERVACIONES,
   ADMIN_PROGRAMA,
+  ADMIN_CHAPAS,
   ADMIN_PADRON,
   ADMIN_CENSO,
   ADMIN_ADOPCIONES,
