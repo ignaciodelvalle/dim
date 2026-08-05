@@ -85,7 +85,7 @@ function inAppHrefs(hrefs: readonly string[]): string[] {
 async function loginAsOperator(page: Page, email: string): Promise<void> {
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill(email);
-  await page.getByLabel(/^contraseña$/i).fill(SHARED_PASSWORD);
+  await page.getByRole("textbox", { name: "Contraseña" }).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   // Operators land on their portal root (/gob or /admin) after login.
   // Wait for any URL change away from /login to confirm auth succeeded.

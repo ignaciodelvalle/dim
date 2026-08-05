@@ -22,7 +22,7 @@ test.describe("login flow", () => {
 
     // Fill credentials.
     await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
-    await page.getByLabel(/^contraseña$/i).fill(OWNER_PASSWORD);
+    await page.getByRole("textbox", { name: "Contraseña" }).fill(OWNER_PASSWORD);
     await page.getByRole("button", { name: /iniciar sesión/i }).click();
 
     // After successful login the app redirects to /inicio.

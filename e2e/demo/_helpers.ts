@@ -179,7 +179,7 @@ export async function loginAs(
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
   await page.waitForTimeout(1_500);
   await page.getByLabel(/correo electrónico/i).fill(email);
-  await page.getByLabel(/^contraseña$/i).fill(SHARED_PASSWORD);
+  await page.getByRole("textbox", { name: "Contraseña" }).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   const leftLogin = (url: URL) => !url.pathname.startsWith("/login");
   try {
@@ -189,7 +189,7 @@ export async function loginAs(
     // the server refused. Check for a refusal first so it is reported as one.
     const refusal = await loginErrorText(page);
     if (refusal) throw new Error(`login refused for ${email}: "${refusal}"`);
-    await page.getByLabel(/^contraseña$/i).press("Enter");
+    await page.getByRole("textbox", { name: "Contraseña" }).press("Enter");
     try {
       await page.waitForURL(leftLogin, { timeout: 20_000 });
     } catch (err) {

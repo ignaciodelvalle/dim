@@ -22,7 +22,7 @@ test.describe("auth bypass — owner cannot access privileged dashboards", () =>
     // session cookie set by the server.
     await page.goto("/login");
     await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
-    await page.getByLabel(/^contraseña$/i).fill(OWNER_PASSWORD);
+    await page.getByRole("textbox", { name: "Contraseña" }).fill(OWNER_PASSWORD);
     await page.getByRole("button", { name: /iniciar sesión/i }).click();
     await page.waitForURL(/\/inicio/, { timeout: 15_000 });
   });

@@ -108,7 +108,7 @@ async function login(page: Page, email: string) {
   await resetAuthLoginRateLimits();
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill(email);
-  await page.getByLabel(/^contraseña$/i).fill(PASSWORD);
+  await page.getByRole("textbox", { name: "Contraseña" }).fill(PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   // The post-login redirect is a Next server-action navigation. expect.poll
   // reads page.url() on its own schedule, independent of navigation lifecycle

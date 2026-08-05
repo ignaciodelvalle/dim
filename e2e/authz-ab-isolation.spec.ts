@@ -57,7 +57,7 @@ const stateCache = new Map<string, StorageState>();
 async function login(page: Page, email: string) {
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill(email);
-  await page.getByLabel(/^contraseña$/i).fill(PASSWORD);
+  await page.getByRole("textbox", { name: "Contraseña" }).fill(PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   const loginError = page
     .getByRole("alert")
