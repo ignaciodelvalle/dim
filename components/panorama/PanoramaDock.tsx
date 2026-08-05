@@ -20,6 +20,7 @@
 
 import { Fragment, type ReactNode, useRef, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 
 export type PanoramaDockTab = "registros" | "stats" | "referencias" | "timeline";
@@ -273,10 +274,10 @@ export function PanoramaDock({
               the notice exists even when its text doesn't fit anywhere. */}
           {hasUnknownLayerNotice && !(open && tab === "timeline") && (
             <span
-              className="flex-none rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-xs font-medium leading-none text-ln-op-warn"
+              className="inline-flex flex-none items-center rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-xs font-medium leading-none text-ln-op-warn"
               title="Este enlace pedía una capa que ya no existe. Abrí Línea de tiempo para ver el aviso completo."
             >
-              <span aria-hidden="true">⚠</span>
+              <Icon name="alerta" size={12} decorative />
               <span className="sr-only">
                 Aviso: este enlace pedía una capa que ya no existe. Abrí Línea de tiempo para ver el
                 detalle.

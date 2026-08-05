@@ -10,7 +10,7 @@ import { useState, useTransition } from "react";
 
 import { assignGovtLocalityAction } from "@/app/actions/admin-institutional";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpSelect } from "@/components/ui/dashboard";
 import { WHOLE_PROVINCE_SENTINEL } from "@/lib/domain/jurisdiction-canonical";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
@@ -103,11 +103,11 @@ export function AssignLocalityForm({
             >
               Provincia
             </label>
-            <select
+            <OpSelect
               id="assign-locality-province"
               value={provinceName}
               onChange={(e) => setProvinceName(e.target.value)}
-              className="min-h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 text-sm text-ln-op-ink"
+              className="min-h-11 text-ln-op-ink"
             >
               <option value="">Elegí una provincia</option>
               {PROVINCES.map((p) => (
@@ -115,7 +115,7 @@ export function AssignLocalityForm({
                   {p.name}
                 </option>
               ))}
-            </select>
+            </OpSelect>
           </div>
         ) : (
           <div className="space-y-1">
