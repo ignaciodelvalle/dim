@@ -5,6 +5,20 @@
 //   1. Row Level Security ENABLED  (pg_class.relrowsecurity = true)
 //   2. At least one RLS policy     (pg_policies count > 0)
 //        OR is in the explicit DENY_ALL_ALLOWLIST (deny-all is intentional).
+//   3. Every policy names its ROLES explicitly — pg_policies.roles is not
+//        `{public}` — unless allowlisted in PUBLIC_ROLE_ALLOWLIST with a reason.
+//
+// WHY 3 EXISTS (2026-08-05). Checks 1 and 2 are existence checks: RLS on, at
+// least one policy. That is a COUNT, and a count cannot tell you who the policy
+// lets in. Ten live policies were found with no TO clause at all — across
+// custody_disputes, custody_dispute_parties, cases, pet_service_dog,
+// pet_achievement_views, cron_runs, ar_localities and its import-runs table. No
+// TO clause means PUBLIC, which in Postgres means every role including `anon`,
+// the key that ships in the client bundle. This fence counted all ten as
+// coverage and printed "RLS coverage clean". They were safe only because each
+// predicate resolves through auth.uid(), which is NULL for anon — one relaxed
+// predicate away from an anonymous read. Migration 0168 narrowed all ten to
+// `TO authenticated`; this check is what stops the eleventh.
 //
 // Source of truth: the local Supabase Docker DB (same DB that migrations run
 // against). The script queries pg_class + pg_policies directly — it does NOT
@@ -138,6 +152,81 @@ export async function fetchRlsCoverage(client: postgres.Sql): Promise<TableRlsRo
   `;
 }
 
+// ---------------------------------------------------------------------------
+// Policy ROLES — check 3
+// ---------------------------------------------------------------------------
+
+/**
+ * Policies allowed to keep the PUBLIC default role set, keyed
+ * `table:policyname`. Every entry needs a one-line reason naming the role that
+ * is supposed to reach it. Empty is the goal: `TO public` includes `anon`, and
+ * a policy that genuinely wants anonymous readers should say `TO anon` and be
+ * read as such by the next person.
+ */
+export const PUBLIC_ROLE_ALLOWLIST: Record<string, string> = {};
+
+export type PolicyRoleRow = {
+  table_name: string;
+  policy_name: string;
+  roles: string[];
+  cmd: string;
+};
+
+/**
+ * Roles for every policy in the public schema. Deliberately a SECOND query
+ * rather than a widening of fetchRlsCoverage: that one is shared with
+ * scripts/check-ledger-honesty.ts (`pnpm db:doctor`), which consumes its exact
+ * row shape and its exact violation kinds. One definition of "has RLS" stays
+ * one definition; "who does this policy admit" is a different question and gets
+ * its own.
+ */
+export async function fetchPolicyRoles(client: postgres.Sql): Promise<PolicyRoleRow[]> {
+  return await client<PolicyRoleRow[]>`
+    SELECT tablename  AS table_name,
+           policyname AS policy_name,
+           roles::text[] AS roles,
+           cmd
+    FROM pg_policies
+    WHERE schemaname = 'public'
+    ORDER BY tablename, policyname
+  `;
+}
+
+export type PolicyRoleViolation = {
+  table_name: string;
+  policy_name: string;
+  cmd: string;
+};
+
+/** Policies whose role set is the PUBLIC default and are not allowlisted. */
+export function evaluatePolicyRoles(rows: PolicyRoleRow[]): {
+  violations: PolicyRoleViolation[];
+  allowlisted: string[];
+} {
+  const violations: PolicyRoleViolation[] = [];
+  const allowlisted: string[] = [];
+
+  for (const row of rows) {
+    // pg_policies renders "no TO clause" as the single role `public`. Any other
+    // value — {authenticated}, {anon,authenticated}, {service_role} — is an
+    // explicit decision someone wrote down.
+    if (row.roles.length !== 1 || row.roles[0] !== "public") continue;
+
+    const key = `${row.table_name}:${row.policy_name}`;
+    if (Object.hasOwn(PUBLIC_ROLE_ALLOWLIST, key)) {
+      allowlisted.push(key);
+    } else {
+      violations.push({
+        table_name: row.table_name,
+        policy_name: row.policy_name,
+        cmd: row.cmd.toUpperCase(),
+      });
+    }
+  }
+
+  return { violations, allowlisted };
+}
+
 type Violation = {
   table_name: string;
   kind: "rls_disabled" | "no_policies";
@@ -148,17 +237,20 @@ type Violation = {
 // ---------------------------------------------------------------------------
 
 const SKIPPED_CHECKS =
-  "  NOT run: RLS-enabled and policy-count coverage over every public table (the whole fence).";
+  "  NOT run: RLS-enabled, policy-count and policy-roles coverage over every public table (the whole fence).";
 
 /**
- * Read RLS state for every public table, or return null when the run was
- * skipped — remote host without the opt-in, or an unreachable database. A null
- * has ALREADY reported itself; the caller just stops.
+ * Read RLS state and policy roles for every public table, or return null when
+ * the run was skipped — remote host without the opt-in, or an unreachable
+ * database. A null has ALREADY reported itself; the caller just stops.
  */
-async function fetchCoverage(rawUrl: string, target: DbTarget): Promise<TableRlsRow[] | null> {
+async function fetchCoverage(
+  rawUrl: string,
+  target: DbTarget,
+): Promise<{ tables: TableRlsRow[]; policies: PolicyRoleRow[] } | null> {
   const sql = postgres(rawUrl, { max: 1, connect_timeout: 5 });
   try {
-    return await fetchRlsCoverage(sql);
+    return { tables: await fetchRlsCoverage(sql), policies: await fetchPolicyRoles(sql) };
   } catch (err) {
     // A DB-less box is not a failure — but it is not a pass either, and it has
     // to say which checks did not run. Same contract as lint:scope-authz and
@@ -229,8 +321,9 @@ export async function runCheck(argv: string[] = []): Promise<void> {
     return;
   }
 
-  const rows = await fetchCoverage(rawUrl, target);
-  if (rows === null) return;
+  const fetched = await fetchCoverage(rawUrl, target);
+  if (fetched === null) return;
+  const rows = fetched.tables;
 
   // The database being judged is named on EVERY exit path, pass or fail.
   const origin = usingDefault ? "default local URL" : "DATABASE_URL";
@@ -239,8 +332,9 @@ export async function runCheck(argv: string[] = []): Promise<void> {
 
   const totalTables = rows.length;
   const { violations, allowlisted } = evaluateCoverage(rows);
+  const roleCheck = evaluatePolicyRoles(fetched.policies);
 
-  if (violations.length > 0) {
+  if (violations.length > 0 || roleCheck.violations.length > 0) {
     for (const v of violations) {
       if (v.kind === "rls_disabled") {
         console.error(
@@ -252,10 +346,17 @@ export async function runCheck(argv: string[] = []): Promise<void> {
         );
       }
     }
+    for (const v of roleCheck.violations) {
+      console.error(
+        `✗ ${v.table_name} — policy "${v.policy_name}" (${v.cmd}) has NO TO clause, so it applies to PUBLIC: every role, including anon (the key that ships in the client bundle). Name the roles in a forward-only migration — ALTER POLICY "${v.policy_name}" ON public.${v.table_name} TO authenticated; — or, with a reviewed reason, add "${v.table_name}:${v.policy_name}" to PUBLIC_ROLE_ALLOWLIST in scripts/check-rls-coverage.ts. A predicate that happens to reject anon today is not a role set.`,
+      );
+    }
     console.error(
       lines(
         "",
-        `✗ RLS coverage check FAILED — ${violations.length} violation(s) across ${totalTables} tables. ` +
+        `✗ RLS coverage check FAILED — ${violations.length} table violation(s) and ` +
+          `${roleCheck.violations.length} PUBLIC-role policy violation(s) across ${totalTables} tables ` +
+          `and ${fetched.policies.length} policies. ` +
           `Allowlisted deny-all tables (excluded): ${allowlisted.length}.`,
         dbLine,
       ),
@@ -267,6 +368,10 @@ export async function runCheck(argv: string[] = []): Promise<void> {
     `✓ RLS coverage clean — ${totalTables} tables checked; ` +
       `${totalTables - allowlisted.length} have policies; ` +
       `${allowlisted.length} are intentional deny-all (allowlisted): ${allowlisted.join(", ")}.`,
+  );
+  console.log(
+    `✓ Policy roles explicit — ${fetched.policies.length} policies checked, none default to PUBLIC` +
+      `${roleCheck.allowlisted.length > 0 ? ` (${roleCheck.allowlisted.length} allowlisted: ${roleCheck.allowlisted.join(", ")})` : ""}.`,
   );
   console.log(dbLine);
 }

@@ -188,6 +188,17 @@ async function policyCountMap(): Promise<Map<string, number>> {
   return map;
 }
 
+/** Every policy in the public schema with its role set, from the live catalog. */
+async function policyRoleRows(): Promise<Array<{ tablename: string; policyname: string }>> {
+  return (await db.execute(sql`
+    select tablename, policyname
+    from pg_policies
+    where schemaname = 'public'
+      and roles::text[] = array['public']
+    order by tablename, policyname
+  `)) as unknown as Array<{ tablename: string; policyname: string }>;
+}
+
 /** The USING/WITH CHECK predicates of one named policy, from the live catalog. */
 async function policyPredicate(table: string, policyName: string): Promise<string | null> {
   const rows = (await db.execute(sql`
@@ -267,6 +278,24 @@ describe("RLS coverage (V0-4 structural guarantee)", () => {
     expect(
       withPolicies,
       `Deny-all tables MUST have zero policies but some carry policies — a policy on a deny-all table can silently widen the PostgREST surface (P0). Investigate each: ${withPolicies.join(", ")}`,
+    ).toEqual([]);
+  });
+
+  // 2026-08-05: a policy with no TO clause applies to PUBLIC — every role,
+  // including `anon`, whose key ships in the client bundle. Ten policies were in
+  // that state (custody_disputes, custody_dispute_parties, cases,
+  // pet_service_dog, pet_achievement_views ×3, cron_runs, ar_localities,
+  // ar_localities_import_runs) and every existence-based check called them
+  // covered. They were safe only because each predicate resolves through
+  // auth.uid(), which is NULL for anon — one relaxed predicate away from an
+  // anonymous read. Migration 0168 narrowed all ten to `TO authenticated`.
+  it("every RLS policy names its roles explicitly (no policy falls through to PUBLIC)", async () => {
+    const publicRolePolicies = (await policyRoleRows()).map(
+      (r) => `${r.tablename}.${r.policyname}`,
+    );
+    expect(
+      publicRolePolicies,
+      `Policies with no TO clause, so they apply to PUBLIC (anon included). Name the roles in a forward-only migration — ALTER POLICY "<name>" ON public.<table> TO authenticated; — see 0168_rls_policies_explicit_roles.sql: ${publicRolePolicies.join(", ")}`,
     ).toEqual([]);
   });
 
