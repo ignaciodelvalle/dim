@@ -17,6 +17,7 @@ import {
   OpPill,
 } from "@/components/ui/dashboard";
 import { auditLog, db, govtAssignments, profiles } from "@/db";
+import { isWholeProvinceAssignment } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { DEAD_GOVT_REMEDY } from "@/lib/infra/govt-roster";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -165,7 +166,12 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
         ) : (
           <ul className="space-y-2">
             {activeAssignments.map((a) => {
-              const label = `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
+              const label = isWholeProvinceAssignment({
+                province: a.jurisdictionProvince,
+                locality: a.jurisdictionLocality,
+              })
+                ? `Toda la provincia · ${a.jurisdictionProvince}`
+                : `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`;
               return (
                 <li key={a.id}>
                   <OpCard>
@@ -200,7 +206,12 @@ export default async function GovtDetailPage({ params }: { params: Promise<{ use
             {revokedAssignments.map((a) => (
               <li key={a.id} className="text-sm text-ln-op-mute px-3 space-y-0.5">
                 <span className="text-ln-op-ink-2">
-                  {a.jurisdictionLocality}, {a.jurisdictionProvince}
+                  {isWholeProvinceAssignment({
+                    province: a.jurisdictionProvince,
+                    locality: a.jurisdictionLocality,
+                  })
+                    ? `Toda la provincia · ${a.jurisdictionProvince}`
+                    : `${a.jurisdictionLocality}, ${a.jurisdictionProvince}`}
                 </span>
                 {a.revokedAt && (
                   <span className="ml-2 text-ln-op-faint">

@@ -40,6 +40,56 @@ const assignLocalitySchema = z.object({
   locality: z.string(),
 });
 
+// Canonical (province, locality) resolution for an assignment write.
+//
+// WHOLE-PROVINCE branch (D3): there is no catalog row to resolve — the
+// sentinel IS the value — so the strict locality resolver is bypassed and the
+// PROVINCE is canonicalized on its own. Rejecting a non-canonical province
+// here keeps the widening honest: an unresolvable province can never be
+// granted province-wide, and `govt_assignments`' CHECK constraint would
+// refuse it anyway. Only the RESOLUTION is skipped — every capability and
+// target check in the caller still runs, in the same order, on the same row.
+//
+// Only the EXACT sentinel ("") grants the whole province. A whitespace-only
+// locality is an input mistake, not a mandate — trimming it into the sentinel
+// would silently promote a typo to province-wide standing.
+async function resolveAssignmentJurisdiction(
+  rawProvince: string,
+  rawLocality: string,
+): Promise<{ province: string; locality: string } | { error: string }> {
+  const wholeProvince = rawLocality === WHOLE_PROVINCE_SENTINEL;
+  if (!wholeProvince && rawLocality.trim() === "") {
+    return { error: "VALIDATION_ERROR: Locality is required (or use the whole-province option)" };
+  }
+  if (wholeProvince) {
+    const province = canonicalProvinceNameForStorage(rawProvince);
+    if (!province) return { error: `VALIDATION_ERROR: Provincia desconocida: ${rawProvince}` };
+    return { province, locality: WHOLE_PROVINCE_SENTINEL };
+  }
+  try {
+    const normalizedLoc = await normalizeLocationForWrite(
+      {
+        province: rawProvince,
+        provinceCode: null,
+        locality: rawLocality,
+        localityIndecId: null,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "strict" },
+    );
+    return {
+      province: normalizedLoc.province ?? rawProvince,
+      locality: normalizedLoc.locality ?? rawLocality,
+    };
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) return { error: err.message };
+    if (err instanceof CoordError) return { error: err.message };
+    throw err;
+  }
+}
+
 export async function assignGovtLocalityForAuthority(
   actorUserId: string,
   input: { targetUserId: string; province: string; locality: string },
@@ -54,44 +104,11 @@ export async function assignGovtLocalityForAuthority(
 
   // 1.5 Resolve through the canonical catalog. We only persist canonical names.
   // locality:"strict" — resolveCanonicalJurisdiction (govt assignment behavior unchanged).
-  let canonicalProvince: string;
-  let canonicalLocality: string;
-
-  // WHOLE-PROVINCE branch (D3). There is no catalog row to resolve — the
-  // sentinel IS the value — so the strict locality resolver is bypassed and the
-  // PROVINCE is canonicalized on its own. Rejecting a non-canonical province
-  // here keeps the widening honest: an unresolvable province can never be
-  // granted province-wide, and `govt_assignments`' CHECK constraint would
-  // refuse it anyway. Only the RESOLUTION is skipped — every capability and
-  // target check below still runs, in the same order, on the same row.
-  const wholeProvince = rawLocality.trim() === WHOLE_PROVINCE_SENTINEL;
-  if (wholeProvince) {
-    const province = canonicalProvinceNameForStorage(rawProvince);
-    if (!province) return { error: `VALIDATION_ERROR: Provincia desconocida: ${rawProvince}` };
-    canonicalProvince = province;
-    canonicalLocality = WHOLE_PROVINCE_SENTINEL;
-  } else {
-    try {
-      const normalizedLoc = await normalizeLocationForWrite(
-        {
-          province: rawProvince,
-          provinceCode: null,
-          locality: rawLocality,
-          localityIndecId: null,
-          lat: null,
-          lng: null,
-          address: null,
-        },
-        { locality: "strict" },
-      );
-      canonicalProvince = normalizedLoc.province ?? rawProvince;
-      canonicalLocality = normalizedLoc.locality ?? rawLocality;
-    } catch (err) {
-      if (err instanceof JurisdictionValidationError) return { error: err.message };
-      if (err instanceof CoordError) return { error: err.message };
-      throw err;
-    }
-  }
+  const resolved = await resolveAssignmentJurisdiction(rawProvince, rawLocality);
+  if ("error" in resolved) return { error: resolved.error };
+  const canonicalProvince = resolved.province;
+  const canonicalLocality = resolved.locality;
+  const wholeProvince = canonicalLocality === WHOLE_PROVINCE_SENTINEL;
 
   // 2. Load actor + capability check
   const actorProfile = await loadActorProfile(actorUserId);
