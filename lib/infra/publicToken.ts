@@ -21,6 +21,7 @@
 //   OFR  — service offering public token (service_offerings.public_token)
 //   APT  — appointment public token (appointments.public_token)
 //   INV  — organization invitation token (organization_invitations.invitation_token)
+//   TAG  — physical tag serial (pet_tags.serial)
 
 import { randomBytes } from "node:crypto";
 
@@ -90,4 +91,22 @@ export function generateAppointmentToken(): string {
 /** Generates an INV-XXXX-XXXX organization invitation token. */
 export function generateInvitationToken(): string {
   return generatePrefixedToken("INV");
+}
+
+/** Generates a TAG-XXXX-XXXX physical tag serial (pet_tags.serial). */
+export function generateTagSerial(): string {
+  return generatePrefixedToken("TAG");
+}
+
+/**
+ * Generates an UNPREFIXED `XXXX-XXXX` physical-tag activation code (same
+ * 31-char alphabet and uniform rejection sampler as the prefixed tokens).
+ *
+ * Deliberately prefix-free: the code is printed on the tag's WRAPPER as the
+ * proof-of-possession secret for activation, distinct from the serial/QR on
+ * the tag itself. It is stored ONLY as a peppered HMAC hash
+ * (lib/utils/tag-code-hash.ts) — never persisted in plaintext.
+ */
+export function generateTagActivationCode(): string {
+  return `${randomChunk(4)}-${randomChunk(4)}`;
 }
