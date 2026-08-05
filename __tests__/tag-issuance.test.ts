@@ -10,7 +10,7 @@
 //   - exactly one `tag.lote_issue` audit row per batch, without codes.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const { serialQueue } = vi.hoisted(() => ({
@@ -39,8 +39,11 @@ const admin = createClient(SUPABASE_URL, SECRET, { auth: { persistSession: false
 const ADMIN_EMAIL = "tag-issuer-admin@dim-test.local";
 const CIVILIAN_EMAIL = "tag-issuer-civilian@dim-test.local";
 const PASS = "TagIssuance_2026!";
-const LOTE_A = "TEST-LOTE-ISSUE-A";
-const LOTE_B = "TEST-LOTE-ISSUE-B";
+// Run-unique lote ids: audit_log is append-only (no test cleanup), so the
+// one-audit-row-per-batch assertion must key on a lote no prior run used.
+const RUN_ID = Date.now().toString(36).toUpperCase();
+const LOTE_A = `TEST-LOTE-ISSUE-A-${RUN_ID}`;
+const LOTE_B = `TEST-LOTE-ISSUE-B-${RUN_ID}`;
 
 let adminUserId: string;
 let civilianUserId: string;
@@ -52,8 +55,8 @@ async function purgeUser(email: string) {
 }
 
 async function purgeLotes() {
-  await db.delete(petTags).where(eq(petTags.loteId, LOTE_A));
-  await db.delete(petTags).where(eq(petTags.loteId, LOTE_B));
+  // Prefix delete: also sweeps rows left by prior runs' unique lote ids.
+  await db.delete(petTags).where(like(petTags.loteId, "TEST-LOTE-ISSUE-%"));
 }
 
 beforeAll(async () => {
