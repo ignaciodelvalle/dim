@@ -121,7 +121,7 @@ export default async function TagResolverPage({ params }: PageProps) {
       </p>
       <Link
         href={`/cuenta/chapas/activar?serial=${encodeURIComponent(serial)}`}
-        className="mt-6 inline-flex items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2.5 text-[13px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+        className="mt-6 inline-flex items-center justify-center rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2.5 text-sm font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
       >
         Activar esta chapa
       </Link>

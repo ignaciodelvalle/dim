@@ -67,7 +67,7 @@ export default async function ChapasPage() {
           <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis chapas
           </h1>
-          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+          <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
             Chapas físicas con QR vinculadas a la credencial de tus mascotas.
           </p>
         </div>
@@ -80,7 +80,7 @@ export default async function ChapasPage() {
         <LnCard>
           <LnCardHead title="Todavía no tenés chapas" />
           <LnCardBody>
-            <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+            <p className="text-sm text-[var(--color-ln-ink-2)]">
               Cuando recibas una chapa física, activala con el código impreso en el envoltorio para
               vincularla a una de tus mascotas.
             </p>
@@ -91,10 +91,10 @@ export default async function ChapasPage() {
           {tags.map((tag) => (
             <div
               key={tag.id}
-              className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-3.5 last:border-b-0"
+              className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[var(--space-sheet)] py-3.5 last:border-b-0"
             >
               <div className="min-w-0">
-                <p className="flex items-center gap-2 text-[13.5px] font-medium leading-tight text-[var(--color-ln-ink)]">
+                <p className="flex items-center gap-2 text-md font-medium leading-tight text-[var(--color-ln-ink)]">
                   <span className="font-ln-mono">{tag.serial}</span>
                   <LnBadge
                     variant={
@@ -108,7 +108,7 @@ export default async function ChapasPage() {
                     {STATUS_LABELS[tag.status] ?? tag.status}
                   </LnBadge>
                 </p>
-                <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
                   {tag.status === "active" && tag.petName && tag.petToken ? (
                     <>
                       Vinculada a{" "}

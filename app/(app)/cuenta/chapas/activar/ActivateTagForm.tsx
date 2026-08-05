@@ -57,7 +57,7 @@ export function ActivateTagForm({
     return (
       <LnCard>
         <LnCardBody>
-          <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+          <p className="text-sm text-[var(--color-ln-ink-2)]">
             Para activar una chapa primero necesitás tener una mascota registrada a tu nombre.
           </p>
           <LnButton href="/mis-mascotas/nueva" size="md" className="mt-4">
@@ -139,7 +139,11 @@ export function ActivateTagForm({
             )}
           </LnField>
 
-          {error && <p className="text-[12px] text-[var(--color-ln-err)]">{error}</p>}
+          {error && (
+            <p className="text-sm text-[var(--color-ln-err)]" role="alert">
+              {error}
+            </p>
+          )}
 
           <div>
             <LnButton type="submit" size="lg" disabled={!canSubmit || isPending}>

@@ -89,7 +89,11 @@ export function RevokeTagDialog({ serial }: { serial: string }) {
               </option>
             ))}
           </LnSelect>
-          {error && <p className="text-[11px] text-[var(--color-ln-err)]">{error}</p>}
+          {error && (
+            <p className="text-sm text-[var(--color-ln-err)]" role="alert">
+              {error}
+            </p>
+          )}
         </div>
       </ConfirmDialog>
     </>

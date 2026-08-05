@@ -43,7 +43,7 @@ export default async function ActivarChapaPage({ searchParams }: PageProps) {
         <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Activar chapa
         </h1>
-        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+        <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
           Ingresá el número de serie de la chapa y el código impreso en el envoltorio.
         </p>
       </div>
