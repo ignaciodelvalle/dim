@@ -1,311 +1,391 @@
 # PENDIENTES — cola única de trabajo abierto
 
-> **Solo lo que falta.** Lo cerrado vive en los planes del 29, 30, 31 y 01-08.
-> Actualizado 2026-07-31 tras cerrar la primera tanda de la cola.
+> **Solo lo que falta.** Lo cerrado vive en los planes del 29, 30, 31, 01-08 y
+> 04-08, y en los commits que se citan acá.
+> Actualizado **2026-08-05** tras la corrida nocturna que vació la cola.
 >
-> **Marcador**: **~40 abiertos**. La tanda de hoy cerró 68: las 7 barreras de
-> a11y (+1 octava encontrada persiguiendo el patrón), el fence de CSS, 6 flujos
-> rotos de RA-2, 5 comentarios que mienten, los 4 rojos de `final-seams`, tres
-> fences que no chequeaban lo que decían, y **dos vulnerabilidades alcanzables
-> desde cualquier cuenta gratuita** que introdujo esta misma ola y cerró antes
-> de salir.
+> **Marcador**: **~18 abiertos**, y **ninguno es un defecto de producto sin
+> dueño**. La corrida cerró la cola entera en 8 lotes más el ciclo SDD de la
+> chapa física: **63 commits** en `379114e3..HEAD`. Lo que queda son (a) tres
+> acciones manuales de gate, (b) decisiones del PO, (c) deuda con reja puesta y
+> número, y (d) trabajo que no es ingeniería.
+>
+> **Regla de evidencia (no negociable, ganada tres veces por las malas)**:
+> ninguna fila afirma algo sin **fecha** y sin **cita verificable** — commit,
+> archivo:línea, o salida de comando. Un ítem que nadie re-verifica se pudre, y
+> este documento ya mandó agentes a "arreglar" código que funcionaba en tres
+> ocasiones distintas (F4, `staging atrasado`, P3.2). Si una fila no tiene
+> fecha, **no es un hallazgo, es un rumor**.
 >
 > **CI: el veredicto real vive en la corrida hermana** — cada push dispara dos
 > (una por `push`, otra por `pull_request`) y una cancela a la otra. Leer
 > `cancelled` no es leer CI.
->
-> ## ⚠️ CORREGIDO 01/08 — staging YA NO está atrasado
->
-> Este documento decía que `dim-staging.vercel.app` servía el commit `aa668d54`
-> del 18 de julio. **Era cierto y ya no lo es**, y mientras tanto un equipo
-> externo leyó esa línea y la reportó como hallazgo vigente. Un documento que
-> describe como presente un problema resuelto es la misma clase de defecto que
-> esta ola viene cazando: **un registro que dice algo que ya no es verdad.**
->
-> Estado real: la rama de trabajo es ahora la **rama de producción** del
-> proyecto de Vercel, así que cada push despliega solo. Verificado contra el
-> entorno — health `ok`, 0 chunks rotos de 21, y el commit servido == HEAD.
 
 ---
 
-## 🚨 GATE DE DEPLOY — antes de que esto sirva en un entorno real
+## ⚠️ Servidores de QA — la regla sigue vigente y hoy aplica
 
-Cuatro acciones manuales. Ninguna es código.
+**Estado 2026-08-05**: los servidores de QA estuvieron **rancios toda la
+corrida** (sirviendo un build anterior a los 63 commits), y el `pnpm verify` de
+cierre corre `pnpm build`, así que **reescribió `.next` por debajo de ellos**.
+Después de esta corrida los servidores están muertos aunque respondan 200 en `/`.
 
-1. ~~**Migraciones `0162`, `0163`, `0164`**~~ — **APLICADAS a staging 31/07**,
-   junto con `0158`-`0161` y la nueva `0165`. Ledger en 164/164, `Pending: 0`.
-   Verificado contra la base, no contra la salida del comando: la columna
-   `jurisdiction_unverified` existe, `ownerships` tiene cero políticas de
-   escritura, y **el RLS pasó de 26/53 a 53/53**. Datos intactos (66.732
-   mascotas, 226.335 eventos).
-2. **`0165` — el ledger mentía.** Staging reportaba 156 migraciones aplicadas y
-   salud perfecta con **27 tablas sin RLS**, incluidas `profiles`, `pets`,
-   `pet_identifications`, `notifications` y `audit_log`, todas legibles por
-   `anon` vía PostgREST con la clave que viaja en el bundle. Causa probable:
-   `drizzle-kit push` (que no lleva RLS) + `migrate.ts --baseline` (que marca
-   todo aplicado **sin ejecutar SQL**). Producción estaba limpia. **Pendiente:
-   un chequeo que compare el ledger contra el estado real de la base**, para que
-   esto no dependa de que alguien sospeche.
-3. **`DEMO_PET_TOKEN` en Vercel.** El flagship **ya está sembrado** en staging
-   (`DIM-PAMP-0001`, Pampa, 22 eventos). Falta solo la variable, y **solo en el
-   proyecto de staging** — en producción no va, el código exige que ese entorno
-   no tenga mobiliario de demo. Requiere redeploy para tomar efecto.
-4. ~~**El Gmail personal del PO viaja a Nominatim**~~ — **DECIDIDO 31/07: queda.**
-   `lib/infra/geocoding.ts:62` y `SECURITY.md:12` siguen con la dirección
-   personal. El razonamiento del PO: OSM exige un contacto **monitoreado**, y una
-   casilla genérica que nadie lee es peor que una personal que sí se lee —
-   cuando OSM avise de abuso de su API, el aviso tiene que llegarle a alguien.
-   Se mueve cuando exista una casilla específica con lector. **No es bloqueante.**
+**Reinicio obligatorio antes de cualquier sesión de navegador**:
 
-### Además, ahora mismo — NINGÚN servidor de QA sirve
+```
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/qa-up.ps1
+```
 
-Medido 31/07 09:20: **`:3000` tiene 7 chunks rotos de 21; `:3100`, 3 de 21.**
-Los dos dan 400 en `webpack-*.js`, así que React **nunca hidrata** y **todo
-click se descarta en silencio**. Eso imita perfectamente un defecto de
-producto: dos specs independientes fallaron igual y casi las reportamos como
-dos defectos graves reales.
+`pwsh` no está instalado en esta máquina — la invocación es la de arriba. Y ojo
+con la rama "port already listening → reusing running server" de ese script:
+**reusa el servidor podrido** y sus smoke tests pasan igual, porque el HTML da
+200 mientras los chunks dan 400. Matar el proceso primero
+(`taskkill //PID <pid> //F`).
 
-**Cómo se llegó acá, porque se va a repetir**: un agente dejó `:3100` sano;
-después alguien corrió `pnpm verify`, que hace `pnpm build`, y el build
-**reescribió `.next` por debajo de los dos servidores vivos**. Los hashes de
-chunk cambian, el HTML servido sigue pidiendo los viejos.
-
-**La regla**: después de cualquier build, los servidores de QA quedan muertos
-aunque respondan 200 en `/`. Reiniciarlos es obligatorio, no opcional.
-
-**Detectarlo es un `curl`**: bajar `/`, extraer `/_next/static/chunks/*.js`,
-pedir cada uno. Un solo 400 invalida toda sesión de navegador. Vale la pena
-meter ese chequeo dentro de `qa-up.ps1` y de cualquier brief que use navegador.
-
-PIDs actuales: `:3000` → 36372, `:3100` → 33356. Matarlos con
-`taskkill //PID <pid> //F`. El árbol está limpio, así que rebuild + restart es
-seguro. **`pwsh` no está instalado acá** — la invocación es
-`powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/qa-up.ps1`, y
-ojo que su rama "port already listening → reusing running server" **reusa el
-servidor podrido** y sus smoke tests pasan igual (el HTML da 200). Matar primero.
+**Por qué importa**: con los chunks rotos React **nunca hidrata** y **todo click
+se descarta en silencio**. Eso imita perfectamente un defecto de producto — el
+31/07 dos specs independientes fallaron igual y casi las reportamos como dos
+defectos graves reales. Detectarlo es un `curl`: bajar `/`, extraer
+`/_next/static/chunks/*.js`, pedir cada uno. Un solo 400 invalida la sesión.
 
 ---
 
-## 🔴 P1 — **VACÍA** (verificada el 2026-08-04)
+## 🚨 GATE DE DEPLOY — tres acciones manuales, ninguna es código
 
-> Los cuatro ítems que vivían acá (RA-2 F4, F5, F9, F10) **ya están
-> arreglados**, verificados uno por uno contra el árbol:
->
-> | Ítem | Evidencia del arreglo |
-> |---|---|
-> | F4 chip distinto al canónico | `checkChipMatchesCanonical` rechaza el conflicto ANTES de la transacción (`lib/domain/microchip-validation.ts:78-115`) |
-> | F5 `redirect()` en la acción | `microchip/reemplazar/action.ts:117-122` devuelve `{ redirectTo }` (N3) |
-> | F9 `org.transfer.propose` inerte | la página llama `requireCapability(...)` (`transferencias/nueva/page.tsx:37-47`) |
-> | F10 "Enviar documentación" a la nada | verificación como estado de espera declarado (`waitingOn: "mimar"`) |
->
-> **Aviso de método**: las citas viejas de F4 (`microchip-use-case.ts:124`,
-> `events-repository.ts:197`) apuntaban al ARREGLO, no al defecto. Quien las
-> siguiera de buena fe "re-arreglaba" código que funciona. Fue la tercera vez
-> que este documento cayó en ese modo de falla — de ahí la regla de evidencia
-> fechada de arriba.
+| # | Qué | Estado 2026-08-05 |
+|---|---|---|
+| 1 | **Aplicar `0166`-`0170` a la base remota** | **PENDIENTE.** Los cinco archivos existen y están aplicados **sólo en local**: `0166_erase_subject_data_push_subscriptions`, `0167_drop_share_telemetry`, `0168_rls_policies_explicit_roles`, `0169_pet_tags`, `0170_subject_rights_pet_tags`. Aplicar a remoto es decisión de Ignacio (invariante del proyecto). **`0167` BORRA datos** y es irreversible; **`0168` toca RLS de 10 políticas**. Antes y después: `pnpm db:doctor` |
+| 2 | **`DEMO_PET_TOKEN` en Vercel** | **PENDIENTE.** El flagship ya está sembrado en staging (`DIM-PAMP-0001`, Pampa, 22 eventos). Falta sólo la variable, y **sólo en el proyecto de staging** — en producción no va, el código exige que ese entorno no tenga mobiliario de demo. Requiere redeploy |
+| 3 | **Toggle de leaked-password protection** | **PENDIENTE.** Dashboard de Supabase, un click. Es A9 de la cola vieja del 24/06 |
 
-## 🟠 P2 — el gate miente
+**Ya no está en el gate**: `0162`-`0165` (aplicadas a staging 31/07, RLS 53/53,
+datos intactos) y el Gmail personal en Nominatim (**decidido 31/07: queda** —
+OSM exige un contacto monitoreado y una casilla genérica que nadie lee es peor;
+se mueve cuando exista una casilla con lector. **No bloqueante**).
 
-### Los fences más angostos que su propia doctrina
-| # | Qué |
+---
+
+## ✅ Lo que cerró la corrida del 2026-08-04/05
+
+> Todo con commit. Lo que no tiene commit no está acá.
+
+### P1 — cumplimiento y datos
+
+| Ítem | Cierre |
 |---|---|
-| **RA-8 estructural** | **10 archivos `"use server"` invisibles a los tres linters de authz** (el glob es plano). Incluye 8 acciones de escritura médica en atender y tres exports sin guard |
-| **RA-8 estructural** | `check-authz-scoping` **se derrota con un comentario** — la palabra "jurisdiction" en cualquier parte del cuerpo cuenta como prueba. Baseline: 41 acciones tenant-guarded pero sin scopear |
-| **RA-8 estructural** | `check-rls-coverage` solo verifica que **exista** una política, nunca su contenido, roles, cláusula `TO` ni GRANTs. Por eso R1 pasó limpio con tres políticas |
-| **RA-8 estructural** | **10 políticas sin cláusula `TO`** (en 8 tablas; `achievement_views` aporta 3 — recontado 04/08) → caen a `PUBLIC` (incluye anon). Hoy son seguras por accidente, vía predicados `auth.uid()`, no por diseño |
-| **RA-8 estructural** | `middleware.ts` **no hace autorización**. Cada ruta se auto-gatea, sin red de seguridad |
-| **RA-2 F16** | `lint:nav` prohíbe **solo `router.refresh(`** mientras su docblock nombra push/replace. **~25 líneas vivas en 22 archivos** (recontado 04/08) |
-| **RA-2 F15** | El fence N3 reporta **cero deuda falsamente**. Recontado 04/08: ya tiene **cuatro** globs (el agujero de `action.ts` se cerró); lo que queda fuera son los **módulos de caso de uso** — ~12 `redirect()` en 10 archivos bajo `src/modules/*/application/**` |
-| **NUEVO 31/07** | **Dos fences cargan su propia copia de `stripComments`** (`check-confused-deputy.ts`, `check-router-refresh.ts`) — recontado 04/08: los otros dos ya re-exportan del módulo compartido. Ya existe el módulo compartido (`scripts/lib/strip-comments.mjs`) y `tsx` resuelve `.mjs` desde `.ts` sin ceremonia. Migrarlos |
+| ~~**PRIV-1** `push_subscriptions` sobrevive al borrado de sujeto~~ | **CERRADO** `93e0f668` + migración `0166`. La cascada existía pero era inalcanzable (nada borra filas de `profiles`); ahora `erase_subject_data` borra las suscripciones push explícitamente. **Local únicamente** — ver gate #1 |
+| ~~**TEL-1** `share_telemetry`~~ | **CERRADO** `61086608` + migración `0167`. Se dejó de recolectar **y** se borra lo acumulado. Irreversible. **Local únicamente** — ver gate #1 |
+| ~~**ROUTE-1** el hallazgo va al foster en vez del titular~~ | **CERRADO** `0ec108d7` (previo a esta corrida), y el mismo commit avisa al refugio de origen |
+| ~~**Fe de erratas de `0156`**~~ | **CERRADO** `f8ec48b1` → `docs/db/migration-errata.md`. Se corrige **fuera del archivo**: las migraciones son inmutables incluidos sus comentarios, y `migrate.ts --strict` falla con deriva de sha256 |
+| ~~**G2 — un chequeo que le pregunte a la base, no al ledger**~~ | **CERRADO** `9d8051e3` → `pnpm db:doctor` (`scripts/check-ledger-honesty.ts`). Es la respuesta directa al incidente `0165`: staging reportaba 156 migraciones y salud perfecta con 27 tablas sin RLS |
 
-### Tests que no guardan nada
+### RA-8 — los fences más angostos que su propia doctrina
 
-> **El bloque e2e cerró el 2026-08-04.** El rojo permanente (33 ubicaciones) se
-> retiró en seis pasadas; CI verde entero por primera vez desde el 30/07. Las
-> causas raíz están catalogadas en `e2e/README.md` y en engram
-> (`ci/e2e-standing-red`). Lo tachado abajo ya no es trabajo.
-| # | Qué |
+| Ítem | Cierre |
 |---|---|
-| ~~**E2E no es un gate — 33 ubicaciones rojas**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. Medido 31/07 comparando dos corridas: **antes de esta ola ya había 30**, incluidas las dos de `cross-tenant-is… |
-| ~~**El presupuesto de login POR EMAIL**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. La causa de 9 de las rojas nuevas (`synthetic-monitor`): `login refused for owner@dim.test`. El workaround de … |
-| ~~**E2E `a11y-operator-auth`**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. Dos tests describen una **IA retirada**, mismo patrón que `owner-shell`: esperan que un operador sin permisos … |
-| ~~**E2E `crisis-seams` (d)**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. La adopción no transfiere fuera de la custodia del refugio, o el test no lo ve. Rojo en CI desde antes de esta… |
-| **`PanoramaConsole` "finding 1"** | `waitFor` con el presupuesto por defecto de 1s; en CI tardó 1541 ms y se pasó. **59 `waitFor` sin timeout explícito en ese archivo** (recontado 04/08: eran 47 cuando se escribió esto). No subir uno suelto: o se decide un presupuesto para el archivo, o se acepta el flake declarado |
-| **RA-4 F8** | Un test de scope de gobierno que **nunca ejecutó una aserción** desde que se escribió: el primer test del archivo deja al usuario en un estado que hace fallar su `submit`, y el `if (!submit.ok) return` se traga todo |
-| **RA-4 F9** | Un guard cross-org que **nunca llama a la acción que guarda** — la aserción de cierre es tautológica por construcción |
-| ~~**RA-4 F5-F7**~~ | **CERRADO/RECLASIFICADO 04/08.** F5 (`pet-carousel-dots` muerto) arreglado en `f6bb0f20`. F7 (warn-and-skip en tests de constraint) arreglado: `attachments-xor-parent.test.ts` ahora TIRA con tabla vacía. **F6 se cierra por INVERIFICABLE**: no cita archivo ni símbolo, y todos los tests de supresión-vs-cero encontrados sí inspeccionan valores. Si el defecto existe, se reabre con evidencia.
-| **RA-9 EI-4/5/6** | **Tres** self-skips dependientes de datos en `public-smoke.spec.ts` (recontado 04/08), dos de ellos gates de axe que se auto-jubilan con `test.skip` sobre data vacía (uno es el "momento héroe", Ley 26.653) · `qa-panorama-a11y.ts` es un generador de reportes vendido como gate (no lo cita nadie) · dos aserciones de touch-target que matchean el documento entero |
-| **RA-7 F8** | `cube-parity` es **vacuo en su mitad nacional**: el loop de valores saltea toda celda suprimida (`if (!cp) continue`). Corregido 04/08: la cláusula de grano provincia era falsa — `normFeatures` compara dos sets calculados de forma independiente, es una comparación real |
-| ~~**P2.8**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. `rls/matrix` tiene guards por celda que lanzan, pero el patrón hermano sigue vivo en **13 tests de aislamiento… |
-| ~~**P2.5**~~ | **CERRADO 2026-08-04** — CI run `30873868074` verde entero (6/6 jobs, e2e incluido), commits `c3deb663`..`c259d029`. `owner-ia-p6` 1/2/10 y `synthetic` (c)/(d) trabados en skeletons de Suspense pasado el presupuesto de 8s… |
+| ~~Acciones `"use server"` invisibles a los tres linters (glob plano)~~ | **CERRADO** `9cf1803e`. El descubrimiento pasó a ser **recursivo por la directiva `"use server"`**, no por el nombre del archivo: de 75 a **86 archivos de acción** cubiertos hoy (`pnpm lint:authz`, 2026-08-05), y **3 guards reales** que faltaban se agregaron en el mismo cambio |
+| ~~`check-authz-scoping` se derrota con un comentario~~ | **CERRADO** `205d5d94`. La palabra "jurisdiction" adentro de un comentario ya no cuenta como prueba de scoping |
+| ~~`check-rls-coverage` no mira contenido~~ | **CERRADO** `0439ed2b`. El fence ahora exige cláusula `TO` explícita en toda policy |
+| ~~10 políticas sin cláusula `TO` → caen a `PUBLIC` (incluye `anon`)~~ | **CERRADO** migración `0168`. Verificado hoy: `✓ Policy roles explicit — 81 policies checked, none default to PUBLIC`. **Local únicamente** — ver gate #1 |
+| ~~Dos fences con su propia copia de `stripComments`~~ | **CERRADO** `4ebe5618` — uno solo, el más estricto de los tres, en `scripts/lib/strip-comments.mjs` |
+| ~~**F6** `lint:nav` prohíbe sólo `router.refresh(`~~ | **CERRADO** `70516dcb`. El fence mide lo que su docblock dice; `push`/`replace` quedan con ratchet en **24 llamadas en 20 archivos** (`scripts/router-nav-baseline.json`) |
+| ~~**F7** el fence N3 reporta cero deuda falsamente~~ | **CERRADO** `ec8c5e11`. Mira dónde vive el `redirect()` de verdad, no dónde está la directiva: 2 convertidos, **9 en 5 archivos** grandfathered (`scripts/action-redirect-baseline.json`) |
+| ~~**Q4** `lint:buttons` no abría las hojas de estilo~~ | **CERRADO** `367cff66` |
 
----
-## 🟡 P3 — el panorama contándose distinto a sí mismo
+### Tests que no guardaban nada
 
-| # | Qué |
+| Ítem | Cierre |
 |---|---|
-| ~~**RA-7 F5**~~ | **YA ESTABA CERRADO** (verificado 2026-08-01): `rankingAllInScope` corre sin tope (`limit: Infinity`, con test) — este doc estaba desactualizado, el modo de falla que la nota de arriba advierte |
-| ~~**RA-7 F6**~~ | **YA ESTABA CERRADO** (verificado 2026-08-01): `activeSuppressedCells` es la derivación única para píldora y pie del PNG; caption y ranking declaran su alcance propio (universos distintos, a propósito) |
-| ~~**RA-7 F7**~~ | **YA ESTABA CERRADO** (verificado 2026-08-01): `panoramaFreshnessCaption` agrega el aviso de tope en ambas ramas (cubo y vivo), cubierto por `cube-freshness.test.ts` |
-| **RA-7 F9/F10** | Dos claves de leyenda más que describen estados que el frame puede no contener; y el estado "falta un eje" del bivariado se **pinta pero nunca se declara** |
-| **RA-3 C8** | Diferenciación cruzada por **denominadores anidados** en datos abiertos: `perros_registrados` es subconjunto de `mascotas_activas`, la resta da las no-perro. Ambas celdas pasan su propio k-check; la regla conjunta compara **nombres** de columna |
-| **C1 5ª instancia** | El resto de la tira de KPIs (`microchip`, `ppp`, `reunificacion`, el pie de `coverageDenominator`) publica sobre un alcance retenido. **No se ensanchó a propósito** — mordeduras/zoonosis/denuncias tienen otros denominadores y meterlos bajo un veredicto calculado sobre mascotas registradas sería la sobre-corrección de RA-1 |
-| **RA-1 C3** | El triage de maltrato **perdió la edad** de una denuncia no vencida: `SlaBadge` solo la muestra en la rama vencida, así que una de hoy y una de hace 13 días se ven idénticas |
+| ~~**T1** `PanoramaConsole`: 59 `waitFor` con el default de 1s~~ | **CERRADO** `e3f91ac8` — presupuesto de espera **por archivo**, decidido, no un timeout suelto |
+| ~~**T2 / RA-4 F8** test de scope de gobierno que nunca ejecutó una aserción~~ | **CERRADO** `44727d81` — solicitante propio, y un `submit` fallido ahora es rojo |
+| ~~**T3 / RA-4 F9** guard cross-org que nunca llamaba a la acción~~ | **CERRADO** `2e5f97d9` |
+| ~~**T4 / RA-9 EI-4/5/6** self-skips dependientes de datos~~ | **CERRADO** `920e6674` (los gates de fixture dependen del entorno, no de que haya datos) + `249c904a` (`qa-panorama-a11y` renombrado para que no se lea como gate). **Sub-reclamo cerrado por INVERIFICABLE**: las "dos aserciones de touch-target que matchean el documento entero" no citan archivo ni símbolo y no se encontraron. Se reabre con evidencia |
+| ~~**T5 / RA-7 F8** `cube-parity` vacuo en su mitad nacional~~ | **CERRADO** `2373b236` — el loop mira la supresión, no sólo los números |
+| ~~**COPY-10** dos tests defendían el decimal con punto~~ | **CERRADO** `8d44888c` |
 
----
+Todos los tests de este lote se **probaron por mutación** antes de darlos por
+buenos: si la aserción no se cae al romper el código que dice cuidar, no cuenta.
 
-## ⚪ P4 — deuda declarada
+### Copy, voz y locale es-AR
 
-| # | Qué |
+| Ítem | Cierre |
 |---|---|
-| **RA-1 C5 / RA-10 D4** | **21 pesos inertes**, no 6: Mono carga 400/600 y Serif 500/600, así que `font-bold` da 600 y `font-medium` da **400**. Incluye los tres primitivos del tier operador, con comentarios que dicen "9px bold". **Y en CSS son 4, no 1** — `.lp-ch-num`, `.lp-lib-y`, `.ln-band-title` piden 500 y `.ln-ledlbl` pide 700. El arreglo es genuinamente ambiguo: 400 es honesto pero consagra un peso no buscado; 600 respeta la intención pero cambia visiblemente la credencial insignia; sumar 500 a `layout.tsx` es una decisión de performance |
-| **CSS ratchet** | **19 tamaños por debajo del piso**, ya itemizados en su propia categoría `fontBelowFloor` para que se retiren de a uno. No son one-liners: subir `.ln-qr-cap` de 8px a 10px cambia el layout de la credencial |
-| **`lint:buttons` a CSS** | El botón de 8px de la landing era un **token equivocado**, no un valor crudo — ninguna regla del ratchet de CSS lo habría cazado. Esa clase se cierra extendiendo `lint:buttons` a hojas de estilo |
-| **RA-10** | ~20 hallazgos de estética. Los que se ven: la **libreta de vacunas clipea a 390px** (sin `overflow-x-auto` en toda la cadena) · **"Luna · Hembra · PERDIDO"** en la home del dueño · la micro-tipografía de la credencial pública a **8px** · el botón "Crear cuenta" es un rectángulo de 8px a un click de píldoras · `CaseStatus.open` se dice de **cinco maneras** · **22 diccionarios de estado** hechos a mano · 5 radios de chip conviviendo |
-| **18 lecturas de `petIdentifications.code`** | `omnibox-search`, `gob-pet-subview`, `lookup-for-claim` y 15 más seleccionan el chip canónico. Tienen pinta de estar gateadas por rol, pero **nadie lo verificó**. Es la misma pregunta que destapó el oráculo del vecino: ¿qué actor puede llegar a cada una? |
-| **`role="img"` tragándose subárboles** | Quedan `<figure role="img"><ul>` en `gob/mortalidad` (×2), `gob/adopciones`, `admin/adopciones`, `gob/censo`, `admin/censo`. Todos preexistentes. El de `StaticFirstMap` ya se cerró; estos hay que mirarlos de a uno |
-| **`searchParams` repetido → 500** | `?chip=a&chip=b` hace que Next pase `string[]` y revienta en `.trim()`. Falla cerrado, sin fuga. Mismo patrón en `nueva/page.tsx` |
-| **Logo — después de la demo** | **El concepto está decidido y es bueno**: huella dactilar con un perro y un gato adentro. La huella es la identidad (invariante #1: la mascota ES la credencial), las dos siluetas son el alcance de especie. Lo que falta es el formato. Restricciones que deciden si funciona, no preferencias: **(a)** tiene que leerse a **16px** en la pestaña y en la **chapita física** al lado de un QR de dos centímetros — las crestas finas se vuelven gris sucio ahí; **(b)** reproducible **a un solo color**, porque va a convivir con escudos municipales que se bordan, se graban y se sellan; **(c)** invierte limpio para modo oscuro; **(d)** vector, no escaneo — al lado de un escudo vectorial, una imagen con bordes dentados se lee como menos oficial; **(e)** las dos siluetas tienen que distinguirse **de un vistazo**, no superponerse. Nota de implementación: **hoy la marca es tipográfica** — `logo-mimar.svg` está en `public/` y ningún componente lo consume, así que adoptar un logo es introducir una marca donde hay tipografía, no reemplazar una |
-| **P2.6** | El worker de Windows (`0xC0000409`). **No bloquea** — no reproduce en Linux |
-| **P2.7** | El limpiador de huérfanos cubre 4 de ~20 prefijos. Propuesta escrita, **sin implementar a propósito**: cambia un script que BORRA |
-| ~~**P3.2**~~ | ~~`jurisdictionProvince` sin `z.enum`~~ — **YA ESTABA ARREGLADO**, commit `3f56326d`, y el test que certificaba el defecto viejo ya estaba reescrito. Este documento lo listó como abierto durante días y un agente fue a arreglarlo de nuevo. **Segunda vez hoy que la cola describe como pendiente algo resuelto**: antes fue "staging atrasado". Un ítem que nadie re-verifica se pudre |
-| **P3.3** | El aviso de capa desconocida enterrado en un dock colapsado. `PanoramaConsole.tsx` está en su fence |
+| ~~**K10 + decimales**~~ | **CERRADO** `8d44888c`, `4ba7307a`, `05888e30` — coma decimal es-AR **en todo lo que lee una persona**, incluida la libreta sanitaria y el timeline del dueño |
+| ~~**COPY-4** `check-ui-invariants` Rule 3 angosto~~ | **CERRADO** `d66eb8c0` — la regla de acentos dejó de montar `STANDARD_FILES` y barre `{app,components,lib,src}` (`scripts/check-ui-invariants.ts:565`, verificado hoy), con el diccionario ampliado |
+| ~~**COPY-5** 23 diccionarios de estado a mano~~ | **CERRADO** `4759dcc2` — **9 vocabularios que contradecían al canónico** unificados |
+| ~~**COPY-6** sin concordancia de plural~~ | **CERRADO** `f0dd1f48` — **20 sitios arreglados**, baseline bajado a **95 en 59 archivos** (`scripts/pluralize-es-baseline.json`) |
+| ~~**COPY-7** 89 de 101 estados vacíos sin CTA~~ | **CERRADO** `8e963328` — `emptyAction` agregado a `CaseQueue` (la segunda convención, que sólo tomaba texto) + **7 superficies de alto tráfico** cableadas. Con la advertencia escrita en el docblock: **nunca combinar una CTA alegre con un aviso de supresión por k-anonimato**. El resto es cola larga, no reja |
+| ~~**COPY-8 / COPY-1** reloj híbrido "05:39 p. m."~~ | **CERRADO** `625e6eba` — 24 sitios con `hourCycle: "h23"`, `formatTime()` canónico, y **la fence extendida**: falla cualquier `Intl` que pida `hour` sin `hourCycle`/`hour12`. Baseline en **0**, así que el sitio 25 no puede entrar |
+| ~~**COPY-9** tuteo/usted en decomiso, "Error desconocido"~~ | **CERRADO** `99cf411d` |
+| ~~Tildes de vigilancia/decomiso~~ | **CERRADO** `d66eb8c0` + `f65d6e85` (los tests alineados a la copia acentuada, no al revés) |
+| ~~**COPY-2** adopciones prometía un email que el refugio no tenía~~ | **CERRADO antes de esta corrida** — verificado hoy: la pantalla de revisión lee el email del postulante de `auth.users` en render (`adopciones/[appEventId]/page.tsx:28-42`) |
+| ~~**COPY-3** el outbox prometía reintento en "máximo 5 minutos"~~ | **CERRADO antes de esta corrida** — verificado hoy: `app/admin/outbox/[id]/page.tsx:318-319` lleva la corrección y el post-mortem escrito |
+
+### CSS, movimiento e impresión
+
+| Ítem | Cierre |
+|---|---|
+| ~~**CSS-2** el dock teletransportaba~~ | **CERRADO** `d1eed2d2` — `.op-dock` en `globals.css`, sin valores arbitrarios |
+| ~~**CSS-3** tres anillos de foco faltantes~~ | **CERRADO** `5b62e1e6` — se resolvió **borrando** `focus:outline-none` |
+| ~~**CSS-4 / MOT-3** scrolls suaves sin guardar~~ | **CERRADO** `5b62e1e6` — incluida `CredentialActionBar` en la página pública de mascota perdida, que era la peor |
+| ~~**CSS-5** columnas que saltaban~~ | **CERRADO** `c1494a88` — `table-layout: fixed` + anchos explícitos |
+| ~~**CSS-6** `scroll-snap-stop: always`~~ | **CERRADO** `d1eed2d2` |
+| ~~**CSS-7** 6 stagger hardcodeados~~ | **CERRADO** `fb67b713` |
+| ~~**CSS-8** `content-visibility` en las 5 listas topeadas alto~~ | **CERRADO** `fb67b713` — sólo filas de bloque; las tablas quedan fuera a propósito (containment no se aplica de forma confiable a `<tr>`/`<tbody>`) |
+| ~~**MOT-1** 18 duraciones y 8 curvas, cero tokens~~ | **CERRADO** `956dbd4c` — `--motion-fast/base/slow/deliberate/ambient` + `--ease-standard/editorial`; 71 literales migrados; **regla C8** con baseline en **0 duraciones crudas** (`scripts/design-tokens-css-baseline.json`, verificado hoy) |
+| ~~**MOT-2** 165 `loading.tsx` cortan de golpe~~ | **CERRADO** `02b38cb7` — **162/165**. El 165 es `p/[publicToken]` **a propósito** (flujo de emergencia) |
+| ~~**MOT-4** diálogo, disclosures y KPIs~~ | **CERRADO** `972e0300` |
+| ~~**PRN-1** ningún test emulaba medios de impresión~~ | **CERRADO** `7536e9cf` — spec e2e que fija que expediente e informe impriman más allá de la página 1 |
+| ~~**PRN-3** el expediente sale cortado en PDF~~ | **CERRADO** `fa147dac` — `AppShell` nombra las cuatro cajas que recortan y `operator-print-escape.css` las devuelve al flujo bajo `@media print`. La receta clásica `visibility:hidden` + `position:absolute` **no escapa** de un ancestro `fixed` con `overflow:hidden` |
+| ~~**PRN-4** QR de la chapita sin zona de silencio~~ | **CERRADO** `e690f627` |
+| ~~**PRN-2** `/p/[publicToken]` sin hoja de impresión~~ | **CERRADO antes de esta corrida** — verificado hoy: `app/(public)/p/[publicToken]/credential-print.css` existe y documenta el defecto que arregla |
+| ~~**PRN-5** no hay botón de imprimir en denuncias~~ | **CERRADO por OBSOLETO** — verificado hoy: el afordance existe (`app/gob/maltrato/[id]/PrintExpedienteButton.tsx`, con test propio y `deferPrint` para no clavar el INP). La fila era vieja |
+| ~~**Q6 / P3.3** aviso de capa desconocida enterrado en un dock colapsado~~ | **CERRADO** `d1eed2d2` (chapita de aviso en la barra) + `62e50879` (el glifo pasa a `<Icon name="alerta">` para satisfacer `lint:professionalism`) |
+
+### Panorama, datos abiertos y jurisdicción
+
+| Ítem | Cierre |
+|---|---|
+| ~~**P2-1** `absent` vs `suprimido` con un solo booleano~~ | **CERRADO** `fe08b807` — estado de tres valores. El límite de privacidad se respeta: **la supresión siempre se declara**, sólo se oculta el vacío ausente |
+| ~~**P2-2** tarjeta de ranking sobre datos que no la justifican~~ | **CERRADO** `6fb4b4eb` — la tarjeta no va cuando no hay nada. **Queda abierto el resto del inventario** (ver abajo) |
+| ~~**MAP-1** el export de imagen nunca podía exportar el país~~ | **CERRADO** `a9d44a65` — encuadra al alcance elegido, exporta, restaura la vista. **Verificación visual pendiente** (ver abajo) |
+| ~~**D3** provincia entera sólo para CABA~~ | **CERRADO** `0d2d3f79` — cualquier provincia. En el camino se arregló un **bug de scoping preexistente** que el cambio destapó |
+| ~~**Y2 / RA-3 C8** denominadores anidados en datos abiertos~~ | **CERRADO** `d078e752` — la regla conjunta compara **poblaciones**, no nombres de columna |
+| ~~**A5** el refugio de origen se entera sin que el perfil lo declare~~ | **CERRADO** `227c74ca` — la divulgación existe en el perfil. El comportamiento ya estaba; faltaba decirlo |
+| ~~**RA-1 C3** el triage de maltrato perdía la edad de una denuncia no vencida~~ | **CERRADO antes de esta corrida** — verificado hoy: `SlaBadge.tsx:107-109` muestra `ageLabel(ageDays)` también en la rama en plazo |
+
+### Higiene de plataforma
+
+| Ítem | Cierre |
+|---|---|
+| ~~Clase de crash por `searchParams` repetido~~ | **CERRADO** `e690f627` — `?chip=a&chip=b` hacía que Next pasara `string[]` y reventara en `.trim()`. **10 archivos** saneados de una |
+| ~~`role="img"` tragándose subárboles~~ | **CERRADO** `e690f627` — **6 sitios** (`gob/mortalidad` ×2, `gob/adopciones`, `admin/adopciones`, `gob/censo`, `admin/censo`) |
+| ~~Fixtures de e2e faltantes~~ | **CERRADO** `8adeb437` + `2d026f68` — la mascota perdida y la publicación de adopción se siembran, y la elegibilidad de adopción entra **por la columna vertebral**, no por una columna de caché |
+| ~~**P3.2** `jurisdictionProvince` sin `z.enum`~~ | **YA ESTABA ARREGLADO**, `3f56326d`. Listado como abierto durante días; un agente fue a arreglarlo de nuevo |
+
+### A1 — chapa física, CONSTRUIDA
+
+**Estaba listada como "no construida" el 04/08. Hoy existe.** Ciclo SDD
+completo, 13 commits, `b6ccb7f0`..`c7d27d31`:
+
+- **Datos**: migración `0169_pet_tags` — tabla con máquina de estados
+  (`unactivated → active → revoked`) y RLS de sólo-lectura propia.
+- **Identidad**: serial `TAG-XXXX-XXXX` **opaco** (no secuencial: un serial
+  correlativo deja recorrer el padrón probando números) y código de activación
+  con **HMAC de dominio separado** (`52dc7078`).
+- **Espina**: eventos `tag_activated` / `tag_revoked` con esquemas estrictos
+  **sin el código en el payload** (`15034058`), mapas exhaustivos completados
+  (`448404ff`), catálogo a **50 tipos** (`8efce62c`).
+- **Escritura**: activar y revocar con **compuerta uniforme de evidencia** —
+  código equivocado, serial desconocido y chapa ya activa devuelven el **mismo**
+  mensaje, y ningún error repite el código intentado (`5b82b8f3`).
+- **Lectura pública**: `/t/[serial]` con matriz de 4 estados y límite por IP
+  (`9eb7afdd`). La proyección **no puede filtrar el hash** — es `{status,
+  publicToken}` por forma.
+- **Superficies**: `cuenta/chapas` con activación y baja, gateada por
+  jurisdicción (`38c12821`); emisión admin por lote con CSV de códigos de un
+  solo uso (`8e090939`).
+- **Derechos**: exportación y supresión cubren `pet_tags` **sin exponer el
+  hash** (`d8e7befb`, migración `0170`).
+- **Tests**: cobertura RLS y negación cruzada (`acb28a26`); y **W1 del verify**
+  cerrado hoy (`8bf22ec9`): una transferencia de titularidad real deja la chapa
+  **intacta** —mismo serial, mismo `pet_id`, sigue activa— y `/t/[serial]` sigue
+  resolviendo. El control pasa al nuevo titular: la chapa sigue a la MASCOTA,
+  no a la persona (invariante #1).
 
 ---
 
-## 🔴 P1 (nuevo) — hallazgo de cumplimiento, 2026-08-04
+## 🟠 ABIERTO — 2026-08-05
 
-| # | Qué | Evidencia | Por qué es P1 |
-|---|---|---|---|
-| **PRIV-1** | **`push_subscriptions` sobrevive al borrado de sujeto.** El endpoint de push y las claves `p256dh`/`auth` del cliente quedan vivos después de un borrado completo bajo Ley 25.326 art. 16. La cascada `user_id → profiles.id ON DELETE CASCADE` existe (`db/schema.ts:1567`) pero **es inalcanzable**: nada borra filas de `profiles` — `erase_subject_data` hace soft-delete (`migrations/0059`) y la acción de cuenta borra sólo `auth.users`, que no tiene FK a `profiles` (`db/schema.ts:401`). Ninguna de las migraciones de borrado (0106/0129/0130/0131/0159) toca la tabla. | verificado 04/08 en el barrido T10 | Es un dato personal identificador (endpoint de dispositivo) que persiste después de que el titular ejerció su derecho de supresión. **Fix**: agregar la revocación/borrado de `push_subscriptions` a `erase_subject_data` |
-| **ROUTE-1** | El form "¿Encontraste esta mascota?" busca al dueño **sin filtrar `role='owner'` y sin ORDER BY** con `.limit(1)`: en una mascota con tránsito activo el aviso del hallador puede ir al foster en lugar del titular. | `app/(public)/p/[publicToken]/encontre/action.ts:152-158` | Es el camino de recuperación de una mascota perdida — justo donde el mis-ruteo duele |
+### Decisiones del PO (bloquean código que ya está escrito o casi)
 
----
+| # | Qué decidir | Por qué no lo decide un agente |
+|---|---|---|
+| **PO-1** | **`/adoptar/[petToken]` le muestra `••••` + los últimos 4 del MICROCHIP a un visitante anónimo** (`app/(public)/adoptar/[petToken]/page.tsx:188-190`, verificado 2026-08-05). Del barrido Q3 (16 sitios de lectura del identificador canónico): **15 están gateados por rol**; éste no | Es exposición de un identificador parcial a público general. Puede ser aceptable —4 dígitos no identifican solos y la ficha de adopción quiere mostrar que el animal está chipeado— pero es una decisión de privacidad, no de implementación. Alternativa si el PO dice que no: mostrar sólo el booleano "tiene microchip", que ya se calcula en la línea de arriba |
+| **PO-2** | **Cartilla de leyenda: ¿P2 o T4.1?** Las claves de leyenda describen estados que el cuadro puede no contener (RA-7 F9/F10), y el estado "falta un eje" del bivariado **se pinta pero nunca se declara** | Aplicar P2 (ocultar la estructura vacía) choca con que una leyenda **enseña a leer** el cuadro: quitarle claves la vuelve menos didáctica. Hay dos productos posibles y no es empate técnico |
+| **PO-3** | **El walk-in de Atender usa conocer el token del QR como prueba de consentimiento.** Cualquier organización con `event.write` puede escribir eventos permanentes e irreversibles sobre **cualquier mascota del país** desde una foto de la chapita | **Es diseño, no bug** — y ahora que la chapa física existe, la foto de la chapita es literalmente más fácil de conseguir. La decisión del 04/08 (provenance de walk-in no verificado + aviso inmediato al dueño) mitiga la irreversibilidad silenciosa, no el vector |
+| **PO-4** | **`/gob` dice "las métricas con meta están dentro de rango"** cuando no se midió nada | El default acordado es el estado honesto "sin medición suficiente". Calcular metas reales por jurisdicción es trabajo aparte y no bloquea sacar la afirmación falsa |
 
-## 🔵 Features no construidas — migradas de la cola del 24/06
+### Diferido a propósito, con la ventana de exposición declarada
 
-> Verificadas contra el árbol el **2026-08-04**. Son las DOS únicas filas que
-> sobrevivieron de `2026-06-24-CONSOLIDATED-pending-backlog.md` (8,5 de sus 11
-> ítems ya estaban hechos). Se migran ANTES de archivar esa cola porque no
-> figuraban acá: la cola nueva no la duplicaba, la ignoraba.
+| # | Qué | Estado |
+|---|---|---|
+| **D4** | **HEIC: se transcodifica en el servidor** (decisión del PO 04/08, ratificada **05/08**). **DIFERIDO ENTERO** | Transcodificar necesita una librería de imágenes del lado servidor y pega contra el tamaño y el tiempo de ejecución de la función en Vercel. **Consecuencia que queda escrita, no implícita**: hasta que salga, el GPS del domicilio de un denunciante anónimo **sigue viajando** en cada foto tomada con iPhone. La ventana está **abierta y documentada** |
 
-| # | Qué | Evidencia (04/08) | Bloquea |
-|---|---|---|---|
-| **A1** | **Chapa física `/t/[serial]` no construida.** No existe tabla `pet_tags`, ni la ruta `app/t/[serial]`, ni eventos `tag_activated`/`tag_revoked`. La spec `specs/2026-05-18-physical-tag-design.md` está "🟢 Ready for CC" desde mayo y **su plan nunca se escribió**. | `ls app/t` → no existe; `rg "pet_tags" db/schema.ts` → 0 | Decisiones D4 (fabricante) y D5 (distribución) de la propia spec: son placeholders explícitos, no trabajo de ingeniería. El hub de credencial física YA funciona con el canal `printable_qr` (`/mis-mascotas/[token]/chapita`) |
-| **A5** | **Found-pet form sin dual-routing al refugio de origen.** El componente sólo recibe `publicToken`, sin `orgId` ni opt-in. | `FoundPetForm.tsx`: `rg "organization|refugio|origin"` → 0 | Decisión de producto: ¿el hallazgo de una mascota con refugio de origen le avisa también al refugio? AGENTS ya se corrigió para no afirmar que lo hace |
+### Trabajo que no es ingeniería
 
-**Residual de ops (no es código)**: el toggle de leaked-password protection en el
-dashboard de Supabase (A9 de la cola vieja).
+| # | Qué | Estado 2026-08-05 |
+|---|---|---|
+| **A1-ops** | **Quién fabrica la chapa y cómo se distribuye** | El software está entero. Esto no. La tarjeta de demanda por localidad (`/admin/programa`, `1450a311`) es la entrada para esa decisión |
+| **Logo** | **El concepto está decidido y es bueno**: huella dactilar con un perro y un gato adentro. Falta el **formato** | Restricciones que deciden si funciona, no preferencias: **(a)** legible a **16px** en la pestaña y en la **chapita física** al lado de un QR de dos centímetros —las crestas finas se vuelven gris sucio ahí—; **(b)** reproducible **a un solo color**, porque va a convivir con escudos municipales que se bordan, se graban y se sellan; **(c)** invierte limpio en modo oscuro; **(d)** vector, no escaneo; **(e)** las dos siluetas se distinguen **de un vistazo**. Nota: **hoy la marca es tipográfica** — `logo-mimar.svg` está en `public/` y ningún componente lo consume, así que adoptar un logo es **introducir** una marca donde hay tipografía |
 
----
+### Verificación pendiente (código escrito, ojo humano no)
 
-## 🟡 Pulido de interfaz — auditoría de propiedades CSS, 2026-08-04
+| # | Qué | Cómo se cierra |
+|---|---|---|
+| **MAP-1-v** | La parte **visual** del encuadre al alcance (`a9d44a65`) | Sólo se puede verificar mirando. Exportar desde alcance nacional y desde uno provincial, y confirmar el recuadro aparte de CABA. **Requiere servidor de QA fresco** — ver la sección de arriba |
+| **e2e de chapas** | No hay ninguna spec de Playwright para `/t/[serial]`, `cuenta/chapas` ni `admin/chapas` | `ls e2e \| rg -i 'tag\|chapa'` → vacío (2026-08-05). e2e es **gate aparte**, no entra en `pnpm verify`. Convenciones y trampas en `e2e/README.md` |
+| **S1 (sugerencia del verify)** | Límite de tasa en la **revocación** de chapas | Hoy el límite por IP está en el resolver público. Revocar exige sesión y titularidad, así que no es un agujero — es endurecimiento sugerido, no hallazgo |
 
-> Origen: `docs/reviews/2026-08-04-css-properties-audit.md` (100 propiedades
-> clasificadas: 44 en uso, 41 fuera de alcance, 7 resueltas de otra forma,
-> 8 oportunidades). Criterio del PO para aceptar: **¿hace la interfaz más
-> pulida, seria y consistente?** Lo que no pasa ese filtro se rechaza abajo con
-> su razón, para que nadie lo vuelva a proponer sin argumento nuevo.
+### Deuda con reja puesta y número (no es trabajo pendiente: es deuda medida)
 
-| # | Qué | Por qué entra | Tamaño |
-|---|---|---|---|
-| ~~**CSS-1**~~ | ~~`print-color-adjust: exact` en el cartel de búsqueda~~ | ~~"PERDIDO" se imprimía blanco sobre blanco~~ — **HECHO**, commit `77d49aca` | ~~S~~ |
-| **CSS-2** | **Transición de apertura/cierre del dock de panorama.** `PanoramaDock.tsx:148-161` necesita una altura explícita en la rama colapsada + una clase `.op-dock` en `globals.css` (NO un valor arbitrario de Tailwind: lo prohíbe la nota en `PanoramaDock.tsx:133-135`) | Es el ítem #1 de `2026-07-12-panorama-design-critique.md:301`, el valor ya está especificado en el handoff v2C (`README.md:157`), y es el control que el operador toca más veces por turno: un panel que teletransporta sobre un mapa vivo le cuesta reorientarse cada vez. `prefers-reduced-motion` sale gratis — `globals.css:522-530` ya colapsa toda duración. **Riesgo**: el panel de línea de tiempo usa `height:auto`+`maxHeight`, que no anima; transicionar `max-height` ahí o aceptar que esa rama no anime. NO usar `interpolate-size` | S |
-| **CSS-3** | **Tres anillos de foco faltantes**: `PosterPreview.tsx:235` (textarea editable), `SharesManager.tsx:213` (input de URL para compartir), `OrgHero.tsx:97` (link "Verificado") | WCAG 2.4.7 Focus Visible, nivel AA, en un producto atado a la Ley 26.653. En los tres el arreglo correcto es **borrar** `focus:outline-none` y dejar actuar al anillo global (`globals.css:514-517`) — se resuelve quitando líneas, no agregando | S |
-| **CSS-4** | **`ScrollToSignal.tsx:22` hace `scrollIntoView({behavior:"smooth"})` sin guardar** | El CSS global de movimiento reducido no alcanza a un scroll imperativo de JS — el repo lo sabe y lo documenta en `globals.css:533-538`; este archivo es el único que se olvidó. El patrón correcto ya existe en `Field.tsx:340-342` | S |
-| **CSS-5** | **`table-layout: fixed`** en `MapDataTable.tsx:278` y `PanoramaDataTable.tsx:403` (+ anchos de columna explícitos) | Con layout `auto` los anchos se recalculan del contenido en cada cambio de datos, así que las columnas **saltan** mientras el funcionario mueve el período. Interfaz que se mueve sola sin que nadie la toque | S |
-| **CSS-6** | **`scroll-snap-stop: always`** en el tablist del dock (`PanoramaDock.tsx:176,224`) | Ya usa `snap-x`/`snap-start`; sin `always` un swipe rápido en móvil se pasa de largo varias pestañas. Viaja con CSS-5 | XS |
-| **CSS-7** | **Unificar los 6 stagger hardcodeados** de `globals.css:899-920` en una regla con `calc(var(--d) * 80ms)` | Consistencia interna, ~20 líneas menos. **Expectativa honesta: el usuario no ve ninguna diferencia.** Entra por "consistente", no por "pulido" | XS |
-| **CSS-8** | `content-visibility: auto` en las 5 listas de `<li>` topeadas alto (`admin/observaciones` 500, `gob/vigilancia/brotes` 500, `gob/perdidas` 500, `org/mascotas` 200, `gob/cola` 200) | **CONFIRMADA por el PO (04/08)**: `/gob/perdidas` con el filtro "todas" lista efectivamente las 500. No es un techo teórico — son 500 tarjetas multi-elemento maquetadas y pintadas de una, y no hay librería de virtualización en el repo. **Restricción crítica**: containment NO se aplica de forma confiable a `<tr>`/`<tbody>`, así que las tablas quedan fuera; sólo filas de bloque. Regresión obligatoria: Ctrl+F y el deep-link `?signalId=` (`OutbreakSignalRow.tsx:60`) tienen que seguir llegando al contenido salteado | M |
+> Ninguna de estas puede **crecer**. Cada una tiene un baseline que sólo baja.
+> Números verificados contra los archivos de baseline el **2026-08-05**.
 
-**Rechazados con razón** (no reabrir sin evidencia nueva):
+| Reja | Número | Archivo |
+|---|---|---|
+| `lint:nav` — `router.push`/`replace` | **24 en 20 archivos** | `scripts/router-nav-baseline.json` |
+| `lint:action-redirect` — N3 | **9 en 5 archivos** | `scripts/action-redirect-baseline.json` |
+| `lint:authz-scoping` — acciones tenant-guarded sin scopear | **44 en 19 archivos** | `scripts/authz-scoping-baseline.json` |
+| `lint:plural` — plurales a mano | **95 en 59 archivos** | `scripts/pluralize-es-baseline.json` |
+| `lint:select` — `<select>` crudos | **48** | `scripts/check-raw-select.mjs` |
+| `lint:professionalism` — símbolo-como-ícono | **6 en 1 archivo** (el mapa `STATUS_ICON` de `AlertInboxTable`, excepción aprobada por el PO) | `scripts/professionalism-baseline.json` |
+| **Q5** — tipografías por debajo del piso | **24** (`fontBelowFloor`: 11 core + 8 landing + 5 chapita) | `scripts/design-tokens-css-baseline.json` |
+| `lint:empty-states` — "Sin resultados" fuera de `LnEmptyState` | **2** (los dos casos de picker, legítimos) | `scripts/empty-state-baseline.json` |
+| Formas de fecha hand-rolled | **~35** que no convergieron a un shape canónico | Documentado en `625e6eba`. **Todas son timezone-safe y reloj de 24h — la fence lo garantiza**; lo que falta es que compartan helper |
 
+**Q5 merece una línea aparte porque no es un one-liner**: subir `.ln-qr-cap` de
+8px a 10px **cambia el layout de la credencial**. Se retiran de a uno, con ojo
+encima.
+
+### Cola larga de estética (RA-10)
+
+**~20 hallazgos**, ninguno bloqueante, ninguno con fecha de re-verificación
+reciente. Los que se veían a simple vista ya cayeron en esta corrida (foco,
+columnas que saltan, dock que teletransporta, vocabularios de estado). Lo que
+queda es de a uno y con criterio: **21 pesos de fuente inertes** (Mono carga
+400/600 y Serif 500/600, así que `font-bold` da 600 y `font-medium` da **400** —
+el arreglo es genuinamente ambiguo: 400 es honesto pero consagra un peso no
+buscado, 600 respeta la intención pero cambia visiblemente la credencial
+insignia, y sumar 500 a `layout.tsx` es una decisión de performance), 5 radios
+de chip conviviendo, la micro-tipografía de la credencial pública a 8px.
+
+**Antes de tocar cualquiera de éstos: re-verificar contra el árbol.** La lista
+tiene fecha del 04/08 y esta corrida movió mucho CSS.
+
+### Infraestructura de tests
+
+| # | Qué | Estado |
+|---|---|---|
+| **P2.6** | El worker de Windows (`0xC0000409`) | **No bloquea** — no reproduce en Linux |
+| **P2.7** | El limpiador de huérfanos cubre 4 de ~20 prefijos | Propuesta escrita, **sin implementar a propósito**: cambia un script que BORRA |
+
+### Inventario abierto de P2
+
+| # | Qué | Tamaño |
+|---|---|---|
+| **P2-2 (resto)** | El **inventario** de estructuras vacías en tableros e informes, aplicando P2 con el límite de P2-1. El ranking ya cayó (`6fb4b4eb`). Quedan las superficies de estado vacío que el barrido de copy contó y las leyendas de PO-2 | M |
+
+### Deliberadamente NO arreglado
+
+- **C1 5ª instancia** — el resto de la tira de KPIs (`microchip`, `ppp`,
+  `reunificacion`, el pie de `coverageDenominator`) publica sobre un alcance
+  retenido. **No se ensanchó a propósito**: mordeduras/zoonosis/denuncias tienen
+  otros denominadores, y meterlos bajo un veredicto calculado sobre mascotas
+  registradas sería la sobre-corrección de RA-1.
+- **`middleware.ts` no hace autorización.** Cada ruta se auto-gatea. Verificado
+  hoy: sigue siendo así, y sigue siendo **a propósito** — `pnpm lint:authz` es
+  la red de seguridad (86 archivos de acción, rutas de operador gateadas
+  institucionalmente). Mover autorización al middleware en App Router es una
+  decisión de arquitectura, no un parche.
 - **`hyphens`** — `lang="es-AR"` haría que funcione y las celdas de 390px son un
-  caso plausible, pero **no se vio ninguna palabra rompiendo**. Se verifica en
-  la revisión de viewports; si rompe, entra con caso.
+  caso plausible, pero **no se vio ninguna palabra rompiendo**.
 - **`orphans` / `widows`** — Firefox no las soporta en 2026 y `break-inside:
-  avoid` ya cubre lo importante (`expediente-print.css:56`,
-  `libreta-print.css:8`). Una propiedad que la mitad de los navegadores ignora
-  **produce inconsistencia, no la resuelve**.
-- **`counter-increment`** — borraría el numerado en JS del landing
-  (`StorySection.tsx:160,179,193`), pero la salida vive en `content` generado:
-  no se selecciona, no se copia y los lectores de pantalla la anuncian dispar.
-  En un producto atado a la Ley 26.653 es un retroceso disfrazado de limpieza.
-
-### Copy y voz es-AR — barrido del 2026-08-04
-
-> `docs/reviews/2026-08-04-copy-voice-audit.md`. 4 🔴 · 31 🟠 · 26 🟡 · 12 🟢.
-> **10 clases sistémicas, ~145 instancias.** Las seis instancias que se pasaron
-> como semilla estaban todas presentes; una era peor de lo reportado.
-
-| # | Qué | Por qué | Tamaño |
-|---|---|---|---|
-| ~~**COPY-1**~~ | ~~Reloj híbrido "05:39 p. m."~~ | ~~`formatDateTime()` canónico sin `hourCycle`~~ — **HECHO**, `d649d744`. Quedan 2 sitios en panorama | ~~S~~ |
-| **COPY-2** | 🔴 **Adopciones promete un email que el refugio no tiene.** Cinco strings le dicen al postulante que el refugio le va a escribir; la pantalla de revisión (`app/org/[orgToken]/adopciones/[appEventId]/page.tsx:164-173`) muestra **sólo Nombre y Teléfono** — verificado hoy | Es EXACTAMENTE el bug del formulario de contacto que arreglamos hoy, en otro flujo y sin arreglar. `submit-org-contact.ts:19-25` ya tiene el post-mortem escrito con fecha de hoy | M |
-| **COPY-3** | 🔴 **El outbox promete reintento en "máximo 5 minutos" y el drenaje corre `0 4 * * *`** — 288× de diferencia. `vercel.json`, `cron-registry.ts:69` y `drain-outbox/route.ts:10` coinciden; el comentario del despachador explica que el plan Hobby no permite sub-diario | El código lo sabe, la copy no. **Y falta lo otro**: el no-op v1 alcanza a los CUATRO tipos, pero la honestidad G7 se aplicó sólo a `eno_authority` mientras su comentario afirma que los otros tres "resuelven a un destino real ya construido" — falso, `outbox-drainer.ts:59-104` los manda a la misma rama con `v1_noop: true` | M |
-| **COPY-4** | **Ensanchar `check-ui-invariants.ts` Rule 3**: hoy sólo barre `app/**` y `components/**` (nunca `src/**`) y conoce 13 palabras | ~30 líneas de config cierran las **30** faltas de ortografía —incluida la 🔴 `"proximamente"` en superficie de gobierno— y hacen imposible que entre la número 31. Mejor relación de todo el reporte | S |
-| **COPY-5** | **23 diccionarios de estado a mano; `open` se dice de 5 maneras.** `MaltratoQueueScreen.tsx:455-460` tiene escrita la regla ("ONE status vocabulary… Never an inline synonym here") y la pantalla de org para las MISMAS filas hardcodea `"En seguimiento"`/`"Triagueada"` contra las canónicas `"En curso"`/`"Revisada"` | Un import en `app/org/[orgToken]/maltrato/recibidos/page.tsx` (~8 líneas) cierra dos contradicciones entre superficies y deja el ejemplo trabajado para los otros 22 | M |
-| **COPY-6** | **29 sitios sin concordancia de plural** ("1 celdas… ocultas") | Ensanchar `check-pluralize-es.ts`, que ya existe | M |
-| **COPY-7** | **89 de 101 estados vacíos sin llamada a la acción** | Un estado vacío es una invitación, no una lápida. Se cierra agregando `emptyAction` a los primitivos de tabla | M |
-| **COPY-8** | **~35 archivos con formateo de fecha a mano, 9 formas distintas**; `panorama-informe.ts:219` **perdió la zona horaria** | Fence. Mismo patrón que MOT-1: no hay sistema, hay 9 | M |
-| **COPY-9** | **16 sitios en tuteo + 2 en usted** (15 de 18 en la feature de decomiso) · 6 decimales con punto · `"Error desconocido"` en 5 archivos | Deriva de registro concentrada en una feature: se arregla de una | S |
-| **COPY-10** | **Dos tests defienden el defecto**: `event-payload-details.test.ts:58` y `libreta-export-route.test.ts:149,192` afirman el decimal con punto `"12.50 kg"` — que llega al PDF de la libreta sanitaria | Tercera vez hoy que un test protege un bug en vez de cazarlo | S |
-
-**Verificado limpio** (no asumido): cero disculpas, cero `window.confirm`, cero
-"¿estás seguro?" pelado —los 24 diálogos nombran la consecuencia—, cero locales
-`es-AR` faltantes, cero `¿`/`¡` ausentes, cero aria-labels en inglés, cero tuteo
-en superficies de ciudadano.
-
-### Movimiento e impresión — barridos del 2026-08-04
-
-> `docs/reviews/2026-08-04-motion-audit.md` y `.../print-surfaces-audit.md`.
-
-| # | Qué | Por qué | Tamaño |
-|---|---|---|---|
-| **PRN-1** | **Test que emule medios de impresión.** `emulateMedia` da **cero** en todo el repo | Es la causa de que estos defectos sobrevivieran. Sin esto, el cartel que arreglamos hoy se rompe de nuevo mañana y nadie se entera. **Va antes que los arreglos**, no después | M |
-| **PRN-2** | **`/p/[publicToken]` sin hoja de impresión.** El chip `perdida` es `background: var(--color-ln-err); color:#fff` (`globals.css:3553-3557`) y es **el único portador textual de la situación** (`:3590-3596`) | Al imprimir la credencial de una mascota perdida, el fondo se cae y la página no dice en ningún lado que está perdida. Es la página que más se escanea e imprime. Mismo mecanismo que CSS-1 | S |
-| **PRN-3** | **CONFIRMADO POR EL PO (04/08): el expediente de maltrato sale cortado en PDF**, imprimiendo desde la página completa en pestaña nueva. Deja de ser predicho. Los dos —expediente e informe de panorama— escapan del shell con `position:absolute`, pero su ancestro posicionado es el `AppShell` con `fixed inset-0 overflow-hidden`, así que nunca salen de la caja que los recorta | El informe de panorama promete en su encabezado que ranking, notas de método y k-anonimato "nunca se descartan" — y se descartan. Falta verificar si el informe se rompe igual (misma receta, mismo shell) | M |
-| **PRN-5** | **No hay botón de imprimir en ninguna parte del recorrido de denuncias.** El PO no pudo probar la impresión desde la cola porque no existe el afordance: la única vía es Ctrl+P del navegador | Un expediente que existe para ser un documento formal no ofrece cómo convertirlo en documento. Y la única vía disponible es justamente la que produce el PDF cortado de PRN-3 | S |
-| **PRN-4** | **QR de la chapita con `margin: 0`** (`chapita/page.tsx:59-63`) — sin zona de silencio | Un QR sin margen blanco alrededor falla al escanear. (La tinta del QR **sí** está a salvo: `qrcode` pinta con `fill`/`stroke` de SVG, que `print-color-adjust` no toca) | S |
-| ~~**MOT-1**~~ | **CERRADO 2026-08-05** (commit `956dbd4c`). Escala en el `@theme` de `globals.css`: `--motion-fast/base/slow/deliberate/ambient` + `--ease-standard/editorial`; 71 literales de duración y 7 curvas migrados; **regla C8** en la reja de tokens de CSS (cuenta por literal, no por declaración) con baseline en **0 duraciones crudas**. No migradas a propósito: las palabras clave `ease`/`ease-out` (cambio perceptible, quiere pasada visual). ~~**Tokens de movimiento: 18 duraciones distintas y 8 curvas, CERO tokens** (verificado: `--duration-*`/`--ease-*` no existen). La curva más usada, `cubic-bezier(0.4,0,0.2,1)`, monta **~433 utilidades de Tailwind y nadie la eligió ni la escribió** | Un sistema de diseño con 18 duraciones no tiene ninguna. Set propuesto: 150/180/300/600/1500ms + 2 curvas, eligiendo en cada rol **el valor que ya tiene más instancias**. La adopción es mayormente borrado, sin valores arbitrarios nuevos~~ | M |
-| ~~**MOT-2**~~ | **CERRADO 2026-08-05** (commit `02b38cb7`) — **164/165**. La palanca: 130 archivos componen DOS primitivas (`OpDashboardSkeleton`, `LnPageSkeleton`); 22 raíces propias cableadas a mano; 12 re-exports heredan. El 165 es `p/[publicToken]` **a propósito** (§5.2, flujo de emergencia). Del lado del CONTENIDO el fade NO va en cuerpos de ruta (§5.7 lo prohíbe): sólo en fronteras Suspense internas, y de ésas quedaban ~1 sin cablear. ~~**165 `loading.tsx` cortan de golpe.** `.op-fade-in` existe, funciona y se usa 19 veces en 3 archivos | Sistémico y ya resuelto en el repo: es cablear lo construido, no construir~~ | M |
-| **MOT-3** | **`prefers-reduced-motion`: 19 sitios bien guardados, 3 sin guardar.** El nuevo es `p/[publicToken]/CredentialActionBar.tsx:75` — scroll suave sin guardar en la **página pública de mascota perdida** | Verificado hoy. Es la superficie que abre un desconocido con una mano, tenso, en el celular. Peor radio de impacto de los tres. Los otros dos: `ScrollToSignal.tsx:22` (= CSS-4) y `PetDetailTabsPanel.tsx:190` | S |
-| ~~**MOT-4**~~ | **CERRADO 2026-08-05** — `.op-dialog-enter` (entrada sola, sin salida) en `ConfirmDialog` + `BulkRevokeList`; `.op-disclosure` con `::details-content` + `grid-template-rows: 0fr→1fr` en 9 disclosures (`OverlayDisclosure` usa `.op-panel-enter`: su panel es absoluto); `AnimatedKpiValue` cablea `AnimatedNumber` en `KpiChips` (tween de 300ms mientras el scrubber manda). ~~`ConfirmDialog.tsx:190-206` aparece de golpe en ~20 llamados de acción irreversible · nueve disclosures donde **el chevron anima y el panel teletransporta** · `KpiChips` salta mientras `OpKpi` interpola | El estado a medias es peor que cualquiera de los dos extremos. `AnimatedNumber`/`useCountUp` está construido, guardado y testeado, cableado a **un** consumidor — no a la superficie donde ver cambiar el número es todo el punto~~ | M |
-
-**No animar** (tan valioso como la lista de arriba): salida de filas en colas de
-operador · flujos de emergencia (perdida, mordedura, maltrato — ahí el arreglo
-es **quitar** movimiento, no suavizarlo) · celdas de tabla durante un cambio de
-valor (se arregla con `table-layout`, no easeando el salto) · **salida** de
-diálogo mientras el usuario espera un resultado · filas de la espina de eventos
-· el fade de divisiones durante un scrub.
-
-**Dos "no" con razón**: **View Transitions** no es viable todavía — con 165
-`loading.tsx`, el modelo RSC haría que la transición anime **hacia el esqueleto**,
-la mitad equivocada del problema. Y la prohibición de `interpolate-size`
-**generaliza más allá del dock**: es un opt-in a nivel `:root` que cambia la
-interpolación de `auto` en todo el documento, así que habilitarlo para un panel
-cambia en silencio las nueve disclosures. Para esas, `grid-template-rows: 0fr →
-1fr` ya lo resuelve sin opt-in global.
-
-**Nota sobre el método**: los tres ítems de mayor valor (CSS-2, CSS-3, CSS-4)
-**no salieron de la lista de 100 propiedades** — salieron de leer el código con
-la lista al lado. Y el hallazgo grande (CSS-1) fue una propiedad que no estaba
-usada en ninguna parte del repositorio. Vale para la próxima: el rendimiento de
-una lista de propiedades está en lo que te obliga a mirar, no en la lista.
+  avoid` ya cubre lo importante. Una propiedad que la mitad de los navegadores
+  ignora **produce inconsistencia, no la resuelve**.
+- **`counter-increment`** — borraría el numerado en JS del landing, pero la
+  salida vive en `content` generado: no se selecciona, no se copia y los
+  lectores de pantalla la anuncian dispar. En un producto atado a la Ley 26.653
+  es un retroceso disfrazado de limpieza.
+- **`interpolate-size`** — es un opt-in a nivel `:root` que cambia la
+  interpolación de `auto` en **todo el documento**: habilitarlo para un panel
+  cambia en silencio las nueve disclosures. `grid-template-rows: 0fr → 1fr` lo
+  resuelve sin opt-in global.
+- **View Transitions** — con 165 `loading.tsx`, el modelo RSC haría que la
+  transición anime **hacia el esqueleto**, la mitad equivocada del problema.
+- **No animar**: salida de filas en colas de operador · flujos de emergencia
+  (perdida, mordedura, maltrato — ahí el arreglo es **quitar** movimiento) ·
+  celdas de tabla durante un cambio de valor · **salida** de diálogo mientras el
+  usuario espera un resultado · filas de la espina de eventos · el fade de
+  divisiones durante un scrub.
 
 ---
 
-## Decisiones del PO ya tomadas sobre esta cola
-- **`/gob/perdidas`**: la supresión **queda**. Des-suprimir después es una línea; shipear el tier desnudo no es reversible.
+## 📋 Registro de decisiones del PO (no es cola — es memoria)
+
+### Ratificadas 2026-08-05
+
+- **D4 (HEIC)**: se difiere entero, con la ventana de exposición del GPS
+  **abierta y documentada**. Ver arriba.
+- **Chapa física**: las tres decisiones de modelo de datos (serial generado por
+  miMAR y opaco · chapa en blanco que vincula el dueño · la chapa viaja con la
+  mascota en una transferencia) **están implementadas y testeadas**. La
+  consecuencia aceptada sigue en pie: el dueño anterior conserva para siempre el
+  conocimiento de qué serial lleva ese animal.
+
+### 2026-08-04
+
+- **Walk-in de Atender**: el evento entra, marcado con provenance de walk-in no
+  verificado, y el dueño recibe aviso inmediato. La irreversibilidad se acepta;
+  la irreversibilidad **silenciosa** no.
+- **Migración `0156`**: se corrige **fuera del archivo**. No se edita una
+  migración aplicada, ni sus comentarios. (Ejecutado: `f8ec48b1`.)
+- **D1 — origen de la transferencia al resolver disputa**: los titulares que el
+  propio caso de uso cierra. Ejecutado, `34f0fd60`.
+- **D2 — contacto del denunciante**: lo ve **cualquier operador con alcance**, y
+  se **documenta**. Restringirlo al asignado rompe la derivación entre turnos y
+  guardias, que es una necesidad operativa real. Lo que faltaba no era el
+  candado sino que estuviera escrito.
+- **D3 — provincia entera fuera de CABA**: se construye ahora. Ejecutado,
+  `0d2d3f79`.
+- **D10 — nexo de bienestar**: el acceso de lectura a la mascota **expira con el
+  caso**. Cerrado el caso, desaparece el fundamento (principio de finalidad,
+  Ley 25.326).
+- **A5 — el refugio de origen se entera SIEMPRE**, no por opt-in. El PO eligió
+  la cobertura conociendo el costo. **Mitigación adoptada: divulgación, no
+  supresión** — el aviso NO lleva el contacto del hallador, y el perfil declara
+  que el refugio recibe el aviso. Ejecutado, `0ec108d7` + `227c74ca`.
+- **Export de imagen del mapa**: encuadrar al alcance antes de exportar.
+  Ejecutado, `a9d44a65`.
+- **`share_telemetry`**: dejar de recolectar y borrar lo acumulado. Ejecutado,
+  `61086608` + `0167`.
+- **CSS-8 deja de estar gateada**: el PO verificó que `/gob/perdidas` con el
+  filtro "todas" lista efectivamente las 500 filas.
+- **`/gob/perdidas`**: la supresión **queda**. Des-suprimir después es una
+  línea; shipear el tier desnudo no es reversible.
 - **Primer admin**: al backlog. No bloquea hasta provisionar un municipio real.
-- **Deuda estética**: **el fence primero**, después el codemod. (Fence hecho.)
-- **Las 7 barreras de a11y**: todas ahora. (Hechas.)
-- **`final-seams`**: investigar los 4 antes de decidir. (Hecho: ninguno era defecto de producto, spec jubilada, y la única cobertura que se pierde quedó escrita en el header de `crisis-seams`.)
+- **PRs**: cerradas las 30 ya absorbidas en `integration/all-20260703`. Quedan
+  #760 (rama viva), #762 (review slice, "do not merge") y #707 (docs).
+
+### Dos principios que exceden su pregunta
+
+**P1 — Una opción deshabilitada es aceptable cuando la cosa hace falta de verdad
+pero no la podemos hacer ahora.** No es ruido por definición: es ruido cuando
+anuncia algo que nadie quiere. Ratifica el idioma ADR-17c (fila deshabilitada +
+insignia) y explica por qué "Rastreo GPS · Próximamente" se borró —nadie lo
+pidió— mientras "Viaje y movilidad" se quedó. Aplicado a Parquet: **se queda
+deshabilitado, sin prometer una fecha que nadie fijó** (`9a5882e0`).
+
+**P2 — No renderizar la estructura de algo vacío. Ocultar, o mostrar lo
+MÍNIMO.** ¿Qué sentido tiene ver el esqueleto de una tabla sin filas?
+
+> **Límite que NO se puede cruzar al aplicar P2.** Hay dos vacíos distintos y
+> colapsarlos rompería una obligación de privacidad:
+>
+> - **Ausente** — no hay datos. Se oculta la estructura entera. Es P2.
+> - **Suprimido** — SÍ hay datos, y están ocultos por k-anonimato. Acá el aviso
+>   es **obligatorio**: si desaparece en silencio, el operador lee "no pasa
+>   nada" donde en realidad pasa algo protegido, y encima perdemos la
+>   declaración de supresión que el producto promete.
+>
+> Implementado como estado de tres valores en `fe08b807`. Toda aplicación futura
+> de P2 tiene que distinguir los dos casos **antes** de ocultar.
+
+---
 
 ## TODO/FIXME en código — clasificados 2026-08-04 (no hay deuda oculta)
 
 Barrido de los 37 marcadores en código productivo. **Resultado: están sanos.**
-Casi todos llevan dueño explícito y ninguno esconde trabajo sin registrar:
 
 | Etiqueta | Cuántos | Qué los bloquea |
 |---|---|---|
@@ -315,148 +395,8 @@ Casi todos llevan dueño explícito y ninguno esconde trabajo sin registrar:
 | `TODO(F2-prov-ba-v2)` | 3 | Export PPP de Prov. BA diferido hasta reglamentación municipal de Ley 14.107 |
 | `TODO(eno)` / `TODO(authority-integration)` | 2 | Integración con canales oficiales — mismo bloqueo que el outbox |
 | `operator-vocabulary.ts` | 3 | No son deuda: son instrucciones de cómo agregar una entrada nueva |
-| Falso positivo | 1 | `event-capture-matcher.ts:446` dice "el cuerpo de la nota es TODO el texto" — el "todo" español, no un marcador |
+| Falso positivo | 1 | `event-capture-matcher.ts:446` dice "el cuerpo de la nota es TODO el texto" — el "todo" español |
 
 **Conclusión**: no hay TODO huérfano ni sin dueño. La deuda real de este
 proyecto no vive en los comentarios del código — vive en los documentos, que es
-lo que este barrido terminó de confirmar.
-
-## Decisiones del PO — 2026-08-04
-
-- **Walk-in de Atender**: el evento entra, marcado con provenance de walk-in no
-  verificado, y el dueño recibe aviso inmediato. La irreversibilidad se acepta;
-  la irreversibilidad **silenciosa** no.
-- **Migración 0156 (comentario de rollback falso)**: se corrige **fuera del
-  archivo**. El ledger guarda sha256 de los bytes y `migrate.ts --strict` falla
-  con deriva: no se edita una migración aplicada, ni sus comentarios.
-- **`/gob` "métricas dentro de rango"**: estado honesto "sin medición
-  suficiente". Calcular metas reales por jurisdicción es trabajo aparte y no
-  bloquea sacar la afirmación falsa.
-- **PRs**: cerradas las 30 ya absorbidas en `integration/all-20260703`
-  (verificadas con `merge-base --is-ancestor` una por una). Quedan #760 (la
-  rama viva), #762 (review slice, "do not merge") y #707 (docs, sin absorber).
-- Y las doce decisiones de alcance de la corrida nocturna: ver
-  `docs/plans/2026-08-04-plan-nocturno-TAREAS.md`.
-
-### Ronda de decisiones de los barridos (2026-08-04, tarde)
-
-- **D1 — origen de la transferencia al resolver disputa**: los titulares que el
-  propio caso de uso cierra. **EJECUTADO**, commit `34f0fd60`.
-- **D2 — contacto del denunciante**: lo ve **cualquier operador con alcance**
-  (como hoy), y se **documenta**. Restringirlo al asignado rompe la derivación
-  entre turnos y guardias, que es una necesidad operativa real. Lo que faltaba
-  no era el candado sino que estuviera escrito.
-- **D3 — provincia entera fuera de CABA: SE CONSTRUYE AHORA.** Extender el
-  centinela `WHOLE_PROVINCE_LOCALITY` a cualquier provincia, no sólo CABA. (El
-  default propuesto era postergarlo; el PO decidió adelantarlo.)
-- **D4 — HEIC: SE TRANSCODIFICA EN EL SERVIDOR**, no se rechaza. (El default
-  propuesto era rechazar; el PO eligió la solución de fondo.) **Consecuencia
-  que queda registrada a propósito**: transcodificar necesita una librería de
-  imágenes del lado servidor y pega contra el tamaño y el tiempo de ejecución
-  de la función en Vercel, así que **no es un arreglo del día**. Hasta que
-  salga, el GPS del domicilio de un denunciante anónimo **sigue viajando** en
-  cada foto tomada con iPhone. La ventana de exposición está abierta y es
-  conocida — no implícita.
-- **D10 — nexo de bienestar cerrado**: el acceso de lectura a la mascota
-  **expira con el caso**. El fundamento era el caso; cerrado el caso,
-  desaparece el fundamento (principio de finalidad, Ley 25.326).
-- **Email de adopciones (COPY-2)**: **se le muestra el email del postulante al
-  refugio**. El dato ya existe en el perfil; es cablear lo construido y deja la
-  copy verdadera sin tocarla.
-- **CSS-8 deja de estar gateada**: el PO verificó que `/gob/perdidas` con el
-  filtro "todas" **lista efectivamente las 500 filas**. Ya no es un techo
-  teórico: son 500 tarjetas multi-elemento maquetadas y pintadas de una, sin
-  virtualización en el repo. Se saca el "medir primero".
-
-### A1 (chapa física) y A5 — decisiones del PO, 2026-08-04
-
-**A1 queda DESBLOQUEADA para ingeniería.** Las tres decisiones que definían el
-modelo de datos están tomadas:
-
-- **Serial: lo genera miMAR.** Controlamos formato y unicidad. **Consecuencia
-  obligatoria de diseño**: `/t/[serial]` es una URL pública, así que el serial
-  tiene que ser un token OPACO con el mismo criterio que `publicToken` — un
-  serial secuencial deja recorrer el padrón probando números.
-- **Activación: la chapa sale en blanco y la vincula el dueño.** Habilita stock
-  en mostrador de veterinarias y municipios, que es lo que el PO quiere.
-  **Riesgo que esto introduce y hay que resolver en el diseño, no después**: una
-  chapa en blanco robada antes de activarse la puede vincular cualquiera que la
-  tenga en la mano. Mitigación mínima: activación sólo con sesión iniciada, un
-  código de activación impreso APARTE del serial visible (el serial va en el
-  QR; el código, en el envoltorio), una sola vinculación por chapa, y quedar
-  revocable con traza de auditoría.
-- **Transferencia: la chapa sigue válida y viaja con la mascota.** Coherente con
-  el invariante #1 — la chapa identifica a la MASCOTA, no al titular.
-  Consecuencia aceptada: el dueño anterior conserva para siempre el
-  conocimiento de qué serial lleva ese animal.
-
-Sigue pendiente lo que NO es ingeniería: quién fabrica y cómo se distribuye.
-La tarjeta de demanda por localidad (`/admin/programa`, commit `1450a311`) es
-la entrada para esa decisión.
-
-**A5: el refugio de origen se entera SIEMPRE**, no por opt-in. Implementado.
-El PO eligió la cobertura por sobre el opt-in conociendo el costo, y el costo
-queda escrito porque en el código se vuelve real: un refugio se entera de que
-apareció un animal que ya no es suyo, y aproximadamente dónde, sin que el
-titular lo haya pedido. **Mitigación adoptada: divulgación, no supresión** — el
-aviso NO lleva el contacto del hallador (esa persona compartió su teléfono con
-el titular, no con una institución que no eligió), y el perfil de la mascota
-debe declarar que el refugio de origen recibe el aviso. *Pendiente: que el
-perfil lo declare — hoy el comportamiento existe y la divulgación no.*
-
-### Ronda 3 de decisiones del PO — 2026-08-04, tarde
-
-- **Export de imagen del mapa: ENCUADRAR AL ALCANCE antes de exportar.** Hoy la
-  imagen es lo que entra en pantalla, así que un funcionario nacional **nunca**
-  puede exportar el país. El mapa se ajusta a los límites del alcance elegido,
-  exporta, y vuelve a la vista del operador. Cuidado con CABA, que es un
-  recuadro aparte.
-- **`share_telemetry`: dejar de recolectar y BORRAR lo acumulado.** El borrado
-  es irreversible y toca datos: va con migración, y aplicarla a la base remota
-  es decisión de Ignacio.
-
-#### Dos principios del PO que exceden su pregunta
-
-**P1 — Una opción deshabilitada es aceptable cuando la cosa hace falta de
-verdad pero no la podemos hacer ahora.** No es ruido por definición: es ruido
-cuando anuncia algo que nadie quiere. Esto ratifica el idioma ADR-17c (fila
-deshabilitada + insignia) y explica por qué "Rastreo GPS · Próximamente" se
-borró —nadie lo pidió— mientras "Viaje y movilidad" se quedó. Aplicado a
-Parquet: **se queda deshabilitado**, pero sin prometer una fecha que nadie fijó.
-
-**P2 — No renderizar la estructura de algo vacío. Ocultar, o mostrar lo
-MÍNIMO.** Vale para reportes y para tableros: ¿qué sentido tiene ver el
-esqueleto de una tabla sin filas? Reemplaza el default propuesto para "Peores
-10": no alcanza con el vacío honesto adentro de la tarjeta — **la tarjeta no va**
-cuando no hay datos que la justifiquen.
-
-> **Límite que NO se puede cruzar al aplicar P2.** Hay dos vacíos distintos y
-> colapsarlos rompería una obligación de privacidad:
->
-> - **Ausente** — no hay datos. Se oculta la estructura entera. Es P2.
-> - **Suprimido** — SÍ hay datos, y están ocultos por k-anonimato. Acá el aviso
->   es obligatorio: si desaparece en silencio, el operador lee "no pasa nada"
->   donde en realidad pasa algo protegido, y encima perdemos la declaración de
->   supresión que el producto promete. **La supresión siempre se declara**,
->   aunque no se muestre el dato.
->
-> Toda aplicación de P2 tiene que distinguir los dos casos antes de ocultar.
-
-| # | Tarea nueva de estos principios | Tamaño |
-|---|---|---|
-| **P2-1** | **Helper compartido `absent` vs `suprimido`.** Hoy `dataUnavailable` es un solo booleano que viaja al panel de ranking desde dos superficies (`PanoramaConsole.tsx:3910` y `:4200`). P2 exige ocultar la estructura cuando no hay datos, pero la supresión por k-anonimato **siempre se declara**. Un booleano no puede decidir eso: hace falta un estado de tres valores (`hay datos` / `no hay` / `hay pero están protegidos`) y que el panel oculte sólo el del medio | M |
-| **P2-2** | **Inventario de estructuras vacías** en tableros e informes, aplicando P2 con el límite de P2-1. Candidatos ya conocidos: el ranking, las 101 superficies de estado vacío que el barrido de copy contó, y las leyendas que describen estados que el cuadro puede no contener (P3, RA-7 F9/F10) | M |
-| **MAP-1** | **Encuadrar al alcance antes de exportar la imagen del mapa.** Hoy exporta lo que entra en pantalla, así que el país nunca entra. Ajustar a los límites del alcance elegido, exportar, restaurar la vista del operador. Ojo con CABA: es un recuadro aparte | M |
-| **TEL-1** | **Dejar de recolectar `share_telemetry` y borrar lo acumulado.** El borrado es irreversible y va con migración; aplicarla a la base remota es decisión de Ignacio | S |
-
-Las seis decisiones restantes (D5 a D9, D11) se ejecutan con el default
-propuesto salvo aviso: reconfirmar KA1/KA2 como riesgo aceptado, sumar KA4 al
-documento de limitaciones, ocultar Parquet, mantener el "Sin datos suficientes"
-honesto, mantener la ventana fija de 30 días ya rotulada, y dejar de recolectar
-`share_telemetry` si no aparece un lector con sentido de producto.
-
-## Pendiente de decisión del PO
-- **El walk-in de Atender usa conocer el token del QR como prueba de consentimiento.** Cualquier organización con `event.write` puede escribir eventos permanentes e irreversibles sobre **cualquier mascota del país** desde una foto de la chapita. Es diseño, no bug.
-- **`db/migrations/0156` tiene un comentario de rollback falso** sobre qué contenía la 0150 (dice "antes de travel_corridor_requirements"; la 0150 ya lo incluía, y los conteos dicen 11/12 donde son 10/11). Las migraciones son inmutables **incluidos sus comentarios**: migración nueva que lo aclare, aceptarlo como inexactitud histórica, o excepción puntual.
-- **`/gob` dice "las métricas con meta están dentro de rango"** cuando no se midió nada.
-- Ratificación acumulada: R1-R10, N1-N4, y las de esta corrida.
+exactamente lo que esta corrida terminó de arreglar.
