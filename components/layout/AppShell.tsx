@@ -153,7 +153,19 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
     // shell — citizen/landing surfaces keep normal body-level scrolling.
     // Optional banner on top; the rail+main row fills the rest (min-h-0 so the
     // inner scroll area — not the document — scrolls).
-    <div className="op-surface fixed inset-0 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
+    //
+    // PRINT HOOKS (`op-shell-root` / `op-shell-row` / `op-shell-main` /
+    // `op-shell-scroll`): the four nested boxes below are ALL clipping
+    // containers, and together they cut any printed operator document to one
+    // viewport (PRN-3, reproduced by the PO on the maltrato expediente). A print
+    // surface cannot escape them with `position: absolute` — the root here is
+    // `position: fixed`, i.e. a positioned ancestor. The named hooks let a
+    // surface's print sheet neutralise the whole chain instead of tunnelling out
+    // of it; see components/layout/operator-print-escape.css, which is the ONLY
+    // consumer. `op-surface` stays what it always was: the operator SKIN
+    // selector (globals.css), also worn by non-shell cards — never target it for
+    // layout.
+    <div className="op-shell-root op-surface fixed inset-0 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
       {/* Skip-link (a11y) — visually hidden until keyboard-focused, jumps past
           the rail + topbar straight to the main content landmark below. */}
       <a
@@ -163,15 +175,18 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
         Saltar al contenido
       </a>
       {banner}
-      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="op-shell-row flex min-h-0 flex-1 overflow-hidden">
         {rail}
         <main
           id="main-content"
           tabIndex={-1}
-          className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden focus:outline-none"
+          className="op-shell-main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden focus:outline-none"
         >
           {topbar}
-          <div data-scroll-reset className="min-h-0 flex-1 overflow-auto px-6 py-[22px]">
+          <div
+            data-scroll-reset
+            className="op-shell-scroll min-h-0 flex-1 overflow-auto px-6 py-[22px]"
+          >
             <ScrollReset />
             {maxWidth ? <div className={`${maxWidth} mx-auto`}>{children}</div> : children}
           </div>

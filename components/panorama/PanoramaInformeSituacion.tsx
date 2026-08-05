@@ -14,14 +14,26 @@
 // SCREEN-HIDDEN: the node is display:none on screen (`hidden`) and only becomes
 // visible when the browser enters print. The print stylesheet hides the rest of
 // the console and reveals ONLY this node (the classic "print one element" recipe
-// using visibility + an absolute reposition), so the operator prints the
-// briefing, not the live map UI behind it.
+// using visibility), so the operator prints the briefing, not the live map UI
+// behind it.
+//
+// PAGING (PRN-3, fixed 2026-08-05): that recipe used to end in
+// `position: absolute; left: 0; top: 0`, which does NOT escape this console —
+// AppShell's operator root is `position: fixed` (a positioned ancestor) and
+// PanoramaShell adds its own `overflow-hidden` box with an inline height. The
+// informe therefore printed as ONE page and lost exactly the content the header
+// comment below promises is never dropped: the ranking, the method notes and the
+// k-anon disclosure. The fix neutralises the whole ancestor chain under print —
+// the shell via components/layout/operator-print-escape.css, the console's own
+// two boxes below — and lets the briefing print in normal flow.
 //
 // HONESTY: this is a govt decision-justification artifact, so the demo banner,
 // the k-anon disclosure, and the method notes are always present here — never
 // dropped (project working norm). es-AR user copy, English identifiers.
 
 import type { InformeModel } from "@/components/panorama/panorama-informe";
+
+import "@/components/layout/operator-print-escape.css";
 
 type Props = {
   model: InformeModel;
@@ -39,16 +51,29 @@ const PRINT_CSS = `
     background: transparent !important;
     border-color: #bbb !important;
   }
+  .panorama-console-shell,
+  .panorama-console-root {
+    display: block !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    width: auto !important;
+    margin: 0 !important;
+  }
+  .panorama-console-root > :not([data-panorama-informe]) { display: none !important; }
   [data-panorama-informe] {
-    position: absolute;
-    left: 0;
-    top: 0;
+    position: static;
     width: 100%;
     padding: 24px 28px;
     background: #fff !important;
     font-size: 12px;
     line-height: 1.5;
   }
+  [data-panorama-informe] header,
+  [data-panorama-informe] li,
+  [data-panorama-informe] tr { break-inside: avoid; }
+  [data-panorama-informe] h2 { break-after: avoid; }
 }
 `.trim();
 

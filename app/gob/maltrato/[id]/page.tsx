@@ -83,7 +83,11 @@ import { Timeline } from "./Timeline";
 import { TriageActions } from "./TriageActions";
 
 // Q6 (print) — route-scoped print sheet; see expediente-print.css.
+// operator-print-escape.css neutralises the /gob shell's four clipping boxes
+// under print media (PRN-3): without it this expediente prints as ONE page,
+// silently dropping its own timeline, normativa and attribution footer.
 import { documentAttributionLine } from "@/lib/analytics/export-attribution";
+import "@/components/layout/operator-print-escape.css";
 import "./expediente-print.css";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
@@ -275,7 +279,10 @@ export default async function GobMaltratoDetailPage({
   const statusTone = WELFARE_STATUS_TONE[report.status] ?? "neutral";
 
   return (
-    <div className="expediente-print-root space-y-6">
+    // `data-print-root` is the e2e hook: print-surfaces.spec.ts walks this
+    // node's ancestors under `emulateMedia({ media: "print" })` and fails if any
+    // of them still clips to viewport height (the PRN-3 signature).
+    <div data-print-root className="expediente-print-root space-y-6">
       {/* Q6 print-only header — the paper copy travels without the shell's
           context, so it names the instrument up front: case code +
           jurisdiction. Screen keeps CaseHeader below as before. */}
@@ -615,7 +622,13 @@ export default async function GobMaltratoDetailPage({
           the internal codename; traceable by this expediente's reference
           code). The stamp is the render moment: this page is dynamic, so it
           IS the retrieval time of everything printed above it. */}
-      <footer className="hidden border-t border-ln-op-line pt-2 text-xs print:block">
+      {/* `data-print-footer`: the LAST node of the expediente, and the one the
+          audit named as the tell — under PRN-3 the printed page ended before
+          it. print-surfaces.spec.ts asserts it is laid out under print media. */}
+      <footer
+        data-print-footer
+        className="hidden border-t border-ln-op-line pt-2 text-xs print:block"
+      >
         <p>Documento impreso el {formatDateTime(new Date())} (hora de Argentina)</p>
         <p>{documentAttributionLine(report.referenceCode)}</p>
       </footer>

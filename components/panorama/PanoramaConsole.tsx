@@ -4558,7 +4558,11 @@ export function PanoramaConsole({
     ) : null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
+    // `panorama-console-root`: print hook. Under print media the informe's sheet
+    // hides every sibling of the briefing here — `visibility: hidden` left the
+    // map and masthead reserving their flex boxes, which pushed the informe down
+    // and off the page (PRN-3).
+    <div className="panorama-console-root flex min-h-0 flex-1 flex-col">
       {/* task #55 — the print-only "Informe de situación". Mounted ONLY once the
           operator generates it (handlePrintInforme sets the stamp, then defers
           window.print() via setTimeout(0) — React commits this node before the

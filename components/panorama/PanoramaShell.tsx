@@ -165,8 +165,12 @@ export function PanoramaShell({
     // resolves against the scroll area's CONTENT box, so +44px/+48px restore
     // the cancelled vertical/horizontal padding — px math lives in style=
     // because the token ratchet bans arbitrary px classes).
+    // `panorama-console-shell` is the print hook: this box is `overflow-hidden`
+    // with an INLINE height, so it clips the "Informe de situación" to one page
+    // exactly like the operator shell above it does (PRN-3). The informe's own
+    // print sheet neutralises it — see PanoramaInformeSituacion.tsx.
     <div
-      className="-mx-6 -my-5.5 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink"
+      className="panorama-console-shell -mx-6 -my-5.5 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink"
       style={{ height: "calc(100% + 44px)", width: "calc(100% + 48px)" }}
     >
       {/* The masthead (identity line + scope pill + "Acerca" popover + fresh

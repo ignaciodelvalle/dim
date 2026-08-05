@@ -11,8 +11,17 @@
    topbar, omnibox). The visibility flip below prints ONLY the expediente
    content: visibility (unlike display) cascades and can be re-enabled on a
    subtree, which is the standard way to print one region without knowing the
-   shell's DOM. The root is then lifted to the page origin so the hidden
-   chrome leaves no offset behind. */
+   shell's DOM. It stays as the catch-all for anything OUTSIDE the shell
+   (Toaster, body-level portals).
+
+   PAGING (PRN-3, fixed 2026-08-05): the flip alone is not enough, and the
+   `position: absolute` root that used to sit below was actively wrong — the
+   shell's root is `position: fixed`, so "absolute" resolved INSIDE the very
+   box it meant to escape and the expediente printed as one clipped page. The
+   shell's four clipping boxes are now neutralised by
+   components/layout/operator-print-escape.css (imported by page.tsx next to
+   this sheet), which also drops the rail/topbar out of flow; the root below
+   therefore prints in normal flow and the document pages properly. */
 
 @media print {
   html,
@@ -30,9 +39,11 @@
     visibility: visible;
   }
 
+  /* Normal flow — NOT absolute. See the PAGING note in the header: a
+     positioned root re-enters the shell's clipping context and truncates the
+     expediente to one page. */
   .expediente-print-root {
-    position: absolute;
-    inset: 0 auto auto 0;
+    position: static;
     width: 100%;
     margin: 0;
     padding: 1rem;
