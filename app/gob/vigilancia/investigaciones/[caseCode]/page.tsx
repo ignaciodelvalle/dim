@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { Icon } from "@/components/Icon";
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard/CaseStatusBadge";
 import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { getOutbreakInvestigationDetail } from "@/lib/infra/case-queries";
@@ -14,12 +15,13 @@ import {
 
 import { InvestigationActions } from "./InvestigationActions";
 
-const STATUS_LABEL: Record<string, string> = {
-  open: "Abierta",
-  escalated: "Escalada",
-  closed: "Cerrada",
-  merged: "Fusionada",
-};
+// Label comes from the same CaseStatus vocabulary the unified case queue
+// renders (CASE_STATUS_CONFIG) — this investigation is a `cases` row too,
+// so the same status must never read differently here vs /gob/casos or the
+// investigaciones list.
+const STATUS_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(CASE_STATUS_CONFIG).map(([status, cfg]) => [status, cfg.label]),
+);
 
 type PillTone = "open" | "escalated" | "closed";
 const STATUS_PILL_TONE: Record<string, PillTone> = {

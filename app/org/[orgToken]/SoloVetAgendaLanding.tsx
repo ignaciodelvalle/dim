@@ -16,9 +16,16 @@ import type { TodayAgendaItem } from "@/lib/analytics/org-dashboard";
 import type { SetupStep } from "@/lib/infra/org-setup-checklist";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 
+// "attended" matches components/AppointmentCard.tsx's STATUS_BADGE — the
+// owner-facing /mis-turnos list used to say "Asistido" for the same
+// appointment.status while this org-facing landing said "Atendido" (copy
+// audit 2026-08-04). "cancelled_by_owner"/"cancelled_by_org" stay collapsed
+// to a generic "Cancelado" here deliberately: AppointmentCard's personalized
+// "Cancelado por vos" / "Cancelado por el prestador" address the OWNER in
+// second person, which reads wrong from the org's own agenda.
 const STATUS_LABELS: Record<string, string> = {
   confirmed: "Confirmado",
-  attended: "Atendido",
+  attended: "Asistido",
   no_show: "No asistió",
   cancelled_by_owner: "Cancelado",
   cancelled_by_org: "Cancelado",

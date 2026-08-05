@@ -11,16 +11,11 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import type { GobPetSubView } from "@/lib/infra/gob-pet-subview";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, situationLabelForSex, statusLabel } from "@/lib/utils/format";
 import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const SPECIES_LABEL: Record<string, string> = { dog: "Perro", cat: "Gato" };
 const SEX_LABEL: Record<string, string> = { male: "Macho", female: "Hembra", unknown: "Sin dato" };
-const STATUS_LABEL: Record<string, string> = {
-  active: "Activa",
-  lost: "Perdida",
-  deceased: "Fallecida",
-};
 
 export function PetSubView({ pet }: { pet: GobPetSubView }) {
   return (
@@ -32,7 +27,10 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
             <Field label="Token" value={pet.publicToken} mono />
             <Field label="Especie" value={SPECIES_LABEL[pet.species] ?? pet.species} />
             <Field label="Sexo" value={SEX_LABEL[pet.sex] ?? pet.sex} />
-            <Field label="Estado" value={STATUS_LABEL[pet.status] ?? pet.status} />
+            <Field
+              label="Estado"
+              value={situationLabelForSex(statusLabel(pet.status), pet.sex)}
+            />
             {pet.breed && <Field label="Raza" value={pet.breed} />}
             {pet.color && <Field label="Color" value={pet.color} />}
           </div>

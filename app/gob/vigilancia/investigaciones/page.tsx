@@ -11,6 +11,7 @@ import {
   OpPill,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard/CaseStatusBadge";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -19,11 +20,12 @@ import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { formatDateTime } from "@/lib/utils/format";
 import { caseOpenedReasonDisplay } from "@/src/modules/cases/domain/opened-reason-display";
 
-const STATUS_LABEL: Record<string, string> = {
-  open: "Abierta",
-  escalated: "Escalada",
-  closed: "Cerrada",
-};
+// Label comes from the same CaseStatus vocabulary the unified case queue
+// renders (CASE_STATUS_CONFIG) — these investigations are `cases` rows too,
+// so the same status must never read differently here vs /gob/casos.
+const STATUS_LABEL: Record<string, string> = Object.fromEntries(
+  Object.entries(CASE_STATUS_CONFIG).map(([status, cfg]) => [status, cfg.label]),
+);
 
 type PillTone = "open" | "escalated" | "closed";
 const STATUS_PILL_TONE: Record<string, PillTone> = {

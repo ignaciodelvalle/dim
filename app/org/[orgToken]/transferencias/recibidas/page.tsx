@@ -25,7 +25,7 @@ import { ResultCount } from "@/components/ui/ResultCount";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, petEvents, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, requestOutcomeLabel } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
 
 import { DecomisoHandoffActions } from "./DecomisoHandoffActions";
@@ -51,8 +51,11 @@ const SEIZURE_MOTIVE_LABEL: Record<string, string> = {
   otro: "Otro motivo",
 };
 
+// "open" comes from requestOutcomeLabel — shared with the sender's
+// Transferencias screen so the same case status never reads two different
+// words across the org's own two tabs (copy audit 2026-08-04).
 const STATUS_LABEL: Record<string, string> = {
-  open: "Pendiente de respuesta",
+  open: requestOutcomeLabel("open") ?? "Pendiente",
   closed: "Cerrada",
 };
 

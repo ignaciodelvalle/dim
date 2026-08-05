@@ -23,8 +23,12 @@ import { ResolveDisputeForm } from "./ResolveDisputeForm";
 import { WithdrawDisputeButton } from "./WithdrawDisputeButton";
 import { partyRoleLabel } from "./_party-roles";
 
+// "open" must read the same word as the list screen (DisputasScreen.tsx maps
+// dispute.status === "open" into CaseStatus "open" → canonical "Abierto" via
+// CaseStatusBadge). "resolved"/"withdrawn" have no CaseStatus equivalent (the
+// list collapses both into "closed"), so they stay local.
 const STATUS_LABELS: Record<string, string> = {
-  open: "Abierta",
+  open: "Abierto",
   resolved: "Resuelta",
   withdrawn: "Retirada",
 };

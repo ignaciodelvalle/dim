@@ -18,19 +18,11 @@ import { formatDate } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
+  welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
 
 import { InterventionActions } from "./InterventionActions";
-
-const STATUS_LABELS: Record<string, string> = {
-  open: "Abierta",
-  triaged: "Triagueada",
-  in_progress: "En seguimiento",
-  closed: "Cerrada",
-  duplicate: "Duplicada",
-  invalid: "Inválida",
-};
 
 const STATUS_PILL_TONE: Record<string, "ok" | "open" | "danger" | "neutral" | "escalated"> = {
   open: "open",
@@ -279,7 +271,7 @@ export default async function OrgMaltratoRecibidosPage({
                     </div>
                     <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
                       <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>
-                        {STATUS_LABELS[r.status] ?? r.status}
+                        {welfareReportStatusLabel(r.status)}
                       </OpPill>
                       {activeTab === "recibidos" && r.orgInterventionStatus && (
                         <OpPill tone={INTERVENTION_PILL_TONE[r.orgInterventionStatus] ?? "neutral"}>

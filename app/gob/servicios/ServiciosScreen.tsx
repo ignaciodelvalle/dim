@@ -38,7 +38,7 @@ import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { jurisdictionPairClause } from "@/lib/metrics/scope";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
-import { formatDateShort, pluralizeEs } from "@/lib/utils/format";
+import { formatDateShort, pluralizeEs, serviceOfferingStatusLabel } from "@/lib/utils/format";
 
 // Real offering-status enum (db/schema.ts `service_status_valid` CHECK) also
 // includes 'paused' and 'archived' — not surfaced here per PO scope, since
@@ -64,13 +64,15 @@ const STATUS_TABS: UrlTabItem[] = [
   { value: "rejected", label: "Rechazados" },
 ];
 
-// Mirrors the label/tone map in ./[offeringToken]/page.tsx (page-local — no
-// shared export exists yet for this pair, same duplication pattern as the
-// status/severity pill maps in /gob/moderacion and /admin/moderacion).
+// Label comes from serviceOfferingStatusLabel (lib/utils/format.ts), shared
+// with ./[offeringToken]/page.tsx so the same offering never reads two
+// different words across the two screens (copy audit 2026-08-04). Tone stays
+// page-local — same duplication pattern as the status/severity pill maps in
+// /gob/moderacion and /admin/moderacion.
 const STATUS_LABEL: Record<OfferingStatusFilter, string> = {
-  pending_approval: "Pendiente",
-  approved: "Aprobado",
-  rejected: "Rechazado",
+  pending_approval: serviceOfferingStatusLabel("pending_approval"),
+  approved: serviceOfferingStatusLabel("approved"),
+  rejected: serviceOfferingStatusLabel("rejected"),
 };
 type StatusTone = "open" | "ok" | "danger";
 const STATUS_TONE: Record<OfferingStatusFilter, StatusTone> = {

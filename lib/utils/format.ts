@@ -431,6 +431,13 @@ export function statusLabel(status: string): string {
  * Returns null — never the raw value — for anything unmapped. A caller that
  * cannot name a state must say nothing rather than leak the enum, which is the
  * exact failure being fixed here.
+ *
+ * `"open"` is included for `custody_transfer_handshake`/`custody_episode`
+ * cases (`CaseStatus`, not `RequestStatus`): both org transferencias screens
+ * used to hand-roll their own word for it — "Esperando respuesta" (sender)
+ * vs "Pendiente de respuesta" (receiver), the same case status said two
+ * ways across the same org's two tabs (copy audit 2026-08-04, part of the
+ * `CaseStatus.open`-said-five-ways family). They now both import this.
  */
 export function requestOutcomeLabel(status: string | null | undefined): string | null {
   switch (status) {
@@ -447,9 +454,31 @@ export function requestOutcomeLabel(status: string | null | undefined): string |
     case "auto_expired":
       return "Expirada";
     case "pending":
+    case "open":
       return "Pendiente";
     default:
       return null;
+  }
+}
+
+/**
+ * es-AR label for a `service_offerings` review status. The two gob screens
+ * for this entity — the list at /gob/servicios and the detail at
+ * /gob/servicios/[offeringToken] — used to hand-roll this map independently;
+ * the list said "Pendiente" for `pending_approval` while the detail said
+ * "Pendiente de revisión" for the SAME offering (copy audit 2026-08-04).
+ * Both now import this instead of re-typing the map.
+ */
+export function serviceOfferingStatusLabel(status: string): string {
+  switch (status) {
+    case "pending_approval":
+      return "Pendiente de revisión";
+    case "approved":
+      return "Aprobado";
+    case "rejected":
+      return "Rechazado";
+    default:
+      return status;
   }
 }
 
