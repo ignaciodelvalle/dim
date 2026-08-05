@@ -61,6 +61,15 @@ type Props = {
    * it is animating stays visible. Ignored on every other tab.
    */
   timelinePlaying?: boolean;
+  /**
+   * Q6/P3.3: the opened link named a layer that no longer exists
+   * (`droppedLayerIds` in PanoramaConsole) — PanoramaBoardNotices renders the
+   * full warning, but that component lives INSIDE the "Línea de tiempo" pane
+   * (`timeline` prop), so the warning was only ever visible while the dock
+   * was open AND on that one tab. A compact badge on the bar surfaces the
+   * fact that the notice exists whenever the full text is not on screen.
+   */
+  hasUnknownLayerNotice?: boolean;
 };
 
 export function PanoramaDock({
@@ -76,6 +85,7 @@ export function PanoramaDock({
   referencias,
   timeline,
   timelinePlaying = false,
+  hasUnknownLayerNotice = false,
 }: Props) {
   const panes: Record<PanoramaDockTab, ReactNode> = { registros, stats, referencias, timeline };
 
@@ -125,7 +135,10 @@ export function PanoramaDock({
     <section
       aria-label="Datos de la vista"
       data-testid="panorama-dock"
-      className="absolute inset-x-3.5 bottom-3.5 z-20 flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-lg"
+      // op-dock (globals.css): the collapsed height + the open/close transition
+      // (CSS-2 — v2C handoff "dock height .18s ease"). Only the COLLAPSED
+      // length lives in the class; the EXPANDED heights below stay inline.
+      className="op-dock absolute inset-x-3.5 bottom-3.5 z-20 flex flex-col overflow-hidden rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card shadow-lg"
       // 42% of the MAP CONTAINER (the positioned ancestor) when expanded, BUT
       // capped to leave 26rem of clearance at the top so the expanded dock never
       // covers the top-left cluster (scope→vista→números→modo) on short viewports
@@ -145,6 +158,13 @@ export function PanoramaDock({
       // A ceiling and not a fixed height because the histogram and the notices
       // above it are conditional — pinning a number would either clip them or
       // leave a gap on the frames that have neither.
+      //
+      // CSS-2 risk accepted: this branch's `height: "auto"` cannot transition
+      // (no resolvable start/end length) — opening/closing the dock WHILE on
+      // the Línea de tiempo tab does not animate, unlike the other three tabs.
+      // `maxHeight` on this same branch DOES transition (see .op-dock), so the
+      // playing/not-playing swap still animates; only the open/close pop is
+      // inert here. Not fixed with `interpolate-size` (repo-wide ban).
       style={
         open
           ? tab === "timeline"
@@ -221,7 +241,7 @@ export function PanoramaDock({
                     // Spec: clicking any tab while collapsed also expands.
                     if (!open) onOpenChange(true);
                   }}
-                  className={`inline-flex flex-none snap-start items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-sm transition-colors ${
+                  className={`inline-flex flex-none snap-start snap-always items-center gap-1.5 whitespace-nowrap border-b-2 px-3 text-sm transition-colors ${
                     isActive
                       ? "border-ln-op-azul font-semibold text-ln-op-azul"
                       : "border-transparent text-ln-op-ink-2 hover:text-ln-op-ink"
@@ -246,6 +266,23 @@ export function PanoramaDock({
           })}
         </div>
         <div className="ml-auto flex flex-none items-center gap-2">
+          {/* Q6/P3.3: the full "capa que ya no existe" warning lives inside the
+              Línea de tiempo pane (PanoramaBoardNotices), so it is invisible
+              whenever the dock isn't open on that exact tab — which is most of
+              the time, including the entire collapsed state. This badge says
+              the notice exists even when its text doesn't fit anywhere. */}
+          {hasUnknownLayerNotice && !(open && tab === "timeline") && (
+            <span
+              className="flex-none rounded-full border border-ln-op-warn-bd bg-ln-op-warn-bg px-1.5 py-0.5 text-xs font-medium leading-none text-ln-op-warn"
+              title="Este enlace pedía una capa que ya no existe. Abrí Línea de tiempo para ver el aviso completo."
+            >
+              <span aria-hidden="true">⚠</span>
+              <span className="sr-only">
+                Aviso: este enlace pedía una capa que ya no existe. Abrí Línea de tiempo para ver el
+                detalle.
+              </span>
+            </span>
+          )}
           <span className="hidden text-xs tabular-nums text-ln-op-mute md:inline">{meta}</span>
           {csvAction}
           <OpButton

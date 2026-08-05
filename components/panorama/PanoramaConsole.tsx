@@ -4723,6 +4723,10 @@ export function PanoramaConsole({
             referencias={dockReferencias}
             timeline={scrubberDock}
             timelinePlaying={scrubberPlaying}
+            // Q6/P3.3: the full warning renders inside `scrubberDock`
+            // (PanoramaBoardNotices), reachable only on the Línea de tiempo
+            // tab — surface its existence on the bar the rest of the time.
+            hasUnknownLayerNotice={droppedLayerIds.length > 0}
           />
         )}
         {/* task #38 v3 top-LEFT cluster: the floating scope pill (THE keyboard

@@ -594,6 +594,33 @@ h6 {
   }
 }
 
+/* ---- Panorama dock: open/close transition (CSS-2, panorama audit 2026-08-04) */
+/* v2C handoff specifies "dock height .18s ease"
+ * (docs/design/handoffs/2026-07-11-panorama-v2C/README.md:157) — the
+ * operator's most-touched control was teleporting between its collapsed bar
+ * and its expanded height with no transition. The COLLAPSED length lives
+ * here as an explicit value (2.5rem `h-10` bar + its own 2px border) rather
+ * than PanoramaDock's previous `undefined`: a `height` transition needs two
+ * resolvable lengths on both ends, and "auto" is not one. The EXPANDED
+ * heights stay inline in PanoramaDock.tsx (unchanged) — they are runtime
+ * `min()`/`calc()` expressions, and the ratchet only permits those as inline
+ * style, never as a new arbitrary Tailwind value (PanoramaDock.tsx:133-135).
+ * Reduced motion needs no extra code: the global rule above already collapses
+ * this transition's duration for every prefers-reduced-motion user.
+ *
+ * Risk accepted (documented at the call site too): the "Línea de tiempo" pane
+ * sizes itself with `height: auto` because its content is conditional —
+ * `auto` cannot transition, so opening/closing the dock WHILE that tab is
+ * active does not animate. `max-height` on that same branch DOES transition
+ * (the playing/not-playing swap), so it isn't inert, just narrower than the
+ * other three tabs. `interpolate-size` is deliberately not used — it is a
+ * repo-wide ban, since it would silently change every other height:auto
+ * disclosure in the app. */
+.op-dock {
+  height: calc(2.5rem + 2px);
+  transition: height 180ms ease-out, max-height 180ms ease-out;
+}
+
 /* ---- Skeleton shimmer (Wave 2 Item 8) ------------------------------------- */
 /* Base: --color-ln-line / --color-ln-card for owner/public surfaces.
  * Operator surfaces override via .op-surface wrapper or utility class swap.
