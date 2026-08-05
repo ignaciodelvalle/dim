@@ -138,6 +138,79 @@ export async function ensureDenunciaJurisdiction(
   }
 }
 
+/**
+ * Delete every physical tag (chapa) whose lote id starts with `prefix`, plus
+ * the spine events and notifications its activation/revocation produced.
+ * Returns how many tag rows were removed.
+ *
+ * WHY: e2e/chapas.spec.ts manufactures its fixtures the way the product does —
+ * an admin issues a real lote through /admin/chapas and the browser downloads
+ * the issuance CSV, the ONE artifact that ever carries the plaintext activation
+ * codes (issue-tag-batch.ts persists a peppered HMAC and nothing else). There
+ * is no "delete a chapa" flow — nor should there be — so without this every run
+ * would add a dead TAG- row to owner@dim.test's /cuenta/chapas, which is a
+ * surface the demo shows to officials. Same failure mode, same remedy, as
+ * deletePetsByNamePrefix below.
+ *
+ * `pet_events` has a BEFORE DELETE trigger enforcing the append-only spine; the
+ * sanctioned escape hatch is the same GUC pair the vitest helpers use, set
+ * LOCAL inside the transaction so it cannot leak to another session.
+ *
+ * `audit_log` is deliberately NOT swept: it is append-only by design and no
+ * test cleans it (see __tests__/tag-issuance.test.ts, which keys its
+ * one-row-per-batch assertion on a run-unique lote id for exactly that reason).
+ *
+ * LOCAL ONLY — a no-op against any non-local database.
+ */
+export async function deleteTagsByLotePrefix(prefix: string): Promise<number> {
+  const url = resolveUrl();
+  if (!isLocalDatabase(url)) {
+    console.warn(`[e2e cleanup] skipped — ${url.replace(/:[^:@]*@/, ":***@")} is not local.`);
+    return 0;
+  }
+
+  const sql = postgres(url, { max: 1, onnotice: () => {} });
+  try {
+    const doomed = await sql<Array<{ serial: string }>>`
+      SELECT serial FROM pet_tags WHERE lote_id LIKE ${`${prefix}%`}`;
+    if (doomed.length === 0) return 0;
+    const serials = doomed.map((r) => r.serial);
+
+    const actor = await sql<Array<{ id: string }>>`
+      SELECT p.id::text AS id FROM profiles p
+      JOIN auth.users u ON u.id = p.id
+      WHERE u.email = 'admin@dim.test' LIMIT 1`;
+    const actorId = actor[0]?.id;
+    if (!actorId) {
+      console.warn(
+        "[e2e cleanup] skipped — no admin@dim.test profile to attribute the override to.",
+      );
+      return 0;
+    }
+
+    await sql.begin(async (tx) => {
+      await tx`SELECT set_config('app.allow_event_mutation', 'true', true)`;
+      await tx`SELECT set_config('app.allow_event_mutation_actor', ${actorId}, true)`;
+      // The tag_activated / tag_revoked events these serials appended, and the
+      // owner notifications that hang off them. Matched on the payload serial
+      // because the tag row carries no event id.
+      const events = await tx<Array<{ id: string }>>`
+        SELECT id::text AS id FROM pet_events
+        WHERE event_type IN ('tag_activated', 'tag_revoked')
+          AND payload->>'serial' = ANY(${serials}::text[])`;
+      const eventIds = events.map((e) => e.id);
+      if (eventIds.length > 0) {
+        await tx`DELETE FROM notifications WHERE related_event_id = ANY(${eventIds}::uuid[])`;
+        await tx`DELETE FROM pet_events WHERE id = ANY(${eventIds}::uuid[])`;
+      }
+      await tx`DELETE FROM pet_tags WHERE lote_id LIKE ${`${prefix}%`}`;
+    });
+    return serials.length;
+  } finally {
+    await sql.end({ timeout: 5 });
+  }
+}
+
 export async function deletePetsByNamePrefix(prefix: string): Promise<number> {
   const url = resolveUrl();
   if (!isLocalDatabase(url)) {

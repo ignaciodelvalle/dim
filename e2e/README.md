@@ -40,6 +40,14 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
   disclosed phone CTA, and that undisclosed fields (owner name, last-seen
   location) stay hidden. Reverts Michi to "found" in a `finally` block so
   the local DB is left as it started.
+- `chapas.spec.ts` — PHYSICAL TAGS end to end: admin issuance on
+  `/admin/chapas` (the issuance CSV is captured from the real download —
+  the only artifact that ever carries a plaintext activation code, so it
+  is also this spec's fixture source), the public resolver `/t/[serial]`
+  in all three non-redirect states, owner self-activation, the uniform
+  evidence-gate refusal, and revocation. Cleans up its own lote through
+  `deleteTagsByLotePrefix` (local DB only) — there is no "delete a chapa"
+  flow in the product.
 - `public-smoke.spec.ts`, `auth.spec.ts`, `auth-bypass.spec.ts`,
   `create-pet.spec.ts`, `cross-tenant-isolation.spec.ts`,
   `owner-shell.spec.ts`, `admin-topbar.spec.ts`, `executive-smoke.spec.ts`,
