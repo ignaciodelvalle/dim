@@ -28,11 +28,8 @@ import { z } from "zod";
 import type { EventType } from "@/db/schema";
 import { findDisease } from "@/lib/reference/diseases";
 
-// Helper: every schema gets the version field baked in.
-const withVersion = <T extends z.ZodRawShape>(shape: T) => ({
-  payload_version: z.literal(1).default(1),
-  ...shape,
-});
+import { withVersion } from "./payload-version";
+import { tagActivated, tagRevoked } from "./tag-event-schemas";
 
 const petStatus = z.enum(["active", "lost", "deceased"]);
 const trueOrNull = z.union([z.literal(true), z.null()]);
@@ -1648,42 +1645,8 @@ const eventAmended = z
   )
   .strict();
 
-// ---------------------------------------------------------------------------
-// Physical tag (chapa) lifecycle — migration 0169
-// ---------------------------------------------------------------------------
-//
-// SECURITY INVARIANT: neither payload may EVER carry the activation code —
-// plaintext or hashed, under any field name. `.strict()` enforces it: an
-// accidental `code` / `activation_code` key throws at validate() time before
-// the row reaches the immutable spine.
-
-// Owner self-activation of a manufactured tag. `source` is fixed to "self" in
-// v1 (admin-assisted activation would be a new source value, not a new type).
-const tagActivated = z
-  .object(
-    withVersion({
-      serial: z.string().min(1),
-      lote_id: z.string().nullable(),
-      source: z.literal("self"),
-    }),
-  )
-  .strict();
-
-// Owner revocation of an ACTIVE tag (design D4: blank tags cannot be revoked —
-// there is no pet to hang the event on). Payload key is `revoke_reason`, NOT
-// `reason`: erase_subject_data (0159→0166) sentinel-redacts the key `reason`
-// across ALL event types on subject erasure, which would destroy this enum
-// fact (design D5). `replacement_serial` links to the new tag when the owner
-// revokes to replace (e.g. after a custody transfer).
-const tagRevoked = z
-  .object(
-    withVersion({
-      serial: z.string().min(1),
-      revoke_reason: z.enum(["lost", "damaged", "transfer", "fraud", "owner_request", "other"]),
-      replacement_serial: z.string().nullable(),
-    }),
-  )
-  .strict();
+// Physical tag (chapa) lifecycle — migration 0169: tagActivated / tagRevoked
+// live in ./tag-event-schemas.ts (this file is at its size ratchet).
 
 // ---------------------------------------------------------------------------
 // Registry
