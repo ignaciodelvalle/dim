@@ -17,7 +17,9 @@ import {
 } from "@/lib/infra/notification-service";
 import { normalizeTagSerial } from "@/lib/infra/tag-lookup";
 
-import { revokeTagSchema } from "./types";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
+
+import { TagWriterRefusal, revokeTagSchema } from "./types";
 import type { RevokeTagInput, RevokeTagResult } from "./types";
 
 export async function revokeTagForUser(
@@ -47,11 +49,11 @@ export async function revokeTagForUser(
         .limit(1)
         .for("update");
 
-      if (!tag) throw new Error("Tag not found.");
+      if (!tag) throw new TagWriterRefusal("Tag not found.");
       // D4: only an ACTIVE tag can be revoked. A blank tag has no pet for the
       // spine event; a revoked tag is terminal.
       if (tag.status !== "active" || !tag.petId) {
-        throw new Error("Only an active tag can be revoked.");
+        throw new TagWriterRefusal("Only an active tag can be revoked.");
       }
 
       // Authorization: the caller must hold an active ownership on the LINKED
@@ -67,10 +69,10 @@ export async function revokeTagForUser(
           ),
         )
         .limit(1);
-      if (!ownership) throw new Error("No active ownership for this user on this pet.");
+      if (!ownership) throw new TagWriterRefusal("No active ownership for this user on this pet.");
 
       const [pet] = await tx.select().from(pets).where(eq(pets.id, tag.petId)).limit(1);
-      if (!pet) throw new Error("Pet not found.");
+      if (!pet) throw new TagWriterRefusal("Pet not found.");
 
       // Idempotency guard (same shape as activate-tag.ts).
       const idemKey = parsed.clientIdempotencyKey ?? null;
@@ -172,9 +174,14 @@ export async function revokeTagForUser(
       return { ok: true, eventId: event.id };
     });
   } catch (err) {
-    return {
-      error: `revokeTagForUser failed: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    // Deliberate refusals keep their message (mirrors activate-tag.ts); any
+    // other failure is internal detail that must not reach the browser — it is
+    // rendered verbatim in RevokeTagDialog's error banner. See TagWriterRefusal.
+    if (err instanceof TagWriterRefusal) {
+      return { error: err.message };
+    }
+    console.error("[revokeTagForUser] unexpected failure", err);
+    return { error: UNKNOWN_ERROR_FALLBACK };
   }
 
   // Outside the business tx on purpose (ARCH-P): createNotificationsBulk

@@ -15,11 +15,31 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Injection point for the error-hygiene suite at the bottom of this file: with
+// `message` set, the payload validator both writers call inside their
+// transaction throws an UNEXPECTED failure (not one of their own refusals).
+// Null by default, so every other test in this file runs the real validator.
+const { injectedPayloadFailure } = vi.hoisted(() => ({
+  injectedPayloadFailure: { message: null as string | null },
+}));
+
+vi.mock("@/lib/events/event-schemas", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/events/event-schemas")>();
+  return {
+    ...actual,
+    validateEventPayload: (eventType: never, payload: unknown) => {
+      if (injectedPayloadFailure.message) throw new Error(injectedPayloadFailure.message);
+      return actual.validateEventPayload(eventType, payload);
+    },
+  };
+});
 
 import { auditLog, db, notifications, ownerships, petEvents, petTags, pets } from "@/db";
 import { generateTagActivationCode, generateTagSerial } from "@/lib/infra/publicToken";
 import { lookupTagBySerial, tagActivationCodeMatches } from "@/lib/infra/tag-lookup";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
 import { activateTagForUser } from "@/src/modules/pets/application/tags/activate-tag";
 import { revokeTagForUser } from "@/src/modules/pets/application/tags/revoke-tag";
@@ -360,5 +380,116 @@ describe("tag-lookup reads", () => {
     );
     expect(await tagActivationCodeMatches(id, code)).toBe(true);
     expect(await tagActivationCodeMatches(id, "CCCC-CCCC")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Error hygiene (S1)
+// ---------------------------------------------------------------------------
+//
+// Both writers used to end their transaction with
+//   `${err instanceof Error ? err.message : String(err)}`
+// which is returned to the client and rendered VERBATIM in the form's error
+// banner (ActivateTagForm / RevokeTagDialog). That branch cannot distinguish a
+// deliberate refusal from a Postgres error quoting the failing statement, so an
+// internal fault was a disclosure. The fix marks the intended refusals
+// (TagWriterRefusal) and replaces everything else with UNKNOWN_ERROR_FALLBACK,
+// logging the real error server-side.
+//
+// The unexpected failure is injected through the payload validator both writers
+// call INSIDE the transaction — a real code path, not a stubbed return.
+describe("tag writers — error hygiene", () => {
+  const INTERNAL_DETAIL =
+    'insert into "pet_events" ("pet_id","payload") — column "payload" violates check constraint "pet_events_payload_shape"';
+
+  afterEach(() => {
+    injectedPayloadFailure.message = null;
+    vi.restoreAllMocks();
+  });
+
+  async function seedActiveTagForHygiene() {
+    const tag = await seedBlankTag();
+    const result = await activateTagForUser(ownerUserId, {
+      serial: tag.serial,
+      activationCode: tag.code,
+      petId,
+    });
+    if ("error" in result) throw new Error(`fixture activation failed: ${result.error}`);
+    return tag;
+  }
+
+  it("activate: an unexpected internal failure is replaced, not forwarded", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { serial, code, id } = await seedBlankTag();
+    injectedPayloadFailure.message = INTERNAL_DETAIL;
+
+    const result = await activateTagForUser(ownerUserId, {
+      serial,
+      activationCode: code,
+      petId,
+    });
+
+    expect(result).toEqual({ error: UNKNOWN_ERROR_FALLBACK });
+    if ("error" in result) {
+      expect(result.error).not.toContain("pet_events");
+      expect(result.error).not.toContain("constraint");
+      expect(result.error).not.toContain(code);
+    }
+    // The detail is not lost — it goes to the server log, where it belongs.
+    // (Read off the Error itself: JSON.stringify(new Error(msg)) is "{}".)
+    expect(logged).toHaveBeenCalled();
+    const loggedError = logged.mock.calls[0]?.[1];
+    expect(loggedError).toBeInstanceOf(Error);
+    expect((loggedError as Error).message).toContain("pet_events");
+
+    // And the transaction rolled back: the chapa is untouched.
+    const [row] = await db.select().from(petTags).where(eq(petTags.id, id));
+    expect(row.status).toBe("unactivated");
+    expect(row.petId).toBeNull();
+  });
+
+  it("revoke: an unexpected internal failure is replaced, not forwarded", async () => {
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { serial, id } = await seedActiveTagForHygiene();
+    injectedPayloadFailure.message = INTERNAL_DETAIL;
+
+    const result = await revokeTagForUser(ownerUserId, { serial, revokeReason: "damaged" });
+
+    expect(result).toEqual({ error: UNKNOWN_ERROR_FALLBACK });
+    if ("error" in result) {
+      expect(result.error).not.toContain("pet_events");
+      expect(result.error).not.toContain("constraint");
+    }
+    expect(logged).toHaveBeenCalled();
+
+    const [row] = await db.select().from(petTags).where(eq(petTags.id, id));
+    expect(row.status).toBe("active");
+  });
+
+  it("keeps the DELIBERATE refusals — hygiene must not flatten actionable messages", async () => {
+    // Authorization and state refusals are written to be read by the caller;
+    // replacing them with "Error desconocido" would be a regression in the
+    // opposite direction.
+    const blank = await seedBlankTag();
+    const strangerActivation = await activateTagForUser(strangerUserId, {
+      serial: blank.serial,
+      activationCode: blank.code,
+      petId,
+    });
+    expect("error" in strangerActivation && strangerActivation.error).toMatch(/ownership/i);
+
+    const revokeBlank = await revokeTagForUser(ownerUserId, {
+      serial: blank.serial,
+      revokeReason: "other",
+    });
+    expect("error" in revokeBlank && revokeBlank.error).toMatch(/active tag/i);
+
+    // …and the uniform evidence gate is untouched by all of this.
+    const wrongCode = await activateTagForUser(ownerUserId, {
+      serial: blank.serial,
+      activationCode: "DDDD-DDDD",
+      petId,
+    });
+    expect(wrongCode).toEqual({ error: ACTIVATION_FAILED_MESSAGE });
   });
 });

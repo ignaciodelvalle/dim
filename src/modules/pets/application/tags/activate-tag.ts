@@ -25,7 +25,9 @@ import {
 } from "@/lib/infra/notification-service";
 import { normalizeTagSerial, tagActivationCodeMatches } from "@/lib/infra/tag-lookup";
 
-import { ACTIVATION_FAILED_MESSAGE, activateTagSchema } from "./types";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
+
+import { ACTIVATION_FAILED_MESSAGE, TagWriterRefusal, activateTagSchema } from "./types";
 import type { ActivateTagInput, ActivateTagResult } from "./types";
 
 export async function activateTagForUser(
@@ -62,7 +64,7 @@ export async function activateTagForUser(
       // BEFORE the evidence gates: it reveals nothing about the TAG, and the
       // idempotency short-circuit below must not answer an unauthorized caller.
       const [pet] = await tx.select().from(pets).where(eq(pets.id, parsed.petId)).limit(1);
-      if (!pet || pet.deletedAt !== null) throw new Error("Pet not found.");
+      if (!pet || pet.deletedAt !== null) throw new TagWriterRefusal("Pet not found.");
 
       const [ownership] = await tx
         .select({ id: ownerships.id })
@@ -75,7 +77,7 @@ export async function activateTagForUser(
           ),
         )
         .limit(1);
-      if (!ownership) throw new Error("No active ownership for this user on this pet.");
+      if (!ownership) throw new TagWriterRefusal("No active ownership for this user on this pet.");
 
       // Idempotency guard: a double-submit must not emit a second
       // tag_activated event. The advisory lock serializes concurrent same-key
@@ -195,9 +197,16 @@ export async function activateTagForUser(
     if (err instanceof UniformActivationFailure) {
       return { error: ACTIVATION_FAILED_MESSAGE };
     }
-    return {
-      error: `activateTagForUser failed: ${err instanceof Error ? err.message : String(err)}`,
-    };
+    // Deliberate refusals keep their message — the caller can act on them.
+    if (err instanceof TagWriterRefusal) {
+      return { error: err.message };
+    }
+    // Everything else is UNEXPECTED — a driver fault, a constraint violation, a
+    // bug. Its message can quote the failing statement or name a column, and
+    // this string is rendered straight into ActivateTagForm's error banner, so
+    // it never leaves the server. Logged here so the detail is not lost.
+    console.error("[activateTagForUser] unexpected failure", err);
+    return { error: UNKNOWN_ERROR_FALLBACK };
   }
 
   // Outside the business tx on purpose (ARCH-P): createNotificationsBulk

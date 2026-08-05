@@ -69,3 +69,33 @@ export type IssueTagBatchResult = { ok: true; rows: IssuedTagRow[] } | { error: 
 // not an oracle for which of the three it was.
 export const ACTIVATION_FAILED_MESSAGE =
   "No pudimos activar la chapa. Revisá el número de serie y el código del envoltorio.";
+
+// ---------------------------------------------------------------------------
+// Writer failures
+// ---------------------------------------------------------------------------
+
+/**
+ * A DELIBERATE, caller-facing refusal thrown by a tag writer — "this pet is not
+ * yours", "only an active chapa can be revoked". Its message was written to be
+ * returned.
+ *
+ * WHY THE MARKER EXISTS (error-hygiene audit, S1): both writers used to end
+ * their transaction in a single `catch` that returned
+ * `${err instanceof Error ? err.message : String(err)}` verbatim. That branch
+ * cannot tell a refusal apart from a driver fault, so ANY unexpected failure —
+ * a constraint violation naming a column, a Postgres error quoting the failing
+ * statement, a bug's stack message — was handed to the browser and rendered in
+ * the form's error banner. Marking the intended refusals lets everything else
+ * be replaced by UNKNOWN_ERROR_FALLBACK without flattening the messages a user
+ * can actually act on.
+ *
+ * NOT for the uniform evidence gate: activate-tag.ts keeps its own
+ * UniformActivationFailure so wrong code / unknown serial / wrong state stay
+ * indistinguishable.
+ */
+export class TagWriterRefusal extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "TagWriterRefusal";
+  }
+}

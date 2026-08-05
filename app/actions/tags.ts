@@ -79,6 +79,35 @@ export async function revokeTagAction(rawInput: RevokeTagInput): Promise<RevokeT
   const profile = await getProfileCached(user.id);
   if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
 
+  // Revocation had NO budget at all (abuse-surface audit, S1). It is a
+  // destructive, TERMINAL write — a revoked chapa can never be reactivated —
+  // and each call takes a FOR UPDATE row lock, appends to the spine and fans
+  // out a notification per co-owner, so an unbounded loop is both a data and a
+  // load problem even though every call is authenticated.
+  //
+  // Budgets are looser than activation's on purpose. Activation's numbers
+  // (5/min · 20/hour per IP) size a BRUTE-FORCE window: the attacker is
+  // guessing a wrapper code. There is nothing to guess here — the caller has
+  // already proven an active ownership on the linked pet — so the limit only
+  // has to bound a runaway client, not an attacker, and a household or a
+  // rescue clearing a batch of chapas after a transfer must not be locked out.
+  //
+  // The per-SERIAL budget is deliberately kept AT activation's numbers: a given
+  // serial can be revoked exactly once, so anything past a couple of retries on
+  // the same one is a client that will not succeed on the next attempt either.
+  try {
+    const reqHeaders = await headers();
+    const ip = callerIp(reqHeaders);
+    await enforceRateLimit("tag_revoke_ip", ip, { maxPerMinute: 10, maxPerHour: 40 });
+    await enforceRateLimit("tag_revoke_serial", normalizeTagSerial(rawInput?.serial ?? ""), {
+      maxPerMinute: 3,
+      maxPerHour: 10,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) return { error: RATE_LIMITED_MESSAGE };
+    throw err;
+  }
+
   return _revokeTagForUser(user.id, rawInput);
 }
 
