@@ -101,6 +101,10 @@ export const NON_LIBRETA_EVENT_TYPES = [
   // context (jurisdiction change / foreign CVI fact / trip), not pet medical
   // history. Powers /viaje, not the libreta.
   "movement_recorded",
+  // Physical tag (chapa) lifecycle — credential plumbing (link/unlink of a
+  // QR chapa), not sanitary history. Powers /cuenta/chapas, not the libreta.
+  "tag_activated",
+  "tag_revoked",
 ] as const satisfies readonly EventType[];
 
 const LIBRETA_SET: ReadonlySet<string> = new Set(LIBRETA_SANITARIA_EVENT_TYPES);

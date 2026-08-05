@@ -75,7 +75,7 @@ Integration tests sit under `__tests__/` and require a local Supabase + Postgres
 
 ## Quick reference
 
-- Patterns and existing event catalog: `AGENTS.md` → "Event catalog — 48 types"
+- Patterns and existing event catalog: `AGENTS.md` → "Event catalog — 50 types"
 - Schema registry: `lib/events/event-schemas.ts` (uses `payload_version`, not `schemaVersion`)
 - Payload versioning convention: `docs/superpowers/event-versioning.md`
 - Upcasters: `lib/event-upcasters.ts`

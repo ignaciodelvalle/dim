@@ -79,7 +79,7 @@ Before writing a new event type, walk through `docs/event-design-checklist.md`. 
 | Legal framework | [#legal-framework](#legal-framework) | Compliance, SENASA, Ley 25.326 |
 | Data model | [#data-model](#data-model) | Schema, new tables, migrations |
 | Libreta sanitaria | [#libreta-sanitaria](#libreta-sanitaria) | Medical events, UI surfaces |
-| Event catalog — 48 types | [#event-catalog--48-types](#event-catalog--48-types) | New event types, payload design |
+| Event catalog — 50 types | [#event-catalog--50-types](#event-catalog--50-types) | New event types, payload design |
 | Privacy tiers | [#privacy-tiers-the-public-surface](#privacy-tiers-the-public-surface) | Public credential, Tier 0/1/2 |
 | Dashboards & projections | [#dashboards--projections-the-consumers](#dashboards--projections-the-consumers) | Govt / analyst / welfare views |
 | Aggregation & privacy policy | [#aggregation--privacy-policy](#aggregation--privacy-policy) | k-anonymity, opt-in, PII rules |
@@ -653,7 +653,7 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 The naming is not cosmetic. It is the conceptual surface that makes DIM legible to non-technical dueños, which is precisely what the North Star ("the data-collection layer must be valuable on its own to drive adoption") requires. Renaming this later would mean retraining users we already onboarded. Lock it now, before scale.
 
-## Event catalog — 48 types
+## Event catalog — 50 types
 
 `UI` column: `v1` = recordable by owner in the v1 PWA · `system` = system-emitted · `later` = schema-ready, UI deferred (either non-owner reporter flow needed, or the owner-facing form just hasn't been built yet).
 
@@ -706,6 +706,8 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 | `tattoo_recorded`          | later | `{ tattoo_code, body_location?, recorded_by? }` — initial tattoo identification (Art. 4° Ord. CABA 41.831) |
 | `tattoo_updated`           | later | `{ previous_code, new_code, reason? }` — correction or re-tattoo |
 | `dangerous_breed_attested` | later | `{ registry: caba_4078\|prov_14107\|other, registry_id?, attested_at }` — owner registers their PPP in the official provincial registry |
+| `tag_activated`            | v1    | `{ serial, lote_id?, source: self }` — owner links a physical tag (chapa) to the pet via the wrapper code. The payload NEVER carries the activation code (plaintext or hashed); strict schema rejects any code-shaped key |
+| `tag_revoked`              | v1    | `{ serial, revoke_reason: lost\|damaged\|transfer\|fraud\|owner_request\|other, replacement_serial? }` — terminal baja of an ACTIVE tag. Key is `revoke_reason`, NOT `reason` (the erase RPC sentinel-redacts `reason` on every type and would destroy the enum) |
 
 **Free-form**
 
