@@ -20,7 +20,7 @@ const WIDTHS = [1280, 1366] as const;
 async function loginAsAdmin(page: Page): Promise<void> {
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill("admin@dim.test");
-  await page.getByLabel(/contraseña/i).fill(SHARED_PASSWORD);
+  await page.getByLabel(/^contraseña$/i).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
 }

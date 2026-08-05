@@ -195,7 +195,7 @@ async function getOwnerBPet(
 async function loginAsOwnerA(page: Page): Promise<void> {
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill(OWNER_A_EMAIL);
-  await page.getByLabel(/contraseña/i).fill(OWNER_A_PASSWORD);
+  await page.getByLabel(/^contraseña$/i).fill(OWNER_A_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   // Wait for LEAVING /login, never for /inicio: that pathname is a
   // redirect-only router the address bar NEVER shows (owners land directly on
@@ -212,7 +212,7 @@ async function loginAsOwnerA(page: Page): Promise<void> {
 async function loginAs(page: Page, email: string, password: string): Promise<void> {
   await page.goto("/login");
   await page.getByLabel(/correo electrónico/i).fill(email);
-  await page.getByLabel(/contraseña/i).fill(password);
+  await page.getByLabel(/^contraseña$/i).fill(password);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
 }
