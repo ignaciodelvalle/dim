@@ -1108,6 +1108,7 @@ Leyenda: ✅ en producción · 🔵 en progreso (migración parcial en curso) ·
 | 🟡 | Movilidad jurisdiccional — honest facade desde la UX-honesty pass del 2026-07-19: la ruta renderiza un `LnEmptyState` "Próximamente" (ningún writer emite `transport_recorded`; solo `jurisdiction_changed` vía `/mudanza`), y el ítem de menú "Viaje y movilidad" queda deshabilitado con badge "Próximamente". El semáforo/checklist/export PDF de Fase 1 (5 corredores, valores regulatorios citation-pending) NO está wired a ninguna pantalla — el código subyacente (`lib/projections/travel-compliance.ts`, `lib/reference/cross-border-corridors.ts`) queda intacto y listo para re-wire cuando se priorice. | `/mis-mascotas/[publicToken]/viaje` + `lib/projections/travel-compliance.ts` + `lib/reference/cross-border-corridors.ts` |
 | ✅ | Adoption listing público con filtros + postulación | `/adoptar` (spec v1.2) |
 | ✅ | Foster volunteers pool (pool global owner→refugio) | `/cuenta/ofrecerme-como-tránsito` + `/cuenta/transitos/*` (spec v1.4) |
+| ✅ | Physical-tag lifecycle (chapa física): emisión admin por lote (CSV serial+código), activación self-service con código de envoltorio (hash HMAC peppered, compuerta de evidencia en SQL — el código nunca se lee de vuelta), baja terminal con motivo, resolver público por estado (active→307 a `/p/`, unactivated→CTA activar, revoked→página honesta sin motivo, unknown→404, 100/min/IP). Eventos `tag_activated`/`tag_revoked` (payload key `revoke_reason`, nunca el código). La regla `physical_credential_channels.engraved_plate` gatea SOLO discovery (entrada de nav /cuenta), nunca activación ni resolución. Migrations 0169/0170. | `/t/[serial]` + `/cuenta/chapas` + `/cuenta/chapas/activar` + `/admin/chapas` + `src/modules/pets/application/tags/` |
 
 ### Welfare denuncias (Ley 14.346)
 
@@ -1578,8 +1579,8 @@ Any jurisdiction-grouped aggregate returned to a public or analyst surface must 
 
 | Right | Enforcement |
 |---|---|
-| Access (art. 14) — `export_subject_data(p_user_id)` RPC | migration 0059 |
-| Erasure (art. 16) — `erase_subject_data(p_user_id, p_reason)` RPC | migration 0059 (+ migration 0106 for `dni_hash`/`miarg_sub`) |
+| Access (art. 14) — `export_subject_data(p_user_id)` RPC | migration 0059 (pet_tags added in 0170, `activation_code_hash` excluded from the projection) |
+| Erasure (art. 16) — `erase_subject_data(p_user_id, p_reason)` RPC | migration 0059 (+ migration 0106 for `dni_hash`/`miarg_sub`; + 0170 nulls `pet_tags` actor FKs, `pet_tags_scrubbed` in audit) |
 | New PII tables → `pii.apply_baseline(tbl)` adds `purpose`, `deleted_at`, `retention_until` | schema `pii` helper |
 | Include new PII tables in `export_subject_data` | migration 0059 RPC |
 | `pet_events` is append-only by design → exempt from soft-delete | Core principle #2 |

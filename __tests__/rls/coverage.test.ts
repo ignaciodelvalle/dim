@@ -110,6 +110,11 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   // policies (user_id = auth.uid()); no DELETE (revocation is a soft
   // revoked_at update; rows go via profiles CASCADE only).
   "push_subscriptions",
+  // Physical tags (migration 0169): SELECT-own policy only (activator or
+  // current owner of the linked pet, TO authenticated); zero write policies —
+  // issuance/activation/revocation go through server actions (BYPASSRLS).
+  // Carries activation_code_hash (peppered HMAC) + two user FKs.
+  "pet_tags",
 ];
 
 // ---------------------------------------------------------------------------

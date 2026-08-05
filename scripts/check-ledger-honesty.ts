@@ -178,6 +178,32 @@ const PROBES: Probe[] = [
     expectation: "public.share_telemetry no longer exists",
     query: "SELECT to_regclass('public.share_telemetry') IS NULL AS ok",
   },
+  {
+    id: "pet-tags-select-own-only",
+    migration: "0169",
+    expectation: "pet_tags has exactly one SELECT policy and ZERO write policies",
+    query: `
+      SELECT (
+        (SELECT count(*) FROM pg_policies
+          WHERE schemaname = 'public' AND tablename = 'pet_tags'
+            AND cmd = 'SELECT') = 1
+        AND
+        (SELECT count(*) FROM pg_policies
+          WHERE schemaname = 'public' AND tablename = 'pet_tags'
+            AND cmd <> 'SELECT') = 0
+      ) AS ok
+    `,
+  },
+  {
+    id: "erase-scrubs-pet-tags",
+    migration: "0170",
+    expectation: "erase_subject_data's live body scrubs pet_tags (a push+baseline DB keeps the 0166 body)",
+    query: `
+      SELECT position('pet_tags_scrubbed' IN pg_get_functiondef(
+        'public.erase_subject_data(uuid, text)'::regprocedure
+      )) > 0 AS ok
+    `,
+  },
 ];
 
 // ---------------------------------------------------------------------------
