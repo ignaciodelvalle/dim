@@ -11,7 +11,7 @@
 // Both return the same { microchip?, tattoo? } shape. Callers that only need
 // one kind can destructure what they need.
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, sql } from "drizzle-orm";
 
 import { db, petIdentifications } from "@/db";
 
@@ -75,6 +75,36 @@ export async function fetchActiveIdentifications(petId: string): Promise<ActiveI
   // so rowsToIdentifications keys these rows under SINGLE_PET_KEY — indexing
   // by the UUID here would always miss and return empty identifications.
   return rowsToIdentifications(rows)[SINGLE_PET_KEY] ?? { microchip: null, tattoo: null };
+}
+
+/**
+ * Existence-only microchip check: does this pet have an active chip row?
+ *
+ * PO-1 (2026-08-05) — the public adoption ficha may state THAT a pet is
+ * chipped, never any part of the number. `fetchActiveIdentifications` would
+ * answer the same question, but it SELECTs `code`, so the canonical national
+ * identifier would land in server memory on an ungated route for no reason.
+ * This projection is a constant (`1`): it cannot leak the code even if a
+ * future caller renders whatever it gets back.
+ *
+ * Match semantics are identical to the microchip branch of
+ * `rowsToIdentifications`: kind='microchip_iso', status='active', code present.
+ */
+export async function hasActiveMicrochip(petId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ present: sql<number>`1` })
+    .from(petIdentifications)
+    .where(
+      and(
+        eq(petIdentifications.petId, petId),
+        eq(petIdentifications.status, "active"),
+        eq(petIdentifications.kind, "microchip_iso"),
+        isNotNull(petIdentifications.code),
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
 }
 
 // ---------------------------------------------------------------------------

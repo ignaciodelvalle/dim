@@ -7,7 +7,7 @@ import Script from "next/script";
 import { Icon } from "@/components/Icon";
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
-import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { hasActiveMicrochip } from "@/lib/infra/pet-identifiers";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import {
@@ -183,11 +183,14 @@ export default async function AdoptarFichaPage({
     .where(and(eq(petEvents.petId, pet.id), eq(petEvents.eventType, "sterilization_performed")))
     .limit(1);
   const isSterilized = Boolean(sterilizationRow);
-  const canonicalIds = await fetchActiveIdentifications(pet.id);
-  const hasMicrochip = canonicalIds.microchip !== null;
-  const microchipMasked = canonicalIds.microchip
-    ? `••••${canonicalIds.microchip.code.slice(-4)}`
-    : null;
+  // PO-1 (2026-08-05): the ficha states THAT the animal is chipped and nothing
+  // more. It used to render a masked form of the canonical microchip (dots
+  // plus its last four digits) to an anonymous visitor — the only one of the
+  // 16 canonical-identifier read sites that was not gated by role. The
+  // boolean-only fetch
+  // is the point: the full code no longer even reaches server memory on this
+  // ungated route, so no future render can leak it by accident.
+  const hasMicrochip = await hasActiveMicrochip(pet.id);
 
   const facts: string[] = [];
   if (pet.adoptionAgeBucket) facts.push(ageBucketLabel(pet.adoptionAgeBucket, pet.sex));
@@ -489,11 +492,7 @@ export default async function AdoptarFichaPage({
               ok={isSterilized}
               detail={isSterilized ? undefined : undefined}
             />
-            <HealthRow
-              label="Microchip miMAR"
-              ok={hasMicrochip}
-              detail={microchipMasked ?? undefined}
-            />
+            <HealthRow label="Microchip miMAR" ok={hasMicrochip} />
           </ul>
           <p className="mt-3.5 text-sm" style={{ color: "var(--color-ln-mute)" }}>
             El detalle clínico completo se comparte al finalizar la adopción.
