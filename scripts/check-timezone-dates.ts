@@ -76,6 +76,23 @@ const CALL_PATTERNS: RegExp[] = [
   // version tripped on 12 legend/popup number sites (all false positives).
   /(?:new\s+Date\s*\([^)]*\)|\b(?:[A-Za-z_$][\w$]*(?:date|time|watermark|asof)[\w$]*|[A-Za-z_$][\w$]*At))\s*\.toLocaleString\s*\([^)]*\)/gis,
   /\bnew\s+Intl\.DateTimeFormat\s*\([^)]*\)/gs,
+  // SEMANTIC arm (2026-08-04) — the receiver-name heuristic above has a hole
+  // shaped like a variable name, and it cost a real defect.
+  //
+  // `components/panorama/panorama-informe.ts` formatted the generation stamp of
+  // a PRINTED GOVERNMENT REPORT with `now.toLocaleString("es-AR", {...})`. The
+  // receiver is `now` — no "date", no "time", no `…At` suffix — so no pattern
+  // above matched, the fence stayed green with an EMPTY baseline, and the
+  // document went to paper stamped in the server's UTC clock, three hours off.
+  //
+  // Names are a weak signal; the OPTIONS OBJECT is a strong one. Nobody asks
+  // for `day`/`month`/`year`/`hour`/`minute`/`weekday`/`dateStyle`/`timeStyle`
+  // while formatting a number — those keys only mean something on a Date. So
+  // this arm flags any `toLocaleString` whose options request calendar or clock
+  // fields, whatever the receiver is called. Numeric formatting
+  // (`count.toLocaleString("es-AR")`) has no such keys and stays un-flagged,
+  // which was the false-positive problem that shaped the heuristic originally.
+  /\.toLocaleString\s*\([^)]*\b(?:dateStyle|timeStyle|weekday|year|month|day|hour|minute|second)\s*:[^)]*\)/gs,
 ];
 
 type Violation = { line: number; col: number; text: string };
