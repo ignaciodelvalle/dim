@@ -17,10 +17,13 @@ import { getProfileCached } from "@/lib/infra/request-cache";
 import { normalizeTagSerial } from "@/lib/infra/tag-lookup";
 import { createClient } from "@/lib/supabase/server";
 import { activateTagForUser as _activateTagForUser } from "@/src/modules/pets/application/tags/activate-tag";
+import { issueTagBatchForAdmin as _issueTagBatchForAdmin } from "@/src/modules/pets/application/tags/issue-tag-batch";
 import { revokeTagForUser as _revokeTagForUser } from "@/src/modules/pets/application/tags/revoke-tag";
 import type {
   ActivateTagInput,
   ActivateTagResult,
+  IssueTagBatchInput,
+  IssueTagBatchResult,
   RevokeTagInput,
   RevokeTagResult,
 } from "@/src/modules/pets/application/tags/types";
@@ -28,6 +31,8 @@ import type {
 export type {
   ActivateTagInput,
   ActivateTagResult,
+  IssueTagBatchInput,
+  IssueTagBatchResult,
   RevokeTagInput,
   RevokeTagResult,
 } from "@/src/modules/pets/application/tags/types";
@@ -75,4 +80,23 @@ export async function revokeTagAction(rawInput: RevokeTagInput): Promise<RevokeT
   if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
 
   return _revokeTagForUser(user.id, rawInput);
+}
+
+// Admin batch issuance (design D9). The writer re-verifies the admin role
+// inside the transaction; this shim only resolves the session. The returned
+// rows carry the PLAINTEXT activation codes exactly once, for the issuance
+// CSV — they are never persisted or logged.
+export async function issueTagBatchAction(
+  rawInput: IssueTagBatchInput,
+): Promise<IssueTagBatchResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { error: "Sesión expirada." };
+
+  const profile = await getProfileCached(user.id);
+  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
+
+  return _issueTagBatchForAdmin(user.id, rawInput);
 }

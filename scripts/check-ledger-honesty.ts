@@ -197,7 +197,8 @@ const PROBES: Probe[] = [
   {
     id: "erase-scrubs-pet-tags",
     migration: "0170",
-    expectation: "erase_subject_data's live body scrubs pet_tags (a push+baseline DB keeps the 0166 body)",
+    expectation:
+      "erase_subject_data's live body scrubs pet_tags (a push+baseline DB keeps the 0166 body)",
     query: `
       SELECT position('pet_tags_scrubbed' IN pg_get_functiondef(
         'public.erase_subject_data(uuid, text)'::regprocedure
