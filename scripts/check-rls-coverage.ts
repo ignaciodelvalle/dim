@@ -109,11 +109,34 @@ export const DENY_ALL_ALLOWLIST: Record<string, string> = {
 // that shows up in the public schema.
 export const SCHEMA_IGNORE_LIST = new Set<string>([]);
 
-type TableRlsRow = {
+export type TableRlsRow = {
   table_name: string;
   rls_enabled: boolean;
   policy_count: string; // postgres driver returns numeric as string
 };
+
+/**
+ * The one query that reads REAL RLS state (pg_class + pg_policies) for every
+ * public table. Exported so scripts/check-ledger-honesty.ts asks the database
+ * the same question this fence does — one definition of "has RLS", not two that
+ * can drift apart. Takes an open client; connection policy stays with the caller.
+ */
+export async function fetchRlsCoverage(client: postgres.Sql): Promise<TableRlsRow[]> {
+  return await client<TableRlsRow[]>`
+    SELECT
+      c.relname        AS table_name,
+      c.relrowsecurity AS rls_enabled,
+      count(p.policyname)::text AS policy_count
+    FROM pg_class c
+    LEFT JOIN pg_policies p
+      ON  p.tablename  = c.relname
+      AND p.schemaname = 'public'
+    WHERE c.relnamespace = 'public'::regnamespace
+      AND c.relkind      = 'r'
+    GROUP BY c.relname, c.relrowsecurity
+    ORDER BY c.relname
+  `;
+}
 
 type Violation = {
   table_name: string;
@@ -135,20 +158,7 @@ const SKIPPED_CHECKS =
 async function fetchCoverage(rawUrl: string, target: DbTarget): Promise<TableRlsRow[] | null> {
   const sql = postgres(rawUrl, { max: 1, connect_timeout: 5 });
   try {
-    return await sql<TableRlsRow[]>`
-      SELECT
-        c.relname        AS table_name,
-        c.relrowsecurity AS rls_enabled,
-        count(p.policyname)::text AS policy_count
-      FROM pg_class c
-      LEFT JOIN pg_policies p
-        ON  p.tablename  = c.relname
-        AND p.schemaname = 'public'
-      WHERE c.relnamespace = 'public'::regnamespace
-        AND c.relkind      = 'r'
-      GROUP BY c.relname, c.relrowsecurity
-      ORDER BY c.relname
-    `;
+    return await fetchRlsCoverage(sql);
   } catch (err) {
     // A DB-less box is not a failure — but it is not a pass either, and it has
     // to say which checks did not run. Same contract as lint:scope-authz and
