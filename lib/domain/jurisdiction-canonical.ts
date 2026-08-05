@@ -79,27 +79,79 @@ export function isCanonicalProvinceName(value: string | null | undefined): boole
 // whole-CABA operator would otherwise never see a barrio-tagged denuncia (and
 // vice-versa). See jurisdictionPairClause in lib/metrics/scope.ts.
 //
-// Map: canonical province display name → its whole-province INDEC locality name.
-export const WHOLE_PROVINCE_LOCALITY: Readonly<Record<string, string>> = {
+// D3 (PO decision, 2026-08-04): "provincia entera fuera de CABA — SE CONSTRUYE
+// AHORA." Any province may be addressed as a whole, not just CABA.
+//
+// The two forms are NOT interchangeable and both are kept on purpose:
+//
+//   INDEC single-entry name — a FACT about the INDEC catalog. Only CABA has one
+//     ("Ciudad Autónoma de Buenos Aires"). It is a real, stored locality string
+//     that pre-dates this decision and rows already carry it.
+//   The EMPTY sentinel — the product's own "toda la provincia" marker, already
+//     the shape the rest of the codebase uses (`describeMandate`,
+//     `censusEligibleProvince`, `localitiesForScope`) and already honoured by
+//     `isWholeProvinceAssignment`. It is what a non-CABA province gets, because
+//     INDEC gives it nothing to borrow.
+//
+// The bug D3 closes: the WORDING path already read `locality === ""` as "toda
+// la provincia", while the QUERY path (`jurisdictionPairClause` → this
+// predicate) did not — so a whole-Mendoza operator was TOLD they govern Mendoza
+// and then served `locality = ''`, which matches no pet, no denuncia, nothing.
+// Wording and query must never disagree about what counts as the whole province
+// (C3, plan-maestro-integridad).
+//
+// NOT the province's own name: "Mendoza", "Córdoba", "Salta" and "Santa Fe" are
+// all real LOCALITIES inside the provinces they name. Using the name as the
+// sentinel would silently promote a capital-city assignment to province-wide.
+
+/** The generic "toda la provincia" locality marker (every province). */
+export const WHOLE_PROVINCE_SENTINEL = "";
+
+/** Provinces INDEC models as a SINGLE locality equal to the whole province. */
+const INDEC_WHOLE_PROVINCE_LOCALITY: Readonly<Record<string, string>> = {
   CABA: "Ciudad Autónoma de Buenos Aires",
 };
 
+// Map: canonical province display name → its whole-province locality string.
+// Every canonical province is present (D3); CABA keeps its INDEC entry, the
+// other 23 carry the generic sentinel.
+export const WHOLE_PROVINCE_LOCALITY: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(
+    PROVINCES.map((p) => [
+      p.name,
+      INDEC_WHOLE_PROVINCE_LOCALITY[p.name] ?? WHOLE_PROVINCE_SENTINEL,
+    ]),
+  ),
+);
+
 /**
- * True when `(province, locality)` is the whole-province INDEC single-entry
- * locality — i.e. jurisdiction at PROVINCE granularity rather than a specific
- * sub-locality/barrio. Jurisdiction scope clauses use this so a whole-province
- * govt assignment matches every locality in that province instead of only the
- * exact whole-province string.
+ * True when `(province, locality)` addresses the WHOLE province rather than a
+ * specific sub-locality/barrio. Jurisdiction scope clauses use this so a
+ * whole-province govt assignment matches every locality in that province
+ * instead of only the exact stored string.
  *
- * Deliberately narrow: only the whole-province catch-all subsumes sub-localities.
- * A barrio-specific assignment (e.g. `CABA / Palermo`) stays exact-match, so it
- * never widens beyond its barrio and other provinces stay invisible.
+ * Accepts BOTH forms above, and nothing else:
+ *   - the generic sentinel (`""`) for any canonical province — D3;
+ *   - CABA's INDEC whole-city entry, unchanged.
+ *
+ * Deliberately narrow, and FAIL-CLOSED in three directions that all matter for
+ * authorization:
+ *   - a locality-specific assignment (`CABA / Palermo`, `Mendoza / Godoy Cruz`)
+ *     stays exact-match — it never widens beyond its own unit;
+ *   - a NON-canonical province name never becomes whole-province, however its
+ *     locality reads (`govt_assignments` has a CHECK for canonicality, so this
+ *     is defence in depth);
+ *   - a null/undefined locality is not the sentinel. Only the empty STRING is.
+ *     Data rows with a NULL locality are matched by the province-only branch in
+ *     `jurisdictionPairClause`, which is a different mechanism.
  */
 export function isWholeProvinceLocality(
   province: string | null | undefined,
   locality: string | null | undefined,
 ): boolean {
-  if (!province || !locality) return false;
+  if (!province || locality === null || locality === undefined) return false;
+  if (!CANONICAL_PROVINCE_NAMES.has(province)) return false;
+  if (locality === WHOLE_PROVINCE_SENTINEL) return true;
   return WHOLE_PROVINCE_LOCALITY[province] === locality;
 }
 

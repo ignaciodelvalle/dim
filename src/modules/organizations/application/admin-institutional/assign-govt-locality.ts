@@ -17,6 +17,10 @@ import { z } from "zod/v4";
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
 import { canAssignGovtLocality } from "@/lib/domain/institutional-scope";
 import {
+  WHOLE_PROVINCE_SENTINEL,
+  canonicalProvinceNameForStorage,
+} from "@/lib/domain/jurisdiction-canonical";
+import {
   CoordError,
   JurisdictionValidationError,
   normalizeLocationForWrite,
@@ -25,10 +29,15 @@ import {
 import { loadActorProfile } from "./helpers";
 import type { AssignGovtLocalityResult } from "./types";
 
+// D3 (PO 2026-08-04): a whole-province mandate is now assignable for ANY
+// province, expressed as the empty locality sentinel. `locality` therefore
+// stops being `.min(1)`; the empty string is a MEANING here, not a missing
+// field, and the branch below never lets it through without a canonical
+// province to attach it to.
 const assignLocalitySchema = z.object({
   targetUserId: z.string().min(1, "targetUserId is required"),
   province: z.string().min(1, "Province is required"),
-  locality: z.string().min(1, "Locality is required"),
+  locality: z.string(),
 });
 
 export async function assignGovtLocalityForAuthority(
@@ -47,25 +56,41 @@ export async function assignGovtLocalityForAuthority(
   // locality:"strict" — resolveCanonicalJurisdiction (govt assignment behavior unchanged).
   let canonicalProvince: string;
   let canonicalLocality: string;
-  try {
-    const normalizedLoc = await normalizeLocationForWrite(
-      {
-        province: rawProvince,
-        provinceCode: null,
-        locality: rawLocality,
-        localityIndecId: null,
-        lat: null,
-        lng: null,
-        address: null,
-      },
-      { locality: "strict" },
-    );
-    canonicalProvince = normalizedLoc.province ?? rawProvince;
-    canonicalLocality = normalizedLoc.locality ?? rawLocality;
-  } catch (err) {
-    if (err instanceof JurisdictionValidationError) return { error: err.message };
-    if (err instanceof CoordError) return { error: err.message };
-    throw err;
+
+  // WHOLE-PROVINCE branch (D3). There is no catalog row to resolve — the
+  // sentinel IS the value — so the strict locality resolver is bypassed and the
+  // PROVINCE is canonicalized on its own. Rejecting a non-canonical province
+  // here keeps the widening honest: an unresolvable province can never be
+  // granted province-wide, and `govt_assignments`' CHECK constraint would
+  // refuse it anyway. Only the RESOLUTION is skipped — every capability and
+  // target check below still runs, in the same order, on the same row.
+  const wholeProvince = rawLocality.trim() === WHOLE_PROVINCE_SENTINEL;
+  if (wholeProvince) {
+    const province = canonicalProvinceNameForStorage(rawProvince);
+    if (!province) return { error: `VALIDATION_ERROR: Provincia desconocida: ${rawProvince}` };
+    canonicalProvince = province;
+    canonicalLocality = WHOLE_PROVINCE_SENTINEL;
+  } else {
+    try {
+      const normalizedLoc = await normalizeLocationForWrite(
+        {
+          province: rawProvince,
+          provinceCode: null,
+          locality: rawLocality,
+          localityIndecId: null,
+          lat: null,
+          lng: null,
+          address: null,
+        },
+        { locality: "strict" },
+      );
+      canonicalProvince = normalizedLoc.province ?? rawProvince;
+      canonicalLocality = normalizedLoc.locality ?? rawLocality;
+    } catch (err) {
+      if (err instanceof JurisdictionValidationError) return { error: err.message };
+      if (err instanceof CoordError) return { error: err.message };
+      throw err;
+    }
   }
 
   // 2. Load actor + capability check
@@ -137,8 +162,15 @@ export async function assignGovtLocalityForAuthority(
     await db.insert(notifications).values({
       userId: targetUserId,
       notificationType: "govt_locality_assigned",
-      title: "Nueva localidad asignada a tu cuenta",
-      body: `Un administrador asignó la localidad ${canonicalLocality}, ${canonicalProvince} a tu jurisdicción.`,
+      // The operator must read what they were actually granted. A whole-province
+      // mandate announced as "la localidad , Mendoza" is both broken copy and a
+      // misstatement of scope (D3).
+      title: wholeProvince
+        ? "Nueva provincia asignada a tu cuenta"
+        : "Nueva localidad asignada a tu cuenta",
+      body: wholeProvince
+        ? `Un administrador asignó toda la provincia de ${canonicalProvince} a tu jurisdicción.`
+        : `Un administrador asignó la localidad ${canonicalLocality}, ${canonicalProvince} a tu jurisdicción.`,
       severity: "info",
       ctaLabel: "Ver mis localidades",
       ctaUrl: "/gob",

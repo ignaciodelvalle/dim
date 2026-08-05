@@ -285,17 +285,13 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
 // at this integration level: a govt actor assigned a WHOLE province must see
 // EXACTLY the population the cube stores for that province.
 //
-// A whole-province govt assignment is NOT `{ locality: "" }` for an arbitrary
-// province — jurisdictionPairClause (lib/metrics/scope.ts) only widens to
-// province-only when isWholeProvinceLocality(province, locality) is true, and
-// that map (lib/domain/jurisdiction-canonical.ts WHOLE_PROVINCE_LOCALITY) has
-// exactly ONE entry: CABA's single INDEC locality-of-record. For every other
-// province (including the DRILL_PROVINCE used above), `locality: ""` is an
-// EXACT-MATCH predicate (`locality = ''`) that matches ~nothing — it does NOT
-// mean "whole province". So CABA is the only province where a govt actor's
-// assignment can legitimately be compared against an admin province drill
-// (adminProvince="CABA", no adminLocality) — both resolve to the identical
-// `province = 'CABA'` SQL predicate, hence the identical population.
+// This case uses CABA's INDEC whole-city locality-of-record, the form that has
+// always subsumed every barrio. Since D3 (PO 2026-08-04) the generic sentinel
+// `{ locality: "" }` ALSO means "toda la provincia" for any canonical province
+// — jurisdictionPairClause (lib/metrics/scope.ts) widens to province-only for
+// both forms via isWholeProvinceLocality. CABA is kept here because it is the
+// province this parity fixture has data for; the assertion is about cube-vs-live
+// parity, not about which sentinel form was used.
 describe("govt jurisdiction-scoped correctness (field-diff live-govt vs cube admin drill)", () => {
   const GOVT: DashboardActor = { role: "govt" };
   // The whole-CABA INDEC locality (lib/domain/jurisdiction-canonical.ts
