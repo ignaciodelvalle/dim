@@ -21,6 +21,7 @@
 
 import { useState } from "react";
 
+import { AnimatedKpiValue } from "@/components/panorama/AnimatedKpiValue";
 import { DeltaGlyph } from "@/components/panorama/DeltaGlyph";
 import { selectMetricKpis } from "@/components/panorama/PanoramaMetricsColumn";
 import { Sparkline } from "@/components/panorama/Sparkline";
@@ -111,7 +112,15 @@ function KpiCard({
       title={`${kpi.label} — ${methodNote(kpi)}`}
     >
       <div className="flex items-baseline justify-between gap-2">
-        <span className="text-lg font-bold tabular-nums text-ln-op-ink">{kpi.value}</span>
+        {/* MOT-4c (motion audit Gap 5): the strip used to dim the whole list
+            and let every figure snap at once — the dim says the SET is stale,
+            it cannot say WHICH member moved. Eases only when the round-trip
+            proof holds; see AnimatedKpiValue. */}
+        <AnimatedKpiValue
+          value={kpi.value}
+          temporalFrameActive={temporalFrameActive}
+          className="text-lg font-bold tabular-nums text-ln-op-ink"
+        />
         {kpi.delta && (
           <span className="shrink-0 text-xs tabular-nums text-ln-op-faint" title={kpi.delta.label}>
             <DeltaGlyph direction={kpi.delta.direction} /> {kpi.delta.pct > 0 ? "+" : ""}

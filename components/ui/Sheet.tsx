@@ -448,7 +448,7 @@ export function LnSheetAccordion({
   return (
     <details
       open={defaultOpen}
-      className="group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]"
+      className="op-disclosure group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]"
     >
       <summary className="flex cursor-pointer select-none list-none items-center gap-3 px-3.5 py-[11px] hover:bg-[var(--color-ln-stripe)]">
         {/* Number */}

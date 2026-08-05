@@ -41,6 +41,16 @@ export type OpDashboardSkeletonProps = {
   filterBar?: boolean;
   /** Outer container max-width (Tailwind class), matches the real page. Default "max-w-5xl". */
   maxWidth?: string;
+  /**
+   * Fade the skeleton in (default true — see the Motion note above).
+   *
+   * Pass `false` on an EMERGENCY FILING FLOW. The motion audit's "do not
+   * animate" list (§5.2) covers the bite/maltrato/lost-pet report forms: the
+   * person filing is distressed, often one-handed on a phone, and the skeleton
+   * IS the "is this thing working?" signal. Delaying it by even 150ms spends
+   * the one thing those flows cannot spare. Everywhere else the fade is free.
+   */
+  fade?: boolean;
 };
 
 const KPI_KEYS = ["a", "b", "c", "d", "e", "f"] as const;
@@ -69,12 +79,13 @@ export function OpDashboardSkeleton({
   cards = [6],
   filterBar = true,
   maxWidth = "max-w-5xl",
+  fade = true,
 }: OpDashboardSkeletonProps) {
   return (
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className={`op-fade-in mx-auto ${maxWidth} px-8 py-7 pb-12 block`}
+      className={`${fade ? "op-fade-in " : ""}mx-auto ${maxWidth} px-8 py-7 pb-12 block`}
     >
       <span className="sr-only">Cargando…</span>
 

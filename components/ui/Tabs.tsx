@@ -105,7 +105,7 @@ export function LnAccordion({
     <details
       open={open}
       className={[
-        "group overflow-hidden rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]",
+        "op-disclosure group overflow-hidden rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]",
         className,
       ]
         .filter(Boolean)

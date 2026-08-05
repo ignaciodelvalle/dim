@@ -403,7 +403,7 @@ export function PetForm({
 
       {/* ── "OTROS" COLLAPSIBLE SECTION ───────────────────────── */}
       {!compact && (
-        <details className="group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
+        <details className="op-disclosure group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3.5 py-3 text-sm font-semibold text-[var(--color-ln-ink-2)] select-none">
             <span>Otros datos</span>
             <span

@@ -49,7 +49,7 @@ export function DiscRow({
   children: ReactNode;
 }) {
   return (
-    <details className="ln-disc" open={defaultOpen}>
+    <details className="op-disclosure ln-disc" open={defaultOpen}>
       <summary className="ln-disc-row">
         <span className="ln-disc-ic">
           <Icon name={icon} size="sm" decorative />

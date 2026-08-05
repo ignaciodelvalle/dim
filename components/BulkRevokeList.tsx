@@ -280,6 +280,9 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
     });
   }
 
+  // MOT-4a (motion audit Gap 3): `op-dialog-enter` gives this the same
+  // entry-only scale+fade as ConfirmDialog — it is the other native <dialog>
+  // guarding an irreversible act. Entry yes, exit no (audit §5.4).
   return (
     <dialog
       ref={dialogRef}
@@ -287,7 +290,7 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
       aria-labelledby={modalHeadingId}
       aria-describedby={modalDescId}
       aria-modal="true"
-      className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl backdrop:bg-black/50"
+      className="op-dialog-enter max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl backdrop:bg-black/50"
     >
       <div>
         <header className="mb-4 flex items-baseline justify-between gap-3">

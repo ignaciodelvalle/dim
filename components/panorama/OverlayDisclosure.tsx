@@ -133,9 +133,15 @@ export function OverlayDisclosure({
       >
         {summary}
       </summary>
+      {/* MOT-4b / Gap 6 (motion audit 2026-08-04): `op-panel-enter`, not
+          `op-disclosure`. This panel is ABSOLUTELY POSITIONED over a live map,
+          so the grid-row expand that fixes the in-flow accordions would animate
+          a box this panel has already escaped. What it was missing is a
+          directional cue about which pill it belongs to — which is exactly the
+          8px settle + fade already applied to the sibling ContextBar panel. */}
       <div
         id={panelId}
-        className={`absolute z-30 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-3 shadow-lg ${
+        className={`op-panel-enter absolute z-30 rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-card p-3 shadow-lg ${
           side === "down" ? "top-full mt-1.5" : "bottom-full mb-1.5"
         } ${panelClassName}`}
       >

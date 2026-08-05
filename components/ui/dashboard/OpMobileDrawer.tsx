@@ -166,7 +166,11 @@ export function OpMobileDrawer({
                 // default, forced open when it holds the active route.
                 const containsActive = section.items.some((item) => isActive(item, pathname));
                 return (
-                  <details key={section.label} className="group" open={containsActive || undefined}>
+                  <details
+                    key={section.label}
+                    className="op-disclosure group"
+                    open={containsActive || undefined}
+                  >
                     <summary
                       className={[
                         "flex min-h-11 cursor-pointer select-none list-none items-center justify-between",

@@ -25,7 +25,7 @@ function LegalEntryFicha({ entry }: { entry: LegalKnowledgeEntry }) {
   return (
     <details
       id={entry.id}
-      className="group rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] open:shadow-sm"
+      className="op-disclosure group rounded-lg border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] open:shadow-sm"
     >
       <summary className="flex cursor-pointer list-none items-start justify-between gap-3 px-4 py-3 select-none marker:content-none [&::-webkit-details-marker]:hidden">
         <span className="min-w-0">

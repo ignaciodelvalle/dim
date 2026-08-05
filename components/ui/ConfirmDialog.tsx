@@ -194,6 +194,10 @@ export function ConfirmDialog({
       aria-modal="true"
       onClose={onClose}
       className={[
+        // MOT-4a (motion audit Gap 3): a 150ms scale+fade ENTRY, no exit —
+        // see the .op-dialog-enter block in app/globals.css for why the
+        // asymmetry is deliberate.
+        "op-dialog-enter",
         "m-auto max-w-[360px] w-full rounded-[var(--radius-md)] p-0",
         "border border-[var(--color-ln-line-strong)]",
         "bg-[var(--color-ln-card)] shadow-[0_18px_50px_rgba(20,40,60,.22)]",

@@ -181,7 +181,11 @@ export function OpRailNav({ nav, sections, variant = "gob" }: Props) {
           // active route lives inside so the current location never hides.
           const containsActive = section.items.some((item) => isActive(item, pathname));
           return (
-            <details key={section.label} className="group" open={containsActive || undefined}>
+            <details
+              key={section.label}
+              className="op-disclosure group"
+              open={containsActive || undefined}
+            >
               <summary
                 className={[
                   "flex min-h-11 cursor-pointer select-none list-none items-center justify-between",

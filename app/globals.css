@@ -677,6 +677,101 @@ h6 {
   }
 }
 
+/* ---- Confirm dialogs: entry only (MOT-4a, motion audit 2026-08-04 Gap 3) ---
+ * The app's default modal for irreversible actions — revocations, transfers,
+ * custody handoffs, decomisos, ~20 call sites — appeared with no transition at
+ * all, while the working entry pattern sat 100 lines up in this same file. Its
+ * whole design intent is to make the user STOP AND READ, and a box that is
+ * simply THERE is easier to dismiss reflexively than one that arrives.
+ *
+ * ENTRY ONLY, and that asymmetry is the point (audit §5.4). `overlay` and
+ * `display` are deliberately ABSENT from the transition list — the two
+ * properties `.op-drawer-enter` includes precisely so it can animate OUT.
+ * Without them, `display` flips discretely: the dialog is rendered on the
+ * frame it opens (so @starting-style has something to transition FROM) and is
+ * gone on the frame it closes. An exit animation here would delay the result
+ * of an action the user is already waiting on, which is the one thing a
+ * confirm dialog must never do.
+ *
+ * Scale rather than slide: the dialog is centred with `m-auto` and belongs to
+ * no edge, so there is no direction for it to come from. 0.97 → 1 is small
+ * enough to read as "arrived", not as a zoom. */
+.op-dialog-enter {
+  transition: opacity var(--motion-fast) ease-out, transform var(--motion-fast) ease-out;
+}
+.op-dialog-enter[open] {
+  opacity: 1;
+  transform: scale(1);
+}
+@starting-style {
+  .op-dialog-enter[open] {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+}
+.op-dialog-enter::backdrop {
+  transition: opacity var(--motion-fast) ease-out;
+}
+.op-dialog-enter[open]::backdrop {
+  opacity: 1;
+}
+@starting-style {
+  .op-dialog-enter[open]::backdrop {
+    opacity: 0;
+  }
+}
+
+/* ---- Disclosures: the panel, not just the chevron (MOT-4b, Gap 4) ---------
+ * Nine `<details>` surfaces animate their CHEVRON and teleport their PANEL.
+ * The half-done state is worse than either endpoint: a rotating chevron
+ * PROMISES a smooth expand, so the pop reads as a bug rather than a choice —
+ * and on a phone the content below jumps by the panel's height with no
+ * warning, which is the classic "I lost my scroll position" moment.
+ *
+ * `grid-template-rows: 0fr → 1fr` is the whole trick, and it is chosen for
+ * what it does NOT require. The obvious alternative, `interpolate-size:
+ * allow-keywords`, is banned repo-wide: it is a `:root`-level opt-in that
+ * changes how `auto` interpolates for the ENTIRE document, so turning it on to
+ * fix one accordion silently rewrites the animation semantics of every other
+ * height:auto surface in the app. A global behaviour change bought for a local
+ * problem. The grid ratio animates auto-height with no platform opt-in at all.
+ *
+ * `::details-content` is what makes it reachable: a `<details>` hides its own
+ * non-summary children, so a wrapper <div> inside is not rendered while closed
+ * and has nothing to transition from. The pseudo-element IS that wrapper, and
+ * `content-visibility` with allow-discrete keeps it rendered while it
+ * collapses.
+ *
+ * DEGRADES TO TODAY: a browser without `::details-content` cannot parse the
+ * selector and drops the whole rule, leaving the current instant open/close.
+ * Nothing to detect, nothing to polyfill, no broken intermediate state — which
+ * is why this is safe to apply to nine surfaces at once.
+ *
+ * KNOWN COST — `overflow: hidden` stays on while OPEN, because the expand
+ * needs it and the property cannot be timed to the animation. Native controls
+ * are unaffected (a `<select>` popup renders in the top layer and ignores
+ * ancestor overflow), which is why the form accordions are safe. Do NOT put a
+ * custom absolutely-positioned popover inside an `.op-disclosure` — it will be
+ * clipped. `OverlayDisclosure` is exactly that shape, and it deliberately uses
+ * `.op-panel-enter` instead.
+ *
+ * prefers-reduced-motion is handled by the global rule above. */
+.op-disclosure::details-content {
+  display: grid;
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  transition: grid-template-rows var(--motion-base) ease-out, content-visibility var(--motion-base)
+    ease-out allow-discrete;
+}
+.op-disclosure[open]::details-content {
+  grid-template-rows: 1fr;
+}
+/* Grid items default to `min-height: auto`, which refuses to shrink below the
+ * content's intrinsic height — the 0fr row would never actually close. */
+.op-disclosure > :not(summary) {
+  min-block-size: 0;
+}
+
 /* ---- Panorama dock: open/close transition (CSS-2, panorama audit 2026-08-04) */
 /* v2C handoff specifies "dock height .18s ease"
  * (docs/design/handoffs/2026-07-11-panorama-v2C/README.md:157) — the

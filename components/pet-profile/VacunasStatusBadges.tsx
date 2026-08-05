@@ -203,10 +203,18 @@ export function VacunasStatusBadges({ summary }: { summary: VaccinationSummary }
       </div>
 
       {/* Drill-down panel — one state at a time. Always present (stable
-          aria-controls target); populated only when a state is expanded. */}
+          aria-controls target); populated only when a state is expanded.
+          MOT-4b (motion audit Gap 4): the caret rotated and the list
+          teleported. Not `.op-disclosure` — this is a React-state drill-down,
+          not a <details>, so the panel goes from NOT RENDERED to rendered and
+          `@starting-style` is what applies. The 8px settle also gives it a
+          direction, which a bare fade would not. */}
       <div id="vacunas-drilldown">
         {openBadge && openBadge.items.length > 0 && (
-          <section className="ln-vac-list" aria-label={`Vacunas: ${openBadge.label}`}>
+          <section
+            className="op-panel-enter ln-vac-list"
+            aria-label={`Vacunas: ${openBadge.label}`}
+          >
             {openBadge.items.map((v) => (
               <div key={v.vaccineName} className="ln-vac-list-item">
                 <span className="ln-vac-list-name">{v.vaccineName}</span>
