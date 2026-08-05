@@ -14,7 +14,7 @@ import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/u
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
+import { AR_TIME_ZONE, formatTime, pluralizeEs } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { BlockSlotButton } from "./BlockSlotButton";
@@ -237,16 +237,8 @@ export default async function OrgAgendaPage({
                         slot.capacity,
                         slot.status,
                       );
-                      const startStr = slot.startsAt.toLocaleTimeString("es-AR", {
-                        timeZone: "America/Argentina/Buenos_Aires",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
-                      const endStr = slot.endsAt.toLocaleTimeString("es-AR", {
-                        timeZone: "America/Argentina/Buenos_Aires",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
+                      const startStr = formatTime(slot.startsAt);
+                      const endStr = formatTime(slot.endsAt);
                       const occupancyLabel =
                         slot.status === "cancelled"
                           ? "Bloqueado"
@@ -287,11 +279,7 @@ export default async function OrgAgendaPage({
               {rows.map(({ appointment, slot, offering, pet, ownerProfile }) => {
                 const kindDef = findServiceKind(offering.serviceKind);
                 const pill = STATUS_PILL[appointment.status] ?? STATUS_PILL.confirmed;
-                const slotTime = slot.startsAt.toLocaleTimeString("es-AR", {
-                  timeZone: "America/Argentina/Buenos_Aires",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
+                const slotTime = formatTime(slot.startsAt);
                 const ownerLabel = ownerProfile?.displayName?.split(" ")[0] ?? "Propietario";
                 const canAct = appointment.status === "confirmed";
 

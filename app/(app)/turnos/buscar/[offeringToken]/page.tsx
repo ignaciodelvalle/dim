@@ -4,7 +4,7 @@ import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, organizations, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { pluralizeEs } from "@/lib/utils/format";
+import { formatTime, pluralizeEs } from "@/lib/utils/format";
 import { eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -152,11 +152,7 @@ export default async function OfferingDetailPage({
                 </p>
                 <div className="flex flex-wrap gap-2">
                   {slots.map((slot) => {
-                    const timeLabel = slot.startsAt.toLocaleTimeString("es-AR", {
-                      timeZone: "America/Argentina/Buenos_Aires",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
+                    const timeLabel = formatTime(slot.startsAt);
                     const remaining = slot.capacity - slot.bookingsCount;
                     return (
                       <Link

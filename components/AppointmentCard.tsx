@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatTime } from "@/lib/utils/format";
 
 // Shared appointment row. Used by /mis-turnos (full list) and /inicio
 // (dashboard widget, upcoming top 5). The shape covers both
@@ -58,11 +59,7 @@ export function AppointmentCard({ row }: { row: AppointmentRow }) {
     day: "numeric",
     month: "short",
   });
-  const timeLabel = slot.startsAt.toLocaleTimeString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const timeLabel = formatTime(slot.startsAt);
 
   const providerLabel =
     offering.organizationId && org

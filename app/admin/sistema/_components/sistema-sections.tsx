@@ -488,6 +488,7 @@ export async function SistemaCronsCard() {
                             month: "short",
                             hour: "2-digit",
                             minute: "2-digit",
+                            hourCycle: "h23",
                             timeZone: AR_TIME_ZONE,
                           })
                         : "—"}

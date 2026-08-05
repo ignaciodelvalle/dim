@@ -15,6 +15,7 @@ import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import type { TodayAgendaItem } from "@/lib/analytics/org-dashboard";
 import type { SetupStep } from "@/lib/infra/org-setup-checklist";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatTime } from "@/lib/utils/format";
 
 // "attended" matches components/AppointmentCard.tsx's STATUS_BADGE — the
 // owner-facing /mis-turnos list used to say "Asistido" for the same
@@ -30,14 +31,6 @@ const STATUS_LABELS: Record<string, string> = {
   cancelled_by_owner: "Cancelado",
   cancelled_by_org: "Cancelado",
 };
-
-function formatTime(value: Date): string {
-  return new Date(value).toLocaleTimeString("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "America/Argentina/Buenos_Aires",
-  });
-}
 
 export function SoloVetAgendaLanding({
   orgToken,

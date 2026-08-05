@@ -45,6 +45,7 @@ const DATE_FMT = new Intl.DateTimeFormat("es-AR", {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  hourCycle: "h23",
   timeZone: "America/Argentina/Buenos_Aires",
 });
 

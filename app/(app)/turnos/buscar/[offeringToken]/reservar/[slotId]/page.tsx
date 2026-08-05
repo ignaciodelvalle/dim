@@ -9,6 +9,7 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatTime } from "@/lib/utils/format";
 import { BookingFormClient } from "./BookingFormClient";
 
 export default async function ReservarTurnoPage({
@@ -75,11 +76,7 @@ export default async function ReservarTurnoPage({
     month: "long",
     year: "numeric",
   });
-  const slotTime = slot.startsAt.toLocaleTimeString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const slotTime = formatTime(slot.startsAt);
 
   return (
     <div className="mx-auto max-w-md px-8 py-7 pb-12">

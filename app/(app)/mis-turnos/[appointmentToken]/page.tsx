@@ -12,6 +12,7 @@ import { LnCallout } from "@/components/ui/DocElements";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatTime } from "@/lib/utils/format";
 import { CancelButton } from "./CancelButton";
 import { MisTurnosSheetMounter } from "./MisTurnosSheetMounter";
 
@@ -71,11 +72,7 @@ export default async function AppointmentDetailPage({
     month: "long",
     year: "numeric",
   });
-  const slotTime = slot.startsAt.toLocaleTimeString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const slotTime = formatTime(slot.startsAt);
 
   const statusConfig = STATUS_CONFIG[appointment.status] ?? UNKNOWN_STATUS_CONFIG;
   const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();

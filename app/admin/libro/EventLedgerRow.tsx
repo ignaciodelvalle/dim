@@ -160,6 +160,7 @@ export function EventLedgerRow({ row }: Props) {
                             year: "numeric",
                             hour: "2-digit",
                             minute: "2-digit",
+                            hourCycle: "h23",
                             timeZone: AR_TIME_ZONE,
                           })}
                         </span>

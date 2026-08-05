@@ -11,6 +11,12 @@
 // This guard FAILS on any of these calls that lacks a `timeZone` option,
 // OUTSIDE the canonical formatter module (CANONICAL_MODULE below).
 //
+// SECOND ARM (copy audit 2026-08-04, S1): it also fails a call that HAS
+// timeZone but requests `hour` without `hourCycle`/`hour12` — es-AR's Intl
+// default hour cycle is 12-hour with a "p. m." suffix, so a timezone-safe
+// call can still render the hybrid "05:39 p. m." that no es-AR reader
+// writes. Same ratchet, same baseline file, tagged by `reason`.
+//
 // RATCHET baseline (scripts/timezone-dates-baseline.json):
 //   - Existing bare calls in baselined files are grandfathered (pass today).
 //   - Any NEW bare call (new file, or a count above the file's baseline) FAILS.
@@ -95,19 +101,37 @@ const CALL_PATTERNS: RegExp[] = [
   /\.toLocaleString\s*\([^)]*\b(?:dateStyle|timeStyle|weekday|year|month|day|hour|minute|second)\s*:[^)]*\)/gs,
 ];
 
-type Violation = { line: number; col: number; text: string };
+type Violation = { line: number; col: number; text: string; reason: "timezone" | "hourCycle" };
+
+// hour-cycle arm (copy audit 2026-08-04, S1): es-AR's Intl default hour cycle
+// is 12-hour with a "p. m." suffix — a call that requests `hour` without
+// `hourCycle`/`hour12` renders the hybrid "05:39 p. m." (a zero-padded
+// 12-hour clock WITH a meridiem — neither a real 12-hour nor a real 24-hour
+// clock; es-AR never writes this). This is independent of the timeZone
+// check above: a call can be perfectly AR-pinned and still leak the hybrid
+// clock (that is exactly what happened to two Panorama flagship timestamps).
+const HOUR_RE = /\bhour\s*:/;
+const HOUR_CYCLE_RE = /\bhourCycle\s*:|\bhour12\s*:/;
 
 function findViolations(src: string): Violation[] {
   const out: Violation[] = [];
   for (const re of CALL_PATTERNS) {
     for (const m of src.matchAll(re)) {
-      if (m[0].includes("timeZone")) continue;
+      const hasTimeZone = m[0].includes("timeZone");
+      const requestsHour = HOUR_RE.test(m[0]);
+      const hasHourCycle = HOUR_CYCLE_RE.test(m[0]);
+      if (hasTimeZone && (!requestsHour || hasHourCycle)) continue;
       const idx = m.index ?? 0;
       const before = src.slice(0, idx);
       const line = before.split(/\r?\n/).length;
       const col = idx - before.lastIndexOf("\n");
       // Collapse to a single line for readable reporting.
-      out.push({ line, col, text: m[0].replace(/\s+/g, " ").slice(0, 80) });
+      out.push({
+        line,
+        col,
+        text: m[0].replace(/\s+/g, " ").slice(0, 80),
+        reason: hasTimeZone ? "hourCycle" : "timezone",
+      });
     }
   }
   return out.sort((a, b) => a.line - b.line || a.col - b.col);
@@ -151,7 +175,7 @@ function writeBaseline(): void {
   const output: BaselineFile = {
     _meta: {
       totalViolations: total,
-      description: `Baseline of bare toLocaleDateString/toLocaleString/Intl.DateTimeFormat calls without a timeZone option. Files listed here are grandfathered. New bare calls (new files or counts above these) fail lint:timezone. Canonical module excluded: ${CANONICAL_MODULE}.`,
+      description: `Baseline of (a) bare toLocaleDateString/toLocaleString/Intl.DateTimeFormat calls without a timeZone option, and (b) AR-pinned calls that request "hour" without hourCycle/hour12 (copy audit 2026-08-04, S1 — the es-AR 12-hour default hybrid "05:39 p. m."). Files listed here are grandfathered. New violations (new files or counts above these) fail lint:timezone. Canonical module excluded: ${CANONICAL_MODULE}.`,
     },
     files,
   };
@@ -180,9 +204,11 @@ function runChecks(): void {
       // Report the calls above the grandfathered count (the newest wins-ish;
       // we surface every site so the author can see all candidates to fix).
       for (const v of violations) {
-        console.error(
-          `${file}:${v.line}:${v.col}: bare date call without timeZone — "${v.text}". Route through lib/utils/format.ts (formatDate/formatDateTime) or pass { timeZone: AR_TIME_ZONE }.`,
-        );
+        const hint =
+          v.reason === "hourCycle"
+            ? `requests "hour" without hourCycle/hour12 — es-AR's Intl default renders the hybrid "05:39 p. m.". Route through lib/utils/format.ts (formatDateTime) or add { hourCycle: "h23" }.`
+            : "bare date call without timeZone. Route through lib/utils/format.ts (formatDate/formatDateTime) or pass { timeZone: AR_TIME_ZONE }.";
+        console.error(`${file}:${v.line}:${v.col}: "${v.text}" — ${hint}`);
       }
       console.error(
         `${file}: ratchet — ${violations.length} bare date call(s) (baseline allows ${allowed}).`,

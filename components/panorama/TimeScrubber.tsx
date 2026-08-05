@@ -48,7 +48,7 @@ import {
   ruleChangeRuleLabel,
   ruleChangeScopeLabel,
 } from "@/components/panorama/rule-change-markers";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { formatTime } from "@/lib/utils/format";
 import {
   type ScrubWindow,
   type TimeBasis,
@@ -339,13 +339,10 @@ function TimeScrubberImpl({
   // real-time "now" — the data is batch. Label it as such and keep "en vivo" out.
   const watermarkTime =
     watermark !== null && !Number.isNaN(watermark.getTime())
-      ? // Pin AR_TIME_ZONE (WARNING 6): FilterChips/KPI footer already render AR time,
-        // so an unpinned local hour here would print two different times on one screen.
-        watermark.toLocaleTimeString("es-AR", {
-          hour: "2-digit",
-          minute: "2-digit",
-          timeZone: AR_TIME_ZONE,
-        })
+      ? // AR-pinned (WARNING 6): FilterChips/KPI footer already render AR time,
+        // so an unpinned local hour here would print two different times on one
+        // screen. formatTime() carries the pin + hourCycle: "h23".
+        formatTime(watermark)
       : null;
   const liveEdgeLabel =
     watermarkTime !== null ? `Al último evento: ${watermarkTime}` : "Al último evento";

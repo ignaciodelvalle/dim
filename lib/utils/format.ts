@@ -59,6 +59,26 @@ export function formatDateTime(value: Date | string | null | undefined): string 
   return SPANISH_DATETIME_FORMAT.format(date);
 }
 
+// Time-only — "17:47". Added (copy audit 2026-08-04, S2) after the same
+// { hour: "2-digit", minute: "2-digit", timeZone: AR_TIME_ZONE } object turned
+// up hand-rolled, byte-identical, at 9 call sites (turno slot times, the
+// Panorama watermark, the solo-vet agenda) — none of the existing shapes
+// dropped day/month/year, so there was no canonical home for "just a clock".
+// hourCycle: "h23" for the same reason as SPANISH_DATETIME_FORMAT above.
+const SPANISH_TIME_FORMAT = new Intl.DateTimeFormat("es-AR", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: AR_TIME_ZONE,
+});
+
+export function formatTime(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return SPANISH_TIME_FORMAT.format(date);
+}
+
 // Compact date — "7 de jul de 2026". AR-pinned like every formatter here: without an
 // explicit timeZone, Intl uses the RUNTIME zone (UTC on the production server),
 // so a timestamp near AR midnight renders the wrong calendar day and, worse,
