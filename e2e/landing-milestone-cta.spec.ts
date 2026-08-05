@@ -20,6 +20,11 @@
 //      enforces — a fixed right-anchored pill must not widen the document).
 //   4. It disappears past the last milestone (Empezar), leaving the FAQ and
 //      footer unobstructed.
+//   5. It advances from the milestone it NAVIGATED to (PO-5, 2026-08-05) — one
+//      milestone per click, never a skip — and returns to scroll-spy
+//      governance once the visitor scrolls on their own. See the long note
+//      above the last two tests for why this assertion has been rewritten
+//      twice.
 
 import { type Page, expect, test } from "@playwright/test";
 
@@ -176,38 +181,40 @@ function milestoneIndex(ariaLabel: string | null): number {
   return MILESTONE_NAMES.findIndex((name) => ariaLabel?.endsWith(name));
 }
 
-// ⚠ THIS ASSERTION WAS REWRITTEN (2026-08-05) — do not "restore" it to
-// `/El vínculo/`.
+// ⚠ HISTORY, so nobody re-litigates this assertion a third time.
 //
-// The old test clicked the CTA and expected the label to become "El vínculo"
-// within 5s. It flaked in CI, and measuring the settled page says why: that
-// value is NEVER the resting state at 1440×800. Sampled every 50ms through the
-// smooth scroll (scrollY 0 → 739):
+// v1 clicked the CTA and expected "El vínculo" within 5s. It flaked in CI, and
+// measuring the settled page said why — that value was NEVER the resting state
+// at 1440×800. Sampled every 50ms through the smooth scroll (scrollY 0 → 739):
 //
 //     y=0    "Emergencias, sin cuenta"
-//     y=624  "El vínculo"                ← the only frames the old test passed on
+//     y=624  "El vínculo"                ← the only frames v1 passed on
 //     y=710  "Una mascota, muchas manos"
-//     y=739  "Una mascota, muchas manos" ← settled, and stays there
+//     y=739  "Una mascota, muchas manos" ← settled, and stayed there
 //
 // The click lands #crisis exactly where it aims (top = 84 = the sticky-nav
-// offset), but the crisis band is only 163px tall, so #vinculo's top (247) is
-// already above the scroll-spy's 45%-of-viewport line (360) — active becomes
-// `vinculo` and the CTA offers `idea`. The CTA skips one milestone. That is a
-// PRODUCT question about the 45% rule against a short section, raised with the
-// PO separately; it is emphatically not something a test should hide by
-// asserting an intermediate frame of the animation.
+// offset), but the crisis band is only 163px tall, so #vinculo's top (247) was
+// already above the scroll-spy's 45%-of-viewport line (360): active became
+// `vinculo` and the CTA offered `idea`. The CTA skipped a milestone.
 //
-// So the contract asserted here is the one the CTA actually owns and that no
-// section height can invalidate: the page goes where the button said it would,
-// and the affordance moves FORWARD.
-test("milestone CTA scrolls to the milestone it names and advances past it", async ({ page }) => {
+// v2 (2026-08-05) stopped asserting that intermediate frame and asserted only
+// that the affordance moved FORWARD, and raised the skip with the PO as the
+// product question it was.
+//
+// v3 — this one. The PO ruled (PO-5, 2026-08-05): the CTA advances from the
+// milestone it NAVIGATED TO, not from whatever the spy happens to highlight, so
+// "El vínculo" is now the correct SETTLED answer and is asserted as such —
+// after `waitForScrollToSettle`, never mid-flight. The forward-motion assertion
+// from v2 is kept below as a second case, over a MANUAL scroll, because that is
+// the scenario the scroll-spy still governs.
+test("milestone CTA scrolls to the milestone it names and then offers the one after it", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1440, height: 800 });
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
   const cta = page.getByRole("button", { name: CTA_NAME });
   await expect(cta).toHaveAccessibleName(/Emergencias, sin cuenta/);
-  const from = milestoneIndex(await cta.getAttribute("aria-label"));
-  expect(from, "the CTA opens on a milestone this spec knows by name").toBeGreaterThanOrEqual(0);
 
   await armScrollWatcher(page);
   await cta.click();
@@ -222,9 +229,39 @@ test("milestone CTA scrolls to the milestone it names and advances past it", asy
   expect(crisisTop, "the CTA did not park #crisis under the sticky nav").toBeGreaterThanOrEqual(0);
   expect(crisisTop, "the CTA did not park #crisis under the sticky nav").toBeLessThanOrEqual(120);
 
-  // (2) The affordance advanced. `expect.poll` covers the React render tick
-  // after the final scroll event — the scroll itself is already settled.
+  // (2) The settled affordance offers the milestone that FOLLOWS the one the
+  // click navigated to — no skip, whatever the spy makes of a 163px band.
+  // `expect.poll` covers the React render tick after the final scroll event.
+  await expect
+    .poll(async () => await cta.getAttribute("aria-label"), { timeout: 5_000 })
+    .toMatch(/El vínculo$/);
+});
+
+// The other half of the rule: the latch is not a permanent takeover. Once the
+// page leaves the position the click parked it at, the scroll-spy governs
+// again — so the CTA must have moved FORWARD from what the latch was offering.
+// (This is v2's index-advances assertion, kept for the scenario it fits.)
+test("a scroll away from the clicked milestone hands the CTA back to the scroll-spy", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await page.goto("/", { waitUntil: "domcontentloaded" });
+
+  const cta = page.getByRole("button", { name: CTA_NAME });
+  await armScrollWatcher(page);
+  await cta.click();
+  await waitForScrollToSettle(page);
+
+  const latched = milestoneIndex(await cta.getAttribute("aria-label"));
+  expect(latched, "the latched CTA offers a milestone this spec knows by name").toBeGreaterThan(0);
+
+  // Not the CTA this time: the page moves off the parked position on its own,
+  // the way a visitor's wheel, keyboard or scrollbar moves it.
+  await armScrollWatcher(page);
+  await page.locator("#idea").scrollIntoViewIfNeeded();
+  await waitForScrollToSettle(page);
+
   await expect
     .poll(async () => milestoneIndex(await cta.getAttribute("aria-label")), { timeout: 5_000 })
-    .toBeGreaterThan(from);
+    .toBeGreaterThan(latched);
 });

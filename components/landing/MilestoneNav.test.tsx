@@ -10,7 +10,10 @@
 //     allowed AND the document has focus — reduced motion still NAVIGATES,
 //     just instantly (motion preference is not a navigation preference);
 //   - nothing renders before hydration (no-JS visitors never see a dead
-//     affordance) — exercised implicitly: rendering IS hydration in jsdom.
+//     affordance) — exercised implicitly: rendering IS hydration in jsdom;
+//   - the CLICK LATCH (PO-5, 2026-08-05): after a click navigates to milestone
+//     M the CTA offers M+1 no matter what the scroll-spy says, until the
+//     visitor scrolls away from where the click parked them.
 
 import "@testing-library/jest-dom/vitest";
 
@@ -35,6 +38,19 @@ function placeSections(tops: Partial<Record<string, number>>) {
     el.getBoundingClientRect = () =>
       ({ top, bottom: top + 500, left: 0, right: 0, width: 0, height: 500 }) as DOMRect;
   }
+}
+
+/**
+ * Move the page to `y` and re-place the sections at the tops they would then
+ * have, then fire the scroll event the browser would fire. `window.scrollTo` is
+ * a spy in these tests (jsdom does not lay anything out), so the scroll a click
+ * asks for has to be simulated by hand — which is exactly what lets a test
+ * assert what happens MID-FLIGHT as well as after the page settles.
+ */
+function scrollTo(y: number, tops: Partial<Record<string, number>>) {
+  Object.defineProperty(window, "scrollY", { value: y, writable: true });
+  placeSections(tops);
+  fireEvent.scroll(window);
 }
 
 function setMatchMedia(reducedMotion: boolean) {
@@ -158,6 +174,119 @@ describe("<MilestoneNav> — the jump (scrollToChapter pattern)", () => {
     placeSections({ top: 50 });
     scrollToMilestone("top");
     expect(window.scrollTo).toHaveBeenCalledWith({ top: 0, behavior: "smooth" });
+  });
+});
+
+/**
+ * The click latch (PO-5, 2026-08-05), exercised against the exact geometry that
+ * exposed the skip in CI (1440×800, measured in commit 2d952dc6):
+ *
+ *   #crisis top 823 → the click asks for scrollY 823 − 84 = 739
+ *   #vinculo top 986 (the crisis band is only 163px tall)
+ *
+ * Settled at 739, #vinculo's top is 247 — already above the 45% line (360) — so
+ * the scroll-spy calls `vinculo` active and, before the latch, the CTA offered
+ * `idea`: one milestone skipped on every click. The latch's whole job is that
+ * the settled CTA reads "El vínculo".
+ */
+const CRISIS_TOP = 823;
+const VINCULO_TOP = 986;
+const IDEA_TOP = 1600;
+const CLICK_TARGET_Y = CRISIS_TOP - 84;
+
+/** Section tops as they read from the viewport once the page sits at `y`. */
+function geometryAt(y: number) {
+  return {
+    top: 0 - y,
+    crisis: CRISIS_TOP - y,
+    vinculo: VINCULO_TOP - y,
+    idea: IDEA_TOP - y,
+  };
+}
+
+function ctaName(): string {
+  return screen.getByRole("button").getAttribute("aria-label") ?? "";
+}
+
+describe("<MilestoneNav> — the click latch (the CTA advances from what it NAVIGATED to)", () => {
+  beforeEach(() => {
+    placeSections(geometryAt(0));
+  });
+
+  it("offers the milestone AFTER the one it just navigated to, even though the spy has moved on", () => {
+    render(<MilestoneNav />);
+    expect(ctaName()).toBe("Continuar a la próxima sección: Emergencias, sin cuenta");
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: CLICK_TARGET_Y, behavior: "smooth" });
+
+    // The page settles where the click aimed. The spy now says `vinculo` (its
+    // top, 247, crossed the 360 line) — the latch says the visitor was sent to
+    // `crisis`, and the latch wins.
+    scrollTo(CLICK_TARGET_Y, geometryAt(CLICK_TARGET_Y));
+    expect(ctaName()).toBe("Continuar a la próxima sección: El vínculo");
+  });
+
+  it("does not wobble mid-flight: the label is the destination from the click onward", () => {
+    render(<MilestoneNav />);
+    fireEvent.click(screen.getByRole("button"));
+
+    // A frame of the smooth scroll where the spy would already read `vinculo`.
+    scrollTo(710, geometryAt(710));
+    expect(ctaName()).toBe("Continuar a la próxima sección: El vínculo");
+
+    scrollTo(CLICK_TARGET_Y, geometryAt(CLICK_TARGET_Y));
+    expect(ctaName()).toBe("Continuar a la próxima sección: El vínculo");
+  });
+
+  it("hands governance back to the scroll-spy once the visitor scrolls away themselves", () => {
+    render(<MilestoneNav />);
+    fireEvent.click(screen.getByRole("button"));
+    scrollTo(CLICK_TARGET_Y, geometryAt(CLICK_TARGET_Y));
+    expect(ctaName()).toBe("Continuar a la próxima sección: El vínculo");
+
+    // Manual scroll well past the parked position: `idea` crosses the line, so
+    // the CTA follows the spy again and offers the milestone after it.
+    scrollTo(1700, geometryAt(1700));
+    expect(ctaName()).toBe("Continuar a la próxima sección: Cuando no es un buen día");
+  });
+
+  it("releases the latch when a scroll RECEDES from the target mid-flight (a hand on the page)", () => {
+    render(<MilestoneNav />);
+    fireEvent.click(screen.getByRole("button"));
+
+    scrollTo(710, geometryAt(710)); // still closing on 739
+    expect(ctaName()).toBe("Continuar a la próxima sección: El vínculo");
+
+    // A smooth scroll only ever closes its gap; widening it means a human took
+    // over. Back at the top, the spy offers the second milestone again.
+    scrollTo(300, geometryAt(300));
+    expect(ctaName()).toBe("Continuar a la próxima sección: Emergencias, sin cuenta");
+  });
+
+  it("behaves identically under prefers-reduced-motion (the jump is instant, the latch is not)", () => {
+    setMatchMedia(true);
+    render(<MilestoneNav />);
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(window.scrollTo).toHaveBeenCalledWith({ top: CLICK_TARGET_Y, behavior: "auto" });
+
+    // An instant jump reports its destination on the very first scroll event.
+    scrollTo(CLICK_TARGET_Y, geometryAt(CLICK_TARGET_Y));
+    expect(ctaName()).toBe("Continuar a la próxima sección: El vínculo");
+  });
+
+  it("steps exactly one milestone per consecutive click", () => {
+    render(<MilestoneNav />);
+    fireEvent.click(screen.getByRole("button"));
+    scrollTo(CLICK_TARGET_Y, geometryAt(CLICK_TARGET_Y));
+
+    fireEvent.click(screen.getByRole("button"));
+    expect(window.scrollTo).toHaveBeenLastCalledWith({
+      top: VINCULO_TOP - 84,
+      behavior: "smooth",
+    });
+    expect(ctaName()).toBe("Continuar a la próxima sección: Una mascota, muchas manos");
   });
 });
 
