@@ -183,10 +183,16 @@ describe("MapChoropleth — gradient scale legend (UX 2.3 item 1)", () => {
 // a Server Component with DB calls, so we test the structural pattern via
 // a matching inline render).
 //
-// The key accessibility contract is:
-//   - <figure role="img"> wraps the bar chart
+// The key accessibility contract is (revised — CSS/a11y audit 2026-08-04,
+// Q2): NO `role="img"` on the wrapping <figure>. That role flattens its
+// ENTIRE subtree to a single opaque image for assistive tech, which made the
+// figcaption AND every <li>'s per-bar aria-label below unreachable — the
+// exact defect this fixture used to encode as "correct". Same fix already
+// shipped for StaticFirstMap's static-map role.
+//   - <figure aria-label="…"> gives the chart an overview accessible name,
+//     WITHOUT role="img" — its children stay in the accessibility tree
 //   - <figcaption class="sr-only"> describes the chart
-//   - <li> items carry aria-label with the numeric value
+//   - <li> items carry aria-label with the numeric value, independently reachable
 //   - Numeric counts are aria-hidden (redundant with the li aria-label)
 
 function MortalityBarsFixture({
@@ -198,7 +204,6 @@ function MortalityBarsFixture({
 }) {
   return (
     <figure
-      role="img"
       aria-label={`Disposición final de fallecimientos — ${buckets.length} métodos. Máximo: ${max} fallecimientos.`}
     >
       <figcaption className="sr-only">
@@ -234,9 +239,12 @@ describe("Mortality bars — accessible bar chart (UX 2.3 item 2)", () => {
     { bucket: "other", count: 5, label: "Otro / sin especificar" },
   ];
 
-  it("wraps bars in role='img' figure with descriptive aria-label", () => {
+  it('wraps bars in a <figure> with a descriptive aria-label and NO role="img"', () => {
     const html = renderToStaticMarkup(<MortalityBarsFixture buckets={buckets} max={30} />);
-    expect(html).toContain('role="img"');
+    // Q2: role="img" here would flatten the figure's subtree (figcaption +
+    // every per-bar <li> aria-label) to a single opaque image for AT.
+    expect(html).not.toContain('role="img"');
+    expect(html).toContain("<figure");
     expect(html).toContain("Disposición final de fallecimientos");
     expect(html).toContain("Máximo: 30 fallecimientos");
   });

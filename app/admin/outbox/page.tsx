@@ -22,6 +22,7 @@ import { OUTBOX_PAGE_LIMIT, buildOutboxWhere } from "@/lib/infra/outbox-query";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { buildOutboxDomainAxes } from "@/lib/ui/outbox-filter-axes";
 import { pluralizeEs } from "@/lib/utils/format";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 export default async function AdminOutboxPage({
   searchParams,
@@ -37,11 +38,13 @@ export default async function AdminOutboxPage({
   await requireAdminOrRedirect();
 
   const sp = await searchParams;
+  // Q1: a repeated filter param (?status=a&status=b) hands Next a string[]
+  // — raw `.trim()` on that throws (500).
   const filters = {
-    status: sp.status?.trim() || undefined,
-    target_kind: sp.target_kind?.trim() || undefined,
-    breach: sp.breach?.trim() || undefined,
-    province: sp.province?.trim() || undefined,
+    status: trimmedSearchParam(sp.status),
+    target_kind: trimmedSearchParam(sp.target_kind),
+    breach: trimmedSearchParam(sp.breach),
+    province: trimmedSearchParam(sp.province),
   };
   const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);

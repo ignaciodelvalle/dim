@@ -19,6 +19,7 @@ import {
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { portalBase } from "@/lib/ui/portal-base";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 import { AdminReglasLens } from "./AdminReglasLens";
 
@@ -40,7 +41,9 @@ export default async function ReglasPage({
     // viewer's own few assigned localities — always a short, already-filtered
     // list — so a filter there would narrow almost nothing.
     const { kind } = await searchParams;
-    return <AdminReglasLens base={base} kind={(kind ?? "").trim()} />;
+    // Q1: a repeated ?kind= hands Next a string[] — raw `.trim()` on that
+    // throws (500).
+    return <AdminReglasLens base={base} kind={trimmedSearchParam(kind) ?? ""} />;
   }
 
   return <GovtReglasReadOnlyView jurisdictions={jurisdictions} />;

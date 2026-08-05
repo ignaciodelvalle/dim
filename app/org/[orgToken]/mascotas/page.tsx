@@ -11,6 +11,7 @@ import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { pluralizeEs } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, ilike, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import Link from "next/link";
@@ -97,7 +98,8 @@ export default async function OrgMascotasPage({
   // dog/cat are literal, "other" is "everything else" (not just species='other').
   const speciesFilter = sp.species === "dog" || sp.species === "cat" ? sp.species : null;
   const isOtherSpecies = sp.species === "other";
-  const nameQuery = sp.q?.trim() ?? "";
+  // Q1: a repeated ?q= hands Next a string[] — raw `.trim()` on that throws (500).
+  const nameQuery = trimmedSearchParam(sp.q) ?? "";
   const adoptionEligibleFilter = sp.adoptionEligible === "true";
 
   const whereConditions = [

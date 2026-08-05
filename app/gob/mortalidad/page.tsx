@@ -393,8 +393,14 @@ export default async function GobMortalidadPage({
                 description="La ausencia de registro no implica ausencia de mortalidad en tu cobertura — depende de que un dueño o profesional lo registre."
               />
             ) : (
+              // Q2: role="img" used to sit here, which flattens the ENTIRE
+              // subtree to a single opaque image for assistive tech — the
+              // figcaption AND every <li>'s per-bar aria-label below became
+              // unreachable. Dropping the role restores <figure>'s normal
+              // (non-flattening) semantics; the figure's own aria-label still
+              // gives an overview, and the list stays independently readable
+              // (same fix already shipped for StaticFirstMap's static-map role).
               <figure
-                role="img"
                 aria-label={`Disposición final de fallecimientos — ${m.byBucket.length} ${pluralizeEs(
                   m.byBucket.length,
                   "método",
@@ -539,8 +545,10 @@ export default async function GobMortalidadPage({
               No hay localidades con fallecimientos visibles en el período.
             </p>
           ) : (
+            // Q2: same role="img" subtree-flattening fix as the Disposición
+            // chart above — the per-locality <li> aria-labels below were
+            // unreachable while the role sat here.
             <figure
-              role="img"
               aria-label={`Fallecimientos por localidad — máximo: ${maxLocality} ${pluralizeEs(maxLocality, "fallecimiento")}.`}
             >
               <figcaption className="sr-only">

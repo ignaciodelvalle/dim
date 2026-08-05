@@ -7,12 +7,16 @@ import { redirect } from "next/navigation";
 
 import { db, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { type RawSearchParam, firstSearchParam } from "@/lib/utils/search-params";
 
 import { DniVerifyForm } from "./DniVerifyForm";
 
-function sanitizeNext(raw: string | undefined): string {
-  if (!raw) return "/cuenta";
-  const trimmed = raw.trim();
+// Q1 straggler: `raw` was typed `string | undefined`, but a repeated
+// `?next=a&next=b` hands Next a string[] at runtime — `raw.trim()` threw
+// (500). firstSearchParam collapses that before trim/validate ever runs.
+function sanitizeNext(raw: RawSearchParam): string {
+  const trimmed = firstSearchParam(raw)?.trim();
+  if (!trimmed) return "/cuenta";
   if (!trimmed.startsWith("/")) return "/cuenta";
   if (trimmed.includes("//") || trimmed.includes("://")) return "/cuenta";
   return trimmed;

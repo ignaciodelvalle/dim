@@ -328,8 +328,11 @@ export async function AdminCensoScreen({
               description="No hay mascotas en el registro nacional."
             />
           ) : (
+            // Q2: role="img" flattens the whole subtree to a single opaque
+            // image for assistive tech — the figcaption AND every stage
+            // <li>'s aria-label below were unreachable while it sat here.
+            // Same fix already shipped for StaticFirstMap's static-map role.
             <figure
-              role="img"
               aria-label={`Embudo de identificación — ${funnel.total.toLocaleString("es-AR")} mascotas en total.`}
             >
               <figcaption className="sr-only">

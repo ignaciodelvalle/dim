@@ -54,6 +54,7 @@ import { petPhotoUrl } from "@/lib/infra/storage";
 import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 import { pluralizeEs, speciesLabel } from "@/lib/utils/format";
 import { likeContains } from "@/lib/utils/like-helpers";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 import { IntentApplyBanner } from "./_components/IntentApplyBanner";
 import { OwnerRollupStrip } from "./_components/OwnerRollupStrip";
@@ -80,7 +81,9 @@ export default async function MisMascotasPage({
   const profile = await getProfileCached(user.id);
   const params = await searchParams;
   const claimedCount = params.reclamado ? Number.parseInt(params.reclamado, 10) : null;
-  const query = (params.q ?? "").trim();
+  // Q1: a repeated ?q= makes Next hand back string[], not string — the
+  // declared prop type says otherwise, so `.trim()` on it throws at runtime.
+  const query = trimmedSearchParam(params.q) ?? "";
 
   // Vets land at their org portal (or /cuenta if they have no org yet).
   // They can still access their pet list via direct sub-paths or `?as=owner`.

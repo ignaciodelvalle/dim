@@ -407,10 +407,11 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
               description="No hay mascotas en la cobertura seleccionada."
             />
           ) : (
-            <figure
-              role="img"
-              aria-label={`Embudo de identificación — ${funnel.total} mascotas en total.`}
-            >
+            // Q2: role="img" flattens the whole subtree to a single opaque
+            // image for assistive tech — the figcaption AND every stage
+            // <li>'s aria-label below were unreachable while it sat here.
+            // Same fix already shipped for StaticFirstMap's static-map role.
+            <figure aria-label={`Embudo de identificación — ${funnel.total} mascotas en total.`}>
               <figcaption className="sr-only">
                 Gráfico de barras horizontales: etapas del embudo de identificación de mascotas.
                 Cada barra muestra el porcentaje de mascotas que alcanzan esa etapa del total.

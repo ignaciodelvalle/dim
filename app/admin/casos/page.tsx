@@ -24,6 +24,7 @@ import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { csvPageDisclosure } from "@/lib/ui/csv-export";
 import { todayIsoInAr } from "@/lib/utils/format";
 import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
 const ADMIN_CASOS_PAGE_LIMIT = 50;
@@ -63,7 +64,9 @@ export default async function AdminCasosPage({
   const statusFilter: "open" | "closed" | null = casoEstado === "all" ? null : casoEstado;
   const kindFilter =
     sp.kind && CASE_KINDS.includes(sp.kind as CaseKind) ? (sp.kind as CaseKind) : null;
-  const provinceFilter = sp.province?.trim() || null;
+  // Q1: a repeated ?province= hands Next a string[] — raw `.trim()` on that
+  // throws (500).
+  const provinceFilter = trimmedSearchParam(sp.province) ?? null;
 
   // Whether the user explicitly changed from the default (open, no kind, no province).
   // Used to show/hide the "Limpiar filtros" link — the default open view is not

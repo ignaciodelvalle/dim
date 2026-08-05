@@ -5,6 +5,7 @@ import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSl
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
 import { pluralizeEs } from "@/lib/utils/format";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
@@ -24,12 +25,14 @@ export default async function BuscarTurnosPage({
   const { user } = await requireUserOrRedirect();
   const params = await searchParams;
 
-  const serviceKind = params.service_kind?.trim() ?? "";
-  const fechaDesde = params.fecha_desde?.trim() ?? "";
+  // Q1: repeated params (?service_kind=a&service_kind=b) hand Next a
+  // string[], not string — raw `.trim()` on that throws (500).
+  const serviceKind = trimmedSearchParam(params.service_kind) ?? "";
+  const fechaDesde = trimmedSearchParam(params.fecha_desde) ?? "";
   const soloGratis = params.solo_gratis === "true";
 
-  let province = params.province?.trim() ?? "";
-  let locality = params.locality?.trim() ?? "";
+  let province = trimmedSearchParam(params.province) ?? "";
+  let locality = trimmedSearchParam(params.locality) ?? "";
 
   if ((!province || !locality) && serviceKind) {
     const [firstPet] = await db

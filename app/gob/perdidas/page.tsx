@@ -50,6 +50,7 @@ import {
   speciesLabel,
   todayIsoInAr,
 } from "@/lib/utils/format";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { LostPetRow as LostPetRowComponent } from "./_components/LostPetRow";
 
 const VALID_STATUSES: PetListSelector[] = ["all", "lost", "recovered", "active", "deceased"];
@@ -110,7 +111,8 @@ export default async function GobPerdidasPage({
   const listSince = undefined;
   const species = sp.species || undefined;
   const statusFilter = parseStatusFilter(sp.status);
-  const q = sp.q?.trim() || undefined;
+  // Q1: a repeated ?q= hands Next a string[] — raw `.trim()` on that throws (500).
+  const q = trimmedSearchParam(sp.q);
 
   // Switcher inputs + THE FENCE (D4 reversal, PO decision 2026-07-19): perdidas
   // used to discard filteredJurisdictions and scope every fetcher on the

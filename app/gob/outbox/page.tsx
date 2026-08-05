@@ -51,6 +51,7 @@ import { buildOutboxDomainAxes } from "@/lib/ui/outbox-filter-axes";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 export default async function GobOutboxPage({
   searchParams,
@@ -83,11 +84,13 @@ export default async function GobOutboxPage({
 
   const sp = await searchParams;
   const actor = { role: profile.role } as const;
+  // Q1: a repeated filter param (?status=a&status=b) hands Next a string[]
+  // — raw `.trim()` on that throws (500).
   const filters = {
-    status: sp.status?.trim() || undefined,
-    target_kind: sp.target_kind?.trim() || undefined,
-    breach: sp.breach?.trim() || undefined,
-    province: sp.province?.trim() || undefined,
+    status: trimmedSearchParam(sp.status),
+    target_kind: trimmedSearchParam(sp.target_kind),
+    breach: trimmedSearchParam(sp.breach),
+    province: trimmedSearchParam(sp.province),
   };
 
   // Build a scoped ProjectionContext for DashboardFreshnessFooter.

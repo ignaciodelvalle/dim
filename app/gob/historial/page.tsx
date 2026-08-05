@@ -69,6 +69,7 @@ import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
 import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 
 export const dynamic = "force-dynamic";
 
@@ -95,7 +96,9 @@ export default async function GobHistorialPage({
   // label), so this parses a comma-separated list — same contract as
   // /admin/auditoria.
   const actionFilters = parseAuditActions(sp.action);
-  const actorFilter = sp.actor?.trim() || null;
+  // Q1: a repeated ?actor= hands Next a string[] — raw `.trim()` on that
+  // throws (500).
+  const actorFilter = trimmedSearchParam(sp.actor) ?? null;
   // Same conditional shape as /gob/vigilancia and /admin/programa: only ask
   // the resolver to parse when the picker actually set something, otherwise
   // fall back to the named trailing-12m window that DEFAULT_DASHBOARD_PRESET

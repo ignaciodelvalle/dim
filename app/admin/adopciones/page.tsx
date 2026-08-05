@@ -233,8 +233,11 @@ export default async function AdminAdopcionesPage({
               description="No hay registros de intake, tránsitos o adopciones en el período seleccionado."
             />
           ) : (
+            // Q2: role="img" flattens the whole subtree to a single opaque
+            // image for assistive tech — the figcaption AND every stage
+            // <li>'s aria-label below were unreachable while it sat here.
+            // Same fix already shipped for StaticFirstMap's static-map role.
             <figure
-              role="img"
               aria-label={`Flujo de custodia — ${funnel.intake.toLocaleString("es-AR")} ingresos en total.`}
             >
               <figcaption className="sr-only">

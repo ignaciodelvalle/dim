@@ -54,11 +54,16 @@ export default async function ChapitaPage({
     );
   }
 
-  // Same QR target + generation settings as the cartel and the credential.
+  // Same QR target + generation settings as the cartel and the credential —
+  // including the quiet zone: margin: 0 left every other QR in the repo's
+  // company (cartel, credencial, presentar, turnos all use margin: 1), but
+  // THIS is the one printed at physical-tag scale (22/24/40mm, ChapitaSheet's
+  // QrBlock) with no quiet zone at all — a scanner has nothing to lock onto
+  // at the code's edge (PRN-4, print-surfaces audit 2026-08-04).
   const baseUrl = resolveSiteUrl();
   const qrSvg = await QRCode.toString(`${baseUrl}/p/${publicToken}`, {
     type: "svg",
-    margin: 0,
+    margin: 1,
     errorCorrectionLevel: "M",
   });
 
