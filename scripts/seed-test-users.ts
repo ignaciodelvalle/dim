@@ -1148,6 +1148,53 @@ async function seedAdoptionListing(orgId: string, actorUserId: string): Promise<
   }
 
   const now = new Date();
+
+  // The ELIGIBILITY half is a pet FACT, so it belongs in the spine before it
+  // belongs in the cache: `adoptionEligible` + `adoptionEligibilitySetAt` are
+  // both in rederivePetCache's CHECKED_COLUMNS, and writing them without their
+  // `adoption_eligibility_set` event is exactly the drift invariant #3 forbids
+  // (the pet-cache harness caught this seed doing it). Mirrors
+  // AdoptionRepository.setEligibility: open the adoption_listing case, then
+  // insert the event carrying its id.
+  const casePublicCode = generatePrefixedToken("CAS");
+  const [listingCase] = await db
+    .insert(cases)
+    .values({
+      publicCode: casePublicCode,
+      caseKind: "adoption_listing",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      openedByUserId: actorUserId,
+      openedByOrganizationId: orgId,
+      openedReason: "Mascota publicada en adopción por el refugio",
+    })
+    .returning({ id: cases.id });
+
+  await db.insert(petEvents).values({
+    petId: pet.id,
+    eventType: "adoption_eligibility_set",
+    occurredAt: now,
+    recordedAt: now,
+    recordedByUserId: actorUserId,
+    authorRole: "shelter",
+    authorOrganizationId: orgId,
+    authorVerified: true,
+    caseId: listingCase.id,
+    payload: {
+      payload_version: 1,
+      eligible: true,
+      ineligible_reason: null,
+      ineligible_reason_notes: null,
+      ineligible_until: null,
+      previous_state: null,
+    },
+  });
+
+  // The LISTING half is curated shelf metadata — no event, by design
+  // (AdoptionRepository.setListingStatus emits none) and none of these columns
+  // is in CHECKED_COLUMNS.
   // The full gate queryAdoptionListing checks: eligible + listed + not paused,
   // on an active shelter_custody row of a VERIFIED shelter org (provisionOrg
   // already verifies it). Anything less and the listing exists in the table
