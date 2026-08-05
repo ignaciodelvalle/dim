@@ -195,32 +195,64 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
       "maltrato console heading",
     ).toBeVisible({ timeout: 20_000 });
 
-    // `pnpm db:bootstrap` creates no cases at all, so on a fresh CI database
-    // the hub is legitimately empty. File one the way a citizen does — inside
-    // THIS operator's coverage (ACCOUNTS.govt is seeded on Ushuaia +
+    // `pnpm db:bootstrap` creates no denuncias at all, so on a fresh CI
+    // database the hub is legitimately empty. File one the way a citizen does —
+    // inside THIS operator's coverage (ACCOUNTS.govt is seeded on Ushuaia +
     // El Calafate), because a govt queue matches jurisdiction on an exact
     // province/locality pair.
     //
-    // A fresh anon denuncia enters the MODERACIÓN stage (the F1 fusion made
-    // moderation the pipeline's front door — crisis-seams (c) walks exactly
-    // "flagged anon denuncia → ADMIN passes to triage"), so the actionable
-    // row for a just-filed case lives under etapa=moderacion and links to
-    // /gob/moderacion/{code} — NOT under the etapa=triage default this test
-    // used to assert (CI run 30865512613: Triage tab jurisdiction-filtered
-    // empty while Moderación carried the filed cases). Match only VISIBLE
-    // rows: inactive queue tabpanels stay in the DOM with [hidden].
-    const anyActionableRow = page.locator(
-      'a[href^="/gob/maltrato/"]:visible, a[href^="/gob/moderacion/"]:visible',
-    );
-    if ((await anyActionableRow.count()) === 0) {
-      await fileDenunciaAt(browser, USHUAIA_POINT, USHUAIA_JURISDICTION);
+    // ─── WHICH STAGE THE ROW LANDS IN IS NOT A CONSTANT ────────────────────
+    // This probed the TRIAGE tab to decide whether to file, then asserted on
+    // the MODERACIÓN tab. Both halves were written from a single observed CI
+    // run (30865512613: Triage empty, Moderación carrying the filed cases) and
+    // read as a rule what is really an emergent, ORDER-DEPENDENT outcome.
+    //
+    // The truth: create-welfare-report auto-flags an anonymous denuncia into
+    // Moderación only when a heuristic fires (lib/infra/welfare-moderation.ts).
+    // walkDenunciaWizard's text is long, mixed-case, "moderado" and carries a
+    // photo, so the ONLY rule it can trip is `duplicate_within_24h` — i.e.
+    // whether an EARLIER SPEC already filed that same description in this run.
+    // Flagged → Moderación; unflagged → Triage (buildMaltratoListConditions
+    // keeps exactly the unflagged rows). Until 8adeb437 admin-case-detail-shell
+    // always filed the first copy, so the govt-side one was a duplicate and
+    // Moderación held it; that commit seeded two real `cases` into bootstrap,
+    // the admin spec's "is the queue empty?" gate stopped firing, and the
+    // govt-side denuncia became the FIRST of its text — unflagged, in Triage.
+    // This test then found a Triage row, skipped filing, and asserted an empty
+    // Moderación tab. Nothing about the product was broken.
+    //
+    // So: probe BOTH stages, and assert on whichever one actually holds it. A
+    // synthetic monitor must not depend on another spec's side effects.
+    // Match only VISIBLE rows — inactive queue tabpanels stay in the DOM
+    // with [hidden].
+    const HUB_ROW = 'a[href^="/gob/maltrato/"]:visible, a[href^="/gob/moderacion/"]:visible';
+    const STAGES = ["triage", "moderacion"] as const;
+
+    /** Land on the first hub stage that has an actionable row; null if none. */
+    async function stageWithActionableRow(): Promise<string | null> {
+      for (const etapa of STAGES) {
+        await page.goto(`/gob/denuncias?etapa=${etapa}&queue=all`, {
+          waitUntil: "domcontentloaded",
+        });
+        await page.waitForLoadState("networkidle").catch(() => {});
+        if ((await page.locator(HUB_ROW).count()) > 0) return etapa;
+      }
+      return null;
     }
-    await page.goto("/gob/denuncias?etapa=moderacion&queue=all", {
-      waitUntil: "domcontentloaded",
-    });
+
+    let stage = await stageWithActionableRow();
+    if (!stage) {
+      await fileDenunciaAt(browser, USHUAIA_POINT, USHUAIA_JURISDICTION);
+      stage = await stageWithActionableRow();
+    }
+    expect(
+      stage,
+      "neither hub stage (Triage nor Moderación) shows an actionable row for this operator after filing a denuncia inside its coverage — check welfare_reports.jurisdiction_province for the just-filed DEN- code (see fileDenunciaAt's Nominatim caveat)",
+    ).not.toBeNull();
+    // `page` is already on the stage that has the row.
     await expect(
-      anyActionableRow.first(),
-      "hub has at least one actionable (visible) case row for this operator",
+      page.locator(HUB_ROW).first(),
+      `hub stage "${stage}" has at least one actionable (visible) case row for this operator`,
     ).toBeVisible({ timeout: 20_000 });
 
     // Panorama map paints a canvas within 60s.

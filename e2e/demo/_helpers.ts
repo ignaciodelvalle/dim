@@ -14,7 +14,7 @@ import {
   NOT_FOUND_HEADING,
   type OwnerPii,
 } from "../_page-identity";
-import { ensureCaseJurisdiction, resetAuthLoginRateLimits } from "./_db-cleanup";
+import { ensureDenunciaJurisdiction, resetAuthLoginRateLimits } from "./_db-cleanup";
 
 export const SHARED_PASSWORD = "Test1234!";
 
@@ -409,15 +409,24 @@ export async function discoverOwnerPii(page: Page, email: string): Promise<Owner
  * manufacture one the way a citizen does rather than skipping or asking CI to
  * carry the demo seed.
  *
- * ⚠ JURISDICTION ROUTING IS NOT LOCAL. Which operator sees the case is decided
- * by `cases.jurisdiction_province/locality`, and those are filled from a
+ * ⚠ JURISDICTION ROUTING IS NOT LOCAL. Which operator sees this denuncia is
+ * decided by `cases.jurisdiction_*` (for /gob/casos) and by
+ * `welfare_reports.jurisdiction_*` (for the Triage and Moderación stages of the
+ * Denuncias hub — welfareReportsScopeClause). Both are filled from a
  * SERVER-SIDE fetch to https://nominatim.openstreetmap.org (lib/infra/
  * geocoding.ts) fired when the pin drops — the app never derives jurisdiction
  * from the coordinates itself. If that call fails the report still submits, but
- * the case lands with a NULL jurisdiction and `listCasesForGovt` (which ANDs an
- * exact province/locality pair and falls back to `sql\`false\``) shows it to
+ * lands with a NULL jurisdiction, and every govt queue ANDs an exact
+ * province/locality pair (falling back to `sql\`false\``), so it is visible to
  * nobody. Callers that need a govt queue must use `expectCaseInGovtQueue`,
  * which names that cause instead of reporting an empty queue.
+ *
+ * ⚠ WHICH STAGE IT LANDS IN IS NOT FIXED EITHER — see the header of flow (c)
+ * in e2e/synthetic-monitor.spec.ts. An anonymous denuncia is auto-flagged into
+ * MODERACIÓN only when a heuristic fires (lib/infra/welfare-moderation.ts);
+ * the text this helper types trips none of them on its own, so the FIRST call
+ * in a run lands in TRIAGE and later ones land in Moderación as
+ * `duplicate_within_24h`. Never assert on one stage after probing the other.
  */
 export async function fileDenunciaAt(
   browser: Browser,
@@ -425,8 +434,8 @@ export async function fileDenunciaAt(
   /**
    * The jurisdiction the caller CHOSE by picking the pin. When provided and
    * the server-side Nominatim geocode flaked (routine on CI runners), the
-   * case's NULL jurisdiction is repaired to this — see
-   * ensureCaseJurisdiction; a resolved jurisdiction is never overwritten.
+   * NULL jurisdiction of BOTH the welfare report and its case is repaired to
+   * this — see ensureDenunciaJurisdiction; a resolved one is never overwritten.
    */
   jurisdiction?: { province: string; locality: string },
 ): Promise<string> {
@@ -443,7 +452,7 @@ export async function fileDenunciaAt(
     const page = await context.newPage();
     const code = await walkDenunciaWizard(page, { coords });
     if (jurisdiction) {
-      await ensureCaseJurisdiction(code, jurisdiction.province, jurisdiction.locality);
+      await ensureDenunciaJurisdiction(code, jurisdiction.province, jurisdiction.locality);
     }
     return code;
   } finally {

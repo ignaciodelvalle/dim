@@ -108,6 +108,17 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
   dates in Argentina time, and from ~21:00 ART the UTC date is already
   tomorrow — that made a seam pass every morning and fail every night.
   Use `Intl.DateTimeFormat("en-CA", { timeZone: "America/Argentina/Buenos_Aires" })`.
+- **A filed denuncia does NOT land in a fixed stage.** `create-welfare-report`
+  auto-flags an anonymous report into **Moderación** only when a heuristic fires
+  (`lib/infra/welfare-moderation.ts`); otherwise it goes straight to **Triage**.
+  `walkDenunciaWizard`'s text is long, mixed-case, "moderado" and carries a
+  photo, so the only rule it can trip is `duplicate_within_24h` — i.e. whether
+  an EARLIER SPEC in the same serial run already filed that same description.
+  So the stage is an emergent property of spec ORDER, never a constant: probe
+  and assert the SAME stages, or probe both. `8adeb437` (bootstrap now seeds two
+  real `cases`) silently stopped `admin-case-detail-shell` from filing the first
+  copy, which flipped the govt-side denuncia from Moderación to Triage and made
+  synthetic-monitor (c) red — with nothing wrong in the product.
 - **Walk multi-step wizards.** Mark-lost and denuncia submits live on the LAST
   step; clicking that button's name from step 1 waits for an element that step
   never renders. `playwright.config.ts` now sets `actionTimeout: 15s` so this

@@ -79,33 +79,58 @@ export async function resetAuthLoginRateLimits(): Promise<void> {
 }
 
 /**
- * Repair a case's jurisdiction when the geocode never resolved (fixture
+ * Repair a denuncia's jurisdiction when the geocode never resolved (fixture
  * repair, local DB only).
  *
- * WHY: the denuncia wizard fills cases.jurisdiction_province/locality from a
+ * WHY: the denuncia wizard fills jurisdiction_province/locality from a
  * SERVER-SIDE call to nominatim.openstreetmap.org fired when the pin drops —
  * the app never derives jurisdiction from the coordinates itself. When that
  * external call flakes (CI runners get throttled by Nominatim routinely), the
- * report still submits but lands with NULL jurisdiction, and listCasesForGovt
- * shows it to nobody — so a spec that filed a denuncia to prime a govt queue
- * asserts against an empty list for reasons outside the app. This sets the
- * jurisdiction the CALLER already knows (it chose the pin), and ONLY when the
- * geocode left it NULL — a resolved jurisdiction is never overwritten.
+ * report still submits but lands with NULL jurisdiction, and every govt queue
+ * ANDs an exact province/locality pair — so it is visible to nobody, and a
+ * spec that filed a denuncia to prime a queue asserts against an empty list
+ * for reasons outside the app. This sets the jurisdiction the CALLER already
+ * knows (it chose the pin), and ONLY where the geocode left it NULL — a
+ * resolved jurisdiction is never overwritten.
+ *
+ * ⚠ IT TAKES THE WELFARE REFERENCE CODE, AND IT REPAIRS BOTH TABLES.
+ * This used to take one argument named `publicCode` and run a single
+ * `UPDATE cases … WHERE public_code = $1`, which could never match a row:
+ * `walkDenunciaWizard` returns the WELFARE REPORT's reference code
+ * (`DEN-XXXXXXXX`, src/modules/welfare/domain/reference-code.ts) while a case's
+ * public_code is `CAS-XXXX-XXXX` (cases-repository.generateUniqueCasePublicCode).
+ * Measured on the local DB: 0 rows in `cases` carry a `DEN-` public_code
+ * against 2806 welfare_reports that do. The safety net was inert.
+ * It also aimed at the wrong table for the queues that matter: /gob/maltrato
+ * (triage) and the Moderación stage scope on `welfare_reports.jurisdiction_*`
+ * (welfareReportsScopeClause, lib/analytics/dashboards/_scope.ts), NOT on the
+ * case's copy. Both are written from the same geocode, so both are repaired.
  */
-export async function ensureCaseJurisdiction(
-  publicCode: string,
+export async function ensureDenunciaJurisdiction(
+  referenceCode: string,
   province: string,
   locality: string,
 ): Promise<void> {
   const url = resolveUrl();
   if (!isLocalDatabase(url)) return;
-  if (!publicCode) return;
+  if (!referenceCode) return;
 
   const sql = postgres(url, { max: 1, onnotice: () => {} });
   try {
-    await sql`UPDATE cases
+    // The report itself — what welfareReportsScopeClause fences the two
+    // denuncia queues on.
+    await sql`UPDATE welfare_reports
       SET jurisdiction_province = ${province}, jurisdiction_locality = ${locality}
-      WHERE public_code = ${publicCode} AND jurisdiction_province IS NULL`;
+      WHERE reference_code = ${referenceCode} AND jurisdiction_province IS NULL`;
+    // The case create-welfare-report opened alongside it — what casesScopeClause
+    // fences /gob/casos on. Joined through welfare_reports.case_id, because the
+    // caller only ever holds the DEN- code.
+    await sql`UPDATE cases c
+      SET jurisdiction_province = ${province}, jurisdiction_locality = ${locality}
+      FROM welfare_reports w
+      WHERE w.reference_code = ${referenceCode}
+        AND c.id = w.case_id
+        AND c.jurisdiction_province IS NULL`;
   } catch {
     // Best-effort — the spec's own queue assertion reports the outcome.
   } finally {
