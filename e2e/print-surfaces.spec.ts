@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+import { seedFixtureVerdict } from "./_seed-profile";
+import { ACCOUNTS, loginAs } from "./demo/_helpers";
+
 /**
  * Print-surface regression armor (print-surfaces audit, 2026-08-04).
  *
@@ -91,42 +94,157 @@ test.describe("print surfaces keep the meaning that lives in colour", () => {
   });
 });
 
+/**
+ * Name the first ancestor of `selector` that would cut the printed document
+ * short, or null when the chain is clean.
+ *
+ * A box clips iff it hides its overflow AND either (a) it actually has more
+ * content than it shows (`scrollHeight > clientHeight`) or (b) it is
+ * `position: fixed`, which bounds it to the viewport by construction whatever
+ * its content does. Both halves matter: the operator shell's four nested boxes
+ * are the (b) case at the top and the (a) case at the scroller.
+ *
+ * Returns a description rather than a boolean so a failure says WHICH box —
+ * the whole point of the finding was that nobody could tell.
+ */
+async function clippingAncestorOf(
+  page: import("@playwright/test").Page,
+  selector: string,
+): Promise<string | null> {
+  return page
+    .locator(selector)
+    .first()
+    .evaluate((el) => {
+      let node: HTMLElement | null = el.parentElement;
+      while (node && node !== document.body) {
+        const cs = getComputedStyle(node);
+        const hidesOverflow =
+          cs.overflow === "hidden" ||
+          cs.overflowY === "hidden" ||
+          cs.overflowY === "auto" ||
+          cs.overflowY === "scroll";
+        const bounded = cs.position === "fixed" || node.scrollHeight - node.clientHeight > 2;
+        if (hidesOverflow && bounded) {
+          const cls = typeof node.className === "string" ? node.className : "";
+          return `<${node.tagName.toLowerCase()} class="${cls}"> (position: ${cs.position}, overflow-y: ${cs.overflowY})`;
+        }
+        node = node.parentElement;
+      }
+      return null;
+    });
+}
+
+/**
+ * The document must be tall enough to hold the print root. Under the PRN-3 bug
+ * the root was `position: absolute` inside a `position: fixed` shell, so the
+ * document stayed exactly one viewport tall no matter how long the case file
+ * was — page 2 did not exist to print onto.
+ */
+async function documentContains(page: import("@playwright/test").Page, selector: string) {
+  return page
+    .locator(selector)
+    .first()
+    .evaluate((el) => {
+      const box = el.getBoundingClientRect();
+      return {
+        documentHeight: document.documentElement.scrollHeight,
+        rootBottom: Math.round(box.bottom + window.scrollY),
+      };
+    });
+}
+
 test.describe("print surfaces are not clipped by the operator shell", () => {
-  // PRN-3, CONFIRMED by the PO on 2026-08-04: printing /gob/maltrato/<id> from
-  // a full page tab produces a PDF cut off at roughly one page. The mechanism:
-  // expediente-print.css escapes the shell with `position: absolute`, but its
+  // PRN-3, CONFIRMED by the PO on 2026-08-04: printing /gob/maltrato/<id> from a
+  // full page tab produced a PDF cut off at roughly one page. The mechanism:
+  // expediente-print.css escaped the shell with `position: absolute`, but its
   // nearest POSITIONED ancestor is AppShell's `fixed inset-0 … overflow-hidden`
-  // wrapper, so the print root never leaves that viewport-height clipping box —
+  // root, so the print root never left that viewport-height clipping box —
   // `visibility: hidden` on siblings does not remove an ancestor's overflow.
   //
-  // Written now and skipped on purpose: the fix is a shell restructuring, not a
-  // stylesheet tweak, and a spec that fails is a red CI rather than a fence.
-  // Flip `.fixme` to a live test in the same commit that lands the fix — the
-  // assertion below is the one that would have caught it.
-  test.fixme("the expediente print root has no clipping ancestor", async ({ page }) => {
-    await page.goto("/gob/denuncias?etapa=triage");
-    const row = page.locator('a[href^="/gob/maltrato/"]').first();
-    test.skip((await row.count()) === 0, "No welfare reports seeded — nothing to print.");
+  // Fixed 2026-08-05 by components/layout/operator-print-escape.css, which puts
+  // the shell's four boxes back in normal flow under print media. These two
+  // tests are the fence: they fail on the exact shape of the defect, on both
+  // surfaces that wore the broken recipe.
 
-    const href = await row.getAttribute("href");
-    await page.goto(href ?? "");
+  // A short viewport on purpose: every real expediente and every real informe is
+  // taller than this, so "the document grew past one viewport" is a live
+  // assertion here rather than a tautology on a sparse seed.
+  test.use({ viewport: { width: 1280, height: 600 } });
+
+  test("the maltrato expediente prints past page one", async ({ page }) => {
+    await loginAs(page, ACCOUNTS.admin);
+    await page.goto("/gob/denuncias?etapa=triage");
+    await page.waitForLoadState("networkidle").catch(() => {});
+
+    const row = page.locator('a[href^="/gob/maltrato/"]').first();
+    const verdict = seedFixtureVerdict(
+      await row.count(),
+      "welfare report on /gob/denuncias",
+      "the expediente's print layout (PRN-3, the Ley 14.346 case file that printed as one clipped page)",
+    );
+    test.skip(verdict.verdict === "skip", verdict.verdict === "skip" ? verdict.reason : "");
+    expect(verdict.verdict, verdict.verdict === "fail" ? verdict.reason : "").not.toBe("fail");
+
+    await page.goto((await row.getAttribute("href")) ?? "");
+    await expect(page.locator("[data-print-root]")).toBeVisible();
+
     await page.emulateMedia({ media: "print" });
 
-    const clipped = await page
-      .locator("[data-print-root]")
-      .first()
-      .evaluate((el) => {
-        let node: HTMLElement | null = el.parentElement;
-        while (node && node !== document.body) {
-          const cs = getComputedStyle(node);
-          const hidesOverflow = cs.overflow === "hidden" || cs.overflowY === "hidden";
-          const boundsHeight = cs.position === "fixed" || cs.height.endsWith("vh");
-          if (hidesOverflow && boundsHeight) return true;
-          node = node.parentElement;
-        }
-        return false;
-      });
+    const clipper = await clippingAncestorOf(page, "[data-print-root]");
+    expect(clipper, `an ancestor still clips the expediente: ${clipper}`).toBeNull();
 
-    expect(clipped, "an ancestor clips the print root to viewport height").toBe(false);
+    const { documentHeight, rootBottom } = await documentContains(page, "[data-print-root]");
+    expect(
+      documentHeight,
+      "the document is shorter than the expediente — everything past page 1 is unreachable",
+    ).toBeGreaterThanOrEqual(rootBottom - 2);
+
+    // The print-only footer is the LAST node of the case file and carries the
+    // generation stamp + attribution. The audit's own repro instruction was
+    // "count the pages, look for the footer": its absence WAS the defect.
+    const footer = page.locator("[data-print-footer]");
+    await expect(footer).toBeVisible();
+    expect(await footer.boundingBox(), "the expediente footer has no layout box").not.toBeNull();
+  });
+
+  test("the panorama informe prints its method notes and k-anon disclosure", async ({ page }) => {
+    // deferPrint() fires window.print() on a setTimeout; stub it so a headed run
+    // does not park on a native dialog. The assertions are about the @media print
+    // CASCADE, which emulateMedia gives us without printing anything.
+    await page.addInitScript(() => {
+      window.print = () => {};
+    });
+    await loginAs(page, ACCOUNTS.govt);
+    await page.goto("/gob/panorama");
+
+    // The informe is mounted only once the operator generates it (PanoramaConsole
+    // keeps it unmounted to avoid duplicating every KPI label in the a11y tree).
+    // It lives behind the rail's "Exportar" panel.
+    await page.getByRole("button", { name: "Exportar", exact: true }).first().click();
+    await page
+      .getByRole("button", { name: /Informe de situación/ })
+      .first()
+      .click();
+
+    const informe = page.locator("[data-panorama-informe]");
+    await expect(informe).toBeAttached();
+
+    await page.emulateMedia({ media: "print" });
+    await expect(informe).toBeVisible();
+
+    const clipper = await clippingAncestorOf(page, "[data-panorama-informe]");
+    expect(clipper, `an ancestor still clips the informe: ${clipper}`).toBeNull();
+
+    const { documentHeight, rootBottom } = await documentContains(page, "[data-panorama-informe]");
+    expect(
+      documentHeight,
+      "the document is shorter than the informe — the tail of the briefing cannot print",
+    ).toBeGreaterThanOrEqual(rootBottom - 2);
+
+    // The component's own docblock promises the method notes and the k-anon
+    // disclosure are "always present here — never dropped". They sit in the
+    // FOOTER, i.e. exactly the part a one-page truncation ate.
+    await expect(informe.getByText("Acerca de las métricas")).toBeVisible();
+    await expect(informe.getByText(/Fuente: miMAR/)).toBeVisible();
   });
 });
