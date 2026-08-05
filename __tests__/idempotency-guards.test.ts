@@ -313,8 +313,9 @@ describe("createVaccineReminder — idempotency guard", () => {
       { error: null },
       fd,
     );
-    // redirect() is mocked — a successful call returns undefined.
-    expect(first).toBeUndefined();
+    // Nav contract N3 (2026-08-05): success RETURNS the destination instead of
+    // calling redirect(), which the App Router can drop.
+    expect(first).toEqual({ error: null, redirectTo: `/mis-mascotas/${pet.publicToken}` });
 
     const second = await createVaccineReminder(
       ownerUserId,
@@ -323,7 +324,7 @@ describe("createVaccineReminder — idempotency guard", () => {
       { error: null },
       fd,
     );
-    expect(second).toBeUndefined();
+    expect(second).toEqual({ error: null, redirectTo: `/mis-mascotas/${pet.publicToken}` });
 
     const rows = await db
       .select({ id: reminders.id })

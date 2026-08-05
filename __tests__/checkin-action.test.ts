@@ -369,7 +369,7 @@ describe("recordPostAdoptionCheckinAction", () => {
 
   // ── Happy path ─────────────────────────────────────────────────────────────
 
-  it("happy path: calls insertEventIdempotent, closes reminder, notifies admins, then redirects", async () => {
+  it("happy path: calls insertEventIdempotent, closes reminder, notifies admins, then returns redirectTo", async () => {
     vi.resetModules();
     mockRequirePetAccess.mockResolvedValue(makePetAccessSuccess());
     setupMockDb();
@@ -380,16 +380,17 @@ describe("recordPostAdoptionCheckinAction", () => {
 
     const { recordPostAdoptionCheckinAction } = await import("@/app/actions/checkin");
 
-    let threw: unknown = null;
-    try {
-      await recordPostAdoptionCheckinAction(PUBLIC_TOKEN, PREVIOUS_STATE, makeFormData(BASE_FORM));
-    } catch (e) {
-      threw = e;
-    }
+    const result = await recordPostAdoptionCheckinAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData(BASE_FORM),
+    );
 
-    // Successful path ends in redirect(), which throws NEXT_REDIRECT.
-    expect(threw).toBeTruthy();
-    expect((threw as Error).message).toContain("NEXT_REDIRECT");
+    // Nav contract N3 (2026-08-05): the use-case no longer calls redirect() —
+    // the App Router drops a Server Action's own redirect. It RETURNS the
+    // destination and the form navigates (useActionRedirect).
+    expect(result.error).toBeNull();
+    expect(result.redirectTo).toBe(`/mis-mascotas/${PUBLIC_TOKEN}`);
 
     // Event was inserted.
     expect(mockInsertEventIdempotent).toHaveBeenCalledOnce();
@@ -431,15 +432,11 @@ describe("recordPostAdoptionCheckinAction", () => {
       clientIdempotencyKey: "key-abc-123",
     });
 
-    let threw: unknown = null;
-    try {
-      await recordPostAdoptionCheckinAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
-    } catch (e) {
-      threw = e;
-    }
+    const result = await recordPostAdoptionCheckinAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
-    // Still redirects (noop is treated as success).
-    expect((threw as Error).message).toContain("NEXT_REDIRECT");
+    // Still navigates (noop is treated as success), via the N3 redirectTo contract.
+    expect(result.error).toBeNull();
+    expect(result.redirectTo).toBe(`/mis-mascotas/${PUBLIC_TOKEN}`);
 
     // No reminder closed, no notification sent (noop path returns early).
     expect(capturedReminderUpdate).toBeNull();
