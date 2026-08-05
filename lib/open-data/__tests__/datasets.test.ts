@@ -21,6 +21,9 @@ const { fetchSterilizationCoverage } = vi.hoisted(() => ({
 const { fetchMicrochipPenetrationByProvince } = vi.hoisted(() => ({
   fetchMicrochipPenetrationByProvince: vi.fn(),
 }));
+const { fetchPppComplianceByProvince } = vi.hoisted(() => ({
+  fetchPppComplianceByProvince: vi.fn(),
+}));
 const { loadMortalityRawRollupByProvince } = vi.hoisted(() => ({
   loadMortalityRawRollupByProvince: vi.fn(),
 }));
@@ -35,7 +38,7 @@ vi.mock("@/lib/metrics/population-control", async (importOriginal) => {
 });
 vi.mock("@/lib/analytics/compliance-metrics", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/lib/analytics/compliance-metrics")>();
-  return { ...actual, fetchMicrochipPenetrationByProvince };
+  return { ...actual, fetchMicrochipPenetrationByProvince, fetchPppComplianceByProvince };
 });
 // #40: the mortalidad builder now reads the RAW province rollup (not the map's
 // already-suppressed cells) so suppressDensityProvinces can run its
@@ -54,7 +57,24 @@ beforeEach(() => {
   fetchRabiesCoverageByProvince.mockReset();
   fetchSterilizationCoverage.mockReset();
   fetchMicrochipPenetrationByProvince.mockReset();
+  fetchPppComplianceByProvince.mockReset();
   loadMortalityRawRollupByProvince.mockReset();
+  // C8 (2026-08-05): the joint rule now spans NESTED bases too
+  // (perros_ppp ⊂ perros_registrados ⊂ mascotas_activas), so building ANY rate
+  // dataset touches every other rate fetcher. Empty defaults keep a test that
+  // only cares about one dataset from having to mock the whole family; a test
+  // exercising the joint rule overrides what it needs.
+  fetchRabiesCoverageByProvince.mockResolvedValue([]);
+  fetchSterilizationCoverage.mockResolvedValue({
+    rate: 0,
+    sterilized: 0,
+    total: 0,
+    byProvince: [],
+    byProvinceSuppressedCount: 0,
+    byProvinceAssignedTotal: 0,
+  });
+  fetchMicrochipPenetrationByProvince.mockResolvedValue([]);
+  fetchPppComplianceByProvince.mockResolvedValue([]);
 });
 
 describe("buildDataset — mortalidad (density) k-anon, aligned with the map (#40)", () => {
@@ -242,6 +262,21 @@ describe("buildDataset — joint suppression of the shared mascotas_activas base
       { province: "Buenos Aires", chipped: 4000, active: 9000, ratePct: 44.4 },
       { province: "Córdoba", chipped: 4500, active: 9000, ratePct: 50 },
     ]);
+    // C8: the NESTED bases are now part of the joint group, so both fetchers run
+    // on every rate build. Held far below `mascotas_activas` here (differences of
+    // thousands) so this fixture keeps testing the SAME-base rule alone.
+    fetchRabiesCoverageByProvince.mockResolvedValue([
+      { province: "CABA", vaccinated: 2000, total: 4000, ratePct: 50 },
+      { province: "Tierra del Fuego", vaccinated: 1500, total: 3000, ratePct: 50 },
+      { province: "Buenos Aires", vaccinated: 2000, total: 4000, ratePct: 50 },
+      { province: "Córdoba", vaccinated: 2000, total: 4000, ratePct: 50 },
+    ]);
+    fetchPppComplianceByProvince.mockResolvedValue([
+      { province: "CABA", attested: 500, flaggedCount: 1000, ratePct: 50 },
+      { province: "Tierra del Fuego", attested: 400, flaggedCount: 800, ratePct: 50 },
+      { province: "Buenos Aires", attested: 500, flaggedCount: 1000, ratePct: 50 },
+      { province: "Córdoba", attested: 500, flaggedCount: 1000, ratePct: 50 },
+    ]);
   }
 
   it("marks esterilizacion's base for a province suppressed only in microchip, while keeping its own pct visible", async () => {
@@ -312,5 +347,134 @@ describe("buildDataset — joint suppression of the shared mascotas_activas base
     expect(cabaLine).toContain(`"${SUPPRESSED_MARKER}"`);
     // The pct cell (50) survives as a real value alongside the suppressed base.
     expect(cabaLine).toMatch(/,50$/);
+  });
+});
+
+describe("buildDataset — C8: joint suppression across NESTED bases (dogs ⊂ pets)", () => {
+  // The audit finding (Y2/RA-3): joint suppression grouped on the base column
+  // NAME, so `perros_registrados` and `mascotas_activas` looked unrelated. They
+  // are not — every registered dog is an active pet. Both files pass their own
+  // k-checks on their own populations, and the DIFFERENCE (the pets that are not
+  // dogs) is a group nobody ever checked. Download both, join on codigo_iso,
+  // subtract.
+  //
+  // Santa Cruz here: 9 004 active pets, 9 000 registered dogs → 4 non-dogs, a
+  // sub-k group disclosed by two "compliant" files. Córdoba is the control:
+  // 9 000 pets vs 4 000 dogs → a difference of 5 000, nothing to protect.
+  function mockNestedCounts() {
+    fetchSterilizationCoverage.mockResolvedValue({
+      rate: 0,
+      sterilized: 0,
+      total: 0,
+      byProvince: [
+        { province: "Santa Cruz", suppressed: false, sterilized: 4502, total: 9004, ratePct: 50 },
+        { province: "Córdoba", suppressed: false, sterilized: 4500, total: 9000, ratePct: 50 },
+        {
+          province: "Buenos Aires",
+          suppressed: false,
+          sterilized: 4500,
+          total: 9000,
+          ratePct: 50,
+        },
+      ],
+      byProvinceSuppressedCount: 0,
+      byProvinceAssignedTotal: 27004,
+    });
+    fetchRabiesCoverageByProvince.mockResolvedValue([
+      { province: "Santa Cruz", vaccinated: 4500, total: 9000, ratePct: 50 },
+      { province: "Córdoba", vaccinated: 2000, total: 4000, ratePct: 50 },
+      { province: "Buenos Aires", vaccinated: 2000, total: 4000, ratePct: 50 },
+    ]);
+  }
+
+  it("suppresses the SUPERSET base (mascotas_activas) when pets − dogs falls under k", async () => {
+    mockNestedCounts();
+    const est = await buildDataset(
+      "cobertura-esterilizacion",
+      new Date("2026-08-05T00:00:00.000Z"),
+    );
+    const sc = est.rows.find((r) => r.provincia === "Santa Cruz");
+    expect(sc?.mascotas_activas).toBe(SUPPRESSED_MARKER);
+    // Its own rate survives — the dataset's own k-checks passed, and a rate
+    // without its base recovers no count.
+    expect(sc?.cobertura_esterilizacion_pct).toBe(50);
+  });
+
+  it("suppresses the SUBSET base (perros_registrados) too — the difference leaks both ways", async () => {
+    mockNestedCounts();
+    const rab = await buildDataset("cobertura-antirrabica", new Date("2026-08-05T00:00:00.000Z"));
+    const sc = rab.rows.find((r) => r.provincia === "Santa Cruz");
+    expect(sc?.perros_registrados).toBe(SUPPRESSED_MARKER);
+  });
+
+  it("leaves a province whose difference clears k fully published", async () => {
+    mockNestedCounts();
+    const est = await buildDataset(
+      "cobertura-esterilizacion",
+      new Date("2026-08-05T00:00:00.000Z"),
+    );
+    const cba = est.rows.find((r) => r.provincia === "Córdoba");
+    expect(cba?.mascotas_activas).toBe(9000);
+    const rab = await buildDataset("cobertura-antirrabica", new Date("2026-08-05T00:00:00.000Z"));
+    expect(rab.rows.find((r) => r.provincia === "Córdoba")?.perros_registrados).toBe(4000);
+  });
+
+  it("does NOT suppress an EQUAL pair — an empty complement identifies nobody", async () => {
+    fetchSterilizationCoverage.mockResolvedValue({
+      rate: 0,
+      sterilized: 0,
+      total: 0,
+      byProvince: [
+        { province: "Córdoba", suppressed: false, sterilized: 4500, total: 9000, ratePct: 50 },
+        {
+          province: "Buenos Aires",
+          suppressed: false,
+          sterilized: 4500,
+          total: 9000,
+          ratePct: 50,
+        },
+      ],
+      byProvinceSuppressedCount: 0,
+      byProvinceAssignedTotal: 18000,
+    });
+    // Every active pet in Córdoba is a registered dog: 9 000 − 9 000 = 0.
+    fetchRabiesCoverageByProvince.mockResolvedValue([
+      { province: "Córdoba", vaccinated: 4500, total: 9000, ratePct: 50 },
+      { province: "Buenos Aires", vaccinated: 2000, total: 4000, ratePct: 50 },
+    ]);
+    const est = await buildDataset(
+      "cobertura-esterilizacion",
+      new Date("2026-08-05T00:00:00.000Z"),
+    );
+    expect(est.rows.find((r) => r.provincia === "Córdoba")?.mascotas_activas).toBe(9000);
+  });
+
+  it("reaches TRANSITIVELY: ppp dogs vs active pets, two links apart", async () => {
+    // perros_ppp ⊂ perros_registrados ⊂ mascotas_activas. An attacker joins the
+    // ppp file straight to the esterilización file; the containment walk must
+    // see the pair even though neither declares the other directly.
+    fetchSterilizationCoverage.mockResolvedValue({
+      rate: 0,
+      sterilized: 0,
+      total: 0,
+      byProvince: [
+        { province: "Santa Cruz", suppressed: false, sterilized: 4501, total: 9002, ratePct: 50 },
+        { province: "Córdoba", suppressed: false, sterilized: 4500, total: 9000, ratePct: 50 },
+      ],
+      byProvinceSuppressedCount: 0,
+      byProvinceAssignedTotal: 18002,
+    });
+    fetchPppComplianceByProvince.mockResolvedValue([
+      { province: "Santa Cruz", attested: 4500, flaggedCount: 9000, ratePct: 50 },
+      { province: "Córdoba", attested: 2000, flaggedCount: 4000, ratePct: 50 },
+    ]);
+    const est = await buildDataset(
+      "cobertura-esterilizacion",
+      new Date("2026-08-05T00:00:00.000Z"),
+    );
+    expect(est.rows.find((r) => r.provincia === "Santa Cruz")?.mascotas_activas).toBe(
+      SUPPRESSED_MARKER,
+    );
+    expect(est.rows.find((r) => r.provincia === "Córdoba")?.mascotas_activas).toBe(9000);
   });
 });

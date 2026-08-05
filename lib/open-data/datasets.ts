@@ -247,6 +247,23 @@ type RateBuild = {
   kind: "rate";
   baseColumn: string;
   pctColumn: string;
+  /**
+   * C8 (Y2/RA-3 audit) — the base column this one is a strict SUBSET of.
+   *
+   * Joint suppression used to group on the base column NAME (string equality),
+   * which sees `perros_registrados` and `mascotas_activas` as unrelated files.
+   * They are not: every registered dog is an active pet. An attacker downloads
+   * both, joins on `codigo_iso`, and SUBTRACTS — and the difference (the
+   * non-dogs of that province) is a population neither file ever k-checked.
+   * Santa Cruz publishing 9 004 active pets and 9 000 registered dogs discloses
+   * a group of 4 with both files fully "compliant".
+   *
+   * Declaring the containment lets the joint rule check the DIFFERENCE too.
+   * Only the IMMEDIATE superset is declared; the walk below is transitive, so
+   * `perros_ppp ⊂ perros_registrados ⊂ mascotas_activas` also compares ppp
+   * against active pets — an attacker is not obliged to join adjacent files.
+   */
+  subsetOf?: string;
   fetch: () => Promise<RateRow[]>;
 };
 type DensityBuild = {
@@ -264,6 +281,8 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
     kind: "rate",
     baseColumn: "perros_registrados",
     pctColumn: "cobertura_antirrabica_pct",
+    // Every registered dog is an active pet (C8).
+    subsetOf: "mascotas_activas",
     fetch: async () => {
       const rows = await fetchRabiesCoverageByProvince(nationalContext());
       return rows.flatMap((r) => {
@@ -363,6 +382,8 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
     kind: "rate",
     baseColumn: "perros_ppp",
     pctColumn: "cumplimiento_ppp_pct",
+    // Every PPP dog is a registered dog (C8) — and, transitively, an active pet.
+    subsetOf: "perros_registrados",
     fetch: async () => {
       const rows = await fetchPppComplianceByProvince(nationalContext());
       return rows.flatMap((r) => {
@@ -403,6 +424,48 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
 };
 
 /**
+ * The declared containment lattice between BASE COLUMNS, derived once from the
+ * builders' `subsetOf` so the relation lives next to the dataset that knows it.
+ *
+ * Column-level (not dataset-level) because two datasets publishing the SAME base
+ * column must agree about what that column contains — the joint rule already
+ * treats them as one population.
+ */
+const BASE_COLUMN_SUPERSET: Readonly<Record<string, string>> = Object.freeze(
+  Object.fromEntries(
+    Object.values(BUILDERS)
+      .filter((b): b is RateBuild => b.kind === "rate" && typeof b.subsetOf === "string")
+      .map((b) => [b.baseColumn, b.subsetOf as string]),
+  ),
+);
+
+/** Walk the declared containment upward, transitively. Cycle-safe by the `seen` set. */
+function baseColumnAncestors(column: string): Set<string> {
+  const seen = new Set<string>();
+  let current = BASE_COLUMN_SUPERSET[column];
+  while (current !== undefined && !seen.has(current)) {
+    seen.add(current);
+    current = BASE_COLUMN_SUPERSET[current];
+  }
+  return seen;
+}
+
+type BaseColumnRelation = "same" | "subset" | "superset" | "unrelated";
+
+/**
+ * How `self`'s base column relates to `other`'s.
+ *
+ * `"superset"` means SELF contains OTHER (self − other is the leaky difference);
+ * `"subset"` means the reverse. `"same"` is the pre-C8 shared-base group.
+ */
+function baseColumnRelation(self: string, other: string): BaseColumnRelation {
+  if (self === other) return "same";
+  if (baseColumnAncestors(other).has(self)) return "superset";
+  if (baseColumnAncestors(self).has(other)) return "subset";
+  return "unrelated";
+}
+
+/**
  * Province codes whose SHARED population base must be suppressed in this dataset.
  *
  * Several rate datasets publish the SAME base column computed from the SAME
@@ -414,9 +477,20 @@ const BUILDERS: Record<DatasetId, RateBuild | DensityBuild> = {
  * shared-base group has its base marked in ALL of them. (The dataset-specific
  * numerator/rate columns keep their own per-dataset suppression.)
  *
- * The group is DERIVED from the builders (rate datasets that share `baseColumn`),
- * so a future third dataset publishing the same base inherits the behavior with
- * no code change here. The set is computed from the underlying counts at build
+ * C8 (Y2/RA-3 audit, 2026-08-05) — SHARING a base is not the only way two files
+ * disclose each other. A base that CONTAINS another (`perros_registrados` ⊂
+ * `mascotas_activas`) leaks by SUBTRACTION: both files pass their own k-checks
+ * on their own populations, and the difference — the pets that are not dogs — is
+ * a group nobody ever checked. The grouping therefore reads the declared
+ * containment (`RateBuild.subsetOf`), not string equality of column names, and
+ * suppresses the base on both sides when that difference is a protected small
+ * positive. Symmetric by construction: each dataset recomputes the same
+ * difference from its own side and reaches the same verdict.
+ *
+ * The group is DERIVED from the builders (rate datasets that share `baseColumn`,
+ * plus those declaring a containment), so a future dataset publishing the same
+ * or a nested base inherits the behavior with no code change here. The set is
+ * computed from the underlying counts at build
  * time — never from another dataset's cached artifact — so each dataset's cached
  * unit is deterministic for its own build. Because each dataset caches
  * independently (daily TTL), two files built at different times can transiently
@@ -437,14 +511,60 @@ async function sharedBaseSuppressedCodes(
   for (const { row, suppressed } of selfTagged) {
     if (suppressed) codes.add(row.provinceCode);
   }
+  const selfDenominators = new Map<string, number>();
+  for (const { row } of selfTagged) selfDenominators.set(row.provinceCode, row.denominator);
+
   for (const memberId of DATASET_IDS) {
     if (memberId === selfId) continue;
     const member = BUILDERS[memberId];
-    if (member.kind !== "rate" || member.baseColumn !== selfBuilder.baseColumn) continue;
+    if (member.kind !== "rate") continue;
+
+    const relation = baseColumnRelation(selfBuilder.baseColumn, member.baseColumn);
+    if (relation === "unrelated") continue;
+
     const tagged = suppressRateProvinces(await member.fetch());
-    for (const { row, suppressed } of tagged) {
-      if (suppressed) codes.add(row.provinceCode);
+
+    if (relation === "same") {
+      for (const { row, suppressed } of tagged) {
+        if (suppressed) codes.add(row.provinceCode);
+      }
+      continue;
     }
+    for (const code of nestedBaseLeakCodes(selfDenominators, tagged, relation)) codes.add(code);
+  }
+  return codes;
+}
+
+/**
+ * C8 — provinces whose base leaks through the DIFFERENCE between two NESTED
+ * populations (e.g. active pets minus registered dogs).
+ *
+ * The two files are not interchangeable, so one file's own suppression says
+ * nothing about the other's. What leaks is the difference — the members of the
+ * superset that are not in the subset — which no per-dataset k-check ever looks
+ * at.
+ *
+ * A difference of exactly 0 is safe and deliberately NOT suppressed: an empty
+ * complement identifies nobody, the same reasoning `isRateCellProtected` applies
+ * to a zero numerator. A NEGATIVE difference means the two fetchers disagree
+ * about the same province (a subset larger than its superset); that is a data
+ * fault, not a publishable aggregate, so it is suppressed rather than reasoned
+ * about.
+ */
+function nestedBaseLeakCodes(
+  selfDenominators: ReadonlyMap<string, number>,
+  otherTagged: readonly TaggedRow<RateRow>[],
+  relation: "subset" | "superset",
+): string[] {
+  const codes: string[] = [];
+  for (const { row } of otherTagged) {
+    const selfDenominator = selfDenominators.get(row.provinceCode);
+    if (selfDenominator === undefined) continue;
+    const difference =
+      relation === "superset"
+        ? selfDenominator - row.denominator
+        : row.denominator - selfDenominator;
+    if (difference !== 0 && difference < OPEN_DATA_K) codes.push(row.provinceCode);
   }
   return codes;
 }

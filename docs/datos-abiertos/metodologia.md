@@ -142,6 +142,26 @@ diferencia nunca expone un grupo menor a 5, porque una base solo se publica en u
 archivo cuando, al momento de generarlo, ningún conjunto del grupo la suprimía —
 es decir, cuando ya era un agregado ≥ 5 apto para publicación.
 
+### Bases anidadas: la resta entre poblaciones que se contienen
+
+Compartir la base no es la única forma en que dos archivos se delatan. Hay bases
+que **contienen** a otras: todo perro registrado es una mascota activa, y todo
+perro PPP es un perro registrado. Cada archivo puede pasar sus propios controles
+de k sobre su propia población y, aun así, la **resta** entre las dos —las
+mascotas que no son perros— es un grupo que nadie revisó.
+
+El ejemplo concreto: una provincia con 9.004 mascotas activas y 9.000 perros
+registrados publica, sin decirlo, un grupo de 4. Los dos archivos son
+"correctos" por separado; el dato surge de cruzarlos por `codigo_iso` y restar.
+
+Por eso la supresión conjunta no compara nombres de columna: compara
+**poblaciones declaradas como contenidas una en la otra**. Cuando la diferencia
+entre una base y la base que la contiene queda entre 1 y 4, esa base se suprime
+en **los dos** archivos. Una diferencia de 0 no se suprime —un complemento vacío
+no identifica a nadie—, y la relación se recorre de forma transitiva, así que
+también se comparan bases que están a dos pasos (perros PPP contra mascotas
+activas), porque quien cruza archivos no está obligado a elegir los contiguos.
+
 ## Autoevaluación de riesgo de reidentificación
 
 Analizamos los caminos por los que alguien podría intentar reidentificar a una
