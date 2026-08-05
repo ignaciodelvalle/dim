@@ -17,7 +17,7 @@ export default function RefugiosLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="block min-h-screen bg-[var(--color-ln-paper)]"
+      className="op-fade-in block min-h-screen bg-[var(--color-ln-paper)]"
     >
       <span className="sr-only">Cargando…</span>
 

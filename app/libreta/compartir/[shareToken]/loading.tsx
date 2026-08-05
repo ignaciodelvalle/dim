@@ -18,7 +18,7 @@ export default function LibretaCompartirLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="bg-[var(--color-ln-paper)] p-6 block"
+      className="op-fade-in bg-[var(--color-ln-paper)] p-6 block"
     >
       <span className="sr-only">Cargando…</span>
       <div className="mx-auto max-w-2xl space-y-6 pb-20 pt-6">

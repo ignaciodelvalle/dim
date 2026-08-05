@@ -638,7 +638,24 @@ h6 {
 }
 
 /* A5 / A6 — streamed Suspense sections and conditional console panels. Fade
- * only (no layout-affecting property); A6 adds an 8px settle via translateY. */
+ * only (no layout-affecting property); A6 adds an 8px settle via translateY.
+ *
+ * MOT-2 (motion audit 2026-08-04, Gap 2) widened the caller set: every route
+ * skeleton now carries `.op-fade-in` too, so a navigation no longer hard-cuts
+ * from the outgoing page into a shimmering placeholder.
+ *
+ * The `op-` prefix is HISTORICAL, not a skin scope. Unlike
+ * `.skeleton-shimmer` / `.op-skeleton-shimmer` — which are a genuine pair
+ * because they read different colour tokens — this rule declares no colour at
+ * all. There is nothing here to fork per skin, so citizen and public skeletons
+ * use the same class rather than getting an `.ln-fade-in` twin that would be a
+ * byte-for-byte copy. Renaming it would touch 19 proven call sites to say the
+ * same thing.
+ *
+ * NOT applied to page CONTENT roots, deliberately — see the audit §5.7: a
+ * route body that starts at opacity 0 adds the fade's duration to
+ * time-to-legible-text. Skeletons have no legible text to delay, which is
+ * exactly why they are the safe half of this. */
 .op-fade-in {
   transition: opacity var(--motion-fast) ease-out;
   opacity: 1;

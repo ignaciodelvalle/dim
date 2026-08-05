@@ -11,6 +11,12 @@
  * Accessibility: owns the `<output aria-busy aria-label>` + SR-only
  * "Cargando…" wrapper, same contract as `OpDashboardSkeleton` and the existing
  * hand-rolled citizen loading.tsx files (enforced by `__tests__/skeleton.test.tsx`).
+ *
+ * Motion: `op-fade-in` (app/globals.css) so the skeleton ARRIVES instead of
+ * replacing the outgoing page on one frame — MOT-2, motion audit 2026-08-04
+ * Gap 2. This is the structural half of that fix: 30 of the 165 `loading.tsx`
+ * files get it from here without being touched. Fading the skeleton is free;
+ * fading the CONTENT it hands off to is not, and the audit forbids it (§5.7).
  */
 
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -38,7 +44,7 @@ export function LnPageSkeleton({
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className={`mx-auto ${maxWidth} px-8 py-7 pb-12 block`}
+      className={`op-fade-in mx-auto ${maxWidth} px-8 py-7 pb-12 block`}
     >
       <span className="sr-only">Cargando…</span>
 

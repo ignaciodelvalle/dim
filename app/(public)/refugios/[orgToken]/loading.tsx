@@ -10,7 +10,7 @@ export default function RefugioLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-3xl px-6 py-7 pb-12 block"
+      className="op-fade-in mx-auto max-w-3xl px-6 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 

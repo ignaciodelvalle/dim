@@ -9,7 +9,7 @@ export default function LibroLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando libro de eventos…"
-      className="mx-auto block max-w-5xl px-8 py-7 pb-12"
+      className="op-fade-in mx-auto block max-w-5xl px-8 py-7 pb-12"
     >
       <span className="sr-only">Cargando libro de eventos…</span>
 

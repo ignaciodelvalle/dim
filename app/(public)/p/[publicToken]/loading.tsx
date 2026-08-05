@@ -4,6 +4,15 @@
  * High-visibility mobile surface — marked "must be fast" (Track D).
  * Owner shares this URL from stickers, QR codes, collars, and lost-pet posts.
  * Lighthouse mobile performance budget applies to this route.
+ *
+ * DELIBERATELY WITHOUT `op-fade-in`. MOT-2 put that class on the other 164
+ * route skeletons so a navigation stops hard-cutting into a placeholder; this
+ * one is the exception the motion audit names by hand (§5.2, "anything in an
+ * emergency flow"). This is the page a stranger who just found a scared animal
+ * on the street opens on a phone, one-handed, under stress — the correct
+ * amount of decoration there is zero, and the audit's own prescription for
+ * this surface is to REMOVE motion, not add a nicer kind. If a later pass
+ * wants consistency here, that is a product decision, not a cleanup.
  */
 
 import { LnCardSkeleton } from "@/components/ui/LnCardSkeleton";

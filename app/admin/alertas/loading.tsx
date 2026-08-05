@@ -7,7 +7,11 @@ import { OpCardSkeleton } from "@/components/ui/dashboard/OpCardSkeleton";
 
 export default function AlertasLoading() {
   return (
-    <output aria-busy="true" aria-label="Cargando bandeja de alertas…" className="block space-y-6">
+    <output
+      aria-busy="true"
+      aria-label="Cargando bandeja de alertas…"
+      className="op-fade-in block space-y-6"
+    >
       <span className="sr-only">Cargando bandeja de alertas…</span>
 
       {/* Header placeholder */}

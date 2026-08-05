@@ -14,7 +14,11 @@ const CARD_KEYS = ["a", "b", "c", "d", "e", "f"] as const;
 
 export default function PerdidasLoading() {
   return (
-    <output aria-busy="true" aria-label="Cargando…" className="block bg-[var(--color-ln-paper)]">
+    <output
+      aria-busy="true"
+      aria-label="Cargando…"
+      className="op-fade-in block bg-[var(--color-ln-paper)]"
+    >
       <span className="sr-only">Cargando…</span>
 
       <div className="mx-auto max-w-6xl px-6 py-10 space-y-8">

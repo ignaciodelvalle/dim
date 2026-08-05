@@ -19,6 +19,13 @@
  * SR-only "Cargando…" wrapper — a loading.tsx using it needs no extra markup
  * (mirrors the existing 13 hand-rolled files' `<output>` contract, enforced by
  * `__tests__/skeleton.test.tsx`).
+ *
+ * Motion: `op-fade-in` (app/globals.css) so the skeleton ARRIVES instead of
+ * replacing the outgoing page on one frame — MOT-2, motion audit 2026-08-04
+ * Gap 2. This is the single highest-leverage line of that fix: 100 of the 165
+ * `loading.tsx` files get it from here without being touched. Fading the
+ * skeleton is free; fading the CONTENT it hands off to is not, and the audit
+ * forbids it (§5.7).
  */
 
 import { Skeleton } from "@/components/ui/Skeleton";
@@ -67,7 +74,7 @@ export function OpDashboardSkeleton({
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className={`mx-auto ${maxWidth} px-8 py-7 pb-12 block`}
+      className={`op-fade-in mx-auto ${maxWidth} px-8 py-7 pb-12 block`}
     >
       <span className="sr-only">Cargando…</span>
 

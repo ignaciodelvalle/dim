@@ -17,7 +17,7 @@ export default function CuentaLoading() {
     <output
       aria-busy="true"
       aria-label="Cargando…"
-      className="mx-auto max-w-4xl px-8 py-7 pb-12 block"
+      className="op-fade-in mx-auto max-w-4xl px-8 py-7 pb-12 block"
     >
       <span className="sr-only">Cargando…</span>
 

@@ -13,7 +13,11 @@ const KPI_KEYS = ["a", "b", "c", "d"] as const;
 
 export function PanoramaBoardSkeleton() {
   return (
-    <output aria-busy="true" aria-label="Cargando el panorama…" className="block space-y-4">
+    <output
+      aria-busy="true"
+      aria-label="Cargando el panorama…"
+      className="op-fade-in block space-y-4"
+    >
       <span className="sr-only">Cargando el panorama…</span>
 
       {/* Header eyebrow placeholder */}

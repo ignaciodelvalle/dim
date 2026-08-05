@@ -58,7 +58,11 @@ export type TabKey = PetFace;
 // to what this component always rendered.
 export function TabLoadingSkeleton() {
   return (
-    <div className="space-y-[14px] py-6 animate-pulse" aria-busy="true" aria-label="Cargando...">
+    <div
+      className="op-fade-in space-y-[14px] py-6 animate-pulse"
+      aria-busy="true"
+      aria-label="Cargando..."
+    >
       <div className="h-[18px] w-1/3 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />
       <div className="h-[14px] w-full rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />
       <div className="h-[14px] w-5/6 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)]" />

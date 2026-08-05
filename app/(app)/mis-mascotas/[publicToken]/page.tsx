@@ -186,12 +186,14 @@ async function LibretaFaceSection({
   const result = await getLibretaFaceData({ user, pet, accessPath, organization });
   if (!result.ok) return <TabErrorState message={result.error} />;
   return (
-    <LibretaFace
-      data={result.data}
-      petPublicToken={pet.publicToken}
-      isOwner={isOwner}
-      emergencyContacts={emergencyContacts}
-    />
+    <div className="op-fade-in">
+      <LibretaFace
+        data={result.data}
+        petPublicToken={pet.publicToken}
+        isOwner={isOwner}
+        emergencyContacts={emergencyContacts}
+      />
+    </div>
   );
 }
 
@@ -916,6 +918,11 @@ export default async function PetDetailPage({
   // Libreta face (Face 2) — server-rendered, streamed via its OWN Suspense
   // boundary so it never blocks Face 1's SSR paint (PF3 perf fix — see
   // LibretaFaceSection above).
+  // `op-fade-in` on the STREAMED child, not on the page body: Face 1 has
+  // already SSR-painted by the time this flushes, so the fade lands on a
+  // section arriving into a stable shell — the one shape the motion audit
+  // sanctions (§5.7 forbids it on a route body, where it would delay first
+  // legible text). Same placement as the 19 uses on /admin/sistema.
   const libretaContent = (
     <Suspense fallback={<TabLoadingSkeleton />}>
       <LibretaFaceSection
