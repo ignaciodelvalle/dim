@@ -867,6 +867,9 @@ const EVENT_TYPE_LABELS = {
   movement_recorded: "Movilidad registrada",
   // Correction by amendment — Wave 2 Item 15 (principle #2, 2026-06-19)
   event_amended: "Corrección registrada",
+  // Physical tag (chapa) lifecycle — migration 0169
+  tag_activated: "Chapa activada",
+  tag_revoked: "Chapa dada de baja",
 } satisfies Record<EventType, string>;
 
 export function eventTypeLabel(eventType: EventType): string {

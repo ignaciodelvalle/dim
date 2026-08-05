@@ -1001,6 +1001,18 @@ function buildShowcaseEvents(
       ],
       actor_role: "owner",
     }),
+    // Physical tag lifecycle (migration 0169). Payloads NEVER carry the
+    // activation code; tag_revoked uses `revoke_reason` (not `reason`).
+    tag_activated: () => ({
+      serial: "TAG-SEED-DEMO",
+      lote_id: "LOTE-SEED-PERF",
+      source: "self",
+    }),
+    tag_revoked: () => ({
+      serial: "TAG-SEED-DEMO",
+      revoke_reason: "owner_request",
+      replacement_serial: null,
+    }),
   } satisfies Record<EventType, () => Record<string, unknown>>;
 
   const events: Array<Record<string, unknown>> = [];
