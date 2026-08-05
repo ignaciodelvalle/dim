@@ -5,6 +5,20 @@
 // must not feel degraded when their self-reported event shows a lower tier.
 //
 // Styling follows Libreta Nacional token set (ln-* CSS custom properties).
+//
+// RA-10 (d), radius consolidation. This was the badge family's ONLY untokenized
+// corner: a bare `rounded` (Tailwind's 4px default). It reads as a status stamp
+// and it renders side by side with LnVstamp and LnBadge on the two surfaces that
+// matter most — the public credential's "Vacunación:" row and the owner's
+// libreta — where both of those are `--radius-xs` (2px). Three shapes for one
+// role on one card was the visible defect; this is now the third of three.
+//
+// The rest of the survey came out CORRECT-PER-ROLE and was deliberately left
+// alone: citizen chips are pills (CaseBadge/AuthorChip/AmendedBadge/LnChip),
+// operator badges share the repo-wide 3px geometry that OpStatusPill documents
+// and components/ui/REGISTRY.md pins, and LnChip's status DOTS vary their
+// corners on purpose — shape carries the meaning so the state is never
+// signalled by color alone.
 
 import { type ConfidenceTier, confidenceLabel } from "@/lib/events/event-confidence";
 
@@ -27,7 +41,7 @@ const TIER_STYLES: Record<ConfidenceTier, string> = {
 export function ConfidenceBadge({ tier, className = "" }: Props) {
   return (
     <span
-      className={`inline-flex items-center rounded px-1.5 py-0.5 text-xs font-medium ${TIER_STYLES[tier]} ${className}`.trim()}
+      className={`inline-flex items-center rounded-[var(--radius-xs)] px-1.5 py-0.5 text-xs font-medium ${TIER_STYLES[tier]} ${className}`.trim()}
     >
       {confidenceLabel(tier)}
     </span>

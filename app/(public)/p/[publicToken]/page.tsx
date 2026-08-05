@@ -625,9 +625,23 @@ export default async function PublicCredentialPage({
                 rendered into a 2-pixel-wide box. Giving it a basis floor makes
                 the flex-wrap already on .pc-head do its job: the chips drop to a
                 second line. `truncate` is the last-resort guard below it. */}
-            <div className="min-w-0 flex-1 basis-[7rem]">
+            {/* RA-10 (b): the label was an 8 px literal — the smallest type on
+                the flagship public surface, two steps under the `--text-xs`
+                (10px) floor the type scale declares for micro labels. It is now
+                the token.
+                THE BASIS MOVED WITH IT, and it had to. Measured on the running
+                build at 390px: at 10px the tracked uppercase run is 133px wide
+                inside a 123px box, so the `truncate` below would have clipped it
+                to "CREDENCIAL PÚBLIC…" — trading an unreadable label for a
+                mutilated one on the credential's own identity band. `8rem`
+                (128px) is the first basis that exceeds what fits beside the
+                nowrap tier chip, which is exactly the mechanism the note above
+                describes: the chip drops to a second line and the block takes
+                the full width. Costs ~30px of masthead height at 390px; at
+                desktop widths the row has room and nothing wraps. */}
+            <div className="min-w-0 flex-1 basis-[8rem]">
               <span className="font-ln-serif text-[13px] font-semibold text-ln-ink">miMAR</span>
-              <span className="block truncate font-ln-mono text-[8px] uppercase tracking-[.14em] text-ln-mute">
+              <span className="block truncate font-ln-mono text-xs uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
               </span>
             </div>
