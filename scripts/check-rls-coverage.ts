@@ -100,9 +100,8 @@ export const DENY_ALL_ALLOWLIST: Record<string, string> = {
   // rate_limit_buckets — ephemeral counters (migration 0086 §PART 7). Drizzle only.
   rate_limit_buckets:
     "Ephemeral rate-limit counters keyed by opaque/hashed bucket; no user identity. Deny-all to PostgREST is safe.",
-  // share_telemetry — viewer IP hash + user agent (migration 0086 §PART 6). Server-side only.
-  share_telemetry:
-    "Libreta-share viewer telemetry (PII-adjacent); written server-side via Drizzle. Deny-all to PostgREST is safe.",
+  // share_telemetry was here until migration 0167 dropped the table (TEL-1,
+  // PO 2026-08-04 — collected with no reader). Nothing replaces the entry.
 };
 
 // Tables that are explicitly NOT in db/schema.ts and should be ignored by the

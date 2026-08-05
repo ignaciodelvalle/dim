@@ -769,7 +769,7 @@ Grouped by purpose for navigation. Adding a new event type is a one-line edit to
 
 **System telemetry**
 
-Share-view tracking (Tier-2 libreta share tokens) moved out of `pet_events` and into the dedicated `share_telemetry` table during the 2026-05-19 catalog cleanup. `pet_events` no longer carries non-clinical telemetry of share use; the `libreta_shared_viewed` event_type was retired (see Deprecated table). Only `outbreak_signal` and `credential_scanned` remain as system-emitted entries inside the events log.
+Share-view tracking (Tier-2 libreta share tokens) moved out of `pet_events` and into a dedicated `share_telemetry` table during the 2026-05-19 catalog cleanup; migration `0167` then **dropped that table** (TEL-1, PO decision 2026-08-04) — it recorded a `viewer_ip_hash` + `user_agent` per view and nothing ever read it. All that remains of share views is the counter pair `libreta_share_tokens.view_count_cached` / `last_viewed_at_cached`. `pet_events` carries no non-clinical telemetry of share use; the `libreta_shared_viewed` event_type was retired (see Deprecated table). Only `outbreak_signal` and `credential_scanned` remain as system-emitted entries inside the events log.
 
 ### Deprecated event types
 

@@ -75,7 +75,8 @@ const RLS_REQUIRED: ReadonlyArray<string> = [
   "eno_processing_queue",
   "event_notification_outbox",
   "notification_dead_letter", // deny-all, migration 0125 (PII payload recovery surface)
-  "share_telemetry",
+  // share_telemetry lived here until migration 0167 dropped the table (TEL-1,
+  // PO 2026-08-04): collected per-view viewer data that nothing ever read.
   // Alert inbox + triage — deny-all backstop in migration 0111 (Paquete K).
   // Carries jurisdiction + actor FKs (acknowledged_by / contacted / resolved);
   // admin-only reads/writes go through Drizzle BYPASSRLS server actions.
@@ -138,7 +139,6 @@ const RLS_DENY_ALL: ReadonlyArray<string> = [
   "eno_processing_queue",
   "event_notification_outbox",
   "physical_tag_interest",
-  "share_telemetry",
 ];
 
 // ---------------------------------------------------------------------------

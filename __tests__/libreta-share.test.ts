@@ -9,7 +9,7 @@ import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { logLibretaShareViewForToken } from "@/app/actions/libreta-share";
-import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
+import { db, libretaShareTokens, ownerships, pets, profiles } from "@/db";
 import { generateLibretaShareToken } from "@/lib/infra/publicToken";
 import { createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
 import { getActiveLibretaShares } from "@/src/modules/pets/application/libreta-share/get-active-libreta-shares";
@@ -334,7 +334,10 @@ describe("revokeLibretaShareForUser", () => {
 });
 
 describe("logLibretaShareViewForToken", () => {
-  it("happy path: inserts pet_event, increments view_count_cached, sets last_viewed_at_cached", async () => {
+  // Since migration 0167 (TEL-1, PO 2026-08-04) this use case writes ONE thing:
+  // the cached counters on the token row. The per-view share_telemetry table it
+  // used to insert into is gone, and with it the viewer's user agent.
+  it("happy path: increments view_count_cached, sets last_viewed_at_cached", async () => {
     await revokeAllShares();
     const created = await createLibretaShareForUser(userId, {
       petPublicToken: PET_TOKEN,
@@ -345,7 +348,7 @@ describe("logLibretaShareViewForToken", () => {
     if (!("shareToken" in created)) return;
     const { shareToken } = created;
 
-    await logLibretaShareViewForToken({ shareToken, userAgent: "TestAgent/1.0" });
+    await logLibretaShareViewForToken({ shareToken });
 
     const [row] = await db
       .select()
@@ -354,16 +357,9 @@ describe("logLibretaShareViewForToken", () => {
       .limit(1);
     expect(row.viewCountCached).toBe(1);
     expect(row.lastViewedAtCached).not.toBeNull();
-
-    // Verify the share_telemetry row was inserted.
-    const events = await db.select().from(shareTelemetry).where(eq(shareTelemetry.petId, petId));
-    expect(events.length).toBeGreaterThanOrEqual(1);
-
-    // Cleanup — share_telemetry is plain mutable, no GUC needed.
-    await db.delete(shareTelemetry).where(eq(shareTelemetry.petId, petId));
   });
 
-  it("revoked share: no event inserted, no counter increment", async () => {
+  it("revoked share: no counter increment", async () => {
     await revokeAllShares();
     const created = await createLibretaShareForUser(userId, {
       petPublicToken: PET_TOKEN,
@@ -382,18 +378,7 @@ describe("logLibretaShareViewForToken", () => {
       .limit(1);
     await revokeLibretaShareForUser(userId, row.id);
 
-    const countBefore = await db
-      .select()
-      .from(shareTelemetry)
-      .where(eq(shareTelemetry.petId, petId));
-
-    await logLibretaShareViewForToken({ shareToken, userAgent: null });
-
-    const countAfter = await db
-      .select()
-      .from(shareTelemetry)
-      .where(eq(shareTelemetry.petId, petId));
-    expect(countAfter.length).toBe(countBefore.length);
+    await logLibretaShareViewForToken({ shareToken });
 
     const [updated] = await db
       .select()
@@ -403,7 +388,7 @@ describe("logLibretaShareViewForToken", () => {
     expect(updated.viewCountCached).toBe(0);
   });
 
-  it("expired share: no event inserted, no counter increment", async () => {
+  it("expired share: no counter increment", async () => {
     await revokeAllShares();
     const created = await createLibretaShareForUser(userId, {
       petPublicToken: PET_TOKEN,
@@ -425,18 +410,7 @@ describe("logLibretaShareViewForToken", () => {
       .set({ expiresAt: new Date(Date.now() - 1000) })
       .where(eq(libretaShareTokens.id, row.id));
 
-    const countBefore = await db
-      .select()
-      .from(shareTelemetry)
-      .where(eq(shareTelemetry.petId, petId));
-
-    await logLibretaShareViewForToken({ shareToken, userAgent: null });
-
-    const countAfter = await db
-      .select()
-      .from(shareTelemetry)
-      .where(eq(shareTelemetry.petId, petId));
-    expect(countAfter.length).toBe(countBefore.length);
+    await logLibretaShareViewForToken({ shareToken });
 
     const [updated] = await db
       .select()

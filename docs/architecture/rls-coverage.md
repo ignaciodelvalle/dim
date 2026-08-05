@@ -44,7 +44,7 @@ anon-key/PostgREST surface — only via the service-role Drizzle connection.
 | welfare_reports | Y | Y | anyone insert (public denuncia), reporter reads own. |
 | welfare_report_attachments | Y | Y | reporter/admin insert+read. |
 | libreta_share_tokens | Y | Y | owner-scoped CRUD. Redemption read path is server-side Drizzle, never PostgREST. |
-| share_telemetry | Y | **deny-all** | no policies; app touches it only via service role (`0032`, `0086`). |
+| ~~share_telemetry~~ | — | — | **table dropped** by `0167` (TEL-1, PO 2026-08-04): per-view viewer data with no reader. |
 | govt_assignments | Y | Y | govt sees own assignments. |
 | approval_requests | Y | Y | applicant or authority. |
 | audit_log | Y | Y | actor or admin. |

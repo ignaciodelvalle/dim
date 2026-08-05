@@ -1900,31 +1900,16 @@ export const libretaShareTokens = pgTable(
 export type LibretaShareToken = typeof libretaShareTokens.$inferSelect;
 export type NewLibretaShareToken = typeof libretaShareTokens.$inferInsert;
 
-// Share telemetry — Tier-2 libreta share-view tracking (catalog cleanup
-// 2026-05-19). Lives in its own table so `pet_events` stays free of
-// non-medical noise. Server-only; no RLS (no public endpoint exposes it).
-// PII posture: viewer_ip_hash, not the raw IP.
-export const shareTelemetry = pgTable(
-  "share_telemetry",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    petId: uuid("pet_id")
-      .notNull()
-      .references(() => pets.id, { onDelete: "cascade" }),
-    shareTokenId: uuid("share_token_id")
-      .notNull()
-      .references(() => libretaShareTokens.id, { onDelete: "cascade" }),
-    viewedAt: timestamp("viewed_at", { withTimezone: true }).notNull().defaultNow(),
-    viewerIpHash: text("viewer_ip_hash"),
-    userAgent: text("user_agent"),
-  },
-  (table) => ({
-    petIdx: index("share_telemetry_pet_idx").on(table.petId),
-    tokenIdx: index("share_telemetry_token_viewed_idx").on(table.shareTokenId, table.viewedAt),
-  }),
-);
-
-export type ShareTelemetry = typeof shareTelemetry.$inferSelect;
+// REMOVED — `share_telemetry` (migrations 0032 → 0167).
+//
+// It held one row per view of a Tier-2 libreta share link (pet_id,
+// share_token_id, viewed_at, viewer_ip_hash, user_agent). The 2026-08-04 sweep
+// found exactly one writer and ZERO readers: no query, no projection, no
+// screen. The owner-visible view count has always come from
+// libretaShareTokens.viewCountCached / lastViewedAtCached, which stay.
+// PO decision TEL-1 (2026-08-04): stop collecting and delete what accumulated.
+// Migration 0167 drops the table. Do not reintroduce it without a specified
+// reader and its own retention rule.
 
 // ============================================================================
 // Admin governance — govt_assignments, approval_requests, audit_log

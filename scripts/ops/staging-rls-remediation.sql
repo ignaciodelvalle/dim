@@ -104,8 +104,9 @@ WITH deny_all_by_design(table_name) AS (
     ('panorama_kpi_cube'),
     ('panorama_kpi_cube_meta'),
     ('physical_tag_interest'),
-    ('rate_limit_buckets'),
-    ('share_telemetry')
+    ('rate_limit_buckets')
+    -- share_telemetry was here until migration 0167 dropped the table
+    -- (TEL-1, PO 2026-08-04).
 ),
 t AS (
   SELECT
@@ -183,7 +184,9 @@ WITH deny_all_by_design(table_name) AS (
     ('notification_dead_letter'), ('organization_invitations'),
     ('panorama_cube'), ('panorama_cube_meta'), ('panorama_kpi_cube'),
     ('panorama_kpi_cube_meta'), ('physical_tag_interest'),
-    ('rate_limit_buckets'), ('share_telemetry')
+    ('rate_limit_buckets')
+    -- share_telemetry was here until migration 0167 dropped the table
+    -- (TEL-1, PO 2026-08-04).
 )
 SELECT
   c.relname AS goes_dark_to_postgrest,
@@ -353,7 +356,10 @@ ALTER TABLE public.panorama_kpi_cube          ENABLE ROW LEVEL SECURITY;  -- KPI
 ALTER TABLE public.panorama_kpi_cube_meta     ENABLE ROW LEVEL SECURITY;  -- KPI cube metadata, analyticsDb only
 ALTER TABLE public.physical_tag_interest      ENABLE ROW LEVEL SECURITY;  -- demand signal, owner server actions
 ALTER TABLE public.rate_limit_buckets         ENABLE ROW LEVEL SECURITY;  -- ephemeral counters, no identity
-ALTER TABLE public.share_telemetry            ENABLE ROW LEVEL SECURITY;  -- libreta-share viewer telemetry
+-- share_telemetry: table DROPPED by migration 0167 (TEL-1, PO 2026-08-04).
+-- The ALTER that stood here would now abort this whole transaction on any
+-- database that has 0167 applied. Left as a comment, not deleted, so the
+-- 2026-07-26 instrument still reads as the 53-table inventory it was.
 ALTER TABLE public._dim_migrations            ENABLE ROW LEVEL SECURITY;  -- migration tracker; runner is owner, unaffected
 
 COMMIT;

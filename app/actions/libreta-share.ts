@@ -48,13 +48,14 @@ export type {
 } from "@/src/modules/pets/application/libreta-share/types";
 
 // ---------------------------------------------------------------------------
-// Token-credentialed telemetry writer — the share token itself is the
+// Token-credentialed view-counter writer — the share token itself is the
 // credential (validated inside the module writer before any DB write).
+// Since migration 0167 (TEL-1) this bumps the token's cached counters and
+// records nothing about the viewer.
 // ---------------------------------------------------------------------------
 
 export async function logLibretaShareViewForToken(input: {
   shareToken: string;
-  userAgent: string | null;
 }): Promise<void> {
   return _logLibretaShareViewForToken(input);
 }
@@ -96,17 +97,16 @@ export async function revokeLibretaShareAction(
   return result;
 }
 
-// @no-auth-required: viewer telemetry from a public share link. The token
-// itself is the credential; auth lives in `logLibretaShareViewForToken`,
-// which validates the token before writing.
+// @no-auth-required: view count from a public share link. The token itself is
+// the credential; auth lives in `logLibretaShareViewForToken`, which validates
+// the token before writing.
 export async function logLibretaShareViewAction(input: {
   shareToken: string;
-  userAgent: string | null;
 }): Promise<void> {
   // Per-(shareToken, IP) rate limit BEFORE the delegated write. This action is
   // independently invocable — an attacker can POST it directly (bypassing the
-  // page's own `libreta_share_page` guard) to flood share_telemetry inserts and
-  // hammer the view-counter update transaction. Cap it at the same generous rate
+  // page's own `libreta_share_page` guard) to hammer the view-counter update.
+  // Cap it at the same generous rate
   // as the page render so a legitimate viewer refreshing is never affected, then
   // silently drop on breach (telemetry is best-effort; ViewLogger swallows the
   // outcome regardless).

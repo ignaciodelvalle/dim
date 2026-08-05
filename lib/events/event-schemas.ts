@@ -1600,10 +1600,10 @@ const postAdoptionCheckin = z
   .strict();
 
 // Libreta Tier-2 share view telemetry used to live here as
-// `libreta_shared_viewed`. The 2026-05-19 catalog cleanup moved that
-// signal out of pet_events into the dedicated `share_telemetry` table
-// (see db/schema.ts → shareTelemetry). No Zod schema needed anymore;
-// the only writer is app/actions/libreta-share.ts.
+// `libreta_shared_viewed`. The 2026-05-19 catalog cleanup moved that signal out
+// of pet_events into a dedicated `share_telemetry` table, and migration 0167
+// (TEL-1, PO 2026-08-04) dropped that table too — it had no reader. Share views
+// are now only a counter on libreta_share_tokens. No Zod schema either way.
 
 // ---------------------------------------------------------------------------
 // Correction by amendment (D1 — Wave 2 Item 15, 2026-06-19)
