@@ -83,6 +83,7 @@ import {
   bboxesIntersect,
   cabaInView,
   cabaInsetVisible,
+  computeExportFrame,
   computeJurisdictionViewport,
   computePresetFrameViewport,
   computeProvinceBboxes,
@@ -2686,14 +2687,71 @@ export function SituationalMap({
   // repaint and read the canvas INSIDE the resulting 'render' event callback,
   // which fires synchronously right after that frame paints, before the
   // browser clears the (non-preserved) buffer for the next frame.
+  //
+  // MAP-1 (PO decision 2026-08-04) — the shot is taken from the CHOSEN SCOPE,
+  // not from whatever the operator happens to be looking at. A national
+  // funcionario panned into Salta used to export Salta and call it the country.
+  // Sequence: remember the camera → frame the scope → wait for `idle` (the
+  // camera move must FINISH before the repaint, or the capture races it) →
+  // capture → jump the camera back. `animate: false` throughout: this is a
+  // screenshot, not a tour, and an animated fit would make the operator watch
+  // their own view fly away and come back.
   function exportPng() {
     const map = mapRef.current;
     if (!map || !viewMeta) return;
-    map.once("render", () => capturePngFromCanvas(map.getCanvas(), viewMeta));
+
+    const frame = computeExportFrame({
+      provinceCode: selectedProvinceRef.current ?? null,
+      localityCenter: selectedLocalityCenterRef.current ?? null,
+      provinceFeatures: basemapFeaturesRef.current,
+      nationalBbox: nationalBboxRef.current ?? AR_BBOX,
+      hasInsetLayer: insetLayer !== null || insetBubble !== null,
+      isCabaCode: isCABA,
+    });
+    const meta = frame.losesCabaInset ? { ...viewMeta, cabaInsetOmitted: true } : viewMeta;
+
+    // The operator's own view, restored verbatim afterwards. Bearing/pitch are
+    // not tracked because this console exposes no rotate/tilt control — if one
+    // ever ships, it belongs in this snapshot on the same day.
+    const priorCenter = map.getCenter();
+    const priorZoom = map.getZoom();
+    const restore = () =>
+      map.jumpTo({ center: [priorCenter.lng, priorCenter.lat], zoom: priorZoom });
+
+    map.once("idle", () => {
+      // preserveDrawingBuffer is OFF, so the canvas must be read INSIDE a
+      // 'render' callback — right after that frame paints, before the browser
+      // clears the non-preserved buffer.
+      map.once("render", () => {
+        try {
+          capturePngFromCanvas(map.getCanvas(), meta);
+        } finally {
+          // The operator gets their view back even if the capture threw. A
+          // failed export must not also leave them somewhere they never went.
+          restore();
+        }
+      });
+      map.triggerRepaint();
+    });
+
+    if (frame.viewport.kind === "fitBounds") {
+      map.fitBounds(frame.viewport.bbox, {
+        padding: FRAME_PADDING,
+        animate: false,
+        maxZoom: FRAME_MAX_ZOOM,
+      });
+    } else {
+      map.jumpTo({ center: frame.viewport.center, zoom: frame.viewport.zoom });
+    }
+    // A camera move that changes nothing (already framed on the scope) emits no
+    // `idle` of its own, so nudge one out of the map rather than hang the export.
     map.triggerRepaint();
   }
 
-  function capturePngFromCanvas(mapCanvas: HTMLCanvasElement, meta: NonNullable<typeof viewMeta>) {
+  function capturePngFromCanvas(
+    mapCanvas: HTMLCanvasElement,
+    meta: NonNullable<typeof viewMeta> & { cabaInsetOmitted?: boolean },
+  ) {
     const footer = buildExportFooter(meta);
     const stripH = 34;
     const out = document.createElement("canvas");

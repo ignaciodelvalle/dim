@@ -382,6 +382,73 @@ export function cabaInsetVisible(params: {
   return cabaInView;
 }
 
+// ---------------------------------------------------------------------------
+// MAP-1 — the frame the PNG export is taken from (PO decision, 2026-08-04)
+// ---------------------------------------------------------------------------
+//
+// "Hoy exporta lo que entra en pantalla, así que el país nunca entra." The
+// export used to grab the operator's live viewport verbatim, so a NATIONAL
+// funcionario could pan to Salta, hit Exportar, and get Salta — the one thing
+// their mandate is not. The image now frames the CHOSEN SCOPE, takes the shot,
+// and puts the operator's camera back exactly where it was.
+//
+// Pure, and separate from the capture, so the decision that matters (which
+// bbox) is testable without a WebGL context.
+
+export type ExportFrame = {
+  /** Where the camera must sit for the shot. */
+  viewport: ViewportDescriptor;
+  /**
+   * TRUE when the on-screen CABA/AMBA inset is carrying data this PNG will not.
+   *
+   * The inset is a SEPARATE MapLibre map with its own canvas and its own
+   * (non-preserved) GL buffer; the export composes ONE canvas. Rather than
+   * pretend, the footer says the magnifier is missing — the PO's own rule for
+   * this case. A CABA-scoped export needs no caveat: at that scope the inset is
+   * hidden BY DESIGN (cabaInsetVisible) because the main map already renders
+   * CABA at barrio scale, which is exactly the frame this helper picks.
+   */
+  losesCabaInset: boolean;
+};
+
+/**
+ * Resolve the export frame from the operator's chosen scope.
+ *
+ * Deliberately the SAME resolver the map already uses to frame a scope on load
+ * and on drill (`computeJurisdictionViewport`) — an export that framed the
+ * country differently from the console would be a second source of truth about
+ * what "national" means.
+ */
+export function computeExportFrame(params: {
+  provinceCode: string | null;
+  localityCenter: [number, number] | null;
+  provinceFeatures: ProvinceLike[];
+  nationalBbox: Bbox;
+  /** Whether an inset layer/bubble exists at all (nothing to lose without one). */
+  hasInsetLayer: boolean;
+  /** ISO code test, injected so this module keeps no province-code table. */
+  isCabaCode: (code: string) => boolean;
+}): ExportFrame {
+  const { provinceCode, localityCenter, provinceFeatures, nationalBbox } = params;
+  const viewport = computeJurisdictionViewport(
+    provinceCode,
+    localityCenter,
+    provinceFeatures,
+    nationalBbox,
+  );
+  // Evaluated against the EXPORT frame, not the live camera: after the reframe
+  // a national export always has CABA in view, and a province export never
+  // shows the magnifier unless it is PBA (cabaInsetVisible's own rule).
+  const losesCabaInset = cabaInsetVisible({
+    hasInsetLayer: params.hasInsetLayer,
+    scopeProvince: provinceCode,
+    scopeIsCaba: provinceCode !== null && params.isCabaCode(provinceCode),
+    scopeIsPba: provinceCode === "AR-B",
+    cabaInView: true,
+  });
+  return { viewport, losesCabaInset };
+}
+
 /** True when two bounding boxes overlap (inclusive edges). Cheap AABB test. */
 export function bboxesIntersect(a: Bbox, b: Bbox): boolean {
   const [[aMinLng, aMinLat], [aMaxLng, aMaxLat]] = a;

@@ -11,6 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type ViewportDescriptor,
+  computeExportFrame,
   computeJurisdictionViewport,
 } from "@/components/panorama/situational-map-utils";
 
@@ -197,5 +198,115 @@ describe("computeJurisdictionViewport — locality selected", () => {
     expect(result.kind).toBe("flyTo");
     if (result.kind !== "flyTo") throw new Error("narrow");
     expect(result.center).toEqual(center);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MAP-1 — the export frames the SCOPE, not the viewport (PO 2026-08-04)
+// ---------------------------------------------------------------------------
+
+const isCabaCode = (code: string) => code === "AR-C";
+
+describe("computeExportFrame — the shot follows the chosen scope", () => {
+  it("frames the WHOLE COUNTRY for a national scope (the case that was impossible)", () => {
+    const frame = computeExportFrame({
+      provinceCode: null,
+      localityCenter: null,
+      provinceFeatures: PROVINCE_FEATURES,
+      nationalBbox: NATIONAL_BBOX,
+      hasInsetLayer: false,
+      isCabaCode,
+    });
+    expect(frame.viewport.kind).toBe("fitBounds");
+    if (frame.viewport.kind !== "fitBounds") throw new Error("narrow");
+    expect(frame.viewport.bbox).toEqual(NATIONAL_BBOX);
+  });
+
+  it("frames the province polygon for a province scope, ignoring where the operator was looking", () => {
+    const frame = computeExportFrame({
+      provinceCode: "AR-X",
+      localityCenter: null,
+      provinceFeatures: PROVINCE_FEATURES,
+      nationalBbox: NATIONAL_BBOX,
+      hasInsetLayer: false,
+      isCabaCode,
+    });
+    expect(frame.viewport.kind).toBe("fitBounds");
+    if (frame.viewport.kind !== "fitBounds") throw new Error("narrow");
+    expect(frame.viewport.bbox).not.toEqual(NATIONAL_BBOX);
+  });
+
+  it("frames the locality centroid when one is picked", () => {
+    const center: [number, number] = [-64.18, -31.41];
+    const frame = computeExportFrame({
+      provinceCode: "AR-X",
+      localityCenter: center,
+      provinceFeatures: PROVINCE_FEATURES,
+      nationalBbox: NATIONAL_BBOX,
+      hasInsetLayer: false,
+      isCabaCode,
+    });
+    expect(frame.viewport.kind).toBe("flyTo");
+  });
+});
+
+describe("computeExportFrame — the CABA inset caveat", () => {
+  it("declares the loss on a NATIONAL export (the magnifier is on screen, not in the PNG)", () => {
+    const frame = computeExportFrame({
+      provinceCode: null,
+      localityCenter: null,
+      provinceFeatures: PROVINCE_FEATURES,
+      nationalBbox: NATIONAL_BBOX,
+      hasInsetLayer: true,
+      isCabaCode,
+    });
+    expect(frame.losesCabaInset).toBe(true);
+  });
+
+  it("needs NO caveat for a CABA-scoped export — the main map renders CABA itself", () => {
+    const frame = computeExportFrame({
+      provinceCode: "AR-C",
+      localityCenter: null,
+      provinceFeatures: PROVINCE_FEATURES,
+      nationalBbox: NATIONAL_BBOX,
+      hasInsetLayer: true,
+      isCabaCode,
+    });
+    expect(frame.losesCabaInset).toBe(false);
+  });
+
+  it("declares the loss for PBA, which keeps the magnifier on screen", () => {
+    const frame = computeExportFrame({
+      provinceCode: "AR-B",
+      localityCenter: null,
+      provinceFeatures: PROVINCE_FEATURES,
+      nationalBbox: NATIONAL_BBOX,
+      hasInsetLayer: true,
+      isCabaCode,
+    });
+    expect(frame.losesCabaInset).toBe(true);
+  });
+
+  it("stays silent for any other province, and when there is no inset layer at all", () => {
+    expect(
+      computeExportFrame({
+        provinceCode: "AR-X",
+        localityCenter: null,
+        provinceFeatures: PROVINCE_FEATURES,
+        nationalBbox: NATIONAL_BBOX,
+        hasInsetLayer: true,
+        isCabaCode,
+      }).losesCabaInset,
+    ).toBe(false);
+    expect(
+      computeExportFrame({
+        provinceCode: null,
+        localityCenter: null,
+        provinceFeatures: PROVINCE_FEATURES,
+        nationalBbox: NATIONAL_BBOX,
+        hasInsetLayer: false,
+        isCabaCode,
+      }).losesCabaInset,
+    ).toBe(false);
   });
 });

@@ -73,6 +73,16 @@ export type ExportFooterInput = {
    * footer. Omitted → the footer is exactly what it was before V2.
    */
   viewScope?: ViewScopeDescriptor | null;
+  /**
+   * MAP-1 — the on-screen CABA/AMBA magnifier is NOT in this image.
+   *
+   * The inset is a second MapLibre map with its own canvas; the export composes
+   * one. Rather than ship a national image that silently drops the country's
+   * densest jurisdiction, the strip says so. Honesty over completeness: the
+   * reader can go get a CABA-scoped export, which frames CABA in the main map
+   * and needs no caveat at all.
+   */
+  cabaInsetOmitted?: boolean;
 };
 
 /**
@@ -97,6 +107,11 @@ export function buildExportFooter(input: ExportFooterInput): string {
         ? "1 celda protegida por privacidad"
         : `${input.suppressedCount} celdas protegidas por privacidad`;
     parts.push(phrase);
+  }
+  // Before the digest: a reader who needs to know a jurisdiction is missing from
+  // the image must not have to read past a hash to find out.
+  if (input.cabaInsetOmitted) {
+    parts.push("sin el recuadro de CABA (exportá con alcance CABA para verlo)");
   }
   // Last, so the human-readable provenance keeps the front of the strip and the
   // machine handle never displaces a word an operator actually reads.

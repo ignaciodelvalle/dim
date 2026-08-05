@@ -71,3 +71,28 @@ describe("buildExportFooter — auditable provenance (§3.6)", () => {
     expect(footer).toContain("Datos al 15 de enero de 2026");
   });
 });
+
+describe("buildExportFooter — the CABA inset caveat (MAP-1)", () => {
+  it("says the magnifier is missing, before the machine digest", () => {
+    const footer = buildExportFooter({
+      asOf: new Date("2026-08-05T12:00:00.000Z"),
+      scopeLabel: "Nacional",
+      periodLabel: "últimos 90 días",
+      suppressedCount: 0,
+      cabaInsetOmitted: true,
+    });
+    expect(footer).toContain("sin el recuadro de CABA");
+    // And it tells the reader what to do about it, rather than just apologising.
+    expect(footer).toContain("exportá con alcance CABA");
+  });
+
+  it("stays out of the strip when the image is complete", () => {
+    const footer = buildExportFooter({
+      asOf: new Date("2026-08-05T12:00:00.000Z"),
+      scopeLabel: "CABA",
+      periodLabel: "últimos 90 días",
+      suppressedCount: 0,
+    });
+    expect(footer).not.toContain("recuadro");
+  });
+});
