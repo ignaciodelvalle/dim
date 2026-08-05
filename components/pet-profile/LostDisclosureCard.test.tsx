@@ -47,6 +47,7 @@ it("fires the success toast after a toggle resolves", async () => {
       toggleAction={toggleAction}
       publicHref="/p/DIM-TEST-0001"
       ownerFirstName="Nacho"
+      alertsOriginShelter={false}
     />,
   );
 
@@ -68,6 +69,7 @@ it("shows the concrete public preview on the name row when disclosure is on (QA 
       toggleAction={vi.fn()}
       publicHref="/p/DIM-TEST-0001"
       ownerFirstName="Nacho"
+      alertsOriginShelter={false}
     />,
   );
 
@@ -83,6 +85,7 @@ it("keeps the generic name-row description when disclosure is off", () => {
       toggleAction={vi.fn()}
       publicHref="/p/DIM-TEST-0001"
       ownerFirstName="Nacho"
+      alertsOriginShelter={false}
     />,
   );
 
@@ -98,6 +101,7 @@ it("fires the error toast when the bound action rejects", async () => {
       toggleAction={toggleAction}
       publicHref="/p/DIM-TEST-0001"
       ownerFirstName="Nacho"
+      alertsOriginShelter={false}
     />,
   );
 
@@ -107,4 +111,37 @@ it("fires the error toast when the bound action rejects", async () => {
     expect(toastError).toHaveBeenCalledWith("No se pudo guardar. Probá de nuevo.");
   });
   expect(toastSuccess).not.toHaveBeenCalled();
+});
+
+// A5 (PO decision 2026-08-04) — the origin shelter is notified when someone
+// reports finding the pet. The PO chose "always", so the mitigation is
+// DISCLOSURE: the titular must read it on their own pet's privacy surface, and
+// must also read the LIMIT (the finder's contact is not shared).
+it("discloses the origin-shelter alert when the pet came out of a shelter", () => {
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={true}
+    />,
+  );
+  expect(screen.getByText(/salió de un refugio/i)).toBeInTheDocument();
+  expect(screen.getByText(/ese refugio\s+también recibe el aviso/i)).toBeInTheDocument();
+  // The limit is not optional copy — it is the reason the disclosure is enough.
+  expect(screen.getByText(/no se le comparte el contacto/i)).toBeInTheDocument();
+});
+
+it("says nothing about shelters for a pet with no origin shelter", () => {
+  render(
+    <LostDisclosureCard
+      prefs={prefs}
+      toggleAction={vi.fn()}
+      publicHref="/p/DIM-TEST-0001"
+      ownerFirstName="Nacho"
+      alertsOriginShelter={false}
+    />,
+  );
+  expect(screen.queryByText(/refugio/i)).toBeNull();
 });

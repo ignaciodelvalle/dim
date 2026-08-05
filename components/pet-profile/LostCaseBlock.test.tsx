@@ -63,6 +63,7 @@ describe("<LostCaseBlock> — STALE variant (ADR-18, no open episode while statu
         episode={null}
         scans={[]}
         ownerFirstName="Ana"
+        alertsOriginShelter={false}
         isOwner={true}
       />,
     );
@@ -81,6 +82,7 @@ describe("<LostCaseBlock> — STALE variant (ADR-18, no open episode while statu
         episode={null}
         scans={[]}
         ownerFirstName="Ana"
+        alertsOriginShelter={false}
         isOwner={false}
       />,
     );
@@ -98,6 +100,7 @@ describe("<LostCaseBlock> — owner variant (all capabilities)", () => {
       episode={episode}
       scans={scans}
       ownerFirstName="Ana"
+      alertsOriginShelter={false}
       isOwner={true}
     />,
   );
@@ -151,6 +154,7 @@ describe("<LostCaseBlock> — org read-only variant (REQ-5.3)", () => {
       episode={episode}
       scans={scans}
       ownerFirstName="Ana"
+      alertsOriginShelter={false}
       isOwner={false}
     />,
   );

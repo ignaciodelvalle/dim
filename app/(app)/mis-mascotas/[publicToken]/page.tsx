@@ -104,6 +104,7 @@ import { buildFromLostRedirectTarget, resolvePetFace } from "@/lib/domain/pet-fa
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
 import { GENERIC_CASE_LIST_EXCLUDED_KINDS } from "@/lib/infra/case-queries";
 import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
+import { petAlertsOriginShelter } from "@/lib/infra/origin-shelter-alert";
 import {
   type PetAccessSuccess,
   getFormerOwnerReadAccess,
@@ -487,8 +488,16 @@ export default async function PetDetailPage({
     (async (): Promise<{
       lostEpisode: Awaited<ReturnType<typeof fetchLostEpisodeForPet>>;
       lostScans: Awaited<ReturnType<typeof fetchLostScanEvents>>;
+      /** A5 — a found-pet report on this pet also alerts its origin shelter. */
+      alertsOriginShelter: boolean;
     }> => {
-      if (pet.status !== "lost") return { lostEpisode: null, lostScans: [] };
+      // A5 disclosure input — the SAME predicate the notifier runs, so the
+      // profile never promises an alert that will not fire (and never stays
+      // silent about one that will). Resolved for EVERY pet, not just lost
+      // ones: the "Qué se muestra si se pierde" sheet is reachable at any time,
+      // and that is precisely when a titular reads it to decide.
+      const alertsOriginShelter = await petAlertsOriginShelter(pet.id);
+      if (pet.status !== "lost") return { lostEpisode: null, lostScans: [], alertsOriginShelter };
       // Fetch episode first so we can scope the scan feed to the current episode.
       const lostEpisode = await fetchLostEpisodeForPet(pet.id);
       const rawScans = await fetchLostScanEvents(pet.id, undefined, lostEpisode?.id ?? undefined);
@@ -502,7 +511,7 @@ export default async function PetDetailPage({
           return item;
         }),
       );
-      return { lostEpisode, lostScans };
+      return { lostEpisode, lostScans, alertsOriginShelter };
     })(),
     // Vaccine reminders for owner path only.
     accessPath === "owner"
@@ -535,7 +544,7 @@ export default async function PetDetailPage({
       .orderBy(asc(timeSlots.startsAt))
       .limit(1),
   ]);
-  const { lostEpisode, lostScans } = lostData;
+  const { lostEpisode, lostScans, alertsOriginShelter } = lostData;
 
   // Derive owner first name from displayName (first word only) — feeds
   // LostCaseBlock's disclosure preview copy for owner viewers only.
@@ -696,6 +705,7 @@ export default async function PetDetailPage({
           episode={lostEpisode}
           scans={lostScans}
           ownerFirstName={ownerFirstName}
+          alertsOriginShelter={alertsOriginShelter}
           isOwner={isOwner}
         />
       ),
@@ -1124,6 +1134,7 @@ export default async function PetDetailPage({
           pppBreedList: pppBreedRule.payload.breeds,
         }}
         chapitaData={chapitaData}
+        alertsOriginShelter={alertsOriginShelter}
         physicalCredentialChannels={physicalCredentialChannels}
         emergencyContacts={
           // The edit sheet writes the PET-LEVEL override (owner-ia-redesign P2),

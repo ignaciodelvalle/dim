@@ -91,6 +91,7 @@ const baseSheetMounterProps = {
     allowFinderFormWhenLost: true,
   },
   ownerFirstName: "Martín",
+  alertsOriginShelter: false,
 };
 
 function Harness() {

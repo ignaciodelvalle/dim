@@ -105,11 +105,25 @@ type Props = {
   episode: LostEpisode | null;
   scans: ScanFeedItem[];
   ownerFirstName: string;
+  /**
+   * A5 — the pet has an origin shelter, so a found-pet report also alerts it.
+   * Resolved server-side with the notifier's own predicate
+   * (lib/infra/origin-shelter-alert.ts) and disclosed inside LostDisclosureCard.
+   */
+  alertsOriginShelter: boolean;
   /** Owner-gate — org/vet viewers get the read-only variant (REQ-5.3). */
   isOwner: boolean;
 };
 
-export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, isOwner }: Props) {
+export function LostCaseBlock({
+  pet,
+  photoUrl,
+  episode,
+  scans,
+  ownerFirstName,
+  alertsOriginShelter,
+  isOwner,
+}: Props) {
   // No open episode while status is still 'lost' — the auto-close cron
   // (ADR-18) never resets pets.status, so this is the STALE state, not the
   // absence of a lost pet. The caller (page.tsx) only mounts this block when
@@ -312,6 +326,7 @@ export function LostCaseBlock({ pet, photoUrl, episode, scans, ownerFirstName, i
                   toggleAction={toggleAction}
                   publicHref={publicHref}
                   ownerFirstName={ownerFirstName}
+                  alertsOriginShelter={alertsOriginShelter}
                 />
               </div>
             </div>

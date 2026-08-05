@@ -60,6 +60,7 @@ const baseProps = {
     allowFinderFormWhenLost: true,
   },
   ownerFirstName: "Martín",
+  alertsOriginShelter: false,
 };
 
 describe("<SheetMounter> — sheet=anotar, owner path", () => {

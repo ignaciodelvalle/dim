@@ -52,6 +52,18 @@ interface Props {
   publicHref: string;
   /** Owner first name as it'd show on the public page. */
   ownerFirstName: string;
+  /**
+   * A5 (PO decision 2026-08-04) — this pet came out of a shelter, so a
+   * found-pet report ALSO alerts that shelter.
+   *
+   * The alert is not a preference and has no toggle: the PO chose "always",
+   * knowing the cost. Disclosure is the mitigation, which is why this is a
+   * STATEMENT under the toggles rather than a sixth row — a row would promise a
+   * choice the titular does not have. Resolved with the same predicate the
+   * notifier uses (lib/infra/origin-shelter-alert.ts), so it never claims an
+   * alert that will not fire.
+   */
+  alertsOriginShelter: boolean;
 }
 
 // Row descriptions double as the concrete preview of what the public sees
@@ -90,7 +102,13 @@ const ROWS: Array<{
   },
 ];
 
-export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirstName }: Props) {
+export function LostDisclosureCard({
+  prefs,
+  toggleAction,
+  publicHref,
+  ownerFirstName,
+  alertsOriginShelter,
+}: Props) {
   return (
     <section aria-labelledby="lp-discl-h">
       <div className="mb-3 flex items-baseline justify-between">
@@ -136,6 +154,18 @@ export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirst
             .catch(() => notifyActionError("No se pudo guardar. Probá de nuevo."));
         }}
       />
+
+      {/* A5 disclosure. Sober and specific: WHAT the shelter learns, and the
+          limit — the finder's contact stays with the titular. Only rendered for
+          pets that actually have an origin shelter, so it is never an abstract
+          warning about something that cannot happen here. */}
+      {alertsOriginShelter && (
+        <p className="mt-3 text-xs leading-snug" style={{ color: "var(--color-ln-mute)" }}>
+          Esta mascota salió de un refugio. Si alguien reporta haberla encontrado, ese refugio
+          también recibe el aviso, con la zona del hallazgo. No se le comparte el contacto de quien
+          la encontró: esos datos son solo para vos.
+        </p>
+      )}
     </section>
   );
 }

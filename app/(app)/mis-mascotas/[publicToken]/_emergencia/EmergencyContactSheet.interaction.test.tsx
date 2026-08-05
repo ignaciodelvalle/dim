@@ -64,6 +64,7 @@ const baseSheetMounterProps = {
     allowFinderFormWhenLost: true,
   },
   ownerFirstName: "Martín",
+  alertsOriginShelter: false,
 };
 
 const mockAssign = vi.fn();

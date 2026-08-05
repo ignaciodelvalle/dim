@@ -19,7 +19,7 @@
 // P0g: photo also inserted into the attachments table (linked to the event) so
 // the historial / eventos / EventTimeline surfaces can render it for free.
 
-import { and, desc, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import {
@@ -35,6 +35,7 @@ import {
 import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { resolveOriginShelterOrgId } from "@/lib/infra/origin-shelter-alert";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -401,27 +402,17 @@ export async function reportFinderInPossessionAction(
   // Deliberately does NOT carry the finder's contact details — only that the
   // pet appeared and where. The finder shared their phone with the TITULAR, not
   // with an institution they never chose.
-  const [originShelter] = await db
-    .select({ orgId: ownerships.ownerOrganizationId })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.petId, pet.id),
-        eq(ownerships.role, "shelter_custody"),
-        sql`${ownerships.ownerOrganizationId} IS NOT NULL`,
-        sql`${ownerships.endedAt} IS NOT NULL`,
-      ),
-    )
-    .orderBy(desc(ownerships.endedAt))
-    .limit(1);
+  // The predicate itself lives in lib/infra/origin-shelter-alert.ts so the
+  // titular's profile disclosure can promise EXACTLY the pets this notifies.
+  const originShelterOrgId = await resolveOriginShelterOrgId(pet.id);
 
-  if (originShelter?.orgId) {
+  if (originShelterOrgId) {
     const shelterAdmins = await db
       .select({ userId: organizationMemberships.userId })
       .from(organizationMemberships)
       .where(
         and(
-          eq(organizationMemberships.organizationId, originShelter.orgId),
+          eq(organizationMemberships.organizationId, originShelterOrgId),
           isNull(organizationMemberships.leftAt),
         ),
       );

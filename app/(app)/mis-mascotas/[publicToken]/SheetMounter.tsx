@@ -154,6 +154,12 @@ type Props = {
   disclosurePrefs: DisclosurePrefs | null;
   /** Owner first name for LostDisclosureCard's preview copy. */
   ownerFirstName: string;
+  /**
+   * A5 — a found-pet report on this pet also alerts the shelter it came out of.
+   * Disclosed inside LostDisclosureCard; resolved server-side with the
+   * notifier's own predicate (lib/infra/origin-shelter-alert.ts).
+   */
+  alertsOriginShelter: boolean;
 };
 
 export function SheetMounter({
@@ -174,6 +180,7 @@ export function SheetMounter({
   emergencyContacts,
   disclosurePrefs,
   ownerFirstName,
+  alertsOriginShelter,
 }: Props) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -401,6 +408,7 @@ export function SheetMounter({
           toggleAction={toggleAction}
           publicHref={`/p/${petToken}`}
           ownerFirstName={ownerFirstName}
+          alertsOriginShelter={alertsOriginShelter}
         />
       </Sheet>
     );
