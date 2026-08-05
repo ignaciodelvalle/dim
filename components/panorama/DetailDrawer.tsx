@@ -524,7 +524,10 @@ export function FeatureBody({
                 suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
                 ) : (
-                  formatPercent(properties.count ?? 0)
+                  // `count` here is the reunification RATE (0–100), typed loose
+                  // on the popup props — coerce, and let formatPercent answer "—"
+                  // for anything non-finite.
+                  formatPercent(Number(properties.count ?? 0))
                 )
               }
             />

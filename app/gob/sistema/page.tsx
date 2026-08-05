@@ -28,6 +28,7 @@ import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
+import { formatPercent } from "@/lib/utils/format";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
