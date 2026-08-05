@@ -17,8 +17,12 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 
-import { auditLog, db, notifications, ownerships, petEvents, petTags, pets } from "@/db";
+import { auditLog, db, ownerships, petEvents, petTags, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import {
+  type CreateNotificationInput,
+  createNotificationsBulk,
+} from "@/lib/infra/notification-service";
 import { normalizeTagSerial, tagActivationCodeMatches } from "@/lib/infra/tag-lookup";
 
 import { ACTIVATION_FAILED_MESSAGE, activateTagSchema } from "./types";
@@ -39,8 +43,7 @@ export async function activateTagForUser(
 
   const serial = normalizeTagSerial(parsed.serial);
 
-  type PendingNotification = typeof notifications.$inferInsert;
-  const pendingNotifications: PendingNotification[] = [];
+  const pendingNotifications: CreateNotificationInput[] = [];
   let result: { ok: true; eventId: string };
 
   try {
@@ -182,6 +185,7 @@ export async function activateTagForUser(
           relatedEventId: event.id,
           ctaLabel: "Ver mis chapas",
           ctaUrl: "/cuenta/chapas",
+          dedupeKey: `event:${event.id}:${row.ownerUserId}:tag_activated`,
         });
       }
 
@@ -196,12 +200,11 @@ export async function activateTagForUser(
     };
   }
 
+  // Outside the business tx on purpose (ARCH-P): createNotificationsBulk
+  // dead-letters its own failures and never throws, so a notification problem
+  // can never roll back an activation that already committed.
   if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (activateTagForUser did succeed)", e);
-    }
+    await createNotificationsBulk(pendingNotifications);
   }
 
   return result;

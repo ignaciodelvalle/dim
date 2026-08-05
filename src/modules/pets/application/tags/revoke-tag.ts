@@ -9,8 +9,12 @@
 
 import { and, eq, isNull, sql } from "drizzle-orm";
 
-import { auditLog, db, notifications, ownerships, petEvents, petTags, pets } from "@/db";
+import { auditLog, db, ownerships, petEvents, petTags, pets } from "@/db";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import {
+  type CreateNotificationInput,
+  createNotificationsBulk,
+} from "@/lib/infra/notification-service";
 import { normalizeTagSerial } from "@/lib/infra/tag-lookup";
 
 import { revokeTagSchema } from "./types";
@@ -31,8 +35,7 @@ export async function revokeTagForUser(
 
   const serial = normalizeTagSerial(parsed.serial);
 
-  type PendingNotification = typeof notifications.$inferInsert;
-  const pendingNotifications: PendingNotification[] = [];
+  const pendingNotifications: CreateNotificationInput[] = [];
   let result: { ok: true; eventId: string };
 
   try {
@@ -162,6 +165,7 @@ export async function revokeTagForUser(
           relatedEventId: event.id,
           ctaLabel: "Ver mis chapas",
           ctaUrl: "/cuenta/chapas",
+          dedupeKey: `event:${event.id}:${row.ownerUserId}:tag_revoked`,
         });
       }
 
@@ -173,12 +177,11 @@ export async function revokeTagForUser(
     };
   }
 
+  // Outside the business tx on purpose (ARCH-P): createNotificationsBulk
+  // dead-letters its own failures and never throws, so a notification problem
+  // can never roll back a revocation that already committed.
   if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (revokeTagForUser did succeed)", e);
-    }
+    await createNotificationsBulk(pendingNotifications);
   }
 
   return result;
