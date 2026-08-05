@@ -63,13 +63,13 @@ defectos graves reales. Detectarlo es un `curl`: bajar `/`, extraer
 
 ---
 
-## 🚨 GATE DE DEPLOY — tres acciones manuales, ninguna es código
+## 🚨 GATE DE DEPLOY — cerrado 2026-08-05 (tarde), con un diferido declarado
 
 | # | Qué | Estado 2026-08-05 |
 |---|---|---|
-| 1 | **Aplicar `0166`-`0170` a la base remota** | **PENDIENTE.** Los cinco archivos existen y están aplicados **sólo en local**: `0166_erase_subject_data_push_subscriptions`, `0167_drop_share_telemetry`, `0168_rls_policies_explicit_roles`, `0169_pet_tags`, `0170_subject_rights_pet_tags`. Aplicar a remoto es decisión de Ignacio (invariante del proyecto). **`0167` BORRA datos** y es irreversible; **`0168` toca RLS de 10 políticas**. Antes y después: `pnpm db:doctor` |
-| 2 | **`DEMO_PET_TOKEN` en Vercel** | **PENDIENTE.** El flagship ya está sembrado en staging (`DIM-PAMP-0001`, Pampa, 22 eventos). Falta sólo la variable, y **sólo en el proyecto de staging** — en producción no va, el código exige que ese entorno no tenga mobiliario de demo. Requiere redeploy |
-| 3 | **Toggle de leaked-password protection** | **PENDIENTE.** Dashboard de Supabase, un click. Es A9 de la cola vieja del 24/06 |
+| 1 | ~~**Aplicar `0166`-`0170` a la base remota**~~ | **HECHO** (Ignacio, 2026-08-05). La `0168` falló a mitad de camino y destapó la joya del día: **staging tenía RLS activo con CERO políticas en 13 tablas** (incl. `pets`, `profiles`, `ownerships`, `audit_log`) — deny-all silencioso desde julio, invisible porque el server la bypasea. Causa: ledger deshonesto clase-0165 (las migraciones creadoras figuraban aplicadas sin haber corrido) + la remediación del 31/07 que encendió RLS sin recrear políticas. Reparado con dos instrumentos fechados (`scripts/ops/staging-*-2026-08-05.sql`, generados byte-exacto desde `pg_policies` local) + `scripts/ops/apply-ops-sql.ts`. Cierre verificado: **`db:doctor --allow-remote` LIMPIO** — A 169/169 checksums, B 53 tablas / 38 con políticas / 15 deny-all intencionales, C 8 sondas. **Regla nueva: doctor ANTES y después de todo apply remoto** |
+| 2 | ~~**`DEMO_PET_TOKEN` en Vercel**~~ | **HECHO** (Ignacio, 2026-08-05) y verificado contra el entorno: el hero de `dim-staging.vercel.app` renderiza el QR real de Pampa (la compuerta doble exige que el token resuelva, así que verlo ES la prueba) y `/p/DIM-PAMP-0001` sirve la credencial completa con libreta |
+| 3 | **Toggle de leaked-password protection** | **DIFERIDO con razón** (2026-08-05): el dashboard de Supabase lo exige **plan Pro** — no es "un click", es una decisión de facturación. Queda para cuando el proyecto suba de plan (o antes del cutover a producción, donde sí corresponde pagarlo). Es A9 de la cola vieja del 24/06 |
 
 **Ya no está en el gate**: `0162`-`0165` (aplicadas a staging 31/07, RLS 53/53,
 datos intactos) y el Gmail personal en Nominatim (**decidido 31/07: queda** —
