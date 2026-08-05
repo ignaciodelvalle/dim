@@ -235,6 +235,19 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
             <LnEmptyState
               title="Sin resultados para este filtro"
               description="Ninguna jurisdicción customiza este tipo de regla."
+              // P2-2: this empty is caused by the operator's own `kind` filter,
+              // so hiding it would read as "no rules exist anywhere" — the
+              // misreading P2 must not create. It stays, with the MINIMUM: the
+              // way back. The true-empty sibling branch above already carried
+              // its own action ("+ Crear regla"); only this one was missed.
+              action={
+                <Link
+                  href={`${base}/reglas`}
+                  className="text-sm text-ln-op-azul no-underline underline-offset-4 hover:underline"
+                >
+                  Ver todos los tipos
+                </Link>
+              }
             />
           ) : (
             <ul className="space-y-3">

@@ -119,41 +119,53 @@ export function PanoramaInformeSituacion({ model }: Props) {
           <p className="text-sm leading-snug text-ln-op-ink-2">{model.viewSummary}</p>
         )}
 
-        {/* KPIs — value + estado-actual/temporal framing + delta. */}
-        <section>
-          <SectionTitle>Indicadores</SectionTitle>
-          {model.kpisDegradedText ? (
-            <p className="text-sm text-ln-op-warn">{model.kpisDegradedText}</p>
-          ) : model.kpis.length === 0 ? (
-            <p className="text-sm text-ln-op-mute">Sin indicadores para esta vista.</p>
-          ) : (
-            <ul className="grid grid-cols-2 gap-3">
-              {model.kpis.map((k) => (
-                <li
-                  key={k.id}
-                  className="space-y-0.5 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2"
-                >
-                  <p className="flex items-baseline justify-between gap-2">
-                    <span className="text-xs text-ln-op-mute">{k.label}</span>
-                    {k.stateTag && (
-                      <span className="shrink-0 rounded-full border border-ln-op-line px-1.5 py-0.5 text-xs uppercase tracking-wide text-ln-op-mute">
-                        {k.stateTag}
-                      </span>
+        {/* KPIs — value + estado-actual/temporal framing + delta.
+            P2-2: the section only exists when it has something to say. The three
+            outcomes are NOT interchangeable and the order below is the claim:
+              - kpisDegradedText → the fan-out FAILED. Declared, never hidden: a
+                silent drop would print an all-clear over "we are blind", the
+                exact defect the honesty invariant exists to kill.
+              - kpis.length > 0  → print them.
+              - neither          → ABSENT (the builder emits `kpis: []` with no
+                degraded text only when this view has no indicators at all).
+                Heading + "Sin indicadores para esta vista." is structure over
+                nothing, so the whole section goes. Nothing is withheld here —
+                k-anon suppression lives in the ranking's own note, which this
+                branch cannot reach. */}
+        {(model.kpisDegradedText || model.kpis.length > 0) && (
+          <section>
+            <SectionTitle>Indicadores</SectionTitle>
+            {model.kpisDegradedText ? (
+              <p className="text-sm text-ln-op-warn">{model.kpisDegradedText}</p>
+            ) : (
+              <ul className="grid grid-cols-2 gap-3">
+                {model.kpis.map((k) => (
+                  <li
+                    key={k.id}
+                    className="space-y-0.5 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2"
+                  >
+                    <p className="flex items-baseline justify-between gap-2">
+                      <span className="text-xs text-ln-op-mute">{k.label}</span>
+                      {k.stateTag && (
+                        <span className="shrink-0 rounded-full border border-ln-op-line px-1.5 py-0.5 text-xs uppercase tracking-wide text-ln-op-mute">
+                          {k.stateTag}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-lg font-bold tabular-nums">{k.value}</p>
+                    {k.deltaLabel && (
+                      <p className="text-xs tabular-nums text-ln-op-ink-2">{k.deltaLabel}</p>
                     )}
-                  </p>
-                  <p className="text-lg font-bold tabular-nums">{k.value}</p>
-                  {k.deltaLabel && (
-                    <p className="text-xs tabular-nums text-ln-op-ink-2">{k.deltaLabel}</p>
-                  )}
-                  {k.sub && <p className="text-xs leading-snug text-ln-op-mute">{k.sub}</p>}
-                  {k.secondary && (
-                    <p className="text-xs leading-snug text-ln-op-mute">{k.secondary}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+                    {k.sub && <p className="text-xs leading-snug text-ln-op-mute">{k.sub}</p>}
+                    {k.secondary && (
+                      <p className="text-xs leading-snug text-ln-op-mute">{k.secondary}</p>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        )}
 
         {/* Ranking — "Peores N · {métrica}" with the C1 metric label and the C3
             k-anon "protegido" disclosure (reused, not reinvented). */}
@@ -191,18 +203,26 @@ export function PanoramaInformeSituacion({ model }: Props) {
           </section>
         )}
 
-        {/* Active layers + the plain-language map caption. */}
-        <section>
-          <SectionTitle>Capas de la vista</SectionTitle>
-          {model.activeLayerLabels.length > 0 ? (
-            <p className="text-sm text-ln-op-ink-2">{model.activeLayerLabels.join(" · ")}</p>
-          ) : (
-            <p className="text-sm text-ln-op-mute">Sin capas activas.</p>
-          )}
-          {model.caption && (
-            <p className="mt-1 text-sm leading-snug text-ln-op-mute">{model.caption}</p>
-          )}
-        </section>
+        {/* Active layers + the plain-language map caption.
+            P2-2: with no layers AND no caption the section is a heading over
+            "Sin capas activas." — a restatement of its own absence. It goes.
+            The caption alone is enough to keep it: it describes what the map
+            showed, which is the reason this section exists. This branch is pure
+            view state (which layers the operator turned on), so it can never
+            hide a k-anon suppression or a failed calculation. */}
+        {(model.activeLayerLabels.length > 0 || model.caption) && (
+          <section>
+            <SectionTitle>Capas de la vista</SectionTitle>
+            {model.activeLayerLabels.length > 0 ? (
+              <p className="text-sm text-ln-op-ink-2">{model.activeLayerLabels.join(" · ")}</p>
+            ) : (
+              <p className="text-sm text-ln-op-mute">Sin capas activas.</p>
+            )}
+            {model.caption && (
+              <p className="mt-1 text-sm leading-snug text-ln-op-mute">{model.caption}</p>
+            )}
+          </section>
+        )}
 
         {/* Method / footnote block + the k-anon disclosure. */}
         <footer className="space-y-2 border-t border-ln-op-line pt-4 text-xs leading-snug text-ln-op-mute">

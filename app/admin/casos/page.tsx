@@ -231,6 +231,17 @@ export default async function AdminCasosPage({
               ? "Ningún caso coincide con los filtros aplicados."
               : "No hay casos abiertos. Usá «Ver todos» para incluir los cerrados."
           }
+          // P2-2: a filtered-empty queue must NOT be hidden — the operator has
+          // to see that a filter, not the world, produced the silence. So it
+          // gets the MINIMUM instead: the way out. Same treatment its twin
+          // /gob/casos already ships; this admin copy never got it.
+          emptyAction={
+            hasActiveFilters ? (
+              <Link href="/admin/casos" className="text-sm text-ln-op-azul hover:underline">
+                Limpiar filtros
+              </Link>
+            ) : undefined
+          }
         />
       </Suspense>
 

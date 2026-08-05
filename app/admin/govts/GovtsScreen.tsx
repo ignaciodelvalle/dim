@@ -232,6 +232,18 @@ export async function GovtsScreen({
             >
               Mostrar {hiddenTestCount} {pluralizeEs(hiddenTestCount, "cuenta")} de prueba
             </Link>
+          ) : query || status !== "all" ? (
+            // P2-2: the search/status branch was the only one of the three
+            // sharing this box without a way out — `hiddenTestCount` had its
+            // toggle and the true-empty case had "Crear el primer gobierno".
+            // A filtered empty must stay visible (hiding it would claim there
+            // are no governments), so it gets the MINIMUM instead.
+            <Link
+              href="/admin/govts"
+              className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
+            >
+              Limpiar filtros
+            </Link>
           ) : (
             !query &&
             status === "all" && (
