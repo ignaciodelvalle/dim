@@ -27,10 +27,7 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
             <Field label="Token" value={pet.publicToken} mono />
             <Field label="Especie" value={SPECIES_LABEL[pet.species] ?? pet.species} />
             <Field label="Sexo" value={SEX_LABEL[pet.sex] ?? pet.sex} />
-            <Field
-              label="Estado"
-              value={situationLabelForSex(statusLabel(pet.status), pet.sex)}
-            />
+            <Field label="Estado" value={situationLabelForSex(statusLabel(pet.status), pet.sex)} />
             {pet.breed && <Field label="Raza" value={pet.breed} />}
             {pet.color && <Field label="Color" value={pet.color} />}
           </div>
