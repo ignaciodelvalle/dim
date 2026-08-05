@@ -43,6 +43,8 @@
 //     people) pass through unchanged.
 //   - Never throws; unknown input degrades to the raw string.
 
+import { pluralizeEs } from "@/lib/utils/format";
+
 import {
   BITE_SEVERITY_LABEL,
   BITE_VICTIM_LABEL,
@@ -101,7 +103,7 @@ const RULES: Rule[] = [
     // foster/infrastructure/foster-repository.ts:757
     pattern: /^Foster placement assigned by (.+?)(?: — expected (\d+) weeks)?$/,
     render: (m) =>
-      `Tránsito asignado por ${m[1]}${m[2] ? ` — duración estimada: ${m[2]} semanas` : ""}`,
+      `Tránsito asignado por ${m[1]}${m[2] ? ` — duración estimada: ${m[2]} ${pluralizeEs(Number(m[2]), "semana")}` : ""}`,
   },
   {
     // foster/infrastructure/foster-repository.ts:881 — the volunteer userId

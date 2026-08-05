@@ -13,6 +13,7 @@
 import { Icon } from "@/components/Icon";
 import type { NavItem } from "@/components/layout/HeaderNav";
 import { BRANDING } from "@/lib/ui/branding";
+import { pluralizeEs } from "@/lib/utils/format";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -141,7 +142,7 @@ export function AppShellDrawer({
                         // audit 2026-07) — the drawer is the rail's mobile twin.
                         aria-label={
                           item.badge != null && item.badge > 0
-                            ? `${item.label} — ${item.badge} pendientes`
+                            ? `${item.label} — ${item.badge} ${pluralizeEs(item.badge, "pendiente")}`
                             : item.label
                         }
                         className={[

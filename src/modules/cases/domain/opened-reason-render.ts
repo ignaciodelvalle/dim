@@ -27,6 +27,8 @@
 // by discipline, but structurally. A renderer cannot leak an id it has no way
 // to name.
 
+import { pluralizeEs } from "@/lib/utils/format";
+
 import type { OpenedReason, OpenedReasonCode, OpenedReasonParams } from "./opened-reason";
 import {
   BITE_SEVERITY_LABEL,
@@ -60,7 +62,9 @@ const RENDERERS: RendererMap = {
 
   foster_placement_assigned: (p) =>
     `Tránsito asignado por ${p.actorOrgDisplayName}${
-      p.expectedWeeks ? ` — duración estimada: ${p.expectedWeeks} semanas` : ""
+      p.expectedWeeks
+        ? ` — duración estimada: ${p.expectedWeeks} ${pluralizeEs(p.expectedWeeks, "semana")}`
+        : ""
     }`,
 
   // The volunteer and org ids are audit-only and not params — there is nothing

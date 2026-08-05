@@ -42,7 +42,13 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard";
 import type { CaseStatus } from "@/db/schema";
-import { AR_TIME_ZONE, eventTypeLabel, formatPercent, speciesLabel } from "@/lib/utils/format";
+import {
+  AR_TIME_ZONE,
+  eventTypeLabel,
+  formatPercent,
+  pluralizeEs,
+  speciesLabel,
+} from "@/lib/utils/format";
 import { REFERENCE_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 import { SEVERITY_BASE_LABEL, welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
@@ -774,7 +780,7 @@ function UnitHistorySection({
                 points={state.data.trend.map((b) => b.count)}
                 width={288}
                 height={40}
-                ariaLabel={`Tendencia de ${layerId}: ${state.data.trend.length} días`}
+                ariaLabel={`Tendencia de ${layerId}: ${state.data.trend.length} ${pluralizeEs(state.data.trend.length, "día")}`}
               />
             </div>
           )}

@@ -7,6 +7,7 @@
 // Pure function: no DB access. Caller supplies the pet shape.
 
 import type { FosterVolunteer } from "@/db/schema";
+import { pluralizeEs } from "@/lib/utils/format";
 
 export type MatchWarning = {
   kind:
@@ -136,7 +137,7 @@ export function computeMatch(
   ) {
     warnings.push({
       kind: "duration_mismatch",
-      message: `Duración propuesta (${proposedDurationWeeks} semanas) excede el máximo del voluntario (${volunteer.maxDurationWeeks} semanas).`,
+      message: `Duración propuesta (${proposedDurationWeeks} ${pluralizeEs(proposedDurationWeeks, "semana")}) excede el máximo del voluntario (${volunteer.maxDurationWeeks} ${pluralizeEs(volunteer.maxDurationWeeks, "semana")}).`,
     });
     score -= 10;
   }

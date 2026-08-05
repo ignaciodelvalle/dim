@@ -17,7 +17,7 @@ import {
   guardRatioTone,
   shouldSuppressDelta,
 } from "@/lib/metrics/presentation-guards";
-import { formatPercent } from "@/lib/utils/format";
+import { formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 /**
  * OpKpi v2 — backward-compatible KPI tile with optional new props.
@@ -523,7 +523,7 @@ function contractInfoExtras(
   // not as static catalog prose — it names the actual window this render
   // used, same spirit as target/confidence being computed, not typed once.
   const methodology = descriptor?.forecast
-    ? `Proyección lineal simple sobre los últimos ${trendMonths !== undefined ? `${trendMonths} meses` : "meses disponibles"} — extrapolación, no promesa.`
+    ? `Proyección lineal simple sobre los últimos ${trendMonths !== undefined ? `${trendMonths} ${pluralizeEs(trendMonths, "mes")}` : "meses disponibles"} — extrapolación, no promesa.`
     : undefined;
   // K8: "Metodología v{n}" footer — only descriptors whose numerator/label/
   // target changed on a dated basis carry `methodologyVersion` (omitted = v1,

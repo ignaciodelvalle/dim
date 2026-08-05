@@ -8,7 +8,7 @@ import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
-import { formatDate, sexLabel, speciesLabel } from "@/lib/utils/format";
+import { formatDate, pluralizeEs, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
 
 import { STATUS_LABELS } from "../status-labels";
@@ -71,7 +71,7 @@ export default async function ProposalDetailPage({
             <DetailRow label="Propuesto por">{proposer.displayName}</DetailRow>
             <DetailRow label="Duración estimada">
               {proposal.proposedDurationWeeks
-                ? `${proposal.proposedDurationWeeks} semanas`
+                ? `${proposal.proposedDurationWeeks} ${pluralizeEs(proposal.proposedDurationWeeks, "semana")}`
                 : "Sin definir"}
             </DetailRow>
             <DetailRow label="Expira">{formatDate(expires)}</DetailRow>

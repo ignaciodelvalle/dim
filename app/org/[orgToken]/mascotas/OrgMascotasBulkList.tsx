@@ -110,7 +110,10 @@ function calcAge(dob: string): string {
   const now = new Date();
   const months =
     (now.getFullYear() - birth.getFullYear()) * 12 + (now.getMonth() - birth.getMonth());
-  if (months < 12) return `${Math.max(0, months)} meses`;
+  if (months < 12) {
+    const clamped = Math.max(0, months);
+    return `${clamped} ${pluralizeEs(clamped, "mes")}`;
+  }
   const years = Math.floor(months / 12);
   const remMonths = months % 12;
   if (remMonths === 0) return `${years} ${pluralizeEs(years, "año")}`;

@@ -33,7 +33,7 @@ import {
   clampSinceToRecentMonths,
 } from "@/components/panorama/calendar-heatmap-grid";
 import { SCALE_BLUE_SEQ } from "@/lib/analytics/viz-scales";
-import { formatDate, parseDateInput } from "@/lib/utils/format";
+import { formatDate, parseDateInput, pluralizeEs } from "@/lib/utils/format";
 
 /** Widest window the day-cell grid renders before clamping to the recent tail. */
 const CALENDAR_CAP_MONTHS = 12;
@@ -244,7 +244,8 @@ function CalendarHeatmapImpl({
           </summary>
           <table className="mt-2 w-full border-collapse text-xs">
             <caption className="sr-only">
-              Eventos por día — {grid.total} en total sobre {grid.dayCount} días
+              Eventos por día — {grid.total} en total sobre {grid.dayCount}{" "}
+              {pluralizeEs(grid.dayCount, "día")}
             </caption>
             <thead>
               <tr>

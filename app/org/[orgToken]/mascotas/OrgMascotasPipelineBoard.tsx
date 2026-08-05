@@ -12,7 +12,7 @@
 import Link from "next/link";
 
 import { groupIntoPipelineColumns } from "@/lib/infra/pet-pipeline";
-import { speciesLabel } from "@/lib/utils/format";
+import { pluralizeEs, speciesLabel } from "@/lib/utils/format";
 import type { PetCardData } from "./OrgMascotasBulkList";
 
 // ─── Column color palette ─────────────────────────────────────────────────────
@@ -158,7 +158,7 @@ function PipelineColumn({
         </h2>
         <span
           className={`text-xs font-ln-mono font-bold px-1.5 py-px rounded-full ${style.countBadge}`}
-          aria-label={`${cards.length} animales`}
+          aria-label={`${cards.length} ${pluralizeEs(cards.length, "animal")}`}
         >
           {cards.length}
         </span>

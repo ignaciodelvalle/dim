@@ -65,7 +65,7 @@ import type { ProvinceSterlizationRow } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatPercent, formatRate } from "@/lib/utils/format";
+import { formatPercent, formatRate, pluralizeEs } from "@/lib/utils/format";
 
 /**
  * A cell whose value the D.10 disclosure rule withheld. An em dash for sighted
@@ -537,8 +537,9 @@ export async function AdminPoblacionScreen({
                 if (unassigned <= 0) return null;
                 return (
                   <p className="mt-2 text-xs text-ln-op-mute">
-                    * {unassigned.toLocaleString("es-AR")} mascotas sin provincia asignada no
-                    aparecen en la tabla — la suma de las filas no equivale al total nacional.
+                    * {unassigned.toLocaleString("es-AR")} {pluralizeEs(unassigned, "mascota")} sin
+                    provincia asignada no {unassigned === 1 ? "aparece" : "aparecen"} en la tabla —
+                    la suma de las filas no equivale al total nacional.
                   </p>
                 );
               })()}

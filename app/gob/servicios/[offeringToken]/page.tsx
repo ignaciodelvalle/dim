@@ -13,14 +13,17 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
-import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs, serviceOfferingStatusLabel } from "@/lib/utils/format";
 
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
+// Label comes from serviceOfferingStatusLabel (lib/utils/format.ts), shared
+// with ../ServiciosScreen.tsx so the same offering never reads two different
+// words across the two screens (copy audit 2026-08-04).
 const STATUS_LABELS: Record<string, string> = {
-  pending_approval: "Pendiente de revisión",
-  approved: "Aprobado",
-  rejected: "Rechazado",
+  pending_approval: serviceOfferingStatusLabel("pending_approval"),
+  approved: serviceOfferingStatusLabel("approved"),
+  rejected: serviceOfferingStatusLabel("rejected"),
 };
 
 type StatusTone = "open" | "ok" | "danger";
@@ -164,14 +167,14 @@ export default async function GobServicioDetailPage({
               <dt className="text-sm text-ln-op-mute w-32 shrink-0">Edad elegible</dt>
               <dd className="text-[13px] text-ln-op-ink">
                 {offering.eligibilityAgeMinMonths !== null
-                  ? `desde ${offering.eligibilityAgeMinMonths} meses`
+                  ? `desde ${offering.eligibilityAgeMinMonths} ${pluralizeEs(offering.eligibilityAgeMinMonths, "mes")}`
                   : ""}
                 {offering.eligibilityAgeMinMonths !== null &&
                 offering.eligibilityAgeMaxMonths !== null
                   ? " — "
                   : ""}
                 {offering.eligibilityAgeMaxMonths !== null
-                  ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
+                  ? `hasta ${offering.eligibilityAgeMaxMonths} ${pluralizeEs(offering.eligibilityAgeMaxMonths, "mes")}`
                   : ""}
               </dd>
             </div>

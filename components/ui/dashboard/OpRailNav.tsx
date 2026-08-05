@@ -1,6 +1,7 @@
 "use client";
 
 import type { NavItem } from "@/components/layout/HeaderNav";
+import { pluralizeEs } from "@/lib/utils/format";
 import Link, { useLinkStatus } from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
@@ -125,7 +126,7 @@ function NavLink({
       // prefix of the accessible name. Guarded by OpRailNav.a11y.test.tsx.
       aria-label={
         item.badge != null && item.badge > 0
-          ? `${item.label} — ${item.badge} pendientes`
+          ? `${item.label} — ${item.badge} ${pluralizeEs(item.badge, "pendiente")}`
           : item.label
       }
       className={[

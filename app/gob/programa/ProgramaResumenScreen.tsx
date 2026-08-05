@@ -91,7 +91,7 @@ import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { fetchSterilizationCoverage } from "@/lib/metrics/population-control";
 import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatDateShort, formatPercent } from "@/lib/utils/format";
+import { formatDateShort, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 const METRIC_LABEL: Record<string, string> = {
   rabies: "Antirrábica",
@@ -461,7 +461,7 @@ export async function ProgramaResumenScreen({
                   : "ok"
               : undefined
           }
-          sub={`${queue.pendingTotal} pendientes en tu jurisdicción`}
+          sub={`${queue.pendingTotal} ${pluralizeEs(queue.pendingTotal, "pendiente")} en tu jurisdicción`}
           href="/gob/cola"
           info={{
             definition:

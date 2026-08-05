@@ -8,6 +8,8 @@
 // Pure module — no DB, no React, no Next. The descriptor declares the WORDS; this
 // builder assembles the sentence, so the domain stays framework-free.
 
+import { pluralizeEs } from "@/lib/utils/format";
+
 import { isNationalDepartmentGrain } from "./layers";
 import type { AggregationLevel, PanoramaLayer, PanoramaPeriod, RenderMode } from "./types";
 
@@ -41,7 +43,7 @@ export function periodDaysPhrase(days: number, presetId?: string): string {
   if (years >= 1 && Math.abs(days - years * 365.25) <= 2) {
     return years === 1 ? "último año" : `últimos ${years} años`;
   }
-  return `últimos ${days} días`;
+  return `últimos ${days} ${pluralizeEs(days, "día")}`;
 }
 
 /** The time phrase: current-state rollups say "estado actual"; windowed layers

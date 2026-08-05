@@ -32,6 +32,7 @@ import {
 } from "@/lib/domain/business-rules-defaults";
 import { BUSINESS_RULE_VALIDATORS } from "@/lib/infra/business-rules-validators";
 import { parseRegistriesJson } from "@/lib/infra/parse-registries";
+import { pluralizeEs } from "@/lib/utils/format";
 import type { z } from "zod";
 
 /**
@@ -281,11 +282,13 @@ export function summarizeRulePayload(ruleType: GovtBusinessRuleType, payload: un
     case "rabies_observation_window":
     case "due_soon_window":
     case "long_stay_days": {
-      return typeof p.days === "number" ? `${p.days} días` : JSON.stringify(payload);
+      return typeof p.days === "number"
+        ? `${p.days} ${pluralizeEs(p.days, "día")}`
+        : JSON.stringify(payload);
     }
     case "reminder_windows": {
       return typeof p.aheadDays === "number"
-        ? `${p.aheadDays} días de anticipación`
+        ? `${p.aheadDays} ${pluralizeEs(p.aheadDays, "día")} de anticipación`
         : JSON.stringify(payload);
     }
     case "mpf_export_format": {

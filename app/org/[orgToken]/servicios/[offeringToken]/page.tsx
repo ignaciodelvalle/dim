@@ -174,7 +174,10 @@ export default async function OfferingDetailPage({
                   : "Campaña gratuita"
               }
             />
-            <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
+            <Row
+              label="Duración"
+              value={`${offering.durationMinutes} ${pluralizeEs(offering.durationMinutes, "minuto")}`}
+            />
             {canCreate && offering.status !== "archived" ? (
               <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
                 <dt className="text-sm text-ln-op-mute shrink-0 w-36">Capacidad por turno</dt>
@@ -207,10 +210,10 @@ export default async function OfferingDetailPage({
                 label="Rango de edad"
                 value={[
                   offering.eligibilityAgeMinMonths !== null
-                    ? `desde ${offering.eligibilityAgeMinMonths} meses`
+                    ? `desde ${offering.eligibilityAgeMinMonths} ${pluralizeEs(offering.eligibilityAgeMinMonths, "mes")}`
                     : null,
                   offering.eligibilityAgeMaxMonths !== null
-                    ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
+                    ? `hasta ${offering.eligibilityAgeMaxMonths} ${pluralizeEs(offering.eligibilityAgeMaxMonths, "mes")}`
                     : null,
                 ]
                   .filter(Boolean)

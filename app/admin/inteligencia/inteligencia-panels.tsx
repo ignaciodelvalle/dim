@@ -40,7 +40,7 @@ import {
 } from "@/lib/metrics";
 import { estimateDogPopulation, type getCensusPopulationsCached } from "@/lib/metrics/census";
 import { KPI_CATALOG, type KpiId } from "@/lib/metrics/kpi-catalog";
-import { formatDateShort, formatPercent } from "@/lib/utils/format";
+import { formatDateShort, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Per-panel budgets (T3.2) — priced to each panel's observed cost, NOT one
@@ -254,7 +254,7 @@ export async function IntelQualityKpi({ load }: { load: QualityLoad }) {
             : ""
         }${quality.suppressedProvinces > 0 && quality.unassigned > 0 ? " ni " : ""}${
           quality.unassigned > 0
-            ? `${quality.unassigned.toLocaleString("es-AR")} registros sin provincia asignada`
+            ? `${quality.unassigned.toLocaleString("es-AR")} ${pluralizeEs(quality.unassigned, "registro")} sin provincia asignada`
             : ""
         } — cuenta solo el padrón evaluado, igual que la tabla de calidad.`
       : "";
@@ -582,7 +582,8 @@ export async function IntelPolicyPanel({
                       {row.partialAfter && (
                         <span className="text-ln-op-mute">
                           {" "}
-                          · ventana parcial ({row.afterDaysCovered} días)
+                          · ventana parcial ({row.afterDaysCovered}{" "}
+                          {pluralizeEs(row.afterDaysCovered, "día")})
                         </span>
                       )}
                     </td>
@@ -714,8 +715,9 @@ export async function IntelQualityPanel({
               {quality.unassigned > 0 && (
                 <>
                   {" "}
-                  {quality.unassigned.toLocaleString("es-AR")} registros sin provincia asignada no
-                  aparecen en la tabla.
+                  {quality.unassigned.toLocaleString("es-AR")}{" "}
+                  {pluralizeEs(quality.unassigned, "registro")} sin provincia asignada no{" "}
+                  {quality.unassigned === 1 ? "aparece" : "aparecen"} en la tabla.
                 </>
               )}
             </p>

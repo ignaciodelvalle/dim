@@ -18,6 +18,7 @@ import Link from "next/link";
 import { Icon } from "@/components/Icon";
 import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import type { QueueCockpit } from "@/lib/analytics/admin-metrics";
+import { pluralizeEs } from "@/lib/utils/format";
 
 type TileTone = "neutral" | "warn" | "danger";
 
@@ -104,7 +105,8 @@ export function QueueHealthCockpit({ cockpit }: { cockpit: QueueCockpit }) {
         <div className="space-y-2">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h4 className="text-sm font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-              Aprobaciones {"·"} {approvals.pendingTotal} pendientes
+              Aprobaciones {"·"} {approvals.pendingTotal}{" "}
+              {pluralizeEs(approvals.pendingTotal, "pendiente")}
             </h4>
             <span className="text-sm text-ln-op-mute">{oldestNote}</span>
           </div>
