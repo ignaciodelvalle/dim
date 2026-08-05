@@ -7,13 +7,13 @@
 // come back as a single generic string (uniform evidence gate — the server
 // never says WHICH of serial/code/state was wrong).
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { activateTagAction } from "@/app/actions/tags";
 import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnField, LnInput, LnSelect } from "@/components/ui/Field";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function ActivateTagForm({
   initialSerial,
@@ -22,7 +22,6 @@ export function ActivateTagForm({
   initialSerial: string;
   pets: Array<{ id: string; name: string }>;
 }) {
-  const router = useRouter();
   const [serial, setSerial] = useState(initialSerial);
   const [code, setCode] = useState("");
   const [petId, setPetId] = useState(pets.length === 1 ? pets[0].id : "");
@@ -48,7 +47,9 @@ export function ActivateTagForm({
         setError(result.error);
         return;
       }
-      router.push("/cuenta/chapas");
+      // Full document navigation — immune to the App Router silent-drop
+      // defect (lint:nav tiers, 2026-07-04 handoff).
+      navigateAfterActionSuccess("/cuenta/chapas");
     });
   }
 
