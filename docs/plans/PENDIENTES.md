@@ -210,14 +210,16 @@ completo, 13 commits, `b6ccb7f0`..`c7d27d31`:
 
 ## 🟠 ABIERTO — 2026-08-05
 
-### Decisiones del PO (bloquean código que ya está escrito o casi)
+### Decisiones del PO — TOMADAS el 2026-08-05
 
-| # | Qué decidir | Por qué no lo decide un agente |
+Las cuatro estaban bloqueando código escrito. Ninguna bloquea nada ahora.
+
+| # | Qué se decidió | Estado |
 |---|---|---|
-| **PO-1** | **`/adoptar/[petToken]` le muestra `••••` + los últimos 4 del MICROCHIP a un visitante anónimo** (`app/(public)/adoptar/[petToken]/page.tsx:188-190`, verificado 2026-08-05). Del barrido Q3 (16 sitios de lectura del identificador canónico): **15 están gateados por rol**; éste no | Es exposición de un identificador parcial a público general. Puede ser aceptable —4 dígitos no identifican solos y la ficha de adopción quiere mostrar que el animal está chipeado— pero es una decisión de privacidad, no de implementación. Alternativa si el PO dice que no: mostrar sólo el booleano "tiene microchip", que ya se calcula en la línea de arriba |
-| **PO-2** | **Cartilla "Cómo leer las marcas": ¿P2 o T4.1?** Las claves POR CUADRO ya están gateadas (RA-7 F9/F10 cerrado 2026-07-31, `MapLegends.tsx:328-352`, incluido "falta un eje" declarado). Lo único sin gatear es la cartilla general `MapLegends.tsx:243-288`, que nombra marcas que el cuadro actual puede no contener — **a propósito**: T4.1 (2026-08-01) la agregó como guía de lectura general | Aplicar P2 (ocultar lo que el cuadro no contiene) choca con que una cartilla **enseña a leer** el cuadro: quitarle claves la vuelve menos didáctica. Hay dos productos posibles y no es empate técnico |
-| **PO-3** | **El walk-in de Atender usa conocer el token del QR como prueba de consentimiento.** Cualquier organización con `event.write` puede escribir eventos permanentes e irreversibles sobre **cualquier mascota del país** desde una foto de la chapita | **Es diseño, no bug** — y ahora que la chapa física existe, la foto de la chapita es literalmente más fácil de conseguir. La decisión del 04/08 (provenance de walk-in no verificado + aviso inmediato al dueño) mitiga la irreversibilidad silenciosa, no el vector |
-| **PO-4** | **La mascota de un titular borrado sigue resolviendo en `/p/[publicToken]`** — la página pública no filtra `deletedAt` (verificado 2026-08-05, y verificado que **ya era así antes de esta corrida**: no es regresión). La chapa física (`/t/[serial]` → 307 a `/p`) es un camino nuevo hacia ese comportamiento preexistente | Es una decisión de derechos del sujeto (Ley 25.326): ¿el borrado del titular debe apagar la credencial pública de su mascota, o la credencial es de la MASCOTA (invariante #1) y sobrevive? Hay argumento genuino en ambas direcciones — p. ej., una mascota transferida antes del borrado del ex-titular NO debe apagarse. Lo encontró la revisión adversarial pre-push |
+| **PO-1** | **La ficha de adopción muestra sólo el booleano.** El visitante anónimo lee "tiene microchip", nunca un fragmento del número | **EJECUTADO** `5847d48f` — y va más lejos que la decisión: el código completo **ya ni siquiera llega a memoria del servidor** en esa ruta. `hasActiveMicrochip()` proyecta una constante, así que un render futuro no tiene qué filtrar por accidente. Cerrado el único de los 16 sitios de lectura del identificador canónico que no estaba gateado por rol |
+| **PO-2** | **La cartilla general se queda, sin gatear por cuadro.** Una guía que sólo lista lo que ya está en pantalla deja de enseñar el instrumento | **EJECUTADO** `29b365e7` — la tensión que encontró la auditoría era real pero era de **copy**, no de gateo: el bloque se leía como clave del cuadro actual. Ahora dice lo que es en su primera línea ("Guía general del mapa: qué significa cada marca cuando aparece. El cuadro actual puede no contenerlas a todas"), así que ninguna copia afirma que el cuadro pinta una marca que no pinta. La nota de diseño T4.1 queda en el código con la ratificación del PO |
+| **PO-3** | **El diseño se mantiene**: conocer el token del QR sigue siendo la prueba de consentimiento del walk-in de Atender | **DECIDIDO, sin código nuevo** — el monitoreo va por los **marcadores de provenance** (walk-in no verificado + aviso inmediato al dueño, decisión del 04/08). Si el vector se materializa, se verá en esos marcadores antes que en un reclamo |
+| **PO-4** | **La credencial pública se apaga con el borrado.** Una mascota transferida ANTES del borrado del ex-titular **no** se apaga: la credencial es de la MASCOTA (invariante #1) | **EJECUTADO** `f6e02053` — todas las superficies públicas resuelven por `publicPetByToken()`, un único predicado, y el filtro va **en la consulta** (la fila borrada no se lee). `/t/[serial]` deja de mandar un 307 hacia un 404: una chapa activa sin destino muestra un estado neutro y honesto, y **no** ofrece la activación (la chapa ya está activada). El barrido alcanzó 9 superficies, incluidas dos acciones posteables a mano. La asimetría "borrada sí / transferida no" está probada contra el RPC real (`__tests__/public-soft-delete-resolution.test.ts`) |
 
 ### Diferido a propósito, con la ventana de exposición declarada
 
@@ -288,7 +290,7 @@ tiene fecha del 04/08 y esta corrida movió mucho CSS.
 
 | # | Qué | Tamaño |
 |---|---|---|
-| **P2-2 (resto)** | El **inventario** de estructuras vacías en tableros e informes, aplicando P2 con el límite de P2-1. El ranking ya cayó (`6fb4b4eb`). Quedan las superficies de estado vacío que el barrido de copy contó y las leyendas de PO-2 | M |
+| **P2-2 (resto)** | El **inventario** de estructuras vacías en tableros e informes, aplicando P2 con el límite de P2-1. El ranking ya cayó (`6fb4b4eb`). Quedan las superficies de estado vacío que el barrido de copy contó. **Las leyendas del mapa salen del inventario**: PO-2 se decidió el 05/08 y la cartilla general se queda (`29b365e7`) | M |
 
 ### Deliberadamente NO arreglado
 
