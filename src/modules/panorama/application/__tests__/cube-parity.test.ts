@@ -179,7 +179,62 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     // The cube covers at least as many departments as the truncated live set.
     expect(cubeByKey.size).toBeGreaterThanOrEqual(liveByKey.size);
 
-    // (2) VALUES COMPLETE THE PARTIAL SUM: live truncates localities BEFORE folding
+    // (2) SUPPRESSION — the half this test was blind to. The value loop below
+    // compares only cells where BOTH sides carry a NUMBER, and a suppressed
+    // cell carries `value: null` by construction, so every suppressed cell fell
+    // straight through it. Flipping a cell's suppression either way changed
+    // nothing this test could see — on the one combo (national + department)
+    // whose features the set-equal parity block above does NOT compare
+    // field-for-field.
+    //
+    // Set EQUALITY is not the assertion here, and measuring says so: on this
+    // seed five La Rioja departments (46007/46028/46049/46084/46105) are
+    // suppressed live and readable in the cube, because live truncates
+    // localities BEFORE folding and its undercount lands under the k floor
+    // while the cube's complete count (6…24) clears it. That direction is the
+    // superset working as designed. What follows are the two invariants that
+    // ARE sound, and between them they pin both directions of a suppression
+    // regression.
+    //
+    // (2a) THE FORBIDDEN DIRECTION: a department readable LIVE must never come
+    // back suppressed from the cube. The cube's value is ≥ live's on every
+    // overlapping cell ((3) below), so the cube can only ever RELAX the floor —
+    // over-suppression means the builder's floor drifted from the live path's.
+    const overSuppressed = [...liveByKey.entries()]
+      .filter(([key, lp]) => {
+        const cp = cubeByKey.get(key);
+        return cp != null && !lp.suppressed && Boolean(cp.suppressed);
+      })
+      .map(([key, lp]) => `${key}: live value ${lp.value} readable, cube suppressed`);
+    expect(
+      overSuppressed,
+      "the cube suppressed a department the live path serves readable — the k-anonymity floor drifted between builder and loader",
+    ).toEqual([]);
+
+    // (2b) THE FLOOR ITSELF, on the SERVED surface (not just on panoramaCube
+    // rows): every readable department respects k=5, and every suppressed one
+    // actually withholds its number. This is what catches the other direction —
+    // a builder that stops suppressing sub-k cells, or one that labels a cell
+    // "suppressed" while still shipping the value.
+    const floorBreaks: string[] = [];
+    for (const [side, byKey] of [
+      ["live", liveByKey],
+      ["cube", cubeByKey],
+    ] as const) {
+      for (const [key, p] of byKey) {
+        if (p.suppressed) {
+          if (p.value != null) floorBreaks.push(`${side} ${key}: suppressed but carries ${p.value}`);
+        } else if (typeof p.value === "number" && p.value > 0 && p.value < 5) {
+          floorBreaks.push(`${side} ${key}: readable sub-k value ${p.value}`);
+        }
+      }
+    }
+    expect(
+      floorBreaks,
+      "the served national+department surface breaks the privacy floor (sub-k readable, or a suppressed cell still carrying its value)",
+    ).toEqual([]);
+
+    // (3) VALUES COMPLETE THE PARTIAL SUM: live truncates localities BEFORE folding
     // to departments, so a partially-truncated department's live value is an
     // undercount. The cube (complete per-province) is therefore ≥ the live value on
     // every overlapping VISIBLE department — the cube never undercounts the live set.
