@@ -8,6 +8,7 @@ import { Icon } from "@/components/Icon";
 import { attachments, db, organizations, ownerships, petEvents, pets } from "@/db";
 import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
 import { hasActiveMicrochip } from "@/lib/infra/pet-identifiers";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import {
@@ -52,7 +53,7 @@ export async function generateMetadata({
     })
     .from(pets)
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(eq(pets.publicToken, petToken))
+    .where(publicPetByToken(petToken))
     .limit(1);
   if (!row) return { title: "Adopción — miMAR" };
   const title = `Adoptá a ${row.name} — miMAR`;
@@ -89,7 +90,8 @@ export default async function AdoptarFichaPage({
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
     .innerJoin(organizations, eq(organizations.id, ownerships.ownerOrganizationId))
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(eq(pets.publicToken, petToken))
+    // PO-4: soft-deleted pets do not resolve on any public surface.
+    .where(publicPetByToken(petToken))
     .limit(1);
 
   // No row at all → 404. We don't differentiate "doesn't exist" vs "exists

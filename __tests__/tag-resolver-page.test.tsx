@@ -3,6 +3,9 @@
 // Mocks the lookup + rate limiter and verifies the page-level contract:
 //   1. unknown serial → notFound()
 //   2. active → redirect("/p/{publicToken}") (Next redirect = 307, design D7)
+//   2b. active with NO destination (PO-4 — the pet was erased, so the lookup
+//       returns no token) → honest neutral page, never a 307 into a 404 and
+//       never the activation CTA
 //   3. unactivated → neutral page with activation CTA, zero pet info
 //   4. revoked → honest page, no reason, zero pet info (publicToken never
 //      rendered even though the projection carries it)
@@ -92,6 +95,24 @@ describe("/t/[serial] — state matrix", () => {
       "REDIRECT:/p/DIM-ABCD-2345",
     );
     expect(mockRedirect).toHaveBeenCalledWith("/p/DIM-ABCD-2345");
+  });
+
+  it("active with NO destination (erased pet, PO-4) → honest page, no redirect, no activation CTA", async () => {
+    // The chapa IS activated: offering "activá esta chapa" would send its
+    // owner into a flow that refuses them, and the old fall-through did
+    // exactly that. The 307 it used to emit was worse — it walked a person
+    // standing over an animal straight into a 404 with no explanation.
+    mockLookupTagBySerial.mockResolvedValue({ status: "active", publicToken: null });
+    const html = renderToStaticMarkup(await TagResolverPage(params("TAG-ABCD-2345")));
+
+    expect(html).toContain("no tiene una credencial disponible");
+    expect(mockRedirect).not.toHaveBeenCalled();
+    expect(mockNotFound).not.toHaveBeenCalled();
+    // Not the unactivated screen: no activation copy, no activation link.
+    expect(html).not.toContain("todavía no fue activada");
+    expect(html).not.toContain("/cuenta/chapas/activar");
+    // Zero pet info, same contract as every other non-redirect state.
+    expect(html).not.toContain("DIM-");
   });
 
   it("normalizes the serial (lowercase/encoded input) before lookup", async () => {

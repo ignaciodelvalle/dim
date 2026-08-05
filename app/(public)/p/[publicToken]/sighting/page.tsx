@@ -6,12 +6,12 @@
 // a pin where they saw the pet. The form is intentionally short (location
 // pin + optional description + when) to maximize completion rate.
 
-import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { db, pets } from "@/db";
 import { fetchLostEpisodeForPet, publicSightingMapCenter } from "@/lib/infra/lost-mode";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { DISPUTE_TIP_HEADING, DISPUTE_TIP_INTRO } from "@/lib/ui/dispute-copy";
 import { sightingPhrase } from "@/lib/utils/format";
 
@@ -39,7 +39,8 @@ export default async function PetSightingPage({
       inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: soft-deleted pets do not resolve publicly.
+    .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) notFound();
 

@@ -16,7 +16,7 @@
 //                             code is never echoed, and there is no string
 //                             comparison in JS to time.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db, petTags, pets } from "@/db";
 import type { PetTagStatus } from "@/db/schema";
@@ -24,7 +24,12 @@ import { hashTagActivationCode } from "@/lib/utils/tag-code-hash";
 
 export type TagLookupResult = {
   status: PetTagStatus;
-  /** Public token of the linked pet — present only once a pet is linked. */
+  /**
+   * Public token of the linked pet — present only once a pet is linked AND
+   * that pet still resolves publicly. PO-4 (2026-08-05): a soft-deleted pet
+   * yields `null` here even on an ACTIVE tag, so the resolver page renders its
+   * neutral "no disponible" state instead of bouncing the scanner into a 404.
+   */
   publicToken: string | null;
 } | null;
 
@@ -44,7 +49,12 @@ export async function lookupTagBySerial(serial: string): Promise<TagLookupResult
       publicToken: pets.publicToken,
     })
     .from(petTags)
-    .leftJoin(pets, eq(pets.id, petTags.petId))
+    // The join carries the soft-delete filter (PO-4): an erased subject's pet
+    // must not hand this projection a token that no public page will honour.
+    // Filtering HERE and not at the page keeps the tag row itself readable —
+    // the resolver still knows the chapa is active and can say something
+    // honest — while the destination simply stops existing.
+    .leftJoin(pets, and(eq(pets.id, petTags.petId), isNull(pets.deletedAt)))
     .where(eq(petTags.serial, normalized))
     .limit(1);
 

@@ -29,6 +29,7 @@
 import { and, eq, inArray } from "drizzle-orm";
 
 import { caseEvents, cases, custodyDisputes, db, pets } from "@/db";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 
@@ -67,7 +68,9 @@ export async function reportDisputeTip(
       inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: a soft-deleted pet resolves nowhere public, including this
+    // hand-postable tip path.
+    .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
 

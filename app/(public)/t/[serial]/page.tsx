@@ -3,7 +3,14 @@
 // The QR engraved on a chapa encodes this URL. Behavior per state (spec):
 //
 //   active       → redirect() to /p/[publicToken] (Next emits 307; the /p/
-//                  page runs its own ScanLogger + soft-delete handling)
+//                  page runs its own ScanLogger)
+//   active, pet  → 200 neutral page: ZERO pet info. PO-4 (2026-08-05) — an
+//   not public     erased subject's pet stops resolving publicly, so
+//                  lookupTagBySerial returns no token for it. This comment
+//                  used to claim /p handled soft deletes; it did not, and the
+//                  307 walked the scanner straight into a 404. A dead end with
+//                  no explanation is the worst outcome of them all for the
+//                  person actually standing over an animal.
 //   unactivated  → 200 neutral page: ZERO pet info, activation CTA
 //   revoked      → 200 honest page: ZERO pet info, NO reason disclosed
 //   unknown      → 404 (serial space is 31^8 — enumeration infeasible)
@@ -92,8 +99,25 @@ export default async function TagResolverPage({ params }: PageProps) {
 
   // Active → the pet IS the credential (invariant #1): hand off to the public
   // credential page. Next's redirect() emits 307 (GET-preserving) — design D7.
-  if (tag.status === "active" && tag.publicToken) {
-    redirect(`/p/${tag.publicToken}`);
+  if (tag.status === "active") {
+    if (tag.publicToken) {
+      redirect(`/p/${tag.publicToken}`);
+    }
+    // Active chapa, no public destination (PO-4: the pet is soft-deleted, or
+    // the impossible active-without-pet row). Never redirect into a 404 and
+    // never offer the activation CTA — this chapa IS activated; suggesting
+    // otherwise would send its owner to a flow that refuses them. The copy
+    // says only that there is no credential to show, and points at what
+    // actually helps someone holding the animal.
+    return (
+      <TagStatusShell title="Esta chapa no tiene una credencial disponible">
+        <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
+          En este momento no hay una credencial pública para mostrar. Si encontraste una mascota con
+          esta chapa, buscá otros datos de contacto en el collar o acercala a una veterinaria para
+          leer su microchip.
+        </p>
+      </TagStatusShell>
+    );
   }
 
   if (tag.status === "revoked") {
@@ -110,9 +134,10 @@ export default async function TagResolverPage({ params }: PageProps) {
     );
   }
 
-  // Unactivated (or active with a pet missing its token — impossible by the
-  // state machine, but fall through neutrally rather than 500): neutral page,
-  // zero pet info, activation CTA for the owner who just unwrapped it.
+  // Unactivated: neutral page, zero pet info, activation CTA for the owner who
+  // just unwrapped it. The active-without-destination case no longer lands
+  // here (PO-4, branch above) — offering "activá esta chapa" for a chapa that
+  // IS active sent its owner into a flow that refuses them.
   return (
     <TagStatusShell title="Esta chapa todavía no fue activada">
       <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">

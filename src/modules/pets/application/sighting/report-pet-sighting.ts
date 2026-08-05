@@ -45,6 +45,7 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 import { validateEventPayload } from "@/lib/events/event-schemas";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -113,7 +114,9 @@ export async function reportPetSighting(
       inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: a soft-deleted pet resolves nowhere public. The page hosting this
+    // form already 404s — this is the hand-rolled-POST half of the same gate.
+    .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
   if (pet.status !== "lost") {

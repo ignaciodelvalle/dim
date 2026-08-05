@@ -21,6 +21,7 @@ import { notFound } from "next/navigation";
 
 import { Icon } from "@/components/Icon";
 import { attachments, db, ownerships, pets, profiles } from "@/db";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -45,7 +46,8 @@ export default async function FinderInPossessionPage({
     .select({ pet: pets, photo: attachments })
     .from(pets)
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: soft-deleted pets do not resolve publicly (gate 1 catches it).
+    .where(publicPetByToken(publicToken))
     .limit(1);
   if (!petRow) notFound();
 

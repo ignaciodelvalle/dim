@@ -36,6 +36,7 @@ import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-nor
 import { parseLocationFromFormData } from "@/lib/domain/location-value";
 import { validateEventPayload } from "@/lib/events/event-schemas";
 import { resolveOriginShelterOrgId } from "@/lib/infra/origin-shelter-alert";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -142,7 +143,9 @@ export async function reportFinderInPossessionAction(
       inCustodyDispute: pets.inCustodyDispute,
     })
     .from(pets)
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: a soft-deleted pet resolves nowhere public, including this
+    // hand-postable action — the page that hosts the form already 404s.
+    .where(publicPetByToken(publicToken))
     .limit(1);
   if (!pet) return { ok: false, error: "Mascota no encontrada." };
   if (pet.status !== "lost") {

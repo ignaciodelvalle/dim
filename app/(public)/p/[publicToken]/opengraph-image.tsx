@@ -24,6 +24,7 @@
 export const runtime = "nodejs";
 
 import { attachments, db, pets } from "@/db";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { speciesLabel } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
@@ -63,7 +64,10 @@ export default async function Image({
     })
     .from(pets)
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-    .where(eq(pets.publicToken, publicToken))
+    // PO-4: a soft-deleted pet resolves to no row, so the share preview
+    // degrades to the generic branded card — the page itself 404s, and a
+    // scraper must not keep the erased pet's name alive in a link preview.
+    .where(publicPetByToken(publicToken))
     .limit(1);
 
   const name = row?.name ?? "Mascota";

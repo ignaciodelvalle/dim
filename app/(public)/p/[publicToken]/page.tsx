@@ -44,6 +44,7 @@ import {
 import { readPoint } from "@/lib/domain/location";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
 import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { reportError } from "@/lib/infra/report-error";
 import { petPhotoUrl } from "@/lib/infra/storage";
@@ -140,7 +141,7 @@ export async function generateMetadata({
             status: pets.status,
           })
           .from(pets)
-          .where(eq(pets.publicToken, publicToken))
+          .where(publicPetByToken(publicToken))
           .limit(1))(),
       METADATA_BUDGET_MS,
       "GET /p/[publicToken] metadata",
@@ -246,7 +247,10 @@ export default async function PublicCredentialPage({
           .select({ pet: pets, photo: attachments })
           .from(pets)
           .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-          .where(eq(pets.publicToken, publicToken))
+          // PO-4: soft-deleted pets do not resolve publicly. The filter lives
+          // in the QUERY, not in a post-fetch guard — an erased subject's pet
+          // row must not be read into server memory at all.
+          .where(publicPetByToken(publicToken))
           .limit(1))(),
       PET_ROW_BUDGET_MS,
       "GET /p/[publicToken] pet-row",

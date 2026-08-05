@@ -7,6 +7,7 @@ import { and, eq, isNull } from "drizzle-orm";
 
 import { attachments, db, organizations, ownerships, pets, profiles } from "@/db";
 import { APPLY_INTENT_COOKIE_NAME, validateApplyIntentToken } from "@/lib/domain/apply-intent";
+import { publicPetByToken } from "@/lib/infra/public-pet-lookup";
 import { petPhotoUrl } from "@/lib/infra/storage";
 import { createClient } from "@/lib/supabase/server";
 import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
@@ -72,7 +73,8 @@ export default async function PostularPage({
     .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
     .where(
       and(
-        eq(pets.publicToken, petToken),
+        // PO-4: soft-deleted pets do not resolve publicly.
+        publicPetByToken(petToken),
         eq(ownerships.role, "shelter_custody"),
         isNull(ownerships.endedAt),
       ),
