@@ -238,8 +238,13 @@ export async function GovtsScreen({
             // toggle and the true-empty case had "Crear el primer gobierno".
             // A filtered empty must stay visible (hiding it would claim there
             // are no governments), so it gets the MINIMUM instead.
+            //
+            // Targets the HUB route directly, like `testToggleHref` above:
+            // /admin/govts is now only a redirect into the Cuentas hub (fusion
+            // 2026-08-02), so linking to it would cost the operator a hop —
+            // which is exactly what __tests__/link-integrity.test.ts caught.
             <Link
-              href="/admin/govts"
+              href="/admin/cuentas?registro=govts"
               className="mt-3 inline-block text-sm underline underline-offset-4 text-ln-op-azul hover:text-ln-op-azul-700"
             >
               Limpiar filtros

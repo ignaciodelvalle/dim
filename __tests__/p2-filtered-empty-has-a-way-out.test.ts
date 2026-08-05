@@ -77,7 +77,15 @@ describe("/admin/govts — the searched empty offers the way back", () => {
   it("the query/status branch is no longer the only one without an affordance", () => {
     expect(SRC).toMatch(/\) : query \|\| status !== "all" \? \(/);
     expect(SRC).toContain("Limpiar filtros");
-    expect(SRC).toContain('href="/admin/govts"');
+  });
+
+  it("the link targets the hub, not the redirect that fronts it", () => {
+    // /admin/govts is only a redirect into the Cuentas hub since the
+    // privileged-accounts fusion, so the obvious href would have cost the
+    // operator a hop. link-integrity.test.ts caught it; this keeps it caught
+    // locally, next to the reason.
+    expect(SRC).toContain('href="/admin/cuentas?registro=govts"');
+    expect(SRC).not.toContain('href="/admin/govts"');
   });
 
   it("the sibling branches keep theirs", () => {
