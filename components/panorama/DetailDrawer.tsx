@@ -42,7 +42,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Icon } from "@/components/Icon";
 import { CASE_STATUS_CONFIG } from "@/components/ui/dashboard";
 import type { CaseStatus } from "@/db/schema";
-import { AR_TIME_ZONE, eventTypeLabel, speciesLabel } from "@/lib/utils/format";
+import { AR_TIME_ZONE, eventTypeLabel, formatPercent, speciesLabel } from "@/lib/utils/format";
 import { REFERENCE_LAYERS } from "@/src/modules/panorama/domain/layers";
 import type { LayerId } from "@/src/modules/panorama/domain/types";
 import { SEVERITY_BASE_LABEL, welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
@@ -524,7 +524,7 @@ export function FeatureBody({
                 suppressed ? (
                   <span className="text-ln-op-mute">Suprimido (privacidad · k‑anon)</span>
                 ) : (
-                  `${properties.count ?? 0}%`
+                  formatPercent(properties.count ?? 0)
                 )
               }
             />

@@ -48,7 +48,7 @@ import {
   type GovtPetLookupResult,
   lookupPetForDecomisoAction,
 } from "@/app/actions/decomiso-pet-lookup";
-import { sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
+import { formatRate, sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -811,7 +811,7 @@ export function DecomisoForm({
                   )}
                   <span className="text-sm text-ln-op-ink truncate flex-1">{entry.file.name}</span>
                   <span className="text-sm text-ln-op-mute flex-shrink-0">
-                    {(entry.file.size / 1024 / 1024).toFixed(1)} MB
+                    {formatRate(entry.file.size / 1024 / 1024)} MB
                   </span>
                   <button
                     type="button"

@@ -45,6 +45,7 @@ import {
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
+import { formatPercent } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -285,7 +286,7 @@ export default async function GobAdopcionesPage({
         />
         <OpKpi
           label="Tasa de retorno"
-          value={returnRatePct != null ? `${returnRatePct}%` : "—"}
+          value={formatPercent(returnRatePct)}
           sub={
             returnRatePct != null
               ? "devoluciones / adopciones (período)"
@@ -401,7 +402,9 @@ export default async function GobAdopcionesPage({
                 <li
                   className="flex items-center gap-3"
                   aria-label={`Devoluciones: ${funnel.reversed.toLocaleString("es-AR")}${
-                    returnRatePct != null ? ` (${returnRatePct}% de las adopciones)` : ""
+                    returnRatePct != null
+                      ? ` (${formatPercent(returnRatePct)} de las adopciones)`
+                      : ""
                   }`}
                 >
                   <span className="w-48 shrink-0 text-md text-ln-op-ink">Devoluciones</span>
@@ -419,7 +422,9 @@ export default async function GobAdopcionesPage({
                     {returnRatePct != null ? (
                       <>
                         {" "}
-                        <span className="ml-1 text-ln-op-mute">({returnRatePct}%)</span>
+                        <span className="ml-1 text-ln-op-mute">
+                          ({formatPercent(returnRatePct)})
+                        </span>
                       </>
                     ) : null}
                   </span>
@@ -478,7 +483,7 @@ export default async function GobAdopcionesPage({
                 </div>
                 <div className="text-center">
                   <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
-                    {conversionPct != null ? `${conversionPct}%` : "—"}
+                    {formatPercent(conversionPct)}
                   </div>
                   <div className="text-sm text-ln-op-mute mt-0.5">Conversión</div>
                 </div>

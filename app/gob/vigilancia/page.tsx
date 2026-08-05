@@ -51,7 +51,13 @@ import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { findDisease } from "@/lib/reference/diseases";
 import { parseUrlSort, sortRowsByUrlSort } from "@/lib/ui/url-sort";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatCount, formatRate, pluralizeEs, todayIsoInAr } from "@/lib/utils/format";
+import {
+  formatCount,
+  formatPercent,
+  formatRate,
+  pluralizeEs,
+  todayIsoInAr,
+} from "@/lib/utils/format";
 import { DISEASE_SUMMARY_SORT_KEYS, DiseaseSummaryTable } from "./_components/DiseaseSummaryTable";
 import { OutbreakSignalRow } from "./_components/OutbreakSignalRow";
 import { rabiesComplianceRows } from "./_components/rabies-compliance-rows";
@@ -302,7 +308,9 @@ export default async function GobVigilanciaPage({
 
   // Item 3 presentational helpers — render a metric or an em-dash placeholder.
   const { enoSla, rabiesCompliance, amrDensity, reportableIncidence } = compliance;
-  const pct = (v: number | null) => (v === null ? "—" : `${v}%`);
+  // es-AR comma + the "—" placeholder, in one helper (lib/utils/format.ts).
+  // A bare `${v}%` printed "87.3%" — an English decimal on a government screen.
+  const pct = (v: number | null) => formatPercent(v);
   // Coherence fix (qa-triage-2026-07-23, finding #12) — see enoSlaHeadline's
   // own doc comment (lib/metrics/targets.ts) for the full rationale.
   const enoSlaCopy = enoSlaHeadline(enoSla, pct);

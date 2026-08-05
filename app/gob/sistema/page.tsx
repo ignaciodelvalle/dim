@@ -138,7 +138,7 @@ export default async function GobSistemaPage({
       >
         <OpKpi
           label="SLA ENO (resueltos)"
-          value={enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
+          value={formatPercent(enoSla.onTimePct)}
           tone={enoSlaTone(enoSla)}
           sub={
             enoSla.breachedOpen > 0
@@ -203,7 +203,7 @@ export default async function GobSistemaPage({
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm text-ln-op-mute">En tiempo (on-time)</span>
               <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
-                {enoSla.onTimePct !== null ? `${enoSla.onTimePct}%` : "—"}
+                {formatPercent(enoSla.onTimePct)}
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
