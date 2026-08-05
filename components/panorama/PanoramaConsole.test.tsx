@@ -1199,16 +1199,21 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     ).toBeVisible();
   });
 
-  it("Estadísticas pane renders the ranking section (honest empty copy without a rankable base)", () => {
+  it("Estadísticas pane DROPS the ranking card when nothing justifies it (P2)", () => {
     renderConsole();
 
     fireEvent.click(screen.getByRole("tab", { name: /Estadísticas/ }));
-    // perdidas (density, EMPTY features) → PanoramaDataTable's honest empty copy.
-    expect(screen.getByText(/Peores/)).toBeVisible();
-    // C4 (2026-07-25): the honest-empty copy is now epistemic — a ranking with
-    // no rankable base is BLIND, not "insufficient data" (which reads as a
-    // measurement that came up short).
-    expect(screen.getByText(/Sin señales en este alcance/)).toBeVisible();
+    // perdidas (density, EMPTY features) → nothing measured, nothing withheld,
+    // nothing broken = ABSENT. PO principle P2 (2026-08-04): "la tarjeta no va"
+    // — the whole section goes, not just the rows. Superseded the C4 honest-empty
+    // copy this test used to assert ("Sin señales en este alcance"), which is
+    // still the copy for every NON-absent empty (measured all-clear, failed
+    // calculation) and still covered by PanoramaDataTable's own tests.
+    expect(screen.queryByText(/Ranking de unidades/)).toBeNull();
+    expect(screen.queryByText(/Peores/)).toBeNull();
+    expect(screen.queryByText(/Sin señales en este alcance/)).toBeNull();
+    // The sibling section stays — P2 hides the empty structure, not the pane.
+    expect(screen.getByText(/Actividad por día/)).toBeVisible();
   });
 });
 

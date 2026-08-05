@@ -146,6 +146,7 @@ import {
 } from "@/src/modules/panorama/domain/capabilities";
 import { captionFor } from "@/src/modules/panorama/domain/caption";
 import { checkCompatibility, roleOf } from "@/src/modules/panorama/domain/compatibility";
+import { rankingAvailability } from "@/src/modules/panorama/domain/data-availability";
 import { derivePreset } from "@/src/modules/panorama/domain/derive-preset";
 import {
   AGGREGATED_POINT_IDS,
@@ -3865,6 +3866,24 @@ export function PanoramaConsole({
   // suppressed count renders as an explicit last row (privacy visible).
   const dockSuppressedCount =
     rankingLayer !== null ? (states[rankingLayer.id]?.suppressedCount ?? 0) : 0;
+  // P2-1 (PO 2026-08-04) — the tri-state that replaces the single
+  // `rankingDataUnavailable` boolean as the DECISION input for both surfaces
+  // fed by this projection (the dock card and the printed informe).
+  //
+  // A boolean cannot carry the distinction P2 requires: "no data" (hide the
+  // whole structure) and "data withheld by k-anonymity" (the notice is
+  // MANDATORY) are opposite obligations. `rankingDataUnavailable` stays as the
+  // FAILURE input the honest-empty copy still needs; the classification of the
+  // emptiness now lives in one shared domain helper.
+  const rankingAvailabilityState = rankingAvailability({
+    rowCount: rankedRows.length,
+    measuredUnits: rankingAllInScope.length,
+    suppressedUnits: dockSuppressedCount,
+    calculationFailed: rankingDataUnavailable,
+    noRankableLayer: effectiveRankingKind === null || rankingLayer === null,
+  });
+  /** P2: the "Peores 10" card does not render at all when nothing justifies it. */
+  const rankingStructureHidden = rankingAvailabilityState === "absent";
   // viz-suite Wave 1 — the CalendarHeatmap's per-day series. Source-of-truth
   // mirror of the TimeScrubber histogram: the points path (client timestamps)
   // shadows the aggregate path (server ?histogram=1), EXACTLY like
@@ -3989,9 +4008,15 @@ export function PanoramaConsole({
           onDayClick={onCalendarDayClick}
         />
       </PanoramaStatSection>
-      <PanoramaStatSection title="Ranking de unidades" subtitle={dockRankingSubtitle}>
-        {dockRanking}
-      </PanoramaStatSection>
+      {/* P2 (PO 2026-08-04): "la tarjeta no va" when no data justifies it — the
+          whole SECTION is dropped, not just emptied. `rankingStructureHidden`
+          is false for a k-anon SUPPRESSED ranking, so the suppression notice
+          inside can never vanish silently (P2-1's uncrossable limit). */}
+      {!rankingStructureHidden && (
+        <PanoramaStatSection title="Ranking de unidades" subtitle={dockRankingSubtitle}>
+          {dockRanking}
+        </PanoramaStatSection>
+      )}
     </div>
   );
 
@@ -4188,8 +4213,12 @@ export function PanoramaConsole({
         }),
         kpis: readingKpis,
         kpisDegraded,
+        // P2: the printed informe drops the ranking SECTION entirely when the
+        // structure is empty-by-absence — a briefing with a headed table and no
+        // rows is the paper version of the skeleton P2 forbids. `suppressed`
+        // and `data` both keep the section (the suppression note is mandatory).
         ranking:
-          effectiveRankingKind !== null && rankingLayer !== null
+          effectiveRankingKind !== null && rankingLayer !== null && !rankingStructureHidden
             ? {
                 rows: rankedRows,
                 kind: effectiveRankingKind,
@@ -4229,6 +4258,7 @@ export function PanoramaConsole({
       rankingUnitNoun,
       dockSuppressedCount,
       rankingDataUnavailable,
+      rankingStructureHidden,
       rankLocalityRateCount,
       informeCaption,
       activeLayers,
