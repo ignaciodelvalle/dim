@@ -86,17 +86,14 @@ describe("tag_revoked schema", () => {
     ).toThrow();
   });
 
-  it.each(["code", "activation_code", "activation_code_hash"])(
-    "rejects extra key %s",
-    (key) => {
-      expect(() =>
-        validateEventPayload("tag_revoked", {
-          serial: "TAG-ABCD-2345",
-          revoke_reason: "lost",
-          replacement_serial: null,
-          [key]: "WXYZ-6789",
-        }),
-      ).toThrow();
-    },
-  );
+  it.each(["code", "activation_code", "activation_code_hash"])("rejects extra key %s", (key) => {
+    expect(() =>
+      validateEventPayload("tag_revoked", {
+        serial: "TAG-ABCD-2345",
+        revoke_reason: "lost",
+        replacement_serial: null,
+        [key]: "WXYZ-6789",
+      }),
+    ).toThrow();
+  });
 });

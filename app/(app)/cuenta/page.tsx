@@ -22,6 +22,7 @@ import {
   countPendingFosterProposals,
 } from "@/lib/analytics/owner-dashboard";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { shouldShowTagSurfaces } from "@/lib/infra/tag-surfaces-visibility";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
 import { Icon } from "@/components/Icon";
@@ -64,7 +65,7 @@ const CUENTA_LOAD_TIMEOUT_MS = 8_000;
  * fragile (and it violated admin.ts's "only import from admin-institutional").
  */
 async function loadCuentaData(userId: string) {
-  const [rows, pendingProposals, activeFosters] = await Promise.all([
+  const [rows, pendingProposals, activeFosters, showChapas] = await Promise.all([
     db
       .select({
         role: profiles.role,
@@ -91,6 +92,10 @@ async function loadCuentaData(userId: string) {
     // "Rol y organizaciones" group below, badges included.
     countPendingFosterProposals(userId).catch(() => 0),
     countActiveFosterOwnerships(userId).catch(() => 0),
+    // Discovery-only jurisdiction gating (physical-tag design D6): the entry
+    // hides when engraved_plate is disabled everywhere the user has pets AND
+    // they hold no tags yet. /cuenta/chapas itself stays reachable by URL.
+    shouldShowTagSurfaces(userId).catch(() => false),
   ]);
 
   const profile = rows[0];
@@ -111,7 +116,7 @@ async function loadCuentaData(userId: string) {
     vetNeedsClinic = !adminRow;
   }
 
-  return { profile, vetNeedsClinic, pendingProposals, activeFosters };
+  return { profile, vetNeedsClinic, pendingProposals, activeFosters, showChapas };
 }
 
 export default async function CuentaPage() {
@@ -148,7 +153,7 @@ export default async function CuentaPage() {
     );
   }
 
-  const { profile, vetNeedsClinic, pendingProposals, activeFosters } = load.value;
+  const { profile, vetNeedsClinic, pendingProposals, activeFosters, showChapas } = load.value;
 
   if (!profile) {
     return (
@@ -321,6 +326,13 @@ export default async function CuentaPage() {
           label="Editar mi información"
           description="Nombre, teléfono y foto de perfil"
         />
+        {showChapas && (
+          <ActionRow
+            href="/cuenta/chapas"
+            label="Mis chapas"
+            description="Chapas físicas con QR vinculadas a tus mascotas"
+          />
+        )}
       </div>
 
       {/* ------------------------------------------------------------------ */}
