@@ -32,6 +32,7 @@ import {
   petTransfers,
   pets,
   profiles,
+  pushSubscriptions,
   welfareReports,
 } from "@/db";
 import { pgErrorCode } from "@/lib/infra/db-errors";
@@ -1015,6 +1016,120 @@ describe("erase_subject_data — scrubs dispute/case/notification PII (0130)", (
       .where(eq(auditLog.action, "case_events_mutation_override"));
     expect(
       overrides.some((a) => (a.payload as Record<string, unknown>).case_event_id === caseEventId),
+    ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PRIV-1 (migration 0166): Web Push registrations are DELETED, not left behind.
+// ---------------------------------------------------------------------------
+// push_subscriptions.user_id is declared ON DELETE CASCADE to profiles, and the
+// table's schema comment says hard deletion happens "only via profiles cascade".
+// That cascade never fires: erase_subject_data SOFT-deletes the profile, and the
+// auth.users row the caller deletes afterwards has no FK to public.profiles. So
+// every endpoint + p256dh/auth key pair used to survive erasure forever. This
+// suite proves the rows are gone and that the audit payload counts them.
+
+describe("erase_subject_data — deletes push subscriptions (0166)", () => {
+  const subjectEndpoint = `https://push.dim-test.local/subject/${Math.random().toString(36).slice(2)}`;
+  const otherEndpoint = `https://push.dim-test.local/other/${Math.random().toString(36).slice(2)}`;
+
+  beforeAll(async () => {
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner 0166");
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, ownerUserId));
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, otherUserId));
+
+    // Two rows for the subject: one live, one already soft-revoked. Revocation
+    // is not erasure — a revoked row still carries the endpoint and both keys,
+    // so it must go too.
+    await db.insert(pushSubscriptions).values([
+      {
+        userId: ownerUserId,
+        endpoint: subjectEndpoint,
+        p256dh: "BSubjectP256dhKeyFixture",
+        auth: "subjectAuthFixture",
+        userAgent: "Mozilla/5.0 (Subject Device)",
+      },
+      {
+        userId: ownerUserId,
+        endpoint: `${subjectEndpoint}-revoked`,
+        p256dh: "BSubjectRevokedP256dhFixture",
+        auth: "subjectRevokedAuthFixture",
+        userAgent: "Mozilla/5.0 (Subject Old Device)",
+        revokedAt: new Date(),
+      },
+    ]);
+
+    // A third party's subscription — MUST survive the subject's erasure.
+    await db.insert(pushSubscriptions).values({
+      userId: otherUserId,
+      endpoint: otherEndpoint,
+      p256dh: "BOtherP256dhKeyFixture",
+      auth: "otherAuthFixture",
+      userAgent: "Mozilla/5.0 (Other Device)",
+    });
+  });
+
+  afterAll(async () => {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, otherUserId));
+  });
+
+  it("removes every push_subscriptions row of the subject and keeps third-party rows", async () => {
+    const before = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, ownerUserId));
+    expect(before.length).toBe(2);
+
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, '0166 push erasure'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    const after = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, ownerUserId));
+    expect(after.length).toBe(0);
+
+    // Third-party subscription untouched.
+    const others = await db
+      .select({ endpoint: pushSubscriptions.endpoint })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, otherUserId));
+    expect(others.map((o) => o.endpoint)).toEqual([otherEndpoint]);
+
+    // The erasure audit row reports how many were deleted (same shape as every
+    // other step this function counts).
+    const audits = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "subject_erasure"), eq(auditLog.targetUserId, ownerUserId)));
+    expect(
+      audits.some((a) => (a.payload as Record<string, unknown>).push_subscriptions_deleted === 2),
+    ).toBe(true);
+  });
+
+  it("is idempotent — a re-run finds nothing and counts zero", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, '0166 push erasure rerun'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    const after = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, ownerUserId));
+    expect(after.length).toBe(0);
+
+    const audits = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "subject_erasure"), eq(auditLog.targetUserId, ownerUserId)));
+    expect(
+      audits.some((a) => (a.payload as Record<string, unknown>).push_subscriptions_deleted === 0),
     ).toBe(true);
   });
 });
