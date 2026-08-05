@@ -1,9 +1,13 @@
 /**
  * Unit tests for scripts/check-authz-guards.ts helpers.
  *
- * Pure fixture tests — no filesystem I/O.  Each exported helper is exercised
- * against known-bad and known-good inline source strings to verify precision
- * (no false positives) and recall (every unguarded server action is caught).
+ * Mostly pure fixture tests.  Each exported helper is exercised against
+ * known-bad and known-good inline source strings to verify precision (no false
+ * positives) and recall (every unguarded server action is caught).
+ *
+ * The one exception is the SCAN-SET suite at the bottom, which does touch the
+ * filesystem on purpose: this linter's worst failure was never a broken regex,
+ * it was a file list that never opened the file (see listActionFiles' header).
  */
 
 import { describe, expect, it } from "vitest";
@@ -21,6 +25,8 @@ import {
   findOffenders,
   findRouteGuardViolations,
   isInnerWriter,
+  isServerActionModule,
+  listActionFiles,
 } from "@/scripts/check-authz-guards";
 
 // ---------------------------------------------------------------------------
@@ -319,5 +325,94 @@ describe("findRouteGuardViolations", () => {
   it("ignores an operator route that calls no guard of its own (gated by its layout)", () => {
     const src = ["export default async function Page() {", "  return null;", "}"].join("\n");
     expect(findRouteGuardViolations("app/gob/panorama/page.tsx", src)).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isServerActionModule / listActionFiles — the SCAN SET
+//
+// This is the rule that actually decides what gets checked, and it is where the
+// linter was silently wrong until 2026-08-05: discovery was two filename globs
+// (`app/actions/*.ts`, flat, plus the literal name `src/modules/**/actions.ts`),
+// so ten real "use server" modules — including the eight clinical WRITE actions
+// under app/org/[orgToken]/atender/ — were never opened. Every regex assertion
+// above was green the whole time, because a file that is never read cannot
+// produce an offender. Pin the scan set, not just the predicates.
+// ---------------------------------------------------------------------------
+
+describe("isServerActionModule", () => {
+  it("accepts the directive as the first statement", () => {
+    expect(isServerActionModule('"use server";\nexport async function a() {}\n')).toBe(true);
+    expect(isServerActionModule("'use server'\n")).toBe(true);
+  });
+
+  it("accepts a directive preceded only by comments or blank lines", () => {
+    const src = ["// Org ficha wrappers.", "", "/* block */", '"use server";', ""].join("\n");
+    expect(isServerActionModule(src)).toBe(true);
+  });
+
+  it("rejects a module that only MENTIONS the directive in a comment", () => {
+    // Verbatim shape of src/modules/organizations/actions.internal.ts, whose
+    // header says it is deliberately NOT a server-action module.
+    const src = [
+      '// This module is intentionally NOT a "use server" file: its exports accept',
+      "// a caller-supplied actor id.",
+      "export async function doThingForUser(actorUserId: string) {}",
+    ].join("\n");
+    expect(isServerActionModule(src)).toBe(false);
+  });
+
+  it("rejects a FUNCTION-scoped directive (an inline action, not a module)", () => {
+    const src = [
+      "export default async function Page() {",
+      "  async function submit() {",
+      '    "use server";',
+      "  }",
+      "  return null;",
+      "}",
+    ].join("\n");
+    expect(isServerActionModule(src)).toBe(false);
+  });
+});
+
+describe("listActionFiles", () => {
+  const files = listActionFiles();
+
+  it("scans a non-empty surface", () => {
+    expect(files.length).toBeGreaterThan(0);
+  });
+
+  it("still covers everything the pre-2026-08-05 filename globs covered", () => {
+    expect(files).toContain("app/actions/auth.ts");
+    expect(files).toContain("src/modules/transfers/actions.ts");
+  });
+
+  it("covers the route-colocated modules the old globs missed", () => {
+    // Regression pins. Each of these declares "use server" and exports server
+    // actions; none matches `app/actions/*.ts` or `src/modules/**/actions.ts`.
+    for (const missed of [
+      "app/org/[orgToken]/atender/actions.ts",
+      "app/org/[orgToken]/mascotas/[publicToken]/eventos/actions.ts",
+      "app/admin/outbox/actions.ts",
+      "app/admin/libro/actions.ts",
+      "app/gob/analytics/export/actions.ts",
+      "app/(public)/p/[publicToken]/encontre/action.ts",
+    ]) {
+      expect(files).toContain(missed);
+    }
+  });
+
+  it("excludes tests and type declarations", () => {
+    for (const file of files) {
+      expect(file).not.toMatch(/\.test\.[jt]sx?$/);
+      expect(file).not.toContain("__tests__");
+      expect(file).not.toMatch(/\.d\.ts$/);
+    }
+  });
+
+  it("returns deduplicated, forward-slash, sorted paths", () => {
+    expect(files).toEqual([...new Set(files)]);
+    expect(files.some((f) => f.includes("\\"))).toBe(false);
+    expect(files).toEqual([...files].sort());
   });
 });

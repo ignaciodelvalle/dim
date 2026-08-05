@@ -10,9 +10,10 @@
 //      the contiguous comment block above the export — so the exception is
 //      visible and justified, never silent.
 //
-// Scope (broader than the old app/actions-only test it supersedes):
-//   - app/actions/*.ts                — flat public-action files
-//   - src/modules/ ** /actions.ts     — module server actions
+// Scope — discovered by CONTENT, not by filename (see listActionFiles below):
+// every module under app/ or src/ whose FIRST statement is the "use server"
+// directive. The old filename globs (app/actions/*.ts + src/modules/**/actions.ts)
+// are kept as a union floor so discovery can only ever widen.
 //
 // Run: pnpm tsx scripts/check-authz-guards.ts   (or: pnpm lint:authz)
 // Exits 1 listing each offender; exits 0 when the whole surface is covered.
@@ -23,6 +24,8 @@
 // is zero on this codebase and a new unguarded `…Action` is reliably caught.
 
 import { globSync, readFileSync } from "node:fs";
+
+import { stripComments } from "./lib/strip-comments.mjs";
 
 // Recognized auth-gate calls. A function whose body contains a call to any of
 // these is considered guarded. Mixes named helpers (lib/auth-guards.ts,
@@ -60,6 +63,14 @@ export const AUTH_GUARDS = [
   // Module-private org-intervention guard (welfare derived-report actions):
   // wraps requireUserOrRedirect + an org-membership + intervention-role check.
   "requireOrgInterventionAccess",
+  // Walk-in (atender) authorization boundary — app/org/[orgToken]/atender/
+  // atender-access.ts. Resolves the acting org FROM THE URL TOKEN, requires an
+  // active membership with `event.write`, re-checks profiles.deleted_at, and
+  // rate-limits the DIM-code lookup. Became visible to this linter when
+  // discovery moved from filename globs to the "use server" directive
+  // (2026-08-05); it was always a real guard, just outside the old glob.
+  "resolveAtenderPet",
+  "resolveAtenderContext",
   "auth.getUser",
 ] as const;
 
@@ -118,6 +129,10 @@ export const DELETION_AWARE_GUARDS = [
   "requireOrgInterventionAccess",
   "requireCapability",
   "requireCapabilityForOrgToken",
+  // Both atender resolvers funnel through resolveAtenderContext, which reads
+  // profiles.deletedAt and refuses an erased account (atender-access.ts).
+  "resolveAtenderPet",
+  "resolveAtenderContext",
 ] as const;
 
 // Pet-write signal (inline): a drizzle insert/update/delete whose body also
@@ -450,11 +465,66 @@ export function listOperatorRouteFiles(): string[] {
   return [...new Set(files)].filter((f) => !f.includes(".test.")).sort();
 }
 
+// ---------------------------------------------------------------------------
+// Server-action discovery — by CONTENT, not by filename
+// ---------------------------------------------------------------------------
+//
+// WHY THIS CHANGED (2026-08-05, P2 "el gate miente" audit). The old definition
+// was two filename globs: `app/actions/*.ts` (FLAT — not even recursive) plus
+// `src/modules/**/actions.ts` (only the literal name `actions.ts`). Next.js
+// does not care what a server-action file is called; the "use server" directive
+// is what makes every export of a module a client-addressable endpoint. So the
+// globs were a naming convention masquerading as a security boundary, and ten
+// real "use server" modules were invisible to all three linters that share this
+// list — among them app/org/[orgToken]/atender/actions.ts with its eight
+// clinical WRITE actions, app/admin/outbox/actions.ts, app/gob/analytics/
+// export/actions.ts, app/admin/libro/actions.ts, and four route-colocated
+// `action.ts` (SINGULAR) files. check-action-redirect.ts had already paid for
+// this exact lesson with its own globs; this is the same fix, done honestly.
+//
+// A file counts when its FIRST statement (after comments) is the "use server"
+// directive — the same thing the bundler looks at.
+//
+// KNOWN GAP, stated rather than hidden: a FUNCTION-scoped `"use server"` inside
+// a component or page (one occurrence today — app/(app)/denuncias/[id]/page.tsx
+// :164) is also a server action, but it is a closure, not an exported module
+// function, so the `export async function` analysis every rule here performs has
+// nothing to bind to. Covering inline actions needs a different rule shape, not
+// a wider glob.
+const ACTION_SOURCE_GLOBS = ["app/**/*.ts", "app/**/*.tsx", "src/**/*.ts", "src/**/*.tsx"];
+
+// The pre-2026-08-05 filename globs, kept as a UNION FLOOR. The content scan is
+// a strict superset of them today except for one types-only file, and a union
+// guarantees this change can never make the fence narrower than it already was.
+const LEGACY_ACTION_GLOBS = ["app/actions/*.ts", "src/modules/**/actions.ts"];
+
+/** True when the module's first statement is the "use server" directive. */
+export function isServerActionModule(src: string): boolean {
+  return /^(["'])use server\1/.test(stripComments(src).trimStart());
+}
+
+function isScannableSource(relPath: string): boolean {
+  if (relPath.includes("__tests__")) return false;
+  if (/\.test\.[jt]sx?$/.test(relPath)) return false;
+  return !relPath.endsWith(".d.ts");
+}
+
 // The full server-action surface this linter covers.
 export function listActionFiles(): string[] {
-  const flat = globSync("app/actions/*.ts").filter((f) => !f.endsWith(".test.ts"));
-  const modules = globSync("src/modules/**/actions.ts").filter((f) => !f.endsWith(".test.ts"));
-  return [...flat, ...modules].sort();
+  const files = new Set<string>();
+  for (const pattern of LEGACY_ACTION_GLOBS) {
+    for (const f of globSync(pattern)) files.add(f.replaceAll("\\", "/"));
+  }
+  for (const pattern of ACTION_SOURCE_GLOBS) {
+    for (const f of globSync(pattern)) {
+      const relPath = f.replaceAll("\\", "/");
+      if (files.has(relPath)) continue;
+      if (!isScannableSource(relPath)) continue;
+      if (!isServerActionModule(readFileSync(f, "utf8"))) continue;
+      files.add(relPath);
+    }
+  }
+  return [...files].filter(isScannableSource).sort();
 }
 
 function runScan(): void {

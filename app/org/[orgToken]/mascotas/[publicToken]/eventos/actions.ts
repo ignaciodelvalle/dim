@@ -5,8 +5,7 @@
 // ficha to record a vaccine/weight/note).
 //
 // These are THIN redirect adapters over the shared event actions in
-// src/modules/events/actions.ts — they add NO auth of their own because the
-// shared actions already resolve org-path access at the signing boundary:
+// src/modules/events/actions.ts. The PET write is authorized downstream:
 // requireAlivePetAccess / requirePetAccess (lib/infra/pet-access.ts) accept an
 // active org custody row and, for writes, enforce the `event.write` capability
 // server-side (defense in depth behind the UI gate on the ficha). Provenance
@@ -16,6 +15,20 @@
 // The ONLY thing these wrappers change is the success redirect: the shared
 // actions land on the OWNER cockpit (/mis-mascotas/...), which is the wrong
 // home for an org operator — they return to the org ficha instead.
+//
+// THE ORG TOKEN IS ALSO AUTHORIZED HERE (2026-08-05). These wrappers used to
+// add no auth of their own and took `orgToken` purely as redirect material:
+// nothing checked that the caller belonged to the org they were about to be
+// sent into. The blast radius was small (the org ficha guards itself, so a
+// forged token bought a bounced navigation, not data) — but "a server action
+// accepts an unvalidated org token" is the exact shape of the confused-deputy
+// class this repo has a whole linter for, and these three exports were invisible
+// to every one of those linters until discovery moved to the "use server"
+// directive. requireCapabilityForOrgToken resolves the org FROM the token and
+// pins the capability check to that org.id, so the redirect target is now
+// something the caller has proven they can act in.
+
+import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import type { EventFormState } from "@/src/modules/events/actions";
 import {
@@ -39,12 +52,17 @@ function withOrgRedirect(
   return result;
 }
 
+// The guard call is written out in each action rather than hidden behind a
+// module-local helper: lint:authz reads function BODIES for a known guard name,
+// so a helper wrapper would make three guarded actions look unguarded again.
 export async function orgRecordVaccinationAction(
   orgToken: string,
   publicToken: string,
   previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
+  const access = await requireCapabilityForOrgToken("event.write", orgToken);
+  if (access.error !== null) return { error: access.error };
   const result = await createVaccinationAction(publicToken, previous, formData);
   return withOrgRedirect(result, orgToken, publicToken);
 }
@@ -55,6 +73,8 @@ export async function orgRecordWeightAction(
   previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
+  const access = await requireCapabilityForOrgToken("event.write", orgToken);
+  if (access.error !== null) return { error: access.error };
   const result = await createWeightAction(publicToken, previous, formData);
   return withOrgRedirect(result, orgToken, publicToken);
 }
@@ -65,6 +85,8 @@ export async function orgRecordNoteAction(
   previous: EventFormState,
   formData: FormData,
 ): Promise<EventFormState> {
+  const access = await requireCapabilityForOrgToken("event.write", orgToken);
+  if (access.error !== null) return { error: access.error };
   const result = await createNoteAction(publicToken, previous, formData);
   return withOrgRedirect(result, orgToken, publicToken);
 }
