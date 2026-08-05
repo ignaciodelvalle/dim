@@ -65,6 +65,15 @@ function normFeatures(result: LayerFeaturesResult): string[] {
     .sort();
 }
 
+/** The same normalized view, restricted to ONE province — for comparing a
+ * national result against a single-province drill. */
+function featuresOfProvince(result: LayerFeaturesResult, province: string): string[] {
+  return result.features.features
+    .filter((f) => (f.properties as { province?: string } | null)?.province === province)
+    .map((f) => JSON.stringify({ g: f.geometry, p: f.properties }))
+    .sort();
+}
+
 /**
  * A department/barrio cell as it reaches the map. CABA barrios carry no
  * departmentCode, so they key by province+locality instead.
@@ -106,23 +115,105 @@ function privacyFloorBreaks(side: string, byKey: Map<string, CellProps>): string
   return breaks;
 }
 
+/** A department the CUBE suppresses while the LIVE path serves it readable. */
+type OverSuppressed = { key: string; province: string; liveValue: number | null };
+
 /**
- * Departments the CUBE suppresses while the LIVE path serves them readable —
- * the one direction the superset can never justify (the cube's value is ≥
- * live's, so it can only ever RELAX the floor).
+ * Departments the CUBE suppresses while the LIVE path serves them readable.
+ *
+ * This set is NOT required to be empty — see the (2a) block below for the proof
+ * that COMPLEMENTARY suppression legitimately produces exactly this shape. What
+ * IS required is that every member fits the complementary footprint; that is
+ * what `complementaryFootprintBreaks` checks.
  */
 function overSuppressedByCube(
   liveByKey: Map<string, CellProps>,
   cubeByKey: Map<string, CellProps>,
-): string[] {
-  const out: string[] = [];
+): OverSuppressed[] {
+  const out: OverSuppressed[] = [];
   for (const [key, lp] of liveByKey) {
     const cp = cubeByKey.get(key);
     if (cp && !lp.suppressed && cp.suppressed) {
-      out.push(`${key}: live value ${lp.value} readable, cube suppressed`);
+      out.push({
+        key,
+        province: cp.province ?? lp.province ?? "",
+        liveValue: typeof lp.value === "number" ? lp.value : null,
+      });
     }
   }
   return out;
+}
+
+/**
+ * The two properties a COMPLEMENTARY suppression cannot violate, checked per
+ * province group. Anything outside them is a real builder/loader floor drift,
+ * because primary (k) suppression provably cannot over-suppress at all — see the
+ * (2a) block.
+ *
+ *  (i) CARDINALITY — `complementarySuppress` promotes AT MOST ONE cell per group
+ *      (its `toPromote` set takes one smallest-visible sibling per group, and the
+ *      cube runs exactly one pass per province). Two live-readable departments
+ *      suppressed by the cube in the same province cannot be complementary.
+ *
+ *  (ii) MAGNITUDE — the promoted cell is the SMALLEST cell that was still
+ *      visible, so its true count is ≤ every cell that REMAINS visible in the
+ *      cube for that province. The live value is an undercount of that true
+ *      count (live truncates localities before folding), hence
+ *      `liveValue ≤ min(visible cube values in the province)`. A builder that
+ *      suppressed a LARGE department — the signature of a drifted floor — breaks
+ *      this even when it only does it once per province.
+ *
+ * Department-grain cube values are raw counts (`toChoroplethCells` sets
+ * `value: r.count` for every metric), which is the same quantity
+ * `complementarySuppress` orders by — so the magnitude comparison is apples to
+ * apples.
+ */
+function complementaryFootprintBreaks(
+  over: readonly OverSuppressed[],
+  cubeByKey: Map<string, CellProps>,
+): string[] {
+  const breaks: string[] = [];
+  const byProvince = new Map<string, OverSuppressed[]>();
+  for (const o of over) byProvince.set(o.province, [...(byProvince.get(o.province) ?? []), o]);
+
+  for (const [province, entries] of byProvince) {
+    let smallestVisible = Number.POSITIVE_INFINITY;
+    let suppressedInGroup = 0;
+    for (const p of cubeByKey.values()) {
+      if (p.province !== province) continue;
+      if (p.suppressed) suppressedInGroup += 1;
+      else if (typeof p.value === "number") smallestVisible = Math.min(smallestVisible, p.value);
+    }
+
+    if (entries.length > 1) {
+      breaks.push(
+        `${province}: ${entries.length} departments (${entries
+          .map((e) => e.key)
+          .join(
+            ", ",
+          )}) are readable live but suppressed in the cube — complementary suppression promotes at most ONE cell per province`,
+      );
+    }
+    // A promotion never leaves a lone suppressed cell: the promoted cell sits
+    // beside the primary that triggered it, so the group holds ≥ 2.
+    if (suppressedInGroup < 2) {
+      breaks.push(
+        `${province}: cube suppressed ${entries.map((e) => e.key).join(", ")} but the province group holds only ${suppressedInGroup} suppressed cell(s) — no primary suppression to complement`,
+      );
+    }
+    for (const e of entries) {
+      if (
+        e.liveValue != null &&
+        Number.isFinite(smallestVisible) &&
+        e.liveValue > smallestVisible
+      ) {
+        breaks.push(
+          `${province} ${e.key}: cube suppressed a department whose live value ${e.liveValue} already exceeds the smallest cell the cube still publishes there (${smallestVisible}) — it cannot be the smallest-visible sibling a complementary promotion picks`,
+        );
+      }
+    }
+  }
+  return breaks;
 }
 
 const prevFlag = process.env.CUBE_READS;
@@ -238,14 +329,77 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     // ARE sound, and between them they pin both directions of a suppression
     // regression.
     //
-    // (2a) THE FORBIDDEN DIRECTION: a department readable LIVE must never come
-    // back suppressed from the cube. The cube's value is ≥ live's on every
-    // overlapping cell ((3) below), so the cube can only ever RELAX the floor —
-    // over-suppression means the builder's floor drifted from the live path's.
+    // (2a) THE OTHER DIRECTION, CORRECTLY BOUNDED.
+    //
+    // This block used to assert the set was EMPTY: "a department readable LIVE
+    // must never come back suppressed from the cube". That was UNSOUND, and it
+    // failed in CI (run 31024891161) on legitimate behavior while passing
+    // locally — a data-dependent trap, not a race. The reasoning behind the
+    // empty-set claim only covered PRIMARY (k) suppression:
+    //
+    //   The cube's per-province rollup is a SUPERSET of the live national
+    //   rollup restricted to that province (live caps at PER_LAYER_CAP globally,
+    //   the cube caps per province and no province approaches the cap), so
+    //   cubeCount ≥ liveCount for every department. Primary suppression needs
+    //   cubeCount < k ≤ liveCount — impossible. So primary suppression can
+    //   NEVER over-suppress. That half of the argument is sound.
+    //
+    // What it missed: `complementarySuppress` (lib/metrics/anonymity.ts), which
+    // both paths run AFTER the k pass. A province group with EXACTLY ONE
+    // primary-suppressed department also loses its smallest visible sibling, so
+    // no lone hidden cell is recoverable by subtraction. The two sides run that
+    // pass over DIFFERENT inputs — the cube over the complete province, live
+    // over an arbitrary truncated subset (`.limit(PER_LAYER_CAP)` carries no
+    // ORDER BY) — so they legitimately promote different cells, or the cube
+    // promotes where live has ≥2 primaries and promotes nothing.
+    //
+    // Measured on this seed (microchip, department grain): Córdoba has exactly
+    // ONE sub-k department (14154, count 3) and the cube promotes 14070
+    // (count 7); Entre Ríos promotes 30088 (5) beside 30042 (3); Formosa
+    // promotes 34056 (7) beside 34028 (4). All three promoted departments are
+    // ABOVE k. They only stay invisible to the old assertion because live's
+    // truncation happens to push them under k as well — one different pet, one
+    // different plan, one fresh CI bootstrap, and any of them shows up readable
+    // live while the cube (correctly) withholds it.
+    //
+    // So the assertion is now the SHAPE of a legitimate promotion, not its
+    // absence. It still catches the real defect it exists for:
+    //   · a drifted floor over-suppressing several departments in a province →
+    //     breaks the ≤1-per-province cardinality bound;
+    //   · a drifted floor over-suppressing a LARGE department → breaks the
+    //     magnitude bound (a promotion can only ever take the smallest cell);
+    //   · a builder suppressing with no primary to complement → breaks the
+    //     ≥2-suppressed-in-group bound;
+    //   · and, decisively, every affected province is re-checked below against
+    //     its own COMPLETE live drill, field for field.
+    const over = overSuppressedByCube(liveByKey, cubeByKey);
     expect(
-      overSuppressedByCube(liveByKey, cubeByKey),
-      "the cube suppressed a department the live path serves readable — the k-anonymity floor drifted between builder and loader",
+      complementaryFootprintBreaks(over, cubeByKey),
+      "the cube suppressed a department the live path serves readable, in a shape complementary suppression cannot produce — the k-anonymity floor drifted between builder and loader",
     ).toEqual([]);
+
+    // (2a-bis) THE APPLES-TO-APPLES RE-CHECK. The comparison above is unavoidably
+    // lopsided (complete cube vs truncated live), which is the whole reason a raw
+    // set difference proves nothing. For every province where the two sides DID
+    // disagree, compare against the one live read that is NOT truncated: that
+    // province's own drill, which the loaders serve complete. The cube's national
+    // department cells for a province are the same rows a cube drill returns
+    // (readCubeRows filters by province), so a floor drift in the builder shows up
+    // here as a field-level difference, and truncation cannot mask it.
+    for (const province of new Set(over.map((o) => o.province))) {
+      const liveDrill = await getLayerFeatures(
+        "microchip",
+        ADMIN,
+        [],
+        PERIOD,
+        "locality",
+        province,
+      );
+      expect(
+        featuresOfProvince(cubeResult, province),
+        `cube national+department cells for ${province} must equal that province's complete live drill (the truncation-free reference)`,
+      ).toEqual(featuresOfProvince(liveDrill, province));
+    }
 
     // (2b) THE FLOOR ITSELF, on the SERVED surface (not just on panoramaCube
     // rows): every readable department respects k=5, and every suppressed one
@@ -271,7 +425,10 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
         ).toBeGreaterThanOrEqual(lp.value);
       }
     }
-  }, 180_000);
+    // 300s (was 180s): the live national read is the bulk of it, and (2a-bis) can
+    // add ONE live province drill per province where the two sides disagreed — a
+    // Buenos Aires drill alone measures ~96s.
+  }, 300_000);
 });
 
 // ---------------------------------------------------------------------------
