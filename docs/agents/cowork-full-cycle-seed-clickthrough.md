@@ -2,9 +2,15 @@
 
 > Prompt para el agente Cowork con navegador. Objetivo: ejecutar TODOS los flujos
 > del producto al menos una vez, 100% por UI real (cero SQL, cero API directa),
-> creando su propio elenco de datos con prefijo `CW-`. Prerequisito: staging
-> redeployado con la corrida del 2026-08-02 (aviso de disposición en observación,
-> chip en /admin/observaciones, ficha de origen).
+> creando su propio elenco de datos con prefijo `CW-`.
+>
+> **Actualizado 2026-08-06** — staging sirve `9ee89f90` (verificado contra
+> Vercel): la corrida del 04-05/08 completa. Novedades que esta pasada cubre por
+> primera vez: **chapas físicas** (`/t/[serial]`, activación con código,
+> emisión admin), impresión sin recorte (expediente + informe), export del mapa
+> encuadrado al alcance, aviso al refugio de origen en hallazgos, estados
+> vacíos con acción, y vocabulario de estados unificado. La base de staging
+> tiene las migraciones `0166`-`0170` aplicadas y `db:doctor` limpio.
 
 ---
 
@@ -43,9 +49,24 @@ los datos por los flujos reales — como lo haría una persona. Nada de atajos.
 - [ ] Buscar turno (esterilización o vacunación) → reservar → verla en /mis-turnos
 - [ ] Transferencia dueño a dueño (owner@ → graciela@): proponer, aceptar
 - [ ] Denuncia de bienestar CON evidencia (foto obligatoria) como ciudadano
+- [ ] **NUEVO — Privacidad del perfil**: abrir la hoja "Qué se muestra al público" de una mascota CW- y verificar que dice la verdad (incluido, si la mascota tiene refugio de origen, el aviso de que ese refugio se entera de un hallazgo)
+
+### Chapas físicas (NUEVO 08/05 — la serie completa, en este orden)
+> **Rate limit real en activación: 5/min por IP + 3/min por serial.** Máximo DOS
+> intentos con código equivocado; si te bloquea, esperá 2 minutos. No insistas.
+- [ ] **(admin@)** Emitir un lote chico (2-3 chapas) en /admin/chapas → descargar el **CSV de un solo uso** y GUARDARLO (los códigos no se pueden recuperar: solo se persiste el hash) → recargar la página y verificar que ni seriales ni códigos se vuelven a mostrar
+- [ ] **(anónimo)** Abrir /t/&lt;serial-inventado&gt; → 404 · abrir /t/&lt;serial real SIN activar&gt; → página neutra, CERO datos de mascota, CTA de activación
+- [ ] **(owner@)** Activar una chapa desde /cuenta/chapas/activar con serial + código del envoltorio, vinculándola a una mascota CW- → verla ACTIVA en el panel
+- [ ] **(anónimo)** /t/&lt;serial activado&gt; → redirige a la credencial pública /p de la mascota
+- [ ] **(owner@)** Probar UNA vez un código equivocado en otra chapa → el rechazo debe ser EXACTAMENTE el mismo mensaje que con un serial inexistente (compuerta uniforme: no filtra qué existe)
+- [ ] **(owner@)** Revocar la chapa activada → **(anónimo)** /t/&lt;serial&gt; → página honesta "dada de baja", sin datos de mascota, sin razón
+- [ ] Transferir la mascota CW- con chapa activa (owner@ → graciela@) → la chapa sigue activa y /t sigue resolviendo (la chapa es de la MASCOTA); graciela@ puede revocarla, owner@ ya no
 
 ### Veterinario (vet@)
 - [ ] Walk-in en /org/…/atender con código: firmar antirrábica (evento VERIFICADO)
+  — **y verificá el otro lado**: el dueño de la mascota debe recibir la
+  notificación inmediata del evento walk-in (mitigación PO 04/08). Si el evento
+  entra y el dueño no se entera, es ALTA
 - [ ] Implantar/firmar microchip
 - [ ] Atender el turno reservado (formulario del tipo de servicio) → evento firmado
 
@@ -57,10 +78,16 @@ los datos por los flujos reales — como lo haría una persona. Nada de atajos.
 
 ### Gobierno (govt-local@)
 - [ ] Cola de denuncias: triage de la denuncia CW- → asignar → registrar intervención
+  — **vocabulario esperado**: los estados canónicos son "Revisada"/"En curso"
+  (unificados 08/05); si ves "Triagueada" o "En seguimiento" en CUALQUIER
+  pantalla, es regresión → ALTA
 - [ ] Vigilancia: reportar mordedura → iniciar observación antirrábica de una mascota CW-
 - [ ] Operativos/Campañas: confirmar que la oferta CW- aparece con sus métricas
 - [ ] Outreach: armar un operativo (lista + recordatorio) sin enviar masivos
 - [ ] Generar el PDF MPF de un caso de maltrato
+- [ ] **NUEVO — Expediente imprimible**: abrir el expediente de un caso de maltrato → botón "Imprimir expediente" → si tu entorno permite vista previa de impresión, verificar que el documento sale ENTERO (más de una página, sin recorte). Si no permite, documentá "NO PROBADO: sin print preview"
+- [ ] **NUEVO — Export del mapa encuadrado**: en Panorama, panel "Exportar" → "Exportar PNG" → la imagen debe encuadrar TODO el alcance del operador (no lo que casualmente entraba en pantalla), con el pie de método. Después del export, la vista del mapa vuelve a donde estaba
+- [ ] **NUEVO — Vacíos con acción**: aplicar en una cola un filtro que no matchee nada → el vacío debe ofrecer una salida ("Limpiar filtros" o equivalente), nunca una lápida muda
 
 ### Admin (admin@)
 - [ ] Crear suscripción de alerta CW- (umbral que la data actual NO rompa — nota: los disparos corren en cron diario, no esperes firing inmediato; documentalo)
@@ -89,4 +116,11 @@ Registrá mascotas CW- nuevas para cada escenario (no reuses las de otros flujos
 5. **"Lo que no pude probar"** — vale tanto como un hallazgo
 6. NO reportes como bugs: los dashboards de Panorama/Padrón corren sobre cubo
    nocturno (no se mueven en vivo); los disparos de alertas son cron diario;
-   las 100 CursorPet-0xx con credencial vacía son residuo conocido
+   las 100 CursorPet-0xx con credencial vacía son residuo conocido; el mapa
+   provincial puede mostrar pocas o cero burbujas (k-anonimato con ventana de
+   30 días en regiones de baja densidad); la ficha pública de /adoptar muestra
+   SOLO el booleano "tiene microchip" — sin dígitos — a propósito (decisión de
+   privacidad 08/05); las chapas CW- revocadas no se pueden borrar por UI
+   (estado terminal por diseño) — anotalas en el registro igual
+7. **Chapas ajenas: NO.** Solo activá/revocá chapas del lote CW- que emitiste
+   vos. Jamás toques una chapa que no creaste.
