@@ -241,6 +241,18 @@ export function MapDataTable({
   // stays fixed regardless (two exports of the same board must be diffable);
   // an on-screen table has no such contract.
   const showGapColumn = useMemo(() => rows.some((r) => r.gap !== undefined), [rows]);
+  // CSS-5: table-layout:fixed pins column widths so they stop recomputing from
+  // content on every period/layer change (the columns visibly jumped while an
+  // operator scrubbed the timeline). Widths are chosen per the columns actually
+  // shown (showLayerColumn / showGapColumn already gate that) — from Tailwind's
+  // default fraction scale, never an arbitrary value.
+  const columnWidths = showLayerColumn
+    ? showGapColumn
+      ? { layer: "w-1/5", unit: "w-2/5", value: "w-1/5", gap: "w-1/5" }
+      : { layer: "w-1/4", unit: "w-1/2", value: "w-1/4", gap: "" }
+    : showGapColumn
+      ? { layer: "", unit: "w-1/2", value: "w-1/4", gap: "w-1/4" }
+      : { layer: "", unit: "w-2/3", value: "w-1/3", gap: "" };
   // Cowork QA ronda 3 §3: the "Valor" column never named its metric — with a
   // single metric in view, name it (and its true unit) so "204" is not read as a
   // bare, unlabeled number. With several metrics the Capa column already
@@ -275,8 +287,14 @@ export function MapDataTable({
         )}
       </div>
       <div className="max-h-80 overflow-auto rounded-[var(--radius-md)] border border-ln-op-line">
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full table-fixed border-collapse text-sm">
           <caption className="sr-only">{caption}</caption>
+          <colgroup>
+            {showLayerColumn && <col className={columnWidths.layer} />}
+            <col className={columnWidths.unit} />
+            <col className={columnWidths.value} />
+            {showGapColumn && <col className={columnWidths.gap} />}
+          </colgroup>
           <thead className="sticky top-0 bg-ln-op-card">
             <tr className="border-b border-ln-op-line text-xs uppercase tracking-[0.08em]">
               {showLayerColumn && (
@@ -305,8 +323,16 @@ export function MapDataTable({
                 key={`${row.layer} ${row.unit} ${i}`}
                 className="border-b border-ln-op-line/50"
               >
-                {showLayerColumn && <td className="px-2 py-1 text-ln-op-ink-2">{row.layer}</td>}
-                <th scope="row" className="px-2 py-1 text-left font-normal text-ln-op-ink">
+                {showLayerColumn && (
+                  <td title={row.layer} className="truncate px-2 py-1 text-ln-op-ink-2">
+                    {row.layer}
+                  </td>
+                )}
+                <th
+                  scope="row"
+                  title={row.unit}
+                  className="truncate px-2 py-1 text-left font-normal text-ln-op-ink"
+                >
                   {row.unit}
                 </th>
                 <td className="px-2 py-1 text-right tabular-nums text-ln-op-ink-2">{row.value}</td>

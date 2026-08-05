@@ -348,6 +348,15 @@ function PanoramaDataTableImpl({
       ? `Mayor volumen ${rankedCount} · ${measureLabel}`
       : `Peores ${rankedCount} · ${measureLabel}`;
 
+  // CSS-5: table-layout:fixed pins column widths so they stop recomputing from
+  // content on every period/scope change. Widths from Tailwind's default
+  // fraction scale (never an arbitrary value), sized per whether the gap
+  // column (kind === "rate") renders.
+  const columnWidths =
+    kind === "rate"
+      ? { label: "w-1/2", value: "w-1/4", gap: "w-1/4" }
+      : { label: "w-2/3", value: "w-1/3", gap: "" };
+
   return (
     <section aria-labelledby={headingId} className="space-y-2">
       <h3 id={headingId} className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -388,10 +397,15 @@ function PanoramaDataTableImpl({
           className="text-xs"
         />
       ) : (
-        <table className="w-full border-collapse text-sm">
+        <table className="w-full table-fixed border-collapse text-sm">
           <caption className="sr-only">
             Datos de {measureLabel} por jurisdicción (vista accesible, ordenable).
           </caption>
+          <colgroup>
+            <col className={columnWidths.label} />
+            <col className={columnWidths.value} />
+            {kind === "rate" && <col className={columnWidths.gap} />}
+          </colgroup>
           <thead>
             <tr className="border-b border-ln-op-line text-xs uppercase tracking-[0.08em]">
               {header("label", "Jurisdicción")}
@@ -412,7 +426,11 @@ function PanoramaDataTableImpl({
                     highlighted ? "bg-ln-op-line/50" : ""
                   }`}
                 >
-                  <th scope="row" className="px-2 py-1 text-left font-normal text-ln-op-ink">
+                  <th
+                    scope="row"
+                    title={row.label}
+                    className="truncate px-2 py-1 text-left font-normal text-ln-op-ink"
+                  >
                     {onSelect ? (
                       <button
                         type="button"
@@ -424,7 +442,7 @@ function PanoramaDataTableImpl({
                         aria-describedby={
                           previewAnchor?.row.key === row.key ? previewId : undefined
                         }
-                        className="text-left underline-offset-2 hover:underline"
+                        className="block w-full truncate text-left underline-offset-2 hover:underline"
                       >
                         {row.label}
                       </button>
