@@ -57,6 +57,24 @@ NEXT_BUILT=1 pnpm playwright test e2e/crisis-*.spec.ts
   events) that makes local runs of some specs fail or pass for reasons the code
   has nothing to do with. Iterate locally on ONE spec; trust the CI verdict for
   the suite.
+- **A fixture-gated check branches on the ENVIRONMENT, never on the data.**
+  `test.skip(rowsFound === 0, …)` self-retires: the day a seed stops publishing
+  the fixture, the check stops running and the summary stays green. Three gates
+  in `public-smoke.spec.ts` were in that state, two of them axe scans (one on
+  the lost-mode credential — the Ley 26.653 "hero moment"). Use
+  `e2e/_seed-profile.ts` instead: it resolves a **seed profile** and turns a
+  missing fixture into a skip only where absence is documented.
+  - `bootstrap` (the default): `pnpm db:bootstrap` and nothing else — what CI's
+    e2e job runs. No lost pets, no adoption listings, no cases, no share
+    tokens. A missing fixture SKIPS, with a reason that names the coverage hole.
+  - `full`: the deployed staging origin the nightly pass drives (`STAGING_URL`
+    set → inferred automatically). It carries the demo/storyline seeds — 317
+    lost pets and 3 adoption listings when this was measured (2026-08-04). A
+    missing fixture **FAILS**.
+  - Driving a locally seeded QA DB through `playwright.local3000.config.ts`?
+    Export `E2E_SEED_PROFILE=full` so a missing fixture is red there too.
+  The resolver is a pure function pinned by `__tests__/e2e-seed-profile.test.ts`
+  — the gate itself must not become an assertion that cannot fail.
 - No hardcoded DB ids/tokens — discover them from a real page at runtime
   (`a[href^="/adoptar/DIM"]`, `a[href^="/mis-mascotas/DIM"]`, etc.) and
   `test.skip(...)` when the seed doesn't have the fixture you need. Note org

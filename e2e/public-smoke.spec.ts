@@ -2,7 +2,23 @@ import AxeBuilder from "@axe-core/playwright";
 import { type Page, expect, test } from "@playwright/test";
 
 import { BRANDED_NOT_FOUND_TESTID } from "./_page-identity";
+import { SEED_PROFILE, seedFixtureVerdict } from "./_seed-profile";
 import { assertRealPage } from "./demo/_helpers";
+
+/**
+ * Fixture gate. The three checks below need data the seed may or may not
+ * publish, and they used to `test.skip()` on DATA PRESENCE — which self-retires
+ * the day the data goes away and reports green forever after.
+ *
+ * They now branch on the ENVIRONMENT instead (e2e/_seed-profile.ts): a missing
+ * fixture is a documented state of `pnpm db:bootstrap` and skips there, and is
+ * a FAILURE on the fully seeded staging origin the nightly pass drives.
+ */
+function requireSeedFixture(found: number, fixture: string, untested: string): void {
+  const outcome = seedFixtureVerdict(found, fixture, untested, SEED_PROFILE);
+  if (outcome.verdict === "fail") throw new Error(outcome.reason);
+  if (outcome.verdict === "skip") test.skip(true, outcome.reason);
+}
 
 /**
  * Public smoke tests — no auth required.
@@ -93,11 +109,10 @@ test("/p/[token] lost-mode credential → 200, no error boundary (UX 0.1 regress
   await page.waitForLoadState("networkidle");
 
   const credLink = page.locator('a[href^="/p/"]').first();
-  // Same fixture gap as the a11y scan further down — say it in the reason so a
-  // green summary is not mistaken for coverage of the lost-mode render.
-  test.skip(
-    (await credLink.count()) === 0,
-    "NO COVERAGE: /perdidas is empty — db:bootstrap seeds no lost pet, so the UX-0.1 regression guard did not run. Fixture gap, not a flake.",
+  requireSeedFixture(
+    await credLink.count(),
+    "lost-pet credential link on /perdidas",
+    "the UX-0.1 lost-mode render regression guard",
   );
 
   const href = await credLink.getAttribute("href");
@@ -127,18 +142,21 @@ test("a11y(axe) /p/[token] lost-mode credential — WCAG 2.1 AA", async ({ page 
   await page.waitForLoadState("networkidle");
 
   const credLink = page.locator('a[href^="/p/"]').first();
-  // A SKIP HERE MEANS THIS SURFACE HAS NO CI COVERAGE AT ALL. `pnpm
-  // db:bootstrap` (all the e2e job runs) seeds reference data plus
+  // A SKIP HERE MEANS THIS SURFACE HAS NO COVERAGE ON THIS RUN. `pnpm
+  // db:bootstrap` (all the CI e2e job runs) seeds reference data plus
   // scripts/seed-test-users.ts, and neither marks a pet lost — so /perdidas is
   // empty in CI and this scan, on the surface the file itself calls "the hero
-  // moment" under Ley 26.653, has almost certainly never executed there. A skip
-  // is at least honest (it is neither pass nor fail and Playwright counts it),
-  // which is why this stays a skip rather than becoming a red on a fixture gap
-  // that must be closed in scripts/, not here. Say so in the reason so nobody
-  // reads the summary as coverage.
-  test.skip(
-    (await credLink.count()) === 0,
-    "NO COVERAGE: /perdidas is empty — db:bootstrap seeds no lost pet, so the lost-mode credential (Ley 26.653 hero surface) went unaudited this run. Fixture gap, not a flake.",
+  // moment" under Ley 26.653, had almost certainly never executed there.
+  //
+  // That fixture gap must be closed in scripts/, not here, so absence still
+  // skips under the bootstrap seed. But it is no longer keyed on the DATA: on
+  // the nightly staging pass — where /perdidas listed 317 lost pets when this
+  // was written — an empty listing now FAILS instead of quietly retiring the
+  // only axe audit this surface has.
+  requireSeedFixture(
+    await credLink.count(),
+    "lost-pet credential link on /perdidas",
+    "the axe audit of the lost-mode credential (Ley 26.653 hero surface)",
   );
 
   const href = await credLink.getAttribute("href");
@@ -290,11 +308,13 @@ test("a11y(axe) /adoptar/[token] — public pet detail (WCAG 2.1 AA)", async ({ 
   await page.waitForLoadState("networkidle");
 
   const petLink = page.locator('a[href^="/adoptar/"]').first();
-  // Same class as the lost-credential skip above: db:bootstrap publishes no
-  // adoption listing, so this very likely never runs in CI either.
-  test.skip(
-    (await petLink.count()) === 0,
-    "NO COVERAGE: /adoptar lists nothing — db:bootstrap publishes no adoption listing, so the public pet detail went unaudited this run. Fixture gap, not a flake.",
+  // Same class as the lost-credential gate above: db:bootstrap publishes no
+  // adoption listing, so this skips under that seed — and fails on staging,
+  // which publishes them.
+  requireSeedFixture(
+    await petLink.count(),
+    "adoptable-pet link on /adoptar",
+    "the axe audit of the public pet detail /adoptar/[token]",
   );
 
   const href = await petLink.getAttribute("href");
