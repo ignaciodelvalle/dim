@@ -1649,6 +1649,43 @@ const eventAmended = z
   .strict();
 
 // ---------------------------------------------------------------------------
+// Physical tag (chapa) lifecycle — migration 0169
+// ---------------------------------------------------------------------------
+//
+// SECURITY INVARIANT: neither payload may EVER carry the activation code —
+// plaintext or hashed, under any field name. `.strict()` enforces it: an
+// accidental `code` / `activation_code` key throws at validate() time before
+// the row reaches the immutable spine.
+
+// Owner self-activation of a manufactured tag. `source` is fixed to "self" in
+// v1 (admin-assisted activation would be a new source value, not a new type).
+const tagActivated = z
+  .object(
+    withVersion({
+      serial: z.string().min(1),
+      lote_id: z.string().nullable(),
+      source: z.literal("self"),
+    }),
+  )
+  .strict();
+
+// Owner revocation of an ACTIVE tag (design D4: blank tags cannot be revoked —
+// there is no pet to hang the event on). Payload key is `revoke_reason`, NOT
+// `reason`: erase_subject_data (0159→0166) sentinel-redacts the key `reason`
+// across ALL event types on subject erasure, which would destroy this enum
+// fact (design D5). `replacement_serial` links to the new tag when the owner
+// revokes to replace (e.g. after a custody transfer).
+const tagRevoked = z
+  .object(
+    withVersion({
+      serial: z.string().min(1),
+      revoke_reason: z.enum(["lost", "damaged", "transfer", "fraud", "owner_request", "other"]),
+      replacement_serial: z.string().nullable(),
+    }),
+  )
+  .strict();
+
+// ---------------------------------------------------------------------------
 // Registry
 // ---------------------------------------------------------------------------
 // `Partial<Record<EventType, ...>>` is intentional: a small allowlist of
@@ -1707,6 +1744,8 @@ export const PayloadSchemas: Partial<Record<EventType, z.ZodTypeAny>> = {
   adoption_eligibility_set: adoptionEligibilitySet,
   movement_recorded: movementRecorded,
   event_amended: eventAmended,
+  tag_activated: tagActivated,
+  tag_revoked: tagRevoked,
 };
 
 /**

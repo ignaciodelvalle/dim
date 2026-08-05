@@ -384,6 +384,13 @@ export const EVENT_TYPES = [
   // D5: admin/govt amendments are sensitive — reason required, audit logged,
   // owner notified via notification_type='admin_event_amended'.
   "event_amended",
+  // Physical tag (chapa) lifecycle — migration 0169. Payloads NEVER carry the
+  // activation code (plaintext or hashed) under any field. tag_revoked uses
+  // payload key `revoke_reason` (NOT `reason`) because erase_subject_data
+  // sentinel-redacts the key `reason` across ALL event types (0159→0166) and
+  // would destroy the enum fact on subject erasure (design D5).
+  "tag_activated",
+  "tag_revoked",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -2305,6 +2312,12 @@ export const AUDIT_LOG_ACTIONS = [
   // { surface, pipeline, requested_count, sent_count, already_notified_count,
   //   no_owner_count, out_of_scope_count }.
   "outreach_reminder_sent",
+  // Physical tag (chapa) lifecycle — owner activation, owner revocation, and
+  // admin batch issuance (design D9). tag.lote_issue payload: {lote_id, count}
+  // — never the serials' activation codes.
+  "tag.activate",
+  "tag.revoke",
+  "tag.lote_issue",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
