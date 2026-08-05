@@ -94,7 +94,7 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
                 {org.displayName}
               </h1>
               {/* Verified chip (inline with name) */}
-              <Link href="?sheet=verificacion-info" className="focus:outline-none">
+              <Link href="?sheet=verificacion-info">
                 <LnBadge variant="success" icon="shield-check">
                   Verificado
                 </LnBadge>

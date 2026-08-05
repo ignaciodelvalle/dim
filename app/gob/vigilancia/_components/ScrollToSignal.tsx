@@ -2,6 +2,8 @@
 
 import { useEffect } from "react";
 
+import { scrollIntoViewRespectingMotion } from "@/lib/ui/reduced-motion-scroll";
+
 type ScrollToSignalProps = {
   /** The `signalEventId` targeted by the `?signalId=` deep-link. */
   signalId: string;
@@ -17,10 +19,9 @@ type ScrollToSignalProps = {
  */
 export function ScrollToSignal({ signalId }: ScrollToSignalProps) {
   useEffect(() => {
-    const el = document.getElementById(`signal-${signalId}`);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
+    scrollIntoViewRespectingMotion(document.getElementById(`signal-${signalId}`), {
+      block: "center",
+    });
   }, [signalId]);
 
   return null;

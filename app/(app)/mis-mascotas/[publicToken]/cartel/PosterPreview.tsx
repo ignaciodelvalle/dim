@@ -232,7 +232,7 @@ export function PosterPreview({
             onChange={(e) => setExtraText(e.target.value)}
             placeholder="Información adicional (opcional — solo visible en este cartel)"
             rows={2}
-            className="w-full text-sm text-[var(--color-ln-ink)] bg-transparent resize-none focus:outline-none placeholder:text-[var(--color-ln-mute)]"
+            className="w-full text-sm text-[var(--color-ln-ink)] bg-transparent resize-none placeholder:text-[var(--color-ln-mute)]"
           />
         </div>
 

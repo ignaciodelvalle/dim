@@ -39,6 +39,7 @@
 
 import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
+import { scrollIntoViewRespectingMotion } from "@/lib/ui/reduced-motion-scroll";
 
 /** Scroll target: the Tier-2 medical section wrapper in page.tsx. */
 export const MEDICAL_SECTION_ID = "resumen-medico";
@@ -72,7 +73,7 @@ function revealSection(id: string) {
   const el = document.getElementById(id);
   if (!el) return;
   if (el instanceof HTMLDetailsElement) el.open = true;
-  el.scrollIntoView({ behavior: "smooth", block: "start" });
+  scrollIntoViewRespectingMotion(el, { block: "start" });
 }
 
 export function CredentialActionBar(props: CredentialActionBarProps) {

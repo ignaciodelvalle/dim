@@ -40,6 +40,7 @@ import "@/app/(app)/mis-mascotas/[publicToken]/libreta/libreta-print.css";
 import type { ChromeSituation } from "@/components/pet-profile/DocumentChrome";
 import { FlipCard, type FlipCardFace, PET_FACE_PANEL_ID } from "@/components/pet-profile/FlipCard";
 import { type PetFace, resolvePetFace } from "@/lib/domain/pet-face-nav";
+import { scrollIntoViewRespectingMotion } from "@/lib/ui/reduced-motion-scroll";
 import { pushTabUrl, replaceTabUrl } from "@/lib/ui/sheet-nav";
 
 /** Which face is active. Same shape as `PetFace` — kept as a local alias so
@@ -186,8 +187,7 @@ export function PetDetailTabsPanel({
       }
       replaceTabUrl(`?${params.toString()}`);
       requestAnimationFrame(() => {
-        document.querySelector("[data-section='flip-card']")?.scrollIntoView({
-          behavior: "smooth",
+        scrollIntoViewRespectingMotion(document.querySelector("[data-section='flip-card']"), {
           block: "start",
         });
       });
