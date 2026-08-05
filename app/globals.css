@@ -156,6 +156,72 @@
   --z-tooltip: 70;
 
   /* =========================================================================
+     Motion scale (MOT-1, motion audit 2026-08-04 §3.3)
+
+     The audit counted 18 distinct feedback durations and 8 easing curves in
+     use with ZERO tokens to point at — including the one curve that rides
+     ~433 Tailwind utilities, which nobody chose and nobody wrote down.
+
+     These five steps are not invented: each role is won by the value that
+     ALREADY had the most instances, so adoption is mostly deletion. Near-miss
+     values collapse into the role that owns them (the "replaces" column),
+     which is why this migration is imperceptible rather than a redesign.
+
+       token               value    replaces                role
+       --motion-fast       150ms    120, 140, 150, 160      micro-interaction
+       --motion-base       180ms    180, 200                drawer / dock entry
+       --motion-slow       300ms    280, 400, 450           deliberate reveal
+       --motion-deliberate 600ms    500, 600, 700, 800      value tween, document
+       --motion-ambient    1500ms   1.5s, 1.6s, 1.8s        infinite loops only
+
+     --motion-base is also the value the panorama v2C handoff specifies for
+     the dock (docs/design/handoffs/2026-07-11-panorama-v2C/README.md:157):
+     code and design already agreed here before either was written down.
+
+     NOT tokenized on purpose:
+      - the 0.01ms prefers-reduced-motion floor below — that is the OFF switch,
+        not a step on the scale;
+      - the 80ms `.lp-reveal` stagger cadence — a delay per step, not a
+        duration;
+      - JS-side durations (FlipCard, useCountUp, DIVISION_FADE_MS, the map
+        camera moves). A setTimeout cannot read a CSS custom property, so
+        pointing them here would be a comment pretending to be a dependency.
+        The one place a JS timer must track a CSS duration is the landing hero
+        flip, and that coupling is spelled out at both ends.
+     ========================================================================= */
+  --motion-fast: 150ms;
+  --motion-base: 180ms;
+  --motion-slow: 300ms;
+  --motion-deliberate: 600ms;
+  --motion-ambient: 1500ms;
+
+  /* Easing. Two curves, and the split is by REGISTER, not by taste.
+   *
+   * --ease-standard is what the app already does ~433 times over: it is
+   * Tailwind v4's default `transition-*` curve, so every `transition-colors`
+   * in the repo is already on it. Naming it means a hand-authored rule can
+   * agree with the utilities on purpose instead of by accident.
+   *
+   * --ease-editorial is the landing's curve (4 deliberate, documented uses:
+   * the scroll reveal, the hero, the ranking hovertip, the credential
+   * document reveal). It should never appear in an operator console.
+   *
+   * `linear` stays a RULE rather than a token: infinite loops (spinner,
+   * skeleton sweep) need it, because an eased loop stutters at the seam.
+   *
+   * Deliberately NOT migrated: the bare `ease` / `ease-out` / `ease-in-out`
+   * keywords elsewhere in this sheet. The audit recommends folding them into
+   * --ease-standard for consistency, and it is right that they disagree with
+   * the utilities today — but `ease-out` on the entry animations
+   * (.op-drawer-enter, .op-fade-in, .op-panel-enter, .op-dock) is a
+   * DECELERATION curve on elements that are arriving, which is the correct
+   * shape for that motion and the reason the audit calls those the reference
+   * implementations. Swapping ~26 rules onto a different curve is a
+   * perceptible change that wants a visual pass, not a token migration. */
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-editorial: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* =========================================================================
      Typography scale
      Maps 24 arbitrary text-[Npx] values in the codebase to ~7 named steps.
      Raw px → token:
@@ -543,10 +609,10 @@ h6 {
  * app (ConfirmDialog, etc.) keep their current behavior. */
 .op-drawer-enter {
   transition:
-    transform 180ms ease-out,
-    opacity 180ms ease-out,
-    overlay 180ms ease-out allow-discrete,
-    display 180ms ease-out allow-discrete;
+    transform var(--motion-base) ease-out,
+    opacity var(--motion-base) ease-out,
+    overlay var(--motion-base) ease-out allow-discrete,
+    display var(--motion-base) ease-out allow-discrete;
 }
 .op-drawer-enter[open] {
   transform: translateX(0);
@@ -559,8 +625,8 @@ h6 {
   }
 }
 .op-drawer-enter::backdrop {
-  transition: opacity 180ms ease-out, overlay 180ms ease-out allow-discrete, display 180ms ease-out
-    allow-discrete;
+  transition: opacity var(--motion-base) ease-out, overlay var(--motion-base) ease-out
+    allow-discrete, display var(--motion-base) ease-out allow-discrete;
 }
 .op-drawer-enter[open]::backdrop {
   opacity: 1;
@@ -574,7 +640,7 @@ h6 {
 /* A5 / A6 — streamed Suspense sections and conditional console panels. Fade
  * only (no layout-affecting property); A6 adds an 8px settle via translateY. */
 .op-fade-in {
-  transition: opacity 150ms ease-out;
+  transition: opacity var(--motion-fast) ease-out;
   opacity: 1;
 }
 @starting-style {
@@ -583,7 +649,7 @@ h6 {
   }
 }
 .op-panel-enter {
-  transition: transform 120ms ease-out, opacity 120ms ease-out;
+  transition: transform var(--motion-fast) ease-out, opacity var(--motion-fast) ease-out;
   transform: translateY(0);
   opacity: 1;
 }
@@ -618,7 +684,7 @@ h6 {
  * disclosure in the app. */
 .op-dock {
   height: calc(2.5rem + 2px);
-  transition: height 180ms ease-out, max-height 180ms ease-out;
+  transition: height var(--motion-base) ease-out, max-height var(--motion-base) ease-out;
 }
 
 /* ---- Skeleton shimmer (Wave 2 Item 8) ------------------------------------- */
@@ -644,7 +710,7 @@ h6 {
     var(--color-ln-line) 100%
   );
   background-size: 200% 100%;
-  animation: skeleton-sweep 1.5s linear infinite;
+  animation: skeleton-sweep var(--motion-ambient) linear infinite;
 }
 
 .op-skeleton-shimmer {
@@ -655,7 +721,7 @@ h6 {
     var(--color-ln-op-line) 100%
   );
   background-size: 200% 100%;
-  animation: skeleton-sweep 1.5s linear infinite;
+  animation: skeleton-sweep var(--motion-ambient) linear infinite;
 }
 
 /* ---- Mobile input zoom guard (sprint 6 PR-050) ---------------------------- *
@@ -884,7 +950,8 @@ body {
   cursor: pointer;
   text-decoration: none;
   color: inherit;
-  transition: background 0.16s, border-color 0.16s, color 0.16s, transform 0.16s;
+  transition: background var(--motion-fast), border-color var(--motion-fast), color
+    var(--motion-fast), transform var(--motion-fast);
 }
 .lp .lp-btn:active {
   transform: translateY(1px);
@@ -905,7 +972,7 @@ body {
   border-color: var(--color-ln-ink);
 }
 .lp .lp-btn .lp-ar {
-  transition: transform 0.18s;
+  transition: transform var(--motion-base);
 }
 .lp .lp-btn:hover .lp-ar {
   transform: translateX(3px);
@@ -950,8 +1017,8 @@ body {
 .lp.lp-motion .lp-reveal {
   opacity: 0;
   transform: translateY(20px);
-  transition: opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.8s
-    cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: opacity var(--motion-deliberate) var(--ease-editorial), transform
+    var(--motion-deliberate) var(--ease-editorial);
 }
 .lp.lp-motion .lp-reveal.in {
   opacity: 1;
@@ -1026,7 +1093,7 @@ body {
   font-weight: 600;
   box-shadow: var(--shadow-md);
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .lp .lp-milestone-cta:hover {
   border-color: var(--color-ln-ink);
@@ -1037,7 +1104,7 @@ body {
   outline-offset: 2px;
 }
 .lp .lp-milestone-cta .lp-milestone-ar {
-  transition: transform 0.18s;
+  transition: transform var(--motion-base);
 }
 .lp .lp-milestone-cta:hover .lp-milestone-ar {
   transform: translateY(2px);
@@ -1052,7 +1119,7 @@ body {
   backdrop-filter: saturate(180%) blur(14px);
   -webkit-backdrop-filter: saturate(180%) blur(14px);
   border-bottom: 1px solid transparent;
-  transition: border-color 0.2s;
+  transition: border-color var(--motion-base);
 }
 .lp-nav.scrolled {
   border-bottom-color: var(--color-ln-line);
@@ -1113,7 +1180,7 @@ body {
   font-weight: 500;
   color: var(--color-ln-ink-2);
   text-decoration: none;
-  transition: background 0.14s, color 0.14s;
+  transition: background var(--motion-fast), color var(--motion-fast);
 }
 .lp-nav .lp-nav-link:hover {
   background: var(--color-ln-stripe);
@@ -1261,8 +1328,8 @@ body {
      the repo's global prefers-reduced-motion rule collapses the transition to
      an instant render. Lives on the WRAP, not .lp-hcard — the card's own
      transform channel belongs to the imperative edge-on flip. */
-  transition: opacity 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), transform 0.7s
-    cubic-bezier(0.2, 0.7, 0.2, 1);
+  transition: opacity var(--motion-deliberate) var(--ease-editorial), transform
+    var(--motion-deliberate) var(--ease-editorial);
 }
 @starting-style {
   .lp .lp-hcardwrap {
@@ -1277,13 +1344,14 @@ body {
   background: var(--color-ln-card);
   border: 1.5px solid var(--htone, var(--color-ln-celeste-100));
   box-shadow: var(--shadow-lg);
-  transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.5s;
+  transition: transform var(--motion-slow) var(--ease-standard), border-color
+    var(--motion-deliberate);
   transform-style: flat;
   overflow: hidden;
 }
 /* lost keeps a subtle border pulse (the old halo's data-status="lost" wink) */
 .lp.lp-motion .lp-hcard[data-tone="lost"] {
-  animation: lp-hcard-lost 1.6s ease-in-out infinite;
+  animation: lp-hcard-lost var(--motion-ambient) ease-in-out infinite;
 }
 @keyframes lp-hcard-lost {
   0%,
@@ -1315,7 +1383,7 @@ body {
   padding: 10px 16px;
   background: linear-gradient(90deg, var(--htone-soft, var(--color-ln-ok-bg)), transparent 70%);
   border-bottom: 1px solid var(--color-ln-line);
-  transition: background 0.5s;
+  transition: background var(--motion-deliberate);
 }
 .lp .lp-hcard-trim-r {
   display: flex;
@@ -1350,8 +1418,9 @@ body {
   white-space: nowrap;
   color: var(--htone, var(--color-ln-ok));
   background: var(--htone-soft, var(--color-ln-ok-bg));
-  transition: color 0.5s, background 0.5s, border-color 0.5s;
-  animation: lp-hbadge-in 0.4s ease both;
+  transition: color var(--motion-deliberate), background var(--motion-deliberate), border-color
+    var(--motion-deliberate);
+  animation: lp-hbadge-in var(--motion-slow) ease both;
 }
 .lp .lp-hcard-flip {
   width: 26px;
@@ -1368,7 +1437,8 @@ body {
   display: grid;
   place-items: center;
   padding: 0;
-  transition: transform 0.2s, color 0.2s, border-color 0.2s;
+  transition: transform var(--motion-base), color var(--motion-base), border-color
+    var(--motion-base);
 }
 .lp .lp-hcard-flip:hover {
   color: var(--color-ln-ink);
@@ -1406,7 +1476,7 @@ body {
   border-radius: 50%;
   overflow: hidden;
   border: 2.5px solid var(--htone, var(--color-ln-ok));
-  transition: border-color 0.5s;
+  transition: border-color var(--motion-deliberate);
 }
 .lp .lp-hcard-photo img {
   object-fit: cover;
@@ -1463,8 +1533,8 @@ body {
   font-weight: 700;
   font-size: 13.5px;
   min-height: 38px;
-  transition: background 0.5s, color 0.5s;
-  animation: lp-hstate-in 0.45s ease both;
+  transition: background var(--motion-deliberate), color var(--motion-deliberate);
+  animation: lp-hstate-in var(--motion-slow) ease both;
 }
 .lp .lp-hcard-ctx-chev {
   font-size: 11px;
@@ -1574,7 +1644,8 @@ body {
   background: transparent;
   cursor: pointer;
   padding: 0;
-  transition: transform 0.2s, background 0.2s, border-color 0.2s;
+  transition: transform var(--motion-base), background var(--motion-base), border-color
+    var(--motion-base);
 }
 .lp .lp-hdot::after {
   content: "";
@@ -1675,7 +1746,7 @@ body {
   padding: 14px 16px;
   text-decoration: none;
   color: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .lp .lp-crisis-card:hover {
   border-color: var(--color-ln-ink);
@@ -1711,7 +1782,7 @@ body {
 .lp .lp-crisis-card .lp-ar {
   margin-left: auto;
   color: var(--color-ln-faint);
-  transition: transform 0.15s, color 0.15s;
+  transition: transform var(--motion-fast), color var(--motion-fast);
 }
 .lp .lp-crisis-card:hover .lp-ar {
   transform: translateX(3px);
@@ -1866,7 +1937,7 @@ body {
   cursor: pointer;
   font: inherit;
   color: inherit;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--motion-fast), box-shadow var(--motion-fast);
 }
 .lp .lp-castfila-hand:hover {
   border-color: var(--color-ln-ink);
@@ -1961,7 +2032,8 @@ body {
   color: inherit;
   text-align: left;
   width: 100%;
-  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  transition: background var(--motion-fast), border-color var(--motion-fast), box-shadow
+    var(--motion-fast);
 }
 .lp .lp-rail-step .lp-rn {
   font-family: var(--lp-mono);
@@ -2502,7 +2574,7 @@ body {
   inset: -8px;
   border-radius: 50%;
   border: 2px solid rgba(192, 57, 43, 0.4);
-  animation: lp-pin-pulse 1.8s ease-out infinite;
+  animation: lp-pin-pulse var(--motion-ambient) ease-out infinite;
 }
 @keyframes lp-pin-pulse {
   0% {
@@ -3113,7 +3185,7 @@ body {
 }
 @media (prefers-reduced-motion: no-preference) {
   .ln-hovertip-in {
-    animation: ln-hovertip-in 140ms cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation: ln-hovertip-in var(--motion-fast) var(--ease-editorial) both;
   }
 }
 
@@ -3129,7 +3201,7 @@ body {
 }
 @media (prefers-reduced-motion: no-preference) {
   .ln-doc-wrap {
-    animation: ln-doc-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation: ln-doc-in var(--motion-deliberate) var(--ease-editorial) both;
   }
 }
 /* The rotating sheet. Holds ONE painted face at a time (the inactive face is
@@ -3230,7 +3302,7 @@ body {
   font-size: 13.5px;
   -webkit-backdrop-filter: blur(3px);
   backdrop-filter: blur(3px);
-  transition: background 0.18s ease;
+  transition: background var(--motion-base) ease;
 }
 .ln-turn:hover {
   background: rgba(255, 255, 255, 0.32);
@@ -3240,7 +3312,7 @@ body {
   outline-offset: 2px;
 }
 .ln-turn svg {
-  transition: transform 0.5s ease;
+  transition: transform var(--motion-deliberate) ease;
 }
 .ln-turn:hover svg {
   transform: rotate(180deg);
@@ -3730,7 +3802,7 @@ body {
   background: #fff;
   margin-top: -56px;
   box-shadow: 0 0 0 4px #fff, 0 10px 24px -12px rgba(20, 16, 10, 0.5);
-  transition: transform 0.18s ease, box-shadow 0.18s ease;
+  transition: transform var(--motion-base) ease, box-shadow var(--motion-base) ease;
 }
 .ln-qr-frame svg {
   width: 76px;
@@ -3853,7 +3925,7 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
 .ln-disc-chev {
   flex-shrink: 0;
   color: var(--color-ln-faint);
-  transition: transform 0.2s ease;
+  transition: transform var(--motion-base) ease;
 }
 .ln-disc[open] .ln-disc-chev {
   transform: rotate(180deg);
@@ -4175,7 +4247,8 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   font-size: 13px;
   cursor: pointer;
   text-decoration: none;
-  transition: color 0.18s ease, border-color 0.18s ease, background 0.18s ease;
+  transition: color var(--motion-base) ease, border-color var(--motion-base) ease, background
+    var(--motion-base) ease;
 }
 .ln-act svg {
   color: var(--color-ln-mute);
@@ -4222,7 +4295,7 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   cursor: pointer;
   font-family: var(--font-ln-sans);
   background: transparent;
-  transition: filter 0.15s ease, box-shadow 0.15s ease;
+  transition: filter var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
 }
 .ln-vac-badge:hover {
   filter: brightness(0.98);
@@ -4251,7 +4324,7 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   gap: 5px;
 }
 .ln-vac-caret {
-  transition: transform 0.15s ease;
+  transition: transform var(--motion-fast) ease;
 }
 .ln-vac-badge[aria-expanded="true"] .ln-vac-caret {
   transform: rotate(90deg);
@@ -4315,7 +4388,7 @@ a.ln-qr-link:focus-visible .ln-qr-frame {
   font-size: 15px;
   text-decoration: none;
   cursor: pointer;
-  transition: filter 0.18s ease;
+  transition: filter var(--motion-base) ease;
 }
 .ln-found-cta:hover {
   filter: brightness(1.06);

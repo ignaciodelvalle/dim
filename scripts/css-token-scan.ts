@@ -52,7 +52,8 @@ export type CssCategory =
   | "radius"
   | "shadow"
   | "hex"
-  | "deadWeight";
+  | "deadWeight"
+  | "duration";
 
 /**
  * Baseline buckets. `.lp` (the landing's ~335 rules) gets its own bucket rather
@@ -89,6 +90,7 @@ export const ZERO_CSS_COUNTS: CssCounts = {
   shadow: 0,
   hex: 0,
   deadWeight: 0,
+  duration: 0,
 };
 
 export const CSS_CATEGORIES: readonly CssCategory[] = [
@@ -99,6 +101,7 @@ export const CSS_CATEGORIES: readonly CssCategory[] = [
   "shadow",
   "hex",
   "deadWeight",
+  "duration",
 ] as const;
 
 /** Human-readable label + remediation hint per category, for the CLI report. */
@@ -127,6 +130,10 @@ export const CSS_CATEGORY_HINTS: Record<CssCategory, [string, string]> = {
   deadWeight: [
     "font-weight the family never loaded",
     "next/font downloads only the weights listed in app/layout.tsx, so this declaration is silently remapped to another face — pick a loaded weight, or add the weight to the next/font call",
+  ],
+  duration: [
+    "raw transition/animation duration",
+    "use a --motion-* token (--motion-fast/base/slow/deliberate/ambient), declared in the @theme block of app/globals.css — the motion audit (docs/reviews/2026-08-04-motion-audit.md §3.3) found 18 distinct durations and 0 tokens, and the scale exists so a 19th cannot be added by accident",
   ],
 };
 
@@ -236,6 +243,57 @@ const RADIUS_PROP =
   /^border-(?:(?:top|bottom)-(?:left|right)-|(?:start|end)-(?:start|end)-)?radius$/;
 
 const HEX_LITERAL = /#[0-9a-fA-F]{3,8}\b/g;
+
+/**
+ * Rule C8 props: the two duration longhands and the two shorthands that carry a
+ * duration positionally.
+ *
+ * `transition-delay` / `animation-delay` are deliberately EXCLUDED. A delay is a
+ * cadence, not a step on the motion scale — the landing's stagger is one 80ms
+ * beat multiplied by `--d` (app/globals.css `.lp-reveal`), and pointing it at a
+ * --motion-* token would be a category error, not a migration.
+ */
+const DURATION_PROP = /^(?:transition|animation)(?:-duration)?$/;
+
+/**
+ * A <time> literal, guarded on both sides so it cannot match inside an
+ * identifier. Without the lookbehind an `@keyframes` name ending in a digit
+ * (`animation: fade2s …`) would read as a duration; without the lookahead
+ * `ease-in-out` and custom-property names would.
+ */
+const TIME_LITERAL = /(?<![\w.-])(\d+(?:\.\d+)?)(ms|s)(?![\w-])/g;
+
+/**
+ * Durations at or below this are exempt from C8. Two populations live here and
+ * neither is a scale step:
+ *   - `0s` / `0ms`, which is "no transition", and
+ *   - the `0.01ms !important` prefers-reduced-motion floor
+ *     (app/globals.css) — that declaration is the OFF SWITCH for the whole
+ *     motion system. Baselining it would park two permanently-unfixable
+ *     violations in the ratchet and weaken the fence for everything else.
+ */
+const DURATION_EXEMPT_MS = 1;
+
+/**
+ * Rule C8: how many RAW duration literals a declaration carries.
+ *
+ * Counted per LITERAL rather than per declaration: `transition: opacity 150ms,
+ * transform 150ms` is two values a future edit can drift apart independently,
+ * and counting it once would let a migration that fixes half of a shorthand
+ * register as fully clean.
+ *
+ * Lives outside classifyDecl so the classifier stays readable as the rule list
+ * grows — same reason C7 lives in findDeadWeight(). Exported for unit tests.
+ */
+export function countRawDurations(prop: string, value: string): number {
+  if (!DURATION_PROP.test(prop) || IGNORED_VALUES.test(value)) return 0;
+  let n = 0;
+  for (const m of value.matchAll(TIME_LITERAL)) {
+    const ms = m[2] === "s" ? Number(m[1]) * 1000 : Number(m[1]);
+    if (ms > DURATION_EXEMPT_MS) n += 1;
+  }
+  return n;
+}
 const HALF_PX = /^\d+\.5px$/;
 const FLUID_FN = /\b(?:clamp|min|max|calc)\(/;
 const IGNORED_VALUES = /^(inherit|initial|unset|revert|revert-layer|none|auto)$/i;
@@ -248,7 +306,7 @@ export type ScanOptions = {
 };
 
 /**
- * Which categories a single declaration violates — rules C1-C6.
+ * Which categories a single declaration violates — rules C1-C6 and C8.
  *
  * Pure and module-level on purpose: the classification is the part that grows
  * as rules are added, and keeping it out of the walker means a new rule never
@@ -320,6 +378,9 @@ export function classifyDecl(prop: string, value: string, floorPx: number): CssC
 
   // --- Rule C6: raw hex in a non-custom-property declaration -----------------
   for (const _m of value.matchAll(HEX_LITERAL)) out.push("hex");
+
+  // --- Rule C8: raw transition/animation duration ----------------------------
+  for (let i = countRawDurations(prop, value); i > 0; i -= 1) out.push("duration");
 
   return out;
 }

@@ -96,6 +96,19 @@ const HERO_STATES: HeroState[] = [
 
 const CYCLE_MS = 2600;
 
+/**
+ * The hero card's edge-on turn, in milliseconds.
+ *
+ * COUPLED TO CSS: the turn itself is `.lp-hcard { transition: transform … }`
+ * in app/globals.css, which reads --motion-slow (300ms) after the MOT-1 token
+ * migration collapsed its old 0.28s into the motion scale. The flip timers
+ * below must fire just BEYOND this — a timer that fires mid-turn swaps the
+ * face while it is still visible. A setTimeout cannot read a CSS custom
+ * property, so this is a hand-maintained pair: change --motion-slow, change
+ * this constant.
+ */
+const TURN_MS = 300;
+
 function prefersReducedMotion(): boolean {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return false;
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -192,9 +205,9 @@ export function LandingHero({ qrSvg, publicHref, publicToken }: LandingHeroProps
       el.style.transform = "rotateY(0deg)";
       const t2 = setTimeout(() => {
         flippingRef.current = false;
-      }, 300);
+      }, TURN_MS + 20);
       flipTimersRef.current.push(t2);
-    }, 290);
+    }, TURN_MS + 10);
     flipTimersRef.current.push(t1);
   }, [stopCycle]);
 

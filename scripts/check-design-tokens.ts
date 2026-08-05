@@ -40,7 +40,7 @@
 // scripts/codemod-status-tints.cjs (hex tints → ln-* tokens).
 // Add new mappings to those scripts when this guard catches a pattern they don't yet cover.
 //
-// Rules C1-C7 apply the same idea to .css files (see scripts/css-token-scan.ts),
+// Rules C1-C8 apply the same idea to .css files (see scripts/css-token-scan.ts),
 // under their own ratchet baseline: scripts/design-tokens-css-baseline.json.
 //
 // Note: .css files USED to be outside every fence, and this comment used to say
@@ -48,7 +48,7 @@
 // property of the file rather than a hole in the guard. It was a hole: the file
 // that DEFINES the typographic scale ignored it in 96% of its own font-size
 // declarations, and three measured defects came in through it (RA-10,
-// 2026-07-31). Rules C1-C7 close it. Regenerate the CSS baseline with:
+// 2026-07-31). Rules C1-C8 close it. Regenerate the CSS baseline with:
 //   pnpm tsx scripts/check-design-tokens.ts --write-css-baseline
 //
 // components/ui/** is now INCLUDED — the exclusion was removed per Wave-3 audit
@@ -323,12 +323,12 @@ function loadBaseline(): BaselineFile["files"] {
 }
 
 // ---------------------------------------------------------------------------
-// CSS ratchet (rules C1–C7) — scripts/design-tokens-css-baseline.json
+// CSS ratchet (rules C1–C8) — scripts/design-tokens-css-baseline.json
 //
 // A SEPARATE file from design-tokens-baseline.json on purpose. The JSX baseline
 // is rewritten wholesale by scripts/generate-design-tokens-baseline.mjs, which
 // knows nothing about CSS; sharing one file would let a routine JSX regenerate
-// silently delete the CSS baseline and un-ratchet all of rules C1–C7.
+// silently delete the CSS baseline and un-ratchet all of rules C1–C8.
 //
 // Keys are `<path>#<bucket>` — `app/globals.css#lp` and `app/globals.css#core`
 // are counted independently. See the CssBucket docstring in css-token-scan.ts
@@ -375,7 +375,7 @@ function writeCssBaseline(): void {
       generatedAt: new Date().toISOString().slice(0, 10),
       totalViolations: total,
       description:
-        "Ratchet baseline for the CSS half of the design-token fence (rules C1–C7 in " +
+        "Ratchet baseline for the CSS half of the design-token fence (rules C1–C8 in " +
         "scripts/css-token-scan.ts). Keys are `<path>#<bucket>`; `.lp` (the landing) is " +
         "counted separately from the rest of the sheet. These counts are GRANDFATHERED " +
         "debt, not a target — lower them as declarations migrate to tokens, never raise " +
@@ -422,7 +422,7 @@ function checkCssRatchet(): number {
     }
   }
 
-  cssRatchetSummary = `  CSS ratchet: ${grandfathered} grandfathered raw values across ${Object.keys(baseline).length} bucket(s) in ${CSS_FILES.length} stylesheet(s) (rules C1–C7). New violations will fail.`;
+  cssRatchetSummary = `  CSS ratchet: ${grandfathered} grandfathered raw values across ${Object.keys(baseline).length} bucket(s) in ${CSS_FILES.length} stylesheet(s) (rules C1–C8). New violations will fail.`;
   return failures;
 }
 
@@ -611,7 +611,7 @@ function runChecks(): void {
     }
   }
 
-  // --- Rules C1–C7 (CSS ratchet) ---
+  // --- Rules C1–C8 (CSS ratchet) ---
   hits += checkCssRatchet();
 
   if (hits > 0) {

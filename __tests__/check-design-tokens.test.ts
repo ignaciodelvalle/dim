@@ -203,7 +203,7 @@ describe("undefined ln-op-* token guard — silent-invisible class", () => {
 });
 
 // ===========================================================================
-// Rules C1–C7 — the CSS half of the fence (scripts/css-token-scan.ts).
+// Rules C1–C8 — the CSS half of the fence (scripts/css-token-scan.ts).
 //
 // Until 2026-07-31 the fence globbed only {app,components}/**/*.{ts,tsx}, so
 // all four stylesheets in the repo — including the 4184-line app/globals.css
@@ -386,6 +386,60 @@ describe("rules C5/C6 — box-shadow and raw hex", () => {
       "hex",
       "hex",
     ]);
+  });
+});
+
+describe("rule C8 — raw transition/animation duration", () => {
+  it("flags a raw duration in either longhand", () => {
+    expect(categoriesOf(".a { transition-duration: 200ms; }")).toEqual(["duration"]);
+    expect(categoriesOf(".a { animation-duration: 0.4s; }")).toEqual(["duration"]);
+  });
+
+  it("flags every literal in a shorthand, not just the first", () => {
+    // Two values a later edit can drift apart independently — counting the
+    // declaration once would let a half-migrated shorthand read as clean.
+    expect(
+      categoriesOf(".a { transition: opacity 150ms ease-out, transform 180ms ease-out; }"),
+    ).toEqual(["duration", "duration"]);
+  });
+
+  it("does NOT flag the token form", () => {
+    expect(categoriesOf(".a { transition: opacity var(--motion-fast) ease-out; }")).toEqual([]);
+    expect(
+      categoriesOf(".a { animation: skeleton-sweep var(--motion-ambient) linear infinite; }"),
+    ).toEqual([]);
+  });
+
+  it("still catches a half-migrated shorthand", () => {
+    expect(categoriesOf(".a { transition: opacity var(--motion-fast), transform 200ms; }")).toEqual(
+      ["duration"],
+    );
+  });
+
+  it("does NOT flag `none`, zero, or the prefers-reduced-motion floor", () => {
+    expect(categoriesOf(".a { transition: none; }")).toEqual([]);
+    expect(categoriesOf(".a { transition: opacity 0s; }")).toEqual([]);
+    // The 0.01ms floor is the OFF SWITCH for the whole motion system, not a
+    // step on the scale — baselining it would park a permanently-unfixable
+    // violation in the ratchet.
+    expect(categoriesOf("* { animation-duration: 0.01ms !important; }")).toEqual([]);
+  });
+
+  it("does NOT flag a DELAY — a cadence is not a step on the motion scale", () => {
+    expect(categoriesOf(".a { transition-delay: 80ms; }")).toEqual([]);
+    expect(categoriesOf(".a { transition-delay: calc(var(--d, 0) * 80ms); }")).toEqual([]);
+  });
+
+  it("does NOT read an identifier as a duration", () => {
+    // A keyframes name ending in a digit, and the easing keywords, both sit
+    // next to the duration slot in the shorthand grammar.
+    expect(categoriesOf(".a { animation: fade2s var(--motion-fast) ease-in-out both; }")).toEqual(
+      [],
+    );
+  });
+
+  it("does NOT flag the token DEFINITION — that is where raw values belong", () => {
+    expect(categoriesOf(":root { --motion-base: 180ms; }")).toEqual([]);
   });
 });
 
