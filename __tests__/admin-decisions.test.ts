@@ -41,6 +41,11 @@ const VET2_EMAIL = "admin-dec-vet2@dim-test.local";
 const ORG_EMAIL = "admin-dec-org@dim-test.local";
 const GOVT_EMAIL = "admin-dec-govt@dim-test.local";
 const ADMIN_EMAIL = "admin-dec-admin@dim-test.local";
+// Dedicated applicant for the scope-enforcement block. It MUST NOT be shared
+// with the approval blocks above: those promote their applicant to role='vet',
+// and a user who is already a vet cannot submit a new vet-upgrade petition — so
+// a shared applicant silently leaves the scope test with nothing to decide.
+const SCOPE_EMAIL = "admin-dec-scope@dim-test.local";
 const PASS = "AdminDec_2026!";
 
 let vetApplicantId: string;
@@ -48,6 +53,7 @@ let vet2ApplicantId: string;
 let orgApplicantId: string;
 let govtUserId: string;
 let adminUserId: string;
+let scopeApplicantId: string;
 
 async function deleteTestUser(email: string) {
   const { data: list } = await admin.auth.admin.listUsers();
@@ -103,7 +109,7 @@ async function deleteTestUser(email: string) {
 }
 
 beforeAll(async () => {
-  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL, SCOPE_EMAIL]) {
     await deleteTestUser(email);
   }
 
@@ -112,6 +118,7 @@ beforeAll(async () => {
   orgApplicantId = await createTestUser(ORG_EMAIL);
   govtUserId = await createTestUser(GOVT_EMAIL);
   adminUserId = await createTestUser(ADMIN_EMAIL);
+  scopeApplicantId = await createTestUser(SCOPE_EMAIL);
 
   await db
     .update(profiles)
@@ -127,6 +134,7 @@ beforeAll(async () => {
         eq(profiles.id, vetApplicantId),
         eq(profiles.id, vet2ApplicantId),
         eq(profiles.id, orgApplicantId),
+        eq(profiles.id, scopeApplicantId),
       ),
     );
 });
@@ -142,7 +150,7 @@ async function createTestUser(email: string): Promise<string> {
 }
 
 afterAll(async () => {
-  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL, SCOPE_EMAIL]) {
     await deleteTestUser(email);
   }
 });
@@ -465,30 +473,45 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
       grantedByUserId: adminUserId,
     });
 
-    // Create a fresh request in CABA.
-    const submit = await requestVetUpgradeForUser(vetApplicantId, {
+    // Create a fresh request in CABA — from an applicant NOBODY promoted.
+    // This used to reuse vetApplicantId, whom the first describe block turns
+    // into role='vet'; the submit then failed, an `if (!submit.ok) return`
+    // swallowed it, and the only assertion in this file's scope coverage never
+    // ran. A failed submit is now a FAILURE: without a pending request there is
+    // no out-of-scope decision to reject and the test proves nothing.
+    const submit = await requestVetUpgradeForUser(scopeApplicantId, {
       matriculaNumber: "MN-OUT1000",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
       operationalLocality: "Colegiales",
     });
-    // vetApplicantId already has role='vet' from earlier test — that
-    // blocks the new submission. Skip if so.
-    if (!submit.ok) return;
+    expect(submit.ok, "the scope test needs a real pending request to decide").toBe(true);
 
     const [req] = await db
-      .select({ publicToken: approvalRequests.publicToken })
+      .select({ publicToken: approvalRequests.publicToken, id: approvalRequests.id })
       .from(approvalRequests)
       .where(
         and(
-          eq(approvalRequests.applicantUserId, vetApplicantId),
+          eq(approvalRequests.applicantUserId, scopeApplicantId),
           eq(approvalRequests.jurisdictionLocality, "Colegiales"),
         ),
       )
       .limit(1);
+    expect(req, "the CABA/Colegiales request must exist before it can be denied").toBeDefined();
 
     const result = await approveRequestForAuthority(govtUserId, req.publicToken, null);
     expect("error" in result && result.error).toMatch(/permiso|jurisdicc/i);
+
+    // The denial is not just a message: the request must be UNTOUCHED — an
+    // out-of-scope authority that returns an error while still flipping the row
+    // would pass the assertion above.
+    const [row] = await db
+      .select({ status: approvalRequests.status, decidedByUserId: approvalRequests.decidedByUserId })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, req.id))
+      .limit(1);
+    expect(row.status).toBe("pending");
+    expect(row.decidedByUserId).toBeNull();
   });
 });
 
