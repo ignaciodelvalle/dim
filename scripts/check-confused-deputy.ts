@@ -58,6 +58,7 @@ import {
   isInnerWriter,
   listActionFiles,
 } from "./check-authz-guards";
+import { stripComments } from "./lib/strip-comments.mjs";
 
 // ---------------------------------------------------------------------------
 // Org-token-shaped signature params. A typed param with one of these names
@@ -79,16 +80,19 @@ export const FOR_ORG_TOKEN_RE = /requireCapabilityForOrgToken\s*\(/;
 
 const ORG_TOKEN_PARAM_RE = new RegExp(`\\b(?:${ORG_TOKEN_PARAMS.join("|")})\\b`);
 
-// Strip comments so a bare `requireCapability("cap")` written in a doc comment
-// (e.g. "requireCapability(...) alone resolves the session default — so we pin
-// it") is never mistaken for a real call. `://` in string URLs is preserved so
-// line-comment stripping does not truncate paths like "https://…". Regex
-// approximation, matching the sibling linters — good enough for this surface.
-export function stripComments(body: string): string {
-  return body
-    .replace(/\/\*[\s\S]*?\*\//g, " ") // block comments
-    .replace(/(^|[^:])\/\/[^\n]*/g, "$1"); // line comments (not inside `://`)
-}
+// Comments are stripped so a bare `requireCapability("cap")` written in a doc
+// comment (e.g. "requireCapability(...) alone resolves the session default — so
+// we pin it") is never mistaken for a real call.
+//
+// CONSOLIDATED 2026-08-05 onto the shared stripper (scripts/lib/strip-comments.mjs),
+// which the sibling fences already use. The copy this replaces was a two-regex
+// approximation with a `[^:]` hack to avoid truncating `https://…`; that hack
+// covers a URL but not a string containing `//` for any other reason, and a
+// stripper that deletes real code makes a fence fail OPEN. The shared version
+// tracks string and template literals properly and substitutes whitespace 1:1,
+// so it is strictly stricter here. It is re-exported under this file's name
+// because that is the import path this fence's callers have always used.
+export { stripComments };
 
 // Documented-safe offenders: `"<relPath>#<name>"` → reason. Use ONLY when the
 // action is a genuine org-token confused-deputy shape but is intentionally out

@@ -33,11 +33,20 @@
 // CONSOLIDATED: check-copy-contract.ts, check-scope-discipline.ts, and
 // check-event-payload-parity.ts used to carry their own byte-identical copy
 // of this state machine; all three now re-export stripComments from here —
-// tsx resolves .mjs from .ts without ceremony. check-confused-deputy.ts is
-// NOT one of these: its stripComments diverged to a regex-replace
-// approximation (deletes comments outright rather than substituting
-// whitespace 1:1), so it does not preserve line numbers the way this
-// character-scanning version does and is intentionally left independent.
+// tsx resolves .mjs from .ts without ceremony.
+//
+// 2026-08-05 — the last two holdouts joined them: check-router-refresh.ts and
+// check-confused-deputy.ts. Both had DIVERGED rather than merely duplicated,
+// and both diverged in the same direction — toward deleting real code:
+//   - check-router-refresh.ts scanned line by line and cut at the first `//`
+//     WHEREVER it appeared, string literals included, so
+//     `logUrl("a//b"); router.push("/x")` lost its call site.
+//   - check-confused-deputy.ts used two regex replaces with a `[^:]` guard so
+//     `https://…` survived; any other `//` inside a string did not.
+// A stripper that removes live code makes its fence fail OPEN, which is the
+// one failure mode a fence must not have. This version tracks string and
+// template literals, so it is strictly the stricter of the three, and both
+// files now re-export it under their own names for their existing callers.
 
 /**
  * Replace every comment in `src` with equivalent whitespace.
