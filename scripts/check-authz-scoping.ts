@@ -74,6 +74,7 @@ import {
   isInnerWriter,
   listActionFiles,
 } from "./check-authz-guards";
+import { stripComments } from "./lib/strip-comments.mjs";
 
 // ---------------------------------------------------------------------------
 // Tenant/authority guards — establish authority beyond the caller's own
@@ -106,6 +107,15 @@ export const TENANT_GUARDS = [
 // re-check). Deliberately generous: in baseline mode a false "scoped" only
 // means an action is NOT flagged, and the goal is to catch the ZERO-scoping
 // actions, not to grade scoping quality.
+//
+// GENEROUS IS NOT THE SAME AS FICTIONAL (2026-08-05). These patterns are matched
+// against the action's body with COMMENTS STRIPPED, and they are structural.
+// Before that they ran over raw source and the list led with a bare
+// `/jurisdiction/i` — an unbounded, case-insensitive substring. The word
+// "jurisdiction" written in ANY comment inside a function therefore satisfied
+// the scoping check, and this file's own doctrine is written in exactly such
+// comments. That is the worst failure mode a fence has: it did not merely miss
+// violations, it rewarded documenting the rule with an exemption from it.
 // ---------------------------------------------------------------------------
 export const SCOPING_MARKERS: readonly RegExp[] = [
   // Tenant / ownership predicate columns.
@@ -118,7 +128,20 @@ export const SCOPING_MARKERS: readonly RegExp[] = [
   /session\.jurisdictions/,
   /jurisdictions\.some/,
   /\.province\b/,
-  /jurisdiction/i,
+  // Structural jurisdiction signals, replacing the bare `/jurisdiction/i`:
+  //   - a jurisdiction COLUMN/PROPERTY: jurisdictionProvince, jurisdictionLocality,
+  //     pet.jurisdictionCountry;
+  //   - a jurisdictions PROPERTY ACCESS: session.jurisdictions, row.jurisdictions;
+  //   - a `jurisdictions` BINDING threaded into a scoped query — destructured from
+  //     the guard result or passed as an argument (`, jurisdictions)`, `jurisdictions }`);
+  //   - a CALL SITE whose name carries the concept: normalizeJurisdiction(),
+  //     resolveJurisdiction(), narrowGovtScope(), authorityScopeFromSession().
+  /\bjurisdiction[A-Z]\w*/,
+  /\.jurisdictions\b/,
+  /\bjurisdictions\b\s*[,)\]}]/,
+  /\b\w*[Jj]urisdiction\w*\s*\(/,
+  /\bnarrowGovtScope\s*\(/,
+  /\bauthorityScopeFromSession\s*\(/,
   /\blocality\b/i,
   /localidad/i,
   // Capability/authority resolution pinned to a specific org id, plus the
@@ -136,14 +159,21 @@ export function callsTenantGuard(body: string): boolean {
   return TENANT_GUARDS.some((g) => new RegExp(`\\b${g}\\s*\\(`).test(body));
 }
 
+/**
+ * Both questions this file asks — "is there a tenant guard?" and "is there a
+ * scoping predicate?" — are questions about CODE. Callers pass raw source, so
+ * comments are stripped here, once, rather than at each call site.
+ */
 export function hasScopingMarker(body: string): boolean {
-  return SCOPING_MARKERS.some((re) => re.test(body));
+  const code = stripComments(body);
+  return SCOPING_MARKERS.some((re) => re.test(code));
 }
 
 export function isScopingOffender(fn: ExportedFn): boolean {
   if (isInnerWriter(fn.name)) return false;
   if (fn.hasNoAuthComment) return false;
-  if (!callsTenantGuard(fn.body)) return false;
+  // A guard named in a comment is not a guard either — same reason.
+  if (!callsTenantGuard(stripComments(fn.body))) return false;
   return !hasScopingMarker(fn.body);
 }
 
