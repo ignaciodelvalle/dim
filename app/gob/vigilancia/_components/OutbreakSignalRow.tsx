@@ -57,7 +57,10 @@ export function OutbreakSignalRow({ signal, highlighted = false }: OutbreakSigna
       id={`signal-${signal.signalEventId}`}
       aria-current={highlighted ? "true" : undefined}
       className={[
-        "border-b border-ln-op-line-2 last:border-b-0 scroll-mt-24",
+        // CSS-8: capped at 500 rows with no virtualization — content-visibility
+        // rows stay reachable by id/scrollIntoView (the ?signalId= deep-link
+        // this component's own id anchors) and by in-page find.
+        "op-lazy-row border-b border-ln-op-line-2 last:border-b-0 scroll-mt-24",
         highlighted ? "rounded-[var(--radius-md)] bg-ln-op-stripe ring-2 ring-ln-op-azul" : "",
       ].join(" ")}
     >

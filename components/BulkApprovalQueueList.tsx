@@ -240,7 +240,11 @@ export function BulkApprovalQueueList({
               // Kept as a raw <li>, NOT CaseQueue itself — see the file-level
               // note below the imports for why forcing CaseQueue here would
               // regress the bulk-selection UX this screen depends on.
-              className={`rounded-[var(--radius-md)] border px-4 py-3 flex items-start gap-3 transition-colors ${
+              //
+              // CSS-8: capped at 200 rows (COLA_PAGE_LIMIT, also served on
+              // /admin/cola) with no virtualization — content-visibility
+              // skips off-screen rows.
+              className={`op-lazy-row rounded-[var(--radius-md)] border px-4 py-3 flex items-start gap-3 transition-colors ${
                 isSelected
                   ? "border-ln-op-line bg-ln-op-blue-bg"
                   : "border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe"

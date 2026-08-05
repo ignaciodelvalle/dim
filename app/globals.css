@@ -725,6 +725,40 @@ body {
   background: transparent;
 }
 
+/* ---- Long capped operator lists: lazy row containment (CSS-8, panorama/CSS
+   audit 2026-08-04) -------------------------------------------------------- */
+/* No virtualization library exists in the repo (verified against
+ * package.json), so admin/observaciones, gob/vigilancia/brotes and
+ * gob/perdidas (capped at 500 rows — PO-confirmed real, not theoretical:
+ * /gob/perdidas with the "todas" filter genuinely renders all 500) and
+ * org/mascotas and gob/cola (capped at 200) lay out and paint every row on
+ * first render, even the ones below the fold. `content-visibility: auto`
+ * skips layout/paint work for off-screen rows — the same pattern already
+ * proven in production at `.lp-ch-device` above.
+ *
+ * TABLE ROWS ARE EXCLUDED ON PURPOSE: CSS containment does not reliably apply
+ * to `<tr>`/`<tbody>` internals, so this is scoped to block-level `<li>` rows
+ * only (MapDataTable / PanoramaDataTable use `table-layout: fixed` instead —
+ * CSS-5). `auto` (never `hidden`) keeps skipped rows fully reachable by
+ * in-page find (Ctrl+F), `id` anchors and `Element.scrollIntoView()` — the
+ * UA is specified to un-skip a row on demand for exactly those operations,
+ * which is what the OutbreakSignalRow `?signalId=` deep-link relies on.
+ *
+ * `contain-intrinsic-size: auto <estimate>px` only sizes the FIRST paint's
+ * placeholder — `auto` means the browser remembers each row's real height
+ * after it is first rendered, so a rough estimate only affects the initial
+ * scrollbar length, never a persistent number. Two estimates: the compact
+ * 2-3 line rows (observaciones / brotes / perdidas / cola) and the taller
+ * org/mascotas card (checkbox + name + badges + meta + a CTA row). */
+.op-lazy-row {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 110px;
+}
+.op-lazy-row-lg {
+  content-visibility: auto;
+  contain-intrinsic-size: auto 190px;
+}
+
 /* =============================================================================
    Landing pública (miMAR) — lp-* layer
    Layout glue ported from docs/design_handoff_landing (theme.css / v2.css /
@@ -923,27 +957,36 @@ body {
   opacity: 1;
   transform: none;
 }
+/* CSS-7 (panorama/CSS audit 2026-08-04): six hardcoded `transition-delay`
+ * rules (0.08s * data-d, data-d 1..6 — life-moment cards 1..6, FAQ items
+ * 1..5, the hero/empezar/bond-band beats) unified into one 80ms-per-step
+ * formula. `--d` is set per step (still keyed off the existing `data-d`
+ * attribute the 13 JSX call sites already render — none of them change);
+ * the multiplier now lives in exactly one place instead of six. A plain
+ * `attr(data-d type(<number>))` read straight into the calc() would delete
+ * these six lines too, but that CSS Values 5 feature is not reliably
+ * supported across this product's target browsers yet — not worth the
+ * gamble for a change the audit itself scores as zero visual difference. */
 .lp.lp-motion .lp-reveal[data-d="1"] {
-  transition-delay: 0.08s;
+  --d: 1;
 }
 .lp.lp-motion .lp-reveal[data-d="2"] {
-  transition-delay: 0.16s;
+  --d: 2;
 }
 .lp.lp-motion .lp-reveal[data-d="3"] {
-  transition-delay: 0.24s;
+  --d: 3;
 }
 .lp.lp-motion .lp-reveal[data-d="4"] {
-  transition-delay: 0.32s;
+  --d: 4;
 }
-/* steps 5–6: same mechanism, two more beats — added for the per-card entrance
-   sequencing of the flat sections (life-moment cards 1..6, FAQ items 1..5).
-   Deliberately the same 0.08s cadence; this is choreography, not new
-   animation vocabulary. */
 .lp.lp-motion .lp-reveal[data-d="5"] {
-  transition-delay: 0.4s;
+  --d: 5;
 }
 .lp.lp-motion .lp-reveal[data-d="6"] {
-  transition-delay: 0.48s;
+  --d: 6;
+}
+.lp.lp-motion .lp-reveal {
+  transition-delay: calc(var(--d, 0) * 80ms);
 }
 @media (prefers-reduced-motion: reduce) {
   .lp.lp-motion .lp-reveal {

@@ -310,7 +310,11 @@ export function OrgMascotasBulkList({
             return (
               <li
                 key={card.petId}
-                className={`rounded-[var(--radius-md)] border p-3 space-y-2 ${
+                // CSS-8: capped at 200 rows (CUSTODY_LIST_CAP) with no
+                // virtualization — content-visibility skips off-screen rows.
+                // The taller estimate (op-lazy-row-lg): this card carries a
+                // CTA row the compact list rows elsewhere don't.
+                className={`op-lazy-row-lg rounded-[var(--radius-md)] border p-3 space-y-2 ${
                   isSelected
                     ? "border-ln-op-azul bg-ln-op-blue-bg"
                     : "border-ln-op-line bg-ln-op-card"

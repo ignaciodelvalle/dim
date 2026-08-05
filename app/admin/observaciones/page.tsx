@@ -351,7 +351,9 @@ export default async function ObservacionesPage({
               : null;
           const dueBadge = due && due.state !== "onTime" ? dueDateBadge(due) : null;
           return (
-            <li key={r.petId}>
+            // CSS-8: capped at 500 rows (OBSERVACIONES_ROW_LIMIT) with no
+            // virtualization — content-visibility:auto skips off-screen rows.
+            <li key={r.petId} className="op-lazy-row">
               <OpCard>
                 <OpCardBody>
                   <div className="flex items-start justify-between gap-3">
