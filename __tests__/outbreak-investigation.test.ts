@@ -385,7 +385,7 @@ describe("addInvestigationNoteAction", () => {
       entryType: "system",
       notes: "Nota de usuario fuera de scope.",
     });
-    expect(result).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(result).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 
   it("rejects out-of-scope govt user (same province, wrong locality)", async () => {
@@ -397,7 +397,7 @@ describe("addInvestigationNoteAction", () => {
       entryType: "system",
       notes: "Nota de usuario con provincia correcta pero localidad incorrecta.",
     });
-    expect(result).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(result).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 
   it("admin bypasses jurisdiction check", async () => {
@@ -450,7 +450,7 @@ describe("closeInvestigationAction", () => {
       outcome: "resolved",
       reason: "Investigacion cerrada con exito.",
     });
-    expect(result).toMatchObject({ error: expect.stringContaining("informe epidemiologico") });
+    expect(result).toMatchObject({ error: expect.stringContaining("informe epidemiológico") });
   });
 
   it("SUCCEEDS close-resolved with inline final report text", async () => {
@@ -693,7 +693,7 @@ describe("escalateInvestigationAction", () => {
       casePublicCode: openResult.publicCode,
       reason: "Intento de escalada desde jurisdiccion erronea, deberia ser rechazado.",
     });
-    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 
   it("rejects escalation from same province but wrong locality", async () => {
@@ -716,6 +716,6 @@ describe("escalateInvestigationAction", () => {
       casePublicCode: openResult.publicCode,
       reason: "Intento de escalada desde localidad incorrecta dentro de la misma provincia.",
     });
-    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 });
