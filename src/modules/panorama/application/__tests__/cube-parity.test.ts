@@ -65,6 +65,66 @@ function normFeatures(result: LayerFeaturesResult): string[] {
     .sort();
 }
 
+/**
+ * A department/barrio cell as it reaches the map. CABA barrios carry no
+ * departmentCode, so they key by province+locality instead.
+ */
+type CellProps = {
+  departmentCode?: string | null;
+  province?: string;
+  locality?: string;
+  value?: number | null;
+  suppressed?: boolean;
+};
+
+const cellKey = (p: CellProps) =>
+  p.departmentCode ? `d:${p.departmentCode}` : `b:${p.province ?? ""}:${p.locality ?? ""}`;
+
+function indexCells(r: LayerFeaturesResult): Map<string, CellProps> {
+  const m = new Map<string, CellProps>();
+  for (const f of r.features.features) {
+    const p = (f.properties ?? {}) as CellProps;
+    m.set(cellKey(p), p);
+  }
+  return m;
+}
+
+/**
+ * Ways a SERVED surface can break the k-anonymity floor: a readable sub-k
+ * value, or a cell labelled suppressed that still ships its number. Empty is
+ * the only acceptable answer, on both the cube and the live side.
+ */
+function privacyFloorBreaks(side: string, byKey: Map<string, CellProps>): string[] {
+  const breaks: string[] = [];
+  for (const [key, p] of byKey) {
+    if (p.suppressed) {
+      if (p.value != null) breaks.push(`${side} ${key}: suppressed but carries ${p.value}`);
+    } else if (typeof p.value === "number" && p.value > 0 && p.value < 5) {
+      breaks.push(`${side} ${key}: readable sub-k value ${p.value}`);
+    }
+  }
+  return breaks;
+}
+
+/**
+ * Departments the CUBE suppresses while the LIVE path serves them readable —
+ * the one direction the superset can never justify (the cube's value is ≥
+ * live's, so it can only ever RELAX the floor).
+ */
+function overSuppressedByCube(
+  liveByKey: Map<string, CellProps>,
+  cubeByKey: Map<string, CellProps>,
+): string[] {
+  const out: string[] = [];
+  for (const [key, lp] of liveByKey) {
+    const cp = cubeByKey.get(key);
+    if (cp && !lp.suppressed && cp.suppressed) {
+      out.push(`${key}: live value ${lp.value} readable, cube suppressed`);
+    }
+  }
+  return out;
+}
+
 const prevFlag = process.env.CUBE_READS;
 
 beforeAll(async () => {
@@ -147,26 +207,8 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     expect(cubeResult.truncated).toBe(false); // seed: no province build was capped
     expect(live.truncated).toBe(true);
 
-    // Key each department cell (CABA barrios carry no departmentCode → key by name).
-    type CellProps = {
-      departmentCode?: string | null;
-      province?: string;
-      locality?: string;
-      value?: number | null;
-      suppressed?: boolean;
-    };
-    const keyOf = (p: CellProps) =>
-      p.departmentCode ? `d:${p.departmentCode}` : `b:${p.province ?? ""}:${p.locality ?? ""}`;
-    const index = (r: LayerFeaturesResult) => {
-      const m = new Map<string, CellProps>();
-      for (const f of r.features.features) {
-        const p = (f.properties ?? {}) as CellProps;
-        m.set(keyOf(p), p);
-      }
-      return m;
-    };
-    const liveByKey = index(live);
-    const cubeByKey = index(cubeResult);
+    const liveByKey = indexCells(live);
+    const cubeByKey = indexCells(cubeResult);
 
     // (1) COVERAGE SUPERSET: every department visible live is present in the cube
     // (the cube only ever ADDS the departments the live PER_LAYER_CAP truncation
@@ -200,14 +242,8 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     // back suppressed from the cube. The cube's value is ≥ live's on every
     // overlapping cell ((3) below), so the cube can only ever RELAX the floor —
     // over-suppression means the builder's floor drifted from the live path's.
-    const overSuppressed = [...liveByKey.entries()]
-      .filter(([key, lp]) => {
-        const cp = cubeByKey.get(key);
-        return cp != null && !lp.suppressed && Boolean(cp.suppressed);
-      })
-      .map(([key, lp]) => `${key}: live value ${lp.value} readable, cube suppressed`);
     expect(
-      overSuppressed,
+      overSuppressedByCube(liveByKey, cubeByKey),
       "the cube suppressed a department the live path serves readable — the k-anonymity floor drifted between builder and loader",
     ).toEqual([]);
 
@@ -216,21 +252,8 @@ describe("cube == live parity (5 metrics; national+province + whole-province dri
     // actually withholds its number. This is what catches the other direction —
     // a builder that stops suppressing sub-k cells, or one that labels a cell
     // "suppressed" while still shipping the value.
-    const floorBreaks: string[] = [];
-    for (const [side, byKey] of [
-      ["live", liveByKey],
-      ["cube", cubeByKey],
-    ] as const) {
-      for (const [key, p] of byKey) {
-        if (p.suppressed) {
-          if (p.value != null) floorBreaks.push(`${side} ${key}: suppressed but carries ${p.value}`);
-        } else if (typeof p.value === "number" && p.value > 0 && p.value < 5) {
-          floorBreaks.push(`${side} ${key}: readable sub-k value ${p.value}`);
-        }
-      }
-    }
     expect(
-      floorBreaks,
+      [...privacyFloorBreaks("live", liveByKey), ...privacyFloorBreaks("cube", cubeByKey)],
       "the served national+department surface breaks the privacy floor (sub-k readable, or a suppressed cell still carrying its value)",
     ).toEqual([]);
 

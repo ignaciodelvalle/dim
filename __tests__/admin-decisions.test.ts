@@ -506,7 +506,10 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
     // out-of-scope authority that returns an error while still flipping the row
     // would pass the assertion above.
     const [row] = await db
-      .select({ status: approvalRequests.status, decidedByUserId: approvalRequests.decidedByUserId })
+      .select({
+        status: approvalRequests.status,
+        decidedByUserId: approvalRequests.decidedByUserId,
+      })
       .from(approvalRequests)
       .where(eq(approvalRequests.id, req.id))
       .limit(1);
