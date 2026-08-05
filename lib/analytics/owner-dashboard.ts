@@ -69,7 +69,7 @@ import {
   type ReservedRabiesTurno,
   deriveComplianceState,
 } from "@/lib/projections/pet-compliance";
-import { lostReportedTitle, requestOutcomeLabel } from "@/lib/utils/format";
+import { formatWeightKg, lostReportedTitle, requestOutcomeLabel } from "@/lib/utils/format";
 import { TERMINAL_STATUSES } from "@/src/modules/welfare/domain/welfare-status-rules";
 
 // ---------------------------------------------------------------------------
@@ -1857,8 +1857,8 @@ function deriveEventSummary(eventType: string, payload: Record<string, unknown>)
     case "medication_started":
       return str(payload.drug_name);
     case "weight_recorded": {
-      const kg = str(payload.kg);
-      return kg ? `${kg} kg` : null;
+      // Owner-facing preview — es-AR comma, not the stored dot.
+      return formatWeightKg(str(payload.kg));
     }
     case "vet_visit_logged":
       // diagnosis is the headline when present; otherwise the visit reason.

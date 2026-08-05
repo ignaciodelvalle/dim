@@ -1329,6 +1329,31 @@ export function formatDelta(
   return `${fmt.format(value)}${unit}`;
 }
 
+/**
+ * es-AR pet weight WITH its unit: `"12,5 kg"`, `"22,75 kg"`, `"9 kg"`.
+ *
+ * Weight is the one measurement that reaches a CITIZEN surface — the owner
+ * timeline and the printable libreta sanitaria — and it arrives as the STRING
+ * the `weight_recorded` payload stores (`{ kg: "12.50" }`, produced by
+ * `toFixed(2)` in src/modules/events/actions.ts). Both call sites used to
+ * interpolate that string raw, so an Argentine libreta printed "12.50 kg" with
+ * an English decimal point, and two tests asserted that output as correct.
+ *
+ * Formatting rules:
+ *  - Comma decimal separator (`es-AR`), like every other number in the app.
+ *  - Up to 2 decimals, and NO padding zeros: the stored "12.50" is 12,5 — the
+ *    second decimal is an artefact of the storage format, not a measurement.
+ *  - Non-numeric / non-finite input → `null`, so a caller can omit the row
+ *    rather than print "NaN kg". (Unlike the KPI helpers, whose "—" makes
+ *    sense inside a fixed tile grid, this one appears mid-sentence.)
+ */
+export function formatWeightKg(value: string | number | null | undefined): string | null {
+  if (value == null) return null;
+  const n = typeof value === "number" ? value : Number(String(value).trim().replace(",", "."));
+  if (!Number.isFinite(n)) return null;
+  return `${new Intl.NumberFormat("es-AR", { maximumFractionDigits: 2 }).format(n)} kg`;
+}
+
 // ---------------------------------------------------------------------------
 // Spanish pluralization (Wave M)
 // ---------------------------------------------------------------------------

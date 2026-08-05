@@ -3,7 +3,7 @@ import { sql } from "drizzle-orm";
 import type { EventType } from "@/db/schema";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { findDisease } from "@/lib/reference/diseases";
-import { AR_TIME_ZONE, parseDateInput } from "@/lib/utils/format";
+import { AR_TIME_ZONE, formatWeightKg, parseDateInput } from "@/lib/utils/format";
 import { welfareReportKindLabel } from "@/src/modules/welfare/domain/types";
 
 /**
@@ -126,7 +126,8 @@ export function eventPayloadDetails(
       push("Ubicación", "location_on_body");
       break;
     case "weight_recorded":
-      push("Peso", "kg", (v) => `${v} kg`);
+      // es-AR comma, never the stored "12.50" dot (lib/utils/format.ts).
+      push("Peso", "kg", (v) => formatWeightKg(v) ?? `${v} kg`);
       break;
     case "vet_visit_logged":
       push("Motivo", "reason");
@@ -276,9 +277,9 @@ export function eventPayloadSummary(eventType: string, payload: unknown): EventP
       };
     }
     case "weight_recorded": {
-      const kg = str("kg");
+      const kg = formatWeightKg(str("kg"));
       return {
-        primary: kg ? `Peso: ${kg} kg` : null,
+        primary: kg ? `Peso: ${kg}` : null,
         secondary: null,
       };
     }

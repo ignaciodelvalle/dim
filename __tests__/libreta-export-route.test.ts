@@ -146,7 +146,11 @@ describe("GET /api/mis-mascotas/[publicToken]/libreta-export", () => {
     });
 
     const html = await res.text();
-    expect(html).toContain("12.50 kg");
+    // es-AR comma: the libreta sanitaria is a citizen-facing document. This
+    // assertion used to demand "12.50 kg" — the stored toFixed(2) string
+    // printed raw — so the suite defended the locale bug it should have caught.
+    expect(html).toContain("12,5 kg");
+    expect(html).not.toContain("12.50 kg");
   });
 
   it("prints the AMENDED weight, not the pre-correction value (H7 regression)", async () => {
@@ -189,7 +193,9 @@ describe("GET /api/mis-mascotas/[publicToken]/libreta-export", () => {
     });
 
     const html = await res.text();
-    expect(html).toContain("22.75 kg");
-    expect(html).not.toContain("9.00 kg");
+    expect(html).toContain("22,75 kg"); // es-AR comma; a real 2nd decimal survives
+    expect(html).not.toContain("22.75 kg");
+    expect(html).not.toContain("9,00 kg");
+    expect(html).not.toContain("9 kg");
   });
 });

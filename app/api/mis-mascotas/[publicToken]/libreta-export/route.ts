@@ -31,6 +31,7 @@ import {
   eventTypeLabel,
   formatDate,
   formatDateTimeLegal,
+  formatWeightKg,
   sexLabel,
   speciesLabel,
 } from "@/lib/utils/format";
@@ -66,7 +67,11 @@ function extractEventSummary(event: {
   // pets.estimated_weight_kg column name, a different field entirely). The
   // old `weight_kg` check here never matched, so the PDF silently dropped
   // every weight entry (state-honesty audit, 2nd layer).
-  if (typeof p.kg === "string" && p.kg) parts.push(`${p.kg} kg`);
+  // es-AR comma: the libreta sanitaria is a citizen-facing document and the
+  // payload stores the weight as a toFixed(2) string ("12.50").
+  if (typeof p.kg === "string" && p.kg) {
+    parts.push(formatWeightKg(p.kg) ?? `${p.kg} kg`);
+  }
 
   // Medication
   if (typeof p.drug_name === "string") parts.push(p.drug_name);

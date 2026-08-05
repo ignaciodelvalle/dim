@@ -53,9 +53,23 @@ describe("eventPayloadDetails — curated es-AR whitelist (H3)", () => {
     expect(JSON.stringify(rows)).not.toContain("SECRET");
   });
 
-  it("weight is rendered with its unit", () => {
-    const rows = eventPayloadDetails("weight_recorded", { kg: "12.5" });
-    expect(rows.find((r) => r.label === "Peso")?.value).toBe("12.5 kg");
+  it("weight is rendered with its unit and an es-AR comma (never the stored dot)", () => {
+    // The payload stores kg as a toFixed(2) STRING ("12.50") — an English
+    // decimal point. This assertion used to expect that dot verbatim, so the
+    // test defended the locale bug on a citizen-facing surface.
+    expect(
+      eventPayloadDetails("weight_recorded", { kg: "12.5" }).find((r) => r.label === "Peso")?.value,
+    ).toBe("12,5 kg");
+    // A trailing storage zero is not a measurement — "12.50" is 12,5.
+    expect(
+      eventPayloadDetails("weight_recorded", { kg: "12.50" }).find((r) => r.label === "Peso")
+        ?.value,
+    ).toBe("12,5 kg");
+    // A genuine second decimal survives.
+    expect(
+      eventPayloadDetails("weight_recorded", { kg: "22.75" }).find((r) => r.label === "Peso")
+        ?.value,
+    ).toBe("22,75 kg");
   });
 
   it("unknown event type → []", () => {
