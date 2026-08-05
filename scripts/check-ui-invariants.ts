@@ -235,6 +235,25 @@ export const ACCENT_WORDS_WIDE: Array<{ bad: string; good: string; re: RegExp }>
   { bad: "supero", good: "superó", re: /\bsupero\b/g },
   { bad: "tambien", good: "también", re: /\btambien\b/g },
   { bad: "segun", good: "según", re: /\bsegun\b/g },
+  // Copy audit follow-up (2026-08-05): the surveillance module shipped
+  // "informe epidemiologico final" to a govt operator's screen and "El codigo
+  // de enfermedad no esta en el catalogo ENO." to their error toast. Adjective
+  // forms with no unaccented reading, and English code never names a symbol
+  // `epidemiologico`.
+  { bad: "epidemiologico", good: "epidemiológico", re: /\bepidemiologico\b/g },
+  { bad: "epidemiologica", good: "epidemiológica", re: /\bepidemiologica\b/g },
+  { bad: "Epidemiologico", good: "Epidemiológico", re: /\bEpidemiologico\b/g },
+  { bad: "Epidemiologica", good: "Epidemiológica", re: /\bEpidemiologica\b/g },
+  { bad: "especifico", good: "específico", re: /\bespecifico\b/g },
+  { bad: "Especifico", good: "Específico", re: /\bEspecifico\b/g },
+  // "esta" CANNOT be fenced as a word: unaccented it is the demonstrative
+  // ("esta mascota"), and it is everywhere. Only the PHRASE is decidable — a
+  // demonstrative must be followed by a noun, so "esta" immediately before the
+  // preposition "en" is always the verb "está". `\b` after "en" keeps
+  // "esta entrada" / "esta enfermedad" out (the next char is a word char, so no
+  // boundary). The feminine "especifica" is left out for the same reason: it is
+  // a legitimate unaccented verb form ("él especifica").
+  { bad: "esta en", good: "está en", re: /\besta en\b/g },
 ];
 
 // Lines that should be excluded from accent rule matching:

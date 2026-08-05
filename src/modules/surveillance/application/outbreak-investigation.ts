@@ -135,7 +135,7 @@ export async function openOutbreakInvestigation(
   // 1. Validate disease code.
   const diseaseCode = input.diseaseCode?.trim();
   if (!diseaseCode || !isEnoCode(diseaseCode)) {
-    return { ok: false, error: "El codigo de enfermedad no esta en el catalogo ENO." };
+    return { ok: false, error: "El código de enfermedad no está en el catálogo ENO." };
   }
 
   // 2. Validate reason.
@@ -151,7 +151,7 @@ export async function openOutbreakInvestigation(
     if (actor.jurisdictions.length === 0) {
       return {
         ok: false,
-        error: "No tenes jurisdicciones activas asignadas. Contacta al administrador.",
+        error: "No tenés jurisdicciones activas asignadas. Contactá al administrador.",
       };
     }
     jurisdictionProvince = actor.jurisdictions[0].province;
@@ -171,7 +171,7 @@ export async function openOutbreakInvestigation(
   if (duplicate) {
     return {
       ok: false,
-      error: `Ya existe una investigacion abierta para ${diseaseCode} en esta jurisdiccion (${duplicate.publicCode}).`,
+      error: `Ya existe una investigación abierta para ${diseaseCode} en esta jurisdicción (${duplicate.publicCode}).`,
     };
   }
 
@@ -226,7 +226,7 @@ export async function openOutbreakInvestigation(
             entryType: "signal_link",
             recordedByUserId: actor.profile.id,
             payload: { signal_event_id: input.linkedSignalEventId.trim() },
-            notes: "Signal epidemiologica vinculada al abrir la investigacion.",
+            notes: "Señal epidemiológica vinculada al abrir la investigación.",
           },
           tx as Parameters<typeof repo.insertCaseEvent>[1],
         );
@@ -252,7 +252,7 @@ export async function openOutbreakInvestigation(
   } catch (err) {
     return {
       ok: false,
-      error: `No se pudo abrir la investigacion: ${
+      error: `No se pudo abrir la investigación: ${
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
@@ -303,13 +303,13 @@ export async function addInvestigationNote(
   const caseRow = await repo.findInvestigationByCode(input.casePublicCode);
   if (!caseRow) return { ok: false, error: "Caso no encontrado." };
   if (caseRow.status === "closed") {
-    return { ok: false, error: "No se pueden agregar notas a una investigacion cerrada." };
+    return { ok: false, error: "No se pueden agregar notas a una investigación cerrada." };
   }
 
   // 3. Scope check.
   if (actor.profile.role === "govt") {
     if (!isInScope(caseRow, actor.jurisdictions)) {
-      return { ok: false, error: "Esta investigacion no esta en tu jurisdiccion." };
+      return { ok: false, error: "Esta investigación no está en tu jurisdicción." };
     }
   }
 
@@ -387,7 +387,7 @@ export async function escalateInvestigation(
   // 3. Scope check.
   if (actor.profile.role === "govt") {
     if (!isInScope(caseRow, actor.jurisdictions)) {
-      return { ok: false, error: "Esta investigacion no esta en tu jurisdiccion." };
+      return { ok: false, error: "Esta investigación no está en tu jurisdicción." };
     }
   }
 
@@ -422,7 +422,7 @@ export async function escalateInvestigation(
   } catch (err) {
     return {
       ok: false,
-      error: `No se pudo escalar la investigacion: ${
+      error: `No se pudo escalar la investigación: ${
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };
@@ -464,13 +464,13 @@ export async function closeInvestigation(
   const caseRow = await repo.findInvestigationByCode(input.casePublicCode);
   if (!caseRow) return { ok: false, error: "Caso no encontrado." };
   if (caseRow.status === "closed") {
-    return { ok: false, error: "Esta investigacion ya esta cerrada." };
+    return { ok: false, error: "Esta investigación ya está cerrada." };
   }
 
   // 3. Scope check.
   if (actor.profile.role === "govt") {
     if (!isInScope(caseRow, actor.jurisdictions)) {
-      return { ok: false, error: "Esta investigacion no esta en tu jurisdiccion." };
+      return { ok: false, error: "Esta investigación no está en tu jurisdicción." };
     }
   }
 
@@ -481,7 +481,7 @@ export async function closeInvestigation(
       return {
         ok: false,
         error:
-          "Para cerrar como resuelta, registrá primero un informe epidemiologico final (o ingresá el texto del informe en este formulario).",
+          "Para cerrar como resuelta, registrá primero un informe epidemiológico final (o ingresá el texto del informe en este formulario).",
       };
     }
   }
@@ -544,7 +544,7 @@ export async function closeInvestigation(
   } catch (err) {
     return {
       ok: false,
-      error: `No se pudo cerrar la investigacion: ${
+      error: `No se pudo cerrar la investigación: ${
         err instanceof Error ? err.message : "error desconocido"
       }`,
     };

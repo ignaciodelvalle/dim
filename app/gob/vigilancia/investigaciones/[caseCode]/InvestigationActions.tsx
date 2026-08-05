@@ -24,7 +24,7 @@ const ENTRY_TYPES: { value: InvestigationNoteEntryType; label: string }[] = [
   { value: "lab_result", label: "Resultado de laboratorio" },
   { value: "control_action", label: "Medida de control" },
   { value: "contact_tracing", label: "Rastreo de contactos" },
-  { value: "final_report", label: "Informe epidemiologico final" },
+  { value: "final_report", label: "Informe epidemiológico final" },
   { value: "system", label: "Nota general" },
 ];
 
@@ -250,7 +250,7 @@ export function InvestigationActions({
             value={finalReport}
             onChange={(e) => setFinalReport(e.target.value)}
             rows={3}
-            placeholder="Texto del informe epidemiologico final (opcional si ya existe un registro previo)..."
+            placeholder="Texto del informe epidemiológico final (opcional si ya existe un registro previo)..."
             className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
           />
         </div>
