@@ -6,9 +6,22 @@
 >
 > **Marcador**: **~18 abiertos**, y **ninguno es un defecto de producto sin
 > dueño**. La corrida cerró la cola entera en 8 lotes más el ciclo SDD de la
-> chapa física: **63 commits** en `379114e3..HEAD`. Lo que queda son (a) tres
-> acciones manuales de gate, (b) decisiones del PO, (c) deuda con reja puesta y
-> número, y (d) trabajo que no es ingeniería.
+> chapa física, y el gate de cierre sumó lo suyo: **69 commits** en
+> `379114e3..HEAD`. Lo que queda son (a) tres acciones manuales de gate,
+> (b) decisiones del PO, (c) deuda con reja puesta y número, y (d) trabajo que
+> no es ingeniería.
+>
+> **Lo que encontró el gate de cierre (2026-08-05)**: seis rejas rechazaron
+> trabajo de la propia corrida — el glifo `⚠` del dock, un `<select>` crudo, los
+> valores arbitrarios de las pantallas de chapas, dos `db.insert(notifications)`
+> directos, `event-schemas.ts` pasado de su techo de tamaño, y `/admin/chapas`
+> sin entrada en el manifiesto de pantallas. **Las seis se arreglaron, ninguna
+> se baseline-ó.** Vale registrarlo: una corrida larga que termina con
+> `pnpm verify` verde no es lo mismo que una que nunca lo corrió entero. Además,
+> `lint:spine` cazó 8 mascotas huérfanas que dejó un worker de vitest que se
+> cayó a mitad de archivo (P2.6) — residuo de test, no defecto, pero la reja
+> **no puede distinguirlos**, así que un `pnpm test` que crashea deja la base
+> local sucia hasta que alguien la limpia.
 >
 > **Regla de evidencia (no negociable, ganada tres veces por las malas)**:
 > ninguna fila afirma algo sin **fecha** y sin **cita verificable** — commit,
