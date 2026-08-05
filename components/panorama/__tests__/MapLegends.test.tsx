@@ -517,6 +517,11 @@ describe("MapLegends — 'Cómo leer las marcas' always renders, independent of 
       <MapLegends layers={[]} divisionLegend={null} graduatedScale={null} provinceSeqLegend={{}} />,
     );
     expect(html).toContain("Cómo leer las marcas");
+    // PO-2 ratification (2026-08-05): the block must SAY it is a general
+    // guide. Ungated copy that reads as a key to the current frame is what the
+    // audit objected to; the fix is the declaration, not a per-frame gate.
+    expect(html).toContain("Guía general del mapa");
+    expect(html).toContain("puede no contenerlas a todas");
     expect(html).toContain("proporcional a la cantidad de casos");
     expect(html).toContain("protegido por privacidad");
     expect(html).toContain("Punteado: sin datos");
@@ -527,6 +532,9 @@ describe("MapLegends — 'Cómo leer las marcas' always renders, independent of 
   it("renders the mini-block on a normal frame too, alongside the per-layer blocks", () => {
     const html = renderLegend(metaLayer());
     expect(html).toContain("Cómo leer las marcas");
+    // Same declaration on a painting frame — it is a property of the block,
+    // never conditioned on what the frame happens to contain.
+    expect(html).toContain("Guía general del mapa");
     // Both surfaces stay present: the general glossary and the specific ramp.
     expect(html).toContain("80% (meta)");
   });

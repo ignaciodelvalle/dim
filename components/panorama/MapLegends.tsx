@@ -245,9 +245,23 @@ export function MapLegends({ layers, divisionLegend, graduatedScale, provinceSeq
           (c) a genuinely reported ZERO had no legend representation, and sits
           visually close to the suppressed dot (0.92 vs 0.6 opacity). An
           operator on the "no hay escalas" empty state still benefits from
-          knowing what the marks WOULD mean once a layer starts painting. */}
+          knowing what the marks WOULD mean once a layer starts painting.
+
+          PO ratification (2026-08-05, PO-2): this block stays UNGATED — the P2
+          rule ("do not name what this frame does not contain") governs the
+          per-frame keys below, not this one. A primer that only lists what is
+          already on screen stops teaching the instrument. The tension the
+          audit found was real but it was a COPY problem: the block read as a
+          key to the current frame. It now says what it is in its own first
+          line, so nothing here claims the frame paints a mark it does not. */}
       <div className={CARD}>
         <div className="mb-1.5 font-medium text-ln-op-ink-2">Cómo leer las marcas</div>
+        {/* The self-declaration the PO asked for: this is a general reading
+            guide, not a key to what is on screen right now. */}
+        <p className="mb-1.5 text-ln-op-mute">
+          Guía general del mapa: qué significa cada marca cuando aparece. El cuadro actual puede no
+          contenerlas a todas.
+        </p>
         <div className="flex flex-col gap-1 text-ln-op-ink-2">
           <div className="flex items-center gap-2">
             <span
