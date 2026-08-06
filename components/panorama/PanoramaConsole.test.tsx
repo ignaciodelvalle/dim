@@ -2051,16 +2051,22 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
 
     // Start a scrub — the loop chip is enabled as soon as zoonosis is active
     // (activation is synchronous; it doesn't wait on the layer fetch).
-    await waitFor(() => {
-      expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
-    });
+    await waitFor(
+      () => {
+        expect(screen.getByRole("button", { name: "↺ última semana" })).toBeEnabled();
+      },
+      { timeout: 10_000 },
+    );
     fireEvent.click(screen.getByRole("button", { name: "↺ última semana" }));
-    await waitFor(() => {
-      const cobertura = (mapProps?.layers as Array<{ id: string; dimmed?: boolean }>)?.find(
-        (l) => l.id === "cobertura",
-      );
-      expect(cobertura?.dimmed).toBe(true);
-    });
+    await waitFor(
+      () => {
+        const cobertura = (mapProps?.layers as Array<{ id: string; dimmed?: boolean }>)?.find(
+          (l) => l.id === "cobertura",
+        );
+        expect(cobertura?.dimmed).toBe(true);
+      },
+      { timeout: 10_000 },
+    );
 
     // Deactivate the only temporal layer — temporalAvailable flips false. The
     // Filtro panel is still open/Detalle (nothing since closed it), so the
@@ -2069,21 +2075,29 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
       fireEvent.click(screen.getByRole("checkbox", { name: /Zoonosis/ }));
     });
 
-    await waitFor(() => {
-      expect(
-        screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
-      ).toBeInTheDocument();
-    });
+    // Explicit waitFor timeouts (10s, not the 1s default): under full-suite
+    // worker contention the post-uncheck state flush can exceed 1s, so the
+    // 1s waitFor gave up and failed the assertion while the test still had
+    // budget left (4 flakes on 2026-08-06; passes isolated in <1s). The 15s
+    // test budget covers scheduler starvation; these cover slow flushes.
+    await waitFor(
+      () => {
+        expect(
+          screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
+        ).toBeInTheDocument();
+      },
+      { timeout: 10_000 },
+    );
     // The map must stop dimming cobertura — asOf was cleared, not left stuck.
-    await waitFor(() => {
-      const cobertura = (mapProps?.layers as Array<{ id: string; dimmed?: boolean }>)?.find(
-        (l) => l.id === "cobertura",
-      );
-      expect(cobertura?.dimmed).toBe(false);
-    });
-    // 15s, not the 5s default: this test times out under full-suite worker
-    // contention (twice on 2026-08-06) while passing isolated in <1s — the
-    // budget covers scheduler starvation, not real work.
+    await waitFor(
+      () => {
+        const cobertura = (mapProps?.layers as Array<{ id: string; dimmed?: boolean }>)?.find(
+          (l) => l.id === "cobertura",
+        );
+        expect(cobertura?.dimmed).toBe(false);
+      },
+      { timeout: 10_000 },
+    );
   }, 15_000);
 
   it("keyed-aborts a superseded as-of fetch on a rapid scrub (finding 4)", async () => {
