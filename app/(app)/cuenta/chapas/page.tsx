@@ -8,25 +8,16 @@
 // Jurisdiction gating is DISCOVERY-ONLY (design D6): this page stays reachable
 // even when engraved_plate is disabled — only the nav entry hides.
 
-import Link from "next/link";
-
 import { db, ownerships, petTags, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 
-import { LnBadge } from "@/components/ui/Badge";
 import { LnButton } from "@/components/ui/Button";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 
-import { RevokeTagDialog } from "./_components/RevokeTagDialog";
+import { TagList } from "./_components/TagList";
 
 export const dynamic = "force-dynamic";
-
-const STATUS_LABELS: Record<string, string> = {
-  unactivated: "Sin activar",
-  active: "Activa",
-  revoked: "Dada de baja",
-};
 
 async function loadTags(userId: string) {
   const ownedPetIds = (
@@ -87,49 +78,15 @@ export default async function ChapasPage() {
           </LnCardBody>
         </LnCard>
       ) : (
-        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
-          {tags.map((tag) => (
-            <div
-              key={tag.id}
-              className="flex flex-wrap items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[var(--space-sheet)] py-3.5 last:border-b-0"
-            >
-              <div className="min-w-0">
-                <p className="flex items-center gap-2 text-md font-medium leading-tight text-[var(--color-ln-ink)]">
-                  <span className="font-ln-mono">{tag.serial}</span>
-                  <LnBadge
-                    variant={
-                      tag.status === "active"
-                        ? "success"
-                        : tag.status === "revoked"
-                          ? "neutral"
-                          : "info"
-                    }
-                  >
-                    {STATUS_LABELS[tag.status] ?? tag.status}
-                  </LnBadge>
-                </p>
-                <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
-                  {tag.status === "active" && tag.petName && tag.petToken ? (
-                    <>
-                      Vinculada a{" "}
-                      <Link
-                        href={`/mis-mascotas/${tag.petToken}`}
-                        className="text-[var(--color-ln-azul)]"
-                      >
-                        {tag.petName}
-                      </Link>
-                    </>
-                  ) : tag.status === "revoked" ? (
-                    <>Dada de baja{tag.petName ? ` — era de ${tag.petName}` : ""}</>
-                  ) : (
-                    "Sin activar"
-                  )}
-                </p>
-              </div>
-              {tag.status === "active" && <RevokeTagDialog serial={tag.serial} />}
-            </div>
-          ))}
-        </div>
+        <TagList
+          tags={tags.map((t) => ({
+            id: t.id,
+            serial: t.serial,
+            status: t.status,
+            petName: t.petName,
+            petToken: t.petToken,
+          }))}
+        />
       )}
     </div>
   );

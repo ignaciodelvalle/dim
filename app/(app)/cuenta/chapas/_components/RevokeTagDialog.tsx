@@ -5,6 +5,9 @@
 // Revocation is terminal (state machine: active → revoked, no reuse), so the
 // dialog demands an explicit reason before enabling the confirm button. On
 // success the page reloads to show the revoked state.
+//
+// Controlled `open`: the parent TagList owns which row's panel is open so
+// only one can be open at a time (Cowork QA v3, B3).
 
 import { useState, useTransition } from "react";
 
@@ -23,8 +26,15 @@ const REASON_OPTIONS: Array<{ value: PetTagRevokeReason; label: string }> = [
   { value: "other", label: "Otro motivo" },
 ];
 
-export function RevokeTagDialog({ serial }: { serial: string }) {
-  const [open, setOpen] = useState(false);
+export function RevokeTagDialog({
+  serial,
+  open,
+  onOpenChange,
+}: {
+  serial: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
   const [reason, setReason] = useState<PetTagRevokeReason | "">("");
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -37,7 +47,7 @@ export function RevokeTagDialog({ serial }: { serial: string }) {
         setError(result.error);
         return;
       }
-      setOpen(false);
+      onOpenChange(false);
       window.location.reload();
     });
   }
@@ -50,7 +60,7 @@ export function RevokeTagDialog({ serial }: { serial: string }) {
         onClick={() => {
           setReason("");
           setError(null);
-          setOpen(true);
+          onOpenChange(true);
         }}
       >
         Dar de baja
@@ -58,7 +68,7 @@ export function RevokeTagDialog({ serial }: { serial: string }) {
 
       <ConfirmDialog
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={() => onOpenChange(false)}
         onConfirm={handleConfirm}
         title={`Dar de baja la chapa ${serial}`}
         description="La baja es definitiva: el QR de esta chapa deja de mostrar la credencial y la chapa no se puede reactivar."
