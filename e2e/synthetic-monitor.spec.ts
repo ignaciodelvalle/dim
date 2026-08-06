@@ -223,8 +223,11 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
     //
     // So: probe BOTH stages, and assert on whichever one actually holds it. A
     // synthetic monitor must not depend on another spec's side effects.
-    // Match only VISIBLE rows — inactive queue tabpanels stay in the DOM
-    // with [hidden].
+    // Match only VISIBLE rows. Triage's own queue tabs became link chips (UI
+    // review M5, 2026-08-06) so that stage now renders its list once, but the
+    // hub's STAGE tabs and Moderación's status tabs are still UrlTabs — their
+    // inactive tabpanels stay in the DOM with [hidden], so the `:visible`
+    // filter still earns its keep here.
     const HUB_ROW = 'a[href^="/gob/maltrato/"]:visible, a[href^="/gob/moderacion/"]:visible';
     const STAGES = ["triage", "moderacion"] as const;
 

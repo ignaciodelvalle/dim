@@ -14,7 +14,6 @@
 import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 import {
   CsvExportLink,
   OpCard,
@@ -30,6 +29,7 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, profiles, welfareReports } from "@/db";
 import {
   type MaltratoQueue,
+  type WelfareMetrics,
   buildMaltratoListConditions,
   fetchWelfareMetrics,
 } from "@/lib/analytics/govt-dashboards";
@@ -55,11 +55,14 @@ import { and, asc, count, inArray, sql } from "drizzle-orm";
 
 import { csvPageDisclosure } from "@/lib/ui/csv-export";
 import { formatCount, formatDateTime, todayIsoInAr } from "@/lib/utils/format";
+import { type QueueChipItem, QueueFilterChips } from "./_components/QueueFilterChips";
 import { WelfareDenunciaRow } from "./_components/WelfareDenunciaRow";
 import { InspectorMounter } from "./_inspector/InspectorMounter";
 import { decodeRiskCursor, encodeRiskCursor, severityRank } from "./_lib/welfare-sla";
 
 const PAGE_SIZE = 50;
+// Order is the rendered order of the chip row (see QueueFilterChips) — daily
+// work first, audit lens last.
 const VALID_QUEUES: MaltratoQueue[] = [
   "urgent",
   "unassigned",
@@ -67,10 +70,24 @@ const VALID_QUEUES: MaltratoQueue[] = [
   "all",
   "overdue",
   // D.11 audit lens — denuncias whose jurisdiction was recovered from the form
-  // text after a geocoder failure. They stay in every other tab too; this only
+  // text after a geocoder failure. They stay in every other queue too; this only
   // isolates them.
   "unverified",
 ];
+
+/**
+ * ONE label vocabulary for the queue lens — read by the chip row AND by the CSV
+ * export's "cola de trabajo:" disclosure line, so an export can never name a
+ * queue differently from the control that selected it.
+ */
+const QUEUE_LABELS: Record<MaltratoQueue, string> = {
+  urgent: "Urgentes",
+  unassigned: "Sin asignar",
+  mine: "Mías",
+  all: "Todas",
+  overdue: "Atrasadas",
+  unverified: "Sin verificar",
+};
 
 // Default queue (C2 language contract, 2026-07-22 — PO-locked: "sin asignar
 // abiertas", not "Todas"). "Todas" as a landing view buries the actionable
@@ -106,6 +123,51 @@ function TriagePeriodInvariantFootnote() {
     <p className="text-xs font-medium uppercase tracking-[0.06em] text-ln-op-faint">
       Sin asignar / Mías / {welfareReportStatusLabel("in_progress")}: no varían con el período.
     </p>
+  );
+}
+
+const PAGE_LINK_CLASS =
+  "rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe";
+
+/**
+ * Keyset pagination footer for the denuncias list.
+ *
+ * Extracted for the same reason as TriagePeriodInvariantFootnote above: its
+ * three conditionals now live in ITS OWN cognitive-complexity budget. They used
+ * to sit inside the queue tabs' `TABS.map` callback — a separate function
+ * scope, which paid for them. With the tabs demoted to chips (M5) the card
+ * renders once, directly in the screen body, so the nav needs its own function
+ * or the screen inherits that cost.
+ */
+function QueuePaginationNav({
+  totalCount,
+  newerLink,
+  olderLink,
+}: {
+  totalCount: number;
+  newerLink: string | null;
+  olderLink: string | null;
+}) {
+  if (!newerLink && !olderLink) return null;
+  return (
+    <nav
+      aria-label="Paginación de denuncias"
+      className="mt-4 flex items-center justify-between gap-2 text-sm"
+    >
+      <span className="text-ln-op-mute">{totalCount} denuncias en total</span>
+      <div className="flex gap-2">
+        {newerLink ? (
+          <a href={newerLink} className={PAGE_LINK_CLASS}>
+            ← Volver al inicio
+          </a>
+        ) : null}
+        {olderLink ? (
+          <a href={olderLink} className={PAGE_LINK_CLASS}>
+            Ver más →
+          </a>
+        ) : null}
+      </div>
+    </nav>
   );
 }
 
@@ -148,6 +210,79 @@ const STATUS_OPTIONS = WELFARE_REPORT_STATUSES.map((s) => ({
   value: s,
   label: welfareReportStatusLabel(s),
 }));
+
+/**
+ * Counters shown inside the chips.
+ *
+ * ONLY the two queues whose exact row set the page ALREADY counts get one:
+ * `fetchWelfareMetrics.unassignedCount` and `.myCount` are built from the
+ * IDENTICAL predicates `buildMaltratoListConditions` applies for
+ * `queue=unassigned` / `queue=mine` (assignee + non-terminal + the same
+ * scope/domain/moderation conditions — see lib/analytics/dashboards/welfare.ts,
+ * where both pairs are commented as deliberately mirrored). So these numbers
+ * are free AND honest.
+ *
+ * The other four (urgent / all / overdue / unverified) have NO precomputed
+ * count, and each would cost its own COUNT(*) on every render of a live triage
+ * queue. A chip with no counter is the correct answer there — a number that
+ * expensive is not worth a chip's worth of information, and a WRONG number
+ * (e.g. reusing `inProgressCount` for `all`) would be worse than none.
+ */
+function queueCount(queue: MaltratoQueue, metrics: WelfareMetrics): number | undefined {
+  if (queue === "unassigned") return metrics.unassignedCount;
+  if (queue === "mine") return metrics.myCount;
+  return undefined;
+}
+
+/**
+ * Href that selects `queue`, preserving the domain + jurisdiction filters and
+ * DROPPING the keyset `cursor` (a queue change invalidates the current page) —
+ * the same `resetParamsOnChange={["cursor"]}` contract OpFilterBar applies to
+ * every other control on this screen.
+ *
+ * The inspector's `?caso=` / `&mascota=` are not carried: they are written by
+ * shallow history from the client (InspectorMounter), so a server-rendered link
+ * cannot see them in the first place, and a case selected under one queue need
+ * not exist under the next. Same posture the hub's `etapa` tabs already take.
+ */
+function queueHref(sp: MaltratoQueueScreenProps["searchParams"], queue: MaltratoQueue): string {
+  const params = new URLSearchParams();
+  params.set("etapa", "triage");
+  params.set("queue", queue);
+  for (const [key, value] of [
+    ["kind", sp.kind],
+    ["severity", sp.severity],
+    ["status", sp.status],
+    ["province", sp.province],
+    ["locality", sp.locality],
+  ] as const) {
+    if (value) params.set(key, value);
+  }
+  return `/gob/denuncias?${params.toString()}`;
+}
+
+/**
+ * The queue lens, as chips (UI review M5, 2026-08-06 — see
+ * ./_components/QueueFilterChips for why these stopped being tabs). Built at
+ * module scope, like TriagePeriodInvariantFootnote above and for the same
+ * reason: the `.map` would otherwise spend from MaltratoQueueScreen's already
+ * exhausted cognitive-complexity budget.
+ *
+ * D.11's "Sin verificar" comes last (VALID_QUEUES order): it is an audit lens,
+ * not a daily queue, and every row it holds is already visible — and
+ * pill-marked — in the chips to its left.
+ */
+function buildQueueChips(
+  sp: MaltratoQueueScreenProps["searchParams"],
+  metrics: WelfareMetrics,
+): QueueChipItem[] {
+  return VALID_QUEUES.map((queue) => ({
+    value: queue,
+    label: QUEUE_LABELS[queue],
+    href: queueHref(sp, queue),
+    count: queueCount(queue, metrics),
+  }));
+}
 
 export type MaltratoQueueScreenProps = {
   searchParams: {
@@ -330,17 +465,7 @@ export async function MaltratoQueueScreen({
   }
   const newerLink = sp.cursor ? newerHref("/gob/denuncias", filterParams) : null;
 
-  const TABS = [
-    { value: "urgent" as const, label: "Urgentes" },
-    { value: "unassigned" as const, label: "Sin asignar" },
-    { value: "mine" as const, label: "Mías" },
-    { value: "all" as const, label: "Todas" },
-    { value: "overdue" as const, label: "Atrasadas" },
-    // D.11 — the guesses, isolated. Last on purpose: it is an audit lens, not a
-    // daily stage, and every row it holds is already visible (and pill-marked)
-    // in the tabs to its left.
-    { value: "unverified" as const, label: "Sin verificar" },
-  ];
+  const queueChips = buildQueueChips(sp, metrics);
 
   // Q1 (CSV export parity) — export EXACTLY the rendered page: same rows,
   // same label vocabulary the list renders with (kind/severity/status label
@@ -367,9 +492,7 @@ export async function MaltratoQueueScreen({
   ]);
   const csvPageLine = csvPageDisclosure(rows.length, totalCount);
   const csvContextLines = [
-    `miMAR · Denuncias de maltrato (Ley 14.346) — cola de trabajo: ${
-      TABS.find((t) => t.value === activeQueue)?.label ?? activeQueue
-    }`,
+    `miMAR · Denuncias de maltrato (Ley 14.346) — cola de trabajo: ${QUEUE_LABELS[activeQueue]}`,
     ...(csvPageLine ? [csvPageLine] : []),
   ];
 
@@ -531,90 +654,59 @@ export async function MaltratoQueueScreen({
           column owns its scroll; below lg they stack and the inspector flips to
           an overlay drawer (InspectorMounter container classes). */}
       <div className="flex flex-col gap-4 lg:min-h-0 lg:flex-1 lg:flex-row">
-        {/* Master — queue tabs + list (own scroll on lg) */}
+        {/* Master — queue chips + list (own scroll on lg) */}
         <div className="flex min-w-0 flex-col lg:w-2/5 lg:min-h-0 lg:overflow-y-auto">
-          {/* Queue ≠ status: the tabs are a workflow lens (urgentes / sin asignar /
+          {/* Queue ≠ status: the chips are a workflow lens (urgentes / sin asignar /
               mías…), NOT the "Estado" filter (that lives in the bar above). */}
-          <p className="mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
             Cola de trabajo
           </p>
-          <Suspense>
-            <UrlTabs
-              paramKey="queue"
-              defaultValue={DEFAULT_QUEUE}
-              tabs={TABS}
-              aria-label="Cola de denuncias"
-            >
-              {TABS.map((tab) => (
-                <UrlTabsContent key={tab.value} value={tab.value}>
-                  <OpCard className="mt-4">
-                    {/* "(N en total)" — not a bare "(N)" (UI/UX audit 2026-07,
-                        number coherence): under "Todas" this count includes
-                        TERMINAL rows (cerrada/duplicada/sin sustento), so a bare
-                        number read as if it were the dashboard's "denuncias
-                        activas" figure (which counts non-terminal only) and the
-                        two "disagreed". The count must keep matching the list it
-                        heads (which legitimately shows closed rows), so we label
-                        it with the SAME "en total" vocabulary the pagination
-                        footer inside this card already uses, instead of
-                        narrowing it to active-only and desyncing it from the
-                        rows below. */}
-                    <OpCardHead title={`Denuncias (${totalCount} en total)`} />
-                    <OpCardBody>
-                      {rows.length === 0 ? (
-                        <LnEmptyState
-                          icon="denuncia"
-                          title="Sin denuncias"
-                          description="No hay denuncias que coincidan con los filtros seleccionados."
-                        />
-                      ) : (
-                        <ul className="space-y-2">
-                          {rows.map((r) => (
-                            <WelfareDenunciaRow
-                              key={r.id}
-                              report={r}
-                              assignedToName={
-                                r.assignedToUserId
-                                  ? (assigneeNames.get(r.assignedToUserId) ?? null)
-                                  : null
-                              }
-                              currentUserId={user.id}
-                            />
-                          ))}
-                        </ul>
-                      )}
-                      {(newerLink || olderLink) && (
-                        <nav
-                          aria-label="Paginación de denuncias"
-                          className="mt-4 flex items-center justify-between gap-2 text-sm"
-                        >
-                          <span className="text-ln-op-mute">{totalCount} denuncias en total</span>
-                          <div className="flex gap-2">
-                            {newerLink && (
-                              <a
-                                href={newerLink}
-                                className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
-                              >
-                                ← Volver al inicio
-                              </a>
-                            )}
-                            {olderLink && (
-                              <a
-                                href={olderLink}
-                                className="rounded border border-ln-op-line px-3 py-1 text-ln-op-ink hover:bg-ln-op-stripe"
-                              >
-                                Ver más →
-                              </a>
-                            )}
-                          </div>
-                        </nav>
-                      )}
-                    </OpCardBody>
-                  </OpCard>
-                </UrlTabsContent>
-              ))}
-            </UrlTabs>
-          </Suspense>
+          <QueueFilterChips
+            items={queueChips}
+            activeValue={activeQueue}
+            ariaLabel="Cola de denuncias"
+          />
+          <OpCard className="mt-4">
+            {/* "(N en total)" — not a bare "(N)" (UI/UX audit 2026-07,
+                number coherence): under "Todas" this count includes
+                TERMINAL rows (cerrada/duplicada/sin sustento), so a bare
+                number read as if it were the dashboard's "denuncias
+                activas" figure (which counts non-terminal only) and the
+                two "disagreed". The count must keep matching the list it
+                heads (which legitimately shows closed rows), so we label
+                it with the SAME "en total" vocabulary the pagination
+                footer inside this card already uses, instead of
+                narrowing it to active-only and desyncing it from the
+                rows below. */}
+            <OpCardHead title={`Denuncias (${totalCount} en total)`} />
+            <OpCardBody>
+              {rows.length === 0 ? (
+                <LnEmptyState
+                  icon="denuncia"
+                  title="Sin denuncias"
+                  description="No hay denuncias que coincidan con los filtros seleccionados."
+                />
+              ) : (
+                <ul className="space-y-2">
+                  {rows.map((r) => (
+                    <WelfareDenunciaRow
+                      key={r.id}
+                      report={r}
+                      assignedToName={
+                        r.assignedToUserId ? (assigneeNames.get(r.assignedToUserId) ?? null) : null
+                      }
+                      currentUserId={user.id}
+                    />
+                  ))}
+                </ul>
+              )}
+              <QueuePaginationNav
+                totalCount={totalCount}
+                newerLink={newerLink}
+                olderLink={olderLink}
+              />
+            </OpCardBody>
+          </OpCard>
 
           <div className="mt-4">
             <DashboardFreshnessFooter ctx={freshnessCtx} />

@@ -92,3 +92,54 @@ describe("<DeathRecordForm> — rabies-aware disposal warning", () => {
     expect(cta).toBeEnabled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// A3 datetime wave (2026-08-06) — "Fecha" stopped being a native
+// `<input type="date">`, whose visible month/day order follows the BROWSER's
+// locale, on the one field that fixes WHEN a pet died. What the server action
+// receives is unchanged: `occurredAt` as an ISO yyyy-mm-dd string, which
+// createDeathRecordAction parses with parseDateInput.
+// ---------------------------------------------------------------------------
+
+describe("<DeathRecordForm> — date of death entry (dd/mm/aaaa, browser-independent)", () => {
+  function renderDateField(defaults?: { occurredAt: string | null; notes: string | null }) {
+    const action = vi.fn(async () => ({ error: null }));
+    const { container } = render(
+      <DeathRecordForm action={action} species="dog" defaults={defaults} />,
+    );
+    return container;
+  }
+
+  it("submits ISO yyyy-mm-dd on a hidden occurredAt input, never a native date control", () => {
+    const container = renderDateField({ occurredAt: "2026-07-03", notes: null });
+
+    const submitted = container.querySelector<HTMLInputElement>(
+      'input[type="hidden"][name="occurredAt"]',
+    );
+    expect(submitted).not.toBeNull();
+    expect(submitted?.value).toBe("2026-07-03");
+    expect(container.querySelector('input[type="date"]')).toBeNull();
+  });
+
+  it("shows the default date as dd/mm/aaaa in the field the owner actually reads", () => {
+    renderDateField({ occurredAt: "2026-07-03", notes: null });
+
+    expect(screen.getByLabelText(/Fecha/i)).toHaveValue("03/07/2026");
+  });
+
+  it("keeps the field required — the constraint sits on the visible input", () => {
+    renderDateField({ occurredAt: "2026-07-03", notes: null });
+
+    expect(screen.getByLabelText(/Fecha/i)).toBeRequired();
+  });
+
+  it("re-typing a date updates the submitted ISO value", () => {
+    const container = renderDateField({ occurredAt: "2026-07-03", notes: null });
+
+    fireEvent.change(screen.getByLabelText(/Fecha/i), { target: { value: "12/03/2026" } });
+
+    expect(
+      container.querySelector<HTMLInputElement>('input[type="hidden"][name="occurredAt"]')?.value,
+    ).toBe("2026-03-12");
+  });
+});

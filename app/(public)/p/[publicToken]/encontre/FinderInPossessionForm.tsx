@@ -16,6 +16,8 @@ import { useActionState, useState } from "react";
 
 import { logoutAndReturnAction } from "@/app/actions/auth";
 import { LocationFields } from "@/components/LocationFields";
+import { DateInputAr } from "@/components/ui/DateInputAr";
+import { TimeInputAr } from "@/components/ui/TimeInputAr";
 
 import { type FinderInPossessionState, reportFinderInPossessionAction } from "./action";
 
@@ -59,8 +61,29 @@ export function FinderInPossessionForm({
   const [finderName, setFinderName] = useState("");
   const [finderPhone, setFinderPhone] = useState("");
   const [finderEmail, setFinderEmail] = useState("");
-  const [canKeepUntil, setCanKeepUntil] = useState("");
   const [message, setMessage] = useState("");
+
+  // "¿Hasta cuándo podés cuidarla?" is entered as two AUTHOR-OWNED fields
+  // (dd/mm/aaaa + HH:mm) instead of one `<input type="datetime-local">`, whose
+  // visible text follows the BROWSER's locale — a finder on an en-US machine
+  // was offered month/day order and an AM/PM clock inside es-AR copy, on a
+  // citizen-facing crisis form. Same treatment PetSightingForm's "¿Cuándo la
+  // viste?" already got; the halves are recomposed client-side into the exact
+  // "YYYY-MM-DDTHH:mm" string the action already parses (parseArDatetimeLocal),
+  // carried by a hidden `canKeepUntil`, so the action is untouched and the wire
+  // format is byte-identical.
+  const [canKeepUntilDate, setCanKeepUntilDate] = useState("");
+  const [canKeepUntilTime, setCanKeepUntilTime] = useState("");
+  // `onHiddenValueChange` (not `onValueChange`) is deliberate — it MIRRORS each
+  // control's hidden value, so a half-typed or impossible entry empties its
+  // half here too instead of leaving the composed field holding a stale value.
+  //
+  // Either half blank ⇒ empty composed value, which is exactly what an emptied
+  // datetime-local submitted. The field stays OPTIONAL in the same conditional
+  // sense it always was: empty is allowed only when "puedo tenerla
+  // indefinidamente" is ticked, and handleSubmit below enforces that pair.
+  const canKeepUntil =
+    canKeepUntilDate && canKeepUntilTime ? `${canKeepUntilDate}T${canKeepUntilTime}` : "";
 
   if (state.ok) {
     return (
@@ -268,20 +291,45 @@ export function FinderInPossessionForm({
           </label>
           {!canKeepIndefinite && (
             <div className="space-y-1.5">
-              <label
-                htmlFor="canKeepUntil"
-                className="block text-xs font-medium text-[var(--color-ln-mute)]"
-              >
+              <p className="block text-xs font-medium text-[var(--color-ln-mute)]">
                 Hasta cuándo (fecha y hora)
-              </label>
-              <input
-                id="canKeepUntil"
-                name="canKeepUntil"
-                type="datetime-local"
-                value={canKeepUntil}
-                onChange={(e) => setCanKeepUntil(e.target.value)}
-                className={inputClass}
-              />
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="canKeepUntilDate"
+                    className="block text-xs font-medium text-[var(--color-ln-faint)]"
+                  >
+                    Fecha
+                  </label>
+                  <DateInputAr
+                    id="canKeepUntilDate"
+                    name="canKeepUntilDate"
+                    onHiddenValueChange={setCanKeepUntilDate}
+                    ariaDescribedBy={(clientError ?? state.error) ? errorId : undefined}
+                    className={inputClass}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label
+                    htmlFor="canKeepUntilTime"
+                    className="block text-xs font-medium text-[var(--color-ln-faint)]"
+                  >
+                    Hora (24 h)
+                  </label>
+                  <TimeInputAr
+                    id="canKeepUntilTime"
+                    name="canKeepUntilTime"
+                    onHiddenValueChange={setCanKeepUntilTime}
+                    ariaDescribedBy={(clientError ?? state.error) ? errorId : undefined}
+                    className={inputClass}
+                  />
+                </div>
+              </div>
+              {/* The single field the action reads — recomposed from the two
+                  halves above into the same "YYYY-MM-DDTHH:mm" the
+                  datetime-local used to submit. */}
+              <input type="hidden" name="canKeepUntil" value={canKeepUntil} />
             </div>
           )}
         </fieldset>

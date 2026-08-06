@@ -536,11 +536,13 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
     // The maltrato queue hides flagged rows until moderationResolvedAt is set;
     // approving above sets it, so the row now surfaces universally.
     // WelfareDenunciaRow renders referenceCode as mono text — assert on it.
-    // The queue tabs (urgent/mine/all/overdue) each render the SAME server rows
-    // into their own UrlTabsContent panel; only the active one lacks the [hidden]
-    // attribute. A bare getByText(...).first() resolves to the FIRST panel
-    // ("urgent", hidden) and fails despite the visible "all" row — scope to the
-    // active #tabpanel-all (default queue) panel.
+    // UI review M5 (2026-08-06): the queue selector (urgentes/sin asignar/
+    // mías/todas/…) stopped being a second row of TABS and became a row of link
+    // CHIPS, so there is no longer a `#tabpanel-<queue>` per queue — and no
+    // hidden duplicate of the same rows under the inactive ones, which is what
+    // the old `#tabpanel-all` scoping existed to step around. The list renders
+    // ONCE now, so a plain `.first()` on the code is unambiguous. The queue is
+    // still selected by `?queue=` exactly as before.
     // Addressed as the hub's triage stage; /gob/maltrato?queue=all still
     // redirects here, but there is no reason to pay the hop from inside a spec.
     //
@@ -566,8 +568,17 @@ test.describe("crisis seams — cross-POV critical journeys", () => {
       page.getByText(/filtro no reconocido/i),
       "the triage queue accepted the jurisdiction filter",
     ).toHaveCount(0);
+    // The chip row proves the queue lens actually resolved to "Todas" (a
+    // rejected/garbage ?queue= would fall back to "Sin asignar" and could show
+    // a legitimately empty list — a green-looking failure).
     await expect(
-      page.locator("#tabpanel-all").getByText(denCode).first(),
+      page
+        .getByRole("navigation", { name: "Cola de denuncias" })
+        .getByRole("link", { name: /^Todas/ }),
+      "the triage queue selected the Todas chip",
+    ).toHaveAttribute("aria-current", "page");
+    await expect(
+      page.getByText(denCode).first(),
       `denuncia ${denCode} visible to the operator maltrato queue (${locality}, ${provinceName}) after triage`,
     ).toBeVisible({ timeout: 20_000 });
   });

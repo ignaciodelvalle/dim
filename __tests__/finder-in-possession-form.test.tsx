@@ -110,10 +110,28 @@ describe("<FinderInPossessionForm> — initial state (form render)", () => {
     expect(html).toContain("indefinidamente");
   });
 
-  it("renders the datetime-local input when canKeepIndefinite is false (default)", () => {
+  // A3 datetime wave (2026-08-06): the native `<input type="datetime-local">`
+  // was replaced by DateInputAr + TimeInputAr, because a datetime-local renders
+  // its visible text in the BROWSER's locale (month/day order and an AM/PM
+  // clock on an en-US machine) inside es-AR copy. What the ACTION receives is
+  // unchanged: one `canKeepUntil` field carrying "YYYY-MM-DDTHH:mm".
+  it("renders the two author-owned date/time halves when canKeepIndefinite is false (default)", () => {
+    const html = render(<FinderInPossessionForm {...BASE_PROPS} />);
+    expect(html).toContain('name="canKeepUntilDate"');
+    expect(html).toContain('name="canKeepUntilTime"');
+    expect(html).toContain("dd/mm/aaaa");
+    expect(html).toContain("hh:mm");
+    // No browser-locale-dependent control survives on this field.
+    expect(html).not.toContain('type="datetime-local"');
+  });
+
+  it("still submits the composed canKeepUntil field the action parses", () => {
     const html = render(<FinderInPossessionForm {...BASE_PROPS} />);
     expect(html).toContain('name="canKeepUntil"');
-    expect(html).toContain('type="datetime-local"');
+    // Empty until BOTH halves hold a valid value — an emptied datetime-local
+    // submitted nothing, and so does an incomplete pair (the action's
+    // "indicá hasta cuándo…" guard is what rejects it).
+    expect(html).toMatch(/<input type="hidden" name="canKeepUntil" value=""\s*\/>/);
   });
 
   it("renders the photo file input inside collapsible group", () => {

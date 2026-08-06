@@ -829,14 +829,14 @@ describe("parsePage — unit", () => {
 // app/gob/maltrato/MaltratoQueueScreen.tsx exactly (F1 fusion, 2026-07-22:
 // the queue body moved out of page.tsx, which is now just a redirect shim —
 // see that file's own header comment).
-const VALID_QUEUES_COPY = ["urgent", "unassigned", "mine", "all", "overdue"];
+const VALID_QUEUES_COPY = ["urgent", "unassigned", "mine", "all", "overdue", "unverified"];
 const DEFAULT_QUEUE_COPY = "unassigned";
 function parseQueue(raw: string | undefined): string {
   if (!raw) return DEFAULT_QUEUE_COPY;
   return VALID_QUEUES_COPY.includes(raw) ? raw : DEFAULT_QUEUE_COPY;
 }
 
-describe("parseQueue — unit (maltrato default tab)", () => {
+describe("parseQueue — unit (maltrato default queue)", () => {
   it("defaults to 'unassigned' (sin asignar abiertas) when no ?queue= param is present", () => {
     expect(parseQueue(undefined)).toBe("unassigned");
   });
@@ -850,18 +850,25 @@ describe("parseQueue — unit (maltrato default tab)", () => {
     expect(parseQueue("urgent")).toBe("urgent");
     expect(parseQueue("mine")).toBe("mine");
     expect(parseQueue("overdue")).toBe("overdue");
+    expect(parseQueue("unverified")).toBe("unverified");
   });
 });
 
-describe("app/gob/maltrato/MaltratoQueueScreen.tsx — source stays in sync with the default-tab contract", () => {
-  it("DEFAULT_QUEUE is 'unassigned' and both parseQueue + UrlTabs use it (no drift from this test's inline copy)", async () => {
+describe("app/gob/maltrato/MaltratoQueueScreen.tsx — source stays in sync with the default-queue contract", () => {
+  it("DEFAULT_QUEUE is 'unassigned' and parseQueue resolves through it (no drift from this test's inline copy)", async () => {
     const fs = await import("node:fs");
     // F1 fusion (2026-07-22): the queue body relocated out of page.tsx (now a
     // redirect shim into /gob/denuncias?etapa=triage) into this sibling file,
     // imported by the Denuncias hub — same contract, same defaults, new home.
     const src = fs.readFileSync("app/gob/maltrato/MaltratoQueueScreen.tsx", "utf8");
     expect(src).toMatch(/DEFAULT_QUEUE:\s*MaltratoQueue\s*=\s*"unassigned"/);
-    expect(src).toMatch(/defaultValue=\{DEFAULT_QUEUE\}/);
+    // UI review M5 (2026-08-06): the queue selector stopped being <UrlTabs>
+    // (which read the default via `defaultValue={DEFAULT_QUEUE}`) and became a
+    // row of link chips, so the ONE remaining consumer of the default is
+    // parseQueue — both of its branches must resolve through the constant, not
+    // a repeated literal.
+    expect(src).toMatch(/if \(!raw\) return DEFAULT_QUEUE;/);
+    expect(src).toMatch(/:\s*DEFAULT_QUEUE;/);
     // The old landing default must not still be hardcoded as the fallback.
     expect(src).not.toMatch(/if \(!raw\) return "all";/);
   });

@@ -370,6 +370,21 @@ const controlBase =
   "focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] " +
   "aria-[invalid=true]:border-[var(--color-ln-err)]";
 
+const controlMono = `${controlBase} font-ln-mono tracking-[.02em]`;
+
+/**
+ * The LnInput chrome as a plain class string, for controls that are NOT a bare
+ * `<input>` and therefore cannot render through LnInput — e.g. DateInputAr,
+ * which owns its own visible input plus a hidden ISO twin. Exported so those
+ * call sites wear the IDENTICAL chrome instead of re-declaring it (a copy would
+ * drift, and would carry this file's grandfathered arbitrary font-size into a
+ * file the design-tokens ratchet scans at a baseline of zero).
+ *
+ * `LN_CONTROL_MONO_CLASS` is the `mono` variant — codes, chip numbers, dates.
+ */
+export const LN_CONTROL_CLASS = controlBase;
+export const LN_CONTROL_MONO_CLASS = controlMono;
+
 // ---------- Input ---------------------------------------------------------
 
 export type LnInputProps = React.InputHTMLAttributes<HTMLInputElement> & {
@@ -382,9 +397,7 @@ export function LnInput({ invalid = false, mono = false, className = "", ...rest
   return (
     <input
       aria-invalid={invalid || undefined}
-      className={[controlBase, mono ? "font-ln-mono tracking-[.02em]" : "", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={[mono ? controlMono : controlBase, className].filter(Boolean).join(" ")}
       {...rest}
       {...withLocalizedValidity<HTMLInputElement>(rest)}
       {...withMobileFocusScroll<HTMLInputElement>(rest)}

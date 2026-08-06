@@ -1,8 +1,16 @@
 "use client";
 
 import { Icon } from "@/components/Icon";
+import { DateInputAr } from "@/components/ui/DateInputAr";
 import { LnCallout } from "@/components/ui/DocElements";
-import { LnField, LnInput, LnRadio, LnSelect, LnTextarea } from "@/components/ui/Field";
+import {
+  LN_CONTROL_MONO_CLASS,
+  LnField,
+  LnInput,
+  LnRadio,
+  LnSelect,
+  LnTextarea,
+} from "@/components/ui/Field";
 import {
   LnSheetAccordion,
   LnSheetBody,
@@ -100,7 +108,10 @@ export function DeathRecordForm({
   const [vetDecidedAlone, setVetDecidedAlone] = useState(false);
   const [ownerToPrivateCrematorium, setOwnerToPrivateCrematorium] = useState(false);
   const [facility, setFacility] = useState("");
-  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  // Plain const, not state: DateInputAr owns the field's value from here on
+  // (it submits its own hidden ISO input), so nothing in this component reads
+  // the date back — a mirrored copy would only be a second source of truth.
+  const occurredAtDefault = defaults?.occurredAt ?? today;
   const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   const diseaseOptions = diseasesForSpecies(species);
@@ -384,18 +395,29 @@ export function DeathRecordForm({
             )}
           </LnField>
 
+          {/* Date of death is entered as an AUTHOR-OWNED dd/mm/aaaa field, not a
+              native `<input type="date">`, whose visible text follows the
+              BROWSER's locale — a viewer on an en-US machine was offered
+              month/day order on the one field that fixes WHEN a pet died, and
+              every date the libreta renders back is dd/mm/aaaa. DateInputAr is
+              a drop-in here (not a composed pair like PetSightingForm's
+              date+time): its own hidden input carries `occurredAt` with the
+              same ISO yyyy-mm-dd the action already parses via parseDateInput,
+              so the server is untouched. `required` is passed explicitly rather
+              than left to LnField's aria injection: LnField clones
+              `aria-required` onto the control it renders, but this control is a
+              COMPONENT, not a DOM node — the cloned attribute would land on a
+              prop DateInputAr does not read. Its own `required` puts the native
+              constraint (and the es-AR bubble) on the visible input instead. */}
           <LnField label="Fecha" required>
-            {({ id, describedBy, invalid }) => (
-              <LnInput
+            {({ id, describedBy }) => (
+              <DateInputAr
                 id={id}
                 name="occurredAt"
-                type="date"
+                defaultValue={occurredAtDefault}
                 required
-                mono
-                value={occurredAt}
-                onChange={(e) => setOccurredAt(e.target.value)}
-                aria-describedby={describedBy}
-                invalid={invalid}
+                ariaDescribedBy={describedBy}
+                className={LN_CONTROL_MONO_CLASS}
               />
             )}
           </LnField>

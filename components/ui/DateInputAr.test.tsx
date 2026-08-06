@@ -120,6 +120,41 @@ describe("DateInputAr", () => {
     expect(textbox(container).id).toBe("audit-from");
   });
 
+  // `required` exists for the drop-in replacement of a native
+  // `<input type="date" required>` on a CITIZEN write form (DeathRecordForm's
+  // "Fecha" — A3 datetime wave, 2026-08-06). It has to live on the VISIBLE
+  // input: a hidden input is barred from constraint validation, so the same
+  // attribute on the ISO twin would be silently ignored and an empty submit
+  // would reach the server action.
+  describe("required", () => {
+    it("puts the native constraint on the VISIBLE input, not the hidden ISO one", () => {
+      const { container } = render(<DateInputAr name="occurredAt" required />);
+      expect(textbox(container).required).toBe(true);
+      expect(hidden(container, "occurredAt").required).toBe(false);
+    });
+
+    it("is absent by default — the filter surfaces stay optional", () => {
+      const { container } = render(<DateInputAr name="from" />);
+      expect(textbox(container).required).toBe(false);
+    });
+
+    it("localizes the native validation bubble to es-AR", () => {
+      const { container } = render(<DateInputAr name="occurredAt" required />);
+      const input = textbox(container);
+      fireEvent.invalid(input);
+      expect(input.validationMessage).toBe("Completá este campo.");
+    });
+
+    it("clears the custom message on the next edit so re-validation runs clean", () => {
+      const { container } = render(<DateInputAr name="occurredAt" required />);
+      const input = textbox(container);
+      fireEvent.invalid(input);
+      fireEvent.change(input, { target: { value: "03/07/2026" } });
+      expect(input.validationMessage).toBe("");
+      expect(hidden(container, "occurredAt").value).toBe("2026-07-03");
+    });
+  });
+
   describe("onValueChange (commit-worthy signal)", () => {
     it("fires with the ISO value once a date becomes complete and valid", () => {
       const onValueChange = vi.fn();

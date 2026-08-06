@@ -42,6 +42,12 @@ import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "@/lib/uti
 
 const PLACEHOLDER = "dd/mm/aaaa";
 const INVALID_MESSAGE = "Fecha inválida (usá dd/mm/aaaa)";
+// Native constraint bubbles follow the BROWSER language, not the page's `lang`
+// — an es-AR product must not surface "Please fill out this field." (same rule
+// components/ui/Field.tsx applies to every LN control). `valueMissing` is the
+// only constraint this input can violate: it is a plain text field with no
+// pattern/min/max, so one message covers the whole ValidityState surface.
+const REQUIRED_MESSAGE = "Completá este campo.";
 
 export type DateInputArProps = {
   /** Submitted field name — carried by the hidden ISO input. */
@@ -60,6 +66,17 @@ export type DateInputArProps = {
   ariaDescribedBy?: string;
   /** Classes applied to the visible text input (preserves per-surface styling). */
   className?: string;
+  /**
+   * Marks the field mandatory on the VISIBLE input — native `required` (so the
+   * browser still blocks an empty submit, exactly as `<input type="date"
+   * required>` did) plus the implicit `aria-required` that comes with it.
+   *
+   * It cannot live on the hidden ISO input: hidden inputs are barred from
+   * constraint validation, so a `required` there is silently ignored. The
+   * visible input is unnamed and therefore never submitted, but it IS a form
+   * control, so its constraint still gates submission.
+   */
+  required?: boolean;
   /**
    * Fires with the current ISO value ONLY when it is COMMIT-WORTHY: a
    * complete, calendar-valid date, or the field was fully cleared (empty
@@ -92,6 +109,7 @@ export function DateInputAr({
   ariaLabel,
   ariaDescribedBy,
   className,
+  required,
   onValueChange,
   onHiddenValueChange,
 }: DateInputArProps) {
@@ -119,6 +137,9 @@ export function DateInputAr({
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const masked = maskArDateInput(event.target.value);
     setDisplay(masked);
+    // Clear any custom message so the next validation pass re-evaluates the
+    // native constraint from scratch (mirrors Field.tsx's withLocalizedValidity).
+    event.target.setCustomValidity("");
     if (invalid) setInvalid(false);
     // Keep the submitted ISO in sync on EVERY keystroke, not just on blur: an
     // implicit Enter submit does not fire blur, so the hidden field must already
@@ -165,6 +186,10 @@ export function DateInputAr({
         autoComplete="off"
         placeholder={PLACEHOLDER}
         aria-label={ariaLabel}
+        required={required}
+        onInvalid={(event) => {
+          event.currentTarget.setCustomValidity(REQUIRED_MESSAGE);
+        }}
         aria-invalid={invalid || undefined}
         aria-describedby={
           [ariaDescribedBy, invalid ? errorId : null].filter(Boolean).join(" ") || undefined

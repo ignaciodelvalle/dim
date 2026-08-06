@@ -166,12 +166,15 @@ test.describe(`race battery @ ${STAGING ?? "suite baseURL"}`, () => {
     const admin = await openAs(browser, ACCOUNTS.admin, baseURL);
     let caseId = "";
     try {
-      // Find an UNASSIGNED, assignable case from the govt queue. Only VISIBLE
-      // rows count — the queue renders every tabpanel (urgent/mine/all) in the
-      // DOM and inactive [hidden] panels precede the active one. Rows of
-      // already-assigned cases carry an "· Asignada" suffix, so prefer rows
-      // without it. Collect hrefs BEFORE navigating away (the locator would
-      // otherwise re-query the detail page's DOM mid-loop).
+      // Find an UNASSIGNED, assignable case from the govt queue. `:visible` is
+      // kept as a belt-and-braces filter, not because the DOM still needs it:
+      // the queue used to render EVERY tabpanel (urgent/mine/all) with the same
+      // rows, inactive [hidden] panels first, so an unscoped locator resolved to
+      // an invisible copy. UI review M5 (2026-08-06) demoted those tabs to link
+      // chips and the list renders exactly once. Rows of already-assigned cases
+      // carry an "· Asignada" suffix, so prefer rows without it. Collect hrefs
+      // BEFORE navigating away (the locator would otherwise re-query the detail
+      // page's DOM mid-loop).
       await govt.page.goto("/gob/maltrato?queue=all", { waitUntil: "domcontentloaded" });
       const rows = govt.page.locator('a[href^="/gob/maltrato/"]:visible');
       await rows
