@@ -111,13 +111,13 @@ export function Tier2MedicalView({
   return (
     <section aria-labelledby="tier2-h" className="px-4 py-[13px]">
       {/* Section eyebrow */}
-      <p className="mb-1 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-ok">
+      <p className="mb-1 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-ok">
         Información médica · habilitada por el dueño
       </p>
       <h2 id="tier2-h" className="m-0 mb-0.5 font-ln-serif text-base font-semibold text-ln-ink">
         Resumen médico vigente
       </h2>
-      <p className="m-0 mb-3 text-[11.5px] text-ln-mute">
+      <p className="m-0 mb-3 text-sm text-ln-mute">
         {untilLabel ? (
           <>
             Visible hasta el <strong className="text-ln-ink-2">{untilLabel}</strong>.
@@ -147,7 +147,7 @@ export function Tier2MedicalView({
             {activeMedications.map((drug) => (
               <li
                 key={drug}
-                className="flex items-center gap-[7px] border-b border-ln-line-2 py-1 text-[13px] text-ln-ink"
+                className="flex items-center gap-[7px] border-b border-ln-line-2 py-1 text-md text-ln-ink"
               >
                 <span aria-hidden="true" className="text-xs text-ln-azul">
                   •
@@ -162,12 +162,12 @@ export function Tier2MedicalView({
       {/* Permanent conditions */}
       {conditionLabels.length > 0 && (
         <MedBlock label="Condiciones permanentes">
-          <p className="m-0 text-[13px] leading-[1.5] text-ln-ink">{conditionLabels.join(" · ")}</p>
+          <p className="m-0 text-md leading-[1.5] text-ln-ink">{conditionLabels.join(" · ")}</p>
         </MedBlock>
       )}
 
       {/* Privacy notice */}
-      <p className="mt-2.5 font-ln-mono text-[9.5px] leading-[1.5] tracking-[.02em] text-ln-faint">
+      <p className="mt-2.5 font-ln-mono text-xs leading-[1.5] tracking-[.02em] text-ln-faint">
         Esta vista no expone contacto del dueño, dirección ni notas privadas.
       </p>
     </section>
@@ -200,13 +200,13 @@ function MedStat({
 
   return (
     <div className="rounded-[var(--radius-sm)] border border-ln-line bg-ln-stripe px-3 py-2.5">
-      <dt className="mb-1 font-ln-mono text-[9px] font-semibold uppercase tracking-[.08em] text-ln-mute">
+      <dt className="mb-1 font-ln-mono text-xs font-semibold uppercase tracking-[.08em] text-ln-mute">
         {label}
       </dt>
       <dd className={`m-0 font-ln-serif text-title font-semibold leading-none ${valueClass}`}>
         {value}
       </dd>
-      <p className="mt-[3px] text-[11.5px] text-ln-mute">{sub}</p>
+      <p className="mt-[3px] text-sm text-ln-mute">{sub}</p>
     </div>
   );
 }
@@ -218,7 +218,7 @@ function MedStat({
 function MedBlock({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="mb-2.5 rounded-[var(--radius-sm)] border border-ln-line bg-ln-stripe px-3 py-2.5">
-      <p className="mb-1.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.08em] text-ln-mute">
+      <p className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.08em] text-ln-mute">
         {label}
       </p>
       {children}

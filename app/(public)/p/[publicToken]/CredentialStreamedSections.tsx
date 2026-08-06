@@ -217,9 +217,11 @@ export function CredentialTier2MedicalSkeleton() {
 // free-text column (uncertain host), the image is a 28px decorative avatar below
 // the fold, and next/image would add a host-allowlist failure mode on the hot
 // path for no byte or LCP benefit.
-// The raw text-[9px]/text-[13px] below are MOVED grandfathered values (the
-// public credential's rendered bytes must not change in this refactor; 9/13px
-// have no --text-* token) — baselined in the design-token ratchet, not new design.
+// The label/value pair below used to carry raw 9px/13px arbitrary sizes, moved
+// here verbatim from the inline block and grandfathered in the design-token
+// ratchet. They now use the credential's shared role scale: text-xs (10px) for
+// the mono micro-label, text-md (14px) for the value — the same two steps every
+// other label/value row on this document uses.
 // ---------------------------------------------------------------------------
 
 export async function CredentialOriginOrg({ petId }: { petId: string }) {
@@ -250,10 +252,10 @@ export async function CredentialOriginOrg({ petId }: { petId: string }) {
         />
       )}
       <div className="min-w-0">
-        <p className="m-0 font-ln-mono text-[9px] uppercase tracking-[.06em] text-ln-mute">
+        <p className="m-0 font-ln-mono text-xs uppercase tracking-[.06em] text-ln-mute">
           Refugio de origen
         </p>
-        <p className="m-0 truncate text-[13px] font-medium text-ln-ink">{originOrg.displayName}</p>
+        <p className="m-0 truncate text-md font-medium text-ln-ink">{originOrg.displayName}</p>
       </div>
     </div>
   );

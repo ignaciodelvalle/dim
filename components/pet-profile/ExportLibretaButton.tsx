@@ -23,7 +23,7 @@ export function ExportLibretaButton({ petPublicToken }: { petPublicToken: string
     <button
       type="button"
       onClick={handlePrint}
-      className="cursor-pointer font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] hover:underline print:hidden"
+      className="cursor-pointer font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-azul)] hover:underline print:hidden"
     >
       Imprimir libreta (PDF)
     </button>

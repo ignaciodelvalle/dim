@@ -542,7 +542,7 @@ export default async function PublicCredentialPage({
             data-section="custody-disclaimer"
             className="mb-4 rounded-[var(--radius-sm)] border border-ln-warn-100 border-l-[3px] border-l-ln-warn bg-ln-warn-050 px-4 py-3"
           >
-            <p className="mb-1 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-warn">
+            <p className="mb-1 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-warn">
               Custodia oficial
             </p>
             {openCustodyEpisode?.authorityName && (
@@ -550,7 +550,7 @@ export default async function PublicCredentialPage({
                 Autoridad a cargo: {openCustodyEpisode.authorityName}
               </p>
             )}
-            <p className="mt-1 text-[11.5px] text-ln-mute">
+            <p className="mt-1 text-sm text-ln-mute">
               Comunicate con la autoridad sanitaria competente para más información.
             </p>
           </div>
@@ -648,7 +648,7 @@ export default async function PublicCredentialPage({
                 the full width. Costs ~30px of masthead height at 390px; at
                 desktop widths the row has room and nothing wraps. */}
             <div className="min-w-0 flex-1 basis-[8rem]">
-              <span className="font-ln-serif text-[13px] font-semibold text-ln-ink">miMAR</span>
+              <span className="font-ln-serif text-md font-semibold text-ln-ink">miMAR</span>
               <span className="block truncate font-ln-mono text-xs uppercase tracking-[.14em] text-ln-mute">
                 Credencial pública
               </span>
@@ -656,7 +656,7 @@ export default async function PublicCredentialPage({
             {/* Tier chip — nowrap so it never breaks "NIVEL 2 · DATOS MÉDICOS"
                 mid-label; it wraps as a whole unit or not at all. */}
             <span
-              className={`whitespace-nowrap rounded-full border px-2 py-[3px] font-ln-mono text-[9px] font-semibold tracking-[.08em] ${tier2Active ? "border-ln-ok-100 bg-ln-ok-050 text-ln-ok" : "border-ln-celeste-100 bg-ln-celeste-050 text-ln-azul"}`}
+              className={`whitespace-nowrap rounded-full border px-2 py-[3px] font-ln-mono text-xs font-semibold tracking-[.08em] ${tier2Active ? "border-ln-ok-100 bg-ln-ok-050 text-ln-ok" : "border-ln-celeste-100 bg-ln-celeste-050 text-ln-azul"}`}
             >
               {tier2Active ? "NIVEL 2 · DATOS MÉDICOS" : "NIVEL 0 · IDENTIDAD"}
             </span>
@@ -710,7 +710,7 @@ export default async function PublicCredentialPage({
             <h1 className="font-ln-serif text-3xl font-semibold leading-none tracking-[-0.02em] text-ln-ink">
               {pet.name}
             </h1>
-            <p className="mt-[5px] text-[13px] text-ln-ink-2">
+            <p className="mt-[5px] text-md text-ln-ink-2">
               {breedLine}
               {ageLabel && ` · ${ageLabel}`}
             </p>
@@ -804,7 +804,7 @@ export default async function PublicCredentialPage({
 
           {/* Identity section */}
           <div className="border-t border-ln-line-2 px-4 py-[13px]">
-            <p className="mb-[9px] font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-mute">
+            <p className="mb-[9px] font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-mute">
               Identidad registrada
             </p>
             <div className="grid grid-cols-2 gap-x-3.5 gap-y-[11px]">
@@ -844,7 +844,7 @@ export default async function PublicCredentialPage({
           {/* A.4: Vaccination confidence badge */}
           {showVaccinationConfidence && latestVaccinationTier && (
             <div className="flex items-center gap-2 border-t border-ln-line-2 px-4 py-2.5">
-              <span className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.08em] text-ln-mute">
+              <span className="font-ln-mono text-xs font-semibold uppercase tracking-[.08em] text-ln-mute">
                 Vacunación:
               </span>
               <ConfidenceBadge tier={latestVaccinationTier} />
@@ -904,9 +904,7 @@ export default async function PublicCredentialPage({
                     <p className="m-0 font-ln-serif text-md font-semibold text-ln-ink">
                       ¿Encontraste a esta mascota?
                     </p>
-                    <p className="mt-0.5 text-[11.5px] text-ln-mute">
-                      Tocá acá para avisarle al dueño.
-                    </p>
+                    <p className="mt-0.5 text-sm text-ln-mute">Tocá acá para avisarle al dueño.</p>
                   </div>
                   <span
                     aria-hidden="true"
@@ -923,7 +921,7 @@ export default async function PublicCredentialPage({
           )}
 
           {/* Credential footer */}
-          <div className="px-4 py-3 text-center font-ln-mono text-[9.5px] leading-[1.7] tracking-[.02em] text-ln-faint">
+          <div className="px-4 py-3 text-center font-ln-mono text-xs leading-[1.7] tracking-[.02em] text-ln-faint">
             CREDENCIAL PÚBLICA · miMAR · Registro Nacional de Mascotas
             <br />
             {pet.publicToken.toUpperCase()} · República Argentina
@@ -1318,6 +1316,14 @@ function ThrottleNotice() {
 
 // ---------------------------------------------------------------------------
 // CredField — mono label + value row inside the identity grid
+//
+// Typography roles (UI review M2 consolidation): the label is the document's
+// mono micro-label step (text-xs / 10px, the floor the type scale declares) and
+// the value is the body step (text-md / 14px). The `mono` variant steps the
+// VALUE down one step to text-sm: it renders the LIB-AR-XXXXXXXX token, whose
+// fixed-advance glyphs are materially wider than the sans face at the same
+// nominal size, and the grid cell is half of a two-column layout at 390px.
+// That is an optical fit for one variant of the value role, not a second role.
 // ---------------------------------------------------------------------------
 
 function CredField({
@@ -1331,12 +1337,10 @@ function CredField({
 }) {
   return (
     <div>
-      <p className="m-0 font-ln-mono text-[9px] uppercase tracking-[.06em] text-ln-faint">
-        {label}
-      </p>
+      <p className="m-0 font-ln-mono text-xs uppercase tracking-[.06em] text-ln-faint">{label}</p>
       <p
         className={`mt-px break-words font-medium text-ln-ink ${
-          mono ? "font-ln-mono text-sm" : "font-ln-sans text-[13.5px]"
+          mono ? "font-ln-mono text-sm" : "font-ln-sans text-md"
         }`}
       >
         {value}
@@ -1355,19 +1359,19 @@ function ServiceDogBanner({ rabiesAtRisk }: { rabiesAtRisk: boolean }) {
       aria-label="Banner de acceso — perro de asistencia"
       className="mb-4 rounded-[var(--radius-sm)] border border-ln-celeste-100 border-l-[3px] border-l-ln-azul bg-ln-celeste-050 px-4 py-3.5"
     >
-      <p className="mb-1.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-azul">
+      <p className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-azul">
         Perro de Asistencia
       </p>
       <p className="mb-1.5 font-ln-serif text-md font-semibold leading-[1.45] text-ln-ink">
         Esta persona tiene derecho a ingresar, deambular y permanecer con su perro en este
         establecimiento, espacio privado de acceso público y transporte público.
       </p>
-      <p className="text-[11.5px] text-ln-ink-2">
+      <p className="text-sm text-ln-ink-2">
         Marco legal: <strong className="text-ln-ink">Arts. 1 y 7, Ley 26.858</strong> · Reg. Decreto
         792/2019 · Credencial RUPGA vigente (Res. ANDIS 2588/2022).
       </p>
       {rabiesAtRisk && (
-        <p className="mt-2.5 border-t border-ln-celeste-100 pt-2.5 text-[11.5px] text-ln-warn">
+        <p className="mt-2.5 border-t border-ln-celeste-100 pt-2.5 text-sm text-ln-warn">
           Aviso: la vacunación antirrábica figura vencida en el registro. La credencial requiere
           mantener la vacunación al día (Art. 8, Ley 26.858).
         </p>
@@ -1392,13 +1396,13 @@ function RabiesObservationBanner() {
       aria-label="Aviso — mascota en observación antirrábica"
       className="mb-4 rounded-[var(--radius-sm)] border border-ln-warn-100 border-l-[3px] border-l-ln-warn bg-ln-warn-050 px-4 py-3"
     >
-      <p className="mb-1 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-warn">
+      <p className="mb-1 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-warn">
         Observación antirrábica
       </p>
-      <p className="m-0 text-[13.5px] font-semibold text-ln-ink">
+      <p className="m-0 text-md font-semibold text-ln-ink">
         Esta mascota está en observación antirrábica activa (período de 10 días).
       </p>
-      <p className="mt-1 text-[11.5px] text-ln-mute">
+      <p className="mt-1 text-sm text-ln-mute">
         Si te mordió o tuviste contacto, comunicate con la autoridad sanitaria o el centro
         antirrábico de tu localidad.
       </p>
@@ -1422,7 +1426,7 @@ function PermanentConditionsBanner({
   const hasOther = safe.includes("otra");
   return (
     <section className="mb-4 rounded-[var(--radius-sm)] border border-ln-celeste-100 border-l-[3px] border-l-ln-azul bg-ln-celeste-050 px-4 py-3">
-      <p className="mb-2 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-azul">
+      <p className="mb-2 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-azul">
         Necesidades especiales
       </p>
       <div className="flex flex-wrap gap-1.5">

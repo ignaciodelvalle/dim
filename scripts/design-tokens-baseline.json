@@ -574,7 +574,7 @@
       "hexStyle": 0
     },
     "components/pet-profile/ExportLibretaButton.tsx": {
-      "text": 1,
+      "text": 0,
       "deadTextVar": 0,
       "deadFontVar": 0,
       "space": 0,
@@ -2923,7 +2923,7 @@
       "hexStyle": 0
     },
     "app/(public)/p/[publicToken]/CredentialStreamedSections.tsx": {
-      "text": 4,
+      "text": 0,
       "deadTextVar": 0,
       "deadFontVar": 0,
       "space": 0,
@@ -2950,7 +2950,7 @@
       "hexStyle": 3
     },
     "app/(public)/p/[publicToken]/page.tsx": {
-      "text": 19,
+      "text": 0,
       "deadTextVar": 0,
       "deadFontVar": 0,
       "space": 11,
@@ -2959,7 +2959,7 @@
       "hexStyle": 0
     },
     "app/(public)/p/[publicToken]/Tier2MedicalView.tsx": {
-      "text": 8,
+      "text": 0,
       "deadTextVar": 0,
       "deadFontVar": 0,
       "space": 3,
@@ -3382,7 +3382,7 @@
       "hexStyle": 0
     },
     "app/(app)/mis-mascotas/[publicToken]/libreta/LibretaSanitariaView.tsx": {
-      "text": 5,
+      "text": 0,
       "deadTextVar": 0,
       "deadFontVar": 0,
       "space": 6,

@@ -268,7 +268,7 @@ function LnTimelineSection({
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               <span
-                className="text-[11px] font-semibold leading-tight"
+                className="text-sm font-semibold leading-tight"
                 style={{ color: "var(--color-ln-ink-2)" }}
               >
                 {dayStr} {monthStr}
@@ -313,16 +313,13 @@ function LnTimelineSection({
                 shrink; break-words makes the long run wrap instead. */}
             <div className="ml-3.5 mb-3.5 mt-2 min-w-0 break-words rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3.5 py-[11px]">
               <div className="flex flex-wrap items-center gap-[7px]">
-                <p
-                  className="m-0 text-[13px] font-semibold"
-                  style={{ color: "var(--color-ln-ink)" }}
-                >
+                <p className="m-0 text-md font-semibold" style={{ color: "var(--color-ln-ink)" }}>
                   {senasaLabel ?? summary.primary ?? eventTypeLabel(event.eventType as EventType)}
                 </p>
                 <ConfidenceBadge tier={confidenceTier} />
                 {isEno && (
                   <span
-                    className="rounded-full border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-[7px] py-px font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.08em]"
+                    className="rounded-full border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-[7px] py-px font-ln-mono text-xs font-semibold uppercase tracking-[.08em]"
                     style={{ color: "var(--color-ln-warn)" }}
                     title="Notificable ENO (Enfermedades de Notificación Obligatoria, Ley 15.465)"
                   >
@@ -332,7 +329,7 @@ function LnTimelineSection({
               </div>
               {senasaNorma && (
                 <p
-                  className="mt-0.5 font-ln-mono text-[10.5px]"
+                  className="mt-0.5 font-ln-mono text-sm"
                   style={{ color: "var(--color-ln-mute)" }}
                 >
                   {senasaNorma}
@@ -349,7 +346,7 @@ function LnTimelineSection({
                 </p>
               )}
               <div
-                className="mt-2 flex flex-wrap items-center gap-3 font-ln-mono text-[10.5px]"
+                className="mt-2 flex flex-wrap items-center gap-3 font-ln-mono text-sm"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 <time dateTime={date.toISOString()}>{formatDate(event.occurredAt)}</time>
