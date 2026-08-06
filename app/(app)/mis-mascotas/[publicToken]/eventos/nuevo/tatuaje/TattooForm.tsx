@@ -134,7 +134,7 @@ export function TattooForm({ action }: { action: FormAction }) {
                 type="file"
                 accept="image/*"
                 required
-                className="block w-full cursor-pointer rounded-[3px] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2.5 font-ln-mono text-[11.5px] text-[var(--color-ln-mute)] file:mr-3 file:cursor-pointer file:rounded-[3px] file:border file:border-[var(--color-ln-line-strong)] file:bg-[var(--color-ln-card)] file:px-2.5 file:py-[5px] file:text-[11px] file:font-semibold file:text-[var(--color-ln-ink)]"
+                className="block w-full cursor-pointer rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2.5 font-ln-mono text-[11.5px] text-[var(--color-ln-mute)] file:mr-3 file:cursor-pointer file:rounded-[var(--radius-sm)] file:border file:border-[var(--color-ln-line-strong)] file:bg-[var(--color-ln-card)] file:px-2.5 file:py-[5px] file:text-[11px] file:font-semibold file:text-[var(--color-ln-ink)]"
               />
             )}
           </LnField>

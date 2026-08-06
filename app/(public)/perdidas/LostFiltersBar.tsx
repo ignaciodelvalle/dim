@@ -36,7 +36,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
     <form
       action="/perdidas"
       method="GET"
-      className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
+      className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
     >
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
         <div>

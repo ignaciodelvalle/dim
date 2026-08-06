@@ -68,7 +68,7 @@ export default async function AdoptarPage({
           // UX 3.5 item 3: distinguish true-empty (no filters) from filter-empty.
           // "no hay resultados con esos filtros" is misleading when there are no
           // active filters — in that case the section simply has no listings yet.
-          <div className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
             {hasActiveFilters ? (
               <>
                 <p className="text-sm font-medium text-[var(--color-ln-ink)]">

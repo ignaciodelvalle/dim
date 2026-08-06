@@ -14,7 +14,7 @@ export function ResetRequestForm() {
 
   if (state.message) {
     return (
-      <output className="block rounded-[3px] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3.5 text-md text-[var(--color-ln-ink)]">
+      <output className="block rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3.5 text-md text-[var(--color-ln-ink)]">
         {state.message}
       </output>
     );

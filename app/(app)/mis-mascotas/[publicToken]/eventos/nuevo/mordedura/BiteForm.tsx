@@ -120,7 +120,7 @@ export function BiteForm({
               <label
                 key={opt.value}
                 className={[
-                  "flex cursor-pointer items-center justify-center rounded-[3px] border px-2.5 py-2",
+                  "flex cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border px-2.5 py-2",
                   "font-ln-mono text-[11px] font-semibold transition-colors",
                   victimKind === opt.value
                     ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]"

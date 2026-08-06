@@ -136,7 +136,7 @@ export default async function PerdidasPage({
           // secondary line — so a visitor who had applied nothing was told
           // their filters were the problem, and then, in the next breath, that
           // there were no lost pets at all. Two answers to one question.
-          <div className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
             {hasActiveFilters ? (
               <>
                 <p className="text-sm font-medium text-[var(--color-ln-ink)]">
@@ -196,7 +196,7 @@ export default async function PerdidasPage({
         {/* Bottom CTA — owner-side entry point. Anchor to /mis-mascotas;
             anonymous users land on /login with the destination preserved
             by the existing auth flow. */}
-        <aside className="rounded-[5px] border border-[var(--color-ln-line)] border-l-[3px] border-l-[var(--color-ln-err)] bg-[var(--color-ln-card)] p-5 flex flex-wrap items-center gap-4">
+        <aside className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] border-l-[3px] border-l-[var(--color-ln-err)] bg-[var(--color-ln-card)] p-5 flex flex-wrap items-center gap-4">
           <div className="flex-1 min-w-[200px] space-y-0.5">
             <p className="text-sm font-semibold text-[var(--color-ln-ink)]">
               ¿Perdiste a tu mascota?
@@ -234,7 +234,7 @@ function KpiCard({
         ? "text-[var(--color-ln-warn)]"
         : "text-[var(--color-ln-mute)]";
   return (
-    <div className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3">
+    <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3">
       <p className="font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1">
         {label}
       </p>

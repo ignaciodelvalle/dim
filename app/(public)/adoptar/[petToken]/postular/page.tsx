@@ -156,7 +156,8 @@ export default async function PostularPage({
           <div
             className="flex-shrink-0 w-[64px] h-[64px] rounded-[var(--radius-lg)] overflow-hidden border"
             style={{
-              background: "repeating-linear-gradient(135deg,#e7e2d6 0 7px,#f1eee5 7px 14px)",
+              background:
+                "repeating-linear-gradient(135deg,var(--pattern-no-photo-a) 0 7px,var(--pattern-no-photo-b) 7px 14px)",
               borderColor: "var(--color-ln-line)",
             }}
           >
@@ -227,7 +228,7 @@ export default async function PostularPage({
 
         {intentExpired && (
           <output
-            className="block rounded-[5px] border border-l-[4px] px-4 py-3.5 text-[13px]"
+            className="block rounded-[var(--radius-md)] border border-l-[4px] px-4 py-3.5 text-[13px]"
             style={{
               background: "var(--color-ln-celeste-050)",
               borderColor: "var(--color-ln-celeste-100)",
@@ -277,7 +278,7 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
         </p>
         <Link
           href={`/adoptar/${petToken}`}
-          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Volver a la ficha
@@ -314,7 +315,7 @@ function NoLongerAvailable({ name }: { name: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
@@ -351,7 +352,7 @@ function AlreadyApplied({ name }: { name: string }) {
         </p>
         <Link
           href="/mis-mascotas/postulaciones"
-          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver mis postulaciones

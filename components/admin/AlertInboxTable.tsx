@@ -72,7 +72,7 @@ function StatusBadge({ status }: { status: AlertFiringStatus }) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-1 rounded-[3px] border px-[7px] py-0.5",
+        "inline-flex items-center gap-1 rounded-[var(--radius-sm)] border px-[7px] py-0.5",
         "font-ln-mono text-[9px] font-bold uppercase tracking-[0.06em]",
         STATUS_CLASSES[status],
       ].join(" ")}
@@ -184,7 +184,7 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
                   </span>
                   {isBreach ? (
                     <span
-                      className="ml-2 inline-flex items-center gap-[3px] rounded-[3px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-1.5 py-px font-ln-mono text-[9px] font-bold uppercase text-ln-op-danger"
+                      className="ml-2 inline-flex items-center gap-[3px] rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-1.5 py-px font-ln-mono text-[9px] font-bold uppercase text-ln-op-danger"
                       title={`Sin reconocer hace ${days} días (SLA ${BREACH_DAYS} días)`}
                     >
                       <span aria-hidden="true">!</span>

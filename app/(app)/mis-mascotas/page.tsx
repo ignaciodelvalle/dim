@@ -508,7 +508,7 @@ function MemorialRow({
         {photoSrc ? (
           <Image src={photoSrc} alt={name} fill sizes="64px" className="object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center bg-[repeating-linear-gradient(135deg,#e7e2d6_0_6px,#f3f0e7_6px_12px)]">
+          <div className="flex h-full w-full items-center justify-center bg-[repeating-linear-gradient(135deg,var(--pattern-no-photo-a)_0_6px,var(--pattern-no-photo-b)_6px_12px)]">
             <span className="font-ln-mono text-[7px] uppercase tracking-[.04em] text-[var(--color-ln-mute)]">
               foto
             </span>

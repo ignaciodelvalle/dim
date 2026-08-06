@@ -225,10 +225,10 @@ export function OutboxTable({
                     row.attempts
                   )}
                 </td>
-                <td className="py-2 px-3 text-[11px] text-ln-op-mute whitespace-nowrap">
+                <td className="py-2 px-3 text-[11px] tabular-nums text-ln-op-mute whitespace-nowrap">
                   {formatDateTime(row.createdAt)}
                 </td>
-                <td className="py-2 px-3 text-[11px] text-ln-op-mute whitespace-nowrap">
+                <td className="py-2 px-3 text-[11px] tabular-nums text-ln-op-mute whitespace-nowrap">
                   {formatDateTime(row.slaDueAt)}
                 </td>
                 <td className="py-2 px-3">

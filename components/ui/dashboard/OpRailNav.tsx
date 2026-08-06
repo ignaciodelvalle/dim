@@ -87,7 +87,7 @@ function NavLink({
         ].join(" ")}
       >
         <span className="flex-1 truncate">{item.label}</span>
-        <span className="inline-flex items-center rounded-[3px] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
+        <span className="inline-flex items-center rounded-[var(--radius-sm)] border border-[rgba(255,255,255,0.18)] px-1.5 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-ln-op-rail-mute">
           Próximamente
         </span>
       </span>
@@ -142,7 +142,7 @@ function NavLink({
       <RailLinkPendingSignal onChange={setPending} />
       <span className="flex-1 truncate">{item.label}</span>
       {item.badge != null && item.badge > 0 && (
-        <span className="font-ln-mono inline-flex items-center justify-center rounded-[3px] bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-xs font-bold leading-none text-white">
+        <span className="font-ln-mono inline-flex items-center justify-center rounded-[var(--radius-sm)] bg-[rgba(255,255,255,0.08)] px-1.5 py-0.5 text-xs font-bold leading-none text-white">
           {item.badge}
         </span>
       )}

@@ -157,7 +157,7 @@ export function LnPetPill({ name, status = "ok", active = false, onClick }: LnPe
         .join(" ")}
     >
       {/* Pet dot avatar */}
-      <span className="relative h-[18px] w-[18px] flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-ln-line-strong)] bg-[repeating-linear-gradient(135deg,#e7e2d6_0_4px,#f2efe6_4px_8px)]">
+      <span className="relative h-[18px] w-[18px] flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-ln-line-strong)] bg-[repeating-linear-gradient(135deg,var(--pattern-no-photo-a)_0_4px,var(--pattern-no-photo-b)_4px_8px)]">
         {/* Status indicator */}
         <span
           className={[

@@ -222,7 +222,7 @@ export function AmendEventForm({
                       <p className="font-ln-mono text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
                         Valor actual
                       </p>
-                      <p className="rounded-[3px] bg-[var(--color-ln-stripe)] px-2.5 py-2 text-sm text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
+                      <p className="rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] px-2.5 py-2 text-sm text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
                         {stringifyValue(currentPayload[key]) || (
                           <span className="italic text-[var(--color-ln-mute)]">vacío</span>
                         )}

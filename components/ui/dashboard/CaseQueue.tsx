@@ -447,7 +447,7 @@ export function CaseQueue({
                         ? `${row.jurisdictionLocality}, ${row.jurisdictionProvince}`
                         : (row.jurisdictionProvince ?? "—")}
                     </td>
-                    <td className="px-3 py-2 text-ln-op-mute">
+                    <td className="px-3 py-2 tabular-nums text-ln-op-mute">
                       <div className="flex flex-col gap-1">
                         <time dateTime={row.openedAt.toISOString()}>
                           {formatDate(row.openedAt)}

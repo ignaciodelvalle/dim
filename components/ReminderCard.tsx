@@ -75,7 +75,7 @@ const VARIANT_CONFIG: Record<ReminderVariant, VariantConfig> = {
     isAlert: false,
   },
   due_soon: {
-    border: "border-l-4 border-l-[#e0a93e]",
+    border: "border-l-4 border-l-[var(--color-warning)]",
     badgeVariant: "warning",
     isAlert: false,
   },

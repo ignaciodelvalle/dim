@@ -569,7 +569,7 @@ export function LnCheckbox({
       className={[
         "mt-0.5 h-4 w-4 shrink-0 cursor-pointer",
         "accent-[var(--color-ln-azul)]",
-        "rounded-[3px]",
+        "rounded-[var(--radius-sm)]",
         "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
         invalid ? "outline outline-[1.5px] outline-[var(--color-ln-err)]" : "",
         className ?? "",

@@ -124,7 +124,7 @@ function RadioCard<T extends string>({
         {options.map((opt) => (
           <label
             key={opt.value}
-            className="flex items-center gap-2.5 rounded-[5px] border px-3 py-2.5 text-[13px] cursor-pointer"
+            className="flex items-center gap-2.5 rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] cursor-pointer"
             style={
               value === opt.value
                 ? {
@@ -331,7 +331,7 @@ export function ApplicationForm({
             onChange={(e) => setMotivation(e.target.value)}
             rows={4}
             placeholder={`Ej: "Siempre tuve perros y ahora que me mudé a una casa con patio quiero darle una familia a ${petName}..."`}
-            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
           <p
@@ -355,7 +355,7 @@ export function ApplicationForm({
           type="button"
           onClick={advanceStep1}
           disabled={motivationChars < MIN_MOTIVATION_LEN}
-          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -389,7 +389,7 @@ export function ApplicationForm({
             onChange={(e) => setOtherPets(e.target.value)}
             rows={3}
             placeholder='Ej: "un gato castrado adulto, sociable"'
-            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
@@ -402,7 +402,7 @@ export function ApplicationForm({
           type="button"
           onClick={advanceStep2}
           disabled={!priorPets}
-          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -434,7 +434,7 @@ export function ApplicationForm({
           type="button"
           onClick={() => setStep(4)}
           disabled={!housingType}
-          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -458,7 +458,7 @@ export function ApplicationForm({
             onChange={(e) => setDailyRoutine(e.target.value)}
             rows={3}
             placeholder="¿Quién está en casa durante el día? ¿Hay nenes? ¿Alguien la cuida si viajás?"
-            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
@@ -468,14 +468,14 @@ export function ApplicationForm({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="w-full rounded-[5px] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
         <button
           type="button"
           onClick={() => setStep(5)}
-          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white"
+          className="w-full rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-md font-semibold text-white"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Continuar →
@@ -612,7 +612,7 @@ export function ApplicationForm({
           <button
             type="button"
             onClick={() => setPrivacyModalOpen(false)}
-            className="mt-[18px] w-full rounded-[5px] border-0 px-4 py-[11px] text-[13px] font-semibold text-white"
+            className="mt-[18px] w-full rounded-[var(--radius-md)] border-0 px-4 py-[11px] text-[13px] font-semibold text-white"
             style={{ background: "var(--color-ln-azul)" }}
           >
             Entendido
@@ -629,7 +629,7 @@ export function ApplicationForm({
           type="button"
           onClick={submit}
           disabled={pending || !profileSharingConsent}
-          className="w-full rounded-[5px] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
+          className="w-full rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-md font-semibold text-white transition-opacity disabled:opacity-60"
           style={{ background: "var(--color-ln-azul)" }}
         >
           {pending ? "Enviando postulación..." : "Enviar postulación"}

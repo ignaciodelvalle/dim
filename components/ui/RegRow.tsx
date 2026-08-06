@@ -75,7 +75,7 @@ export function LnPetPhoto({
         "relative grid flex-shrink-0 place-items-center overflow-hidden border border-[var(--color-ln-line-strong)]",
         radiusClass,
         // Diagonal placeholder pattern (matches handoff)
-        "bg-[repeating-linear-gradient(135deg,#e7e2d6_0_6px,#f3f0e7_6px_12px)]",
+        "bg-[repeating-linear-gradient(135deg,var(--pattern-no-photo-a)_0_6px,var(--pattern-no-photo-b)_6px_12px)]",
       ]
         .filter(Boolean)
         .join(" ")}

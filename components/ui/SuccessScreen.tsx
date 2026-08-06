@@ -48,7 +48,7 @@ type SuccessActionVariant = NonNullable<SuccessAction["variant"]>;
 // string + one typed Record keyed by the variant union, merged with the
 // array-filter-join idiom. Reference implementation for the pattern.
 const ACTION_BASE =
-  "block w-full px-4 py-3.5 rounded-[3px] font-semibold text-sm text-center transition-colors";
+  "block w-full px-4 py-3.5 rounded-[var(--radius-sm)] font-semibold text-sm text-center transition-colors";
 
 const ACTION_VARIANT_CLASSES: Record<SuccessActionVariant, string> = {
   primary:

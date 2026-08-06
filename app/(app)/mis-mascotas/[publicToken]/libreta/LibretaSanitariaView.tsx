@@ -174,7 +174,7 @@ function eventColor(eventType: string): string {
       return "var(--color-ln-ok)";
     case "medication_started":
     case "medication_stopped":
-      return "#6b4ea8";
+      return "var(--color-ln-violeta)";
     case "note_added":
       return "var(--color-ln-warn)";
     case "sterilization_performed":

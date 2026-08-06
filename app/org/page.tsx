@@ -40,7 +40,7 @@ const LAST_ORG_COOKIE = "dim_last_org";
 function MiMarBrandHeader({ subtitle }: { subtitle: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[5px] bg-ln-op-navy font-ln-mono text-[13px] font-bold text-white">
+      <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-navy font-ln-mono text-[13px] font-bold text-white">
         m·
       </div>
       <div className="flex flex-col leading-tight">

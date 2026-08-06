@@ -1085,10 +1085,10 @@ function LnPhotoField({
           <img
             src={preview}
             alt="Vista previa de la mascota"
-            className="h-[72px] w-[72px] flex-shrink-0 rounded-[5px] object-cover"
+            className="h-[72px] w-[72px] flex-shrink-0 rounded-[var(--radius-sm)] object-cover"
           />
         ) : (
-          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[5px] bg-[var(--color-ln-stripe)] text-[11px] text-[var(--color-ln-mute)]">
+          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] text-[11px] text-[var(--color-ln-mute)]">
             Sin foto
           </div>
         )}

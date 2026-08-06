@@ -293,7 +293,7 @@ export function Step5Contact({
           accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif"
           capture="environment"
           onChange={(e) => handleFilesSelected(e.target.files)}
-          className="block w-full text-xs text-[var(--color-ln-ink-2)] file:mr-3 file:px-3 file:py-1.5 file:rounded-[3px] file:border-0 file:bg-[var(--color-ln-stripe)] file:text-[var(--color-ln-ink)] file:cursor-pointer"
+          className="block w-full text-xs text-[var(--color-ln-ink-2)] file:mr-3 file:px-3 file:py-1.5 file:rounded-[var(--radius-sm)] file:border-0 file:bg-[var(--color-ln-stripe)] file:text-[var(--color-ln-ink)] file:cursor-pointer"
         />
 
         {evidenceError && (
@@ -311,10 +311,10 @@ export function Step5Contact({
                   <img
                     src={entry.objectUrl}
                     alt={entry.file.name}
-                    className="w-full aspect-square object-cover rounded-[5px] border border-[var(--color-ln-line-strong)]"
+                    className="w-full aspect-square object-cover rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)]"
                   />
                 ) : (
-                  <div className="w-full aspect-square rounded-[5px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] flex flex-col items-center justify-center gap-1 p-2 text-[var(--color-ln-mute)]">
+                  <div className="w-full aspect-square rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] flex flex-col items-center justify-center gap-1 p-2 text-[var(--color-ln-mute)]">
                     <Icon name="reproducir" size={24} decorative />
                     <p className="text-xs text-[var(--color-ln-mute)] text-center truncate w-full">
                       {entry.file.name}

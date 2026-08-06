@@ -102,7 +102,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
       <form
         action="/adoptar"
         method="GET"
-        className="rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
+        className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-4 space-y-3"
       >
         {/* Search box */}
         <div>

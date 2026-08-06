@@ -276,7 +276,7 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
                       routinely contain PII (denouncer descriptions, internal
                       org coordination, addresses). */}
                   {!isPublic && e.notes ? (
-                    <p className="mt-2 rounded-[3px] bg-ln-stripe p-2 font-ln-mono text-[11px] text-ln-mute">
+                    <p className="mt-2 rounded-[var(--radius-sm)] bg-ln-stripe p-2 font-ln-mono text-[11px] text-ln-mute">
                       {e.notes}
                     </p>
                   ) : null}

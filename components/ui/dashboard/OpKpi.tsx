@@ -742,7 +742,7 @@ export function OpKpi({
       {/* Value */}
       <div
         className={[
-          "font-ln-serif text-[30px] font-semibold leading-none tracking-[-0.02em] tabular-nums",
+          "font-ln-serif text-3xl font-semibold leading-none tracking-[-0.02em] tabular-nums",
           toneValue[tone],
         ].join(" ")}
       >
@@ -858,7 +858,7 @@ export function OpKpi({
 type SmProps = Pick<Props, "label" | "value" | "tone" | "sub" | "href">;
 
 /**
- * Compact KPI tile. Smaller value (25px), 9px label, optional hint row.
+ * Compact KPI tile. Smaller value (--text-2xl, 24px), 9px label, optional hint row.
  */
 export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) {
   const cardCls = [
@@ -874,7 +874,7 @@ export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) 
       </div>
       <div
         className={[
-          "font-ln-serif text-[25px] font-semibold leading-none tracking-[-0.02em] tabular-nums",
+          "font-ln-serif text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums",
           toneValue[tone],
         ].join(" ")}
       >

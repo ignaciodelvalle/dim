@@ -267,7 +267,8 @@ export default async function AdoptarFichaPage({
               style={{
                 aspectRatio: "4/3",
                 borderColor: "var(--color-ln-line)",
-                background: "repeating-linear-gradient(135deg,#e7e2d6 0 12px,#f1eee5 12px 24px)",
+                background:
+                  "repeating-linear-gradient(135deg,var(--pattern-no-photo-a) 0 12px,var(--pattern-no-photo-b) 12px 24px)",
               }}
             >
               <Image
@@ -359,7 +360,8 @@ export default async function AdoptarFichaPage({
               aspectRatio: "4/3",
               maxWidth: 480,
               borderColor: "var(--color-ln-line)",
-              background: "repeating-linear-gradient(135deg,#e7e2d6 0 12px,#f1eee5 12px 24px)",
+              background:
+                "repeating-linear-gradient(135deg,var(--pattern-no-photo-a) 0 12px,var(--pattern-no-photo-b) 12px 24px)",
             }}
           >
             <span
@@ -676,8 +678,8 @@ function HealthRow({
         className="w-[22px] h-[22px] rounded-full grid place-items-center text-[11px] font-bold flex-shrink-0"
         style={
           ok
-            ? { background: "#dff5e3", color: "#1f7a3a" }
-            : { background: "#fdecec", color: "#9c2b1d" }
+            ? { background: "var(--color-ln-ok-050)", color: "var(--color-ln-ok)" }
+            : { background: "var(--color-ln-err-050)", color: "var(--color-ln-err)" }
         }
       >
         {ok ? <Icon name="check" size="sm" decorative /> : "—"}
@@ -701,8 +703,16 @@ function ConvivenciaChip({ label, value }: { label: string; value: boolean | nul
   const tone = value === true ? "pos" : "warn";
   const style =
     tone === "pos"
-      ? { background: "#e9f6ec", color: "#1e6f33", borderColor: "#bfe0c9" }
-      : { background: "#fff4d6", color: "#8a5e00", borderColor: "#ffe39c" };
+      ? {
+          background: "var(--color-ln-ok-050)",
+          color: "var(--color-ln-ok)",
+          borderColor: "var(--color-ln-ok-100)",
+        }
+      : {
+          background: "var(--color-ln-warn-050)",
+          color: "var(--color-ln-warn)",
+          borderColor: "var(--color-ln-warn-100)",
+        };
   return (
     <span
       className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-sm font-semibold"
@@ -744,7 +754,7 @@ function RecentlyAdopted({ name }: { name: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
@@ -791,7 +801,7 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-[11px] rounded-[5px] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción

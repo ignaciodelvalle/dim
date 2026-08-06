@@ -25,7 +25,7 @@ import { DescargarComprobante } from "./DescargarComprobante";
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-[5px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
+    <div className="w-full h-64 rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] animate-pulse" />
   ),
 });
 
@@ -350,7 +350,7 @@ export default async function WelfareReportByCodePage({
                   a.mimeType.startsWith("video/") ? (
                     <div
                       key={a.id}
-                      className="rounded-[5px] overflow-hidden border border-[var(--color-ln-line-strong)]"
+                      className="rounded-[var(--radius-sm)] overflow-hidden border border-[var(--color-ln-line-strong)]"
                     >
                       {/* biome-ignore lint/a11y/useMediaCaption: evidence video, no captions available */}
                       <video
@@ -370,7 +370,7 @@ export default async function WelfareReportByCodePage({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block rounded-[5px] overflow-hidden border border-[var(--color-ln-line-strong)] hover:opacity-90 transition-opacity"
+                      className="block rounded-[var(--radius-sm)] overflow-hidden border border-[var(--color-ln-line-strong)] hover:opacity-90 transition-opacity"
                     >
                       <img
                         src={a.signedUrl}

@@ -169,7 +169,7 @@ export function LnSheetCard({
   return (
     <div
       className={[
-        "flex flex-col overflow-hidden rounded-[5px]",
+        "flex flex-col overflow-hidden rounded-[var(--radius-md)]",
         "border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)]",
         "shadow-[0_18px_50px_rgba(20,40,60,.14)]",
         "w-full",
@@ -359,7 +359,7 @@ export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetR
         {photoUrl ? (
           <Image src={photoUrl} alt={name} fill sizes="38px" className="object-cover" />
         ) : (
-          <div className="h-full w-full bg-[repeating-linear-gradient(135deg,#e7e2d6_0_4px,#f2efe6_4px_8px)]" />
+          <div className="h-full w-full bg-[repeating-linear-gradient(135deg,var(--pattern-no-photo-a)_0_4px,var(--pattern-no-photo-b)_4px_8px)]" />
         )}
       </div>
       {/* Name + meta */}
@@ -398,7 +398,7 @@ export function LnSubCard({ heading, children, className = "" }: LnSubCardProps)
   return (
     <div
       className={[
-        "flex flex-col gap-3 rounded-[5px] border border-[var(--color-ln-line)] bg-[#fcfbf7] px-3.5 py-3.5",
+        "flex flex-col gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-paper)] px-3.5 py-3.5",
         className,
       ]
         .filter(Boolean)

@@ -53,7 +53,7 @@ export function OpRail({
       {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
         {/* Monogram */}
-        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[5px] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
+        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
           m·
         </div>
         <div className="flex flex-col leading-tight">

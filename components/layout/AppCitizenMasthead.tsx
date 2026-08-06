@@ -453,7 +453,7 @@ function CitizenMobileDrawer({
                     href={item.href}
                     aria-current={active ? "page" : undefined}
                     className={[
-                      "flex min-h-11 items-center gap-2.5 rounded-[5px] px-3 py-2",
+                      "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2",
                       "text-[13px] no-underline transition-colors",
                       active
                         ? "border-l-2 border-[var(--color-ln-celeste)] bg-white/10 font-semibold text-white"
@@ -473,7 +473,7 @@ function CitizenMobileDrawer({
               {showReturn && returnHref && (
                 <Link
                   href={returnHref}
-                  className="flex min-h-11 items-center rounded-[5px] px-3 py-2 text-[13px] font-medium text-white/85 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
+                  className="flex min-h-11 items-center rounded-[var(--radius-sm)] px-3 py-2 text-[13px] font-medium text-white/85 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
                 >
                   ← Volver a mi app
                 </Link>
@@ -482,7 +482,7 @@ function CitizenMobileDrawer({
                 <Link
                   key={t.key + t.href}
                   href={t.href}
-                  className="flex min-h-11 items-center rounded-[5px] px-3 py-2 text-[13px] text-white/75 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
+                  className="flex min-h-11 items-center rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-white/75 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
                 >
                   {t.label}
                 </Link>

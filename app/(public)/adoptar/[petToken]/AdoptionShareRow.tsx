@@ -47,7 +47,7 @@ export function AdoptionShareRow({ fichaUrl, petName }: Props) {
       <button
         type="button"
         onClick={shareWhatsApp}
-        className="inline-flex items-center gap-1.5 rounded-[5px] border px-3 py-2 text-sm font-semibold transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border px-3 py-2 text-sm font-semibold transition-colors"
         style={{
           background: "var(--color-ln-ok-050)",
           borderColor: "var(--color-ln-ok-100)",
@@ -60,7 +60,7 @@ export function AdoptionShareRow({ fichaUrl, petName }: Props) {
       <button
         type="button"
         onClick={copyLink}
-        className="inline-flex items-center gap-1.5 rounded-[5px] border px-3 py-2 text-sm font-semibold transition-colors"
+        className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border px-3 py-2 text-sm font-semibold transition-colors"
         style={{
           background: "var(--color-ln-stripe)",
           borderColor: "var(--color-ln-line-2)",
