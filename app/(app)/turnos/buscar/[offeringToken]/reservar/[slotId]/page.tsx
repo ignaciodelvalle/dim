@@ -52,11 +52,15 @@ export default async function ReservarTurnoPage({
     notFound();
   }
 
+  // Deceased pets are excluded — a turno cannot be booked for them (Cowork
+  // QA v3, B2). Same filter shape as lib/analytics/owner-dashboard.ts.
   const userPets = await db
     .select({ pet: pets })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL`)
+    .where(
+      sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL AND ${pets.status} <> 'deceased'`,
+    )
     .orderBy(pets.name);
 
   const { offering, org, provider } = offeringRow;
