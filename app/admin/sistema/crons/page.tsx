@@ -13,7 +13,7 @@ import { OpStatusPill } from "@/components/ui/dashboard/OpStatusPill";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { fetchCronHealth } from "@/lib/analytics/admin-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { formatDateTimeShortAr } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -188,16 +188,7 @@ export default async function AdminSistemaCronsPage() {
                         {c.schedule}
                       </td>
                       <td className="px-3 py-2 text-xs tabular-nums text-ln-op-ink-2">
-                        {c.lastRunAt
-                          ? new Date(c.lastRunAt).toLocaleString("es-AR", {
-                              day: "numeric",
-                              month: "short",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                              hourCycle: "h23",
-                              timeZone: AR_TIME_ZONE,
-                            })
-                          : "—"}
+                        {formatDateTimeShortAr(c.lastRunAt)}
                       </td>
                       <td className="px-3 py-2 text-xs tabular-nums text-ln-op-mute">
                         {formatAgeMs(c.ageMs)}

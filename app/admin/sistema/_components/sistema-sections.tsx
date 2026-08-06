@@ -34,7 +34,7 @@ import type { EnoSlaMetric } from "@/lib/analytics/surveillance-metrics";
 import { cronDisplayLabel } from "@/lib/infra/cron-registry";
 import { decisionsDeltaPct } from "@/lib/metrics";
 import { decisionsAuditDrillHref } from "@/lib/ui/audit-filters";
-import { AR_TIME_ZONE, formatDateShort } from "@/lib/utils/format";
+import { formatDateShort, formatDateTimeShortAr } from "@/lib/utils/format";
 import { withDbBudget } from "@/src/modules/panorama/application/db-budget";
 
 // ---------------------------------------------------------------------------
@@ -482,16 +482,7 @@ export async function SistemaCronsCard() {
                       {cronDisplayLabel(c.cronName)}
                     </span>
                     <span className="tabular-nums text-sm flex items-center gap-1.5">
-                      {c.lastRunAt
-                        ? new Date(c.lastRunAt).toLocaleString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hourCycle: "h23",
-                            timeZone: AR_TIME_ZONE,
-                          })
-                        : "—"}
+                      {formatDateTimeShortAr(c.lastRunAt)}
                       {c.lastStatus && (
                         <OpPill tone={STATUS_TONE[c.lastStatus] ?? "neutral"}>
                           {STATUS_LABEL[c.lastStatus] ?? c.lastStatus}

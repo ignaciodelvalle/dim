@@ -268,6 +268,27 @@ export function formatDateTimeNumericAr(value: Date | string | null | undefined)
   return `${part("day")}/${part("month")}/${part("year")} ${part("hour")}:${part("minute")}`;
 }
 
+// Compact recent-timestamp form for ops tables — "6 ago, 13:21" (day + short
+// month + 24h clock, NO year). Extracted from two byte-identical hand-rolled
+// options objects in the admin sistema surfaces (token audit 2026-08-06,
+// item 8). The year is dropped on purpose: these are rolling operational
+// timestamps (cron last-run and friends) never more than days old.
+const SPANISH_DATETIME_SHORT_FORMAT = new Intl.DateTimeFormat("es-AR", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: AR_TIME_ZONE,
+});
+
+export function formatDateTimeShortAr(value: Date | string | null | undefined): string {
+  if (!value) return "—";
+  const date = coerceDate(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return SPANISH_DATETIME_SHORT_FORMAT.format(date);
+}
+
 // Compact "DD/MM" AR-pinned date that appends the year ONLY when it differs
 // from the CURRENT Argentine calendar year — "18/07" this year, "18/07/2027"
 // any other (medianos-sesión-2, finding #1). A bare "Próxima 18/7" is fine

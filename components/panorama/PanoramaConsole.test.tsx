@@ -2081,7 +2081,10 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
       );
       expect(cobertura?.dimmed).toBe(false);
     });
-  });
+    // 15s, not the 5s default: this test times out under full-suite worker
+    // contention (twice on 2026-08-06) while passing isolated in <1s — the
+    // budget covers scheduler starvation, not real work.
+  }, 15_000);
 
   it("keyed-aborts a superseded as-of fetch on a rapid scrub (finding 4)", async () => {
     deferMode = true;
