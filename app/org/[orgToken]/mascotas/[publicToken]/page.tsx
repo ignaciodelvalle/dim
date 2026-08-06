@@ -233,6 +233,11 @@ export default async function OrgPetDetailPage({
   const canonicalIds = await fetchActiveIdentifications(pet.id);
 
   const canManageEligibility = granted.has("intake.create") && ownershipRole === "shelter_custody";
+  // The publish CTA existed only in the list's row menu — from the ficha
+  // there was no way to publish, which misled QA into "Apta no publica"
+  // (Cowork QA v3, B1). Mirrors mascota-ctas.tsx's publish-listing candidate.
+  const canManageAdoptionListing =
+    granted.has("adoption.listing.manage") && ownershipRole === "shelter_custody";
   const canReplaceMicrochip = granted.has("event.write");
   // Clinical event recording on the held-pet ficha (staging validation
   // 2026-07-04, bug 2): the capability existed but had no surface here. The
@@ -389,6 +394,7 @@ export default async function OrgPetDetailPage({
 
         {/* Action buttons */}
         {(canManageEligibility ||
+          canManageAdoptionListing ||
           canReplaceMicrochip ||
           canWriteEvents ||
           canEndFoster ||
@@ -420,6 +426,22 @@ export default async function OrgPetDetailPage({
                     "Elegibilidad · NO apta"
                   ) : (
                     "Elegibilidad"
+                  )}
+                </Link>
+              )}
+              {canManageAdoptionListing && (
+                <Link
+                  href={`/org/${orgToken}/mascotas/${publicToken}/adoptar`}
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                >
+                  {pet.adoptionListedAt && !pet.adoptionListingPausedAt ? (
+                    <span className="inline-flex items-center gap-1">
+                      Publicada <Icon name="check" size={13} decorative />
+                    </span>
+                  ) : pet.adoptionListedAt && pet.adoptionListingPausedAt ? (
+                    "Adopción · Pausada"
+                  ) : (
+                    "Publicar en adopción"
                   )}
                 </Link>
               )}
