@@ -78,7 +78,11 @@ const CUSTODY_ROLES: readonly CustodyRole[] = ["shelter_custody", "owner"];
 const CHIP_MATCH_ACTIVE_BLOCK_MSG =
   "Este microchip ya está registrado en miMAR para una mascota activa con familia. No se puede crear un segundo ingreso con el mismo chip. Si la familia entregó al animal, tiene que iniciar la transferencia de titularidad desde su cuenta. Si el animal está perdido, pedile a la familia que lo marque como perdido en miMAR: recién ahí el sistema te propone confirmar la coincidencia y registrar la custodia.";
 
-function parseIntakeForm(formData: FormData) {
+// Exported for the bulk CSV import (org-pilot-pack D1): the preview validates
+// each row through THESE exact write-time rules on synthetic FormData, so the
+// preview can never diverge from what createIntake would accept. Export-only
+// change — behavior untouched.
+export function parseIntakeForm(formData: FormData) {
   const loc = parseLocationFromFormData(formData);
   const name = String(formData.get("name") ?? "").trim();
   const species = String(formData.get("species") ?? "").trim();

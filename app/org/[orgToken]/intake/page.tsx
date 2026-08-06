@@ -98,12 +98,20 @@ export default async function IntakePage({
           <h1 className="text-title font-semibold text-ln-op-ink">Ingresos</h1>
         </div>
         {activeTab === "cola" && (
-          <Link
-            href={`/org/${orgToken}/intake?tab=registrar`}
-            className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
-          >
-            + Nuevo ingreso
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/org/${orgToken}/intake/importar`}
+              className="inline-flex items-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-md font-medium text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              Importar CSV
+            </Link>
+            <Link
+              href={`/org/${orgToken}/intake?tab=registrar`}
+              className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            >
+              + Nuevo ingreso
+            </Link>
+          </div>
         )}
       </header>
 
