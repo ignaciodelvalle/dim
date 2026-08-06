@@ -146,10 +146,11 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         official
         description={
           obsEnd
-            ? // Anchor at noon (not midnight) before formatting: obsEnd is a bare
-              // YYYY-MM-DD, and formatDate renders in the AR timezone (UTC-3) —
-              // parsing it as UTC midnight would display the day before.
-              `Mascota en observación antirrábica por 10 días. Próxima revisión: ${formatDate(`${obsEnd}T12:00:00`)}.`
+            ? // obsEnd is a bare YYYY-MM-DD; formatDate anchors date-only
+              // strings at noon UTC itself. The old manual "T12:00:00" suffix
+              // (no Z) parsed in the BROWSER's zone in this client component,
+              // so a viewer far from AR could still see the previous day.
+              `Mascota en observación antirrábica por 10 días. Próxima revisión: ${formatDate(obsEnd)}.`
             : "Mascota en observación antirrábica por 10 días."
         }
         next={[
