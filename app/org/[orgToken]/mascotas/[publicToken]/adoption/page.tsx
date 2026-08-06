@@ -5,10 +5,12 @@
 
 import { db, fosterProposals, ownerships, pets, profiles } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { safePayloadUuid } from "@/lib/infra/sql-fragments";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
+import QRCode from "qrcode";
 
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 
@@ -133,6 +135,17 @@ export default async function AdoptionPage({
     applicantName: r.applicant_name,
   }));
 
+  // Signup QR for the registered-adopter refusal panel (org-pilot-pack D9).
+  // resolveSiteUrl() is the PRN-4 empty-SITE_URL fix — never an empty origin,
+  // so the QR can never encode a host-less relative URL. Signup step 2 already
+  // captures the DNI, so after registering the org simply re-verifies.
+  const signupQrSvg = await QRCode.toString(`${resolveSiteUrl()}/signup`, {
+    type: "svg",
+    margin: 1,
+    width: 160,
+    errorCorrectionLevel: "M",
+  });
+
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto space-y-6">
@@ -182,6 +195,7 @@ export default async function AdoptionPage({
               publicToken={publicToken}
               fosterShortcut={fosterShortcut}
               approvedApplications={approvedApplications}
+              signupQrSvg={signupQrSvg}
             />
           </OpCardBody>
         </OpCard>

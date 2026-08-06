@@ -276,6 +276,10 @@ export const AdoptionRepository = {
   /**
    * Finds a profile by DNI (via hash — no plaintext comparison).
    * Wave 5 Item 25a: equality matching uses HMAC-SHA256 hash, never plaintext.
+   *
+   * Retired from the finalize-adoption path (org-pilot-pack): finalization now
+   * requires a REGISTERED account (see findAdopterAccountByDni below). Kept for
+   * any non-finalize caller and as the historical hash-equality reference.
    */
   async findStubAdopterByDni(dni: string, tx?: Tx): Promise<{ id: string } | null> {
     const client = tx ?? db;
@@ -285,6 +289,53 @@ export const AdoptionRepository = {
       .where(eq(profiles.dniHash, hashDni(dni)))
       .limit(1);
     return row ?? null;
+  },
+
+  /**
+   * Finds an adopter ACCOUNT by DNI hash for the finalize-adoption flow
+   * (org-pilot-pack, reconciliation ruling): a valid match is a `profiles` row
+   * whose dniHash matches AND that has a corresponding `auth.users` row —
+   * i.e. a real registered account. `dniVerified` is intentionally NOT part of
+   * the match contract (a walk-in adopter who registers on the spot has
+   * dniVerified=false right after signup and must still match).
+   *
+   * `hasAuthAccount` is resolved via a raw-SQL EXISTS against `auth.users`
+   * because legacy stub profiles (created by the retired manual-DNI branch)
+   * have NO auth row and no schema flag distinguishes them — the auth join is
+   * the only honest signal. Callers MUST refuse when hasAuthAccount=false.
+   */
+  async findAdopterAccountByDni(
+    dni: string,
+    tx?: Tx,
+  ): Promise<{
+    id: string;
+    displayName: string;
+    dniVerified: boolean;
+    hasAuthAccount: boolean;
+  } | null> {
+    const client = tx ?? db;
+    const rows = await client.execute<{
+      id: string;
+      display_name: string;
+      dni_verified: boolean;
+      has_auth_account: boolean;
+    }>(sql`
+      SELECT p.id::text AS id,
+             p.display_name AS display_name,
+             p.dni_verified AS dni_verified,
+             EXISTS (SELECT 1 FROM auth.users u WHERE u.id = p.id) AS has_auth_account
+      FROM profiles p
+      WHERE p.dni_hash = ${hashDni(dni)}
+      LIMIT 1
+    `);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      displayName: row.display_name,
+      dniVerified: row.dni_verified,
+      hasAuthAccount: row.has_auth_account,
+    };
   },
 
   /**

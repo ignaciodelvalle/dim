@@ -491,6 +491,44 @@ export async function requestInfoAdoptionApplicationAction(
 }
 
 // ---------------------------------------------------------------------------
+// checkAdopterAccountAction
+// ---------------------------------------------------------------------------
+// Pre-submit desk check for the registered-adopter requirement (org-pilot-pack
+// D8): the finalize form verifies the typed DNI maps to a REGISTERED miMAR
+// account BEFORE submit, so the refusal UX (signup QR + guidance) comes from a
+// deliberate check, not from parsing the use-case's error string.
+//
+// Match contract (reconciliation ruling): profiles.dniHash match AND an
+// auth.users row EXISTS. dniVerified is NOT required. Legacy stubs (no auth
+// row) report not-found. Response surface is the minimum the form needs —
+// found + displayName only; dniVerified and other profile fields never leave
+// the server.
+
+export type CheckAdopterAccountResult =
+  | { found: true; displayName: string }
+  | { found: false }
+  | { error: string };
+
+export async function checkAdopterAccountAction(
+  orgToken: string,
+  dni: string,
+): Promise<CheckAdopterAccountResult> {
+  // Same capability + URL-org pinning as finalizeAdoptionAction — this check
+  // exists solely in service of that flow.
+  const auth = await requireCapabilityForOrgToken("adoption.finalize", orgToken);
+  if (auth.error !== null) return { error: auth.error };
+
+  const digits = dni.replace(/\D/g, "");
+  if (!/^\d{7,9}$/.test(digits)) {
+    return { error: "DNI inválido (deben ser 7 a 9 dígitos)." };
+  }
+
+  const account = await AdoptionRepository.findAdopterAccountByDni(digits);
+  if (!account || !account.hasAuthAccount) return { found: false };
+  return { found: true, displayName: account.displayName };
+}
+
+// ---------------------------------------------------------------------------
 // finalizeAdoptionAction
 // ---------------------------------------------------------------------------
 

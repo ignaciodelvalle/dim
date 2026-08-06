@@ -16,6 +16,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const actionMock = vi.fn();
+const checkAccountMock = vi.fn();
 vi.mock("@/src/modules/adoption/actions", () => ({
   finalizeAdoptionAction: Object.assign((...args: unknown[]) => actionMock(...args), {
     bind:
@@ -23,6 +24,7 @@ vi.mock("@/src/modules/adoption/actions", () => ({
       (...args: unknown[]) =>
         actionMock(orgToken, publicToken, ...args),
   }),
+  checkAdopterAccountAction: (...args: unknown[]) => checkAccountMock(...args),
 }));
 
 const navigateMock = vi.fn();
@@ -32,6 +34,8 @@ vi.mock("@/lib/ui/full-page-action-nav", () => ({
 
 import { FinalizeAdoptionForm } from "./FinalizeAdoptionForm";
 
+const SIGNUP_QR_SVG = '<svg role="img" aria-label="signup-qr"><title>signup-qr</title></svg>';
+
 const BASE_PROPS = {
   orgToken: "org-tok",
   publicToken: "DIM-1234-5678",
@@ -39,10 +43,19 @@ const BASE_PROPS = {
   // One approved application → the form defaults to the application path (no
   // required DNI field), so a bare programmatic submit reaches the action.
   approvedApplications: [{ applicationEventId: "app-1", applicantName: "Juana" }],
+  signupQrSvg: SIGNUP_QR_SVG,
+};
+
+// No approved applications and no foster → the manual-DNI path renders
+// directly (org-pilot-pack registered-adopter flow).
+const MANUAL_DNI_PROPS = {
+  ...BASE_PROPS,
+  approvedApplications: [],
 };
 
 beforeEach(() => {
   actionMock.mockReset();
+  checkAccountMock.mockReset();
   navigateMock.mockReset();
 });
 
@@ -83,6 +96,94 @@ describe("<FinalizeAdoptionForm> — post-success navigation (QA ALTO 2026-07-16
     expect(navigateMock).not.toHaveBeenCalled();
     // The button left the "Finalizando adopción…" pending label — it is no
     // longer stuck disabled forever (the QA symptom).
+    expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeEnabled();
+  });
+});
+
+describe("<FinalizeAdoptionForm> — registered-adopter DNI check (org-pilot-pack)", () => {
+  it("found: shows the account panel and enables the finalize submit", async () => {
+    checkAccountMock.mockResolvedValue({ found: true, displayName: "Juana Pérez" });
+
+    render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+
+    // The manual-DNI path is gated until the check succeeds.
+    expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "30111222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar cuenta" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Cuenta encontrada: Juana Pérez")).toBeInTheDocument();
+    });
+    expect(checkAccountMock).toHaveBeenCalledWith("org-tok", "30111222");
+    expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeEnabled();
+  });
+
+  it("not found: renders the refusal panel with the signup QR and NO stub-creation promise", async () => {
+    checkAccountMock.mockResolvedValue({ found: false });
+
+    const { container } = render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "30111222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar cuenta" }));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    // Signup QR is rendered inside the refusal panel.
+    expect(container.innerHTML).toContain("signup-qr");
+    // The old false promise is gone from EVERY surface of this flow (spec 2.6).
+    expect(container.innerHTML).not.toContain("perfil preliminar");
+    expect(container.innerHTML).not.toContain("reclamar más adelante");
+    // Refusal copy demands registering with the SAME DNI.
+    expect(screen.getByText(/ese mismo DNI/)).toBeInTheDocument();
+    // Finalize stays blocked.
+    expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeDisabled();
+  });
+
+  it("re-verify after refusal re-checks WITHOUT losing context (no navigation, spec 2.5)", async () => {
+    checkAccountMock.mockResolvedValueOnce({ found: false });
+
+    render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "30111222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar cuenta" }));
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    // The adopter registered mid-flow on their own device; the org re-checks.
+    checkAccountMock.mockResolvedValueOnce({ found: true, displayName: "Juana Pérez" });
+    fireEvent.click(screen.getByRole("button", { name: "Volver a verificar" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Cuenta encontrada: Juana Pérez")).toBeInTheDocument();
+    });
+    // Same typed DNI, same in-progress form — and no navigation happened.
+    expect(checkAccountMock).toHaveBeenLastCalledWith("org-tok", "30111222");
+    expect(screen.getByLabelText(/DNI/)).toHaveValue("30111222");
+    expect(navigateMock).not.toHaveBeenCalled();
+  });
+
+  it("editing the DNI resets a previous 'found' so it cannot authorize another number", async () => {
+    checkAccountMock.mockResolvedValue({ found: true, displayName: "Juana Pérez" });
+
+    render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "30111222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar cuenta" }));
+    await waitFor(() => {
+      expect(screen.getByText("Cuenta encontrada: Juana Pérez")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "40999888" } });
+
+    expect(screen.queryByText("Cuenta encontrada: Juana Pérez")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeDisabled();
+  });
+
+  it("the application path is NOT gated by the DNI check", () => {
+    render(<FinalizeAdoptionForm {...BASE_PROPS} />);
     expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeEnabled();
   });
 });

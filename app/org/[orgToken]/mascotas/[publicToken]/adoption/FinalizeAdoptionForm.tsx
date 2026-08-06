@@ -6,9 +6,10 @@ import { ACTION_STALL_COPY, ACTION_STALL_MS } from "@/lib/ui/action-stall";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import {
   type FinalizeAdoptionFormState,
+  checkAdopterAccountAction,
   finalizeAdoptionAction,
 } from "@/src/modules/adoption/actions";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useState, useTransition } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };
 
@@ -17,16 +18,33 @@ export type ApprovedApplication = {
   applicantName: string | null;
 };
 
+/**
+ * Pre-submit account check state (org-pilot-pack D8). The manual-DNI path can
+ * only finalize onto a REGISTERED miMAR account, so the operator verifies the
+ * DNI first: found → finalize (and contract print) unlock; not found → refusal
+ * panel with the signup QR. "Volver a verificar" resets to idle WITHOUT any
+ * navigation, so the in-progress finalize context survives a mid-flow signup
+ * (spec 2.5).
+ */
+type AccountCheck =
+  | { status: "idle" }
+  | { status: "found"; displayName: string }
+  | { status: "not_found" }
+  | { status: "error"; message: string };
+
 export function FinalizeAdoptionForm({
   orgToken,
   publicToken,
   fosterShortcut,
   approvedApplications,
+  signupQrSvg,
 }: {
   orgToken: string;
   publicToken: string;
   fosterShortcut: { adopterUserId: string; displayName: string } | null;
   approvedApplications: ApprovedApplication[];
+  /** Server-rendered SVG QR pointing at the signup flow (refusal panel). */
+  signupQrSvg: string;
 }) {
   const action = finalizeAdoptionAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
@@ -63,7 +81,26 @@ export function FinalizeAdoptionForm({
   );
   const [useFosterShortcut, setUseFosterShortcut] = useState(Boolean(fosterShortcut));
 
+  // Manual-DNI account check (org-pilot-pack). The DNI input is controlled so
+  // the check binds to exactly what will be submitted; editing the DNI resets
+  // the check — a stale "found" must never authorize a different number.
+  const [dniValue, setDniValue] = useState("");
+  const [check, setCheck] = useState<AccountCheck>({ status: "idle" });
+  const [checkPending, startCheck] = useTransition();
+
+  function verifyAccount() {
+    startCheck(async () => {
+      const r = await checkAdopterAccountAction(orgToken, dniValue);
+      if ("error" in r) setCheck({ status: "error", message: r.error });
+      else if (r.found) setCheck({ status: "found", displayName: r.displayName });
+      else setCheck({ status: "not_found" });
+    });
+  }
+
   const usingApplication = hasApproved && !offline;
+  const manualDniPath = offline && !useFosterShortcut;
+  // The manual-DNI path finalizes only onto a verified-found account.
+  const submitBlocked = manualDniPath && check.status !== "found";
 
   return (
     // ⚠ `onSubmitCapture` IS LOAD-BEARING — DO NOT REMOVE IT. On the atender
@@ -166,7 +203,7 @@ export function FinalizeAdoptionForm({
               <LnField
                 label="DNI"
                 required
-                hint="Si la persona ya tiene cuenta miMAR con ese DNI, la usamos. Si no, creamos un perfil preliminar que podrá reclamar más adelante."
+                hint="La persona tiene que tener cuenta miMAR con ese DNI"
               >
                 {({ id, describedBy, invalid }) => (
                   <LnInput
@@ -175,11 +212,77 @@ export function FinalizeAdoptionForm({
                     required={!useFosterShortcut}
                     inputMode="numeric"
                     placeholder="12345678"
+                    value={dniValue}
+                    onChange={(e) => {
+                      setDniValue(e.target.value);
+                      // A stale check must never authorize a different DNI.
+                      setCheck({ status: "idle" });
+                    }}
                     aria-describedby={describedBy}
                     invalid={invalid}
                   />
                 )}
               </LnField>
+
+              {check.status !== "found" && check.status !== "not_found" && (
+                <OpButton
+                  type="button"
+                  onClick={verifyAccount}
+                  disabled={checkPending || !dniValue.trim()}
+                  variant="ghost"
+                >
+                  {checkPending ? "Verificando…" : "Verificar cuenta"}
+                </OpButton>
+              )}
+
+              {check.status === "error" && (
+                <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+                  {check.message}
+                </p>
+              )}
+
+              {check.status === "found" && (
+                <div className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
+                  <p className="text-md font-semibold text-ln-op-ok">
+                    Cuenta encontrada: {check.displayName}
+                  </p>
+                  <p className="text-sm text-ln-op-ok">
+                    La adopción se registra en esa cuenta miMAR. La persona va a ver la mascota en{" "}
+                    <strong>Mis mascotas</strong> al finalizar.
+                  </p>
+                </div>
+              )}
+
+              {check.status === "not_found" && (
+                <div
+                  role="alert"
+                  className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-4 space-y-3"
+                >
+                  <p className="text-md font-semibold text-ln-op-warn">
+                    No encontramos una cuenta miMAR con ese DNI
+                  </p>
+                  <p className="text-sm text-ln-op-warn">
+                    Para finalizar la adopción, la persona adoptante tiene que registrarse en miMAR
+                    con <strong>ese mismo DNI</strong>. Puede escanear este QR desde su celular para
+                    crear la cuenta ahora; cuando termine, tocá «Volver a verificar». No se crean
+                    perfiles provisorios.
+                  </p>
+                  <div
+                    className="w-40 rounded-[var(--radius-sm)] bg-white p-2"
+                    // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
+                    dangerouslySetInnerHTML={{ __html: signupQrSvg }}
+                  />
+                  <OpButton
+                    type="button"
+                    onClick={verifyAccount}
+                    disabled={checkPending}
+                    variant="ghost"
+                  >
+                    {checkPending ? "Verificando…" : "Volver a verificar"}
+                  </OpButton>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <LnField label="Nombre completo" required>
                   {({ id, describedBy, invalid }) => (
@@ -286,7 +389,13 @@ export function FinalizeAdoptionForm({
         </div>
       )}
 
-      <OpButton type="submit" disabled={isPending} variant="ok">
+      {submitBlocked && (
+        <p className="text-sm text-ln-op-mute">
+          Verificá la cuenta miMAR del adoptante para habilitar la finalización.
+        </p>
+      )}
+
+      <OpButton type="submit" disabled={isPending || submitBlocked} variant="ok">
         {isPending ? "Finalizando adopción…" : "Finalizar adopción"}
       </OpButton>
     </form>
