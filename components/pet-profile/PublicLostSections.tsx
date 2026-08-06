@@ -146,6 +146,15 @@ export function PublicLostSections({
           ¡Hola! Soy {petName} — {lostFirstPersonLine(petSex)}
         </p>
         <p className="mt-0.5 text-sm text-ln-ink-2">{identityLine}</p>
+        {/* Owner name disclosure ("Tu nombre" toggle). Standalone on purpose:
+            it used to appear ONLY inside the phone CTA ("Llamar a X"), so with
+            the phone toggle off the promised "Lo busca X" never rendered
+            anywhere (Cowork QA v3, M1). */}
+        {ownerFirstName && (
+          <p data-section="lost-owner-name" className="mt-0.5 text-sm font-medium text-ln-ink-2">
+            Lo busca {ownerFirstName}.
+          </p>
+        )}
         {distinguishingFeatures && (
           <p className="mt-1 text-sm italic text-ln-ink-2">"{distinguishingFeatures}"</p>
         )}

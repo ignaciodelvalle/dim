@@ -71,3 +71,35 @@ describe("PublicLostSections — custody dispute (D2)", () => {
     );
   });
 });
+
+// "Tu nombre" toggle (pets.discloseFirstNameWhenLost) — Cowork QA v3, M1.
+// The owner-side card promises: El público ve "Lo busca <nombre>". The name
+// used to render ONLY inside the phone CTA ("Llamar a X"), so with the phone
+// toggle off the promise silently broke. The name line must be standalone —
+// independent of every other disclosure toggle.
+describe("PublicLostSections — owner name disclosure (M1)", () => {
+  it("name disclosed, phone off: renders the standalone 'Lo busca' line", () => {
+    render(<PublicLostSections {...BASE_PROPS} ownerFirstName="Graciela" />);
+
+    expect(screen.getByText(/Lo busca Graciela/)).toBeInTheDocument();
+  });
+
+  it("name disclosed + phone disclosed: renders both the name line and the call CTA", () => {
+    render(
+      <PublicLostSections
+        {...BASE_PROPS}
+        ownerFirstName="Graciela"
+        ownerPhoneE164="+5491155551234"
+      />,
+    );
+
+    expect(screen.getByText(/Lo busca Graciela/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /llamar a Graciela/i })).toBeInTheDocument();
+  });
+
+  it("name not disclosed: no 'Lo busca' line", () => {
+    render(<PublicLostSections {...BASE_PROPS} />);
+
+    expect(screen.queryByText(/Lo busca/)).toBeNull();
+  });
+});
