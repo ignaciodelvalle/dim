@@ -8,13 +8,8 @@ import { Icon } from "@/components/Icon";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { ProvenanceCard, type ProvenanceContext } from "@/components/ui/dashboard/ProvenanceCard";
-import {
-  KPI_CATALOG,
-  type KpiId,
-  formatKpiTarget,
-  getKpiInfo,
-  isKpiPeriodInvariant,
-} from "@/lib/metrics/kpi-catalog";
+import { KPI_CATALOG, type KpiId, formatKpiTarget, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import { isKpiPeriodInvariant } from "@/lib/metrics/kpi-period-invariance";
 import {
   DELTA_IMPLAUSIBLE_NOTE,
   DELTA_IMPLAUSIBLE_SUFFIX,

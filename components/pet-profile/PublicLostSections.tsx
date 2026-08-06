@@ -379,7 +379,7 @@ export function PublicLostSections({
               {lastSeenCoords && (
                 <span
                   data-section="lost-last-seen-coords"
-                  className="font-ln-mono text-[10.5px] text-ln-mute"
+                  className="font-ln-mono text-xs text-ln-mute"
                 >
                   {lastSeenCoords}
                 </span>

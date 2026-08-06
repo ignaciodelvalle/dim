@@ -641,7 +641,7 @@ export default async function GobiernoDashboardPage({
                     {formatCount(alert.evidence.n)}
                     {alert.evidence.resourceLine && ` · ${alert.evidence.resourceLine}`}
                   </p>
-                  <p aria-hidden="true" className="text-[13px] font-medium text-ln-op-ink">
+                  <p aria-hidden="true" className="text-md font-medium text-ln-op-ink">
                     {alert.display.name}
                   </p>
                   {/* Qualitative alerts (no single headline number) render name
@@ -654,7 +654,7 @@ export default async function GobiernoDashboardPage({
                       {alert.display.value}
                     </p>
                   )}
-                  <p aria-hidden="true" className="text-[11px] leading-snug text-ln-op-mute">
+                  <p aria-hidden="true" className="text-sm leading-snug text-ln-op-mute">
                     {alert.display.metadata} · Confianza: {alert.confidence} · n ={" "}
                     {formatCount(alert.evidence.n)}
                     {/* PO decision 2 item 2: "faltan ~N dosis/cirugías/chips" —

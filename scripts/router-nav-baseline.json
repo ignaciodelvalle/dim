@@ -14,6 +14,7 @@
     "app/org/[orgToken]/adopciones/[appEventId]/ReviewButtons.tsx": 1,
     "app/org/[orgToken]/atender/[publicToken]/AtenderQuickCapture.tsx": 1,
     "app/org/[orgToken]/intake/match/[matchedPetToken]/MatchConfirmationCard.tsx": 1,
+    "app/org/[orgToken]/mascotas/OrgMascotasFilterBar.tsx": 1,
     "app/org/[orgToken]/mascotas/[publicToken]/eligibility/EligibilityForm.tsx": 1,
     "app/org/[orgToken]/miembros/LeaveOrgButton.tsx": 1,
     "app/r/invite/[token]/AcceptButton.tsx": 1,

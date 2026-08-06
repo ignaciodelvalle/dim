@@ -125,7 +125,7 @@ export function PetSightingForm({
           <div className="space-y-1">
             <label
               htmlFor="sightedAtDate"
-              className="block text-[11px] font-medium text-[var(--color-ln-faint)]"
+              className="block text-sm font-medium text-[var(--color-ln-faint)]"
             >
               Fecha
             </label>
@@ -141,7 +141,7 @@ export function PetSightingForm({
           <div className="space-y-1">
             <label
               htmlFor="sightedAtTime"
-              className="block text-[11px] font-medium text-[var(--color-ln-faint)]"
+              className="block text-sm font-medium text-[var(--color-ln-faint)]"
             >
               Hora (24 h)
             </label>

@@ -43,10 +43,9 @@ const DEBOUNCE_MS = 300;
 /** One-shot post-action callout params (?nueva, ?foster…) — cleared on any filter change. */
 const NOTICE_PARAMS = ["nueva", "foster", "fostend", "adopcion", "transferido"] as const;
 
-const labelClass =
-  "mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute";
+const labelClass = "mb-1 block text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute";
 const controlClass =
-  "rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul";
+  "rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul";
 
 /** `current` + `updates`, minus the one-shot notice params. Pure — no hooks. */
 function nextParams(current: string, updates: Record<string, string | null>): string {

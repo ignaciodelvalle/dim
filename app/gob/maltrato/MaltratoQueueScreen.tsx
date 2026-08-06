@@ -36,7 +36,8 @@ import {
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
-import { type KpiId, isKpiPeriodInvariant } from "@/lib/metrics/kpi-catalog";
+import type { KpiId } from "@/lib/metrics/kpi-catalog";
+import { isKpiPeriodInvariant } from "@/lib/metrics/kpi-period-invariance";
 import { windows } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { newerHref } from "@/lib/utils/keyset-pagination";
