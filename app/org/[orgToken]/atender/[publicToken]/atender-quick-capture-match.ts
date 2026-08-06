@@ -1,9 +1,9 @@
 // Quick-capture matcher restriction — atender console (#5).
 //
 // Reuses the SHARED lib/events/event-capture-matcher.ts verbatim (no fork).
-// Atender only signs 5 clinical event kinds (see ./atender-eventos), so a raw
+// Atender only signs the 6 event kinds in ./atender-eventos, so a raw
 // MatchResult from the owner-flow matcher must be narrowed before it can drive
-// the atender surface: most of the matcher's ~14 event types (weight, chip,
+// the atender surface: most of the matcher's ~14 event types (weight,
 // sterilization, symptom, lost/found, management sheets, pregnancy sub-flows…)
 // have no atender action and must read as "not recognized here", not silently
 // route to the wrong form.
@@ -22,6 +22,10 @@ const EVENT_TYPE_TO_ATENDER_EVENTO: Partial<Record<string, AtenderEvento>> = {
   deworming_administered: "desparasitacion",
   clinical_info_logged: "cirugia",
   medication_started: "medicacion",
+  // Fresh chip placement from the grid/matcher (PO 2026-08-06, Cowork QA v3
+  // M3) — "le coloqué un microchip" used to read "No reconocido" even though
+  // the shared matcher identified it.
+  microchip_implanted: "chip",
   note_added: "nota",
 };
 

@@ -563,8 +563,14 @@ export async function atenderNoteAction(
 }
 
 // ---------------------------------------------------------------------------
-// Microchip — declared-by-owner sign-off (#3, #43 keystone extension)
+// Microchip — fresh placement OR declared-by-owner sign-off (#3, #43)
 // ---------------------------------------------------------------------------
+//
+// Two entry points share this action: the ¿Qué querés registrar? grid sends
+// confirmEventId = null (a FRESH placement the vet just implanted — PO
+// decision 2026-08-06, Cowork QA v3 M3), and PendingSignaturesCard binds the
+// owner-declared pet_event id (a confirmation, with the scan-match guard
+// below).
 //
 // Same #43 provenance mechanism the vaccine keystone already uses (this file,
 // atenderVaccinationAction): the writer is CUSTODY-FREE and takes the SIGNER's

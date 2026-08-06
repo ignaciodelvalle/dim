@@ -7,12 +7,16 @@
 // yields a client-reference proxy (not the array), so `ATENDER_EVENTOS.map`
 // throws "map is not a function" at render (val-4-org blocker, digest crash).
 //
-// Only clinical event kinds — no custody/transfer/adoption.
+// Only clinical/identification event kinds — no custody/transfer/adoption.
+// "chip" was confirm-only (PendingSignaturesCard) until the PO decision of
+// 2026-08-06 (Cowork QA v3, M3): vets are the ones who actually implant and
+// register microchips, so fresh placement is a first-class walk-in record.
 export const ATENDER_EVENTOS = [
   { key: "vacuna", label: "Vacuna" },
   { key: "desparasitacion", label: "Desparasitación" },
   { key: "cirugia", label: "Cirugía / estudio" },
   { key: "medicacion", label: "Medicación" },
+  { key: "chip", label: "Colocación de microchip" },
   { key: "nota", label: "Nota clínica" },
 ] as const;
 

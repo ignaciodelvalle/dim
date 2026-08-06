@@ -18,13 +18,18 @@
 // The vaccine catalog HARD GATE (#5, PO decision) wraps VaccinationForm via
 // AtenderVaccinationGate — VaccinationForm itself is untouched.
 //
-// chip/esterilizacion (#3) are reachable ONLY through PendingSignaturesCard's
-// "Confirmar y firmar" CTA — never the ¿Qué querés registrar? grid, which
-// stays the original 5 clinical kinds. They let a matriculated vet sign an
-// owner-DECLARED chip/esterilización event in-system, not log a fresh one
-// from atender. `confirmEventId` travels as a bound server-action argument
-// (not a form field) so the client cannot forge which declared event a
-// signature targets.
+// esterilizacion (#3) is reachable ONLY through PendingSignaturesCard's
+// "Confirmar y firmar" CTA — never the ¿Qué querés registrar? grid. It lets a
+// matriculated vet sign an owner-DECLARED esterilización event in-system, not
+// log a fresh one from atender. `confirmEventId` travels as a bound
+// server-action argument (not a form field) so the client cannot forge which
+// declared event a signature targets.
+//
+// chip left that restriction on 2026-08-06 (PO decision, Cowork QA v3 M3):
+// vets are the ones who implant and register microchips, so the grid now
+// offers "Colocación de microchip" as a FRESH placement (confirmEventId
+// null); the PendingSignaturesCard confirm path keeps working unchanged for
+// owner-declared chips.
 import { useSearchParams } from "next/navigation";
 
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
