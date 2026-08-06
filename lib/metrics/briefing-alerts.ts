@@ -120,10 +120,47 @@ export type BriefingAlertEvidence = {
   resourceLine?: string;
 };
 
+/**
+ * NUMBER-FIRST ANATOMY (UI review A4, PO-approved 2026-08-06).
+ *
+ * `title` is ONE long single-weight sentence with the number buried mid-clause
+ * ("Disposición trazable de fallecimientos 18,8% — Obligación: CABA: Ley 5470 ·
+ * Meta programática: 75%"), so the most important block of the briefing was
+ * also its greyest. The card now renders the same facts as three lines — name,
+ * hero number, metadata — matching the "Brechas vs meta" tiles right below it
+ * (serif value under a small label), instead of inventing a second idiom.
+ *
+ * Split HERE, at the composition site, rather than regex-parsing `title` in the
+ * view: the three parts are already separate values in this module, and a view
+ * that re-derives them from prose would drift the first time a clause changes.
+ * `title` is kept verbatim and unchanged — it is still the alert's accessible
+ * sentence (the card announces it as one phrase) and every existing consumer
+ * reads it untouched. This is additive, never a replacement.
+ */
+export type BriefingAlertDisplay = {
+  /** Line 1 — the short alert name (the KPI's catalog label). */
+  name: string;
+  /**
+   * Line 2 — the hero number, already formatted through the same helpers the
+   * title uses (so the two can never disagree). Undefined when the alert has
+   * no single headline number; the card then renders name + metadata only,
+   * never an empty hero slot.
+   */
+  value?: string;
+  /**
+   * Line 3 — EVERYTHING else the title said (obligation, target, the pairing's
+   * second term, the non-verdict caveat). This is a reordering, not a cut: no
+   * fact that reached the title may be missing here.
+   */
+  metadata: string;
+};
+
 export type BriefingAlert = {
   id: KpiId;
   /** es-AR, states the GAP: "Trazabilidad de disposición 33% — meta 75% (Ley 5470)". */
   title: string;
+  /** The same sentence, split into the card's three lines — see above. */
+  display: BriefingAlertDisplay;
   evidence: BriefingAlertEvidence;
   severity: BriefingAlertSeverity;
   confidence: BriefingAlertConfidence;
@@ -292,7 +329,14 @@ function formatValue(value: number, unit: KpiUnit): string {
   return `${Math.round(value)}`;
 }
 
-function buildTitle(descriptor: KpiDefinition, value: number, sourceOverride?: string): string {
+/** The alert's copy: the one long sentence AND the number-first split of the
+ *  exact same clauses (see BriefingAlertDisplay). Both come out of a single
+ *  formatting pass, so the sentence and the card can never disagree. */
+function buildAlertCopy(
+  descriptor: KpiDefinition,
+  value: number,
+  sourceOverride?: string,
+): { title: string; display: BriefingAlertDisplay } {
   // C1 fix (claim #6, cursor red-team 2026-07-23): route the target+source
   // clause through formatKpiTarget so a law-sourced but non-statutory target
   // (e.g. rabies coverage's 80%) never reads as "the law set this number" —
@@ -309,7 +353,11 @@ function buildTitle(descriptor: KpiDefinition, value: number, sourceOverride?: s
       ? { ...descriptor.target, source: sourceOverride }
       : descriptor.target;
   const targetClause = target ? formatKpiTarget(target, descriptor.unit) : "";
-  return `${descriptor.label} ${formatValue(value, descriptor.unit)} — ${targetClause}`;
+  const formattedValue = formatValue(value, descriptor.unit);
+  return {
+    title: `${descriptor.label} ${formattedValue} — ${targetClause}`,
+    display: { name: descriptor.label, value: formattedValue, metadata: targetClause },
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -358,9 +406,18 @@ function buildUrgencyAlert(
     const descriptor = KPI_CATALOG.bite_escalation_gap;
     const action = resolveAlertAction("bite_escalation_gap");
     if (!action) return undefined;
+    // The hero is the reported-bites count; the pairing's second term and the
+    // no-verdict caveat move to the metadata line intact (A4 is a reordering).
+    const bites = formatCount(candidate.bites12m);
+    const observations = formatCount(candidate.openObservations);
     return {
       id: "bite_escalation_gap",
-      title: `${descriptor.label}: ${formatCount(candidate.bites12m)} mordeduras (12m) vs ${formatCount(candidate.openObservations)} observaciones abiertas — la ausencia de escalamiento no implica ausencia de riesgo`,
+      title: `${descriptor.label}: ${bites} mordeduras (12m) vs ${observations} observaciones abiertas — la ausencia de escalamiento no implica ausencia de riesgo`,
+      display: {
+        name: descriptor.label,
+        value: bites,
+        metadata: `mordeduras (12m) · ${observations} ${pluralizeEs(candidate.openObservations, "observación", "observaciones")} ${pluralizeEs(candidate.openObservations, "abierta", "abiertas")} · la ausencia de escalamiento no implica ausencia de riesgo`,
+      },
       evidence: {
         value: candidate.bites12m,
         target: 0,
@@ -385,9 +442,19 @@ function buildUrgencyAlert(
   const action = resolveAlertAction("rabies_observation_compliance_10d");
   if (!action) return undefined;
   const source = descriptor.target?.source ?? "";
+  const breaches = formatCount(candidate.openBreaches);
+  const subject =
+    candidate.openBreaches === 1 ? "observación rábica supera" : "observaciones rábicas superan";
   return {
     id: "rabies_observation_compliance_10d",
-    title: `${formatCount(candidate.openBreaches)} ${candidate.openBreaches === 1 ? "observación rábica supera" : "observaciones rábicas superan"} el plazo legal de 10 días (${source})`,
+    title: `${breaches} ${subject} el plazo legal de 10 días (${source})`,
+    // The count IS the alert here, so it leads; the legal clause and its
+    // citation become the metadata line, word for word.
+    display: {
+      name: descriptor.label,
+      value: breaches,
+      metadata: `${subject} el plazo legal de 10 días · ${source}`,
+    },
     evidence: {
       value: candidate.openBreaches,
       target: 0,
@@ -512,12 +579,14 @@ function classifyCandidate(
     : undefined;
 
   const scopedSource = resolveScopedSource(candidate.kpiId, mandateProvinces);
+  const copy = buildAlertCopy(descriptor, candidate.value, scopedSource);
 
   return {
     kind: "alert",
     alert: {
       id: candidate.kpiId,
-      title: buildTitle(descriptor, candidate.value, scopedSource),
+      title: copy.title,
+      display: copy.display,
       evidence: {
         value: candidate.value,
         target: descriptor.target.value,

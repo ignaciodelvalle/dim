@@ -615,14 +615,48 @@ export default async function GobiernoDashboardPage({
             {alerts.map((alert) => (
               <OpCard key={alert.id} accent={alert.severity === "alta" ? "danger" : "warn"}>
                 <OpCardBody className="space-y-1.5">
-                  <p className="text-md font-medium text-ln-op-ink">
-                    <span className="sr-only">
-                      {alert.severity === "alta" ? "Prioridad alta" : "Prioridad media"}:
-                    </span>
-                    {alert.title}
+                  {/* A4 (UI review 2026-08-06) — NUMBER-FIRST ANATOMY. This
+                      card used to render `alert.title` as ONE long
+                      single-weight sentence with the figure buried mid-clause,
+                      which made the briefing's most important block its
+                      greyest. The same facts now read as name → hero number →
+                      metadata, borrowing the anatomy of the "Brechas vs meta"
+                      tiles directly below (OpKpiSm's serif value: same font,
+                      weight, tracking and tabular-nums) so the page stays one
+                      visual system. Severity keeps riding on the card's accent
+                      border — no second encoding.
+
+                      The split comes from the engine (BriefingAlertDisplay),
+                      not from parsing the sentence here.
+
+                      A11Y: the visible lines are aria-hidden and the sr-only
+                      line carries the WHOLE claim — title plus the same
+                      confidence/n/resource qualifiers — so a screen reader
+                      hears one coherent sentence, as it did before, instead of
+                      three disconnected fragments. Nothing is dropped from
+                      either channel: this is a reordering, not a cut. */}
+                  <p className="sr-only">
+                    {alert.severity === "alta" ? "Prioridad alta" : "Prioridad media"}:{" "}
+                    {alert.title} · Confianza: {alert.confidence} · n ={" "}
+                    {formatCount(alert.evidence.n)}
+                    {alert.evidence.resourceLine && ` · ${alert.evidence.resourceLine}`}
                   </p>
-                  <p className="text-xs text-ln-op-mute">
-                    Confianza: {alert.confidence} · n = {formatCount(alert.evidence.n)}
+                  <p aria-hidden="true" className="text-[13px] font-medium text-ln-op-ink">
+                    {alert.display.name}
+                  </p>
+                  {/* Qualitative alerts (no single headline number) render name
+                      + metadata only — never an empty hero slot. */}
+                  {alert.display.value && (
+                    <p
+                      aria-hidden="true"
+                      className="font-ln-serif text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums text-ln-op-ink"
+                    >
+                      {alert.display.value}
+                    </p>
+                  )}
+                  <p aria-hidden="true" className="text-[11px] leading-snug text-ln-op-mute">
+                    {alert.display.metadata} · Confianza: {alert.confidence} · n ={" "}
+                    {formatCount(alert.evidence.n)}
                     {/* PO decision 2 item 2: "faltan ~N dosis/cirugías/chips" —
                         undefined (nothing rendered) whenever the descriptor
                         has no resourceUnit or the engine has nothing honest

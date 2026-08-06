@@ -285,6 +285,24 @@ describe("/gob (home) — C6b briefing block order", () => {
     expect(html).toMatch(/Confianza: (alta|media|baja)/);
   });
 
+  // A4 (UI review 2026-08-06) — number-first anatomy. The alert card used to
+  // render one long single-weight sentence with the figure buried mid-clause;
+  // it now leads with the KPI name and promotes the number to a serif hero,
+  // the SAME anatomy as the "Brechas vs meta" tiles right below it. The
+  // sentence itself survives for screen readers.
+  it("renders the alert's number as a serif hero under the alert name, keeping the full sentence for screen readers", async () => {
+    const node = await GobHomePage({ searchParams: Promise.resolve({}) });
+    const html = renderToStaticMarkup(node);
+    // The hero line: same serif/tabular-nums treatment OpKpi's value uses.
+    expect(html).toMatch(/<p[^>]*class="[^"]*font-ln-serif[^"]*tabular-nums[^"]*"[^>]*>33,0%<\/p>/);
+    // The name leads, as its own line — not glued to the number.
+    expect(html).toContain(">Disposición trazable de fallecimientos</p>");
+    // The one-sentence reading is preserved for assistive tech.
+    expect(html).toMatch(
+      /class="sr-only">Prioridad alta: Disposición trazable de fallecimientos 33,0%/,
+    );
+  });
+
   // Live on /gob 2026-07-25: the evidence line read "Confianza: alta · n =
   // 67519" while the resource clause beside it read "faltan ~29.708 chips" —
   // two number systems in one sentence. It survived because EVERY fixture in

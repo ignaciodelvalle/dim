@@ -109,6 +109,28 @@ describe("buildBriefingAlerts — a real gap produces an alert", () => {
     // 33 vs target 75 with the default 50% warn band → 75*0.5=37.5, 33 < 37.5 → danger.
     expect(alert.severity).toBe("alta");
   });
+
+  // A4 (UI review 2026-08-06) — number-first anatomy. The card renders name /
+  // hero number / metadata as three lines, so the engine hands them over split
+  // instead of leaving the view to regex the sentence apart.
+  it("splits the SAME sentence into name + hero value + metadata, losing no clause", () => {
+    const candidates: BriefingAlertCandidate[] = [
+      { kpiId: "mortality_disposal_traceability", value: 33, n: 12 },
+    ];
+    const [alert] = buildBriefingAlerts(candidates);
+    expect(alert.display.name).toBe(KPI_CATALOG.mortality_disposal_traceability.label);
+    // The hero is the SAME formatted figure the title carries — one rounding
+    // rule, never a second opinion of the same metric.
+    expect(alert.display.value).toBe("33,0%");
+    expect(alert.title).toContain(alert.display.value as string);
+    // Every clause of the title survives in one of the three fields.
+    expect(alert.display.metadata).toContain("Obligación: normativa provincial (no nacional)");
+    expect(alert.display.metadata).toContain("CABA: Ley 5470");
+    expect(alert.display.metadata).toContain("Meta programática: 75%");
+    expect(alert.title).toBe(
+      `${alert.display.name} ${alert.display.value} — ${alert.display.metadata}`,
+    );
+  });
 });
 
 // Cursor red-team 2026-07-23 (claim #4): "Panel calm (0 obs, 0 open bites) vs
@@ -141,6 +163,15 @@ describe("buildBriefingAlerts — surveillance urgency signals (claim #4)", () =
     expect(alert.title).toContain("0 observaciones abiertas");
     expect(alert.severity).toBe("media");
     expect(alert.actionHref).toBe("/gob/vigilancia");
+    // A4: the reported-bites count leads; the pairing's second term and the
+    // no-verdict caveat move to the metadata line intact.
+    expect(alert.display.name).toBe(KPI_CATALOG.bite_escalation_gap.label);
+    expect(alert.display.value).toBe("14");
+    expect(alert.display.metadata).toContain("mordeduras (12m)");
+    expect(alert.display.metadata).toContain("0 observaciones abiertas");
+    expect(alert.display.metadata).toContain(
+      "la ausencia de escalamiento no implica ausencia de riesgo",
+    );
   });
 
   // Live on /gob 2026-07-25: the panel read "1507 mordeduras (12m)" beside a
@@ -176,6 +207,11 @@ describe("buildBriefingAlerts — surveillance urgency signals (claim #4)", () =
     expect(alert.title).toContain("3 observaciones rábicas superan");
     expect(alert.title).toContain("plazo legal de 10 días");
     expect(alert.severity).toBe("alta");
+    // A4: the breach COUNT is the alert — it leads, the legal clause and its
+    // citation follow as metadata.
+    expect(alert.display.name).toBe(KPI_CATALOG.rabies_observation_compliance_10d.label);
+    expect(alert.display.value).toBe("3");
+    expect(alert.display.metadata).toContain("observaciones rábicas superan el plazo legal");
     // G8 (obligations-worklist): an act-now breach count lands on the
     // deadline worklist — where those observations rank first and carry
     // their "Cerrar →" resolution — not on the Vigilancia dashboard.
