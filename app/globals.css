@@ -421,6 +421,22 @@
   --color-st-info-bg: var(--color-ln-violeta-050);
   --color-st-info-bd: var(--color-ln-violeta-100);
 
+  /* Skin-neutral indirection — --color-sk-*
+     Same philosophy as st-* above, for the NEUTRALS a shared component needs
+     (ink/mute/faint/line). Born from the LnEmptyState finding (token audit
+     2026-08-06): the component hardcoded citizen ln-* neutrals and rendered
+     them on 41 operator screens. Components meant to live on BOTH skins
+     consume sk-*; single-skin components keep using their palette directly.
+     sk-warn-wash exists because the C4 no-signal treatment deliberately uses
+     the extra-light ln-warn-025 (not st-warn-bg's ln-warn-050) on citizen —
+     the indirection preserves that calibration while op remaps to its own
+     warn wash. */
+  --color-sk-ink: var(--color-ln-ink);
+  --color-sk-mute: var(--color-ln-mute);
+  --color-sk-faint: var(--color-ln-faint);
+  --color-sk-line-strong: var(--color-ln-line-strong);
+  --color-sk-warn-wash: var(--color-ln-warn-025);
+
   /* Org teal override (redesign-a-org.css: .gob.is-org) */
   --color-ln-tl-rail: #0b3b42;
   --color-ln-tl-accent: #5fd0b0;
@@ -455,6 +471,14 @@
   --color-st-info: var(--color-ln-op-viol);
   --color-st-info-bg: var(--color-ln-op-viol-bg);
   --color-st-info-bd: var(--color-ln-op-viol-bd);
+
+  /* sk-* neutrals (see the @theme block). Resolved at use-time, so the
+   * panorama dark data-theme wrapper's ln-op-* re-map cascades here free. */
+  --color-sk-ink: var(--color-ln-op-ink);
+  --color-sk-mute: var(--color-ln-op-mute);
+  --color-sk-faint: var(--color-ln-op-faint);
+  --color-sk-line-strong: var(--color-ln-op-line);
+  --color-sk-warn-wash: var(--color-ln-op-warn-bg);
 }
 
 /* ---- Situation Room — route-scoped DARK operator theme --------------------- */

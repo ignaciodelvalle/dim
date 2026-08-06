@@ -39,16 +39,20 @@ describe("<LnEmptyState>", () => {
     expect(html).toMatch(/<button[^>]*type="button"/);
   });
 
-  it("contains an ln-* token and zero gob-*", () => {
+  it("contains only skin-aware sk-*/st-* tokens — zero gob-* and zero hardcoded ln-*", () => {
     const html = render(<LnEmptyState title="Vacío" description="Sin datos." />);
-    expect(html).toMatch(/--color-ln-/);
+    // sk-* resolves per skin (citizen ln-* / operator ln-op-*) — the component
+    // renders on both, so it must never pin a citizen value (token audit
+    // 2026-08-06: the old ln-* neutrals leaked onto 41 operator screens).
+    expect(html).toMatch(/--color-sk-/);
     expect(html).not.toMatch(/\bgob-/);
+    expect(html).not.toMatch(/color-ln-(?!op-)/);
   });
 
-  it("uses ln-ink token for title and ln-mute/ln-faint token for description/icon area", () => {
+  it("uses sk-ink token for title and sk-mute/sk-faint token for description/icon area", () => {
     const html = render(<LnEmptyState title="Test" description="Desc" />);
-    expect(html).toContain("color-ln-ink");
-    expect(html).toMatch(/color-ln-mute|color-ln-faint/);
+    expect(html).toContain("color-sk-ink");
+    expect(html).toMatch(/color-sk-mute|color-sk-faint/);
   });
 });
 
@@ -57,11 +61,11 @@ describe("<LnEmptyState>", () => {
 // ---------------------------------------------------------------------------
 
 describe("<LnEmptyState> — epistemic nature", () => {
-  it('omitting `nature` keeps today\'s look — no ln-warn tint, no role="status"', () => {
+  it('omitting `nature` keeps today\'s look — no warn tint, no role="status"', () => {
     const html = render(<LnEmptyState title="Sin resultados" />);
-    expect(html).not.toMatch(/ln-warn/);
+    expect(html).not.toMatch(/st-warn|sk-warn/);
     expect(html).not.toContain('role="status"');
-    expect(html).toContain("color-ln-ink");
+    expect(html).toContain("color-sk-ink");
   });
 
   it('nature="measured-zero" renders identically to the default (a real, verified zero)', () => {
@@ -78,10 +82,10 @@ describe("<LnEmptyState> — epistemic nature", () => {
         nature="no-signal"
       />,
     );
-    expect(html).toMatch(/ln-warn/);
-    expect(html).not.toContain("color-ln-ink");
+    expect(html).toMatch(/st-warn|sk-warn/);
+    expect(html).not.toContain("color-sk-ink");
     // Never a success/ok tone — the whole point is "blind", not "all clear".
-    expect(html).not.toMatch(/ln-ok\b/);
+    expect(html).not.toMatch(/st-ok\b|ln-ok\b/);
   });
 
   it('nature="no-signal" sets role="status" (operator should notice this, not decorative chrome)', () => {
@@ -93,8 +97,8 @@ describe("<LnEmptyState> — epistemic nature", () => {
 
   it('nature="no-signal" tints the icon with the warn token, not the default faint token', () => {
     const html = render(<LnEmptyState title="Sin señales" nature="no-signal" icon="eye-off" />);
-    expect(html).toContain("text-ln-warn");
-    expect(html).not.toContain("color-ln-faint");
+    expect(html).toContain("color-st-warn");
+    expect(html).not.toContain("color-sk-faint");
   });
 
   it("the blind-not-calm copy pattern never reads as success/ok", () => {

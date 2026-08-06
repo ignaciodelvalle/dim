@@ -4,7 +4,10 @@ import type { ReactNode } from "react";
 /**
  * LnEmptyState — generic empty state for lists, panels, and sections.
  *
- * Styled with LN tokens (no gob-* classes).
+ * Styled with the sk-* and st-* indirection tokens (globals.css): this component
+ * renders on BOTH skins (65 callers, 41 of them operator surfaces), so its
+ * neutrals and warn treatment must resolve per context instead of hardcoding
+ * citizen ln-* values on a navy operator canvas (token audit 2026-08-06).
  *
  * Vertical centred structure:
  *  [large muted icon]
@@ -87,9 +90,11 @@ export function LnEmptyState({
       className={[
         "flex flex-col items-center justify-center text-center py-12 px-4 gap-3",
         variant === "dashed"
-          ? "rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)]"
+          ? "rounded-[var(--radius-sm)] border border-dashed border-[var(--color-sk-line-strong)]"
           : "",
-        isNoSignal ? "rounded-[var(--radius-sm)] border border-ln-warn-100 bg-ln-warn-025" : "",
+        isNoSignal
+          ? "rounded-[var(--radius-sm)] border border-[var(--color-st-warn-bd)] bg-[var(--color-sk-warn-wash)]"
+          : "",
         className,
       ]
         .filter(Boolean)
@@ -99,19 +104,19 @@ export function LnEmptyState({
         <Icon
           name={icon}
           size="3rem"
-          className={isNoSignal ? "text-ln-warn" : "text-[var(--color-ln-faint)]"}
+          className={isNoSignal ? "text-[var(--color-st-warn)]" : "text-[var(--color-sk-faint)]"}
           decorative
         />
       )}
       <p
         className={[
           "text-lg font-semibold",
-          isNoSignal ? "text-ln-warn" : "text-[var(--color-ln-ink)]",
+          isNoSignal ? "text-[var(--color-st-warn)]" : "text-[var(--color-sk-ink)]",
         ].join(" ")}
       >
         {title}
       </p>
-      {description && <p className="text-sm text-[var(--color-ln-mute)]">{description}</p>}
+      {description && <p className="text-sm text-[var(--color-sk-mute)]">{description}</p>}
       {action && <div className="mt-1">{action}</div>}
     </div>
   );
