@@ -88,6 +88,12 @@ export function FinalizeAdoptionForm({
   const [check, setCheck] = useState<AccountCheck>({ status: "idle" });
   const [checkPending, startCheck] = useTransition();
 
+  // Controlled so the sibling contract-print form (below) can mirror them into
+  // its hidden inputs — the printed document carries the same follow-up and
+  // notes the finalize will submit.
+  const [followupValue, setFollowupValue] = useState("6");
+  const [notesValue, setNotesValue] = useState("");
+
   function verifyAccount() {
     startCheck(async () => {
       const r = await checkAdopterAccountAction(orgToken, dniValue);
@@ -103,301 +109,336 @@ export function FinalizeAdoptionForm({
   const submitBlocked = manualDniPath && check.status !== "found";
 
   return (
-    // ⚠ `onSubmitCapture` IS LOAD-BEARING — DO NOT REMOVE IT. On the atender
-    // signing surface, registering a capture-phase `submit` listener above the
-    // form is what stops the dropped-navigation wedge outright: measured there
-    // at 0/16 navigated without it and 16/16 with it, against an extra bare
-    // <div> (0/16) and an extra client component without the handler (0/16), so
-    // the listener — not the element and not the component — is the cause. That
-    // A/B was run on atender, NOT here: this surface is not reachable from the
-    // harness without staging a live adoption, so the same wedge is assumed to
-    // share the mechanism and is not proven to. The `stalled` notice below stays
-    // regardless, because an unproven fix is exactly when D.12's truthful
-    // failure has to still be there.
-    <form
-      action={formAction}
-      onSubmitCapture={() => setStalled(false)}
-      className="space-y-4"
-      encType="multipart/form-data"
-    >
-      {usingApplication && (
-        <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
-          <div className="space-y-1">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-ok">
-              Postulante aprobado
-            </h2>
-            <p className="text-ln-op-ok text-sm">
-              La mascota queda registrada en la cuenta de la persona que se postuló online. La va a
-              ver en <strong>Mis mascotas</strong> al instante y recibe una notificación.
-            </p>
-          </div>
+    <>
+      {/* ⚠ `onSubmitCapture` IS LOAD-BEARING — DO NOT REMOVE IT. On the atender
+        signing surface, registering a capture-phase `submit` listener above the
+        form is what stops the dropped-navigation wedge outright: measured there
+        at 0/16 navigated without it and 16/16 with it, against an extra bare
+        <div> (0/16) and an extra client component without the handler (0/16), so
+        the listener — not the element and not the component — is the cause. That
+        A/B was run on atender, NOT here: this surface is not reachable from the
+        harness without staging a live adoption, so the same wedge is assumed to
+        share the mechanism and is not proven to. The `stalled` notice below stays
+        regardless, because an unproven fix is exactly when D.12's truthful
+        failure has to still be there. */}
+      <form
+        action={formAction}
+        onSubmitCapture={() => setStalled(false)}
+        className="space-y-4"
+        encType="multipart/form-data"
+      >
+        {usingApplication && (
+          <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
+            <div className="space-y-1">
+              <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-ok">
+                Postulante aprobado
+              </h2>
+              <p className="text-ln-op-ok text-sm">
+                La mascota queda registrada en la cuenta de la persona que se postuló online. La va
+                a ver en <strong>Mis mascotas</strong> al instante y recibe una notificación.
+              </p>
+            </div>
 
-          <fieldset className="space-y-2">
-            <legend className="sr-only">Elegí la postulación a finalizar</legend>
-            {approvedApplications.map((app) => (
-              <label
-                key={app.applicationEventId}
-                className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-ln-op-ok-bd bg-white/40 px-3 py-2 text-md text-ln-op-ink cursor-pointer"
-              >
-                <input
-                  type="radio"
-                  name="__appChoice"
-                  checked={selectedAppId === app.applicationEventId}
-                  onChange={() => setSelectedAppId(app.applicationEventId)}
-                />
-                <span>{app.applicantName ?? "Postulante"}</span>
-              </label>
-            ))}
-          </fieldset>
+            <fieldset className="space-y-2">
+              <legend className="sr-only">Elegí la postulación a finalizar</legend>
+              {approvedApplications.map((app) => (
+                <label
+                  key={app.applicationEventId}
+                  className="flex items-center gap-2 rounded-[var(--radius-sm)] border border-ln-op-ok-bd bg-white/40 px-3 py-2 text-md text-ln-op-ink cursor-pointer"
+                >
+                  <input
+                    type="radio"
+                    name="__appChoice"
+                    checked={selectedAppId === app.applicationEventId}
+                    onChange={() => setSelectedAppId(app.applicationEventId)}
+                  />
+                  <span>{app.applicantName ?? "Postulante"}</span>
+                </label>
+              ))}
+            </fieldset>
 
-          <input type="hidden" name="applicationEventId" value={selectedAppId} />
+            <input type="hidden" name="applicationEventId" value={selectedAppId} />
 
-          <button
-            type="button"
-            onClick={() => setOffline(true)}
-            className="text-sm text-ln-op-azul underline hover:text-ln-op-ink"
-          >
-            ¿Adopción por fuera de las postulaciones?
-          </button>
-        </section>
-      )}
-
-      {offline && (
-        <>
-          {hasApproved && (
             <button
               type="button"
-              onClick={() => setOffline(false)}
+              onClick={() => setOffline(true)}
               className="text-sm text-ln-op-azul underline hover:text-ln-op-ink"
             >
-              ← Volver a las postulaciones aprobadas
+              ¿Adopción por fuera de las postulaciones?
             </button>
-          )}
+          </section>
+        )}
 
-          {fosterShortcut && (
-            <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
-              <LnCheckbox
-                id="use-foster-shortcut"
-                checked={useFosterShortcut}
-                onChange={(e) => setUseFosterShortcut(e.target.checked)}
+        {offline && (
+          <>
+            {hasApproved && (
+              <button
+                type="button"
+                onClick={() => setOffline(false)}
+                className="text-sm text-ln-op-azul underline hover:text-ln-op-ink"
               >
-                <strong className="block text-md text-ln-op-ok">
-                  Finalizar adopción al tránsito actual ({fosterShortcut.displayName})
-                </strong>
-                <span className="text-ln-op-ok text-sm block mt-1">
-                  El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos
-                  el paso de pedirte el DNI.
-                </span>
-              </LnCheckbox>
-              {useFosterShortcut && (
-                <input type="hidden" name="adopterUserId" value={fosterShortcut.adopterUserId} />
-              )}
-            </section>
-          )}
+                ← Volver a las postulaciones aprobadas
+              </button>
+            )}
 
-          {!useFosterShortcut && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-mute">
-                Adoptante
-              </h2>
-              <LnField
-                label="DNI"
-                required
-                hint="La persona tiene que tener cuenta miMAR con ese DNI"
-              >
-                {({ id, describedBy, invalid }) => (
-                  <LnInput
-                    id={id}
-                    name="adopterDni"
-                    required={!useFosterShortcut}
-                    inputMode="numeric"
-                    placeholder="12345678"
-                    value={dniValue}
-                    onChange={(e) => {
-                      setDniValue(e.target.value);
-                      // A stale check must never authorize a different DNI.
-                      setCheck({ status: "idle" });
-                    }}
-                    aria-describedby={describedBy}
-                    invalid={invalid}
-                  />
+            {fosterShortcut && (
+              <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-3">
+                <LnCheckbox
+                  id="use-foster-shortcut"
+                  checked={useFosterShortcut}
+                  onChange={(e) => setUseFosterShortcut(e.target.checked)}
+                >
+                  <strong className="block text-md text-ln-op-ok">
+                    Finalizar adopción al tránsito actual ({fosterShortcut.displayName})
+                  </strong>
+                  <span className="text-ln-op-ok text-sm block mt-1">
+                    El voluntario que está cuidando a esta mascota se convierte en dueño/a. Saltamos
+                    el paso de pedirte el DNI.
+                  </span>
+                </LnCheckbox>
+                {useFosterShortcut && (
+                  <input type="hidden" name="adopterUserId" value={fosterShortcut.adopterUserId} />
                 )}
-              </LnField>
+              </section>
+            )}
 
-              {check.status !== "found" && check.status !== "not_found" && (
-                <OpButton
-                  type="button"
-                  onClick={verifyAccount}
-                  disabled={checkPending || !dniValue.trim()}
-                  variant="ghost"
+            {!useFosterShortcut && (
+              <section className="space-y-3">
+                <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-mute">
+                  Adoptante
+                </h2>
+                <LnField
+                  label="DNI"
+                  required
+                  hint="La persona tiene que tener cuenta miMAR con ese DNI"
                 >
-                  {checkPending ? "Verificando…" : "Verificar cuenta"}
-                </OpButton>
-              )}
-
-              {check.status === "error" && (
-                <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
-                  {check.message}
-                </p>
-              )}
-
-              {check.status === "found" && (
-                <div className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
-                  <p className="text-md font-semibold text-ln-op-ok">
-                    Cuenta encontrada: {check.displayName}
-                  </p>
-                  <p className="text-sm text-ln-op-ok">
-                    La adopción se registra en esa cuenta miMAR. La persona va a ver la mascota en{" "}
-                    <strong>Mis mascotas</strong> al finalizar.
-                  </p>
-                </div>
-              )}
-
-              {check.status === "not_found" && (
-                <div
-                  role="alert"
-                  className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-4 space-y-3"
-                >
-                  <p className="text-md font-semibold text-ln-op-warn">
-                    No encontramos una cuenta miMAR con ese DNI
-                  </p>
-                  <p className="text-sm text-ln-op-warn">
-                    Para finalizar la adopción, la persona adoptante tiene que registrarse en miMAR
-                    con <strong>ese mismo DNI</strong>. Puede escanear este QR desde su celular para
-                    crear la cuenta ahora; cuando termine, tocá «Volver a verificar». No se crean
-                    perfiles provisorios.
-                  </p>
-                  <div
-                    className="w-40 rounded-[var(--radius-sm)] bg-white p-2"
-                    // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
-                    dangerouslySetInnerHTML={{ __html: signupQrSvg }}
-                  />
-                  <OpButton
-                    type="button"
-                    onClick={verifyAccount}
-                    disabled={checkPending}
-                    variant="ghost"
-                  >
-                    {checkPending ? "Verificando…" : "Volver a verificar"}
-                  </OpButton>
-                </div>
-              )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <LnField label="Nombre completo" required>
                   {({ id, describedBy, invalid }) => (
                     <LnInput
                       id={id}
-                      name="adopterDisplayName"
+                      name="adopterDni"
                       required={!useFosterShortcut}
-                      maxLength={200}
+                      inputMode="numeric"
+                      placeholder="12345678"
+                      value={dniValue}
+                      onChange={(e) => {
+                        setDniValue(e.target.value);
+                        // A stale check must never authorize a different DNI.
+                        setCheck({ status: "idle" });
+                      }}
                       aria-describedby={describedBy}
                       invalid={invalid}
                     />
                   )}
                 </LnField>
-                <LnField label="Teléfono">
-                  {({ id, describedBy }) => (
-                    <LnInput
-                      id={id}
-                      name="adopterPhone"
-                      maxLength={30}
-                      aria-describedby={describedBy}
+
+                {check.status !== "found" && check.status !== "not_found" && (
+                  <OpButton
+                    type="button"
+                    onClick={verifyAccount}
+                    disabled={checkPending || !dniValue.trim()}
+                    variant="ghost"
+                  >
+                    {checkPending ? "Verificando…" : "Verificar cuenta"}
+                  </OpButton>
+                )}
+
+                {check.status === "error" && (
+                  <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+                    {check.message}
+                  </p>
+                )}
+
+                {check.status === "found" && (
+                  <div className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
+                    <p className="text-md font-semibold text-ln-op-ok">
+                      Cuenta encontrada: {check.displayName}
+                    </p>
+                    <p className="text-sm text-ln-op-ok">
+                      La adopción se registra en esa cuenta miMAR. La persona va a ver la mascota en{" "}
+                      <strong>Mis mascotas</strong> al finalizar.
+                    </p>
+                    {/* Submits the SIBLING print form (forms can't nest) — opens
+                      the print-ready contract in a new tab. Stateless read:
+                      printing writes nothing. */}
+                    <OpButton type="submit" form="adoption-contract-print" variant="ghost">
+                      Imprimir contrato (borrador)
+                    </OpButton>
+                    <p className="text-sm text-ln-op-ok">
+                      El contrato impreso es un borrador pendiente de revisión legal. Una vez
+                      firmado, subilo en «Contrato firmado» antes de finalizar.
+                    </p>
+                  </div>
+                )}
+
+                {check.status === "not_found" && (
+                  <div
+                    role="alert"
+                    className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-4 space-y-3"
+                  >
+                    <p className="text-md font-semibold text-ln-op-warn">
+                      No encontramos una cuenta miMAR con ese DNI
+                    </p>
+                    <p className="text-sm text-ln-op-warn">
+                      Para finalizar la adopción, la persona adoptante tiene que registrarse en
+                      miMAR con <strong>ese mismo DNI</strong>. Puede escanear este QR desde su
+                      celular para crear la cuenta ahora; cuando termine, tocá «Volver a verificar».
+                      No se crean perfiles provisorios.
+                    </p>
+                    <div
+                      className="w-40 rounded-[var(--radius-sm)] bg-white p-2"
+                      // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
+                      dangerouslySetInnerHTML={{ __html: signupQrSvg }}
                     />
-                  )}
-                </LnField>
-              </div>
-            </section>
-          )}
-        </>
-      )}
+                    <OpButton
+                      type="button"
+                      onClick={verifyAccount}
+                      disabled={checkPending}
+                      variant="ghost"
+                    >
+                      {checkPending ? "Verificando…" : "Volver a verificar"}
+                    </OpButton>
+                  </div>
+                )}
 
-      <section className="space-y-3 pt-2 border-t border-ln-op-line">
-        <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-mute">
-          Seguimiento
-        </h2>
-        <LnField
-          label="Meses de seguimiento post-adopción"
-          hint="Generará recordatorios de check-in con el adoptante (default: 6)."
-        >
-          {({ id, describedBy }) => (
-            <LnInput
-              id={id}
-              name="followupMonths"
-              type="number"
-              min={0}
-              max={36}
-              defaultValue={6}
-              aria-describedby={describedBy}
-            />
-          )}
-        </LnField>
-        <LnField label="Notas del contrato">
-          {({ id, describedBy }) => (
-            <LnTextarea
-              id={id}
-              name="notes"
-              rows={3}
-              maxLength={500}
-              placeholder="Condiciones especiales, observaciones, referencia al contrato firmado…"
-              aria-describedby={describedBy}
-            />
-          )}
-        </LnField>
-        <LnField
-          label="Contrato firmado (PDF o imagen)"
-          hint="Si lo subís, queda enlazado al evento de adopción y al expediente del animal."
-        >
-          {({ id, describedBy }) => (
-            <input
-              id={id}
-              name="contract"
-              type="file"
-              accept="application/pdf,image/*"
-              aria-describedby={describedBy}
-              className="block w-full text-sm text-ln-op-ink-2 file:mr-3 file:rounded-[var(--radius-sm)] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-sm"
-            />
-          )}
-        </LnField>
-      </section>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <LnField label="Nombre completo" required>
+                    {({ id, describedBy, invalid }) => (
+                      <LnInput
+                        id={id}
+                        name="adopterDisplayName"
+                        required={!useFosterShortcut}
+                        maxLength={200}
+                        aria-describedby={describedBy}
+                        invalid={invalid}
+                      />
+                    )}
+                  </LnField>
+                  <LnField label="Teléfono">
+                    {({ id, describedBy }) => (
+                      <LnInput
+                        id={id}
+                        name="adopterPhone"
+                        maxLength={30}
+                        aria-describedby={describedBy}
+                      />
+                    )}
+                  </LnField>
+                </div>
+              </section>
+            )}
+          </>
+        )}
 
-      {state.error && (
-        <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
-          {state.error}
-        </p>
-      )}
+        <section className="space-y-3 pt-2 border-t border-ln-op-line">
+          <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-mute">
+            Seguimiento
+          </h2>
+          <LnField
+            label="Meses de seguimiento post-adopción"
+            hint="Generará recordatorios de check-in con el adoptante (default: 6)."
+          >
+            {({ id, describedBy }) => (
+              <LnInput
+                id={id}
+                name="followupMonths"
+                type="number"
+                min={0}
+                max={36}
+                value={followupValue}
+                onChange={(e) => setFollowupValue(e.target.value)}
+                aria-describedby={describedBy}
+              />
+            )}
+          </LnField>
+          <LnField label="Notas del contrato">
+            {({ id, describedBy }) => (
+              <LnTextarea
+                id={id}
+                name="notes"
+                rows={3}
+                maxLength={500}
+                placeholder="Condiciones especiales, observaciones, referencia al contrato firmado…"
+                value={notesValue}
+                onChange={(e) => setNotesValue(e.target.value)}
+                aria-describedby={describedBy}
+              />
+            )}
+          </LnField>
+          <LnField
+            label="Contrato firmado (PDF o imagen)"
+            hint="Si lo subís, queda enlazado al evento de adopción y al expediente del animal."
+          >
+            {({ id, describedBy }) => (
+              <input
+                id={id}
+                name="contract"
+                type="file"
+                accept="application/pdf,image/*"
+                aria-describedby={describedBy}
+                className="block w-full text-sm text-ln-op-ink-2 file:mr-3 file:rounded-[var(--radius-sm)] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-sm"
+              />
+            )}
+          </LnField>
+        </section>
 
-      {stalled && (
-        <div
-          role="alert"
-          className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3"
-        >
-          <p className="text-md font-semibold text-ln-op-warn">
-            {ACTION_STALL_COPY.adoption.title}
+        {state.error && (
+          <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+            {state.error}
           </p>
-          <p className="mt-1 text-sm text-ln-op-warn">{ACTION_STALL_COPY.adoption.body}</p>
-          <p className="mt-2">
-            {/* A hard document GET on purpose: the router transition is exactly
+        )}
+
+        {stalled && (
+          <div
+            role="alert"
+            className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3"
+          >
+            <p className="text-md font-semibold text-ln-op-warn">
+              {ACTION_STALL_COPY.adoption.title}
+            </p>
+            <p className="mt-1 text-sm text-ln-op-warn">{ACTION_STALL_COPY.adoption.body}</p>
+            <p className="mt-2">
+              {/* A hard document GET on purpose: the router transition is exactly
                 what is broken here, so `next/link` is not a safe way out. */}
-            <a
-              href={`/org/${orgToken}/mascotas/${publicToken}`}
-              className="text-sm font-semibold text-ln-op-warn underline"
-            >
-              Volver a la ficha de esta mascota
-            </a>
+              <a
+                href={`/org/${orgToken}/mascotas/${publicToken}`}
+                className="text-sm font-semibold text-ln-op-warn underline"
+              >
+                Volver a la ficha de esta mascota
+              </a>
+            </p>
+          </div>
+        )}
+
+        {submitBlocked && (
+          <p className="text-sm text-ln-op-mute">
+            Verificá la cuenta miMAR del adoptante para habilitar la finalización.
           </p>
-        </div>
-      )}
+        )}
 
-      {submitBlocked && (
-        <p className="text-sm text-ln-op-mute">
-          Verificá la cuenta miMAR del adoptante para habilitar la finalización.
-        </p>
-      )}
+        <OpButton type="submit" disabled={isPending || submitBlocked} variant="ok">
+          {isPending ? "Finalizando adopción…" : "Finalizar adopción"}
+        </OpButton>
+      </form>
 
-      <OpButton type="submit" disabled={isPending || submitBlocked} variant="ok">
-        {isPending ? "Finalizando adopción…" : "Finalizar adopción"}
-      </OpButton>
-    </form>
+      {/* Sibling contract-print form (org-pilot-pack C2) — forms can't nest,
+          so the print POST lives OUTSIDE the finalize form and the button in
+          the found panel targets it via form="adoption-contract-print". POST
+          keeps the DNI out of the URL/logs; target=_blank opens the print
+          view without abandoning the in-progress finalize. Rendered only once
+          the account check succeeded — the route re-validates server-side
+          anyway. */}
+      {check.status === "found" && (
+        <form
+          id="adoption-contract-print"
+          method="post"
+          action={`/org/${orgToken}/mascotas/${publicToken}/adoption/contrato`}
+          target="_blank"
+        >
+          <input type="hidden" name="adopterDni" value={dniValue} />
+          <input type="hidden" name="followupMonths" value={followupValue} />
+          <input type="hidden" name="notes" value={notesValue} />
+        </form>
+      )}
+    </>
   );
 }

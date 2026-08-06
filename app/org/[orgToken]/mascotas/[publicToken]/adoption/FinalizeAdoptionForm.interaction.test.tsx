@@ -187,3 +187,50 @@ describe("<FinalizeAdoptionForm> — registered-adopter DNI check (org-pilot-pac
     expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeEnabled();
   });
 });
+
+describe("<FinalizeAdoptionForm> — contract print (org-pilot-pack C2)", () => {
+  it("print form and button are ABSENT before the DNI check succeeds", () => {
+    const { container } = render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+    expect(
+      screen.queryByRole("button", { name: "Imprimir contrato (borrador)" }),
+    ).not.toBeInTheDocument();
+    expect(container.querySelector("#adoption-contract-print")).toBeNull();
+  });
+
+  it("found panel enables the print button targeting the sibling POST form in a new tab", async () => {
+    checkAccountMock.mockResolvedValue({ found: true, displayName: "Juana Pérez" });
+
+    const { container } = render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "30111222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar cuenta" }));
+    await waitFor(() => {
+      expect(screen.getByText("Cuenta encontrada: Juana Pérez")).toBeInTheDocument();
+    });
+
+    const printButton = screen.getByRole("button", { name: "Imprimir contrato (borrador)" });
+    expect(printButton).toBeEnabled();
+    // The button submits the SIBLING form (forms can't nest).
+    expect(printButton).toHaveAttribute("form", "adoption-contract-print");
+
+    const printForm = container.querySelector("#adoption-contract-print");
+    expect(printForm).not.toBeNull();
+    expect(printForm).toHaveAttribute("method", "post");
+    expect(printForm).toHaveAttribute("target", "_blank");
+    expect(printForm).toHaveAttribute(
+      "action",
+      "/org/org-tok/mascotas/DIM-1234-5678/adoption/contrato",
+    );
+    // DNI travels in the POST body (hidden input), never a query string.
+    const dniInput = printForm?.querySelector('input[name="adopterDni"]');
+    expect(dniInput).toHaveAttribute("value", "30111222");
+  });
+
+  it("the existing signed-copy upload field is untouched (spec 3.3 regression check)", () => {
+    const { container } = render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+    const upload = container.querySelector('input[name="contract"]');
+    expect(upload).not.toBeNull();
+    expect(upload).toHaveAttribute("type", "file");
+    expect(upload).toHaveAttribute("accept", "application/pdf,image/*");
+    expect(screen.getByText("Contrato firmado (PDF o imagen)")).toBeInTheDocument();
+  });
+});
