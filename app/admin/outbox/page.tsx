@@ -12,6 +12,7 @@ import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-paginatio
 import { desc, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, type OpFilterAxis, OpFilterBar } from "@/components/ui/dashboard";
 import { OutboxTable } from "@/components/ui/dashboard/OutboxTable";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
@@ -120,8 +121,8 @@ export default async function AdminOutboxPage({
       {/* SLA breach banner */}
       {breachCount > 0 && (
         <OpBreach
-          title={`${breachCount} ${pluralizeEs(breachCount, "item", "items")} en incumplimiento de SLA`}
-          detail="Revisá los items marcados en rojo y reintentá si es necesario."
+          title={`${breachCount} ${pluralizeEs(breachCount, "envío", "envíos")} en incumplimiento de SLA`}
+          detail="Revisá los envíos marcados en rojo y reintentá si es necesario."
         />
       )}
 
@@ -151,11 +152,22 @@ export default async function AdminOutboxPage({
 
       {/* Table */}
       {rows.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">
-          {hasFilters
-            ? "No hay items que coincidan con los filtros aplicados."
-            : "No hay items en la bandeja de salida."}
-        </p>
+        <LnEmptyState
+          icon="mail"
+          title={hasFilters ? "Sin envíos que coincidan" : "Sin envíos registrados"}
+          description={
+            hasFilters
+              ? "Ajustá los filtros para ver más resultados."
+              : "No hay envíos registrados en la bandeja de salida."
+          }
+          action={
+            hasFilters ? (
+              <Link href="/admin/outbox" className="text-sm text-ln-op-azul hover:underline">
+                Limpiar filtros
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
         <OpCard>
           <OutboxTable

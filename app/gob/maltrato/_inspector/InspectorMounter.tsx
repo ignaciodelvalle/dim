@@ -170,8 +170,8 @@ export function InspectorMounter() {
   // is tapped).
   if (!caso) {
     return (
-      <div className="hidden h-full min-h-0 items-center justify-center rounded-[var(--radius-lg)] border border-dashed border-ln-op-line bg-ln-op-card/40 p-6 text-center text-sm text-ln-op-mute lg:flex">
-        Elegí una denuncia para verla acá.
+      <div className="hidden h-full min-h-0 items-center justify-center p-6 text-center text-sm text-ln-op-mute lg:flex">
+        Elegí una denuncia para ver su detalle y acciones.
       </div>
     );
   }

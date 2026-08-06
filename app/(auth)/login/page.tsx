@@ -112,7 +112,7 @@ export default async function LoginPage({
           </h1>
           {/* 24.1 Subcopy: tied to the heading via aria-labelledby on the form below. */}
           <p className="text-sm text-[var(--color-ln-ink-2)]" aria-describedby="auth-heading">
-            {intentCopy ? intentCopy.subcopy : "Bienvenido de vuelta a miMAR"}
+            {intentCopy ? intentCopy.subcopy : "Hola de nuevo"}
           </p>
         </div>
         {/* Erased account (Ley 25.326 art. 16): the account was deleted at the

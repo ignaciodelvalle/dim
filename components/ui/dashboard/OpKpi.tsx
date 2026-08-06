@@ -8,7 +8,13 @@ import { Icon } from "@/components/Icon";
 import { AnimatedNumber } from "@/components/ui/AnimatedNumber";
 import { OpButton } from "@/components/ui/dashboard/OpButton";
 import { ProvenanceCard, type ProvenanceContext } from "@/components/ui/dashboard/ProvenanceCard";
-import { KPI_CATALOG, type KpiId, formatKpiTarget, getKpiInfo } from "@/lib/metrics/kpi-catalog";
+import {
+  KPI_CATALOG,
+  type KpiId,
+  formatKpiTarget,
+  getKpiInfo,
+  isKpiPeriodInvariant,
+} from "@/lib/metrics/kpi-catalog";
 import {
   DELTA_IMPLAUSIBLE_NOTE,
   DELTA_IMPLAUSIBLE_SUFFIX,
@@ -132,6 +138,17 @@ type Props = {
    * KpiChips "estado actual · no varía con la fecha" idiom.
    */
   periodInvariant?: boolean;
+  /**
+   * Copy audit 2026-08-06 (S5): when SEVERAL sibling tiles in one group are
+   * each period-invariant (e.g. the /gob/denuncias triage stat row, where 3
+   * of 4 tiles are "now" stocks), repeating "no varía con el período" on
+   * every card reads as noise. Set this to suppress ONLY this tile's own
+   * visible tag — the ⓘ popover's periodInvariant threading to ProvenanceCard
+   * is untouched, so "Ver origen" still tells the truth per-KPI. The caller
+   * is responsible for rendering one group-level footnote instead (see
+   * `isKpiPeriodInvariant` from lib/metrics/kpi-catalog to decide when to).
+   */
+  hideOwnPeriodInvariantTag?: boolean;
   /** v1 href — wraps the whole card in <a> */
   href?: string;
   size?: "default" | "sm";
@@ -581,8 +598,7 @@ function resolveOpKpiContract(
   // (`basis: "stock"`, `window: "now"`), so this is DERIVED here rather than
   // re-remembered at 181 call sites — the ones that pass `periodInvariant`
   // explicitly keep winning, so nothing existing changes.
-  const derivedPeriodInvariant =
-    descriptor !== undefined && descriptor.basis === "stock" && descriptor.window === "now";
+  const derivedPeriodInvariant = isKpiPeriodInvariant(descriptorId);
 
   let deltaImplausible = false;
   if (descriptor && deltaV2 && guardInput?.priorBase !== undefined) {
@@ -689,6 +705,7 @@ export function OpKpi({
   bar,
   sub,
   periodInvariant,
+  hideOwnPeriodInvariantTag,
   href,
   info: rawInfo,
   deltaV2: rawDeltaV2,
@@ -811,8 +828,10 @@ export function OpKpi({
       {sub && <div className="mt-auto pt-1.5 text-sm text-ln-op-mute">{sub}</div>}
 
       {/* red-team-admin #20: point-in-time KPI under a period control — say it
-          plainly so the picker never reads as a broken control on this tile. */}
-      {(periodInvariant ?? derivedPeriodInvariant) && (
+          plainly so the picker never reads as a broken control on this tile.
+          `hideOwnPeriodInvariantTag` (S5) suppresses ONLY this visible line —
+          the ⓘ popover below still receives the true periodInvariant value. */}
+      {!hideOwnPeriodInvariantTag && (periodInvariant ?? derivedPeriodInvariant) && (
         <p
           className="mt-1 text-xs font-medium uppercase tracking-[0.06em] text-ln-op-faint"
           title="Valor de estado actual (point-in-time): el selector de período mueve los gráficos, no este número."

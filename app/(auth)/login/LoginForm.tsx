@@ -150,6 +150,7 @@ export function LoginFormView({
         <button
           type="button"
           disabled
+          aria-disabled="true"
           tabIndex={-1}
           title="Próximamente: integración con Mi Argentina"
           className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"

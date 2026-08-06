@@ -36,6 +36,7 @@ import {
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
+import { type KpiId, isKpiPeriodInvariant } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { newerHref } from "@/lib/utils/keyset-pagination";
@@ -77,6 +78,35 @@ const VALID_QUEUES: MaltratoQueue[] = [
 // audit. `unassigned` already means "no operator assigned AND not terminal"
 // (buildMaltratoListConditions), i.e. exactly "sin asignar abiertas".
 const DEFAULT_QUEUE: MaltratoQueue = "unassigned";
+
+/**
+ * The 3 of the 4 triage stat tiles that are "now" stocks (see the KPI grid
+ * below) — hoisted to module scope (not recomputed per render) so the
+ * group-level "no varía con el período" footnote's guard doesn't add to the
+ * component's cognitive complexity. Static: derived purely from the catalog,
+ * not from any request/render data.
+ */
+const TRIAGE_PERIOD_INVARIANT_TILE_IDS: KpiId[] = [
+  "maltrato_unassigned_count",
+  "maltrato_assigned_to_me_count",
+  "maltrato_in_progress_count",
+];
+const TRIAGE_HAS_PERIOD_INVARIANT_TILE =
+  TRIAGE_PERIOD_INVARIANT_TILE_IDS.some(isKpiPeriodInvariant);
+
+/**
+ * Extracted as its own component (not an inline `&&` in the screen's JSX) so
+ * the conditional lives in ITS OWN function's cognitive-complexity budget
+ * rather than MaltratoQueueScreen's already-dense one.
+ */
+function TriagePeriodInvariantFootnote() {
+  if (!TRIAGE_HAS_PERIOD_INVARIANT_TILE) return null;
+  return (
+    <p className="text-xs font-medium uppercase tracking-[0.06em] text-ln-op-faint">
+      Sin asignar / Mías / {welfareReportStatusLabel("in_progress")}: no varían con el período.
+    </p>
+  );
+}
 
 function parseQueue(raw: string | undefined): MaltratoQueue {
   if (!raw) return DEFAULT_QUEUE;
@@ -426,7 +456,12 @@ export async function MaltratoQueueScreen({
           }
         />
 
-        {/* 4 metric KPI tiles */}
+        {/* 4 metric KPI tiles. S5 (copy audit 2026-08-06): 3 of the 4
+            descriptors are "now" stocks (isKpiPeriodInvariant), so each tile
+            suppresses its OWN "no varía con el período" tag
+            (hideOwnPeriodInvariantTag) and the group renders it ONCE below
+            instead of repeating it per-card — the ⓘ popover on each tile still
+            carries the true per-KPI value for ProvenanceCard. */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <OpKpi
             label="Sin asignar"
@@ -439,6 +474,7 @@ export async function MaltratoQueueScreen({
               formula: "COUNT(welfare_reports WHERE assigned_to_id IS NULL AND status != 'closed')",
             }}
             descriptorId="maltrato_unassigned_count"
+            hideOwnPeriodInvariantTag
           />
           <OpKpi
             label="Mías"
@@ -451,6 +487,7 @@ export async function MaltratoQueueScreen({
                 "COUNT(welfare_reports WHERE assigned_to_id = current_user AND status = 'in_progress')",
             }}
             descriptorId="maltrato_assigned_to_me_count"
+            hideOwnPeriodInvariantTag
           />
           <OpKpi
             // ONE status vocabulary (UI/UX audit 2026-07): the tile label comes
@@ -467,6 +504,7 @@ export async function MaltratoQueueScreen({
               formula: "COUNT(welfare_reports WHERE status = 'in_progress') scoped",
             }}
             descriptorId="maltrato_in_progress_count"
+            hideOwnPeriodInvariantTag
           />
           <OpKpi
             label="Cerradas (30d)"
@@ -481,6 +519,11 @@ export async function MaltratoQueueScreen({
             descriptorId="maltrato_closed_30d_count"
           />
         </div>
+        {/* Group-level footnote (S5) — replaces the per-tile tags suppressed
+            above. Only rendered when at least one tile in the row actually is
+            period-invariant, so this line never appears for a hypothetical
+            future 4-flow-metric variant of this row. */}
+        <TriagePeriodInvariantFootnote />
       </div>
 
       {/* Master / detail split — list (~40%) + inspector (~60%). On lg each

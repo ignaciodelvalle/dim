@@ -181,6 +181,16 @@ const STATUS_OPTIONS: Array<{ value: "open" | "closed" | null; label: string }> 
   { value: "closed", label: "Cerrados" },
 ];
 
+/**
+ * Sort-toggle options — hoisted so the row-count caption (below) can name the
+ * ACTIVE sort's label instead of a hardcoded "más recientes" that reads wrong
+ * once the default sort became urgency (copy audit 2026-08-06, S7).
+ */
+const SORT_OPTIONS = [
+  { value: "urgencia", label: "Urgencia" },
+  { value: "recientes", label: "Recientes" },
+] as const;
+
 function buildFilterHref(
   base: string,
   kind: CaseKind | null | undefined,
@@ -292,12 +302,7 @@ export function CaseQueue({
       {rows.length > 1 && (
         <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0 text-sm">
           <legend className="text-ln-op-mute">Ordenar por:</legend>
-          {(
-            [
-              { value: "urgencia", label: "Urgencia" },
-              { value: "recientes", label: "Recientes" },
-            ] as const
-          ).map((opt) => {
+          {SORT_OPTIONS.map((opt) => {
             const isActive = sortMode === opt.value;
             return (
               <OpButton
@@ -316,11 +321,13 @@ export function CaseQueue({
       )}
 
       {/* Row count — suppressed when empty: the empty-state box below already
-          carries the message, so "Sin casos" + emptyMessage was a double. */}
+          carries the message, so "Sin casos" + emptyMessage was a double.
+          S7: a fixed "más recientes" was wrong once urgency became the
+          default sort — the caption now names whichever sort is ACTIVE. */}
       {rows.length > 0 && (
         <p aria-live="polite" className="text-sm text-ln-op-mute">
           {totalCount !== undefined && totalCount > rows.length
-            ? `Mostrando los ${rows.length.toLocaleString("es-AR")} más recientes de ${totalCount.toLocaleString("es-AR")}`
+            ? `Mostrando ${rows.length.toLocaleString("es-AR")} de ${totalCount.toLocaleString("es-AR")} · orden: ${SORT_OPTIONS.find((o) => o.value === sortMode)?.label ?? sortMode}`
             : `${rows.length} ${pluralizeEs(rows.length, "caso")}${truncated ? " (hay más — refiná los filtros)" : ""}`}
         </p>
       )}

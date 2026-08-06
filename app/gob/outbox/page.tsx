@@ -178,7 +178,7 @@ export default async function GobOutboxPage({
             <p className="text-md text-ln-op-ink-2">
               {hasFilters
                 ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
-                : `Últimas ${rows.length} filas de la bandeja de salida en tu jurisdicción asignada.`}
+                : "Envíos a autoridades y sistemas desde tu jurisdicción."}
             </p>
             <ViewScopeCaption scope={narrowedView} />
           </>
@@ -188,8 +188,8 @@ export default async function GobOutboxPage({
       {/* SLA breach banner */}
       {breachCount > 0 && (
         <OpBreach
-          title={`${breachCount} ${pluralizeEs(breachCount, "item", "items")} en incumplimiento de SLA`}
-          detail="Revisá los items marcados en rojo y reintentá si es necesario."
+          title={`${breachCount} ${pluralizeEs(breachCount, "envío", "envíos")} en incumplimiento de SLA`}
+          detail="Revisá los envíos marcados en rojo y reintentá si es necesario."
         />
       )}
 
@@ -220,11 +220,22 @@ export default async function GobOutboxPage({
 
       {/* Table */}
       {rows.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">
-          {hasFilters
-            ? "No hay items que coincidan con los filtros aplicados."
-            : "No hay items en la bandeja de salida para tu jurisdicción."}
-        </p>
+        <LnEmptyState
+          icon="mail"
+          title={hasFilters ? "Sin envíos que coincidan" : "Sin envíos registrados"}
+          description={
+            hasFilters
+              ? "Ajustá los filtros para ver más resultados."
+              : "No hay envíos registrados en la bandeja de salida de tu jurisdicción."
+          }
+          action={
+            hasFilters ? (
+              <Link href="/gob/outbox" className="text-sm text-ln-op-azul hover:underline">
+                Limpiar filtros
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
         <OpCard>
           {/* Detail page is admin-only (/admin/outbox/[id] is admin-gated). A
