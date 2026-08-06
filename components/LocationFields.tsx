@@ -201,6 +201,11 @@ export function LocationFields({
   const [geocodeLoading, setGeocodeLoading] = useState<"none" | "forward" | "reverse">("none");
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([]);
   const [geocodeMessage, setGeocodeMessage] = useState<"empty" | "failed" | null>(null);
+  // Label of the auto-picked forward-geocode match. The single-result path
+  // used to be SILENT: the pin jumped but nothing said WHAT was matched
+  // (Cowork QA parte A, 2026-08-06 — the wizard "geocodifica sin feedback").
+  // pickResult/reverse repopulate the input itself, so only auto-pick needs it.
+  const [geocodeFoundLabel, setGeocodeFoundLabel] = useState<string | null>(null);
   // Suppress forward effect when address text was filled by a result pick
   // or by reverse geocoding (prevents infinite loops).
   const skipNextForward = useRef(false);
@@ -220,6 +225,7 @@ export function LocationFields({
     if (trimmed.length < MIN_QUERY_LENGTH) {
       setGeocodeResults([]);
       setGeocodeMessage(null);
+      setGeocodeFoundLabel(null);
       return;
     }
 
@@ -227,6 +233,7 @@ export function LocationFields({
     const timer = setTimeout(async () => {
       setGeocodeLoading("forward");
       setGeocodeMessage(null);
+      setGeocodeFoundLabel(null);
       try {
         const results = await forwardAction(trimmed, {
           province: biasProvince,
@@ -242,6 +249,7 @@ export function LocationFields({
           setPoint({ lat: results[0].lat, lng: results[0].lng });
           setLocationSource("geocodificada");
           applyJurisdictionFromResult(results[0]);
+          setGeocodeFoundLabel(results[0].display_name);
           // Show alternates so the user can correct the top guess.
           setGeocodeResults(results.length > 1 ? results : []);
         }
@@ -312,6 +320,7 @@ export function LocationFields({
         setAddressText(r.display_name);
         applyJurisdictionFromResult(r);
         setGeocodeResults([]);
+        setGeocodeFoundLabel(null);
       } else {
         setGeocodeMessage("empty");
       }
@@ -342,6 +351,9 @@ export function LocationFields({
     applyJurisdictionFromResult(result);
     setGeocodeResults([]);
     setGeocodeMessage(null);
+    // The input now carries the picked label — the confirmation line would
+    // just repeat it.
+    setGeocodeFoundLabel(null);
   }
 
   function handleUseMyLocation() {
@@ -528,6 +540,11 @@ export function LocationFields({
                   </li>
                 ))}
               </ul>
+            )}
+            {geocodeFoundLabel && geocodeMessage === null && (
+              <output className="block text-xs text-ln-ok">
+                Encontramos: {geocodeFoundLabel}. Ajustá el pin si no es el punto exacto.
+              </output>
             )}
             {geocodeMessage === "empty" && (
               <p className="text-xs text-ln-mute ">
