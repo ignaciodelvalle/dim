@@ -32,7 +32,7 @@ import {
   externalDeliveryNote,
   isPendingExternalTransmission,
 } from "@/lib/infra/outbox-list";
-import { AR_TIME_ZONE, eventTypeLabel } from "@/lib/utils/format";
+import { eventTypeLabel, formatDateTimeNumericAr } from "@/lib/utils/format";
 
 import { RetryOutboxButton } from "./RetryOutboxButton";
 
@@ -51,12 +51,7 @@ const STATUS_PILL_TONE: Record<string, PillTone> = {
 };
 
 function fmt(d: Date | null): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleString("es-AR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: AR_TIME_ZONE,
-  });
+  return formatDateTimeNumericAr(d);
 }
 
 export default async function AdminOutboxDetailPage({

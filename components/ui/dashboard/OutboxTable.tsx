@@ -24,7 +24,7 @@ import {
   externalDeliveryNote,
   isPendingExternalTransmission,
 } from "@/lib/infra/outbox-list";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { formatDateTimeNumericAr } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Shared filter/presentation constants (previously duplicated in both pages)
@@ -116,11 +116,7 @@ export interface OutboxTableProps {
 const TH_CLS = "px-3 py-2 text-left text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute";
 
 function formatDateTime(value: Date): string {
-  return new Date(value).toLocaleString("es-AR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: AR_TIME_ZONE,
-  });
+  return formatDateTimeNumericAr(value);
 }
 
 export function OutboxTable({

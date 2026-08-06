@@ -12,16 +12,11 @@ import Link from "next/link";
 import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db, petEvents, pets, profiles, reminders } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { formatDateTimeNumericAr } from "@/lib/utils/format";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 function formatDate(d: Date | string): string {
-  const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleString("es-AR", {
-    dateStyle: "short",
-    timeStyle: "short",
-    timeZone: AR_TIME_ZONE,
-  });
+  return formatDateTimeNumericAr(d);
 }
 
 function daysFromNow(dueAt: Date | string, now: Date): number {

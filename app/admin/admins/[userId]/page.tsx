@@ -10,7 +10,7 @@ import { auditLog, db, profiles } from "@/db";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { describeAuditEntry } from "@/lib/ui/audit-entry-view";
-import { AR_TIME_ZONE, accountTypeLabel, formatDateShort } from "@/lib/utils/format";
+import { accountTypeLabel, formatDateShort, formatDateTimeNumericAr } from "@/lib/utils/format";
 
 // Scaling note: auth.admin.getUserById() called once per page load.
 // Safe at v1 institutional volume. See ADR-8.
@@ -202,11 +202,7 @@ export default async function AdminDetailPage({
                     {actorName}
                     <span className="mx-1 text-ln-op-faint">·</span>
                     <span className="tabular-nums">
-                      {entry.performedAt.toLocaleString("es-AR", {
-                        dateStyle: "short",
-                        timeStyle: "short",
-                        timeZone: AR_TIME_ZONE,
-                      })}
+                      {formatDateTimeNumericAr(entry.performedAt)}
                     </span>
                   </p>
                   {view.reason && (

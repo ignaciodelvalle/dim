@@ -13,7 +13,11 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
 import { portalBase } from "@/lib/ui/portal-base";
-import { AR_TIME_ZONE, pluralizeEs, serviceOfferingStatusLabel } from "@/lib/utils/format";
+import {
+  formatDateTimeNumericAr,
+  pluralizeEs,
+  serviceOfferingStatusLabel,
+} from "@/lib/utils/format";
 
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
@@ -111,11 +115,7 @@ export default async function GobServicioDetailPage({
           <OpCodeBadge tone="neutral">{offering.publicToken}</OpCodeBadge>
           {location ? ` · ${location}` : ""}
           {" · enviado "}
-          {new Date(offering.submittedAt).toLocaleString("es-AR", {
-            dateStyle: "short",
-            timeStyle: "short",
-            timeZone: AR_TIME_ZONE,
-          })}
+          {formatDateTimeNumericAr(offering.submittedAt)}
         </p>
       </header>
 
@@ -190,12 +190,7 @@ export default async function GobServicioDetailPage({
         <DetailSection title="Decisión">
           <p className="text-[13px] text-ln-op-ink">
             {STATUS_LABELS[offering.status] ?? offering.status}
-            {offering.reviewedAt &&
-              ` el ${new Date(offering.reviewedAt).toLocaleString("es-AR", {
-                dateStyle: "short",
-                timeStyle: "short",
-                timeZone: AR_TIME_ZONE,
-              })}`}
+            {offering.reviewedAt && ` el ${formatDateTimeNumericAr(offering.reviewedAt)}`}
           </p>
           {offering.rejectionReason && (
             <p className="text-sm text-ln-op-ink-2 mt-1">Motivo: {offering.rejectionReason}</p>

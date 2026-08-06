@@ -67,7 +67,7 @@ import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filters";
 import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
 import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
-import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
+import { formatDateTimeNumericAr, pluralizeEs } from "@/lib/utils/format";
 import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
 
@@ -227,12 +227,7 @@ export default async function GobHistorialPage({
   const actorName = (uid: string | null) =>
     uid ? (namesById.get(uid) ?? "Desconocido") : "Usuario eliminado";
 
-  const fmtTime = (d: Date) =>
-    new Date(d).toLocaleString("es-AR", {
-      dateStyle: "short",
-      timeStyle: "short",
-      timeZone: AR_TIME_ZONE,
-    });
+  const fmtTime = (d: Date) => formatDateTimeNumericAr(d);
 
   const runFilterHref = (action: string, uid: string | null) => {
     const params = new URLSearchParams({ action });

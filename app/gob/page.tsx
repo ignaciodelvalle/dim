@@ -102,8 +102,8 @@ import { auditActionLabel } from "@/lib/ui/audit-action-labels";
 import { describeMandate } from "@/lib/ui/scope-chrome";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import {
-  AR_TIME_ZONE,
   formatCount,
+  formatDateTimeNumericAr,
   formatPercent,
   formatRate,
   pluralizeEs,
@@ -1046,11 +1046,7 @@ export default async function GobiernoDashboardPage({
                     >
                       <p className="text-md text-ln-op-ink">{activityRowLabel(row)}</p>
                       <time className="text-sm text-ln-op-mute tabular-nums whitespace-nowrap">
-                        {new Date(row.performedAt).toLocaleString("es-AR", {
-                          dateStyle: "short",
-                          timeStyle: "short",
-                          timeZone: AR_TIME_ZONE,
-                        })}
+                        {formatDateTimeNumericAr(row.performedAt)}
                       </time>
                     </li>
                   ))}

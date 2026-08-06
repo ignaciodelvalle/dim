@@ -9,7 +9,7 @@ import { canDecideRequest } from "@/lib/infra/approval-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { portalBase } from "@/lib/ui/portal-base";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { formatDateTimeNumericAr } from "@/lib/utils/format";
 import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
 
 import { matriculaRegistryFor } from "../_lib/matricula-registries";
@@ -152,14 +152,7 @@ export default async function ReviewRequestPage({
             {request.jurisdictionLocality}, {request.jurisdictionProvince}
           </span>
           <span>·</span>
-          <span>
-            creada{" "}
-            {new Date(request.createdAt).toLocaleString("es-AR", {
-              dateStyle: "short",
-              timeStyle: "short",
-              timeZone: AR_TIME_ZONE,
-            })}
-          </span>
+          <span>creada {formatDateTimeNumericAr(request.createdAt)}</span>
         </p>
       </header>
 
@@ -249,12 +242,7 @@ export default async function ReviewRequestPage({
         <Section title="Decisión">
           <p className="text-[13px] text-ln-op-ink">
             {STATUS_LABELS[request.status]}
-            {request.decidedAt &&
-              ` el ${new Date(request.decidedAt).toLocaleString("es-AR", {
-                dateStyle: "short",
-                timeStyle: "short",
-                timeZone: AR_TIME_ZONE,
-              })}`}
+            {request.decidedAt && ` el ${formatDateTimeNumericAr(request.decidedAt)}`}
           </p>
           {request.decisionNotes && (
             <p className="text-sm text-ln-op-mute mt-1">Notas: {request.decisionNotes}</p>

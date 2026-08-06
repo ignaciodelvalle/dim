@@ -13,7 +13,7 @@ import { db, ownerships, petEvents, pets, profiles } from "@/db";
 import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { PET_OBSERVATION_SELECT } from "@/lib/infra/pet-projections";
-import { AR_TIME_ZONE, formatDateShort, speciesLabel } from "@/lib/utils/format";
+import { formatDateShort, formatDateTimeNumericAr, speciesLabel } from "@/lib/utils/format";
 import { professionalCloseRabiesObservationAction } from "@/src/modules/surveillance/actions";
 import { diseaseCodeToEnoCode, getEnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
@@ -166,11 +166,7 @@ export default async function ObservationDetailPage({
                 const text = (payload.free_text as string) ?? "—";
                 return (
                   <li key={s.id}>
-                    {new Date(s.occurredAt).toLocaleString("es-AR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                      timeZone: AR_TIME_ZONE,
-                    })}
+                    {formatDateTimeNumericAr(s.occurredAt)}
                     {alerted.length > 0 && (
                       <span className="ml-2 text-xs uppercase tracking-wider">
                         {alerted.join(", ")}

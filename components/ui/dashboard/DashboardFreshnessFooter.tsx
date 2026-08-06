@@ -19,20 +19,7 @@
 
 import type { ProjectionContext } from "@/lib/metrics/context";
 import { lastIngestAt } from "@/lib/metrics/freshness";
-
-/** es-AR date-time formatter for the "Calculado al" stamp (server render time). */
-const NOW_FMT = new Intl.DateTimeFormat("es-AR", {
-  dateStyle: "short",
-  timeStyle: "short",
-  timeZone: "America/Argentina/Buenos_Aires",
-});
-
-/** es-AR date-time formatter for the "último evento" stamp. */
-const EVENT_FMT = new Intl.DateTimeFormat("es-AR", {
-  dateStyle: "short",
-  timeStyle: "short",
-  timeZone: "America/Argentina/Buenos_Aires",
-});
+import { formatDateTimeNumericAr } from "@/lib/utils/format";
 
 type Props = {
   ctx: ProjectionContext;
@@ -42,16 +29,16 @@ type Props = {
  * Async server component that renders a muted freshness footer line.
  *
  * Example output:
- *   "Calculado al 21/06/2026, 14:32 · último evento 20/06/2026, 22:15"
- *   "Calculado al 21/06/2026, 14:32 · último evento sin eventos"
+ *   "Calculado al 21/06/2026 14:32 · último evento 20/06/2026 22:15"
+ *   "Calculado al 21/06/2026 14:32 · último evento sin eventos"
  *
  * @param ctx - The active ProjectionContext (passed from the page boundary).
  */
 export async function DashboardFreshnessFooter({ ctx }: Props) {
   const [maxAt] = await Promise.all([lastIngestAt(ctx)]);
 
-  const nowLabel = NOW_FMT.format(new Date());
-  const eventLabel = maxAt != null ? EVENT_FMT.format(maxAt) : "sin eventos";
+  const nowLabel = formatDateTimeNumericAr(new Date());
+  const eventLabel = maxAt != null ? formatDateTimeNumericAr(maxAt) : "sin eventos";
 
   return (
     <p className="text-[11px] text-ln-op-mute">
