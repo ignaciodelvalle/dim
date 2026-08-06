@@ -123,7 +123,12 @@ export default async function AtenderSignPage({
         />
 
         <OpCard>
-          <OpCardHead title="Contame qué pasó" />
+          {/* PO decision 4 (UI review 2026-08-06): "Contame qué pasó" is an
+              intimate register that clashed with the notarial "Firmás como
+              matrícula…" a few lines up — the walk-in is a professional
+              record, not a confidence. The grid title below ("¿Qué querés
+              registrar?") is unchanged. */}
+          <OpCardHead title="Registrá lo que atendiste" />
           <OpCardBody>
             <AtenderQuickCapture orgToken={orgToken} publicToken={pet.publicToken} />
           </OpCardBody>

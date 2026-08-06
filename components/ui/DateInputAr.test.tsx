@@ -161,4 +161,50 @@ describe("DateInputAr", () => {
       expect(onValueChange).not.toHaveBeenCalled();
     });
   });
+
+  // The composing consumer's contract (PetSightingForm pairs this with a
+  // TimeInputAr): this callback tracks the hidden ISO exactly — including the
+  // empties `onValueChange` deliberately withholds — so a half-typed date can
+  // never leave the composed datetime holding a stale valid one.
+  describe("onHiddenValueChange (mirror of the submitted ISO)", () => {
+    it("fires with the empty string while a date is incomplete, then with the ISO", () => {
+      const onHiddenValueChange = vi.fn();
+      const { container } = render(
+        <DateInputAr name="from" onHiddenValueChange={onHiddenValueChange} />,
+      );
+      const input = textbox(container);
+      fireEvent.change(input, { target: { value: "1507" } });
+      expect(onHiddenValueChange).toHaveBeenLastCalledWith("");
+      fireEvent.change(input, { target: { value: "15072026" } });
+      expect(onHiddenValueChange).toHaveBeenLastCalledWith("2026-07-15");
+    });
+
+    it("empties when a previously valid date is edited down to a partial one", () => {
+      const onHiddenValueChange = vi.fn();
+      const { container } = render(
+        <DateInputAr
+          name="from"
+          defaultValue="2026-07-03"
+          onHiddenValueChange={onHiddenValueChange}
+        />,
+      );
+      fireEvent.change(textbox(container), { target: { value: "0307202" } });
+      expect(onHiddenValueChange).toHaveBeenLastCalledWith("");
+    });
+
+    it("empties on blur for an impossible date", () => {
+      const onHiddenValueChange = vi.fn();
+      const { container } = render(
+        <DateInputAr
+          name="from"
+          defaultValue="2026-07-03"
+          onHiddenValueChange={onHiddenValueChange}
+        />,
+      );
+      const input = textbox(container);
+      fireEvent.change(input, { target: { value: "32132026" } });
+      fireEvent.blur(input);
+      expect(onHiddenValueChange).toHaveBeenLastCalledWith("");
+    });
+  });
 });

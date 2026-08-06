@@ -5,7 +5,13 @@ import { useId, useState } from "react";
 import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "@/lib/utils/date-input-ar";
 
 /**
- * Browser-independent dd/mm/aaaa date input for operator filter forms.
+ * Browser-independent dd/mm/aaaa date input.
+ *
+ * Born on the operator filter surfaces; also used on citizen forms (paired with
+ * TimeInputAr — see PetSightingForm). The inline error therefore uses the
+ * SKIN-NEUTRAL `--color-st-err` token, which resolves to ln-op-danger inside
+ * `.op-surface` (zero visual diff for the operator consumers) and to ln-err on
+ * a citizen page, instead of hard-coding the operator red on both.
  *
  * WHY THIS EXISTS: native `<input type="date">` renders its visible text per
  * the browser's OS locale. `lang="es-AR"` only works in Chromium — Safari and
@@ -46,6 +52,12 @@ export type DateInputArProps = {
   id?: string;
   /** Accessible name when there is no associated visible `<label>`. */
   ariaLabel?: string;
+  /**
+   * Extra element id(s) to describe the visible input — e.g. a form-level error
+   * paragraph. Merged with (never replaced by) this control's own inline
+   * invalid-date hint when that is showing.
+   */
+  ariaDescribedBy?: string;
   /** Classes applied to the visible text input (preserves per-surface styling). */
   className?: string;
   /**
@@ -57,6 +69,20 @@ export type DateInputArProps = {
    * button; see DateRangeFilterFields for the canonical consumer.
    */
   onValueChange?: (iso: string) => void;
+  /**
+   * Mirrors the HIDDEN input's value on EVERY change and blur — including the
+   * empty string for an incomplete or impossible in-progress date. For
+   * consumers that don't submit this control's own hidden field but COMPOSE its
+   * value into another one (PetSightingForm pairs it with a TimeInputAr into a
+   * single "YYYY-MM-DDTHH:mm").
+   *
+   * NOT interchangeable with `onValueChange`: that one deliberately stays
+   * silent while a date is half-typed, so a URL-navigating consumer doesn't
+   * navigate mid-keystroke. A composing consumer needs the opposite — if it
+   * only heard about commit-worthy values, a field edited down to "03/0" would
+   * keep submitting the PREVIOUS date while showing something else.
+   */
+  onHiddenValueChange?: (iso: string) => void;
 };
 
 export function DateInputAr({
@@ -64,8 +90,10 @@ export function DateInputAr({
   defaultValue,
   id,
   ariaLabel,
+  ariaDescribedBy,
   className,
   onValueChange,
+  onHiddenValueChange,
 }: DateInputArProps) {
   const reactId = useId();
   const inputId = id ?? `${reactId}-date`;
@@ -82,6 +110,12 @@ export function DateInputAr({
   const [iso, setIso] = useState(initialIso);
   const [invalid, setInvalid] = useState(false);
 
+  /** Single writer for the hidden ISO, so its mirror callback can never be missed. */
+  function writeIso(next: string) {
+    setIso(next);
+    onHiddenValueChange?.(next);
+  }
+
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const masked = maskArDateInput(event.target.value);
     setDisplay(masked);
@@ -92,12 +126,12 @@ export function DateInputAr({
     // incomplete/partial date → clear (blur will flag it invalid if the operator
     // leaves it that way).
     if (masked === "") {
-      setIso("");
+      writeIso("");
       onValueChange?.("");
       return;
     }
     const parsed = parseArDateToIso(masked);
-    setIso(parsed ?? "");
+    writeIso(parsed ?? "");
     // Only a COMPLETE, calendar-valid date is commit-worthy — a partial or
     // impossible in-progress date (parsed === null) must not fire, or a
     // caller committing straight to a URL nav would navigate mid-keystroke.
@@ -107,17 +141,17 @@ export function DateInputAr({
   function handleBlur() {
     const trimmed = display.trim();
     if (!trimmed) {
-      setIso("");
+      writeIso("");
       setInvalid(false);
       return;
     }
     const parsed = parseArDateToIso(trimmed);
     if (!parsed) {
-      setIso("");
+      writeIso("");
       setInvalid(true);
       return;
     }
-    setIso(parsed);
+    writeIso(parsed);
     setDisplay(isoToArDateDisplay(parsed));
     setInvalid(false);
   }
@@ -132,7 +166,9 @@ export function DateInputAr({
         placeholder={PLACEHOLDER}
         aria-label={ariaLabel}
         aria-invalid={invalid || undefined}
-        aria-describedby={invalid ? errorId : undefined}
+        aria-describedby={
+          [ariaDescribedBy, invalid ? errorId : null].filter(Boolean).join(" ") || undefined
+        }
         value={display}
         onChange={handleChange}
         onBlur={handleBlur}
@@ -140,7 +176,7 @@ export function DateInputAr({
       />
       <input type="hidden" name={name} value={iso} />
       {invalid ? (
-        <p id={errorId} role="alert" className="text-sm text-ln-op-danger">
+        <p id={errorId} role="alert" className="text-sm text-[var(--color-st-err)]">
           {INVALID_MESSAGE}
         </p>
       ) : null}

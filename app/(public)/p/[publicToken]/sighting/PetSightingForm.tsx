@@ -10,15 +10,22 @@
 //   - a11y/contrast fixes: submit button text-black, back link bumped up
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { LocationFields } from "@/components/LocationFields";
+import { DateInputAr } from "@/components/ui/DateInputAr";
+import { TimeInputAr } from "@/components/ui/TimeInputAr";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
 import { nowLocalDatetimeInAr, sightedWhenQuestion } from "@/lib/utils/format";
 
 import { type SightingActionState, reportPetSightingAction } from "@/app/actions/pet-sighting";
 
 const initialState: SightingActionState = { ok: false, error: null };
+
+// Same visual treatment the native datetime-local carried, shared by the
+// dd/mm/aaaa and HH:mm halves that replaced it.
+const dateTimeFieldClass =
+  "w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]";
 
 export function PetSightingForm({
   publicToken,
@@ -43,6 +50,31 @@ export function PetSightingForm({
   const [state, formAction, isPending] = useActionState(boundAction, initialState);
   const { key: idempotencyKey } = useIdempotencyKey();
 
+  // "¿Cuándo la viste?" is entered as two AUTHOR-OWNED fields (dd/mm/aaaa +
+  // HH:mm) instead of one `<input type="datetime-local">`, whose visible text
+  // follows the BROWSER's locale — a viewer on an en-US machine was offered
+  // month/day order and an AM/PM clock inside es-AR copy, on the one field
+  // that decides WHEN a lost pet was seen. The halves are recomposed
+  // client-side into the exact "YYYY-MM-DDTHH:mm" string the server action
+  // already parses (parseArDatetimeLocal), carried by a hidden `sightedAt` —
+  // so the action is untouched and the wire format is byte-identical.
+  //
+  // Defaults still come from `nowLocalDatetimeInAr` (AR wall clock, not UTC —
+  // see lib/utils/format.ts for why toISOString() would misdate this near
+  // midnight in Argentina); it is simply split at the "T".
+  const [defaultDate, defaultTime] = nowLocalDatetimeInAr().split("T");
+  const [sightedDate, setSightedDate] = useState(defaultDate);
+  const [sightedTime, setSightedTime] = useState(defaultTime);
+  // `onHiddenValueChange` (not `onValueChange`) is deliberate: it MIRRORS each
+  // control's hidden value, so a half-typed or impossible entry empties its half
+  // here too. The commit-worthy signal would stay silent instead, leaving the
+  // composed field holding the PREVIOUS date while the visible one shows an
+  // error — a silently wrong sighting timestamp.
+  //
+  // Either half blank ⇒ submit nothing, which is exactly what an emptied
+  // datetime-local did: the action falls back to "now" server-side.
+  const sightedAt = sightedDate && sightedTime ? `${sightedDate}T${sightedTime}` : "";
+
   if (state.ok) {
     return (
       <div className="space-y-3">
@@ -65,10 +97,6 @@ export function PetSightingForm({
     );
   }
 
-  // AR wall-clock "now" — see lib/utils/format.ts for why toISOString() (UTC)
-  // would silently misdate this near midnight in Argentina.
-  const todayLocalIso = nowLocalDatetimeInAr();
-
   // B-2: stable id for the error paragraph so inputs can reference it via aria-describedby
   const errorId = "sighting-form-error";
 
@@ -89,22 +117,49 @@ export function PetSightingForm({
         defaultCenter={defaultCenter}
       />
 
-      <div className="space-y-1">
-        <label
-          htmlFor="sightedAt"
-          className="block text-xs font-medium text-[var(--color-ln-ink-2)]"
-        >
+      <fieldset className="space-y-1">
+        <legend className="block text-xs font-medium text-[var(--color-ln-ink-2)]">
           {sightedWhenQuestion(petSex)}
-        </label>
-        <input
-          id="sightedAt"
-          name="sightedAt"
-          type="datetime-local"
-          defaultValue={todayLocalIso}
-          aria-describedby={state.error ? errorId : undefined}
-          className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-        />
-      </div>
+        </legend>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="space-y-1">
+            <label
+              htmlFor="sightedAtDate"
+              className="block text-[11px] font-medium text-[var(--color-ln-faint)]"
+            >
+              Fecha
+            </label>
+            <DateInputAr
+              id="sightedAtDate"
+              name="sightedAtDate"
+              defaultValue={defaultDate}
+              onHiddenValueChange={setSightedDate}
+              ariaDescribedBy={state.error ? errorId : undefined}
+              className={dateTimeFieldClass}
+            />
+          </div>
+          <div className="space-y-1">
+            <label
+              htmlFor="sightedAtTime"
+              className="block text-[11px] font-medium text-[var(--color-ln-faint)]"
+            >
+              Hora (24 h)
+            </label>
+            <TimeInputAr
+              id="sightedAtTime"
+              name="sightedAtTime"
+              defaultValue={defaultTime}
+              onHiddenValueChange={setSightedTime}
+              ariaDescribedBy={state.error ? errorId : undefined}
+              className={dateTimeFieldClass}
+            />
+          </div>
+        </div>
+        {/* The single field the server action reads — recomposed from the two
+            halves above into the same "YYYY-MM-DDTHH:mm" the datetime-local
+            used to submit. */}
+        <input type="hidden" name="sightedAt" value={sightedAt} />
+      </fieldset>
 
       <div className="space-y-1">
         <label

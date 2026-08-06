@@ -1,5 +1,5 @@
 // ---------------------------------------------------------------------------
-// Browser-independent dd/mm/aaaa date entry (operator filter surfaces)
+// Browser-independent dd/mm/aaaa date + HH:mm time entry
 // ---------------------------------------------------------------------------
 //
 // Native `<input type="date">` renders its VISIBLE text per the browser's OS
@@ -63,4 +63,52 @@ export function maskArDateInput(raw: string): string {
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return `${digits.slice(0, 2)}/${digits.slice(2)}`;
   return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+}
+
+// ---------------------------------------------------------------------------
+// Time half — HH:mm, 24-hour, browser-independent (TimeInputAr)
+// ---------------------------------------------------------------------------
+//
+// `<input type="time">` has EXACTLY the same defect as `<input type="date">`:
+// its visible text follows the browser's locale, so a viewer on an en-US
+// machine gets a 12-hour "07:30 PM" widget while the es-AR copy around it
+// (and every rendered timestamp in the product) speaks 24-hour "19:30". On the
+// citizen crisis surfaces that ambiguity is a wrong sighting hour, not a
+// cosmetic wobble. These helpers back TimeInputAr, the HH:mm twin of
+// DateInputAr: masked text in, a validated "HH:mm" string out.
+//
+// Note the asymmetry with the date half: a time needs no display<->storage
+// conversion, because "HH:mm" IS both the es-AR display form and the value the
+// consumer submits. So there is no `hmToArTimeDisplay` — `parseArTimeToHm` is
+// both the validator and the normalizer.
+
+const AR_TIME_DISPLAY_RE = /^(\d{2}):(\d{2})$/;
+
+/**
+ * Validate/normalize an "HH:mm" 24-hour time, or `null` when the string is
+ * empty, malformed, or out of range (24:00, 12:60, "7:5"). Hours are 00-23 and
+ * minutes 00-59 — a 12-hour "07:30 PM" never round-trips through here, which is
+ * the point: the value is unambiguous on every browser and locale.
+ */
+export function parseArTimeToHm(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const m = value.trim().match(AR_TIME_DISPLAY_RE);
+  if (!m) return null;
+  const [, hh, mm] = m;
+  const hour = Number(hh);
+  const minute = Number(mm);
+  if (hour > 23) return null;
+  if (minute > 59) return null;
+  return `${hh}:${mm}`;
+}
+
+/**
+ * Progressive input mask for HH:mm: keeps only digits (max 4) and inserts the
+ * colon as the citizen types, so the field always reads HH or HH:mm. Pure
+ * string transform — no range validation (that is `parseArTimeToHm`).
+ */
+export function maskArTimeInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}:${digits.slice(2)}`;
 }

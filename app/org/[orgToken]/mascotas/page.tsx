@@ -18,9 +18,10 @@ import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { CopyButton } from "@/components/ui/CopyButton";
-import { OpButton, OpCallout, OpCrumbs } from "@/components/ui/dashboard";
+import { OpCallout, OpCrumbs } from "@/components/ui/dashboard";
 
 import { OrgMascotasBulkList } from "./OrgMascotasBulkList";
+import { OrgMascotasFilterBar } from "./OrgMascotasFilterBar";
 
 const ROLE_PRIORITY: Record<string, number> = {
   owner: 4,
@@ -244,68 +245,17 @@ export default async function OrgMascotasPage({
           )}
         </header>
 
-        <form
-          action={`/org/${orgToken}/mascotas`}
-          method="GET"
-          className="flex flex-wrap gap-3 items-end"
-        >
-          <div>
-            <label
-              htmlFor="filter-q"
-              className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
-            >
-              Buscar por nombre
-            </label>
-            <input
-              id="filter-q"
-              name="q"
-              type="text"
-              defaultValue={sp.q ?? ""}
-              placeholder="Ej. Rocky"
-              className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="filter-species"
-              className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
-            >
-              Especie
-            </label>
-            <select
-              id="filter-species"
-              name="species"
-              defaultValue={sp.species ?? ""}
-              className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-            >
-              <option value="">Todas</option>
-              <option value="dog">Perros</option>
-              <option value="cat">Gatos</option>
-              <option value="other">Otras</option>
-            </select>
-          </div>
-          <label className="flex items-center gap-2 text-sm text-ln-op-ink">
-            <input
-              type="checkbox"
-              name="adoptionEligible"
-              value="true"
-              defaultChecked={adoptionEligibleFilter}
-              className="h-4 w-4 rounded border-ln-op-line text-ln-op-azul focus:ring-2 focus:ring-ln-op-azul"
-            />
-            Solo disponibles para adopción
-          </label>
-          <OpButton type="submit" size="sm">
-            Filtrar
-          </OpButton>
-          {(sp.species || sp.q || sp.adoptionEligible) && (
-            <Link
-              href={`/org/${orgToken}/mascotas`}
-              className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
-            >
-              Limpiar filtros
-            </Link>
-          )}
-        </form>
+        {/* PO decision 5 (UI review 2026-08-06): this used to be a GET form with
+            a "Filtrar" submit button while every gob/admin bar auto-applies.
+            The controls now commit themselves — see OrgMascotasFilterBar for
+            the two-mechanism rationale (immediate for selects, debounced for
+            the query). */}
+        <OrgMascotasFilterBar
+          basePath={`/org/${orgToken}/mascotas`}
+          query={nameQuery}
+          species={sp.species ?? ""}
+          adoptionEligible={adoptionEligibleFilter}
+        />
 
         {truncated && (
           <p className="text-sm text-ln-op-mute">

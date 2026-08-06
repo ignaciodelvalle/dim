@@ -1,6 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "./date-input-ar";
+import {
+  isoToArDateDisplay,
+  maskArDateInput,
+  maskArTimeInput,
+  parseArDateToIso,
+  parseArTimeToHm,
+} from "./date-input-ar";
 import {
   calendarDaysAgoInAr,
   eventTypeLabel,
@@ -585,6 +591,68 @@ describe("maskArDateInput", () => {
     expect(maskArDateInput("03/07/2026")).toBe("03/07/2026");
     expect(maskArDateInput("ab03cd07")).toBe("03/07");
     expect(maskArDateInput("030720261234")).toBe("03/07/2026");
+  });
+});
+
+describe("maskArTimeInput", () => {
+  it("inserts the colon progressively as digits are typed", () => {
+    expect(maskArTimeInput("1")).toBe("1");
+    expect(maskArTimeInput("19")).toBe("19");
+    expect(maskArTimeInput("193")).toBe("19:3");
+    expect(maskArTimeInput("1930")).toBe("19:30");
+  });
+
+  it("strips non-digits and caps at 4 digits", () => {
+    expect(maskArTimeInput("19:30")).toBe("19:30");
+    expect(maskArTimeInput("ab19cd30")).toBe("19:30");
+    expect(maskArTimeInput("193045")).toBe("19:30");
+    // An AM/PM paste keeps only its digits — never a 12-hour value.
+    expect(maskArTimeInput("07:30 PM")).toBe("07:30");
+  });
+
+  it("returns empty for an all-non-digit string", () => {
+    expect(maskArTimeInput("")).toBe("");
+    expect(maskArTimeInput("PM")).toBe("");
+  });
+});
+
+describe("parseArTimeToHm", () => {
+  it("accepts a complete in-range 24-hour time", () => {
+    expect(parseArTimeToHm("00:00")).toBe("00:00");
+    expect(parseArTimeToHm("09:05")).toBe("09:05");
+    expect(parseArTimeToHm("19:30")).toBe("19:30");
+    expect(parseArTimeToHm("23:59")).toBe("23:59");
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(parseArTimeToHm("  19:30  ")).toBe("19:30");
+  });
+
+  it("rejects an out-of-range hour or minute", () => {
+    expect(parseArTimeToHm("24:00")).toBeNull();
+    expect(parseArTimeToHm("99:99")).toBeNull();
+    expect(parseArTimeToHm("12:60")).toBeNull();
+  });
+
+  it("rejects incomplete, unpadded, or malformed input", () => {
+    expect(parseArTimeToHm("")).toBeNull();
+    expect(parseArTimeToHm(null)).toBeNull();
+    expect(parseArTimeToHm(undefined)).toBeNull();
+    expect(parseArTimeToHm("19")).toBeNull();
+    expect(parseArTimeToHm("19:")).toBeNull();
+    expect(parseArTimeToHm("9:5")).toBeNull();
+    expect(parseArTimeToHm("19:30:45")).toBeNull();
+    // The whole point: a 12-hour string never round-trips.
+    expect(parseArTimeToHm("07:30 PM")).toBeNull();
+  });
+
+  it("composes with a parsed date into the exact datetime-local wire format", () => {
+    // The contract PetSightingForm depends on: date half + "T" + time half is
+    // the same "YYYY-MM-DDTHH:mm" parseArDatetimeLocal already accepts.
+    const date = parseArDateToIso("03/07/2026");
+    const time = parseArTimeToHm("19:30");
+    expect(`${date}T${time}`).toBe("2026-07-03T19:30");
+    expect(parseArDatetimeLocal(`${date}T${time}`)?.toISOString()).toBe("2026-07-03T22:30:00.000Z");
   });
 });
 
