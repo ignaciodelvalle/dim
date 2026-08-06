@@ -50,7 +50,12 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
   if (!confirming) {
     return (
       <div className="flex flex-col gap-1">
-        <OpButton variant="danger" size="sm" onClick={() => setConfirming(true)}>
+        {/* Neutral OUTLINE, not danger (one-primary-per-screen review,
+            2026-08-06): blocking a free cupo is routine capacity management
+            and this trigger repeats once per slot row, so a solid red per row
+            spent the screen's alarm budget on the least alarming action.
+            Danger stays reserved for irreversible/destructive verbs. */}
+        <OpButton variant="ghost" size="sm" onClick={() => setConfirming(true)}>
           Bloquear
         </OpButton>
         {error && (
@@ -71,7 +76,7 @@ export function BlockSlotButton({ orgToken, slotId }: Props) {
         </p>
       )}
       <div className="flex gap-2">
-        <OpButton variant="danger" size="sm" onClick={handleBlock} disabled={pending}>
+        <OpButton variant="primary" size="sm" onClick={handleBlock} disabled={pending}>
           {pending ? "Bloqueando..." : "Bloquear cupo"}
         </OpButton>
         <OpButton

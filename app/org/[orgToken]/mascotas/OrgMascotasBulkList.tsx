@@ -102,7 +102,6 @@ const BULK_MAX = 500;
 // imports. This file only owns the PRIMARY-tile styling.
 const PRIMARY_CTA_CLS: Record<CtaTone, string> = {
   azul: "inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-azul text-white hover:bg-ln-op-azul-700",
-  ok: "inline-flex items-center gap-1 text-sm font-semibold px-2.5 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-ok text-white hover:opacity-90",
 };
 
 function calcAge(dob: string): string {
@@ -459,11 +458,14 @@ export function OrgMascotasBulkList({
                       Marcar elegibilidad
                     </OpButton>
                   )}
+                  {/* Azul like its two neighbours (one-primary-per-screen
+                      review, 2026-08-06): all three only OPEN a mode. The green
+                      stayed on "Confirmar publicación" below, which is the step
+                      that actually commits. */}
                   {canManageAdoptionListing && (
                     <OpButton
                       type="button"
                       size="sm"
-                      variant="ok"
                       onClick={() => setMode("listing")}
                       disabled={selected.size > BULK_MAX}
                     >

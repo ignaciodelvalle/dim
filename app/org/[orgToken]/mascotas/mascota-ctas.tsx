@@ -37,7 +37,12 @@ export type PetCardData = {
   startedAt: string;
 };
 
-export type CtaTone = "azul" | "ok";
+// One primary accent for the whole org portal (one-primary-per-screen review,
+// 2026-08-06). "Finalizar adopción" used to render green here while the same
+// verb was azul elsewhere; green is now reserved for the affirmative half of a
+// confirm/decline pair (Aceptar custodia, Aprobar postulación, Confirmar
+// publicación), which no card CTA is — every one of them only NAVIGATES.
+export type CtaTone = "azul";
 
 export type CtaCandidate = {
   key: string;
@@ -98,7 +103,7 @@ export function buildMascotaCtas(
       show: flags.canFinalizeAdoption && card.ownershipRole === "shelter_custody",
       href: `/org/${orgToken}/mascotas/${card.publicToken}/adoption`,
       label: "Finalizar adopción",
-      tone: "ok",
+      tone: "azul",
     },
     {
       key: "publish-listing",

@@ -405,10 +405,15 @@ export default async function OrgPetDetailPage({
               Acciones
             </h2>
             <div className="flex flex-wrap gap-2">
+              {/* Azul, not green (one-primary-per-screen review, 2026-08-06):
+                  this NAVIGATES to /adoption — the green stays on that form's
+                  own "Finalizar adopción" submit, which is the actual
+                  confirmation. A green link here promised a commit it never
+                  performed, and made the org portal read with two accents. */}
               {canFinalizeAdoption && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}/adoption`}
-                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-ok text-white hover:opacity-90"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
                 >
                   Finalizar adopción
                 </Link>

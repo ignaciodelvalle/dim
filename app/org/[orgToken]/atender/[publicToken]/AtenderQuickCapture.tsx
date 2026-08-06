@@ -99,7 +99,11 @@ export function AtenderQuickCapture({
           placeholder='ej: "le di la antirrábica hoy"'
           className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)]"
         />
-        <OpButton type="submit" variant="ok" disabled={!text.trim()}>
+        {/* Azul, not ok/green (one-primary-per-screen review, 2026-08-06):
+            parsing free text is the flow's PRIMARY step, not a success
+            confirmation. Green stays for the affirmative half of a
+            confirm/decline pair (Aceptar / Aprobar / Confirmar). */}
+        <OpButton type="submit" variant="primary" disabled={!text.trim()}>
           Identificar →
         </OpButton>
       </form>

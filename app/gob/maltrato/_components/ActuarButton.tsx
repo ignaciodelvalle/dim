@@ -15,6 +15,13 @@
 // operator exactly where that motivo step already lives — one click instead
 // of three (open row → click "Acciones" tab → click the verb).
 //
+// Rendered as a LINK, not a solid button (one-primary-per-screen review,
+// 2026-08-06). The row already carries a solid-azul primary — "Tomar", the
+// queue's own act of taking ownership. A second identical solid azul next to
+// it made the card state two competing primaries and flattened the ranking,
+// so this one keeps the operator ink/azul + arrow idiom of admin's "Cerrar
+// profesionalmente →" trigger instead of a filled surface.
+//
 // A real anchor with href (not a clickable button element) — same no-JS-fallback rationale as
 // WelfareRowLink: right-click/middle-click/new-tab still work, and a bare
 // document load of this href still resolves correctly once the client
@@ -54,7 +61,7 @@ export function ActuarButton({
     <a
       href={href}
       onClick={handleClick}
-      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-azul bg-ln-op-azul px-2.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
+      className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap px-0.5 py-1 text-xs font-semibold text-ln-op-azul no-underline underline-offset-4 transition-colors hover:underline"
     >
       {label} →
     </a>

@@ -94,7 +94,7 @@ describe("ObservationCloseTrigger — deep-link fallback preserved", () => {
     mockSearch = new URLSearchParams();
     const html = renderToStaticMarkup(<ObservationCloseTrigger publicToken="DIM-AAAA-BBBB" />);
     expect(html).toContain('href="/admin/observaciones/DIM-AAAA-BBBB"');
-    expect(html).toContain("Cerrar profesionalmente -&gt;");
+    expect(html).toContain("Cerrar profesionalmente →");
     expect(html).toContain('data-observacion-row="DIM-AAAA-BBBB"');
   });
 });

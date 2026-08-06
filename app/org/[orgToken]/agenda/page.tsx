@@ -32,15 +32,6 @@ const STATUS_PILL: Record<string, { label: string; tone: StatusTone }> = {
   no_show: { label: "Ausente", tone: "danger" },
 };
 
-type SlotTone = "ok" | "triaged" | "danger" | "neutral";
-
-function slotOccupancyTone(bookingsCount: number, capacity: number, status: string): SlotTone {
-  if (status === "cancelled") return "neutral";
-  if (bookingsCount >= capacity) return "danger";
-  if (bookingsCount > 0) return "triaged";
-  return "ok";
-}
-
 type SlotRow = {
   id: string;
   startsAt: Date;
@@ -232,11 +223,6 @@ export default async function OrgAgendaPage({
                 <OpCardBody className="p-0">
                   <ul className="divide-y divide-ln-op-line">
                     {group.slots.map((slot) => {
-                      const tone = slotOccupancyTone(
-                        slot.bookingsCount,
-                        slot.capacity,
-                        slot.status,
-                      );
                       const startStr = formatTime(slot.startsAt);
                       const endStr = formatTime(slot.endsAt);
                       const occupancyLabel =
@@ -250,7 +236,16 @@ export default async function OrgAgendaPage({
                             {startStr}–{endStr}
                           </div>
                           <div className="flex-1 flex items-center gap-2 min-w-0">
-                            <OpPill tone={tone}>{occupancyLabel}</OpPill>
+                            {/* Occupancy is DATA, not status (one-primary-per-screen
+                                review, 2026-08-06). This pill used to paint an
+                                empty cupo GREEN ("0/2" = all good?), a partly
+                                booked one blue and a full one RED — three alarm
+                                colours for a fraction that already says
+                                everything on its own, competing with the real
+                                states on the same screen ("Ausente" = danger,
+                                "Asistido" = ok). One neutral tone; the number
+                                carries the meaning. */}
+                            <OpPill tone="neutral">{occupancyLabel}</OpPill>
                           </div>
                           {canBlock && (
                             <div className="shrink-0">

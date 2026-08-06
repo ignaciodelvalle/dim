@@ -41,7 +41,7 @@ export function ObservationCloseTrigger({ publicToken }: { publicToken: string }
       onClick={handleClick}
       className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
     >
-      {"Cerrar profesionalmente ->"}
+      Cerrar profesionalmente →
     </a>
   );
 }
