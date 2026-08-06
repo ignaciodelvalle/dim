@@ -103,3 +103,87 @@ describe("PublicLostSections — owner name disclosure (M1)", () => {
     expect(screen.queryByText(/Lo busca/)).toBeNull();
   });
 });
+
+// UI review, PO 2026-08-06. Three defects on the surface a finder scans with
+// somebody's lost dog in their arms: the "Última vez vista" line opened with
+// six-decimal coordinates, the CTA row offered two solid buttons in two
+// different hues, and a pet with no colour and no señas rendered its species
+// alone as a floating orphan line.
+describe("PublicLostSections — last-seen reads place-first (M3)", () => {
+  const LOCATED = {
+    ...BASE_PROPS,
+    lastSeenPlaceName: null,
+    lastSeenLocality: "Ushuaia",
+    lastSeenLat: -54.80606,
+    lastSeenLng: -68.304976,
+    lastSeenCoords: "-54.806060, -68.304976",
+    lastSeenAt: new Date("2026-05-14T12:00:00Z"),
+    lostSince: new Date("2026-05-14T12:00:00Z"),
+  };
+
+  it("leads with the place and the recency, not the coordinate pair", () => {
+    render(<PublicLostSections {...LOCATED} />);
+
+    // The heading's first line answers WHERE and HOW FRESH.
+    expect(screen.getByText(/^Ushuaia · hace \d+ (días|día|meses|mes)$/)).toBeInTheDocument();
+  });
+
+  it("keeps the raw coordinates, demoted to their own muted line", () => {
+    const { container } = render(<PublicLostSections {...LOCATED} />);
+
+    const coords = container.querySelector('[data-section="lost-last-seen-coords"]');
+    expect(coords).not.toBeNull();
+    expect(coords).toHaveTextContent("-54.806060, -68.304976");
+    // …and never inside the place line it used to lead.
+    expect(screen.queryByText(/^-54\.806060, -68\.304976 · Ushuaia$/)).toBeNull();
+  });
+
+  it("says 'Punto marcado en el mapa' for a pin with no address and no locality", () => {
+    render(<PublicLostSections {...LOCATED} lastSeenLocality={null} />);
+
+    expect(screen.getByText(/^Punto marcado en el mapa · hace/)).toBeInTheDocument();
+  });
+});
+
+describe("PublicLostSections — one accent in the CTA row", () => {
+  it("Llamar and the finder CTA are both solid azul; email and sighting stay outline", () => {
+    render(
+      <PublicLostSections
+        {...BASE_PROPS}
+        ownerPhoneE164="+5491155551234"
+        ownerEmail="alguien@example.test"
+        finderFormHref="/p/DIM-TEST-0001/encontre"
+        sightingFormHref="/p/DIM-TEST-0001/sighting"
+      />,
+    );
+
+    // The two reunification actions carry the single accent fill…
+    expect(screen.getByRole("link", { name: /llamar/i }).className).toContain("bg-ln-azul");
+    expect(screen.getByRole("link", { name: /tengo conmigo|encontr/i }).className).toContain(
+      "bg-ln-azul",
+    );
+    // …and nothing in the row is green any more (ln-ok is the product's
+    // "verified / al día" semantic — the wrong signal on a lost card).
+    expect(screen.getByRole("link", { name: /llamar/i }).className).not.toContain("bg-ln-ok");
+    // The two lower-commitment channels stay quiet.
+    expect(screen.getByRole("link", { name: /email/i }).className).toContain("bg-ln-card");
+    expect(screen.getByRole("link", { name: /vi cerca/i }).className).toContain("bg-ln-card");
+  });
+});
+
+describe("PublicLostSections — degenerate identity line", () => {
+  it("renders nothing where the description would be when the caller has no traits to show", () => {
+    // page.tsx builds "" rather than a lone species word; the component must
+    // not paint an empty paragraph for it.
+    const { container } = render(<PublicLostSections {...BASE_PROPS} identityLine="" />);
+
+    expect(screen.queryByText("Perro")).toBeNull();
+    expect(container.querySelectorAll("p:empty")).toHaveLength(0);
+  });
+
+  it("still renders a real description line", () => {
+    render(<PublicLostSections {...BASE_PROPS} identityLine="Perro · marrón · collar rojo" />);
+
+    expect(screen.getByText("Perro · marrón · collar rojo")).toBeInTheDocument();
+  });
+});

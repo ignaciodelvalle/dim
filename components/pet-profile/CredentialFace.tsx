@@ -167,6 +167,14 @@ export function CredentialFace({
     complianceState.worstTone === "over"
       ? complianceState.worstTone
       : null;
+  // The summary stamp is a COMPLIANCE claim, not a vaccine-currency one: "ok"
+  // here means every obligation is met, which this document already calls "al
+  // día" (the counter beside it reads "3 de 3 al día"). LnVstamp's default word
+  // for `ok` is VIGENTE — the vigencia-de-la-dosis lens — so the same green
+  // pill spoke two different vocabularies one line apart. Overridden to AL DÍA
+  // (unified pill vocabulary, PO 2026-08-06); due/over keep their own words,
+  // which already mean the same thing in both lenses.
+  const complianceStampLabel = complianceStamp === "ok" ? "AL DÍA" : undefined;
 
   // Service-dog credential row — the only credential that sits ALONGSIDE the
   // compliance panel (PPP is surfaced once inside the panel as its canonical
@@ -378,7 +386,9 @@ export function CredentialFace({
                 <p className="m-0 text-sm font-medium text-[var(--color-ln-ink-2)]">
                   {complianceSummary}
                 </p>
-                {complianceStamp && <LnVstamp variant={complianceStamp} />}
+                {complianceStamp && (
+                  <LnVstamp variant={complianceStamp} label={complianceStampLabel} />
+                )}
               </div>
               <ComplianceObligationsPanel
                 state={complianceState}
@@ -409,7 +419,11 @@ export function CredentialFace({
                   icon="shield"
                   title="Obligaciones"
                   summary={complianceSummary}
-                  trailing={complianceStamp ? <LnVstamp variant={complianceStamp} /> : undefined}
+                  trailing={
+                    complianceStamp ? (
+                      <LnVstamp variant={complianceStamp} label={complianceStampLabel} />
+                    ) : undefined
+                  }
                 >
                   <ComplianceObligationsPanel
                     state={complianceState}

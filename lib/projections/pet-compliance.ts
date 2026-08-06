@@ -59,7 +59,7 @@ export type ComplianceTone = "ok" | "due" | "over" | "reserved" | "neutral";
 
 // DUAL vaccine state (task #78 Part 1 — the "0 de 4 · DECLARADA" #4 fix). A
 // diligent owner who vaccinated but has no vet signature used to see a single
-// flat "Declarada · sin verificar" badge that reads as "you have nothing". The
+// flat "Declarada" badge that reads as "you have nothing". The
 // dual block splits the two honest truths the credential must tell at once:
 //   • what the owner HAS (the currency lens — the dose is on record and vigente)
 //   • what the official REGISTRY still needs (a matriculated vet signature).
@@ -90,6 +90,19 @@ export type ObligationCard = {
    * obligation has no currency dimension at all (microchip, PPP).
    */
   currencyKnown?: boolean;
+  /**
+   * The formatted date the current currency runs UNTIL (the next-due / expiry
+   * date), when one is on record. Null/undefined when the obligation has no
+   * currency dimension, or when the dose carries no next_due_at.
+   *
+   * Exists so the pill can carry the DATUM instead of a bare adjective
+   * ("VIGENTE · hasta 14/01/2027", UI review PO 2026-08-06) without the
+   * presentation layer re-deriving or re-formatting a date the projection
+   * already computed — the same reason `currencyKnown` was hoisted onto the
+   * card. AR-pinned via formatDateArOmitCurrentYear (the year appears the
+   * moment it differs from the caller's `now`).
+   */
+  currencyUntil?: string | null;
   // Dual honest vaccine state — see ComplianceDual. Rabies-only, declared-dose-only.
   dual?: ComplianceDual;
 };
@@ -154,11 +167,11 @@ const FOOTNOTE = {
 } as const;
 
 // The sterilization footnote must AGREE with the card's verification state. A
-// "Declarada · sin verificar" seal cannot sit above "Evento verificado en la
-// libreta" — that is the credential contradicting itself (adversarial-citizen
-// 2026-07-06, same class as the rabies "Registrada"/"Declarada" split). Each
-// state carries its own provenance line so the seal, the footnote and the
-// "N de M al día" summary always tell the same story.
+// "Declarada" seal cannot sit above "Evento verificado en la libreta" — that is
+// the credential contradicting itself (adversarial-citizen 2026-07-06, same
+// class as the rabies "Registrada"/"Declarada" split). Each state carries its
+// own provenance line so the seal, the footnote and the "N de M al día" summary
+// always tell the same story.
 const STERILIZATION_FOOTNOTE = {
   verified: "Evento verificado en la libreta",
   declared: "Declarado por el titular, sin verificación profesional",
@@ -174,14 +187,27 @@ const TONE_SEVERITY: Record<ComplianceTone, number> = {
   ok: 4,
 };
 
-// es-AR nudges shown on a "Declarada · sin verificar" card (H1).
+// es-AR nudges shown on a "Declarada" card (H1).
 const HINT = {
   sterilization: "Pedile a tu veterinario que la registre para que cuente.",
   microchip: "Pedile a quien lo implantó que lo registre para que cuente.",
   rabies: "La cargaste vos; pedí que un veterinario la registre para que cuente como al día.",
 } as const;
 
-const DECLARADA_STATE = "Declarada · sin verificar";
+// Unified affirmative pill vocabulary (UI review, PO 2026-08-06). Each pill now
+// carries ONE word from the same two-term provenance pair — VERIFICADA (a
+// professional/institutional event cleared it) vs DECLARADA (the titular said
+// so, nobody signed it) — instead of three adjacent greens with three grammars
+// ("Registrada" / "Sí" / "Declarada · sin verificar"). The epistemic
+// distinction is unchanged: only the WORDING converged. The "sin verificar"
+// tail moved out of the pill because the footnote below it already says
+// "Declarado por el titular, sin verificación profesional" and the hint says
+// what to do about it — the pill was the third copy of the same caveat.
+const DECLARADA_STATE = "Declarada";
+/** Masculine form for the obligations whose noun is masculine ("Microchip"). */
+const DECLARADO_STATE = "Declarado";
+const VERIFICADA_STATE = "Verificada";
+const VERIFICADO_STATE = "Verificado";
 
 // Rabies dual-state copy (task #78 Part 1 / #4). The registry line is educational
 // AND a nudge — a vet signature turns declared data into verified data, which is
@@ -213,6 +239,7 @@ function declaradaCard(
   legalFootnote: string,
   hint: string,
   detail: string | null = null,
+  state: string = DECLARADA_STATE,
 ): ObligationCard {
   // The "Declarada" state itself (not a separate provenance field) is what
   // keeps a declared-only card (sterilization, microchip, and the rabies
@@ -224,7 +251,7 @@ function declaradaCard(
   return {
     key,
     label,
-    state: DECLARADA_STATE,
+    state,
     tone: "neutral",
     detail,
     legalFootnote,
@@ -263,14 +290,16 @@ function parseNextDue(raw: string): Date | null {
 
 // Map a reminder variant to the coarse compliance tone + labels.
 function rabiesFromVariant(variant: ReminderVariant, dueAt: Date, now: Date): ObligationCard {
+  const until = formatDateArOmitCurrentYear(dueAt, now);
   if (variant === "due_soon") {
     return {
       key: "rabies",
       label: "Vacuna antirrábica",
       state: "Por vencer",
       tone: "due",
-      detail: `Vence ${formatDateArOmitCurrentYear(dueAt, now)}`,
+      detail: `Vence ${until}`,
       legalFootnote: FOOTNOTE.rabies,
+      currencyUntil: until,
     };
   }
   if (variant === "overdue" || variant === "overdue_critical") {
@@ -279,8 +308,9 @@ function rabiesFromVariant(variant: ReminderVariant, dueAt: Date, now: Date): Ob
       label: "Vacuna antirrábica",
       state: "Vencida",
       tone: "over",
-      detail: `Venció ${formatDateArOmitCurrentYear(dueAt, now)}`,
+      detail: `Venció ${until}`,
       legalFootnote: FOOTNOTE.rabies,
+      currencyUntil: until,
     };
   }
   // upcoming | success
@@ -289,8 +319,9 @@ function rabiesFromVariant(variant: ReminderVariant, dueAt: Date, now: Date): Ob
     label: "Vacuna antirrábica",
     state: "Vigente",
     tone: "ok",
-    detail: `Próxima ${formatDateArOmitCurrentYear(dueAt, now)}`,
+    detail: `Próxima ${until}`,
     legalFootnote: FOOTNOTE.rabies,
+    currencyUntil: until,
   };
 }
 
@@ -451,7 +482,11 @@ function deriveSterilization(input: ComplianceInput): ObligationCard {
     return {
       key: "sterilization",
       label: "Esterilización",
-      state: "Registrada",
+      // "Verificada", not "Registrada": the pill's job is to name the PROVENANCE
+      // (a professional signed it), and "registrada" was ambiguous next to the
+      // rabies card, where "Registrada" means something else entirely — a dose
+      // on record whose vigencia is unknown (see deriveRabies).
+      state: VERIFICADA_STATE,
       tone: "ok",
       detail: null,
       legalFootnote: STERILIZATION_FOOTNOTE.verified,
@@ -482,7 +517,12 @@ function deriveMicrochip(input: ComplianceInput): ObligationCard | null {
     return {
       key: "microchip",
       label: "Microchip",
-      state: "Sí",
+      // "Sí" is never a pill any more (UI review, PO 2026-08-06): a yes/no
+      // adjective carried no information the row's own label didn't already
+      // imply. The panel renders the CHIP NUMBER as this card's pill when one
+      // is on record; this label is the fallback for a verified implant event
+      // with no code captured.
+      state: VERIFICADO_STATE,
       tone: "ok",
       detail: code,
       legalFootnote: FOOTNOTE.microchip,
@@ -491,7 +531,14 @@ function deriveMicrochip(input: ComplianceInput): ObligationCard | null {
   // Code known (from identifications) or a self-reported implant event, but not
   // backed by a professional/institutional record → declared, not verified.
   if (code || implants.length > 0) {
-    return declaradaCard("microchip", "Microchip", FOOTNOTE.microchip, HINT.microchip, code);
+    return declaradaCard(
+      "microchip",
+      "Microchip",
+      FOOTNOTE.microchip,
+      HINT.microchip,
+      code,
+      DECLARADO_STATE,
+    );
   }
   // No chip on record. If the jurisdiction does not require one, there is no
   // obligation to surface — omit the card so it is not counted in "N de M".
@@ -580,7 +627,7 @@ function derivePpp(input: ComplianceInput): ObligationCard | null {
  * whenever ANY microchip code was on file (`canonicalIds.microchip`),
  * regardless of provenance, while the compliance card below it (this same
  * module's `deriveMicrochip`) correctly required a professional/institutional
- * event to say "verified" — showing "Declarada · sin verificar" for a
+ * event to say "verified" — showing "Declarado" for a
  * self-reported chip. Same pet, same screen, two different claims about the
  * same fact (clickthrough audit 2026-07-03/04, Segmento 1 #6). Both surfaces
  * now read this one function.

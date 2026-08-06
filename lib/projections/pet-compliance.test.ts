@@ -151,9 +151,9 @@ describe("deriveComplianceState — rabies state machine", () => {
   // UX gate M5a: a recorded antirrábica dose with no next_due_at must NOT read
   // "Sin registro" — that contradicts the libreta asiento the owner can see.
   // task #78 Part 1 / #4: a declared rabies dose is now a DUAL honest card — not
-  // a flat "Declarada · sin verificar". The badge is provenance-forward
-  // ("Declarada"), tone neutral (not al-día), and it carries a dual block: what
-  // the owner HAS + what the registry NEEDS.
+  // a single flat badge. The badge is provenance-forward ("Declarada"), tone
+  // neutral (not al-día), and it carries a dual block: what the owner HAS +
+  // what the registry NEEDS.
   it("self-reported rabies dose without next_due_at → dual 'Declarada' card, never 'Sin registro'", () => {
     const state = deriveComplianceState(
       baseInput({ events: [vaccination("Antirrábica", null, SELF)] }),
@@ -216,27 +216,27 @@ describe("deriveComplianceState — rabies state machine", () => {
 
 // H1 — provenance gates compliance: only professional/institutional events clear.
 describe("deriveComplianceState — H1 provenance gate", () => {
-  it("self-reported sterilization → 'Declarada · sin verificar', not counted", () => {
+  it("self-reported sterilization → 'Declarada', not counted", () => {
     const state = deriveComplianceState(
       baseInput({
         events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...SELF }],
       }),
     );
     const card = state.cards.find((c) => c.key === "sterilization");
-    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
     expect(card?.hint).toBeTruthy();
     expect(state.summary.ok).toBe(0);
   });
 
-  it("org-registered sterilization (no matrícula) → 'Declarada · sin verificar', NOT counted (#43)", () => {
+  it("org-registered sterilization (no matrícula) → 'Declarada', NOT counted (#43)", () => {
     const state = deriveComplianceState(
       baseInput({
         events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...ORG }],
       }),
     );
     const card = state.cards.find((c) => c.key === "sterilization");
-    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.state).toBe("Declarada");
     expect(card?.tone).toBe("neutral");
     expect(state.summary.ok).toBe(0);
   });
@@ -257,21 +257,21 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     expect(state.summary.ok).toBe(0);
   });
 
-  it("vet-verified sterilization → 'Registrada' (ok), counted", () => {
+  it("vet-verified sterilization → 'Verificada' (ok), counted", () => {
     const state = deriveComplianceState(
       baseInput({
         events: [{ eventType: "sterilization_performed", occurredAt: NOW, payload: {}, ...VET }],
       }),
     );
     const card = state.cards.find((c) => c.key === "sterilization");
-    expect(card?.state).toBe("Registrada");
+    expect(card?.state).toBe("Verificada");
     expect(card?.tone).toBe("ok");
     expect(state.summary.ok).toBe(1);
   });
 
   // Seal/footnote agreement: a declared (unverified) sterilization must NEVER
   // carry a footnote claiming the event is "verificado" — the seal reads
-  // "Declarada · sin verificar", so a "Evento verificado en la libreta" footer
+  // "Declarada", so a "Evento verificado en la libreta" footer
   // is a direct self-contradiction (adversarial-citizen 2026-07-06).
   it("self-reported sterilization footnote never claims 'verificado'", () => {
     const state = deriveComplianceState(
@@ -280,7 +280,7 @@ describe("deriveComplianceState — H1 provenance gate", () => {
       }),
     );
     const card = state.cards.find((c) => c.key === "sterilization");
-    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.state).toBe("Declarada");
     expect(card?.legalFootnote).not.toMatch(/verificad/i);
     expect(card?.legalFootnote).toBe("Declarado por el titular, sin verificación profesional");
   });
@@ -292,7 +292,7 @@ describe("deriveComplianceState — H1 provenance gate", () => {
       }),
     );
     const card = state.cards.find((c) => c.key === "sterilization");
-    expect(card?.state).toBe("Registrada");
+    expect(card?.state).toBe("Verificada");
     expect(card?.legalFootnote).toBe("Evento verificado en la libreta");
   });
 
@@ -364,7 +364,7 @@ describe("deriveComplianceState — H1 provenance gate", () => {
     expect(card?.tone).toBe("ok");
   });
 
-  it("microchip code present but implant self-reported → 'Declarada · sin verificar'", () => {
+  it("microchip code present but implant self-reported → 'Declarado'", () => {
     const state = deriveComplianceState(
       baseInput({
         microchipCode: "982000123456789",
@@ -372,7 +372,7 @@ describe("deriveComplianceState — H1 provenance gate", () => {
       }),
     );
     const card = state.cards.find((c) => c.key === "microchip");
-    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.state).toBe("Declarado");
     expect(card?.tone).toBe("neutral");
     expect(card?.detail).toBe("982000123456789");
   });
@@ -380,7 +380,7 @@ describe("deriveComplianceState — H1 provenance gate", () => {
   // PJ-H1: best-provenance selection, not earliest. Events arrive ascending, so
   // an early owner-declared event used to mask a later vet-VERIFIED one (`find`
   // returned the oldest), leaving the pet non-compliant despite a signed record.
-  it("earlier owner-declared THEN later vet-verified sterilization → 'Registrada' (ok), counted", () => {
+  it("earlier owner-declared THEN later vet-verified sterilization → 'Verificada' (ok), counted", () => {
     const state = deriveComplianceState(
       baseInput({
         events: [
@@ -400,13 +400,13 @@ describe("deriveComplianceState — H1 provenance gate", () => {
       }),
     );
     const card = state.cards.find((c) => c.key === "sterilization");
-    expect(card?.state).toBe("Registrada");
+    expect(card?.state).toBe("Verificada");
     expect(card?.tone).toBe("ok");
     expect(card?.legalFootnote).toBe("Evento verificado en la libreta");
     expect(state.summary.ok).toBeGreaterThanOrEqual(1);
   });
 
-  it("earlier owner-declared THEN later vet-verified microchip implant → 'Sí' (ok), counted", () => {
+  it("earlier owner-declared THEN later vet-verified microchip implant → 'Verificado' (ok), counted", () => {
     const state = deriveComplianceState(
       baseInput({
         microchipCode: "982000123456789",
@@ -427,7 +427,7 @@ describe("deriveComplianceState — H1 provenance gate", () => {
       }),
     );
     const card = state.cards.find((c) => c.key === "microchip");
-    expect(card?.state).toBe("Sí");
+    expect(card?.state).toBe("Verificado");
     expect(card?.tone).toBe("ok");
   });
 });
@@ -480,7 +480,7 @@ describe("deriveComplianceState — sterilization, microchip, PPP", () => {
     const state = deriveComplianceState(baseInput({ microchipCode: "982000123456789" }));
     const chip = state.cards.find((c) => c.key === "microchip");
     expect(chip?.tone).toBe("neutral");
-    expect(chip?.state).toBe("Declarada · sin verificar");
+    expect(chip?.state).toBe("Declarado");
   });
 
   it("microchip: no code and no event → 'Sin registro'", () => {
@@ -616,9 +616,9 @@ describe("microchipHeroTag — hero tag agrees with the compliance card (H1 disp
     expect(microchipHeroTag(state)).toBe("Microchip verificado");
   });
 
-  it("self-reported code/event → 'Microchip declarado', never 'verificado' (the exact bug: hero said verificado while the card said Declarada · sin verificar)", () => {
+  it("self-reported code/event → 'Microchip declarado', never 'verificado' (the exact bug: hero said verificado while the card said Declarado)", () => {
     const state = deriveComplianceState(baseInput({ microchipCode: "982000123456789" }));
-    expect(state.cards.find((c) => c.key === "microchip")?.state).toBe("Declarada · sin verificar");
+    expect(state.cards.find((c) => c.key === "microchip")?.state).toBe("Declarado");
     expect(microchipHeroTag(state)).toBe("Microchip declarado");
   });
 
@@ -712,7 +712,7 @@ describe("deriveMicrochip — jurisdiction applicability gate (microchip_require
     );
     const chip = state.cards.find((c) => c.key === "microchip");
     expect(chip).toBeDefined();
-    expect(chip?.state).toBe("Declarada · sin verificar");
+    expect(chip?.state).toBe("Declarado");
     expect(chip?.detail).toBe("982000123456789");
   });
 
@@ -725,7 +725,7 @@ describe("deriveMicrochip — jurisdiction applicability gate (microchip_require
       }),
     );
     const chip = state.cards.find((c) => c.key === "microchip");
-    expect(chip?.state).toBe("Sí");
+    expect(chip?.state).toBe("Verificado");
     expect(chip?.tone).toBe("ok");
   });
 

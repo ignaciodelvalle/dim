@@ -55,6 +55,26 @@ const CURRENCY_TO_BADGE: Record<"ok" | "due" | "over", NonNullable<LnBadgeProps[
   over: "danger",
 };
 
+/**
+ * Whether this card's pill already carries what `card.detail` would repeat.
+ *
+ * Unified pill vocabulary (UI review, PO 2026-08-06): the pill carries the
+ * DATUM, so a VIGENTE stamp says "· hasta 14/01/2027" and a verified microchip
+ * row shows the chip number itself. Both of those facts USED to live only in
+ * the muted `detail` line underneath ("Próxima 14/01/2027", the bare code) —
+ * printing them twice, one line apart, is exactly the dedup the Cumplimiento
+ * pass (PO 2026-07-18) removed everywhere else on this face.
+ */
+function detailIsInThePill(card: ObligationCard): boolean {
+  if (card.key === "rabies") {
+    return card.tone === "ok" && card.currencyKnown !== false && Boolean(card.currencyUntil);
+  }
+  if (card.key === "microchip") {
+    return card.tone === "ok" && Boolean(card.detail);
+  }
+  return false;
+}
+
 function StatusBadge({ card }: { card: ObligationCard }) {
   // A dose on record with no next_due_at has UNKNOWN currency, and the stamp
   // has a variant that says so. This used to render `tone: "ok"` as "VIGENTE"
@@ -68,7 +88,29 @@ function StatusBadge({ card }: { card: ObligationCard }) {
     return <LnVstamp variant="unknown" className="flex-shrink-0" />;
   }
   if (card.key === "rabies" && VSTAMP_TONES.has(card.tone)) {
-    return <LnVstamp variant={card.tone as "ok" | "due" | "over"} className="flex-shrink-0" />;
+    // "VIGENTE · HASTA 14/01/2027" when the next due date is on record; the
+    // bare adjective when it is not (never a fabricated date). The due/over
+    // stamps keep their own "Vence/Venció …" line below — only the affirmative
+    // state was the one asking the reader to go looking for its expiry.
+    return (
+      <LnVstamp
+        variant={card.tone as "ok" | "due" | "over"}
+        detail={card.tone === "ok" && card.currencyUntil ? `hasta ${card.currencyUntil}` : null}
+        className="flex-shrink-0"
+      />
+    );
+  }
+  // PRIVACY: the chip NUMBER is owner/professional-surface only. This panel is
+  // mounted exclusively on authenticated pet surfaces (CredentialFace on
+  // /mis-mascotas + the org pet read, TravelObligationsPanel) — never on /p or
+  // /adoptar, where the microchip stays the boolean ("Microchip: Sí", plain
+  // text, no pill) per PO-1 2026-08-05.
+  if (card.key === "microchip" && card.tone === "ok" && card.detail) {
+    return (
+      <LnBadge variant="success" className="flex-shrink-0">
+        {card.detail}
+      </LnBadge>
+    );
   }
   return (
     <LnBadge variant={TONE_TO_BADGE[card.tone]} className="flex-shrink-0">
@@ -118,7 +160,7 @@ function ObligationCardView({
         <StatusBadge card={card} />
       </div>
 
-      {card.detail && (
+      {card.detail && !detailIsInThePill(card) && (
         <p className="font-ln-mono text-xs text-[var(--color-ln-mute)]">{card.detail}</p>
       )}
 

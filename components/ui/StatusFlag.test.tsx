@@ -9,7 +9,7 @@ import type React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { LnStatusFlag } from "./StatusFlag";
+import { LnStatusFlag, LnVstamp } from "./StatusFlag";
 
 function render(node: React.ReactElement): string {
   return renderToStaticMarkup(node);
@@ -96,5 +96,35 @@ describe("<LnStatusFlag>", () => {
     expect(render(<LnStatusFlag status="pregnant" />)).toContain("ln-rosa"); // gestacion
     expect(render(<LnStatusFlag status="ok" />)).toContain("ln-ok"); // ok
     expect(render(<LnStatusFlag status="deceased" />)).toContain("ln-memorial"); // memoria
+  });
+});
+
+// Unified affirmative pill vocabulary (UI review, PO 2026-08-06). The stamp
+// grew two escape hatches so the SAME green pill can stop speaking two
+// vocabularies one line apart: a `detail` datum ("VIGENTE · hasta …") and a
+// `label` override for the compliance summary, whose `ok` means AL DÍA rather
+// than the vaccine lens's VIGENTE.
+describe("<LnVstamp> — label override + trailing datum", () => {
+  it("renders the variant's own word by default", () => {
+    expect(render(<LnVstamp variant="ok" />)).toContain("VIGENTE");
+    expect(render(<LnVstamp variant="unknown" />)).toContain("SIN DATO");
+  });
+
+  it("appends the datum after a separator when one is given", () => {
+    expect(render(<LnVstamp variant="ok" detail="hasta 14/01/2027" />)).toContain(
+      "VIGENTE · hasta 14/01/2027",
+    );
+  });
+
+  it("omits the separator entirely when there is no datum — never a dangling ·", () => {
+    expect(render(<LnVstamp variant="ok" detail={null} />)).not.toContain("·");
+  });
+
+  it("swaps the word (not the tone) when the caller overrides the label", () => {
+    const html = render(<LnVstamp variant="ok" label="AL DÍA" />);
+    expect(html).toContain("AL DÍA");
+    expect(html).not.toContain("VIGENTE");
+    // Same ok tokens — this is a wording change, not a new visual state.
+    expect(html).toContain("ln-ok");
   });
 });

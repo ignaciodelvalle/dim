@@ -1357,7 +1357,7 @@ export async function fetchComplianceStatesForPets(
       .orderBy(asc(timeSlots.startsAt)),
     // Active chip/tattoo rows (bounded — one query keyed by petId, list capped
     // at 200). Feeds `microchipCode` so the list's microchip card matches the
-    // profile's "Declarada · sin verificar" wording instead of "Sin registro".
+    // profile's "Declarado" wording instead of "Sin registro".
     // Keyed by chipReadablePetIds, NOT petIds — see the ownership intersection
     // above; this is the only read in this function that returns PII.
     batchFetchActiveIdentifications(chipReadablePetIds),

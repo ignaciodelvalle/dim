@@ -679,7 +679,13 @@ function HealthRow({
         style={
           ok
             ? { background: "var(--color-ln-ok-050)", color: "var(--color-ln-ok)" }
-            : { background: "var(--color-ln-err-050)", color: "var(--color-ln-err)" }
+            : // NOT the err family (UI review M1, PO 2026-08-06). "Sin dato" is
+              // an absence, not a fault: a shelter that has not yet loaded a
+              // castration record was painting a salmon alarm dot next to a pet
+              // it is trying to place. Neutral paper tokens — the same combo
+              // LnBadge `neutral` and LnVstamp `unknown` already use for
+              // "no sabemos".
+              { background: "var(--color-ln-stripe)", color: "var(--color-ln-mute)" }
         }
       >
         {ok ? <Icon name="check" size="sm" decorative /> : "—"}

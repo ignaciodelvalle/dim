@@ -41,7 +41,10 @@ interface Props {
   petName: string;
   /** Pet sex ('male' | 'female' | 'unknown') — genders the lost-mode copy. */
   petSex: string | null;
-  /** "Canino · marrón · collar rojo" — short identifying line. */
+  /** "Canino · marrón · collar rojo" — short identifying line. EMPTY STRING when
+   *  the pet has no colour and no señas: the caller builds it (page.tsx) and
+   *  deliberately returns "" rather than a lone species word, which described
+   *  nothing and rendered as a floating orphan under the headline. */
   identityLine: string;
   /** Owner first name, or null if hidden by prefs. */
   ownerFirstName: string | null;
@@ -54,6 +57,19 @@ interface Props {
   lastSeenPlaceName: string | null;
   /** Last seen locality. */
   lastSeenLocality: string | null;
+  /**
+   * Raw "lat, lng" decimal degrees for the demoted coordinate line under the
+   * map (UI review M3). Never substituted into `lastSeenPlaceName` — a
+   * coordinate pair is not a place, and it used to LEAD the section.
+   */
+  lastSeenCoords?: string | null;
+  /**
+   * When the displayed last-seen point was reported. Renders as recency
+   * ("hace 18 días") beside the place, so the first line answers WHERE and HOW
+   * FRESH — the two things a neighbour decides on. Null → no recency shown
+   * (never a guessed one).
+   */
+  lastSeenAt?: Date | null;
   /** Distinguishing features (free text from pet record), or null. */
   distinguishingFeatures: string | null;
   /** Finder form URL. Pass null to hide the CTA. */
@@ -104,6 +120,8 @@ export function PublicLostSections({
   ownerEmail = null,
   lastSeenPlaceName,
   lastSeenLocality,
+  lastSeenCoords = null,
+  lastSeenAt = null,
   distinguishingFeatures,
   finderFormHref,
   sightingFormHref = null,
@@ -145,7 +163,7 @@ export function PublicLostSections({
         <p className="mt-1.5 text-md font-semibold text-ln-ink">
           ¡Hola! Soy {petName} — {lostFirstPersonLine(petSex)}
         </p>
-        <p className="mt-0.5 text-sm text-ln-ink-2">{identityLine}</p>
+        {identityLine && <p className="mt-0.5 text-sm text-ln-ink-2">{identityLine}</p>}
         {/* Owner name disclosure ("Tu nombre" toggle). Standalone on purpose:
             it used to appear ONLY inside the phone CTA ("Llamar a X"), so with
             the phone toggle off the promised "Lo busca X" never rendered
@@ -159,12 +177,21 @@ export function PublicLostSections({
           <p className="mt-1 text-sm italic text-ln-ink-2">"{distinguishingFeatures}"</p>
         )}
 
-        {/* CTA row — every enabled contact channel, right under the name bar. */}
+        {/* CTA row — every enabled contact channel, right under the name bar.
+            ONE accent, two weights (UI review, PO 2026-08-06): the two actions
+            that actually reunite a pet — reaching the owner by phone and "la
+            tengo conmigo" — are SOLID ln-azul; email and sighting are outline.
+            This row previously mixed three fills (a green solid "Llamar", a
+            blue solid finder CTA, two outlines), so the finder's eye had to
+            rank two competing primaries in different hues while holding
+            somebody's lost dog. The green was doubly wrong here: ln-ok is the
+            product's "al día / verified" semantic, and this is the one card
+            where nothing is fine. */}
         <div data-section="lost-cta-row" className="mt-3 flex flex-wrap gap-2">
           {ownerPhoneE164 && (
             <a
               href={`tel:${normalizePhoneForTel(ownerPhoneE164) ?? ownerPhoneE164}`}
-              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-ok px-5 text-sm font-semibold text-white hover:bg-ln-ok/90"
+              className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-azul px-5 text-sm font-semibold text-white hover:bg-ln-azul-700"
             >
               <Icon name="telefono" size="sm" decorative /> Llamar
               {ownerFirstName ? ` a ${ownerFirstName}` : ""}
@@ -290,9 +317,26 @@ export function PublicLostSections({
           <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">
             {lastSeenHeadingLabel(petSex)}
           </p>
-          {(lastSeenPlaceName || lastSeenLocality) && (
+          {/* WHERE + HOW FRESH, in that order (UI review M3). This line used to
+              open with six-decimal coordinates because the loader substituted
+              them for a missing address — "-54.806060, -68.304976 · Ushuaia".
+              A neighbour reads the place name and decides whether they were
+              near there; the recency tells them whether it is still worth
+              looking. Coordinates are for the finder who wants to navigate,
+              and they now live under the map. */}
+          {(lastSeenPlaceName || lastSeenLocality || lastSeenAt || hasLastSeenCoords) && (
             <p className="mt-1 text-sm font-medium text-ln-ink">
-              {[lastSeenPlaceName, lastSeenLocality].filter(Boolean).join(" · ")}
+              {[
+                // Pin-only records (a map tap, no address) say so in words —
+                // the same phrase the owner surface uses — instead of leading
+                // with a bare recency or the raw pair.
+                lastSeenPlaceName ??
+                  (!lastSeenLocality && hasLastSeenCoords ? "Punto marcado en el mapa" : null),
+                lastSeenLocality,
+                lastSeenAt ? formatLostSince(lastSeenAt) : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             </p>
           )}
           {/* No fixed height and no overflow-hidden here, and no border either:
@@ -315,15 +359,32 @@ export function PublicLostSections({
               </span>
             </div>
           )}
-          {mapHref && (
-            <a
-              href={mapHref}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="mt-3 inline-block text-xs font-medium text-ln-ok underline underline-offset-2 hover:text-ln-ok/80"
-            >
-              Abrir en Google Maps ↗
-            </a>
+          {/* Demoted coordinate line (UI review M3) — small mono, muted, UNDER
+              the map, beside the navigation link that is what most finders
+              actually want. Kept rather than deleted: a rural point with no
+              street address is sometimes only expressible as a pair, and a
+              rescuer with a handheld GPS needs to type it somewhere. */}
+          {(lastSeenCoords || mapHref) && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1">
+              {mapHref && (
+                <a
+                  href={mapHref}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="text-xs font-medium text-ln-ok underline underline-offset-2 hover:text-ln-ok/80"
+                >
+                  Abrir en Google Maps ↗
+                </a>
+              )}
+              {lastSeenCoords && (
+                <span
+                  data-section="lost-last-seen-coords"
+                  className="font-ln-mono text-[10.5px] text-ln-mute"
+                >
+                  {lastSeenCoords}
+                </span>
+              )}
+            </div>
           )}
         </section>
       )}

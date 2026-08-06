@@ -396,9 +396,17 @@ export default async function PublicCredentialPage({
   let lostSpecialConditions: ReturnType<typeof resolveLostSpecialConditions> = null;
   let lostIdentityLine = "";
   if (isLost && lostContext) {
-    lostIdentityLine = [speciesLabel(pet.species), pet.color, pet.distinguishingFeatures]
-      .filter(Boolean)
-      .join(" · ");
+    // The identity line is a DESCRIPTION ("Perro · marrón · collar rojo") — it
+    // exists so a finder can match the animal in front of them. The species
+    // alone describes nothing a finder can use, and it is already stated twice
+    // on this card (the breed line under the name, and the "Especie" field in
+    // the identity grid), so a pet with no colour and no señas rendered a
+    // floating orphan word — "Perro" on its own line (UI review, PO
+    // 2026-08-06). Built here rather than hidden at the render site so every
+    // consumer of the prop gets the same honest empty string.
+    const identityTraits = [pet.color, pet.distinguishingFeatures].filter(Boolean);
+    lostIdentityLine =
+      identityTraits.length > 0 ? [speciesLabel(pet.species), ...identityTraits].join(" · ") : "";
 
     // Welfare-safety disclosure: permanent conditions (blind, deaf, medicated,
     // etc.) on the LOST credential. Gated ONLY by discloseConditionsPublicly —
@@ -689,16 +697,18 @@ export default async function PublicCredentialPage({
           <div className="px-4 pt-[15px] pb-3">
             {/* h1: this is the most-scanned public page in the product (QR landing) —
                 it must expose a page-level heading (WCAG 1.3.1 / 2.4.6). */}
-            <h1 className="flex items-center gap-[9px] font-ln-serif text-3xl font-semibold leading-none tracking-[-0.02em] text-ln-ink">
+            {/* The status DOT that used to sit here is gone (UI review, PO
+                2026-08-06). It was an unlabeled colour with no legend on the
+                most-scanned public page in the product: a finder had no way to
+                learn what green vs amber vs red meant, and every state it could
+                express was already spelled out in words one line above (the
+                masthead situation chip, which carries icon + label + recency
+                and role="alert" for perdida) and again in the identity grid
+                below. Removing it costs no information and one fewer thing to
+                decode. It was `aria-hidden` decorative, so no accessible name
+                was lost — the chip already owns the state for screen readers. */}
+            <h1 className="font-ln-serif text-3xl font-semibold leading-none tracking-[-0.02em] text-ln-ink">
               {pet.name}
-              {/* Status dot — default green; .pc-cred[data-situation] retints
-                  it (a green "all good" dot next to a lost pet's name would
-                  contradict the masthead). Decorative: the chip + identity grid
-                  carry the state as text. */}
-              <span
-                aria-hidden="true"
-                className="pc-dot inline-block h-[11px] w-[11px] flex-shrink-0 rounded-full bg-ln-ok shadow-[0_0_0_3px_#e8f3ec]"
-              />
             </h1>
             <p className="mt-[5px] text-[13px] text-ln-ink-2">
               {breedLine}
@@ -738,6 +748,8 @@ export default async function PublicCredentialPage({
               lastSeenLocality={
                 pet.discloseLastLocationWhenLost ? (pet.jurisdictionLocality ?? null) : null
               }
+              lastSeenCoords={pet.discloseLastLocationWhenLost ? lostContext.lastSeenCoords : null}
+              lastSeenAt={pet.discloseLastLocationWhenLost ? lostContext.lastSeenAt : null}
               distinguishingFeatures={pet.distinguishingFeatures}
               finderFormHref={
                 pet.allowFinderFormWhenLost && !pet.inCustodyDispute
@@ -1059,6 +1071,12 @@ async function loadCredentialViewData(pet: Pet) {
     phone: string | null;
     email: string | null;
     locationText: string | null;
+    /** Raw "lat, lng" decimal degrees — the demoted line under the map (M3). */
+    lastSeenCoords: string | null;
+    /** When the DISPLAYED last-seen point was reported (owner update, else the
+     *  mark-lost event). Drives the "hace N días" recency the section leads with
+     *  — distinct from `lostSince`, which is when the search opened. */
+    lastSeenAt: Date | null;
     lostLat: number | null;
     lostLng: number | null;
     lostDescription: {
@@ -1173,12 +1191,19 @@ async function loadCredentialViewData(pet: Pet) {
       typeof lastSeenSource?.locationText === "string" && lastSeenSource.locationText.length > 0
         ? lastSeenSource.locationText
         : null;
-    // Fallback: precise lat/lng captured on the event row itself (null unless disclosed).
+    // Precise lat/lng captured on the event row itself (null unless disclosed).
     const eventPoint = lastSeenSource ? readPoint(lastSeenSource) : null;
-    const geoLocation =
-      !textLocation && eventPoint
-        ? `${eventPoint.lat.toFixed(6)}, ${eventPoint.lng.toFixed(6)}`
-        : null;
+    // Raw decimal degrees, for the DEMOTED coordinate line only (UI review M3,
+    // PO 2026-08-06). These used to be substituted INTO `locationText` when the
+    // event carried no address, so the "Última vez vista" heading led with
+    // "-54.806060, -68.304976 · Ushuaia" — six decimal places (≈11 cm) of
+    // machine precision as the first thing a worried neighbour reads, with the
+    // one word they could act on pushed to the end. The place name and the
+    // recency lead now; the numbers ride under the map for the finder who
+    // actually wants to type them into a GPS.
+    const geoLocation = eventPoint
+      ? `${eventPoint.lat.toFixed(6)}, ${eventPoint.lng.toFixed(6)}`
+      : null;
 
     // Split display_name on first whitespace to get just the first name. We
     // never expose the full legal name on a public credential.
@@ -1230,7 +1255,9 @@ async function loadCredentialViewData(pet: Pet) {
       ownerFirstName: firstName ?? null,
       phone: ownerRow?.phone ?? null,
       email: ownerEmail,
-      locationText: textLocation ?? geoLocation,
+      locationText: textLocation,
+      lastSeenCoords: geoLocation,
+      lastSeenAt: lastSeenSource?.occurredAt ?? null,
       lostLat: eventPoint?.lat ?? null,
       lostLng: eventPoint?.lng ?? null,
       lostDescription,

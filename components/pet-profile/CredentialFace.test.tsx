@@ -1,10 +1,15 @@
 // Tests for <CredentialFace> — pet profile two-face redesign (Face 1, 2026-07-01).
 //
 // Covers the H1 negative case from the spec ("Self-reported event does not
-// clear obligation"): a self-reported satisfying event must render
-// "Declarada · sin verificar" (tone: neutral), never an "ok"/"Al día" stamp,
-// via the re-hosted ComplianceObligationsPanel. Render via react-dom/server
+// clear obligation"): a self-reported satisfying event must render "Declarada"
+// (tone: neutral), never an "ok"/"Al día" stamp or the "Verificada" seal, via
+// the re-hosted ComplianceObligationsPanel. Render via react-dom/server
 // → HTML string (same pattern as PetAlertStrip.test.tsx).
+//
+// The pill WORDS changed in the unified-vocabulary pass (PO 2026-08-06) —
+// "Registrada" → "Verificada", "Declarada · sin verificar" → "Declarada" — but
+// what these tests defend did not: a declared event must never wear the
+// verified seal, and the two states must stay lexically distinguishable.
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
@@ -53,29 +58,33 @@ function render(complianceState: ReturnType<typeof deriveComplianceState>): stri
 }
 
 describe("CredentialFace — H1 provenance gate (negative case)", () => {
-  it("self-reported sterilization never renders an ok stamp — shows Declarada · sin verificar", () => {
+  it("self-reported sterilization never renders an ok stamp — shows Declarada", () => {
     const state = deriveComplianceState(complianceInput({ events: [sterilization(SELF)] }));
     const card = state.cards.find((c) => c.key === "sterilization");
     // Derivation itself must downgrade to neutral (H1) — asserted independent
     // of rendering so a future component regression can't hide a logic bug.
     expect(card?.tone).toBe("neutral");
-    expect(card?.state).toBe("Declarada · sin verificar");
+    expect(card?.state).toBe("Declarada");
 
     const html = render(state);
     // The component must actually surface the derived state, not just compute it.
-    expect(html).toContain("Declarada · sin verificar");
-    // "Registrada" is the ok-only sterilization label — must never appear here.
-    expect(html).not.toContain("Registrada");
+    expect(html).toContain("Declarada");
+    // "Verificada" is the ok-only sterilization seal — must never appear here.
+    expect(html).not.toContain("Verificada");
+    // Nor the summary's own affirmative stamp: 0 of N obligations are met.
+    expect(html).not.toContain("AL DÍA");
   });
 
-  it("professional-verified sterilization renders Registrada / ok, counts toward the summary", () => {
+  it("professional-verified sterilization renders Verificada / ok, counts toward the summary", () => {
     const state = deriveComplianceState(complianceInput({ events: [sterilization(VET)] }));
     const card = state.cards.find((c) => c.key === "sterilization");
     expect(card?.tone).toBe("ok");
-    expect(card?.state).toBe("Registrada");
+    expect(card?.state).toBe("Verificada");
 
     const html = render(state);
-    expect(html).toContain("Registrada");
+    expect(html).toContain("Verificada");
+    // The declared wording must not leak onto a signed card.
+    expect(html).not.toContain("Declarada");
   });
 });
 
@@ -177,6 +186,92 @@ describe("CredentialFace — compliance summary vs. obligation cards (dedup, PO 
     expect(html).not.toContain("falta vacuna antirrábica");
     expect(html).toContain(state.summary.label);
     expect(html).toContain("Sin registro");
+  });
+});
+
+// Unified affirmative pill vocabulary (UI review, PO 2026-08-06). The three
+// compliance rows used to show three adjacent greens speaking three different
+// grammars — "VIGENTE" (a currency), "REGISTRADA" (a filing), "SÍ" (an
+// answer) — and the summary stamp above them added a fourth reading of the
+// same colour. The rule now: the pill carries the DATUM, and "Sí/No" is never
+// a pill.
+describe("CredentialFace — unified pill vocabulary (PO 2026-08-06)", () => {
+  function rabies(nextDueAt: string | null, prov: Partial<ComplianceEvent>): ComplianceEvent {
+    return {
+      eventType: "vaccination_administered",
+      occurredAt: "2026-01-01T00:00:00Z",
+      payload: { vaccine_name: "Antirrábica", next_due_at: nextDueAt },
+      ...prov,
+    };
+  }
+
+  it("a vigente vaccine pill names the date it runs until, and stops repeating it below", () => {
+    const state = deriveComplianceState(complianceInput({ events: [rabies("2027-01-14", VET)] }));
+    const card = state.cards.find((c) => c.key === "rabies");
+    expect(card?.state).toBe("Vigente");
+    expect(card?.currencyUntil).toBe("14/01/2027");
+
+    const html = render(state);
+    expect(html).toContain("VIGENTE · hasta 14/01/2027");
+    // The muted "Próxima …" line was the ONLY carrier of this date before; now
+    // that the pill says it, printing it twice one line apart is the exact
+    // duplication the Cumplimiento dedup pass removed elsewhere.
+    expect(html).not.toContain("Próxima 14/01/2027");
+  });
+
+  it("a vaccine with no next-due date keeps the bare stamp — never a fabricated date", () => {
+    const state = deriveComplianceState(complianceInput({ events: [rabies(null, VET)] }));
+    const html = render(state);
+    // currencyKnown === false → SIN DATO, the honest stamp; no "hasta" anywhere.
+    expect(html).toContain("SIN DATO");
+    expect(html).not.toContain("hasta");
+  });
+
+  it("a verified microchip shows the chip NUMBER as its pill instead of 'Sí'", () => {
+    const state = deriveComplianceState(
+      complianceInput({
+        microchipCode: "982000123456789",
+        events: [
+          {
+            eventType: "microchip_implanted",
+            occurredAt: "2026-01-01T00:00:00Z",
+            payload: {},
+            ...VET,
+          },
+        ],
+      }),
+    );
+    const html = render(state);
+    expect(html).toContain("982000123456789");
+    // The yes/no adjective is gone from the card entirely. (The face renders
+    // the panel twice — desktop inline + the mobile disclosure — so counting
+    // occurrences of the code would assert the breakpoint layout, not the
+    // dedup; the "printed once per card" guarantee is the detail-line
+    // suppression covered by detailIsInThePill.)
+    expect(html).not.toContain(">Sí<");
+  });
+
+  it("the compliance summary stamp reads AL DÍA, not the vaccine lens's VIGENTE", () => {
+    const state = deriveComplianceState(
+      complianceInput({
+        events: [
+          rabies("2027-01-14", VET),
+          sterilization(VET),
+          {
+            eventType: "microchip_implanted",
+            occurredAt: "2026-01-01T00:00:00Z",
+            payload: {},
+            ...VET,
+          },
+        ],
+        microchipCode: "982000123456789",
+      }),
+    );
+    expect(state.worstTone).toBe("ok");
+    expect(state.summary.label).toBe("3 de 3 al día");
+
+    const html = render(state);
+    expect(html).toContain("AL DÍA");
   });
 });
 

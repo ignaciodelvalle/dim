@@ -177,15 +177,34 @@ const vstampConfig: Record<
 
 export type LnVstampProps = {
   variant: LnVstampVariant;
+  /**
+   * Overrides the variant's default word. Exists for the ONE caller whose stamp
+   * is not a vaccine-currency claim: the credential's compliance summary, where
+   * `ok` means "every obligation is met" and must read AL DÍA, not VIGENTE
+   * (unified pill vocabulary, PO 2026-08-06 — three adjacent greens spoke three
+   * grammars). Tone and geometry stay the variant's; only the word changes.
+   */
+  label?: string;
+  /**
+   * Trailing datum appended after a "·" — e.g. `hasta 14/01/2027`, so a VIGENTE
+   * pill says until WHEN rather than making the reader hunt for the date in the
+   * line below it. Omit when there is no date on record: the bare adjective is
+   * the honest fallback, never a fabricated one.
+   */
+  detail?: string | null;
   className?: string;
 };
 
-export function LnVstamp({ variant, className = "" }: LnVstampProps) {
+export function LnVstamp({ variant, label, detail, className = "" }: LnVstampProps) {
   const cfg = vstampConfig[variant];
   return (
     <span
       className={[
         "inline-flex items-center gap-[5px] rounded-[var(--radius-xs)] border px-2 py-[3px]",
+        // Same reason as LnStatusFlag above: a status pill is one token and must
+        // never break across two lines — and the optional `detail` suffix makes
+        // this stamp materially wider than it used to be.
+        "whitespace-nowrap",
         "font-ln-mono text-xs font-semibold uppercase tracking-[.08em]",
         cfg.bg,
         cfg.text,
@@ -195,7 +214,8 @@ export function LnVstamp({ variant, className = "" }: LnVstampProps) {
         .filter(Boolean)
         .join(" ")}
     >
-      {cfg.label}
+      {label ?? cfg.label}
+      {detail ? ` · ${detail}` : ""}
     </span>
   );
 }

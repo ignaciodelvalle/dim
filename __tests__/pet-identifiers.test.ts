@@ -124,7 +124,7 @@ describe("batchFetchActiveIdentifications", () => {
 describe("fetchComplianceStatesForPets microchip sourcing", () => {
   // Regression for the list-vs-profile mismatch: the list surface used to pass
   // microchipCode: null, so a pet with a declared chip read "Sin registro" on
-  // /mis-mascotas while the profile said "Declarada · sin verificar". The list
+  // /mis-mascotas while the profile said "Declarado". The list
   // now sources the code from batchFetchActiveIdentifications — same source the
   // profile header uses.
   //
@@ -141,7 +141,7 @@ describe("fetchComplianceStatesForPets microchip sourcing", () => {
     const chipCard = states.get(seedPetIds[0])?.cards.find((c) => c.key === "microchip");
     expect(chipCard).toBeDefined();
     // Code known from identifications, no professional implant event → declared.
-    expect(chipCard?.state).toBe("Declarada · sin verificar");
+    expect(chipCard?.state).toBe("Declarado");
     expect(chipCard?.detail).toBe(CHIP_CODE);
   });
 

@@ -3853,24 +3853,11 @@ body {
   color: var(--color-ln-memorial-chip-text);
 }
 
-/* Name-bar status dot retint — a green "all good" dot next to a lost pet's
-   name would contradict the masthead (decorative; text carries the state). */
-.pc-cred[data-situation="perdida"] .pc-dot {
-  background: var(--color-ln-err);
-  box-shadow: 0 0 0 3px var(--color-ln-err-050);
-}
-.pc-cred[data-situation="custodia-oficial"] .pc-dot {
-  background: var(--color-ln-warn);
-  box-shadow: 0 0 0 3px var(--color-ln-warn-050);
-}
-.pc-cred[data-situation="observacion-antirrabica"] .pc-dot {
-  background: var(--color-ln-celeste);
-  box-shadow: 0 0 0 3px var(--color-ln-celeste-050);
-}
-.pc-cred[data-situation="fallecida"] .pc-dot {
-  background: var(--color-ln-memorial-sepia);
-  box-shadow: 0 0 0 3px var(--color-ln-memorial-chip-bg);
-}
+/* The `.pc-dot` name-bar status dot was REMOVED (UI review, PO 2026-08-06)
+   along with its four per-situation retints: an unlabeled colour with no
+   legend, on a page whose masthead chip already carries the same state as icon
+   + label + recency. Its rules are gone rather than left dangling so the next
+   reader does not go hunting for the element they style. */
 
 /* The `.ln-sit` status line was removed (pet-state standardization,
    PO 2026-07-16): the masthead band chip (DocumentChrome) is the single
