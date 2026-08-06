@@ -2,7 +2,7 @@
 
 import { useId, useState } from "react";
 
-import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "@/lib/utils/format";
+import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "@/lib/utils/date-input-ar";
 
 /**
  * Browser-independent dd/mm/aaaa date input for operator filter forms.

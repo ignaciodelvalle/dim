@@ -26,7 +26,7 @@ import { useId, useState } from "react";
 
 import { DateInputAr } from "@/components/ui/DateInputAr";
 import { serverNavCommit } from "@/lib/ui/filter-commit";
-import { isoToArDateDisplay, parseArDateToIso } from "@/lib/utils/format";
+import { isoToArDateDisplay, parseArDateToIso } from "@/lib/utils/date-input-ar";
 
 // Mirrors DateInputAr's own tamper-safety check: a defaultValue that doesn't
 // round-trip through the dd/mm/aaaa parser (e.g. a hand-edited
