@@ -4,6 +4,7 @@ import {
   calendarDaysAgoInAr,
   eventTypeLabel,
   formatCount,
+  formatDate,
   formatDateArOmitCurrentYear,
   formatDateShort,
   formatDateTime,
@@ -628,5 +629,32 @@ describe("formatDiasAgo", () => {
 
   it("returns the singular 'hace 1 día' — never 'hace 1 días'", () => {
     expect(formatDiasAgo(1)).toBe("hace 1 día");
+  });
+});
+
+// Regression coverage for Cowork QA v3 M2a (2026-08-06): Drizzle `date()`
+// columns arrive in app code as bare "YYYY-MM-DD" strings. Parsed with
+// `new Date(...)` they land on UTC MIDNIGHT, and the AR-pinned (UTC-3)
+// formatters then rendered the PREVIOUS calendar day — an agenda rule stored
+// "2026-08-06" displayed "5 de ago". Every canonical formatter must anchor
+// date-only strings at noon UTC (same rule as parseDateInput).
+describe("date-only string input (Drizzle date() columns)", () => {
+  it("formatDate keeps the stored calendar day", () => {
+    expect(formatDate("2026-08-06")).toBe("6 de agosto de 2026");
+  });
+
+  it("formatDateShort keeps the stored calendar day", () => {
+    expect(formatDateShort("2026-08-06")).toBe("6 de ago de 2026");
+  });
+
+  it("keeps the day at year boundaries", () => {
+    expect(formatDateShort("2026-01-01")).toBe("1 de ene de 2026");
+    expect(formatDateShort("2026-12-31")).toBe("31 de dic de 2026");
+  });
+
+  it("still renders full timestamps in the AR zone (not treated as date-only)", () => {
+    // 01:30Z on the 7th is 22:30 on the 6th in AR — the timestamp path must
+    // keep converting instants, only bare dates get the noon anchor.
+    expect(formatDateShort("2026-08-07T01:30:00.000Z")).toBe("6 de ago de 2026");
   });
 });

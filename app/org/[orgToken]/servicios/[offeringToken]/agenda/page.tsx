@@ -12,7 +12,7 @@ import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { AR_TIME_ZONE } from "@/lib/utils/format";
+import { formatDateShort } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { AgendaRuleForm } from "./AgendaRuleForm";
@@ -37,9 +37,12 @@ function formatDays(days: number[]): string {
     .join(", ");
 }
 
+// effectiveFrom/effectiveUntil are `date()` columns — they arrive as bare
+// "YYYY-MM-DD" strings. The canonical formatter anchors those at noon UTC;
+// parsing them with `new Date(...)` here (UTC midnight) rendered the rule
+// "desde 6/8" as "5 ago" (Cowork QA v3, M2a).
 function formatDate(d: string | Date | null): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("es-AR", { dateStyle: "medium", timeZone: AR_TIME_ZONE });
+  return formatDateShort(d);
 }
 
 export default async function AgendaPage({

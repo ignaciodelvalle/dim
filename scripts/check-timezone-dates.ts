@@ -110,7 +110,11 @@ type Violation = { line: number; col: number; text: string; reason: "timezone" |
 // clock; es-AR never writes this). This is independent of the timeZone
 // check above: a call can be perfectly AR-pinned and still leak the hybrid
 // clock (that is exactly what happened to two Panorama flagship timestamps).
-const HOUR_RE = /\bhour\s*:/;
+// `timeStyle` requests a clock exactly like `hour` does — es-AR's short
+// timeStyle renders "9:49 p. m." — but the first version of this arm only
+// looked for the `hour:` key, so 15 AR-pinned `timeStyle: "short"` call sites
+// shipped the hybrid clock with the fence green (Cowork QA v3, 2026-08-06).
+const HOUR_RE = /\bhour\s*:|\btimeStyle\s*:/;
 const HOUR_CYCLE_RE = /\bhourCycle\s*:|\bhour12\s*:/;
 
 function findViolations(src: string): Violation[] {

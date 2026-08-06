@@ -45,16 +45,29 @@ const SPANISH_DATETIME_FORMAT = new Intl.DateTimeFormat("es-AR", {
   timeZone: AR_TIME_ZONE,
 });
 
+// A bare "YYYY-MM-DD" string (how Drizzle `date()` columns arrive in app code)
+// parsed with `new Date(...)` lands on UTC MIDNIGHT, which every AR-pinned
+// formatter below then rolls back to 21:00 of the PREVIOUS calendar day — the
+// stored "6/8" renders "5 ago" (Cowork QA v3, M2a). Anchor date-only input at
+// noon UTC — the same rule as parseDateInput — so the stored day is the day
+// shown in any zone within ±12 h.
+const DATE_ONLY_INPUT_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function coerceDate(value: Date | string): Date {
+  if (value instanceof Date) return value;
+  return DATE_ONLY_INPUT_RE.test(value) ? new Date(`${value}T12:00:00Z`) : new Date(value);
+}
+
 export function formatDate(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   return SPANISH_DATE_FORMAT.format(date);
 }
 
 export function formatDateTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   return SPANISH_DATETIME_FORMAT.format(date);
 }
@@ -74,7 +87,7 @@ const SPANISH_TIME_FORMAT = new Intl.DateTimeFormat("es-AR", {
 
 export function formatTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   return SPANISH_TIME_FORMAT.format(date);
 }
@@ -95,7 +108,7 @@ const SPANISH_DATE_SHORT_FORMAT = new Intl.DateTimeFormat("es-AR", {
 
 export function formatDateShort(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   return SPANISH_DATE_SHORT_FORMAT.format(date);
 }
@@ -125,7 +138,7 @@ const SPANISH_DATETIME_LEGAL_FORMAT = new Intl.DateTimeFormat("es-AR", {
  */
 export function formatDateTimeLegal(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   return `${SPANISH_DATETIME_LEGAL_FORMAT.format(date)} (hora de Argentina)`;
 }
@@ -248,7 +261,7 @@ export function nowLocalDatetimeInAr(now: Date = new Date()): string {
  */
 export function formatDateTimeNumericAr(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   const parts = AR_ISO_DATETIME_PARTS_FORMAT.formatToParts(date);
   const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
@@ -269,7 +282,7 @@ export function formatDateArOmitCurrentYear(
   now: Date = new Date(),
 ): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   const parts = AR_ISO_DATETIME_PARTS_FORMAT.formatToParts(date);
   const part = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
@@ -904,7 +917,7 @@ export function relativeDayLabel(date: Date | string, now: Date = new Date()): s
 
 export function relativeTime(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   if (Number.isNaN(date.getTime())) return "—";
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
@@ -941,7 +954,7 @@ const RELATIVE_DAYS_ABSOLUTE_THRESHOLD = 3650; // ~10 years
 
 export function relativeDaysShort(value: Date | string | null | undefined): string {
   if (!value) return "—";
-  const date = value instanceof Date ? value : new Date(value);
+  const date = coerceDate(value);
   const t = date.getTime();
   if (Number.isNaN(t) || t === 0) return "—";
   // AR-calendar days, not elapsed-ms floor — 20:00 yesterday viewed at 10:00
