@@ -155,6 +155,7 @@ describe("OWNER_NAV exclusion contract for /cuenta", () => {
     const accountGroups = [
       "?sheet=editar-perfil",
       "?sheet=solicitar-upgrade-vet",
+      "/cuenta/upgrade",
       "/cuenta/crear-consultorio",
       "/cuenta/memberships",
       "/cuenta/solicitudes",

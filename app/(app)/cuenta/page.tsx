@@ -346,11 +346,22 @@ export default async function CuentaPage() {
 
           <div className="mb-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
             {profile.role === "owner" && (
-              <ActionRow
-                href="?sheet=solicitar-upgrade-vet"
-                label="Convertirme en profesional / organización"
-                description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
-              />
+              <>
+                {/* Two rows on purpose (Cowork QA parte A, 2026-08-06): the
+                    single row promised BOTH paths but linked only the vet
+                    sheet — org creation (/cuenta/upgrade, OrgCreateForm) was
+                    fully built and unreachable from here. */}
+                <ActionRow
+                  href="?sheet=solicitar-upgrade-vet"
+                  label="Convertirme en profesional"
+                  description="Registrá tu matrícula veterinaria y firmá eventos clínicos verificados"
+                />
+                <ActionRow
+                  href="/cuenta/upgrade"
+                  label="Crear una organización"
+                  description="Clínicas, refugios y redes de rescate crean su panel organizacional"
+                />
+              </>
             )}
             {profile.role === "vet" && (
               <ActionRow
