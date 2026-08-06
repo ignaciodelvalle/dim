@@ -28,7 +28,7 @@ export default async function AtenderSignPage({
   searchParams,
 }: {
   params: Promise<{ orgToken: string; publicToken: string }>;
-  searchParams: Promise<{ evento?: string; firmado?: string }>;
+  searchParams: Promise<{ evento?: string; firmado?: string; confirmEventId?: string }>;
 }) {
   const { orgToken, publicToken } = await params;
   const sp = await searchParams;
@@ -64,7 +64,11 @@ export default async function AtenderSignPage({
   }
 
   const { pet, signer } = access;
-  const activeEvento = sp.evento ?? null;
+  // A confirmEventId means this visit is a PendingSignaturesCard confirmation,
+  // not a grid pick — highlighting the grid tile then would invite a click on
+  // a tile whose href drops confirmEventId, silently downgrading the
+  // confirmation to a fresh placement (review of QA v3 M3 wiring).
+  const activeEvento = sp.confirmEventId ? null : (sp.evento ?? null);
   const justSigned = sp.firmado === "1";
   const pendingSignatures = await fetchPendingDeclaredEvents(pet.id);
 

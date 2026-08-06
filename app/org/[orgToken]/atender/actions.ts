@@ -23,6 +23,7 @@ import {
 } from "@/lib/reference/medication-schedule";
 
 import { db } from "@/db";
+import { checkChipMatchesCanonical } from "@/lib/domain/microchip-validation";
 import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
 import type { SupabaseServerClient } from "@/lib/infra/pet-access";
 import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
@@ -643,6 +644,24 @@ export async function atenderMicrochipAction(
   // pets.microchipId column dropped).
   const { fetchActiveIdentifications } = await import("@/lib/infra/pet-identifiers");
   const existingIds = await fetchActiveIdentifications(pet.id);
+
+  // Fresh placement (grid path, no confirmEventId): a pet that already carries
+  // THIS chip needs nothing appended. Without this refusal a re-submit after a
+  // page reload (fresh idempotency key) passes checkChipMatchesCanonical —
+  // codes agree — and appends a duplicate microchip_implanted row to the
+  // append-only spine. The confirm path covers the same hole with
+  // rejectIfAlreadySigned; this is its fresh-path counterpart.
+  if (
+    !confirmEventId &&
+    existingIds.microchip &&
+    !checkChipMatchesCanonical(existingIds.microchip.code, chipNumber)
+  ) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+    return {
+      error:
+        "Esta mascota ya tiene ese microchip registrado. Si querés firmarlo como profesional, usá «Confirmar y firmar» en los eventos declarados pendientes.",
+    };
+  }
 
   const repo = new EventsRepository();
   let signedEventId: string | null = null;

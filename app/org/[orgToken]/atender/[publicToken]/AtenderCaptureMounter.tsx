@@ -115,7 +115,11 @@ export function AtenderCaptureMounter({
     form = (
       <MicrochipForm
         action={action}
-        defaults={{ chipNumber: sp("chipNumber"), occurredAt: sp("occurredAt"), notes: null }}
+        defaults={{
+          chipNumber: sp("chipNumber"),
+          occurredAt: sp("occurredAt"),
+          notes: sp("notes"),
+        }}
       />
     );
   } else if (evento === "esterilizacion") {
