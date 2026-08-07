@@ -609,6 +609,16 @@ h6 {
 
 /* ---- Utilidades de movimiento --------------------------------------------- */
 
+/* LOAD-BEARING COUPLING (degraded-states 2026-08-06): this rule zeroes
+ * animation-duration and transition-duration but deliberately NOT
+ * animation-delay. The `.degraded-reveal` escalation (skeleton section below +
+ * components/ui/DegradedFallback.tsx) depends on exactly that: its inline
+ * animation-delay keeps counting under reduced motion, so the waiting text and
+ * the degraded card still wait their full delay and simply POP into view
+ * instead of fading. Adding animation-delay here would make the degraded card
+ * appear INSTANTLY over every fresh skeleton for reduced-motion users. The
+ * coupling is documented at both ends and pinned by
+ * components/ui/DegradedFallback.test.tsx. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -858,6 +868,34 @@ h6 {
   );
   background-size: 200% 100%;
   animation: skeleton-sweep var(--motion-ambient) linear infinite;
+}
+
+/* ---- Degraded-states reveal (degraded-states 2026-08-06) ------------------ */
+/* Timed escalation for stalled Suspense fallbacks (components/ui/
+ * DegradedFallback.tsx). SSR'd pure CSS: the hidden blocks ship in the
+ * fallback HTML and reveal after their inline animation-delay (waiting text,
+ * then degraded card — constants in lib/ui/degraded-states.ts). No JS timer is
+ * involved on purpose, so the escalation still fires when hydration itself is
+ * what stalled. `backwards` fill keeps the `from` frame applied during the
+ * delay; visibility:hidden in `from` also keeps the pending block out of the
+ * accessibility tree until it reveals.
+ * Reduced motion: the global rule above zeroes animation-duration but NOT
+ * animation-delay — the reveal still waits its full delay and pops instead of
+ * fading (guard comment at that rule; pinned by DegradedFallback.test.tsx). */
+
+@keyframes degraded-reveal {
+  from {
+    opacity: 0;
+    visibility: hidden;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.degraded-reveal {
+  /* animation-delay arrives inline from lib/ui/degraded-states.ts constants */
+  animation: degraded-reveal var(--motion-slow) ease-out backwards;
 }
 
 /* ---- Mobile input zoom guard (sprint 6 PR-050) ---------------------------- *
