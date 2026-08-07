@@ -8,11 +8,13 @@ import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnCombobox } from "@/components/ui/LnCombobox";
+import { MutationErrorCard } from "@/components/ui/MutationErrorCard";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
 import { findVaccineByName, vaccinesForSpecies } from "@/lib/reference/lookups";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { useRetryableAction } from "@/lib/ui/use-retryable-action";
 import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -50,13 +52,18 @@ export function VaccinationForm({
    */
   autoConfirm?: boolean;
 }) {
-  const [state, formAction, isPending] = useActionState(action, initialState);
+  const { key: idempotencyKey } = useIdempotencyKey();
+  // degraded-states: a rejected dispatch (503/abort) becomes a recoverable
+  // `transientFailure` state instead of an error-boundary unmount. Retry
+  // replays the same form — same hidden clientIdempotencyKey — so the server
+  // dedupe resolves a persisted write as confirmation, not a duplicate.
+  const retryableAction = useRetryableAction(action, { idempotencyKey });
+  const [state, formAction, isPending] = useActionState(retryableAction, initialState);
   // N3 redirect contract: the action returns `redirectTo` on success and the
   // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
   useActionRedirect(state.redirectTo, state);
   // Wave 2 Item 9: focus error region on submit failure (mobile a11y)
   const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
-  const { key: idempotencyKey } = useIdempotencyKey();
   const vaccines = vaccinesForSpecies(species);
   const today = todayIsoInAr();
 
@@ -302,7 +309,7 @@ export function VaccinationForm({
 
           <AttachmentField />
 
-          {state.error && (
+          {state.error && !state.transientFailure && (
             <p
               ref={errorRef}
               className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
@@ -313,6 +320,15 @@ export function VaccinationForm({
               {state.error}
             </p>
           )}
+
+          {/* degraded-states: recoverable transport failure — the card owns the
+              cause line (the plain error <p> above is gated off to avoid saying
+              it twice) and replays this same form with the same key. */}
+          <MutationErrorCard
+            transientFailure={state.transientFailure}
+            error={state.error}
+            formRef={formRef}
+          />
 
           {sameDayPrompt && (
             <LnCallout tone="warn" title="¿Registrar de nuevo?">

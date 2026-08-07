@@ -98,6 +98,14 @@ export type EventFormState = {
    * src/modules/pets/actions.ts + MinimalNewPetForm.tsx (commit dd1c3f97).
    */
   sameDayPrompt?: { message: string };
+  /**
+   * degraded-states (2026-08-06): set ONLY client-side by
+   * lib/ui/use-retryable-action.ts when the action DISPATCH rejected
+   * (503/abort) — the actions in this module never set it. Marks a
+   * recoverable transport failure: the form stays mounted, typed input
+   * survives, and MutationErrorCard offers a same-idempotency-key retry.
+   */
+  transientFailure?: boolean;
 };
 
 async function cleanupAttachment(supabase: SupabaseServerClient, path: string | null) {
