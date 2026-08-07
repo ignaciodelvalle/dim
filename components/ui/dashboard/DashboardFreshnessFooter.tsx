@@ -17,6 +17,7 @@
 //     hint row style used across the dashboard component set.
 //   - No border, no padding — caller controls vertical spacing.
 
+import { FreshnessStaleBand } from "@/components/ui/dashboard/FreshnessStaleBand";
 import type { ProjectionContext } from "@/lib/metrics/context";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { formatDateTimeNumericAr } from "@/lib/utils/format";
@@ -41,8 +42,17 @@ export async function DashboardFreshnessFooter({ ctx }: Props) {
   const eventLabel = maxAt != null ? formatDateTimeNumericAr(maxAt) : "sin eventos";
 
   return (
-    <p className="text-[11px] text-ln-op-mute">
-      Calculado al {nowLabel} · último evento {eventLabel}
-    </p>
+    <>
+      {/* degraded-states: amber band once the SHOWN data crosses the staleness
+          threshold (STALE_BAND_AFTER_MS). Mounted here, in the shared footer,
+          so every call site gains it with zero edits. `refreshSignal` is an
+          opaque per-render token: a live data refresh re-renders this RSC,
+          serializes a new value, and resets the band's elapsed clock — it is
+          never compared against the client clock (skew-immune). */}
+      <FreshnessStaleBand refreshSignal={`${Date.now()}`} />
+      <p className="text-[11px] text-ln-op-mute">
+        Calculado al {nowLabel} · último evento {eventLabel}
+      </p>
+    </>
   );
 }
