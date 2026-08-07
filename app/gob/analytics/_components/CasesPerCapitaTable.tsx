@@ -119,16 +119,21 @@ export function CasesPerCapitaTable({ rows }: Props) {
         </p>
       )}
       {suppressionNote && <p className="text-sm text-ln-op-mute">{suppressionNote}</p>}
-      {/* Honesty note (RA-3 C4, second half): `cases` is NOT filtered by
-          case_kind, so this bucket mixes maltrato, disputas de custodia,
-          observación antirrábica and lost-pet episodes. The number stays
-          unnarrowed on purpose — /gob/vigilancia's choropleth counts the same
-          population under the same name, and splitting one of the two would
-          publish two different "casos abiertos" on two screens. What was
-          missing was saying so. */}
+      {/* Honesty note (RA-3 C4, second half; rewritten 2026-08-07): `cases` is
+          NOT filtered by case_kind here, so this bucket mixes maltrato,
+          disputas de custodia, observación antirrábica and lost-pet episodes.
+          It stays unnarrowed on purpose — a per-capita ranking of regulatory
+          load is honest across every kind. What changed is the sentence that
+          used to end this note: /gob/vigilancia's choropleth NO LONGER counts
+          the same population (audit 2026-07-26 red #4 — a map on a vigilancia
+          screen claims epidemiology by placement, and custody episodes cannot
+          back that claim). The two numbers now differ by design, so the note
+          has to say so, or an operator comparing the screens reads a bug. */}
       <p className="text-xs text-ln-op-mute">
         Incluye todos los tipos de caso abierto (maltrato, disputas de custodia, observación
-        antirrábica, episodios de pérdida) — la misma población que el mapa de /gob/vigilancia.
+        antirrábica, episodios de pérdida). El mapa de /gob/vigilancia cuenta menos: sólo los tipos
+        epidemiológicos (mordedura / observación rábica e investigación de brote), así que sus
+        números no coinciden con los de esta tabla.
       </p>
     </div>
   );

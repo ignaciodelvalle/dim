@@ -94,6 +94,44 @@ export function isCaseKind(value: string): value is CaseKind {
   return (CASE_KINDS as readonly string[]).includes(value);
 }
 
+/**
+ * The kinds whose geography is EPIDEMIOLOGICAL — i.e. the only ones whose
+ * per-jurisdiction counts may be rendered as a disease/public-health surface
+ * (the /gob/vigilancia choropleth and its department/barrio drill).
+ *
+ * Two members, and the catalog picks them, not this list:
+ *   - `bite_incident`   — "Mordedura / observación rábica". The rabies
+ *     expediente: `reportBite` opens it and emits `rabies_observation_started`
+ *     in the SAME transaction, and its lifecycle's terminal event is
+ *     `rabies_observation_ended`. Zoonotic exposure of a human population.
+ *   - `outbreak_investigation` — "Investigación de brote". Public-health,
+ *     potentially multi-subject, by definition.
+ *
+ * Everything else in CASE_KINDS is welfare, custody, adoption, reunification
+ * or paperwork. `welfare_denuncia` is deliberately OUT despite sharing the
+ * severity-3 weight: severity ranks how urgently a case needs an operator,
+ * which is a different question from whether its location is a disease
+ * signal. Maltrato geography is real and it is NOT epidemiology; painting it
+ * on a surveillance map invents an outbreak out of an enforcement pattern.
+ * The finding that forced this list (audit 2026-07-26, red #4) was exactly
+ * that: open `custody_episode` rows rendering as epidemiological geography.
+ *
+ * The RETIRED `rabies_observation` string is NOT here. It is outside the
+ * CaseKind union, nothing opens it and nothing can close it (see
+ * caseKindLabel's note), so the ~12 immortal staging rows carrying it would
+ * pin a permanent false signal onto the map. Excluding it also keeps the map
+ * consistent with the /gob/vigilancia rabies KPI, which stopped counting that
+ * string on 2026-08-01 for the same reason.
+ *
+ * DO NOT reuse this for operator queues or for "casos abiertos" totals —
+ * those legitimately mean every kind (see `fetchCasesPerCapita`). This list
+ * answers one question only: may this kind be drawn as epidemiology?
+ */
+export const EPIDEMIOLOGICAL_CASE_KINDS: readonly CaseKind[] = [
+  "bite_incident",
+  "outbreak_investigation",
+];
+
 // ---------------------------------------------------------------------------
 // Severity weight — urgency-sort input (PO interview 2026-07-23, item 6:
 // "Casos: orden por urgencia edad×tipo").

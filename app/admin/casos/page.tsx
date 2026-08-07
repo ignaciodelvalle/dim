@@ -15,15 +15,22 @@ import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueu
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import {
   CASE_QUEUE_CSV_COLUMNS,
-  CASE_QUEUE_CSV_ORDER_NOTE,
+  caseQueueCsvOrderNote,
   caseQueueCsvRows,
 } from "@/components/ui/dashboard/case-queue-csv";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { countCasesForAdmin, listCasesForAdmin } from "@/lib/infra/case-queries";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import {
+  CASE_QUEUE_POSITION_PARAMS,
+  caseQueuePagerLabels,
+  caseQueuePaginationHrefs,
+  caseQueueSortHrefs,
+  parseCaseQueuePage,
+  parseCaseQueueSort,
+} from "@/lib/ui/case-queue-order";
 import { csvPageDisclosure } from "@/lib/ui/csv-export";
 import { todayIsoInAr } from "@/lib/utils/format";
-import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { CASE_KINDS, type CaseKind, caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
@@ -40,6 +47,10 @@ export default async function AdminCasosPage({
 }: {
   searchParams: Promise<{
     cursor?: string;
+    /** 1-based OFFSET page, used only under `orden=urgencia` (SC-6). */
+    pagina?: string;
+    /** Active sort: "urgencia" (default) | "recientes" — reaches the SQL ORDER BY. */
+    orden?: string;
     status?: string;
     kind?: string;
     province?: string;
@@ -49,7 +60,15 @@ export default async function AdminCasosPage({
   if (session.profile.role !== "admin") redirect("/gob/casos");
 
   const sp = await searchParams;
-  const { cursor: rawCursor } = sp;
+  // SC-6 (audit 2026-07-26, red #3) — identical contract to the /gob twin:
+  // the sort lives in the URL so it reaches the SQL ORDER BY and ranks the
+  // whole filtered set instead of re-ranking the page the server already
+  // picked by date. Pagination mode follows the sort (offset for urgency,
+  // keyset for date) because a score derived from now() cannot be encoded in
+  // a stable cursor — see listCasesForAdmin.
+  const sort = parseCaseQueueSort(sp.orden);
+  const page = sort === "urgencia" ? parseCaseQueuePage(sp.pagina) : 1;
+  const rawCursor = sort === "urgencia" ? undefined : sp.cursor;
 
   // Parse filters from searchParams — push them all into SQL, not JS.
   // WS-PERF P2: default to "open" when no explicit status param is present so
@@ -91,6 +110,8 @@ export default async function AdminCasosPage({
     listCasesForAdmin({
       limit: ADMIN_CASOS_PAGE_LIMIT + 1,
       cursor: rawCursor,
+      offset: (page - 1) * ADMIN_CASOS_PAGE_LIMIT,
+      sort,
       filters: {
         status: statusFilter,
         kind: kindFilter,
@@ -106,12 +127,20 @@ export default async function AdminCasosPage({
   const hasMore = rawItems.length > ADMIN_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, ADMIN_CASOS_PAGE_LIMIT) : rawItems;
 
-  const lastItem = items.at(-1);
-  const olderLink =
-    hasMore && lastItem
-      ? olderHref("/admin/casos", filterParams, { ts: lastItem.openedAt, id: lastItem.id })
-      : null;
-  const newerLink = rawCursor ? newerHref("/admin/casos", filterParams) : null;
+  // Sort links carry the filters and reset the position, so switching order
+  // never lands the operator mid-list in a ranking they never scrolled.
+  const sortHrefs = caseQueueSortHrefs("/admin/casos", filterParams);
+  // From here the active sort rides with the filters across page turns.
+  if (sort !== "urgencia") filterParams.orden = sort;
+
+  const { newerLink, olderLink } = caseQueuePaginationHrefs("/admin/casos", filterParams, {
+    sort,
+    page,
+    hasMore,
+    cursor: rawCursor,
+    lastRow: items.at(-1),
+  });
+  const pagerLabels = caseQueuePagerLabels(sort);
 
   // Map CaseListItem → CaseQueueRow for the shared queue table. The rich
   // status/kind/province filter form above owns filtering, so the queue's
@@ -141,7 +170,7 @@ export default async function AdminCasosPage({
   const csvPageLine = csvPageDisclosure(queueRows.length, totalCount);
   const csvContextLines = [
     "miMAR · Casos — vista universal admin",
-    CASE_QUEUE_CSV_ORDER_NOTE,
+    caseQueueCsvOrderNote(sort),
     ...(csvPageLine ? [csvPageLine] : []),
   ];
 
@@ -179,7 +208,9 @@ export default async function AdminCasosPage({
           (it never carried `cursor` as a field). */}
       <OpFilterBar
         showPeriod={false}
-        resetParamsOnChange={["cursor"]}
+        // Both position params (SC-6): a filter change must land on page 1 in
+        // either pagination mode, keyset or offset.
+        resetParamsOnChange={[...CASE_QUEUE_POSITION_PARAMS]}
         savedViewsKey="op-saved-views:casos:v1"
         actions={
           <CsvExportLink
@@ -219,9 +250,12 @@ export default async function AdminCasosPage({
           filters={{ status: statusFilter, kind: kindFilter }}
           showStatusChips={false}
           caption="Cola de casos — vista universal admin"
-          // "más recientes de N" is a first-page affordance; on a keyset page
-          // (cursor set) these are the NEXT 50, not the most recent, so omit it.
-          totalCount={rawCursor ? undefined : totalCount}
+          sortMode={sort}
+          sortHrefs={sortHrefs}
+          // "Mostrando N de M" is a FIRST-PAGE affordance; past page 1 these
+          // are the next 50 in the active order, not the top 50 of it. Both
+          // pagination modes are checked (keyset cursor OR offset page).
+          totalCount={rawCursor || page > 1 ? undefined : totalCount}
           // Same class /adoptar solved and /perdidas has now been fixed for:
           // "para los filtros aplicados" blamed filters nobody had applied. On
           // the untouched default view the honest reading is that the open
@@ -245,7 +279,8 @@ export default async function AdminCasosPage({
         />
       </Suspense>
 
-      {/* Pagination footer */}
+      {/* Pagination footer — keyset under "recientes", offset under
+          "urgencia"; labels follow the sort (SC-6). */}
       {(newerLink || olderLink) && (
         <nav
           aria-label="Paginación de casos"
@@ -257,7 +292,7 @@ export default async function AdminCasosPage({
                 href={newerLink}
                 className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
-                ← Más recientes
+                {pagerLabels.newer}
               </Link>
             )}
           </div>
@@ -267,7 +302,7 @@ export default async function AdminCasosPage({
                 href={olderLink}
                 className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
-                Ver más antiguos →
+                {pagerLabels.older}
               </Link>
             )}
           </div>

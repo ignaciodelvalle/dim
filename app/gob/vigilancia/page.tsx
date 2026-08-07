@@ -284,12 +284,17 @@ export default async function GobVigilanciaPage({
     selectedProvinceIso,
     subregionData,
   );
+  // "epidemiológicos" is load-bearing, not decoration (audit 2026-07-26 red
+  // #4). The underlying query counts EPIDEMIOLOGICAL_CASE_KINDS only — the
+  // qualifier is what keeps this map from reading as the same "casos abiertos"
+  // /gob/analytics ranks per capita across ALL kinds. Drop the word and the two
+  // screens publish different numbers under one name again.
   const mapCardTitle =
     mapProps.level === "barrio"
-      ? "Casos abiertos por barrio — CABA"
+      ? "Casos epidemiológicos abiertos por barrio — CABA"
       : mapProps.level === "department"
-        ? `Casos abiertos por departamento — ${selectedProvince?.name ?? ""}`
-        : "Casos abiertos por jurisdicción";
+        ? `Casos epidemiológicos abiertos por departamento — ${selectedProvince?.name ?? ""}`
+        : "Casos epidemiológicos abiertos por jurisdicción";
 
   // Shape trend data for TimeSeriesChart.
   const trendPoints = trend
@@ -841,8 +846,8 @@ export default async function GobVigilanciaPage({
               key={selectedProvinceIso ?? "national"}
               {...mapProps}
               fallbackTableLabel={mapCardTitle}
-              scaleLabel="Casos abiertos"
-              caption="Conteos absolutos por jurisdicción — no es una tasa poblacional."
+              scaleLabel="Casos epidemiológicos abiertos"
+              caption="Sólo mordeduras / observación rábica e investigaciones de brote. Conteos absolutos por jurisdicción — no es una tasa poblacional."
               cartography="panorama"
             />
           </OpCardBody>

@@ -4,6 +4,15 @@
 > 04-08, y en los commits que se citan acá.
 > Actualizado **2026-08-05** tras la corrida nocturna que vació la cola.
 >
+> **Adenda 2026-08-07**: la auditoría de cierre de la tanda 1 del 26/07 (engram,
+> `reviews/2026-07-26-closure-audit`) encontró **cuatro rojos abiertos que este
+> documento no listaba**. Dos se cerraron el mismo día en código; los otros dos
+> entraron como filas propias (**#41** y **Lote E**, en 🟠 ABIERTO). El marcador
+> pasa a **~20 abiertos**. La lección vale más que el número: la cola quedó
+> "vacía" el 05/08 porque nadie había cruzado los hallazgos de la auditoría
+> contra ella.
+>
+
 > **Marcador**: **~18 abiertos**, y **ninguno es un defecto de producto sin
 > dueño**. La corrida cerró la cola entera en 8 lotes más el ciclo SDD de la
 > chapa física, y el gate de cierre sumó lo suyo: **69 commits** en
@@ -248,6 +257,24 @@ Las cuatro estaban bloqueando código escrito. Ninguna bloquea nada ahora.
 | # | Qué | Contexto |
 |---|---|---|
 | **PO-5** | **El CTA de la landing saltea un hito en viewports donde la banda de crisis queda corta.** En 1440×800, el click lleva a `#crisis` exactamente donde apunta, pero la banda mide 163px y el tope de `#vinculo` ya quedó arriba de la línea del 45% del scroll-spy → el hito activo pasa a ser `vinculo` y el CTA ofrece `idea` | Lo destapó el endurecimiento del test flaky (`2d952dc6`): el test viejo pasaba **ratificando un frame intermedio de la animación** — con la espera del scroll asentado, falló 5/5 determinístico. El spec ahora afirma lo que el botón sí posee (avanza a un hito posterior); el salto quedó documentado en el spec. Opciones: aceptarlo (la sección corta igual se ve al pasar), bajar la línea del scroll-spy, o que el CTA avance desde el hito CLICKEADO y no desde el activo |
+
+### Los dos remanentes grandes de la auditoría del 26/07 — 2026-08-07
+
+> **Por qué aparecen recién ahora.** La auditoría de cierre de la tanda 1 del
+> 26/07 (engram, topic `reviews/2026-07-26-closure-audit`, corrida read-only
+> contra `d262464f`) verificó los ~193 hallazgos uno por uno y dejó **cuatro
+> rojos abiertos**. Dos de ellos se cerraron el 07/08 en código (el mapa de
+> vigilancia pintaba disputas de custodia como epidemiología, y SC-6, la
+> urgencia que ordenaba sólo la página traída). Los otros dos **no son trabajo
+> de una tarde**: uno necesita una decisión de alcance del PO y el otro es un
+> ciclo SDD entero. La auditoría los encontró **invisibles en este documento**,
+> que es exactamente la falla que la regla de evidencia existe para prevenir —
+> un rojo sin fila no tiene dueño.
+
+| # | Qué | Estado 2026-08-07 |
+|---|---|---|
+| **#41** | **Detalle de caso: acciones de operador.** `components/casos/CaseDetailView.tsx` (327 líneas) tiene **cero controles de operador** — verificado el 07/08: cero `<form>`, cero `<button>`, cero `OpButton`, cero `action=`. Ni cerrar, ni escalar, ni asentar una nota. La cola de Casos ahora ordena por urgencia **en SQL** (SC-6, cerrado el 07/08), así que la fila #1 es de verdad el expediente más urgente de la jurisdicción… **y abre a una página muerta**. El arreglo de SC-6 vuelve esto MÁS visible, no menos: antes el operador llegaba al callejón sin salida por casualidad, ahora el producto lo manda derecho | **BLOQUEADO POR EL PO — falta acotar cuáles acciones.** No es "poner botones": cada tipo de caso tiene su propio cierre legítimo (`src/modules/cases/domain/lifecycles/<kind>.ts` declara los eventos terminales) y hay 12 tipos. Las preguntas que hay que responder antes de escribir código: (a) ¿qué subconjunto de tipos gana controles en la primera entrega —¿sólo `bite_incident` + `welfare_denuncia`, los dos que más tráfico tienen?—; (b) ¿el operador cierra, o sólo escala y asienta nota?; (c) ¿la acción vive en el detalle, en la cola por lote (ya existe `OpBulkBar`), o en ambos? Origen: auditoría 26/07 rojo **#2** (y gate vivo del 28/07, punto #7). Nunca salió de "stretch" en ningún plan |
+| **Lote E** | **Partir la hidratación del `PanoramaConsole`.** `components/panorama/PanoramaConsole.tsx` sigue siendo **una sola unidad cliente de 4.993 líneas** con `"use client"` en la línea 1 y **49 `useState`**, sin un solo `next/dynamic` ni `React.lazy` (medido el 07/08 contra el árbol). Es el S9 de la tanda 1, diferido **por decisión** y nunca planificado | **CANDIDATO A SDD** (no a un lote nocturno): 12-15 tareas largas, y el riesgo real no es partir el archivo sino **partirlo sin medir**. **Criterio de aceptación que hay que fijar ANTES de empezar: una reja de INP.** Hoy no existe ninguna en el repo — ni gate, ni presupuesto, ni medición de long-tasks — así que un refactor de hidratación no tendría con qué demostrar que mejoró algo, y "se siente más rápido" no es evidencia bajo la regla de este documento. Orden propuesto: (1) medir INP/long-tasks del Panorama actual y dejar el número escrito, (2) reja que no deje empeorarlo, (3) recién entonces partir. Origen: auditoría 26/07 rojo **#1** / S9 |
 
 ### Deuda con reja puesta y número (no es trabajo pendiente: es deuda medida)
 

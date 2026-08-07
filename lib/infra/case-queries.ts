@@ -13,6 +13,7 @@ import { type KeysetCursor, decodeCursor, keysetWhere } from "@/lib/utils/keyset
 import {
   type SQL,
   and,
+  asc,
   desc,
   eq,
   exists,
@@ -42,7 +43,11 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { type CaseKind, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
+import {
+  CASE_KIND_SEVERITY_WEIGHT,
+  type CaseKind,
+  isCaseKind,
+} from "@/src/modules/cases/domain/case-kinds";
 
 // Case kinds excluded from every generic "open cases for pet" projection
 // consumed by owner-facing surfaces (badges, alert strips, /cuenta/casos):
@@ -611,6 +616,82 @@ export async function listCaseKindDistributionForOrg(orgId: string): Promise<Cas
 //     narrow results to zero rows — it can never widen what the caller sees.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Queue ordering — SC-6 (audit 2026-07-26, red #3), fixed 2026-08-07.
+//
+// THE BUG: "Urgencia" was the queue's DEFAULT sort but lived entirely in
+// CaseQueue's `useMemo` (a client component), applied to the 50 rows the server
+// had already picked BY DATE. So the "most urgent" list was only the most
+// urgent OF THAT PAGE: a 650-day-old bite incident sitting on page 4 by date
+// never reached the top, and the caption said "orden: Urgencia" while page 2's
+// first row could outrank page 1's last. A per-page sort under a global label
+// is the queue equivalent of a cache pretending to be the log.
+//
+// THE FIX: the ordering moves into SQL, so the ranking is over the whole
+// filtered set and pagination walks it in order.
+// ---------------------------------------------------------------------------
+
+/**
+ * Which order the caller wants. `recientes` is the historical order
+ * (openedAt desc) and remains the DEFAULT of these query functions so every
+ * existing caller is untouched; the casos screens opt into `urgencia`.
+ */
+export type CaseListSort = "recientes" | "urgencia";
+
+// SQL mirror of `caseKindSeverityWeight` (src/modules/cases/domain/case-kinds.ts).
+// GENERATED from CASE_KIND_SEVERITY_WEIGHT rather than hand-typed, so a weight
+// change in the domain cannot leave a stale copy behind in SQL. The `else 2`
+// tail mirrors the TS fallback for out-of-union kinds (case_kind is
+// unconstrained text in the DB).
+//
+// Weights are `sql.raw`-ed as integer literals on purpose: a bound parameter
+// inside a CASE arm gives Postgres nothing to infer a type from ("could not
+// determine data type of parameter"). They are typed 1 | 2 | 3 at the source,
+// so there is no interpolation risk. Kind names stay bound parameters.
+const caseKindSeverityWeightSql: SQL = sql.join(
+  [
+    sql`case`,
+    ...Object.entries(CASE_KIND_SEVERITY_WEIGHT).map(
+      ([kind, weight]) => sql`when ${cases.caseKind} = ${kind} then ${sql.raw(String(weight))}`,
+    ),
+    sql`else 2 end`,
+  ],
+  sql` `,
+);
+
+/**
+ * SQL mirror of `caseUrgencyScore` (components/ui/dashboard/CaseQueue.tsx):
+ * age in whole days since `openedAt` × the kind's severity weight, and 0 for
+ * any closed case (resolved is never urgent, so closed rows sink below every
+ * open one).
+ *
+ * `floor(epoch/86400)` is exactly the client's `Math.floor(diffMs / 86_400_000)`
+ * — same flooring, same units — so the two agree row-for-row. The `::int` cast
+ * is exact because `floor` already returned an integral value.
+ *
+ * Exported for tests that need to assert the expression, not just its effect.
+ */
+export const caseUrgencyScoreSql: SQL<number> = sql<number>`(case
+  when ${cases.closedAt} is not null then 0
+  else floor(extract(epoch from (now() - ${cases.openedAt})) / 86400)::int * (${caseKindSeverityWeightSql})
+end)`;
+
+/**
+ * ORDER BY for a given sort mode.
+ *
+ * Urgency's tie-break is `openedAt ASC` — oldest-opened first within an equal
+ * score — matching CaseQueue's client tie-break exactly. `id` closes the
+ * ordering so it is TOTAL: without it, equally-scored rows opened in the same
+ * millisecond could land in a different relative position on each page fetch,
+ * which is precisely how an offset paginator drops or repeats a row.
+ */
+function caseListOrderBy(sort: CaseListSort): SQL[] {
+  if (sort === "urgencia") {
+    return [desc(caseUrgencyScoreSql), asc(cases.openedAt), asc(cases.id)];
+  }
+  return [desc(cases.openedAt), desc(cases.id)];
+}
+
 /**
  * Build the kind + status predicate clauses shared by the admin and govt
  * case-list filters. Exported so pages/tests can inspect the exact SQL shape
@@ -696,16 +777,26 @@ export function buildGovtCaseWhereClause(
 // Callers should fetch limit+1 to detect hasMore; render limit rows only.
 // opts.filters.status narrows by open (closedAt IS NULL) / closed
 // (closedAt IS NOT NULL) so the shared CaseQueue status chips resolve in SQL.
+//
+// opts.sort='urgencia' orders by caseUrgencyScoreSql instead. In that mode the
+// keyset cursor is IGNORED and `opts.offset` paginates — see the note on
+// listCasesForAdmin, which carries the full rationale for both twins.
 export async function listCasesForGovt(
   jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
   opts?: {
     limit?: number;
     cursor?: KeysetCursor;
+    offset?: number;
+    sort?: CaseListSort;
     filters?: ListCasesForGovtFilters;
   },
 ): Promise<CaseListItem[]> {
   if (jurisdictions.length === 0) return [];
-  const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
+  const sort = opts?.sort ?? "recientes";
+  const cursorClause =
+    sort === "urgencia"
+      ? undefined
+      : keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
   const whereClause = buildGovtCaseWhereClause(jurisdictions, opts?.filters ?? {}, cursorClause);
   const limit = opts?.limit ?? 300;
   const rows = await db
@@ -717,8 +808,9 @@ export async function listCasesForGovt(
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
     .where(whereClause)
-    .orderBy(desc(cases.openedAt), desc(cases.id))
-    .limit(limit);
+    .orderBy(...caseListOrderBy(sort))
+    .limit(limit)
+    .offset(sort === "urgencia" ? (opts?.offset ?? 0) : 0);
   return rows.map(mapListRow);
 }
 
@@ -791,12 +883,42 @@ export function buildAdminCaseFilterClauses(
 }
 
 // opts.cursor enables keyset pagination (PERF-5): see listCasesForGovt.
+//
+// PAGINATION MODE IS A FUNCTION OF THE SORT (SC-6, 2026-08-07) — the two are
+// not independent knobs and callers must not mix them:
+//
+//   sort='recientes' → keyset via `cursor`. The cursor IS the (openedAt, id)
+//     pair the order is built on, so it stays exact under concurrent inserts.
+//   sort='urgencia'  → OFFSET via `offset`; `cursor` is ignored.
+//
+// Why offset, and what it costs. The urgency score is `age_days × weight`, a
+// computed expression with no index and no stable column pair to encode in a
+// cursor: `age_days` is derived from `now()`, so a cursor minted at 23:59
+// describes a different score at 00:01. A keyset over it would be a cursor that
+// silently means something else on the next page — the exact class of bug this
+// change exists to remove. Offset is honest instead: every page re-evaluates
+// the SAME total ordering (score desc, openedAt asc, id asc — `id` is what
+// makes it total) and takes a window of it.
+//
+// The residual weakness is offset's own, and it is bounded: a case CLOSED or
+// OPENED between two page turns shifts the window by one, so a row can be
+// skipped or repeated across the boundary. That is a per-session, one-row
+// effect on an operator queue, and it is strictly less wrong than the bug it
+// replaces (an entire page ranked against itself). Cost is O(offset) rows
+// scanned; the screens cap pages at 50 and already pay a full COUNT(*) on
+// every load, so deep offsets are not a new class of query for this table.
 export async function listCasesForAdmin(opts?: {
   limit?: number;
   cursor?: KeysetCursor;
+  offset?: number;
+  sort?: CaseListSort;
   filters?: ListCasesForAdminFilters;
 }): Promise<CaseListItem[]> {
-  const cursorClause = keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
+  const sort = opts?.sort ?? "recientes";
+  const cursorClause =
+    sort === "urgencia"
+      ? undefined
+      : keysetWhere(cases.openedAt, cases.id, decodeCursor(opts?.cursor));
   const limit = opts?.limit ?? 500;
 
   const filterClauses = opts?.filters ? buildAdminCaseFilterClauses(opts.filters) : [];
@@ -812,8 +934,9 @@ export async function listCasesForAdmin(opts?: {
     .from(cases)
     .leftJoin(pets, eq(pets.id, cases.primaryPetId))
     .where(whereClause)
-    .orderBy(desc(cases.openedAt), desc(cases.id))
-    .limit(limit);
+    .orderBy(...caseListOrderBy(sort))
+    .limit(limit)
+    .offset(sort === "urgencia" ? (opts?.offset ?? 0) : 0);
   return rows.map(mapListRow);
 }
 

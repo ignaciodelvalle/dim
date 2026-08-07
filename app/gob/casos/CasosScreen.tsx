@@ -58,7 +58,7 @@ import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { ViewScopeCaption } from "@/components/ui/dashboard/ViewScopeCaption";
 import {
   CASE_QUEUE_CSV_COLUMNS,
-  CASE_QUEUE_CSV_ORDER_NOTE,
+  caseQueueCsvOrderNote,
   caseQueueCsvRows,
 } from "@/components/ui/dashboard/case-queue-csv";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
@@ -69,10 +69,17 @@ import {
   listCasesForAdmin,
   listCasesForGovt,
 } from "@/lib/infra/case-queries";
+import {
+  CASE_QUEUE_POSITION_PARAMS,
+  caseQueuePagerLabels,
+  caseQueuePaginationHrefs,
+  caseQueueSortHrefs,
+  parseCaseQueuePage,
+  parseCaseQueueSort,
+} from "@/lib/ui/case-queue-order";
 import { csvPageDisclosure } from "@/lib/ui/csv-export";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
 import { todayIsoInAr } from "@/lib/utils/format";
-import { newerHref, olderHref } from "@/lib/utils/keyset-pagination";
 import {
   CASE_KINDS,
   CASE_KINDS_ROUTED_ELSEWHERE,
@@ -92,6 +99,10 @@ const KIND_OPTIONS = QUEUE_KINDS.map((k) => ({ value: k, label: caseKindLabel(k)
 
 type GovtCasosSearchParams = {
   cursor?: string;
+  /** 1-based OFFSET page, used only under `orden=urgencia` (SC-6). */
+  pagina?: string;
+  /** Active sort: "urgencia" (default) | "recientes" — reaches the SQL ORDER BY. */
+  orden?: string;
   status?: string;
   kind?: string;
   /** ISO 3166-2:AR code, e.g. "AR-B" — the canonical /gob contract. */
@@ -122,7 +133,20 @@ type ViewerScope =
 // lint ceiling — all filter-parsing, querying, and pagination-link logic
 // lives here; the component below only renders (#26 D2).
 async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope) {
-  const rawCursor = sp.cursor;
+  // SC-6 (audit 2026-07-26, red #3). "Urgencia" was a CLIENT sort over the 50
+  // rows this function had already picked BY DATE — the "most urgent" list was
+  // only the most urgent of that page. The sort now travels in the URL so it
+  // reaches the SQL ORDER BY and ranks the whole filtered set.
+  //
+  // The pagination MODE follows the sort, because urgency cannot be keyset-
+  // paginated: the score is derived from now(), so a cursor minted on one page
+  // describes a different score on the next (full reasoning on
+  // listCasesForAdmin). Urgency pages by OFFSET (?pagina=), date keeps the
+  // exact keyset cursor (?cursor=). The two never mix, which is the failure
+  // mode this replaces.
+  const sort = parseCaseQueueSort(sp.orden);
+  const page = sort === "urgencia" ? parseCaseQueuePage(sp.pagina) : 1;
+  const rawCursor = sort === "urgencia" ? undefined : sp.cursor;
   // 3-way Estado value ("open" default / "all" / "closed") for the
   // CasoEstadoFilter control (BUGFIX opfilterbar-sweep-2026-07-21) — collapses
   // to the SQL-facing open|closed|null via activeStatus below.
@@ -161,16 +185,25 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   // universal admin queries (no jurisdiction predicate); govt keeps the
   // mandatory jurisdiction-membership predicate — this branch is the ONLY
   // place scope diverges.
+  const offset = (page - 1) * GOVT_CASOS_PAGE_LIMIT;
   const [rawItems, totalCount] =
     scope.role === "admin"
       ? await Promise.all([
-          listCasesForAdmin({ limit: GOVT_CASOS_PAGE_LIMIT + 1, cursor: rawCursor, filters }),
+          listCasesForAdmin({
+            limit: GOVT_CASOS_PAGE_LIMIT + 1,
+            cursor: rawCursor,
+            offset,
+            sort,
+            filters,
+          }),
           countCasesForAdmin(filters),
         ])
       : await Promise.all([
           listCasesForGovt(scope.jurisdictions, {
             limit: GOVT_CASOS_PAGE_LIMIT + 1,
             cursor: rawCursor,
+            offset,
+            sort,
             filters,
           }),
           countCasesForGovt(scope.jurisdictions, filters),
@@ -194,12 +227,23 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
     ...(sp.province ? { province: sp.province } : {}),
     ...(sp.locality ? { locality: sp.locality } : {}),
   };
-  const lastItem = items.at(-1);
-  const olderLink =
-    hasMore && lastItem
-      ? olderHref("/gob/casos", filterParams, { ts: lastItem.openedAt, id: lastItem.id })
-      : null;
-  const newerLink = rawCursor ? newerHref("/gob/casos", filterParams) : null;
+
+  // The sort toggle's own links carry the filters and reset the position —
+  // built BEFORE `orden` joins filterParams, since each href sets its own.
+  const sortHrefs = caseQueueSortHrefs("/gob/casos", filterParams);
+
+  // From here on the active sort rides along with the filters, so a page turn
+  // cannot silently drop back to the default order.
+  if (sort !== "urgencia") filterParams.orden = sort;
+
+  const { newerLink, olderLink } = caseQueuePaginationHrefs("/gob/casos", filterParams, {
+    sort,
+    page,
+    hasMore,
+    cursor: rawCursor,
+    lastRow: items.at(-1),
+  });
+  const pagerLabels = caseQueuePagerLabels(sort);
 
   // Map CaseListItem → CaseQueueRow (shapes are identical except detailHref).
   // Detail links stay INSIDE the /gob operator shell via /gob/casos/[code]
@@ -244,6 +288,10 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
     activeStatus,
     casoEstado,
     kindFilter,
+    sort,
+    page,
+    sortHrefs,
+    pagerLabels,
     rawCursor,
     olderLink,
     newerLink,
@@ -306,6 +354,10 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
     activeStatus,
     casoEstado,
     kindFilter,
+    sort,
+    page,
+    sortHrefs,
+    pagerLabels,
     rawCursor,
     olderLink,
     newerLink,
@@ -316,12 +368,14 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
   } = await loadCasosForViewer(sp, scope);
 
   // Q1 (CSV export parity) — the shared CaseQueue CSV projection: exactly the
-  // rendered page rows, page-hood declared (csvPageDisclosure), order note
-  // included because the on-screen default sort is Urgencia (client-side).
+  // rendered page rows, page-hood declared (csvPageDisclosure), and the order
+  // note naming the ACTIVE sort. The file now genuinely carries that order
+  // (SC-6: the sort is in SQL), so the note describes it instead of warning
+  // that the screen may differ.
   const csvPageLine = csvPageDisclosure(queueRows.length, totalCount);
   const csvContextLines = [
     `miMAR · Casos — ${scope.role === "admin" ? "vista universal admin" : "tu jurisdicción asignada"}`,
-    CASE_QUEUE_CSV_ORDER_NOTE,
+    caseQueueCsvOrderNote(sort),
     ...(csvPageLine ? [csvPageLine] : []),
   ];
 
@@ -388,7 +442,10 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
               (it never carried `cursor` as a field). */}
           <OpFilterBar
             showPeriod={false}
-            resetParamsOnChange={["cursor"]}
+            // Both position params, not just `cursor` (SC-6): a filter change
+            // must land on page 1 in EITHER pagination mode, and a stale
+            // `pagina` would otherwise open a filtered result at page 7.
+            resetParamsOnChange={[...CASE_QUEUE_POSITION_PARAMS]}
             savedViewsKey="op-saved-views:casos:v1"
             actions={
               <CsvExportLink
@@ -431,9 +488,13 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
                   ? "Cola de casos — vista universal admin"
                   : "Cola de casos de tu jurisdicción"
               }
-              // "más recientes de N" is a first-page affordance; on a keyset
-              // page (cursor set) these are the NEXT 50, not the most recent.
-              totalCount={rawCursor ? undefined : totalCount}
+              sortMode={sort}
+              sortHrefs={sortHrefs}
+              // "Mostrando N de M" is a FIRST-PAGE affordance: past page 1
+              // these are the next 50 in whichever order is active, not the
+              // top 50 of it. Both pagination modes have to be checked now —
+              // a keyset cursor OR a page number past the first.
+              totalCount={rawCursor || page > 1 ? undefined : totalCount}
               emptyMessage={emptyMessage}
               emptyAction={
                 hasFilters ? (
@@ -447,7 +508,10 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
         </>
       )}
 
-      {/* Keyset pagination footer — preserves the active filters. */}
+      {/* Pagination footer — keyset under "recientes", offset under
+          "urgencia" (SC-6). The LABELS follow the sort: "más antiguos"
+          describes a date walk and would misname the next page of an urgency
+          ranking, where what changes is how urgent the rows are. */}
       {(newerLink || olderLink) && (
         <nav
           aria-label="Paginación de casos"
@@ -459,7 +523,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
                 href={newerLink}
                 className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
-                ← Más recientes
+                {pagerLabels.newer}
               </Link>
             )}
           </div>
@@ -469,7 +533,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
                 href={olderLink}
                 className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
-                Ver más antiguos →
+                {pagerLabels.older}
               </Link>
             )}
           </div>

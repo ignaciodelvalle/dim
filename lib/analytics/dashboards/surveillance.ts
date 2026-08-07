@@ -8,13 +8,14 @@
 // is empty by contract for admin), govt sees only rows matching one of their
 // active assignments.
 
-import { type SQL, and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { type SQL, and, count, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { cases, analyticsDb as db, jurisdictionsCensus, petEvents, pets } from "@/db";
 import type { DashboardActor, DashboardJurisdiction } from "@/lib/metrics";
 import { suppressSmallCells } from "@/lib/metrics";
 import { provinceByCode } from "@/lib/reference/ar-provincias";
 import { findDisease } from "@/lib/reference/diseases";
+import { EPIDEMIOLOGICAL_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 import { aggregateRowsByDepartment } from "../subregion-aggregate";
 import type { SubregionCaseCount } from "../subregion-redaction";
 import {
@@ -462,8 +463,25 @@ export type LocalityCaseCount = {
 };
 
 /**
- * Counts of open cases grouped by (province, locality). Used for the
- * <MapChoropleth metric="cases_open"> on /gob/vigilancia.
+ * Counts of open EPIDEMIOLOGICAL cases grouped by (province, locality). Used
+ * for the <MapChoropleth metric="cases_open"> on /gob/vigilancia.
+ *
+ * KIND-NARROWED (audit 2026-07-26, red #4). This used to be every open case
+ * kind, so an open `custody_episode` — a custody dispute over one animal —
+ * rendered as a filled cell on the OFFICIAL surveillance map, indistinguishable
+ * from a rabies exposure. A map on a vigilancia screen makes an epidemiological
+ * claim by placement alone; the only defensible fix is to count only what can
+ * back that claim. The subset is EPIDEMIOLOGICAL_CASE_KINDS
+ * (src/modules/cases/domain/case-kinds.ts) — the domain owns which kinds are
+ * disease signals, not this analytics module.
+ *
+ * This narrowing DIVERGES this number from /gob/analytics'
+ * `fetchCasesPerCapita`, which still counts every kind — deliberately, see its
+ * own jsdoc. Two different numbers are fine because they no longer share a
+ * name: this one is "casos epidemiológicos abiertos" everywhere it renders,
+ * that one is "casos abiertos (todos los tipos)". Both screens say which they
+ * are. If either label ever collapses back to a bare "casos abiertos", this
+ * divergence becomes a lie — keep the labels, or re-unify the queries.
  *
  * Province code mapping: uses PROVINCE_ISO_MAP (hardcoded). The cases table
  * stores jurisdictionProvince as free-text; the GeoJSON uses ISO 3166-2:AR codes.
@@ -474,7 +492,10 @@ export async function fetchCasesPerLocality(
   jurisdictions: DashboardJurisdiction[],
   opts: { adminProvince?: string; adminLocality?: string } = {},
 ): Promise<LocalityCaseCount[]> {
-  const conditions = [eq(cases.status, "open")];
+  const conditions = [
+    eq(cases.status, "open"),
+    inArray(cases.caseKind, [...EPIDEMIOLOGICAL_CASE_KINDS]),
+  ];
   const scope = casesScopeClause(actor, jurisdictions, opts.adminProvince, opts.adminLocality);
   if (scope) conditions.push(sql`(${scope})`);
 
@@ -503,7 +524,14 @@ export async function fetchCasesPerLocality(
 export type { SubregionCaseCount } from "../subregion-redaction";
 
 /**
- * Open cases per sub-region within a selected province — the FULL sub-region set.
+ * Open EPIDEMIOLOGICAL cases per sub-region within a selected province — the
+ * FULL sub-region set.
+ *
+ * Kind-narrowed to EPIDEMIOLOGICAL_CASE_KINDS for the SAME reason as
+ * `fetchCasesPerLocality` above (audit 2026-07-26, red #4) — and it MUST stay
+ * in lockstep with it: this is the province drill of that very map, so a
+ * department cell that counted more kinds than the province cell it drills
+ * into would make the total shrink as the operator zooms in.
  *
  * Returns EVERY sub-region of the province (not only those with cases), each with
  * its open-case count (0 when there are none). This lets the caller frame and
@@ -541,6 +569,7 @@ export async function fetchCasesPerSubregion(
 
   const conditions = [
     eq(cases.status, "open"),
+    inArray(cases.caseKind, [...EPIDEMIOLOGICAL_CASE_KINDS]),
     eq(cases.jurisdictionProvince, provinceDisplayName),
   ];
   if (scope) conditions.push(sql`(${scope})`);
@@ -631,13 +660,25 @@ export type ProvinceCasesPerCapita = {
  * primary-only for the same reason. If a national open-case KPI is ever added
  * to this screen, this fetcher MUST gain the complementary pass with it.
  *
- * NOT scoped by `case_kind` — deliberate, see the note in `fetchCasesPerLocality`'s
- * sibling render (`CasesPerCapitaTable`): "casos abiertos" means every open case
- * kind on BOTH this table and /gob/vigilancia's choropleth, and narrowing one of
- * the two would put two different numbers under one name across two screens.
- * Narrowing would also SHRINK every cell, which raises re-identifiability rather
- * than lowering it. The honesty gap (a maltrato case and a custody dispute in one
- * bucket) is closed on the render side, by naming what is counted.
+ * NOT scoped by `case_kind` — still deliberate, but the reason CHANGED on
+ * 2026-08-07 and the old one is now wrong, so it is rewritten rather than kept.
+ *
+ * It used to read "narrowing one of the two would put two different numbers
+ * under one name across two screens", pointing at /gob/vigilancia's choropleth
+ * as the twin that had to stay identical. That twin IS now narrowed
+ * (`fetchCasesPerLocality`, audit 2026-07-26 red #4): a surveillance MAP makes
+ * an epidemiological claim by placement, and custody episodes cannot back it.
+ * This table makes no such claim — it is a per-capita ranking of regulatory
+ * load on /gob/analytics, where "cuántos expedientes abiertos por habitante"
+ * is the honest question and every kind belongs in it.
+ *
+ * So the two numbers now differ ON PURPOSE, and the rule that replaces "same
+ * number" is "different names": this one renders as "casos abiertos (todos los
+ * tipos)" with its inventory spelled out below the table, the map renders as
+ * "casos epidemiológicos abiertos". Neither may drop its qualifier.
+ *
+ * Narrowing here would also SHRINK every cell, which raises re-identifiability
+ * rather than lowering it — an independent reason to leave this one wide.
  */
 export async function fetchCasesPerCapita(
   actor: DashboardActor,

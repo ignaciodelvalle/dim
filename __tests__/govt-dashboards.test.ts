@@ -22,6 +22,7 @@ import {
   fetchCasesForExport,
   fetchCasesPerCapita,
   fetchCasesPerLocality,
+  fetchCasesPerSubregion,
   fetchDeathCauses,
   fetchDiseaseSummary,
   fetchEventsForExport,
@@ -1418,27 +1419,43 @@ describe("fetchVigilanciaMetrics", () => {
 
 // ============================================================================
 
+// NOTE (2026-08-07, audit 2026-07-26 red #4): every fixture in this block used
+// to open a `welfare_denuncia`, which the surveillance map no longer counts.
+// They are `bite_incident` now — the kind the map is FOR — so each test still
+// asserts what it was written to assert (grouping, scope, ISO mapping) instead
+// of accidentally asserting the new kind filter.
 describe("fetchCasesPerLocality", () => {
   it("returns one row per (province, locality) with correct count", async () => {
-    const pet = await insertFixturePet({
+    // TWO pets, not one: `cases_open_per_pet_kind_idx` (migration 0033) is a
+    // partial UNIQUE on (primary_pet_id, case_kind) for open/escalated rows,
+    // and `bite_incident` is inside its scope (`welfare_denuncia`, which this
+    // test used before the kind fence, is one of the four exempt kinds). Two
+    // open bite cases on the SAME pet is not a fixture the domain allows.
+    const pet1 = await insertFixturePet({
       name: "LocalityPet1",
       species: "dog",
       province: "Buenos Aires",
       locality: "Mar del Plata",
     });
-    await insertFixtureCase({
-      caseKind: "welfare_denuncia",
-      status: "open",
+    const pet2 = await insertFixturePet({
+      name: "LocalityPet2",
+      species: "dog",
       province: "Buenos Aires",
       locality: "Mar del Plata",
-      petId: pet,
     });
     await insertFixtureCase({
-      caseKind: "welfare_denuncia",
+      caseKind: "bite_incident",
       status: "open",
       province: "Buenos Aires",
       locality: "Mar del Plata",
-      petId: pet,
+      petId: pet1,
+    });
+    await insertFixtureCase({
+      caseKind: "bite_incident",
+      status: "open",
+      province: "Buenos Aires",
+      locality: "Mar del Plata",
+      petId: pet2,
     });
 
     const rows = await fetchCasesPerLocality({ role: "admin" }, []);
@@ -1462,14 +1479,14 @@ describe("fetchCasesPerLocality", () => {
       locality: "La Plata",
     });
     await insertFixtureCase({
-      caseKind: "welfare_denuncia",
+      caseKind: "bite_incident",
       status: "open",
       province: "CABA",
       locality: "Palermo",
       petId: petCABA,
     });
     await insertFixtureCase({
-      caseKind: "welfare_denuncia",
+      caseKind: "bite_incident",
       status: "open",
       province: "Buenos Aires",
       locality: "La Plata",
@@ -1495,7 +1512,7 @@ describe("fetchCasesPerLocality", () => {
       locality: "Quilmes",
     });
     await insertFixtureCase({
-      caseKind: "welfare_denuncia",
+      caseKind: "bite_incident",
       status: "open",
       province: "Buenos Aires",
       locality: "Quilmes",
@@ -1515,7 +1532,7 @@ describe("fetchCasesPerLocality", () => {
       locality: "Recoleta",
     });
     await insertFixtureCase({
-      caseKind: "welfare_denuncia",
+      caseKind: "bite_incident",
       status: "open",
       province: "CABA",
       locality: "Recoleta",
@@ -1525,6 +1542,108 @@ describe("fetchCasesPerLocality", () => {
     const rows2 = await fetchCasesPerLocality({ role: "admin" }, []);
     const cabaRow = rows2.find((r) => r.province === "CABA" && r.locality === "Recoleta");
     expect(cabaRow?.code).toBe("AR-C");
+  });
+});
+
+// ============================================================================
+// The kind fence on the surveillance geography (audit 2026-07-26, red #4).
+//
+// The bug this pins: /gob/vigilancia's choropleth counted `eq(status,'open')`
+// with NO kind predicate, so an open custody_episode — one family arguing over
+// one animal — painted a cell on the OFFICIAL epidemiological map, visually
+// identical to a rabies exposure. Both fetchers behind that map (province-level
+// and its department/barrio drill) are now fenced to
+// EPIDEMIOLOGICAL_CASE_KINDS.
+//
+// Both tests seed the two kinds SIDE BY SIDE in the SAME locality, because a
+// test that only seeds the excluded kind cannot tell "correctly filtered" from
+// "query broken": the assertion has to be that one survives and the other does
+// not.
+//
+// Fixtures are PET-LESS (primary_subject_kind='general'). Two reasons, both
+// load-bearing: (a) neither fetcher joins `pets` — they group by the CASE's own
+// jurisdiction columns and are scoped by casesScopeClause over those same
+// columns, so a pet would add nothing the assertions read; (b)
+// `cases_open_per_pet_kind_idx` (migration 0033) is a partial UNIQUE on
+// (primary_pet_id, case_kind) over open/escalated rows, which caps a pet at ONE
+// open case per kind — seeding K of a kind would need K pets. NULL
+// primary_pet_id is outside that index, so the counts these tests need are
+// expressible. Cleanup is by `GD-CASE-TEST-%` public_code, independent of pets.
+// ============================================================================
+
+describe("surveillance geography counts only epidemiological kinds", () => {
+  it("fetchCasesPerLocality keeps an open bite_incident and drops an open custody_episode", async () => {
+    // 1 epidemiological + 3 custody in the SAME cell. If the fence were gone
+    // the cell would read 4; if the query were broken it would be absent.
+    await insertFixtureCase({
+      caseKind: "bite_incident",
+      status: "open",
+      province: "Buenos Aires",
+      locality: "Tandil",
+    });
+    for (let i = 0; i < 3; i += 1) {
+      await insertFixtureCase({
+        caseKind: "custody_episode",
+        status: "open",
+        province: "Buenos Aires",
+        locality: "Tandil",
+      });
+    }
+
+    const rows = await fetchCasesPerLocality({ role: "admin" }, []);
+    const row = rows.find((r) => r.province === "Buenos Aires" && r.locality === "Tandil");
+    expect(row).toBeDefined();
+    expect(row?.count).toBe(1);
+  });
+
+  it("fetchCasesPerLocality also counts an open outbreak_investigation, and never a welfare_denuncia", async () => {
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "open",
+      province: "Buenos Aires",
+      locality: "Olavarría",
+    });
+    // welfare_denuncia carries the SAME severity-3 weight as bite_incident but
+    // is not epidemiology — maltrato geography is an enforcement pattern, not
+    // a disease signal. Pinned so a future "severity 3 == epi" shortcut fails.
+    await insertFixtureCase({
+      caseKind: "welfare_denuncia",
+      status: "open",
+      province: "Buenos Aires",
+      locality: "Olavarría",
+    });
+
+    const rows = await fetchCasesPerLocality({ role: "admin" }, []);
+    const row = rows.find((r) => r.province === "Buenos Aires" && r.locality === "Olavarría");
+    expect(row?.count).toBe(1);
+  });
+
+  it("fetchCasesPerSubregion (the province drill) applies the same fence", async () => {
+    // "25 de Mayo" is a real Buenos Aires locality resolving to the "25 de
+    // Mayo" department — the same stable pair subregion-aggregate.test.ts
+    // uses. Seed ANONYMITY_K epidemiological cases so the department cell
+    // survives the k-anon floor, plus the same number of custody episodes: a
+    // missing fence would double the cell to 2×K.
+    for (let i = 0; i < ANONYMITY_K; i += 1) {
+      await insertFixtureCase({
+        caseKind: "bite_incident",
+        status: "open",
+        province: "Buenos Aires",
+        locality: "25 de Mayo",
+      });
+      await insertFixtureCase({
+        caseKind: "custody_episode",
+        status: "open",
+        province: "Buenos Aires",
+        locality: "25 de Mayo",
+      });
+    }
+
+    const rows = await fetchCasesPerSubregion({ role: "admin" }, [], "AR-B");
+    const dept = rows.find((r) => r.name === "25 de Mayo");
+    expect(dept).toBeDefined();
+    expect(dept?.suppressed).toBeFalsy();
+    expect(dept?.count).toBe(ANONYMITY_K);
   });
 });
 

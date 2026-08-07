@@ -121,6 +121,77 @@ describe("CaseQueue — urgency sort (age-days × kind-severity, default)", () =
   });
 });
 
+// ---------------------------------------------------------------------------
+// SC-6 (audit 2026-07-26, red #3): server-ordered mode.
+//
+// Supplying `sortHrefs` declares that the SQL ORDER BY already ranked the whole
+// filtered set. The component must then hand the rows through UNTOUCHED — a
+// second, page-local sort here is what made "Urgencia" mean "the most urgent of
+// this page", and it can also disagree with the server across a midnight
+// boundary (client scores with Date.now(), server with now()).
+// ---------------------------------------------------------------------------
+
+describe("CaseQueue — server-ordered mode (sortHrefs)", () => {
+  const SORT_HREFS = {
+    urgencia: "/gob/casos",
+    recientes: "/gob/casos?orden=recientes",
+  };
+
+  // Deliberately mis-ordered by urgency: the low-severity row comes FIRST.
+  // In local-sort mode the component reorders these (proved above); in
+  // server-ordered mode it must not.
+  const openedAt = new Date(Date.now() - 20 * 24 * 60 * 60 * 1000);
+  const lowSeverity: CaseQueueRow = {
+    ...ROWS[0],
+    id: "row-low",
+    publicCode: "CAS-LOW-0001",
+    caseKind: "microchip_remediation" as CaseKind,
+    openedAt,
+  };
+  const highSeverity: CaseQueueRow = {
+    ...ROWS[0],
+    id: "row-high",
+    publicCode: "CAS-HIGH-0001",
+    caseKind: "welfare_denuncia" as CaseKind,
+    openedAt,
+  };
+
+  it("renders rows in the exact order received, without re-sorting them", () => {
+    const html = renderToStaticMarkup(
+      <CaseQueue rows={[lowSeverity, highSeverity]} sortMode="urgencia" sortHrefs={SORT_HREFS} />,
+    );
+    expect(html.indexOf("CAS-LOW-0001")).toBeLessThan(html.indexOf("CAS-HIGH-0001"));
+  });
+
+  it("renders the toggle as LINKS carrying the sort into the URL", () => {
+    const html = renderToStaticMarkup(
+      <CaseQueue rows={[lowSeverity, highSeverity]} sortMode="urgencia" sortHrefs={SORT_HREFS} />,
+    );
+    expect(html).toContain("Ordenar por:");
+    expect(html).toContain('href="/gob/casos?orden=recientes"');
+    // The active mode is the one the SERVER applied, not local state.
+    expect(html).toMatch(/aria-pressed="true" href="\/gob\/casos">Urgencia</);
+    expect(html).toMatch(/aria-pressed="false" href="\/gob\/casos\?orden=recientes">Recientes</);
+  });
+
+  it("still offers the toggle on a single-row page", () => {
+    // With SQL ordering the visible row count says nothing about how many rows
+    // the sort ranked, so hiding the control here would strand an operator
+    // whose filter happens to return one result.
+    const html = renderToStaticMarkup(
+      <CaseQueue rows={[ROWS[0]]} sortMode="urgencia" sortHrefs={SORT_HREFS} />,
+    );
+    expect(html).toContain("Ordenar por:");
+  });
+
+  it("keeps the local-state toggle (and the client sort) when sortHrefs is absent", () => {
+    const html = renderToStaticMarkup(<CaseQueue rows={[lowSeverity, highSeverity]} />);
+    // No navigation: surfaces without a server sort keep buttons.
+    expect(html).not.toContain('href="/gob/casos?orden=recientes"');
+    expect(html.indexOf("CAS-HIGH-0001")).toBeLessThan(html.indexOf("CAS-LOW-0001"));
+  });
+});
+
 describe("CaseQueue — SLA badge via shared due-state (structural convergence 2026-08-02)", () => {
   // The badge now derives from computeDueInfo(caseSlaDueAt(openedAt)) +
   // dueDateBadge — ONE "days past due" implementation shared with the

@@ -1,6 +1,7 @@
 "use client";
 
-import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
+import Link from "next/link";
+import type { ButtonHTMLAttributes, ComponentProps, ReactNode, Ref } from "react";
 
 /**
  * Operator-tier (op) button primitive.
@@ -22,6 +23,16 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
  * explicit positive-confirmation flows only. This resolves the green/blue
  * inconsistency between OpSubmitButton (was green) and OpBulkBar (blue).
  *
+ * Anchor mode: pass `href` to render a next/link `<Link>` instead of a native
+ * button element — same base/sizes/variants maps, byte-identical look. Mirrors
+ * LnButton's anchor mode (components/ui/Button.tsx) one tier down, and exists
+ * for the same reason: a control that NAVIGATES must be a link (keyboard,
+ * middle-click, shareable URL), and a `<button>` cannot legally sit inside an
+ * `<a>` or vice versa (WCAG 4.1.2), so a plain `<OpButton>` cannot be dropped
+ * into link position. First caller: CaseQueue's URL-driven sort toggle (SC-6,
+ * 2026-08-07) — the sort has to reach the SQL ORDER BY, so it lives in the URL.
+ * `loading` and `disabled` are button-only; a link has neither state.
+ *
  * Uses --radius-op-btn (6px) defined in app/globals.css @theme.
  * Safe in components/ui/dashboard/ — excluded from lint:tokens guard.
  */
@@ -29,23 +40,34 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 export type OpButtonVariant = "primary" | "ghost" | "danger" | "ok";
 export type OpButtonSize = "sm" | "md" | "lg";
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+type CommonProps = {
   variant?: OpButtonVariant;
   size?: OpButtonSize;
   block?: boolean;
-  loading?: boolean;
+  className?: string;
   children?: ReactNode;
-  /**
-   * Forwarded to the underlying button element (React 19 ref-as-prop — no
-   * forwardRef needed). Added 2026-07-30: ConfirmDialog needs a focus-restore
-   * target, and every caller that wanted one had been dropping to a raw
-   * element hand-styled to look like this component (IncomingTransferActions,
-   * ReasignarButton, DevolverAlDuenoButton, RemoveMemberButton — see the note
-   * in scripts/check-raw-buttons.mjs). Declaring the prop removes the reason
-   * to fork the styling.
-   */
-  ref?: Ref<HTMLButtonElement>;
 };
+
+type OpButtonAsButtonProps = CommonProps &
+  Omit<ButtonHTMLAttributes<HTMLButtonElement>, "className" | "children"> & {
+    loading?: boolean;
+    href?: undefined;
+    /**
+     * Forwarded to the underlying button element (React 19 ref-as-prop — no
+     * forwardRef needed). Added 2026-07-30: ConfirmDialog needs a focus-restore
+     * target, and every caller that wanted one had been dropping to a raw
+     * element hand-styled to look like this component (IncomingTransferActions,
+     * ReasignarButton, DevolverAlDuenoButton, RemoveMemberButton — see the note
+     * in scripts/check-raw-buttons.mjs). Declaring the prop removes the reason
+     * to fork the styling.
+     */
+    ref?: Ref<HTMLButtonElement>;
+  };
+
+type OpButtonAsAnchorProps = CommonProps &
+  Omit<ComponentProps<typeof Link>, "className" | "children">;
+
+export type OpButtonProps = OpButtonAsButtonProps | OpButtonAsAnchorProps;
 
 const base =
   "inline-flex items-center justify-center gap-[7px] font-semibold " +
@@ -88,25 +110,58 @@ function Spinner() {
   );
 }
 
-export function OpButton({
-  variant = "primary",
-  size = "md",
-  block = false,
-  loading = false,
-  className = "",
-  disabled,
-  type = "button",
-  children,
-  ...rest
-}: Props) {
+function classesFor(
+  variant: OpButtonVariant,
+  size: OpButtonSize,
+  block: boolean,
+  className: string,
+): string {
+  return [base, sizes[size], variants[variant], block ? "w-full" : "", className]
+    .filter(Boolean)
+    .join(" ");
+}
+
+export function OpButton(props: OpButtonProps) {
+  if (props.href !== undefined) {
+    const {
+      variant = "primary",
+      size = "md",
+      block = false,
+      className = "",
+      children,
+      href,
+      ...anchorRest
+    } = props;
+    return (
+      <Link
+        href={href}
+        // no-underline: the op tier's buttons are solid controls, and the
+        // global anchor underline would read as a text link inside one.
+        className={`${classesFor(variant, size, block, className)} no-underline`}
+        {...anchorRest}
+      >
+        {children}
+      </Link>
+    );
+  }
+
+  const {
+    variant = "primary",
+    size = "md",
+    block = false,
+    loading = false,
+    className = "",
+    disabled,
+    type = "button",
+    children,
+    ...rest
+  } = props;
   return (
     <button
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={[base, sizes[size], variants[variant], block ? "w-full" : "", className]
-        .filter(Boolean)
-        .join(" ")}
+      className={classesFor(variant, size, block, className)}
       {...rest}
     >
       {loading ? <Spinner /> : null}

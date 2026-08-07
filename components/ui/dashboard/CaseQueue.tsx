@@ -31,6 +31,12 @@ import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { CaseStatus, CaseSubjectKind } from "@/db/schema";
 import { computeDueInfo, dueDateBadge } from "@/lib/domain/due-state";
+import {
+  CASE_QUEUE_DEFAULT_SORT,
+  CASE_QUEUE_SORTS,
+  CASE_QUEUE_SORT_LABELS,
+  type CaseQueueSort,
+} from "@/lib/ui/case-queue-order";
 import { formatDate, pluralizeEs } from "@/lib/utils/format";
 import {
   type CaseKind,
@@ -169,6 +175,34 @@ export interface CaseQueueProps {
    * (existing behavior, unchanged).
    */
   extraFilterParams?: Record<string, string>;
+  /**
+   * Hrefs for the sort toggle, one per SORT_OPTIONS value. Supplying this
+   * switches the toggle from local component state to a URL-driven control and
+   * declares that the SERVER already ordered `rows` — so the client sort below
+   * is skipped entirely and the rows render exactly as fetched.
+   *
+   * This is the SC-6 fix (audit 2026-07-26, red #3). While the toggle was local
+   * state, "Urgencia" could only re-rank the page the server had already
+   * chosen BY DATE, so the queue's headline order was the most urgent OF THAT
+   * PAGE — under a caption that said "orden: Urgencia" without qualification.
+   * Ranking the whole filtered set requires the ORDER BY to be in SQL, which
+   * requires the server to know the mode, which requires it in the URL.
+   *
+   * A plain record and not a callback: this is a "use client" component and a
+   * function prop is not serializable across the RSC boundary.
+   *
+   * Surfaces WITHOUT server-side urgency ordering (Disputas, /org/…/casos,
+   * decomisos, alertas, la cola) simply omit it and keep the previous
+   * local-state behaviour — for them the fetched list is the whole list, so a
+   * page-local sort ranks everything there is and was never wrong.
+   */
+  sortHrefs?: Record<CaseQueueSort, string>;
+  /**
+   * The sort the SERVER applied. Only read when `sortHrefs` is supplied.
+   * Defaults to "urgencia" — the queue's default order since the PO interview
+   * 2026-07-23, item 6.
+   */
+  sortMode?: CaseQueueSort;
 }
 
 // ---------------------------------------------------------------------------
@@ -186,10 +220,9 @@ const STATUS_OPTIONS: Array<{ value: "open" | "closed" | null; label: string }> 
  * ACTIVE sort's label instead of a hardcoded "más recientes" that reads wrong
  * once the default sort became urgency (copy audit 2026-08-06, S7).
  */
-const SORT_OPTIONS = [
-  { value: "urgencia", label: "Urgencia" },
-  { value: "recientes", label: "Recientes" },
-] as const;
+const SORT_OPTIONS: ReadonlyArray<{ value: CaseQueueSort; label: string }> = CASE_QUEUE_SORTS.map(
+  (value) => ({ value, label: CASE_QUEUE_SORT_LABELS[value] }),
+);
 
 function buildFilterHref(
   base: string,
@@ -227,23 +260,37 @@ export function CaseQueue({
   emptyAction,
   showStatusChips = true,
   extraFilterParams,
+  sortHrefs,
+  sortMode: serverSortMode,
 }: CaseQueueProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // Default sort: urgency (age-days × kind-severity) — the old "recientes"
   // (openedAt desc, as returned by the query) stays reachable via the toggle
   // below (PO interview 2026-07-23, item 6: "no debe perderse el orden viejo").
-  const [sortMode, setSortMode] = useState<"urgencia" | "recientes">("urgencia");
+  const [localSortMode, setLocalSortMode] = useState<CaseQueueSort>(CASE_QUEUE_DEFAULT_SORT);
+
+  // Who owns the order: the server (URL-driven toggle) or this component.
+  const serverOrdered = sortHrefs !== undefined;
+  const sortMode: CaseQueueSort = serverOrdered
+    ? (serverSortMode ?? CASE_QUEUE_DEFAULT_SORT)
+    : localSortMode;
 
   const sortedRows = useMemo(() => {
+    // Server-ordered: render exactly what arrived. Re-sorting here would be
+    // worse than redundant — the client scores with `Date.now()` and the server
+    // with `now()`, so across a midnight boundary the two disagree by a day and
+    // the page would visibly reshuffle on hydration for no reason.
+    if (serverOrdered) return rows;
     if (sortMode === "recientes") return rows;
     return [...rows].sort((a, b) => {
       const scoreDiff = caseUrgencyScore(b) - caseUrgencyScore(a);
       if (scoreDiff !== 0) return scoreDiff;
       // Tie-break (equal score, incl. both 0/closed): older-opened first, so
-      // the longest-unresolved row of a tied group still surfaces first.
+      // the longest-unresolved row of a tied group still surfaces first. Same
+      // tie-break the SQL ordering uses (caseListOrderBy).
       return a.openedAt.getTime() - b.openedAt.getTime();
     });
-  }, [rows, sortMode]);
+  }, [rows, sortMode, serverOrdered]);
 
   const toggleRow = useCallback((id: string) => {
     setSelected((prev) => {
@@ -299,11 +346,31 @@ export function CaseQueue({
           the shared OpButton primitive rather than a raw button element —
           the design-system consolidation ratchet (scripts/check-raw-
           buttons.mjs) requires new toggles to go through LnButton/OpButton. */}
-      {rows.length > 1 && (
+      {/* The toggle renders even on a single row when the server owns the
+          order: with SQL ordering the visible row count says nothing about how
+          many rows the sort ranked, so hiding the control on a 1-row page would
+          strand an operator whose filter happens to return one result. */}
+      {(rows.length > 1 || serverOrdered) && (
         <fieldset className="m-0 flex flex-wrap items-center gap-2 border-0 p-0 text-sm">
           <legend className="text-ln-op-mute">Ordenar por:</legend>
           {SORT_OPTIONS.map((opt) => {
             const isActive = sortMode === opt.value;
+            // URL-driven when the server owns the order: the mode has to reach
+            // the query, and a link is also what makes the ordered view
+            // shareable and back-button-able.
+            if (sortHrefs) {
+              return (
+                <OpButton
+                  key={opt.value}
+                  href={sortHrefs[opt.value]}
+                  size="sm"
+                  variant={isActive ? "primary" : "ghost"}
+                  aria-pressed={isActive}
+                >
+                  {opt.label}
+                </OpButton>
+              );
+            }
             return (
               <OpButton
                 key={opt.value}
@@ -311,7 +378,7 @@ export function CaseQueue({
                 size="sm"
                 variant={isActive ? "primary" : "ghost"}
                 aria-pressed={isActive}
-                onClick={() => setSortMode(opt.value)}
+                onClick={() => setLocalSortMode(opt.value)}
               >
                 {opt.label}
               </OpButton>
