@@ -9,7 +9,7 @@ import {
   checkAdopterAccountAction,
   finalizeAdoptionAction,
 } from "@/src/modules/adoption/actions";
-import { useActionState, useEffect, useState, useTransition } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 const initialState: FinalizeAdoptionFormState = { error: null };
 
@@ -87,6 +87,14 @@ export function FinalizeAdoptionForm({
   const [dniValue, setDniValue] = useState("");
   const [check, setCheck] = useState<AccountCheck>({ status: "idle" });
   const [checkPending, startCheck] = useTransition();
+  // Mirror of dniValue for the in-flight guard below: the onChange reset only
+  // covers the SYNC case — an in-flight response landing AFTER an edit would
+  // override the reset (transition updates batch after urgent ones) and show
+  // "Cuenta encontrada: <name for A>" beside an input holding B (ultrareview
+  // 2026-08-07, bug_001). The ref lets the response bail when the operator
+  // moved on. Server-side both consumers re-verify regardless.
+  const dniValueRef = useRef(dniValue);
+  dniValueRef.current = dniValue;
 
   // Controlled so the sibling contract-print form (below) can mirror them into
   // its hidden inputs — the printed document carries the same follow-up and
@@ -95,8 +103,12 @@ export function FinalizeAdoptionForm({
   const [notesValue, setNotesValue] = useState("");
 
   function verifyAccount() {
+    const requested = dniValue;
     startCheck(async () => {
-      const r = await checkAdopterAccountAction(orgToken, dniValue);
+      const r = await checkAdopterAccountAction(orgToken, requested);
+      // The operator edited the DNI while this check was in flight — the
+      // response belongs to a number no longer in the field. Drop it.
+      if (requested !== dniValueRef.current) return;
       if ("error" in r) setCheck({ status: "error", message: r.error });
       else if (r.found) setCheck({ status: "found", displayName: r.displayName });
       else setCheck({ status: "not_found" });

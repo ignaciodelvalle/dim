@@ -12,7 +12,7 @@
 
 import "@testing-library/jest-dom/vitest";
 
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const actionMock = vi.fn();
@@ -177,6 +177,32 @@ describe("<FinalizeAdoptionForm> — registered-adopter DNI check (org-pilot-pac
     });
 
     fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "40999888" } });
+
+    expect(screen.queryByText("Cuenta encontrada: Juana Pérez")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeDisabled();
+  });
+
+  it("an IN-FLIGHT check whose DNI was edited mid-flight is dropped, never shown (ultrareview bug_001)", async () => {
+    // Deferred response so the edit happens while the check is still pending —
+    // the async race the sync onChange reset cannot cover: the late response
+    // would otherwise override the reset and show A's name beside B's number.
+    let resolveCheck: (r: { found: true; displayName: string }) => void = () => {};
+    checkAccountMock.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCheck = resolve)),
+    );
+
+    render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
+
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "30111222" } });
+    fireEvent.click(screen.getByRole("button", { name: "Verificar cuenta" }));
+
+    // Operator moves on to a different DNI while the server is still thinking.
+    fireEvent.change(screen.getByLabelText(/DNI/), { target: { value: "40999888" } });
+
+    // The stale response for the OLD number lands now.
+    await act(async () => {
+      resolveCheck({ found: true, displayName: "Juana Pérez" });
+    });
 
     expect(screen.queryByText("Cuenta encontrada: Juana Pérez")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Finalizar adopción" })).toBeDisabled();
