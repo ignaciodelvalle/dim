@@ -52,9 +52,11 @@ const REGISTERED_DNI = "51000001"; // auth.users + profiles (dniVerified=false)
 const STUB_DNI = "51000002"; // legacy stub — profiles only, no auth row
 const ABSENT_DNI = "51000003"; // no profiles row
 
-// The PO-gated placeholder — asserted VERBATIM. Changing this string is a PO
+// The PO-gated marking — asserted VERBATIM. Changing this string is a PO
 // decision (spec 3.4), so the test failing on a rewording is by design.
-const TERMS_PLACEHOLDER = "TEXTO LEGAL PENDIENTE DE APROBACIÓN — BORRADOR";
+// PO decision 2026-08-07: model approved as orientative template (the
+// pre-approval "TEXTO LEGAL PENDIENTE" draft marker retired).
+const TERMS_PLACEHOLDER = "Modelo orientativo de miMAR — revisalo con tu organización";
 
 let adopterUserId: string;
 let coordUserId: string;
@@ -307,7 +309,7 @@ describe("printable adoption contract route (POST /adoption/contrato)", () => {
     const html = await res.text();
     // PO-gated draft marking, unmissable and verbatim (spec 3.4).
     expect(html).toContain(TERMS_PLACEHOLDER);
-    expect(html).toContain("Borrador — pendiente de revisión legal");
+    expect(html).toContain("Modelo orientativo — adaptalo a tu organización");
     // Org / adopter / pet / date / notes / followup blocks.
     expect(html).toContain("Contract Refugio");
     expect(html).toContain("Contrato Adoptante");

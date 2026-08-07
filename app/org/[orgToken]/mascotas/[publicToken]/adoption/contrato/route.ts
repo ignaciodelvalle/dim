@@ -36,7 +36,10 @@ export const dynamic = "force-dynamic";
 // changing it is a PO decision, not a refactor. It now banners the model
 // clauses instead of standing in for them. (Not exported — route.ts modules
 // only admit Next's route exports.)
-const CONTRACT_TERMS_PLACEHOLDER = "TEXTO LEGAL PENDIENTE DE APROBACIÓN — BORRADOR";
+// PO decision 2026-08-07: the 7-clause model was approved as an ORIENTATIVE
+// template — usable now, honest about its nature; a lawyer's pass upgrades the
+// wording whenever one exists. This replaced the pre-approval draft marker.
+const CONTRACT_TERMS_PLACEHOLDER = "Modelo orientativo de miMAR — revisalo con tu organización";
 
 function htmlEscape(s: string | null | undefined): string {
   if (!s) return "";
@@ -229,7 +232,7 @@ export async function POST(
   </style>
 </head>
 <body>
-  <div class="draft-banner">Borrador — pendiente de revisión legal</div>
+  <div class="draft-banner">Modelo orientativo — adaptalo a tu organización</div>
 
   <header class="cover">
     <div class="meta">Contrato de adopción · miMAR</div>
