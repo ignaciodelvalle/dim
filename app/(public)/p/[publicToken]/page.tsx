@@ -28,6 +28,7 @@ import { Icon } from "@/components/Icon";
 import { PppPublicBadge } from "@/components/PppPublicBadge";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
 import { PublicLostSections, formatLostSince } from "@/components/pet-profile/PublicLostSections";
+import { DegradedFallback } from "@/components/ui/DegradedFallback";
 import { LnVstamp } from "@/components/ui/StatusFlag";
 import {
   type Pet,
@@ -786,8 +787,19 @@ export default async function PublicCredentialPage({
 
               {/* The shell (photo, name, identity) paints first; this heavy
                   vaccination projection streams in behind a skeleton that
-                  reserves its height so the sections below do not jump. */}
-              <Suspense fallback={<CredentialTier2MedicalSkeleton />}>
+                  reserves its height so the sections below do not jump.
+                  degraded-states: the fallback escalates to waiting text /
+                  degraded card if the stream stalls (pure CSS). The OriginOrg
+                  fallback={null} boundary below stays UNWRAPPED on purpose —
+                  the badge is absent for most pets, so any fallback UI there
+                  would flash then vanish. */}
+              <Suspense
+                fallback={
+                  <DegradedFallback>
+                    <CredentialTier2MedicalSkeleton />
+                  </DegradedFallback>
+                }
+              >
                 <CredentialTier2Medical
                   petId={pet.id}
                   sex={pet.sex}

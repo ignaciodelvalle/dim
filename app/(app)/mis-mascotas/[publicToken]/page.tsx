@@ -74,6 +74,7 @@ import {
   type AvatarSwitcherPet,
   PetSwitcherAvatars,
 } from "@/components/pet-profile/PetSwitcherAvatars";
+import { DegradedFallback } from "@/components/ui/DegradedFallback";
 import {
   appointments,
   attachments,
@@ -934,7 +935,15 @@ export default async function PetDetailPage({
   // sanctions (§5.7 forbids it on a route body, where it would delay first
   // legible text). Same placement as the 19 uses on /admin/sistema.
   const libretaContent = (
-    <Suspense fallback={<TabLoadingSkeleton />}>
+    // degraded-states: fallback escalates to waiting text / degraded card if
+    // the stream stalls (pure CSS — components/ui/DegradedFallback.tsx).
+    <Suspense
+      fallback={
+        <DegradedFallback>
+          <TabLoadingSkeleton />
+        </DegradedFallback>
+      }
+    >
       <LibretaFaceSection
         user={user}
         pet={pet}
@@ -950,9 +959,12 @@ export default async function PetDetailPage({
   // NAVIGATION to the neighbor's route, not a client pane slide, so this same
   // node renders whether or not the carousel gesture shell wraps it.
   const documentNode = (
+    // degraded-states: same escalation as libretaContent above.
     <Suspense
       fallback={
-        <div className="h-12 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] animate-pulse" />
+        <DegradedFallback>
+          <div className="h-12 rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] animate-pulse" />
+        </DegradedFallback>
       }
     >
       <PetDetailTabsPanel

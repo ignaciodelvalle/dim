@@ -22,6 +22,7 @@
  *      placeholder of its own.
  */
 
+import { DegradedFallback } from "@/components/ui/DegradedFallback";
 import { OpCardSkeleton } from "@/components/ui/dashboard/OpCardSkeleton";
 import { OpKpiSkeleton } from "@/components/ui/dashboard/OpKpiSkeleton";
 
@@ -38,34 +39,38 @@ export default function GobLoading() {
     >
       <span className="sr-only">Cargando…</span>
 
-      {/* Block 1 — Alertas priorizadas placeholder */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-6">
-        {ALERT_KEYS.map((k) => (
-          <OpCardSkeleton key={`alert-${k}`} rows={2} />
-        ))}
-      </div>
+      {/* degraded-states: escalates to waiting text / degraded card if this
+          boundary stalls (pure CSS — see components/ui/DegradedFallback.tsx). */}
+      <DegradedFallback>
+        {/* Block 1 — Alertas priorizadas placeholder */}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 mb-6">
+          {ALERT_KEYS.map((k) => (
+            <OpCardSkeleton key={`alert-${k}`} rows={2} />
+          ))}
+        </div>
 
-      {/* Block 2 — Brechas vs meta: KPI grid (10 tiles, incl. mortalidad/
+        {/* Block 2 — Brechas vs meta: KPI grid (10 tiles, incl. mortalidad/
           disposición) + its own chart-card sub-row (mordeduras por período). */}
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4 mb-4">
-        {BRECHAS_KPI_KEYS.map((k) => (
-          <OpKpiSkeleton key={`kpi-${k}`} />
-        ))}
-      </div>
-      <div className="mb-6">
-        <OpCardSkeleton rows={3} />
-      </div>
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-4 mb-4">
+          {BRECHAS_KPI_KEYS.map((k) => (
+            <OpKpiSkeleton key={`kpi-${k}`} />
+          ))}
+        </div>
+        <div className="mb-6">
+          <OpCardSkeleton rows={3} />
+        </div>
 
-      {/* Block 3 — Cola operativa, "de a 1": one KPI-tile placeholder per
+        {/* Block 3 — Cola operativa, "de a 1": one KPI-tile placeholder per
           queue card. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 mb-6">
-        {QUEUE_KPI_KEYS.map((k) => (
-          <OpKpiSkeleton key={`queue-${k}`} />
-        ))}
-      </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 mb-6">
+          {QUEUE_KPI_KEYS.map((k) => (
+            <OpKpiSkeleton key={`queue-${k}`} />
+          ))}
+        </div>
 
-      {/* Block 4 — Actividad reciente (collapsed) placeholder */}
-      <OpCardSkeleton rows={3} />
+        {/* Block 4 — Actividad reciente (collapsed) placeholder */}
+        <OpCardSkeleton rows={3} />
+      </DegradedFallback>
     </output>
   );
 }
