@@ -8,13 +8,19 @@ import { describe, expect, it } from "vitest";
 
 import {
   INTAKE_CSV_COLUMNS,
+  INTAKE_CSV_EXPORT_STATUS_HEADER,
   buildFailedRowsCsv,
   buildIntakeCsvTemplate,
+  buildIntakeExportCsv,
   decodeIntakeCsv,
   findExactDuplicateRows,
+  intakeReasonToIntakeCsvValue,
   mapIntakeCsvRecord,
   normalizeIntakeCsvDate,
+  sexToIntakeCsvValue,
   sniffIntakeCsvDelimiter,
+  speciesToIntakeCsvValue,
+  weightToIntakeCsvValue,
 } from "./intake-csv";
 
 function parseTemplate(text: string): Record<string, string>[] {
@@ -198,5 +204,146 @@ describe("buildFailedRowsCsv (spec 1.6)", () => {
     expect(row).toContain("Fallida");
     expect(row).toContain("conejo");
     expect(row).toContain("valor inválido");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export half — the roster download (org-first readiness finding #4)
+// ---------------------------------------------------------------------------
+//
+// The property under test is the ROUND TRIP: whatever the export writes must be
+// readable by the import without an edit. These are the pure assertions; the
+// live-DB route test (__tests__/org-mascotas-export-route.test.ts) makes the
+// same trip with real rows.
+
+describe("buildIntakeExportCsv (export half)", () => {
+  it("mirrors the template exactly — BOM, semicolons, CRLF, same headers in the same order", () => {
+    const template = buildIntakeCsvTemplate().replace(/^﻿/, "").split("\r\n")[0];
+    const csv = buildIntakeExportCsv([{ nombre: "Negrita" }]);
+
+    expect(csv.startsWith("﻿")).toBe(true);
+    const header = csv.replace(/^﻿/, "").split("\r\n")[0];
+    // The export header IS the template header plus the one export-only column.
+    expect(header).toBe(`${template};${INTAKE_CSV_EXPORT_STATUS_HEADER}`);
+    expect(csv).toContain("\r\n");
+  });
+
+  it("is keyed by the catalog key, not the starred header — callers never type a header", () => {
+    // "nombre" (the normalized key), NOT "nombre*". A caller keying by the
+    // starred header would silently export a column of blanks.
+    const csv = buildIntakeExportCsv([{ nombre: "Negrita", "especie*": "perro" }]);
+    const row = csv.replace(/^﻿/, "").split("\r\n")[1];
+    expect(row.startsWith("Negrita;")).toBe(true);
+    // The wrong-key value went nowhere rather than landing in some other cell.
+    expect(row).not.toContain("perro");
+  });
+
+  it("round-trips a full row back through the import path with zero errors", () => {
+    const csv = buildIntakeExportCsv([
+      {
+        nombre: "Negrita",
+        especie: speciesToIntakeCsvValue("dog"),
+        sexo: sexToIntakeCsvValue("female"),
+        edad_anios: "2",
+        edad_meses: "6",
+        raza: "mestizo",
+        color: "negro",
+        peso_estimado_kg: weightToIntakeCsvValue("12.50"),
+        senias_particulares: "mancha blanca",
+        microchip: "900123456789012",
+        pais_chip: "032",
+        tatuaje: "AB-123",
+        motivo_ingreso: intakeReasonToIntakeCsvValue("rescue"),
+        condicion_ingreso: "buen estado general",
+        // Embedded comma — the escape has to survive a `;`-delimited file.
+        jurisdiccion_rescate: "La Plata, Buenos Aires",
+        fecha_ingreso: "01/07/2026",
+        [INTAKE_CSV_EXPORT_STATUS_HEADER]: "Activa",
+      },
+    ]);
+
+    // Exactly the import's own entry point: decode the bytes, sniff, parse, map.
+    const bytes = new TextEncoder().encode(csv);
+    const { text, encoding } = decodeIntakeCsv(bytes);
+    expect(encoding).toBe("utf-8");
+    expect(sniffIntakeCsvDelimiter(text)).toBe(";");
+
+    const [record] = parseTemplate(text);
+    const { fields, errors } = mapIntakeCsvRecord(record);
+    expect(errors).toEqual([]);
+    expect(fields.name).toBe("Negrita");
+    expect(fields.species).toBe("dog");
+    expect(fields.sex).toBe("female");
+    expect(fields.intakeReason).toBe("rescue");
+    expect(fields.occurredAt).toBe("2026-07-01");
+    expect(fields.estimatedWeightKg).toBe("12.5");
+    expect(fields.microchipId).toBe("900123456789012");
+    expect(fields.tattooCode).toBe("AB-123");
+    expect(fields.rescueJurisdiction).toBe("La Plata, Buenos Aires");
+    // `estado` is export-only: header-keyed mapping ignores it instead of
+    // choking on an unknown column.
+    expect(fields).not.toHaveProperty("estado");
+  });
+
+  it("emits only a header for an empty roster — never a stray blank data row", () => {
+    const csv = buildIntakeExportCsv([]);
+    expect(parseTemplate(csv)).toEqual([]);
+  });
+});
+
+describe("export value mappers are the exact inverse of the import maps", () => {
+  it("maps every species/sex/reason the import accepts, in both directions", () => {
+    // Derived from the import's own example + enum error text rather than a
+    // second hand-written table, so a new enum value cannot be added to one
+    // side alone without this failing.
+    for (const [es, en] of [
+      ["perro", "dog"],
+      ["gato", "cat"],
+      ["otra", "other"],
+    ]) {
+      expect(speciesToIntakeCsvValue(en)).toBe(es);
+    }
+    for (const [es, en] of [
+      ["macho", "male"],
+      ["hembra", "female"],
+      ["desconocido", "unknown"],
+    ]) {
+      expect(sexToIntakeCsvValue(en)).toBe(es);
+    }
+    for (const [es, en] of [
+      ["rescate", "rescue"],
+      ["entrega", "surrender"],
+      ["via_publica", "stray_found"],
+      ["otro", "other"],
+    ]) {
+      expect(intakeReasonToIntakeCsvValue(en)).toBe(es);
+    }
+  });
+
+  it("emits an unmapped species RAW instead of folding it into «otra»", () => {
+    // A ferret exported as "otra" would come back as species=other and the
+    // animal would have quietly changed species. Raw means the re-import names
+    // the column and the value, and a human decides.
+    expect(speciesToIntakeCsvValue("ferret")).toBe("ferret");
+    const { errors } = mapIntakeCsvRecord({
+      "nombre*": "Hurón",
+      "especie*": "ferret",
+      "motivo_ingreso*": "rescate",
+      "fecha_ingreso*": "01/07/2026",
+    });
+    expect(errors.some((e) => e.startsWith("especie:"))).toBe(true);
+  });
+
+  it("leaves a missing intake reason EMPTY rather than inventing «otro»", () => {
+    expect(intakeReasonToIntakeCsvValue(null)).toBe("");
+    expect(intakeReasonToIntakeCsvValue(undefined)).toBe("");
+  });
+
+  it("writes weights with a decimal comma and no scale padding", () => {
+    // Postgres numeric(5,2) arrives as "12.50"; the operator typed 12,5.
+    expect(weightToIntakeCsvValue("12.50")).toBe("12,5");
+    expect(weightToIntakeCsvValue(3)).toBe("3");
+    expect(weightToIntakeCsvValue(null)).toBe("");
+    expect(weightToIntakeCsvValue("no-es-un-numero")).toBe("");
   });
 });

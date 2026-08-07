@@ -137,6 +137,17 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
         </span>
       </div>
 
+      {/* The other direction (org-first readiness #4). The export uses this same
+          layout, so what comes out can go back in — and an org that wants to
+          correct twenty rows in Excel starts from its real data instead of an
+          empty template. */}
+      <p className="text-sm text-ln-op-mute">
+        ¿Querés bajar lo que ya está cargado?{" "}
+        <a href={`/org/${orgToken}/mascotas/exportar`} className="text-ln-op-azul hover:underline">
+          Exportar CSV
+        </a>
+      </p>
+
       {step === "upload" && (
         <div className="space-y-3">
           <label className="block space-y-1">

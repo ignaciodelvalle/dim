@@ -2,6 +2,7 @@
 //
 // Coverage:
 //   1. deriveSetupSteps — base steps always present (coverage, members, verification).
+//   1b. firstAnimal step — custody org types only, leads the actionable steps.
 //   2. Services step omitted when canCreateServices=false; present when true.
 //   3. Capacity step present for shelter; absent for clinic, rescue_network, other.
 //   4. Each step's done/pending derived correctly from input fields.
@@ -27,6 +28,7 @@ import {
 
 const BASE_INPUT: OrgSetupInput = {
   orgType: "shelter",
+  hasAnimals: false,
   hasCoverage: false,
   memberCount: 1,
   canCreateServices: false,
@@ -52,10 +54,79 @@ describe("deriveSetupSteps — base steps", () => {
     expect(keys).toContain("verification");
   });
 
-  it("returns steps in deterministic order: coverage → members → [services] → [capacity] → verification", () => {
+  it("returns steps in deterministic order: [firstAnimal] → coverage → members → [services] → [capacity] → verification", () => {
     const steps = deriveSetupSteps(makeInput({ canCreateServices: true, orgType: "shelter" }));
     const keys = steps.map((s) => s.key);
-    expect(keys).toEqual(["coverage", "members", "services", "capacity", "verification"]);
+    expect(keys).toEqual([
+      "firstAnimal",
+      "coverage",
+      "members",
+      "services",
+      "capacity",
+      "verification",
+    ]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 1b. firstAnimal — the guided path finally leads to the product
+// ---------------------------------------------------------------------------
+//
+// Org-first readiness finding #5: every step this checklist offered a refugio
+// was configuration AROUND AN EMPTY ROSTER (zones for alerts about animals it
+// does not have, members to help with animals it does not have, capacity to
+// measure occupancy of animals it does not have). The one action that makes
+// miMAR real for a shelter — registering the first animal — was missing, so a
+// refugio could complete onboarding without ever touching intake.
+
+describe("deriveSetupSteps — firstAnimal step", () => {
+  it("leads the actionable steps for a shelter — it is not buried after configuration", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "shelter" }));
+    const actionable = steps.filter((s) => s.waitingOn === "org");
+    expect(actionable[0]?.key).toBe("firstAnimal");
+  });
+
+  it("applies to rescue_network too — a rescatista holds animals without declaring capacity", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "rescue_network" }));
+    // The pair that makes the gate's WIDTH the point: intake applies, capacity
+    // does not. Asserting only the presence of firstAnimal would pass just as
+    // well if the step reused capacity's shelter-only gate by accident.
+    expect(steps.find((s) => s.key === "firstAnimal")).toBeDefined();
+    expect(steps.find((s) => s.key === "capacity")).toBeUndefined();
+  });
+
+  it.each(["clinic", "sanitary_authority", "other"])(
+    "omits firstAnimal for %s — no custody, so intake is not a job it can finish",
+    (orgType) => {
+      const steps = deriveSetupSteps(makeInput({ orgType }));
+      expect(steps.find((s) => s.key === "firstAnimal")).toBeUndefined();
+    },
+  );
+
+  it("marks firstAnimal done when the org already holds an animal", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "shelter", hasAnimals: true }));
+    expect(steps.find((s) => s.key === "firstAnimal")?.done).toBe(true);
+  });
+
+  it("marks firstAnimal pending for an empty roster", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "shelter", hasAnimals: false }));
+    expect(steps.find((s) => s.key === "firstAnimal")?.done).toBe(false);
+  });
+
+  it("sends the org to the intake page and mentions the CSV alternative", () => {
+    const step = deriveSetupSteps(makeInput({ orgType: "shelter" })).find(
+      (s) => s.key === "firstAnimal",
+    );
+    // The route matters: /intake is where BOTH paths start (the individual form
+    // and the "Importar CSV" link on the same screen), so one CTA covers the
+    // shelter with one animal and the shelter with a spreadsheet of two hundred.
+    expect(step?.href).toBe("intake");
+    expect(step?.cta).toBeTruthy();
+    expect(step?.waitingOn).toBe("org");
+    // A refugio arriving with an existing roster must not read this row as
+    // "type them in one by one" and bounce.
+    expect(step?.hint).toMatch(/import/i);
+    expect(step?.hint).toMatch(/CSV/);
   });
 });
 
@@ -204,7 +275,13 @@ describe("deriveSetupSteps — waitingOn", () => {
       makeInput({ orgType: "shelter", canCreateServices: true }),
     ).filter((s) => s.key !== "verification");
     // Guard the guard: an empty list would make the loop vacuous.
-    expect(steps.map((s) => s.key)).toEqual(["coverage", "members", "services", "capacity"]);
+    expect(steps.map((s) => s.key)).toEqual([
+      "firstAnimal",
+      "coverage",
+      "members",
+      "services",
+      "capacity",
+    ]);
     for (const step of steps) {
       expect(step.waitingOn, `${step.key} should be actionable by the org`).toBe("org");
       expect(step.href, `${step.key} needs a route`).toBeTruthy();
@@ -235,6 +312,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
+        hasAnimals: true,
         hasCoverage: true,
         memberCount: 2,
         canCreateServices: false,
@@ -262,6 +340,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
+        hasAnimals: true,
         hasCoverage: true,
         memberCount: 2,
         canCreateServices: true,
@@ -280,6 +359,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
+        hasAnimals: true,
         hasCoverage: true,
         memberCount: 2,
         hasCapacityDeclared: true,
@@ -300,6 +380,7 @@ describe("isSetupComplete", () => {
       const steps = deriveSetupSteps(
         makeInput({
           orgType: "shelter",
+          hasAnimals: true,
           hasCoverage: false,
           memberCount: 2,
           hasCapacityDeclared: true,
@@ -320,6 +401,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
+        hasAnimals: true,
         hasCoverage: true,
         memberCount: 2,
         canCreateServices: true,
@@ -338,14 +420,24 @@ describe("isSetupComplete", () => {
 
 describe("firstPendingStep", () => {
   it("returns the first pending step when some are done", () => {
-    // coverage done, members still pending
-    const steps = deriveSetupSteps(makeInput({ hasCoverage: true, memberCount: 1 }));
+    // firstAnimal + coverage done, members still pending
+    const steps = deriveSetupSteps(
+      makeInput({ hasAnimals: true, hasCoverage: true, memberCount: 1 }),
+    );
     const first = firstPendingStep(steps);
     expect(first?.key).toBe("members");
   });
 
-  it("returns coverage as first when everything is pending", () => {
-    const steps = deriveSetupSteps(makeInput());
+  it("returns firstAnimal as first for an empty shelter — the CTA a new refugio lands on", () => {
+    // This is the whole point of finding #5. A brand-new refugio's auto-focused
+    // CTA is "register an animal", not "define coverage zones" for a roster
+    // that does not exist yet.
+    const steps = deriveSetupSteps(makeInput({ orgType: "shelter" }));
+    expect(firstPendingStep(steps)?.key).toBe("firstAnimal");
+  });
+
+  it("returns coverage as first for an org type with no intake step", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "clinic" }));
     const first = firstPendingStep(steps);
     expect(first?.key).toBe("coverage");
   });
@@ -398,6 +490,7 @@ describe("auto-hide behavior", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
+        hasAnimals: true,
         hasCoverage: true,
         memberCount: 5,
         canCreateServices: false,

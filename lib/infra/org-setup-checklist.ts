@@ -4,14 +4,36 @@
 // nothing is persisted. Steps not applicable to the org_type are omitted.
 //
 // Steps:
-//   1. coverage   — define coverage zones (cobertura)
-//   2. members    — invite members (miembros/invitar)
-//   3. services   — load services (servicios/nuevo) — if service_offering.create granted
-//   4. capacity   — declare capacity (configuracion) — shelter only
-//   5. verification — waiting on miMAR (NOT an org action, see below)
+//   1. firstAnimal — register the first animal (intake) — custody org types only
+//   2. coverage   — define coverage zones (cobertura)
+//   3. members    — invite members (miembros/invitar)
+//   4. services   — load services (servicios/nuevo) — if service_offering.create granted
+//   5. capacity   — declare capacity (configuracion) — shelter only
+//   6. verification — waiting on miMAR (NOT an org action, see below)
 //
 // The checklist auto-hides when every step the ORG can act on is done.
 //
+// ---------------------------------------------------------------------------
+// Why `firstAnimal` leads the list (org-first readiness finding #5)
+// ---------------------------------------------------------------------------
+// Every step this checklist used to offer a refugio was CONFIGURATION AROUND AN
+// EMPTY ROSTER: coverage zones so it can be alerted about animals it does not
+// have, members to help with animals it does not have, capacity to measure
+// occupancy of animals it does not have. The one action that turns miMAR into a
+// working system for a shelter — registering the first animal — was not on the
+// guided path at all, so the guided path led everywhere except to the product.
+//
+// It leads rather than trails for the same reason: the moment the first animal
+// exists, the occupancy KPI, the "Requieren acción" queue and the custody list
+// stop being empty shells, and the rest of the checklist starts describing real
+// work instead of hypothetical work.
+//
+// Org-type gating mirrors `capacity`'s (a step only where it is a real job), but
+// with the WIDER custody-holding set: a rescue_network holds and rehomes animals
+// without declaring shelter capacity, so it needs the intake step and not the
+// capacity one. A clinic or a sanitary authority takes no custody at all — the
+// intake module is not even in their nav — so the step is omitted entirely
+// rather than shown as a task they can never finish.
 // ---------------------------------------------------------------------------
 // Why `verification` is `waitingOn: "mimar"` and carries no CTA
 // ---------------------------------------------------------------------------
@@ -40,7 +62,24 @@
 // Types
 // ---------------------------------------------------------------------------
 
-export type SetupStepKey = "coverage" | "members" | "services" | "capacity" | "verification";
+export type SetupStepKey =
+  | "firstAnimal"
+  | "coverage"
+  | "members"
+  | "services"
+  | "capacity"
+  | "verification";
+
+/**
+ * Org types that take custody of animals, and therefore have an intake job at
+ * all. Shelters and rescue networks (rescatistas) hold and rehome; clinics and
+ * sanitary authorities do not. Kept as an explicit set rather than a
+ * "not a clinic" negation so a NEW org_type has to opt in deliberately.
+ *
+ * Mirrors the `isRehoming` gate the org panel already applies to the custody
+ * module cards (app/org/[orgToken]/page.tsx).
+ */
+const CUSTODY_ORG_TYPES: readonly string[] = ["shelter", "rescue_network"];
 
 /**
  * Who has to act for a step to become done.
@@ -71,6 +110,12 @@ export type SetupStep = {
 /** Input state derived from org + membership data. No DB calls here. */
 export type OrgSetupInput = {
   orgType: string;
+  /**
+   * True when the org holds at least one animal under an ACTIVE ownership row
+   * (any custody role — the same population the custody list shows). Only read
+   * for custody org types; see CUSTODY_ORG_TYPES.
+   */
+  hasAnimals: boolean;
   /** True when at least one coverage zone exists for the org. */
   hasCoverage: boolean;
   /**
@@ -108,7 +153,24 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
   const isRescueNetwork = input.orgType === "rescue_network";
   const needsCapacity = isShelter; // rescue_network doesn't declare shelter capacity
 
-  const steps: SetupStep[] = [
+  const steps: SetupStep[] = [];
+
+  // First animal — leads the actionable steps for any org that takes custody.
+  // See the header note for why it is first and why the gate is wider than
+  // `capacity`'s.
+  if (CUSTODY_ORG_TYPES.includes(input.orgType)) {
+    steps.push({
+      key: "firstAnimal",
+      label: "Primer animal",
+      hint: "Registrá tu primer animal — o importá tu planilla completa por CSV desde la misma pantalla.",
+      href: "intake",
+      cta: "Registrar animal",
+      done: input.hasAnimals,
+      waitingOn: "org",
+    });
+  }
+
+  steps.push(
     {
       key: "coverage",
       label: "Zonas de cobertura",
@@ -129,7 +191,7 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
       done: input.memberCount > 1,
       waitingOn: "org",
     },
-  ];
+  );
 
   // Services step — only shown when the org has the capability to create them.
   if (input.canCreateServices) {

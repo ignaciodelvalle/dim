@@ -204,6 +204,10 @@ export default async function OrgMascotasPage({
     }
   }
 
+  const hasActiveFilters = Boolean(
+    speciesFilter || isOtherSpecies || nameQuery || adoptionEligibleFilter,
+  );
+
   const recentlyCreated = sp.nueva ?? null;
   const recentlyFostered = sp.foster ?? null;
   const recentlyFosterEnded = sp.fostend ?? null;
@@ -235,14 +239,37 @@ export default async function OrgMascotasPage({
                 : `${allCards.length} ${pluralizeEs(allCards.length, "animal")} bajo custodia activa.`}
             </p>
           </div>
-          {canIntake && (
-            <Link
-              href={`/org/${orgToken}/intake`}
-              className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700"
-            >
-              Registrar ingreso
-            </Link>
-          )}
+          <div className="flex items-center gap-4">
+            {/* Exit ramp (org-first readiness #4): the org's own roster, in the
+                bulk-import layout so it round-trips. Same anchor idiom as the
+                route-based "Exportar CSV →" links on the gob dashboards. Gated
+                on nothing extra — reading this page already required
+                pet.read_held, which is exactly what the route re-checks.
+
+                The export ignores the filters on purpose (it is the roster, not
+                the view), so the link must not react to them either: `allCards`
+                is only proof of an empty ORG when nothing is filtering it. With
+                a filter active a 0-row screen says nothing about the roster, and
+                hiding the exit ramp there would be a lie about what miMAR
+                holds. */}
+            {(allCards.length > 0 || hasActiveFilters) && (
+              <a
+                href={`/org/${orgToken}/mascotas/exportar`}
+                className="text-md text-ln-op-azul hover:underline"
+                download
+              >
+                Exportar CSV →
+              </a>
+            )}
+            {canIntake && (
+              <Link
+                href={`/org/${orgToken}/intake`}
+                className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700"
+              >
+                Registrar ingreso
+              </Link>
+            )}
+          </div>
         </header>
 
         {/* PO decision 5 (UI review 2026-08-06): this used to be a GET form with
@@ -336,9 +363,7 @@ export default async function OrgMascotasPage({
         )}
 
         <OrgMascotasBulkList
-          hasActiveFilters={Boolean(
-            speciesFilter || isOtherSpecies || nameQuery || adoptionEligibleFilter,
-          )}
+          hasActiveFilters={hasActiveFilters}
           cards={cards.map((c) => ({
             petId: c.pet.id,
             publicToken: c.pet.publicToken,

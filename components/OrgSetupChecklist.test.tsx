@@ -23,6 +23,7 @@ function render(node: React.ReactElement): string {
 function unverifiedShelterSteps(): SetupStep[] {
   return deriveSetupSteps({
     orgType: "shelter",
+    hasAnimals: false,
     hasCoverage: false,
     memberCount: 1,
     canCreateServices: false,
@@ -49,6 +50,7 @@ describe("<OrgSetupChecklist> — the verification row is a status, not a task",
     // copy assertion can see that; counting anchors can.
     const steps = deriveSetupSteps({
       orgType: "clinic",
+      hasAnimals: false,
       hasCoverage: true,
       memberCount: 2,
       canCreateServices: false,
@@ -86,12 +88,37 @@ describe("<OrgSetupChecklist> — the verification row is a status, not a task",
   });
 
   it("counts progress over org-actionable steps only", () => {
-    // shelter, nothing done: coverage + members + capacity are actionable,
-    // verification is not. The denominator must be 3, not 4 — an unreachable
-    // denominator is the same lie the CTA told, relocated to the counter.
-    const html = render(<OrgSetupChecklist steps={unverifiedShelterSteps()} orgToken="ORG-TEST" />);
-    expect(html).toContain("0 de 3 pasos completados");
-    expect(html).not.toContain("0 de 4 pasos completados");
+    // shelter, nothing done: firstAnimal + coverage + members + capacity are
+    // actionable, verification is not. The denominator counts what the org can
+    // finish (4), never the rendered rows (5) — an unreachable denominator is
+    // the same lie the CTA told, relocated to the counter.
+    const steps = unverifiedShelterSteps();
+    // Guard the guard: assert the shape the numbers below describe, so adding
+    // or removing a step turns this into a clear failure instead of a silent
+    // off-by-one in a string.
+    expect(steps.filter((s) => s.waitingOn === "org")).toHaveLength(4);
+    expect(steps).toHaveLength(5);
+
+    const html = render(<OrgSetupChecklist steps={steps} orgToken="ORG-TEST" />);
+    expect(html).toContain("0 de 4 pasos completados");
+    expect(html).not.toContain("0 de 5 pasos completados");
+  });
+
+  it("autofocuses the FIRST org-actionable pending step — the intake row for a shelter", () => {
+    // The shelter's first job is registering an animal (org-first readiness
+    // #5), so that is the row autoFocus must land on and the row aria-current
+    // must mark. Pinning it here keeps a future reordering from silently
+    // sending a brand-new refugio to "Zonas de cobertura" first.
+    const html = render(
+      <OrgSetupChecklist steps={unverifiedShelterSteps()} orgToken="ORG-TEST" autoFocusFirst />,
+    );
+    // Read the row the component marked as the current step and check WHERE it
+    // sends the operator — asserting on the raw `autofocus` attribute would
+    // depend on React's attribute ordering, which is not the behaviour at issue.
+    const currentRow = html.split('aria-current="step"')[1]?.split("</li>")[0];
+    expect(currentRow).toBeDefined();
+    expect(currentRow).toContain('href="/org/ORG-TEST/intake"');
+    expect(currentRow).toContain("autofocus");
   });
 
   it("autofocuses the first ORG-actionable pending step, not the verification row", () => {
@@ -100,6 +127,7 @@ describe("<OrgSetupChecklist> — the verification row is a status, not a task",
     // dead end for a keyboard user.
     const steps = deriveSetupSteps({
       orgType: "clinic",
+      hasAnimals: false,
       hasCoverage: true,
       memberCount: 2,
       canCreateServices: false,

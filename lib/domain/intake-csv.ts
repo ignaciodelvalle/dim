@@ -156,6 +156,87 @@ export function buildIntakeCsvTemplate(): string {
 export const INTAKE_CSV_TEMPLATE_FILENAME = "plantilla-ingreso.csv";
 
 // ---------------------------------------------------------------------------
+// Export half — the roster download (org-first readiness finding #4)
+// ---------------------------------------------------------------------------
+//
+// A shelter must be able to take its own roster with it. The export is built
+// from the SAME column catalog and the SAME delimiter/BOM/CRLF rules as the
+// template above, so a downloaded roster re-uploads through the import path
+// without a single edit — that round-trip is the whole point of an exit ramp,
+// and it is only free because import and export share this module.
+//
+// The enum translations are the INVERSE of the import maps, derived from them
+// programmatically: hand-written reverse tables are exactly the kind of thing
+// that drifts the day someone adds a species to one side only.
+
+/** Extra, EXPORT-ONLY column. Header-keyed mapping ignores it on re-upload. */
+export const INTAKE_CSV_EXPORT_STATUS_HEADER = "estado";
+
+function invert(map: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(map).map(([es, en]) => [en, es]));
+}
+
+const SPECIES_MAP_REVERSE = invert(SPECIES_MAP);
+const SEX_MAP_REVERSE = invert(SEX_MAP);
+const INTAKE_REASON_MAP_REVERSE = invert(INTAKE_REASON_MAP);
+
+/**
+ * Stored enum → the es-AR word the import understands.
+ *
+ * An UNMAPPED value (species "ferret", "rabbit"… — real pet species the bulk
+ * template never offered) is emitted RAW, not folded into "otra". Folding would
+ * silently rewrite the animal's species on re-import; the raw value re-imports
+ * as a named per-column error the operator can see and decide about. An export
+ * that quietly loses a fact is worse than one that asks a question.
+ */
+export function speciesToIntakeCsvValue(species: string): string {
+  return SPECIES_MAP_REVERSE[species] ?? species;
+}
+
+export function sexToIntakeCsvValue(sex: string): string {
+  return SEX_MAP_REVERSE[sex] ?? sex;
+}
+
+export function intakeReasonToIntakeCsvValue(reason: string | null | undefined): string {
+  if (!reason) return "";
+  return INTAKE_REASON_MAP_REVERSE[reason] ?? reason;
+}
+
+/**
+ * Numeric weight (Postgres numeric arrives as "12.50") → the decimal-comma form
+ * Excel es-AR and `mapIntakeCsvRecord` both expect ("12,5"). Trailing zeros are
+ * dropped so the operator sees the number they typed, not the column's scale.
+ * Returns "" for null/unparseable rather than printing "NaN" into a cell.
+ */
+export function weightToIntakeCsvValue(value: string | number | null | undefined): string {
+  if (value === null || value === undefined || value === "") return "";
+  const n = typeof value === "number" ? value : Number(String(value).trim().replace(",", "."));
+  if (!Number.isFinite(n)) return "";
+  return String(n).replace(".", ",");
+}
+
+/**
+ * Builds the roster export: template layout (same headers in the same order,
+ * BOM, `;`, CRLF) plus the trailing export-only `estado` column.
+ *
+ * Each record is keyed by the catalog's normalized `key` (e.g. "nombre", not
+ * "nombre*") — the same key `mapIntakeCsvRecord` matches on — so callers never
+ * hand-write a header string.
+ */
+export function buildIntakeExportCsv(records: Record<string, string>[]): string {
+  const header = [
+    ...INTAKE_CSV_COLUMNS.map((c) => csvEscape(c.header)),
+    INTAKE_CSV_EXPORT_STATUS_HEADER,
+  ].join(";");
+  const lines = records.map((record) => {
+    const cells = INTAKE_CSV_COLUMNS.map((c) => csvEscape(record[c.key] ?? ""));
+    cells.push(csvEscape(record[INTAKE_CSV_EXPORT_STATUS_HEADER] ?? ""));
+    return cells.join(";");
+  });
+  return `﻿${header}\r\n${lines.join("\r\n")}${lines.length ? "\r\n" : ""}`;
+}
+
+// ---------------------------------------------------------------------------
 // Record mapping (es-AR record → intake FormData fields)
 // ---------------------------------------------------------------------------
 

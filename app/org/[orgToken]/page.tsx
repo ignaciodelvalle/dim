@@ -12,7 +12,7 @@
 // Spec: docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md (Items 17, 19)
 // Depends on Item 16: lib/org-census.ts (fetchOrgCensus, computeOccupancyBreakdown)
 
-import { count, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
@@ -32,6 +32,7 @@ import {
   organizationCapabilityGrants,
   organizationCoverage,
   organizationMemberships,
+  ownerships,
   serviceOfferings,
 } from "@/db";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
@@ -230,7 +231,17 @@ export default async function OrgDashboardPage({
   const canCreateServices = granted.has("service_offering.create");
 
   // Setup checklist inputs (Item 19) — run in parallel with dashboard projections.
-  const [coverageCountRow, memberCountRow, servicesCountRow] = await Promise.all([
+  //
+  // `firstAnimalRow` is an EXISTENCE probe, not a count: the checklist only asks
+  // "is there at least one?". fetchOrgCensus (the panel's own pet counter, below)
+  // is deliberately NOT reused here — it GROUP BYs species, it is only fetched
+  // for `isShelter` (the intake step also applies to rescue_network), and it
+  // narrows to role='shelter_custody' while the custody list the step leads to
+  // shows every active ownership role. A `limit(1)` on the same predicate as the
+  // list is both cheaper and the one that matches what the operator will see.
+  // `isRehoming` (above) is the same shelter|rescue_network custody gate the
+  // checklist applies to its own firstAnimal step — one predicate, one meaning.
+  const [coverageCountRow, memberCountRow, servicesCountRow, firstAnimalRow] = await Promise.all([
     db
       .select({ n: count() })
       .from(organizationCoverage)
@@ -245,10 +256,20 @@ export default async function OrgDashboardPage({
           .from(serviceOfferings)
           .where(eq(serviceOfferings.organizationId, organization.id))
       : Promise.resolve([{ n: 0 }]),
+    isRehoming
+      ? db
+          .select({ id: ownerships.id })
+          .from(ownerships)
+          .where(
+            and(eq(ownerships.ownerOrganizationId, organization.id), isNull(ownerships.endedAt)),
+          )
+          .limit(1)
+      : Promise.resolve([]),
   ]);
 
   const setupSteps = deriveSetupSteps({
     orgType: organization.orgType,
+    hasAnimals: firstAnimalRow.length > 0,
     hasCoverage: (coverageCountRow[0]?.n ?? 0) > 0,
     memberCount: memberCountRow[0]?.n ?? 1,
     canCreateServices,
