@@ -100,7 +100,7 @@ export default async function EventDetailPage({
       {/* Back */}
       <Link
         href={`/mis-mascotas/${pet.publicToken}?tab=historial`}
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Historial de {pet.name}
       </Link>
@@ -114,7 +114,7 @@ export default async function EventDetailPage({
           {heading}
         </h1>
         {summary.secondary && (
-          <p className="mt-1 text-[13px] text-[var(--color-ln-mute)]">{summary.secondary}</p>
+          <p className="mt-1 text-md text-[var(--color-ln-mute)]">{summary.secondary}</p>
         )}
         {/* Author chip + amended badge */}
         <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
@@ -133,7 +133,7 @@ export default async function EventDetailPage({
         className="mb-4 flex flex-col gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-2.5"
         role="note"
       >
-        <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+        <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
           Este registro no se puede editar ni borrar — la libreta es un historial inmutable. Si hay
           un dato incorrecto, podés registrar una corrección que queda acreditada en el historial.
         </p>
@@ -163,7 +163,7 @@ export default async function EventDetailPage({
           <LnCard>
             <LnCardHead title="Notas" />
             <LnCardBody>
-              <p className="text-[13.5px] text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
+              <p className="text-md text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
                 {event.notes}
               </p>
             </LnCardBody>
@@ -177,7 +177,7 @@ export default async function EventDetailPage({
             {point ? (
               <LocationMap lat={point.lat} lng={point.lng} />
             ) : (
-              <p className="text-[13px] text-[var(--color-ln-mute)] italic">
+              <p className="text-md text-[var(--color-ln-mute)] italic">
                 Sin ubicación registrada.
               </p>
             )}
@@ -190,9 +190,7 @@ export default async function EventDetailPage({
           <LnCardHead title="Detalle" />
           <LnCardBody>
             {details.length === 0 ? (
-              <p className="text-[13px] text-[var(--color-ln-mute)] italic">
-                Sin campos adicionales.
-              </p>
+              <p className="text-md text-[var(--color-ln-mute)] italic">Sin campos adicionales.</p>
             ) : (
               <dl className="divide-y divide-[var(--color-ln-line-2)]">
                 {details.map((row) => (
@@ -200,10 +198,10 @@ export default async function EventDetailPage({
                     key={row.label}
                     className="grid grid-cols-1 gap-1 py-2.5 first:pt-0 last:pb-0 sm:grid-cols-3 sm:gap-3"
                   >
-                    <dt className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                    <dt className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
                       {row.label}
                     </dt>
-                    <dd className="text-[13px] text-[var(--color-ln-ink-2)] break-words sm:col-span-2">
+                    <dd className="text-md text-[var(--color-ln-ink-2)] break-words sm:col-span-2">
                       {row.value}
                     </dd>
                   </div>
@@ -230,7 +228,7 @@ export default async function EventDetailPage({
                             className="h-[192px] w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] object-cover"
                           />
                         ) : (
-                          <span className="flex h-[96px] w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline">
+                          <span className="flex h-[96px] w-full items-center justify-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-md text-[var(--color-ln-azul)] no-underline hover:underline">
                             Ver adjunto ({a.mimeType})
                           </span>
                         )}
@@ -264,7 +262,7 @@ function Detail({ label, value }: { label: string; value: string | null | undefi
       <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
+      <dd className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">{value || "—"}</dd>
     </div>
   );
 }

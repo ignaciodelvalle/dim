@@ -102,7 +102,7 @@ export default async function DecomisosDashboardPage({
     if (!govtOrg) {
       return (
         <div className="space-y-6">
-          <p className="text-[13px] text-ln-op-mute rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center">
+          <p className="text-md text-ln-op-mute rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center">
             Tu usuario no está asociado a ninguna autoridad sanitaria. Contactá al administrador.
           </p>
         </div>
@@ -230,7 +230,7 @@ export default async function DecomisosDashboardPage({
         />
         <Link
           href="/gob/decomisos/nuevo"
-          className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
+          className="px-3 py-1.5 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
           {"+ Nuevo decomiso"}
         </Link>
@@ -269,10 +269,10 @@ export default async function DecomisosDashboardPage({
                     key={m.motive}
                     className="flex items-center justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
                   >
-                    <span className="text-[13px] text-ln-op-ink">
+                    <span className="text-md text-ln-op-ink">
                       {SEIZURE_MOTIVE_LABELS[m.motive] ?? m.motive}
                     </span>
-                    <span className="text-[13px] font-semibold text-ln-op-ink tabular-nums">
+                    <span className="text-md font-semibold text-ln-op-ink tabular-nums">
                       {m.count}
                     </span>
                   </li>
@@ -305,7 +305,7 @@ export default async function DecomisosDashboardPage({
         </div>
         {rows.length === 0 ? (
           <div className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-12 text-center space-y-2">
-            <p className="text-[13px] text-ln-op-mute">No hay decomisos registrados todavía.</p>
+            <p className="text-md text-ln-op-mute">No hay decomisos registrados todavía.</p>
             <p className="text-sm text-ln-op-mute">
               {'Usá el botón "Nuevo decomiso" para registrar una incautación por Ley 14.346.'}
             </p>
@@ -344,7 +344,7 @@ export default async function DecomisosDashboardPage({
                               <OpCodeBadge tone="blue">{c.publicCode}</OpCodeBadge>
                             </Link>
                             {petName && (
-                              <span className="text-[13px] text-ln-op-ink">
+                              <span className="text-md text-ln-op-ink">
                                 {petName}
                                 <span className="text-ln-op-mute">
                                   {" "}

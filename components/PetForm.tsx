@@ -244,7 +244,7 @@ export function PetForm({
             existingPet ? (
               <a
                 href={`/mis-mascotas/${existingPet.publicToken}/corregir-especie`}
-                className="font-ln-mono text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+                className="font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
               >
                 ¿Especie incorrecta?
               </a>
@@ -359,7 +359,7 @@ export function PetForm({
             existingPet ? (
               <a
                 href={`/mis-mascotas/${existingPet.publicToken}/mudanza`}
-                className="font-ln-mono text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+                className="font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
               >
                 Registrar mudanza
               </a>
@@ -395,7 +395,7 @@ export function PetForm({
             cascade
             defaultValue={{ provinceCode: null, localityName: null }}
           />
-          <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+          <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
             Requerido. Ayuda a las campañas regionales de salud animal.
           </p>
         </div>
@@ -474,7 +474,7 @@ export function PetForm({
 
             {/* Favourite foods */}
             <div className="flex flex-col gap-1.5">
-              <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+              <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
                 Comidas favoritas
               </p>
               {selectedFoods.map((f) => (
@@ -498,7 +498,7 @@ export function PetForm({
 
             {/* Known allergies */}
             <div className="flex flex-col gap-1.5">
-              <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+              <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
                 Alergias conocidas
               </p>
               {selectedAllergies.map((a) => (
@@ -575,7 +575,7 @@ export function PetForm({
 
             {/* Insurance */}
             <div className="flex flex-col gap-2.5 border-t border-[var(--color-ln-line-2)] pt-3">
-              <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+              <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
                 Seguro de mascota
               </p>
               <LnField label="Compañía">
@@ -621,7 +621,7 @@ export function PetForm({
       {/* ── SENSITIVE SECTION — gated behind ConfirmDialog ────── */}
       {!compact && (
         <div className="flex flex-col gap-2.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-3.5">
-          <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+          <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
             Condiciones sensibles
           </p>
 
@@ -694,7 +694,7 @@ export function PetForm({
       )}
 
       {state.error && (
-        <p className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
+        <p className="font-ln-mono text-sm text-[var(--color-ln-err)]" role="alert">
           {state.error}
         </p>
       )}
@@ -704,7 +704,7 @@ export function PetForm({
         type="submit"
         disabled={isPending}
         className={[
-          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-2.5 text-[13px] font-semibold text-white transition-colors",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-2.5 text-md font-semibold text-white transition-colors",
           "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
           "disabled:cursor-not-allowed disabled:opacity-60",
         ]
@@ -761,7 +761,7 @@ function SensitiveFields({
           if (codes.length === 0) return null;
           return (
             <div key={group.id} className="flex flex-col gap-1.5">
-              <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-faint)]">
+              <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-faint)]">
                 {group.label}
               </p>
               <div className="flex flex-wrap gap-1.5">
@@ -856,15 +856,15 @@ function LnReadOnlyField({
         {label}
       </p>
       <div className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-2.5">
-        <span className="text-[13px] text-[var(--color-ln-ink-2)]">{value}</span>
+        <span className="text-md text-[var(--color-ln-ink-2)]">{value}</span>
         <span
           aria-hidden="true"
-          className="font-ln-mono text-[9.5px] uppercase tracking-[.12em] text-[var(--color-ln-faint)]"
+          className="font-ln-mono text-xs uppercase tracking-[.12em] text-[var(--color-ln-faint)]"
         >
           Fijo
         </span>
       </div>
-      {hint && <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">{hint}</p>}
+      {hint && <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">{hint}</p>}
       {action}
       {children}
     </div>
@@ -927,7 +927,7 @@ function LnAgeFields({
           onChange={(e) => setMonths(e.target.value)}
         />
       </div>
-      <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+      <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
         Si no sabés exacto, una estimación está bien.
       </p>
     </div>
@@ -984,7 +984,7 @@ function MicrochipBlock({
 
   return (
     <div className="flex flex-col gap-2.5 border-t border-[var(--color-ln-line-2)] pt-3">
-      <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+      <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
         Microchip
       </p>
       <LnField label="Número de chip" hint="15 dígitos, ISO 11784/11785">
@@ -1088,15 +1088,15 @@ function LnPhotoField({
             className="h-[72px] w-[72px] flex-shrink-0 rounded-[var(--radius-sm)] object-cover"
           />
         ) : (
-          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] text-[11px] text-[var(--color-ln-mute)]">
+          <div className="flex h-[72px] w-[72px] flex-shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] text-sm text-[var(--color-ln-mute)]">
             Sin foto
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+          <p className="text-md text-[var(--color-ln-ink-2)]">
             {preview ? "Cambiar foto" : "Tocá para elegir una foto"}
           </p>
-          <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+          <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
             JPG o PNG, hasta 5 MB
           </p>
         </div>

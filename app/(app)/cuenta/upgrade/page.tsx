@@ -49,7 +49,7 @@ export default async function UpgradePage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -74,7 +74,7 @@ export default async function UpgradePage() {
               // immediately). Give the verified vet a clear next step instead of a
               // dead-end sentence: create their consultorio (task #17).
               <div className="space-y-3">
-                <p className="text-[13px] text-[var(--color-ln-mute)]">
+                <p className="text-md text-[var(--color-ln-mute)]">
                   Ya sos veterinario/a verificado/a en miMAR.
                 </p>
                 <Link
@@ -86,13 +86,13 @@ export default async function UpgradePage() {
               </div>
             ) : (
               <>
-                <p className="mb-4 text-[13px] text-[var(--color-ln-ink-2)]">
+                <p className="mb-4 text-md text-[var(--color-ln-ink-2)]">
                   Registrá tu matrícula para que la autoridad de tu localidad la verifique. Una vez
                   aprobada, tu rol pasa a veterinario.
                 </p>
 
                 {latestVetRequest?.status === "pending" ? (
-                  <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-3 py-2.5 text-[13px] text-[var(--color-ln-warn)]">
+                  <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-3 py-2.5 text-md text-[var(--color-ln-warn)]">
                     Solicitud enviada — pendiente de revisión.
                     {profile?.matriculaNumber && (
                       <>
@@ -108,7 +108,7 @@ export default async function UpgradePage() {
                   // sesión" copy invented a delay that does not exist (task #17). The
                   // straight path here is to create the consultorio.
                   <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2.5">
-                    <p className="text-[13px] font-semibold text-[var(--color-ln-ok)]">
+                    <p className="text-md font-semibold text-[var(--color-ln-ok)]">
                       ¡Solicitud aprobada!
                     </p>
                     <p className="mt-0.5 text-sm text-[var(--color-ln-ok)]">
@@ -132,7 +132,7 @@ export default async function UpgradePage() {
                 ) : latestVetRequest?.status === "rejected" ? (
                   <>
                     <div className="mb-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-3 py-2.5">
-                      <p className="text-[13px] font-semibold text-[var(--color-ln-err)]">
+                      <p className="text-md font-semibold text-[var(--color-ln-err)]">
                         Tu última solicitud fue rechazada.
                       </p>
                       {latestVetRequest.decisionNotes && (
@@ -158,7 +158,7 @@ export default async function UpgradePage() {
         <LnCard>
           <LnCardHead title="Crear Organización" />
           <LnCardBody>
-            <p className="mb-4 text-[13px] text-[var(--color-ln-ink-2)]">
+            <p className="mb-4 text-md text-[var(--color-ln-ink-2)]">
               Refugios, clínicas y redes de rescate pueden crear su panel organizacional en miMAR.
             </p>
 
@@ -168,7 +168,7 @@ export default async function UpgradePage() {
                 className="flex items-center justify-between rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] px-3.5 py-3 no-underline hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 <div>
-                  <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
+                  <p className="text-md font-semibold text-[var(--color-ln-ink)]">
                     Ya administrás una organización
                   </p>
                   <p className="mt-px text-sm text-[var(--color-ln-mute)]">

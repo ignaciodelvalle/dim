@@ -76,7 +76,7 @@ export default async function OrgPropuestasPage({
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Voluntarios</p>
         <h1 className="text-title font-semibold text-ln-op-ink">Propuestas de tránsito emitidas</h1>
-        <p className="mt-1 text-[13px] text-ln-op-mute">
+        <p className="mt-1 text-md text-ln-op-mute">
           Propuestas que tu organización envió al pool de voluntarios.
         </p>
       </header>
@@ -85,12 +85,12 @@ export default async function OrgPropuestasPage({
       <nav className="flex gap-1 border-b border-ln-op-line">
         <a
           href={`/org/${orgToken}/voluntarios`}
-          className="px-4 py-2 text-[13px] font-medium no-underline border-b-2 border-transparent text-ln-op-mute hover:text-ln-op-ink-2 transition-colors"
+          className="px-4 py-2 text-md font-medium no-underline border-b-2 border-transparent text-ln-op-mute hover:text-ln-op-ink-2 transition-colors"
         >
           Pool
         </a>
         <span
-          className="px-4 py-2 text-[13px] font-medium border-b-2 border-ln-op-azul text-ln-op-azul"
+          className="px-4 py-2 text-md font-medium border-b-2 border-ln-op-azul text-ln-op-azul"
           aria-current="page"
         >
           Propuestas
@@ -122,7 +122,7 @@ export default async function OrgPropuestasPage({
               >
                 <div className="flex items-baseline justify-between gap-3">
                   <div className="space-y-1">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
+                    <p className="text-md font-medium text-ln-op-ink">
                       {volunteer.displayName}{" "}
                       <span className="font-normal text-ln-op-mute">→ {pet.name}</span>
                     </p>

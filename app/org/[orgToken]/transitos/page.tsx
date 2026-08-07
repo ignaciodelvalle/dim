@@ -128,7 +128,7 @@ export default async function OrgTransitosPage({
     <div className="space-y-6">
       <header className="space-y-1">
         <h1 className="text-title font-semibold text-ln-op-ink">Tránsitos</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Mascotas bajo cuidado de voluntarios, miembros o vecinos de la organización.
         </p>
       </header>
@@ -142,7 +142,7 @@ export default async function OrgTransitosPage({
             <Link
               key={tab}
               href={`/org/${orgToken}/transitos?tab=${tab}`}
-              className={`px-4 py-2 text-[13px] font-medium no-underline border-b-2 transition-colors ${
+              className={`px-4 py-2 text-md font-medium no-underline border-b-2 transition-colors ${
                 isActive
                   ? "border-ln-op-azul text-ln-op-azul"
                   : "border-transparent text-ln-op-mute hover:text-ln-op-ink-2"
@@ -155,7 +155,7 @@ export default async function OrgTransitosPage({
       </nav>
 
       {activeTab === "activos" && fosters.length === 0 && (
-        <p className="text-[13px] text-ln-op-mute py-6 text-center">
+        <p className="text-md text-ln-op-mute py-6 text-center">
           Ninguna mascota tiene tránsito activo.{" "}
           <Link
             href={`/org/${orgToken}/voluntarios`}
@@ -190,7 +190,7 @@ export default async function OrgTransitosPage({
                   <li key={ownership.id} className="px-4 py-3 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 min-w-0">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
+                        <p className="text-md font-medium text-ln-op-ink">
                           {pet.name}{" "}
                           <span className="text-ln-op-mute font-normal">
                             → {foster.displayName}
@@ -230,7 +230,7 @@ export default async function OrgTransitosPage({
                   <li key={ownership.id} className="px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-0.5 min-w-0">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
+                        <p className="text-md font-medium text-ln-op-ink">
                           {pet.name}{" "}
                           <span className="text-ln-op-mute font-normal">
                             → {foster.displayName}

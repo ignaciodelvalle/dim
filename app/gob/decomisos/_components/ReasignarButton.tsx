@@ -109,7 +109,7 @@ export function ReasignarButton({
               value={newReceiverId}
               onChange={(e) => setNewReceiverId(e.target.value)}
               disabled={availableReceivers.length === 0}
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
             >
               <option value="">Elegí una organización verificada…</option>
               {availableReceivers.map((r) => (
@@ -135,12 +135,12 @@ export function ReasignarButton({
               onChange={(e) => setReason(e.target.value)}
               rows={2}
               placeholder="Por ej: el refugio anterior rechazo por falta de espacio."
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
             />
           </div>
 
           {error && (
-            <p className="text-[13px] text-ln-op-danger" role="alert">
+            <p className="text-md text-ln-op-danger" role="alert">
               {error}
             </p>
           )}

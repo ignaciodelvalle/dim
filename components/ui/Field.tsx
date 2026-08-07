@@ -59,7 +59,7 @@ function FieldHint({ id, className = "", children }: FieldNoteProps) {
   return (
     <p
       id={id}
-      className={`font-ln-mono text-[10.5px] leading-[1.45] text-[var(--color-ln-mute)] ${className}`}
+      className={`font-ln-mono text-sm leading-[1.45] text-[var(--color-ln-mute)] ${className}`}
     >
       {children}
     </p>
@@ -73,7 +73,7 @@ function FieldError({ id, className = "", children }: FieldNoteProps) {
   return (
     <p
       id={id}
-      className={`mt-[5px] font-ln-mono text-[10.5px] text-[var(--color-ln-err)] ${className}`}
+      className={`mt-[5px] font-ln-mono text-sm text-[var(--color-ln-err)] ${className}`}
       role="alert"
     >
       {children}
@@ -360,12 +360,12 @@ function withMobileFocusScroll<E extends ValidatableControl>(rest: {
 // ---------- Shared control base classes -----------------------------------
 
 // Wave 2 Item 9: text-base on mobile prevents iOS Safari auto-zoom on focus;
-// sm:text-[13.5px] restores the design-system size on wider viewports.
+// sm:text-md restores the design-system size on wider viewports.
 // min-h-[44px] ensures touch targets meet WCAG 2.5.5 (44×44 CSS px).
 const controlBase =
   "w-full min-h-[44px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] " +
   "bg-[var(--color-ln-card)] px-3 py-2.5 " +
-  "font-ln-sans text-base sm:text-[13.5px] text-[var(--color-ln-ink)] " +
+  "font-ln-sans text-base sm:text-md text-[var(--color-ln-ink)] " +
   "placeholder:text-[var(--color-ln-faint)] outline-none " +
   "focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] " +
   "aria-[invalid=true]:border-[var(--color-ln-err)]";
@@ -601,7 +601,7 @@ export function LnCheckbox({
     <label htmlFor={id} className="flex items-start gap-2 cursor-pointer">
       {input}
       <span
-        className={["text-[13px] leading-tight text-[var(--color-ln-ink)]", labelClassName ?? ""]
+        className={["text-md leading-tight text-[var(--color-ln-ink)]", labelClassName ?? ""]
           .filter(Boolean)
           .join(" ")}
       >
@@ -659,7 +659,7 @@ export function LnRadio({
     <label htmlFor={id} className="flex items-start gap-2 cursor-pointer">
       {input}
       <span
-        className={["text-[13px] leading-tight text-[var(--color-ln-ink)]", labelClassName ?? ""]
+        className={["text-md leading-tight text-[var(--color-ln-ink)]", labelClassName ?? ""]
           .filter(Boolean)
           .join(" ")}
       >

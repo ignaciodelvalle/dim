@@ -80,19 +80,16 @@ export function ApplyButton({
       >
         <input type="hidden" name="petToken" value={petToken} />
         <SubmitButton
-          className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-[15px] font-semibold text-white transition-opacity disabled:opacity-60"
+          className="flex w-full items-center justify-center gap-2 rounded-[var(--radius-md)] border-0 px-4 py-[13px] text-base font-semibold text-white transition-opacity disabled:opacity-60"
           pendingLabel="Procesando..."
           idleLabel={inlineIdleLabel}
           siblingPending={isPending}
         />
-        <p className="text-center text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
+        <p className="text-center text-sm" style={{ color: "var(--color-ln-mute)" }}>
           El refugio responde en aproximadamente 5 días.
         </p>
         {error && (
-          <output
-            className="block text-center text-[13px]"
-            style={{ color: "var(--color-ln-err)" }}
-          >
+          <output className="block text-center text-md" style={{ color: "var(--color-ln-err)" }}>
             {error}
           </output>
         )}

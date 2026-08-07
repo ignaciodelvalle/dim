@@ -47,7 +47,7 @@ export default async function AtenderSignPage({
           />
           <OpCard>
             <OpCardBody>
-              <p className="text-[13px] text-ln-op-ink-2">{access.error}</p>
+              <p className="text-md text-ln-op-ink-2">{access.error}</p>
               <div className="mt-4">
                 <Link
                   href={`/org/${orgToken}/atender`}
@@ -86,7 +86,7 @@ export default async function AtenderSignPage({
           <h1 className="text-title font-semibold text-ln-op-ink">
             Atendiendo a {pet.name} · {speciesLabel(pet.species)}
           </h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Firmás como <strong>{signer.label}</strong>
             {signer.matriculaVerified ? " · verificado por profesional" : "."}
           </p>

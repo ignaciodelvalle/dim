@@ -85,8 +85,8 @@ function StepQuestion({
       className="rounded-[var(--radius-lg)] border px-5 py-[18px] space-y-[10px]"
       style={CARD_STYLE}
     >
-      <p className="text-[14.5px] font-semibold" style={LABEL_STYLE}>
-        <span className="mr-[7px] text-[11px] font-semibold" style={STEP_NUM_STYLE}>
+      <p className="text-base font-semibold" style={LABEL_STYLE}>
+        <span className="mr-[7px] text-sm font-semibold" style={STEP_NUM_STYLE}>
           {num}
         </span>
         {label}
@@ -124,7 +124,7 @@ function RadioCard<T extends string>({
         {options.map((opt) => (
           <label
             key={opt.value}
-            className="flex items-center gap-2.5 rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] cursor-pointer"
+            className="flex items-center gap-2.5 rounded-[var(--radius-md)] border px-3 py-2.5 text-md cursor-pointer"
             style={
               value === opt.value
                 ? {
@@ -331,11 +331,11 @@ export function ApplicationForm({
             onChange={(e) => setMotivation(e.target.value)}
             rows={4}
             placeholder={`Ej: "Siempre tuve perros y ahora que me mudé a una casa con patio quiero darle una familia a ${petName}..."`}
-            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-md outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
           <p
-            className="text-[11px] text-right"
+            className="text-sm text-right"
             style={{
               color:
                 motivationChars >= MIN_MOTIVATION_LEN
@@ -347,7 +347,7 @@ export function ApplicationForm({
           </p>
         </StepQuestion>
         {error && (
-          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+          <output className="block text-md" style={{ color: "var(--color-ln-err)" }}>
             {error}
           </output>
         )}
@@ -389,12 +389,12 @@ export function ApplicationForm({
             onChange={(e) => setOtherPets(e.target.value)}
             rows={3}
             placeholder='Ej: "un gato castrado adulto, sociable"'
-            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-md outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
         {error && (
-          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+          <output className="block text-md" style={{ color: "var(--color-ln-err)" }}>
             {error}
           </output>
         )}
@@ -426,7 +426,7 @@ export function ApplicationForm({
           />
         </StepQuestion>
         {error && (
-          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+          <output className="block text-md" style={{ color: "var(--color-ln-err)" }}>
             {error}
           </output>
         )}
@@ -458,7 +458,7 @@ export function ApplicationForm({
             onChange={(e) => setDailyRoutine(e.target.value)}
             rows={3}
             placeholder="¿Quién está en casa durante el día? ¿Hay nenes? ¿Alguien la cuida si viajás?"
-            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-md outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
@@ -468,7 +468,7 @@ export function ApplicationForm({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={3}
-            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-[13px] outline-none focus:ring-2"
+            className="w-full rounded-[var(--radius-md)] border px-3 py-2.5 text-md outline-none focus:ring-2"
             style={TEXTAREA_STYLE}
           />
         </StepQuestion>
@@ -494,7 +494,7 @@ export function ApplicationForm({
           style={CARD_STYLE}
         >
           <p
-            className="font-ln-serif text-[15px] font-semibold"
+            className="font-ln-serif text-base font-semibold"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Resumen
@@ -555,7 +555,7 @@ export function ApplicationForm({
                 accentColor: "var(--color-ln-azul)",
               }}
             />
-            <span className="text-[13px]" style={{ color: "var(--color-ln-ink-2)" }}>
+            <span className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
               Acepto compartir con el refugio mi historial de adopciones, fosters y mascotas en
               miMAR para que tomen una mejor decisión.{" "}
               <button
@@ -587,12 +587,12 @@ export function ApplicationForm({
         >
           <h2
             id="privacy-modal-title"
-            className="font-ln-serif text-[17px] font-semibold mb-3.5"
+            className="font-ln-serif text-lg font-semibold mb-3.5"
             style={{ color: "var(--color-ln-ink)" }}
           >
             Información sobre privacidad — Ley 25.326
           </h2>
-          <div className="text-[13px] space-y-[10px]" style={{ color: "var(--color-ln-ink-2)" }}>
+          <div className="text-md space-y-[10px]" style={{ color: "var(--color-ln-ink-2)" }}>
             <p>
               Bajo la Ley 25.326 (Protección de Datos Personales), tus datos solo pueden compartirse
               con consentimiento informado y para un propósito específico.
@@ -612,7 +612,7 @@ export function ApplicationForm({
           <button
             type="button"
             onClick={() => setPrivacyModalOpen(false)}
-            className="mt-[18px] w-full rounded-[var(--radius-md)] border-0 px-4 py-[11px] text-[13px] font-semibold text-white"
+            className="mt-[18px] w-full rounded-[var(--radius-md)] border-0 px-4 py-[11px] text-md font-semibold text-white"
             style={{ background: "var(--color-ln-azul)" }}
           >
             Entendido
@@ -620,7 +620,7 @@ export function ApplicationForm({
         </dialog>
 
         {error && (
-          <output className="block text-[13px]" style={{ color: "var(--color-ln-err)" }}>
+          <output className="block text-md" style={{ color: "var(--color-ln-err)" }}>
             {error}
           </output>
         )}

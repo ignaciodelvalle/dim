@@ -57,7 +57,7 @@ export default async function AdoptionReviewDetailPage({
     return (
       <div className="max-w-2xl mx-auto space-y-4">
         <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
-        <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
+        <p className="text-md text-ln-op-ink-2">{auth.error}</p>
         <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
@@ -194,7 +194,7 @@ export default async function AdoptionReviewDetailPage({
           {organization.displayName}
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">Postulación para {pet.name}</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           {/* AR-pinned via formatDateTime (bug 4): the bare toLocaleString
               rendered the server's UTC clock ("Recibida 07:59:41") with no
               timezone cue for a ~17:00 ART submission. */}
@@ -258,7 +258,7 @@ export default async function AdoptionReviewDetailPage({
       {alreadyResolved ? (
         <OpCard>
           <OpCardBody>
-            <p className="text-[13px] font-medium text-ln-op-ink">
+            <p className="text-md font-medium text-ln-op-ink">
               Esta postulación ya fue resuelta:{" "}
               {decision[0].outcome === "approved"
                 ? "aprobada"
@@ -333,7 +333,7 @@ function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">
       <dt className="text-sm text-ln-op-mute w-32">{label}</dt>
-      <dd className="text-[13px] text-ln-op-ink">{value}</dd>
+      <dd className="text-md text-ln-op-ink">{value}</dd>
     </div>
   );
 }
@@ -342,7 +342,7 @@ function Block({ label, body }: { label: string; body: string }) {
   return (
     <div className="space-y-1">
       <p className="text-sm text-ln-op-mute">{label}</p>
-      <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{body}</p>
+      <p className="text-md text-ln-op-ink-2 whitespace-pre-wrap">{body}</p>
     </div>
   );
 }

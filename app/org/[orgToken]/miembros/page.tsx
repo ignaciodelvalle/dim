@@ -181,7 +181,7 @@ export default async function MiembrosPage({
       <section aria-labelledby="members-heading">
         <h2
           id="members-heading"
-          className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          className="mb-3 text-md font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
         >
           Miembros activos ({totalMembersCount})
         </h2>
@@ -193,7 +193,7 @@ export default async function MiembrosPage({
         {members.length === 0 ? (
           <OpCard>
             <OpCardBody>
-              <p className="py-6 text-center text-[13px] text-ln-op-mute">
+              <p className="py-6 text-center text-md text-ln-op-mute">
                 Aún no hay miembros registrados en esta organización.
               </p>
             </OpCardBody>
@@ -211,7 +211,7 @@ export default async function MiembrosPage({
                 return (
                   <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium text-ln-op-ink">
+                      <p className="truncate text-md font-medium text-ln-op-ink">
                         {profile.displayName}
                         {isSelf && (
                           <span className="ml-2 text-sm font-normal text-ln-op-mute">(vos)</span>
@@ -232,9 +232,7 @@ export default async function MiembrosPage({
                       <div className="flex flex-col items-end gap-0.5">
                         <OpPill tone={ROLE_PILL_TONE[m.role]}>{ROLE_LABEL[m.role]}</OpPill>
                         {isFoster && canInvite && (
-                          <span className="text-[11px] text-ln-op-mute">
-                            Gestionado vía tránsito
-                          </span>
+                          <span className="text-sm text-ln-op-mute">Gestionado vía tránsito</span>
                         )}
                       </div>
                     )}
@@ -275,14 +273,14 @@ export default async function MiembrosPage({
         <section aria-labelledby="invitations-heading">
           <h2
             id="invitations-heading"
-            className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+            className="mb-3 text-md font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
           >
             Invitaciones pendientes ({pendingInvitations.length})
           </h2>
           {pendingInvitations.length === 0 ? (
             <OpCard>
               <OpCardBody>
-                <p className="py-6 text-center text-[13px] text-ln-op-mute">
+                <p className="py-6 text-center text-md text-ln-op-mute">
                   Invitá a alguien con el botón de arriba.
                 </p>
               </OpCardBody>
@@ -295,9 +293,7 @@ export default async function MiembrosPage({
                   return (
                     <li key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium text-ln-op-ink">
-                          {inv.email}
-                        </p>
+                        <p className="truncate text-md font-medium text-ln-op-ink">{inv.email}</p>
                         <p className="text-sm text-ln-op-mute">Vence {formatDate(inv.expiresAt)}</p>
                       </div>
                       <OpPill tone={ROLE_PILL_TONE[inv.invitedRole]}>

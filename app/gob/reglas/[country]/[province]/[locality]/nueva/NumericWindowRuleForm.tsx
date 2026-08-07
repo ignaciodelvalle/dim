@@ -86,7 +86,7 @@ export function NumericWindowRuleForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[13px] text-ln-op-ink-2">{helperText}</p>
+      <p className="text-md text-ln-op-ink-2">{helperText}</p>
 
       <LnField label={fieldLabel}>
         {({ id, describedBy, invalid }) => (
@@ -126,9 +126,9 @@ export function NumericWindowRuleForm({
         Este cambio aplica inmediatamente a toda la jurisdicción seleccionada.
       </LnAlert>
 
-      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
+      {state.warning && <p className="text-md text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-[13px] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

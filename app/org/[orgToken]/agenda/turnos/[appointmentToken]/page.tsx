@@ -127,7 +127,7 @@ export default async function OrgAppointmentDetailPage({
       ) : (
         <OpCard>
           <OpCardBody>
-            <p className="text-[13px] text-ln-op-ink-2">
+            <p className="text-md text-ln-op-ink-2">
               Este turno ya fue procesado (estado:{" "}
               <strong className="text-ln-op-ink">{pill.label}</strong>).
             </p>
@@ -147,7 +147,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   return (
     <div>
       <dt className="text-xs text-ln-op-mute uppercase tracking-[0.08em]">{label}</dt>
-      <dd className="text-[13px] text-ln-op-ink mt-0.5">{children}</dd>
+      <dd className="text-md text-ln-op-ink mt-0.5">{children}</dd>
     </div>
   );
 }

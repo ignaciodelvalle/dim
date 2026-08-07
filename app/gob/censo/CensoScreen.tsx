@@ -422,9 +422,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                   className="flex items-center gap-3"
                   aria-label={`Total: ${funnel.total.toLocaleString("es-AR")} mascotas (100%)`}
                 >
-                  <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
-                    Total registradas
-                  </span>
+                  <span className="w-44 shrink-0 text-md text-ln-op-ink">Total registradas</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -432,7 +430,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                     <div className="h-full rounded bg-ln-op-azul" style={{ width: "100%" }} />
                   </div>
                   <span
-                    className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                    className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                     aria-hidden="true"
                   >
                     {funnel.total.toLocaleString("es-AR")} (100%)
@@ -454,7 +452,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                       className="flex items-center gap-3"
                       aria-label={`Con chip: ${funnel.chipped.toLocaleString("es-AR")} mascotas (${formatPercent(pct)})`}
                     >
-                      <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
+                      <span className="w-44 shrink-0 text-md text-ln-op-ink">
                         Con chip ISO activo
                       </span>
                       <div
@@ -467,7 +465,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                         />
                       </div>
                       <span
-                        className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                         aria-hidden="true"
                       >
                         {funnel.chipped.toLocaleString("es-AR")} ({formatPercent(pct)})
@@ -484,7 +482,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                       className="flex items-center gap-3"
                       aria-label={`ISO válido: ${funnel.isoValid.toLocaleString("es-AR")} mascotas (${formatPercent(pct)})`}
                     >
-                      <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
+                      <span className="w-44 shrink-0 text-md text-ln-op-ink">
                         ISO 11784/11785 válido
                       </span>
                       <div
@@ -497,7 +495,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                         />
                       </div>
                       <span
-                        className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                         aria-hidden="true"
                       >
                         {funnel.isoValid.toLocaleString("es-AR")} ({formatPercent(pct)})
@@ -514,7 +512,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                       className="flex items-center gap-3"
                       aria-label={`Escaneada en el período: ${funnel.scanned.toLocaleString("es-AR")} mascotas (${formatPercent(pct)})`}
                     >
-                      <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
+                      <span className="w-44 shrink-0 text-md text-ln-op-ink">
                         Escaneada en el período
                         <span className="sr-only"> (eventos de los últimos 90 días solamente)</span>
                       </span>
@@ -528,7 +526,7 @@ export async function CensoScreen({ searchParams: sp, underHub = false }: CensoS
                         />
                       </div>
                       <span
-                        className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                         aria-hidden="true"
                       >
                         {funnel.scanned.toLocaleString("es-AR")} ({formatPercent(pct)})

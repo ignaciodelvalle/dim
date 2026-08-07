@@ -29,14 +29,14 @@ export default async function NuevoServicioPage({
           detail={
             <>
               Para crear servicios necesitás el permiso{" "}
-              <code className="text-[11px]">service_offering.create</code>. Pedíselo a un
-              administrador desde el panel.
+              <code className="text-sm">service_offering.create</code>. Pedíselo a un administrador
+              desde el panel.
             </>
           }
         />
         <Link
           href={`/org/${orgToken}`}
-          className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+          className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:opacity-90 transition-opacity"
         >
           Volver al panel
         </Link>
@@ -51,7 +51,7 @@ export default async function NuevoServicioPage({
           {organization.displayName}
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">Nuevo servicio</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Completá los datos del servicio. Una vez enviado, la autoridad competente lo revisa y
           aprueba antes de que puedas armar la agenda.
         </p>

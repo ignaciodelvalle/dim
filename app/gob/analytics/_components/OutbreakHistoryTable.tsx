@@ -53,12 +53,12 @@ export function OutbreakHistoryTable({ rows, suppressedCount }: Props) {
   return (
     <div className="space-y-2">
       <div className="overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line">
-        <table className="min-w-full text-[13px]">
+        <table className="min-w-full text-md">
           <caption className="sr-only">
             Historial de brotes por enfermedad, localidad y período
           </caption>
           <thead className="bg-ln-op-stripe">
-            <tr className="text-left text-[11px] uppercase tracking-wider text-ln-op-mute">
+            <tr className="text-left text-sm uppercase tracking-wider text-ln-op-mute">
               <th scope="col" className="px-4 py-2">
                 Enfermedad
               </th>

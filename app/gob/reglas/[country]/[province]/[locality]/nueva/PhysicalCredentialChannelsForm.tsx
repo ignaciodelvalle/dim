@@ -57,7 +57,7 @@ function ProviderFields({
 }) {
   return (
     <fieldset className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-line p-3">
-      <legend className="text-[13px] font-medium text-ln-op-ink">{legend}</legend>
+      <legend className="text-md font-medium text-ln-op-ink">{legend}</legend>
       <LnCheckbox
         name={`enabled_${channelKey}`}
         checked={enabled}
@@ -127,7 +127,7 @@ export function PhysicalCredentialChannelsForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[13px] text-ln-op-ink-2">
+      <p className="text-md text-ln-op-ink-2">
         Qué canales de credencial física están disponibles para esta jurisdicción. Consumido por la
         ficha de mascota (chapita) para mostrar las opciones habilitadas al dueño.
       </p>
@@ -175,9 +175,9 @@ export function PhysicalCredentialChannelsForm({
         )}
       </LnField>
 
-      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
+      {state.warning && <p className="text-md text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-[13px] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

@@ -56,7 +56,7 @@ export default async function VoluntariosPage({
   if ("error" in result) {
     return (
       <div className="space-y-6">
-        <p className="text-[13px] text-ln-op-danger">{result.error}</p>
+        <p className="text-md text-ln-op-danger">{result.error}</p>
       </div>
     );
   }
@@ -70,7 +70,7 @@ export default async function VoluntariosPage({
       <header>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Voluntarios</p>
         <h1 className="text-title font-semibold text-ln-op-ink">Pool de voluntarios</h1>
-        <p className="mt-1 text-[13px] text-ln-op-mute">
+        <p className="mt-1 text-md text-ln-op-mute">
           Voluntarios activos con al menos un slot disponible.
         </p>
       </header>
@@ -78,14 +78,14 @@ export default async function VoluntariosPage({
       {/* Tab bar — Pool is this page; Propuestas links to the subroute */}
       <nav className="flex gap-1 border-b border-ln-op-line">
         <span
-          className="px-4 py-2 text-[13px] font-medium border-b-2 border-ln-op-azul text-ln-op-azul"
+          className="px-4 py-2 text-md font-medium border-b-2 border-ln-op-azul text-ln-op-azul"
           aria-current="page"
         >
           Pool
         </span>
         <a
           href={`/org/${orgToken}/voluntarios/propuestas`}
-          className="px-4 py-2 text-[13px] font-medium no-underline border-b-2 border-transparent text-ln-op-mute hover:text-ln-op-ink-2 transition-colors"
+          className="px-4 py-2 text-md font-medium no-underline border-b-2 border-transparent text-ln-op-mute hover:text-ln-op-ink-2 transition-colors"
         >
           Propuestas
         </a>
@@ -99,7 +99,7 @@ export default async function VoluntariosPage({
         <div>
           <label
             htmlFor="filter-species"
-            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+            className="mb-1 block text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
           >
             Especie
           </label>
@@ -120,13 +120,13 @@ export default async function VoluntariosPage({
           localityParam="locality"
           defaultProvince={filters.province ?? ""}
           defaultLocality={filters.locality ?? ""}
-          labelClassName="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          labelClassName="mb-1 block text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
           selectClassName="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
         />
         <div>
           <label
             htmlFor="filter-pet"
-            className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+            className="mb-1 block text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
           >
             Match para
           </label>

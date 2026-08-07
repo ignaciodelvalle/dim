@@ -62,7 +62,7 @@ export default async function InvitarMiembroPage({
       <div>
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Equipo</p>
         <h1 className="text-title font-semibold text-ln-op-ink">Invitar miembro</h1>
-        <p className="mt-1 text-[13px] text-ln-op-mute">
+        <p className="mt-1 text-md text-ln-op-mute">
           La persona recibirá un link para unirse a {organization.displayName}. El link vence en 14
           días.
         </p>

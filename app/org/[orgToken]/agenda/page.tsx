@@ -186,7 +186,7 @@ export default async function OrgAgendaPage({
             Hoy
           </Link>
         )}
-        <span className="text-[13px] font-medium text-ln-op-ink">
+        <span className="text-md font-medium text-ln-op-ink">
           {/* Noon-UTC anchor + AR pin: offset-less "T12:00:00" parses in the
               SERVER zone, and an unpinned formatter renders in it too — the
               header day then depends on where the process runs. */}
@@ -208,9 +208,9 @@ export default async function OrgAgendaPage({
 
       {/* Slot occupancy — Cupos del día */}
       <section className="space-y-3">
-        <h2 className="text-[13px] font-semibold text-ln-op-ink">Cupos del día</h2>
+        <h2 className="text-md font-semibold text-ln-op-ink">Cupos del día</h2>
         {offeringGroups.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute py-4 text-center">
+          <p className="text-md text-ln-op-mute py-4 text-center">
             No hay cupos materializados para este día.
           </p>
         ) : (
@@ -265,7 +265,7 @@ export default async function OrgAgendaPage({
 
       {/* Appointments list */}
       {rows.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute py-8 text-center">No hay turnos para este día.</p>
+        <p className="text-md text-ln-op-mute py-8 text-center">No hay turnos para este día.</p>
       ) : (
         <OpCard>
           <OpCardHead title={`${rows.length} ${pluralizeEs(rows.length, "turno")}`} />
@@ -285,7 +285,7 @@ export default async function OrgAgendaPage({
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-[13px] font-semibold text-ln-op-ink">{pet.name}</p>
+                        <p className="text-md font-semibold text-ln-op-ink">{pet.name}</p>
                         <OpPill tone={pill.tone}>{pill.label}</OpPill>
                       </div>
                       <p className="text-sm text-ln-op-mute">

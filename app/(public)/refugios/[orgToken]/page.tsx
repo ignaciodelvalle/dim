@@ -194,7 +194,7 @@ export default async function RefugioPage({
 
           <Link
             href="/adoptar"
-            className="inline-block font-ln-mono text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] mb-4"
+            className="inline-block font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] mb-4"
           >
             ← Volver a adopciones
           </Link>

@@ -107,7 +107,7 @@ export default async function InvestigacionDetailPage({
     <div className="max-w-3xl space-y-6">
       <Link
         href="/gob/vigilancia/investigaciones"
-        className="text-[13px] text-ln-op-mute hover:text-ln-op-ink no-underline"
+        className="text-md text-ln-op-mute hover:text-ln-op-ink no-underline"
       >
         ← Volver al listado
       </Link>
@@ -123,7 +123,7 @@ export default async function InvestigacionDetailPage({
             {STATUS_LABEL[detail.status] ?? detail.status}
           </OpPill>
         </div>
-        <p className="text-[11px] font-mono text-ln-op-mute">
+        <p className="text-sm font-mono text-ln-op-mute">
           {detail.publicCode} · abierta {formatDateTime(detail.openedAt)}
         </p>
       </header>
@@ -139,18 +139,18 @@ export default async function InvestigacionDetailPage({
         {diseaseCode && (
           <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
             <p className="text-xs uppercase tracking-wider text-ln-op-mute">Enfermedad</p>
-            <p className="text-[13px] font-semibold text-ln-op-ink">{diseaseCode}</p>
+            <p className="text-md font-semibold text-ln-op-ink">{diseaseCode}</p>
           </div>
         )}
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
           <p className="text-xs uppercase tracking-wider text-ln-op-mute">Estado</p>
-          <p className="text-[13px] font-semibold text-ln-op-ink">
+          <p className="text-md font-semibold text-ln-op-ink">
             {STATUS_LABEL[detail.status] ?? detail.status}
           </p>
         </div>
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
           <p className="text-xs uppercase tracking-wider text-ln-op-mute">Jurisdicción</p>
-          <p className="text-[13px] font-semibold text-ln-op-ink">
+          <p className="text-md font-semibold text-ln-op-ink">
             {[detail.jurisdictionLocality, detail.jurisdictionProvince]
               .filter(Boolean)
               .join(", ") || "Nacional"}
@@ -161,7 +161,7 @@ export default async function InvestigacionDetailPage({
       <OpCard>
         <OpCardHead title="Motivo de apertura" />
         <OpCardBody>
-          <p className="text-[13px] text-ln-op-ink whitespace-pre-wrap">
+          <p className="text-md text-ln-op-ink whitespace-pre-wrap">
             {caseOpenedReasonDisplay(detail)}
           </p>
         </OpCardBody>
@@ -178,7 +178,7 @@ export default async function InvestigacionDetailPage({
                 return (
                   <li key={n.id} className="px-4 py-3 space-y-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="flex items-center gap-2 text-[13px] font-medium text-ln-op-ink">
+                      <span className="flex items-center gap-2 text-md font-medium text-ln-op-ink">
                         {isExternal && (
                           <span
                             className="inline-flex items-center rounded-[3px] border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-xs uppercase tracking-wider text-ln-op-ink-2"
@@ -197,7 +197,7 @@ export default async function InvestigacionDetailPage({
                       <p className="text-sm font-mono text-ln-op-ink-2">{externalDetail}</p>
                     )}
                     {n.notes && (
-                      <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{n.notes}</p>
+                      <p className="text-md text-ln-op-ink-2 whitespace-pre-wrap">{n.notes}</p>
                     )}
                   </li>
                 );
@@ -217,7 +217,7 @@ export default async function InvestigacionDetailPage({
                   <span className="text-sm text-ln-op-mute shrink-0 mt-0.5 tabular-nums">
                     {formatDateTime(n.occurredAt)}
                   </span>
-                  <span className="text-[13px] text-ln-op-ink">
+                  <span className="text-md text-ln-op-ink">
                     <span className="font-medium">{ENTRY_LABEL[n.entryType] ?? n.entryType}</span>
                     {n.notes ? ` — ${n.notes}` : ""}
                   </span>
@@ -239,7 +239,7 @@ export default async function InvestigacionDetailPage({
         <OpCard>
           <OpCardHead title="Normativa aplicable" />
           <OpCardBody>
-            <ul className="space-y-2 text-[13px] text-ln-op-ink-2">
+            <ul className="space-y-2 text-md text-ln-op-ink-2">
               {normatives.map((law) => (
                 <li key={law.id}>
                   <span className="font-medium text-ln-op-ink">{law.label}</span> — {law.scope}
@@ -254,7 +254,7 @@ export default async function InvestigacionDetailPage({
         <OpCard>
           <OpCardHead title="Cierre" />
           <OpCardBody>
-            <p className="text-[13px] text-ln-op-ink">
+            <p className="text-md text-ln-op-ink">
               Cerrada el {detail.closedAt ? formatDateTime(detail.closedAt) : ""}{" "}
               {detail.closedReason ? `— ${caseClosedReasonLabel(detail.closedReason)}` : ""}
             </p>

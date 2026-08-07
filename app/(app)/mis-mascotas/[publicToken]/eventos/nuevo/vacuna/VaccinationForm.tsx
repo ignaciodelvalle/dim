@@ -312,7 +312,7 @@ export function VaccinationForm({
           {state.error && !state.transientFailure && (
             <p
               ref={errorRef}
-              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
               // Wave 2 Item 9: tabIndex={-1} makes the element programmatically focusable
               tabIndex={-1}

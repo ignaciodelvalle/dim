@@ -60,7 +60,7 @@ export function VerifyOrgButton({ org }: { org: Org }) {
   if (confirming) {
     return (
       <div className="rounded-[var(--radius-md)] border border-ln-op-azul p-3 space-y-2 bg-ln-op-card">
-        <p className="text-[11px] text-ln-op-ink-2">
+        <p className="text-sm text-ln-op-ink-2">
           ¿Confirmas la verificación de <span className="font-medium">{org.displayName}</span>? Esta
           acción queda registrada en el audit log y notifica a los administradores de la org.
         </p>

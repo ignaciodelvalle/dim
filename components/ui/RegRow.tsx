@@ -190,7 +190,7 @@ export function LnRegRow({
           </span>
           {status && <LnStatusFlag status={status} sex={sex} />}
         </div>
-        {breed && <p className="mt-px text-[12.5px] text-[var(--color-ln-mute)]">{breed}</p>}
+        {breed && <p className="mt-px text-md text-[var(--color-ln-mute)]">{breed}</p>}
         {nextLine && (
           <div className="mt-[7px] inline-flex items-center gap-[7px] text-sm text-[var(--color-ln-ink-2)]">
             {nextLine}
@@ -199,7 +199,7 @@ export function LnRegRow({
       </div>
 
       {/* Right column */}
-      <div className="flex items-center gap-1.5 font-ln-mono text-[11px] whitespace-nowrap text-[var(--color-ln-mute)]">
+      <div className="flex items-center gap-1.5 font-ln-mono text-sm whitespace-nowrap text-[var(--color-ln-mute)]">
         {species && <span>{species}</span>}
         <span aria-hidden="true">›</span>
       </div>

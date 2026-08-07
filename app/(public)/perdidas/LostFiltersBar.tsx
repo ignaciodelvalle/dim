@@ -42,7 +42,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
         <div>
           <label
             htmlFor="species"
-            className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
           >
             Especie
           </label>
@@ -64,7 +64,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
         <div>
           <label
             htmlFor="provincia"
-            className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
           >
             Provincia
           </label>
@@ -87,7 +87,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
         <div>
           <label
             htmlFor="localidad-input"
-            className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
           >
             Localidad
           </label>
@@ -109,7 +109,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
         <div>
           <label
             htmlFor="color"
-            className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
           >
             Color
           </label>
@@ -126,7 +126,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
         <div>
           <label
             htmlFor="visto"
-            className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
           >
             ¿Cuándo se perdió?
           </label>

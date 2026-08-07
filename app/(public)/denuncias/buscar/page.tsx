@@ -8,7 +8,7 @@ export default function BuscarDenunciaPage() {
         <header className="space-y-2">
           <Link
             href="/"
-            className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] transition-colors no-underline"
+            className="text-sm font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] transition-colors no-underline"
             style={{ fontFamily: "var(--font-ln-mono)" }}
           >
             ← Inicio

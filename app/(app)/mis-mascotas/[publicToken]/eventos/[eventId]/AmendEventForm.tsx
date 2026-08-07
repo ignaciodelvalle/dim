@@ -186,7 +186,7 @@ export function AmendEventForm({
             className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-2.5"
             role="note"
           >
-            <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)] leading-relaxed">
+            <p className="font-ln-mono text-sm text-[var(--color-ln-mute)] leading-relaxed">
               La libreta es inmutable. Esta corrección agrega un nuevo registro que reemplaza el
               valor mostrado. El registro original queda visible en el historial.
             </p>
@@ -198,13 +198,13 @@ export function AmendEventForm({
               role="alert"
               className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal-bg,var(--color-ln-stripe))] px-3.5 py-2.5"
             >
-              <p className="text-[13px] text-[var(--color-ln-seal)]">{error}</p>
+              <p className="text-md text-[var(--color-ln-seal)]">{error}</p>
             </div>
           )}
 
           {/* Editable fields */}
           {editableFields.length === 0 ? (
-            <p className="text-[13px] text-[var(--color-ln-mute)] italic">
+            <p className="text-md text-[var(--color-ln-mute)] italic">
               Este evento no tiene campos editables.
             </p>
           ) : (
@@ -219,7 +219,7 @@ export function AmendEventForm({
                   </p>
                   <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div>
-                      <p className="font-ln-mono text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
+                      <p className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
                         Valor actual
                       </p>
                       <p className="rounded-[var(--radius-sm)] bg-[var(--color-ln-stripe)] px-2.5 py-2 text-sm text-[var(--color-ln-ink-2)] min-h-[36px] break-words">
@@ -229,7 +229,7 @@ export function AmendEventForm({
                       </p>
                     </div>
                     <div>
-                      <p className="font-ln-mono text-[9px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
+                      <p className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-0.5">
                         Nuevo valor
                       </p>
                       <LnInput
@@ -272,7 +272,7 @@ export function AmendEventForm({
             onClick={onClose}
             className={[
               "rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)]",
-              "bg-[var(--color-ln-card)] px-4 py-2 text-[13px] font-medium text-[var(--color-ln-ink)]",
+              "bg-[var(--color-ln-card)] px-4 py-2 text-md font-medium text-[var(--color-ln-ink)]",
               "hover:bg-[var(--color-ln-stripe)] transition-colors min-h-[44px]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)]",
             ].join(" ")}
@@ -284,7 +284,7 @@ export function AmendEventForm({
             onClick={handleSubmitClick}
             disabled={isPending || editableFields.length === 0}
             className={[
-              "rounded-[var(--radius-pill)] px-4 py-2 text-[13px] font-semibold text-white",
+              "rounded-[var(--radius-pill)] px-4 py-2 text-md font-semibold text-white",
               "bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700,var(--color-ln-azul))]",
               "disabled:opacity-50 transition-opacity min-h-[44px]",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:ring-[var(--color-ln-azul)]",

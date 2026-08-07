@@ -82,7 +82,7 @@ export function InterventionActions({
   // Devuelto is terminal for the org — no further actions.
   if (interventionStatus === "devuelto") {
     return (
-      <p className="text-[11px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         Devuelta al gobierno. La organización ya no es responsable de esta denuncia.
       </p>
     );
@@ -133,7 +133,7 @@ export function InterventionActions({
             ? "Explicá por qué la organización no puede intervenir..."
             : "Detalle de la intervención en campo, estado del animal, próximos pasos..."
         }
-        className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+        className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
       />
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">

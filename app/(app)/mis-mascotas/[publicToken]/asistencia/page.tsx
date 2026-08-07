@@ -25,7 +25,7 @@ function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver al perfil
       </Link>
@@ -103,7 +103,7 @@ export default async function AsistenciaPage({
       {/* Back */}
       <Link
         href={`/mis-mascotas/${publicToken}`}
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
@@ -113,7 +113,7 @@ export default async function AsistenciaPage({
         <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Perro de asistencia · {pet.name}
         </h1>
-        <p className="mt-[5px] text-[13px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Marco legal: <strong>Ley 26.858</strong> (acceso, deambulación y permanencia) ·
           Reglamentación: Decreto 792/2019 · Registro: <strong>RUPGA</strong> (ANDIS, Res.
           2588/2022).
@@ -133,7 +133,7 @@ export default async function AsistenciaPage({
             <LnCardHead title="Estado de la credencial" />
             <LnCardBody>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                <p className="text-md text-[var(--color-ln-ink-2)]">
                   {serviceDog.inService ? "En servicio activo." : "Retirado del servicio."}{" "}
                   Visibilidad pública:{" "}
                   <strong>
@@ -142,38 +142,38 @@ export default async function AsistenciaPage({
                   .
                 </p>
                 <span
-                  className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(serviceDog.credentialStatus)}`}
+                  className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${statusBadgeClass(serviceDog.credentialStatus)}`}
                 >
                   {STATUS_LABELS[serviceDog.credentialStatus] ?? serviceDog.credentialStatus}
                 </span>
               </div>
               {serviceDog.credentialStatus === "revocada" && serviceDog.revocationReason && (
-                <p className="mt-2 text-[12.5px] text-[var(--color-ln-err)]">
+                <p className="mt-2 text-md text-[var(--color-ln-err)]">
                   Motivo de revocación: {serviceDog.revocationReason}
                 </p>
               )}
               {serviceDog.credentialStatus === "pendiente_verificacion" && (
-                <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--color-ln-warn)]">
+                <p className="mt-2 text-md leading-relaxed text-[var(--color-ln-warn)]">
                   Reportado a RUPGA (ANDIS) — pendiente de sincronización y validación por la
                   autoridad. La credencial no puede presentarse como vigente hasta que ANDIS la
                   valide.
                 </p>
               )}
               {serviceDog.credentialStatus === "en_entrenamiento" && (
-                <p className="mt-2 text-[12.5px] leading-relaxed text-[var(--color-ln-ink-2)]">
+                <p className="mt-2 text-md leading-relaxed text-[var(--color-ln-ink-2)]">
                   En entrenamiento. Una vez finalizado, enviá la solicitud de verificación para que
                   RUPGA (ANDIS) valide la credencial.
                 </p>
               )}
               {serviceDog.credentialStatus === "vigente" && (
                 <div className="mt-2">
-                  <p className="text-[12.5px] text-[var(--color-ln-ok)]">
+                  <p className="text-md text-[var(--color-ln-ok)]">
                     Tu banner público está activo cuando elegís mostrarlo. Lo podés presentar en la
                     puerta de un local, transporte o servicio público.
                   </p>
                   <Link
                     href={`/mis-mascotas/${publicToken}/asistencia/presentar`}
-                    className="mt-1.5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
+                    className="mt-1.5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-ok)] no-underline hover:underline"
                   >
                     Presentar credencial →
                   </Link>

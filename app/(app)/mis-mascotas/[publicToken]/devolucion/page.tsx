@@ -32,7 +32,7 @@ function FriendlyOwnerOnlyPage({ pet, role }: { pet: Pet; role: string }) {
     <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       <Link
         href={`/mis-mascotas/${pet.publicToken}`}
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver al perfil
       </Link>
@@ -105,7 +105,7 @@ export default async function DevolucionPage({
         <div className="mx-auto max-w-lg px-8 py-7 pb-12">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             ← Volver al perfil
           </Link>
@@ -131,7 +131,7 @@ export default async function DevolucionPage({
       <div className="mx-auto max-w-lg px-8 py-7 pb-12">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al perfil
         </Link>
@@ -213,7 +213,7 @@ export default async function DevolucionPage({
           {/* Back link */}
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             ← Volver al perfil
           </Link>
@@ -253,7 +253,7 @@ export default async function DevolucionPage({
       <div className="mx-auto max-w-lg px-8 py-7 pb-12">
         <Link
           href={`/mis-mascotas/${pet.publicToken}`}
-          className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al perfil
         </Link>
@@ -325,7 +325,7 @@ export default async function DevolucionPage({
       <div className="mt-6 border-t border-[var(--color-ln-line-2)] pt-4">
         <Link
           href="/mis-mascotas"
-          className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Mis mascotas
         </Link>

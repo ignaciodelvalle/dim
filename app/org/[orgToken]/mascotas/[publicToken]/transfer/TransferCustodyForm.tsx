@@ -38,9 +38,7 @@ export function TransferCustodyForm({
   return (
     <form action={formAction} className="space-y-5">
       <section className="space-y-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
-          Destino
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-mute">Destino</h2>
         <LnField
           label="Organización destino"
           required
@@ -78,10 +76,8 @@ export function TransferCustodyForm({
               className="mt-1"
             />
             <span>
-              <span className="block text-[13px] font-medium text-ln-op-ink">
-                Custodia temporal
-              </span>
-              <span className="block text-[11px] text-ln-op-mute">
+              <span className="block text-md font-medium text-ln-op-ink">Custodia temporal</span>
+              <span className="block text-sm text-ln-op-mute">
                 El destino se hace cargo con vistas a rehoming (igual que un intake).
               </span>
             </span>
@@ -89,10 +85,8 @@ export function TransferCustodyForm({
           <label className="flex items-start gap-2">
             <input type="radio" name="newRole" value="owner" className="mt-1" />
             <span>
-              <span className="block text-[13px] font-medium text-ln-op-ink">
-                Dueño/a permanente
-              </span>
-              <span className="block text-[11px] text-ln-op-mute">
+              <span className="block text-md font-medium text-ln-op-ink">Dueño/a permanente</span>
+              <span className="block text-sm text-ln-op-mute">
                 El destino mantiene al animal indefinidamente (santuario, decomiso sin rehoming).
               </span>
             </span>
@@ -116,7 +110,7 @@ export function TransferCustodyForm({
         </LnField>
       </section>
 
-      <p className="text-[11px] rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">
+      <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">
         Si el animal tiene tránsito activo, ese registro se cierra automáticamente y se notifica al
         tránsito.
       </p>

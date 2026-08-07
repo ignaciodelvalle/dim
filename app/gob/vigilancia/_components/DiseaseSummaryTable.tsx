@@ -46,7 +46,7 @@ export function DiseaseSummaryTable({
   }
   return (
     <div className="overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line">
-      <table className="min-w-full text-[13px]">
+      <table className="min-w-full text-md">
         <caption className="sr-only">
           Resumen de señales por enfermedad en los últimos {windowDays} días
           {sort ? " (ordenable por columna)" : ""}

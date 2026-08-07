@@ -146,7 +146,7 @@ function GrantCell({
         <span
           title="No podés concederte permisos a vos mismo"
           aria-label="Autoconceción bloqueada"
-          className="text-[11px] text-ln-op-faint cursor-not-allowed select-none"
+          className="text-sm text-ln-op-faint cursor-not-allowed select-none"
         >
           —
         </span>
@@ -225,9 +225,7 @@ export function CapabilityMatrix({
   callerMembershipId,
 }: MatrixProps) {
   if (members.length === 0) {
-    return (
-      <p className="py-4 text-[13px] text-ln-op-mute">No hay miembros activos para mostrar.</p>
-    );
+    return <p className="py-4 text-md text-ln-op-mute">No hay miembros activos para mostrar.</p>;
   }
 
   return (
@@ -313,7 +311,7 @@ export function CapabilityMatrix({
                 if (member.role === "admin") {
                   return (
                     <td key={col.capability} className="px-2 py-2 text-center">
-                      <span className="text-[11px] text-ln-op-faint">—</span>
+                      <span className="text-sm text-ln-op-faint">—</span>
                     </td>
                   );
                 }
@@ -337,7 +335,7 @@ export function CapabilityMatrix({
       </table>
 
       {/* Legend */}
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-ln-op-mute">
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-ln-op-mute">
         <span className="flex items-center gap-1">
           <Icon name="check" size={13} decorative className="text-ln-op-ok" />
           Explícito (revocable)

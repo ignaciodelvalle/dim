@@ -70,7 +70,7 @@ export function OutbreakSignalRow({ signal, highlighted = false }: OutbreakSigna
       >
         <div className="min-w-0 space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[13px] font-semibold text-ln-op-ink truncate">
+            <span className="text-md font-semibold text-ln-op-ink truncate">
               {signal.diseaseName}
             </span>
             <OpCodeBadge tone="warn">{signal.diseaseCode}</OpCodeBadge>

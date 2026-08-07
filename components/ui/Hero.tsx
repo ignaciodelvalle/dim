@@ -73,7 +73,7 @@ export function LnHero({
         aria-hidden="true"
       >
         {/* Watermark */}
-        <span className="absolute bottom-[8px] right-[16px] font-ln-mono text-[9px] uppercase tracking-[.24em] text-white/60">
+        <span className="absolute bottom-[8px] right-[16px] font-ln-mono text-xs uppercase tracking-[.24em] text-white/60">
           LIBRETA SANITARIA NACIONAL
         </span>
       </div>
@@ -116,7 +116,7 @@ export function LnHero({
                   <span
                     key={tag.key}
                     className={[
-                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-[11.5px] font-medium",
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-sm font-medium",
                       isCeleste
                         ? "border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul-700)]"
                         : "border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]",

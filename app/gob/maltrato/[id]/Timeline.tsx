@@ -50,7 +50,7 @@ export function Timeline({ events }: TimelineProps) {
                 <span className="ml-1 text-ln-op-faint">· {event.actorName}</span>
               )}
             </p>
-            <p className="text-[12.5px] text-ln-op-ink leading-[1.5]">{event.summary}</p>
+            <p className="text-md text-ln-op-ink leading-[1.5]">{event.summary}</p>
           </div>
         </li>
       ))}

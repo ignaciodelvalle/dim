@@ -53,7 +53,7 @@ export function DeleteRuleButton({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[11px] text-ln-op-ink-2">
+      <p className="text-sm text-ln-op-ink-2">
         La acción no se puede deshacer. Eliminar una regla PPP puede des-marcar mascotas afectadas.
       </p>
       <form action={formAction} className="flex flex-col gap-2">

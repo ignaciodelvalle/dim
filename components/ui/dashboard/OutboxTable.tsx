@@ -191,18 +191,18 @@ export function OutboxTable({
                     </span>
                   )}
                 </td>
-                <td className="py-2 px-3 text-[11px] text-ln-op-ink-2">{jurisdiction || "—"}</td>
+                <td className="py-2 px-3 text-sm text-ln-op-ink-2">{jurisdiction || "—"}</td>
                 <td className="py-2 px-3">
                   {petToken ? (
                     <Link
                       href={`/p/${petToken}`}
-                      className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
+                      className="font-mono text-sm text-ln-op-azul underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
                     >
                       {row.sourceEventId.slice(0, 8)}
                       {"…"}
                     </Link>
                   ) : (
-                    <span className="font-mono text-[11px] text-ln-op-mute">
+                    <span className="font-mono text-sm text-ln-op-mute">
                       {row.sourceEventId.slice(0, 8)}
                       {"…"}
                     </span>
@@ -225,10 +225,10 @@ export function OutboxTable({
                     row.attempts
                   )}
                 </td>
-                <td className="py-2 px-3 text-[11px] tabular-nums text-ln-op-mute whitespace-nowrap">
+                <td className="py-2 px-3 text-sm tabular-nums text-ln-op-mute whitespace-nowrap">
                   {formatDateTime(row.createdAt)}
                 </td>
-                <td className="py-2 px-3 text-[11px] tabular-nums text-ln-op-mute whitespace-nowrap">
+                <td className="py-2 px-3 text-sm tabular-nums text-ln-op-mute whitespace-nowrap">
                   {formatDateTime(row.slaDueAt)}
                 </td>
                 <td className="py-2 px-3">
@@ -245,7 +245,7 @@ export function OutboxTable({
                       Detalle {"→"}
                     </a>
                   ) : (
-                    <span className="text-[11px] text-ln-op-mute">—</span>
+                    <span className="text-sm text-ln-op-mute">—</span>
                   )}
                 </td>
               </tr>

@@ -36,7 +36,7 @@ function SwitcherItem({
       <Link
         href={target.href}
         onClick={onClick}
-        className="flex items-center gap-2 rounded-[var(--radius-sm)] px-3 py-[7px] text-[12.5px] text-ln-op-ink no-underline transition-colors hover:bg-ln-op-page"
+        className="flex items-center gap-2 rounded-[var(--radius-sm)] px-3 py-[7px] text-md text-ln-op-ink no-underline transition-colors hover:bg-ln-op-page"
       >
         {target.label}
       </Link>

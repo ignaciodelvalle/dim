@@ -86,7 +86,7 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
     const { title, cta } = labels[prompt];
     return (
       <div className="flex max-w-[320px] flex-col gap-2">
-        <label className="text-[11px] font-semibold text-ln-op-mute" htmlFor={`note-${firingId}`}>
+        <label className="text-sm font-semibold text-ln-op-mute" htmlFor={`note-${firingId}`}>
           {title}
         </label>
         <textarea
@@ -101,7 +101,7 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
               : "Nota de cierre (opcional)…"
           }
         />
-        {error ? <p className="text-[11px] text-ln-op-danger">{error}</p> : null}
+        {error ? <p className="text-sm text-ln-op-danger">{error}</p> : null}
         <div className="flex items-center gap-2">
           <OpButton
             type="button"
@@ -227,7 +227,7 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
           </OpButton>
         ) : null}
       </div>
-      {error ? <p className="text-[11px] text-ln-op-danger">{error}</p> : null}
+      {error ? <p className="text-sm text-ln-op-danger">{error}</p> : null}
     </div>
   );
 }

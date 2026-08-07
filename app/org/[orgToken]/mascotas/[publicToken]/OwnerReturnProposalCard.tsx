@@ -106,7 +106,7 @@ export function OwnerReturnProposalCard({
       <OpCard accent="warn">
         <OpCardHead title="Aceptar la devolución" />
         <OpCardBody>
-          <p className="text-[13px] text-ln-op-ink mb-3">
+          <p className="text-md text-ln-op-ink mb-3">
             Aceptar la devolución de <strong>{petName}</strong> del adoptante{" "}
             <strong>{ownerDisplayName ?? "desconocido"}</strong>.
           </p>
@@ -141,7 +141,7 @@ export function OwnerReturnProposalCard({
       <OpCard accent="warn">
         <OpCardHead title="Rechazar propuesta de devolución" />
         <OpCardBody>
-          <p className="text-[13px] text-ln-op-ink mb-3">
+          <p className="text-md text-ln-op-ink mb-3">
             Rechazar la devolución de <strong>{petName}</strong>.
           </p>
           <textarea
@@ -149,7 +149,7 @@ export function OwnerReturnProposalCard({
             onChange={(e) => setRejectReason(e.target.value)}
             rows={2}
             placeholder="Motivo del rechazo (requerido)"
-            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul mb-3"
+            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul mb-3"
           />
           {error && <output className="block text-sm text-ln-op-danger mb-3">{error}</output>}
           <div className="flex gap-2">
@@ -178,7 +178,7 @@ export function OwnerReturnProposalCard({
     <OpCard accent="warn">
       <OpCardHead title="Devolución propuesta por el adoptante" />
       <OpCardBody>
-        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px] mb-4">
+        <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-md mb-4">
           <dt className="text-ln-op-mute">Adoptante</dt>
           <dd className="text-ln-op-ink">{ownerDisplayName ?? "—"}</dd>
           <dt className="text-ln-op-mute">Propuesta el</dt>

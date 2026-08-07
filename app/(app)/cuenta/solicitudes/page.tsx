@@ -133,7 +133,7 @@ export default async function SolicitudesPage({
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -164,14 +164,14 @@ export default async function SolicitudesPage({
                 <LnCardBody>
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="font-ln-serif text-[14.5px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
+                      <p className="font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
                         {inv.orgDisplayName}
                       </p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-                        <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-ln-mono text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
+                        <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
                           {INVITED_ROLE_LABELS[inv.invitedRole] ?? inv.invitedRole}
                         </span>
-                        <span className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                        <span className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
                           Expira {formatDate(inv.expiresAt)}
                         </span>
                       </div>
@@ -228,9 +228,7 @@ export default async function SolicitudesPage({
 
       {/* No results for filter */}
       {totalCount > 0 && filtered.length === 0 && (
-        <p className="text-[13px] text-[var(--color-ln-mute)]">
-          No hay solicitudes con ese filtro.
-        </p>
+        <p className="text-md text-[var(--color-ln-mute)]">No hay solicitudes con ese filtro.</p>
       )}
 
       {/* Requests list */}
@@ -249,18 +247,18 @@ export default async function SolicitudesPage({
                 <LnCardBody>
                   {/* Type + status */}
                   <div className="mb-2.5 flex flex-wrap items-center gap-[7px]">
-                    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-ln-mono text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+                    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
                       {REQUEST_TYPE_LABELS[req.type] ?? req.type}
                     </span>
                     <span
-                      className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${style.bg} ${style.text} ${style.border}`}
+                      className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${style.bg} ${style.text} ${style.border}`}
                     >
                       {STATUS_LABELS[req.status]}
                     </span>
                   </div>
 
                   {/* Dates */}
-                  <div className="mb-2.5 flex flex-col gap-0.5 font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+                  <div className="mb-2.5 flex flex-col gap-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                     <span>Enviada el {formatDate(req.createdAt)}</span>
                     {req.decidedAt && <span>Decidida el {formatDate(req.decidedAt)}</span>}
                   </div>

@@ -71,7 +71,7 @@ function LnCheckbox({
         onChange={onChange}
         className="mt-0.5 h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-azul)]"
       />
-      <span className="text-[13px] text-[var(--color-ln-ink)]">{children}</span>
+      <span className="text-md text-[var(--color-ln-ink)]">{children}</span>
     </label>
   );
 }
@@ -442,7 +442,7 @@ export function DeathRecordForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

@@ -51,14 +51,14 @@ export function AgendaRuleForm({
       <input type="hidden" name="orgToken" value={orgToken} />
 
       {state.error && (
-        <p className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-md rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
 
       {/* Days of week */}
       <div className="space-y-1">
-        <span className="block text-[13px] font-medium text-ln-op-ink">
+        <span className="block text-md font-medium text-ln-op-ink">
           Días <span className="text-ln-op-danger">*</span>
         </span>
         <div className="flex flex-wrap gap-2">
@@ -78,7 +78,7 @@ export function AgendaRuleForm({
       {/* Time window */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label htmlFor="startTimeLocal" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="startTimeLocal" className="block text-md font-medium text-ln-op-ink">
             Hora inicio <span className="text-ln-op-danger">*</span>
           </label>
           <LnInput
@@ -91,7 +91,7 @@ export function AgendaRuleForm({
           />
         </div>
         <div className="space-y-1">
-          <label htmlFor="endTimeLocal" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="endTimeLocal" className="block text-md font-medium text-ln-op-ink">
             Hora fin <span className="text-ln-op-danger">*</span>
           </label>
           <LnInput
@@ -108,7 +108,7 @@ export function AgendaRuleForm({
       {/* Effective range */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label htmlFor="effectiveFrom" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="effectiveFrom" className="block text-md font-medium text-ln-op-ink">
             Válido desde <span className="text-ln-op-danger">*</span>
           </label>
           <LnInput
@@ -121,7 +121,7 @@ export function AgendaRuleForm({
           />
         </div>
         <div className="space-y-1">
-          <label htmlFor="effectiveUntil" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="effectiveUntil" className="block text-md font-medium text-ln-op-ink">
             Válido hasta{" "}
             <span className="text-ln-op-mute font-normal">(opcional — sin fecha = abierto)</span>
           </label>

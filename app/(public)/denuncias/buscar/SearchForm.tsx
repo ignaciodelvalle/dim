@@ -65,7 +65,7 @@ export function SearchForm() {
           </p>
         )}
         <p
-          className="text-[10.5px] text-[var(--color-ln-mute)]"
+          className="text-sm text-[var(--color-ln-mute)]"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           Formato: DEN-XXXX-XXXX · pegalo tal cual te lo enviamos.

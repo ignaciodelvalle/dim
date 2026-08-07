@@ -129,7 +129,7 @@ export default async function OfferingDetailPage({
           {organization.displayName} · Servicios
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">{offering.displayName}</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           {kind?.label ?? offering.serviceKind} · Enviado el {formatDate(offering.submittedAt)}
         </p>
       </header>
@@ -181,7 +181,7 @@ export default async function OfferingDetailPage({
             {canCreate && offering.status !== "archived" ? (
               <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
                 <dt className="text-sm text-ln-op-mute shrink-0 w-36">Capacidad por turno</dt>
-                <dd className="text-[13px] text-ln-op-ink flex-1">
+                <dd className="text-md text-ln-op-ink flex-1">
                   <CapacityEditor
                     orgToken={orgToken}
                     offeringToken={offeringToken}
@@ -252,7 +252,7 @@ export default async function OfferingDetailPage({
         <div>
           <Link
             href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
-            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:opacity-90 transition-opacity"
           >
             Configurar agenda →
           </Link>
@@ -294,7 +294,7 @@ function Row({
   return (
     <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
       <dt className="text-sm text-ln-op-mute shrink-0 w-36">{label}</dt>
-      <dd className={`text-[13px] text-ln-op-ink flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
+      <dd className={`text-md text-ln-op-ink flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );
 }

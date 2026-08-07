@@ -75,7 +75,7 @@ export default async function PetsNoAptasPage({
           <h1 className="text-title font-semibold text-ln-op-ink">
             Mascotas no aptas para adopción
           </h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Animales en custodia marcados explícitamente como NO aptos para adopción. Resolvé el
             motivo desde el perfil del pet para volver a marcarlos como aptos.
           </p>
@@ -89,7 +89,7 @@ export default async function PetsNoAptasPage({
         )}
 
         {rows.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute py-6 text-center">
+          <p className="text-md text-ln-op-mute py-6 text-center">
             No hay mascotas marcadas como no aptas.
           </p>
         ) : (
@@ -111,7 +111,7 @@ export default async function PetsNoAptasPage({
                         <div className="flex items-baseline justify-between gap-3">
                           <Link
                             href={`/org/${orgToken}/mascotas/${pet.publicToken}/eligibility`}
-                            className="text-[13px] font-medium text-ln-op-ink hover:underline"
+                            className="text-md font-medium text-ln-op-ink hover:underline"
                           >
                             {pet.name}
                           </Link>

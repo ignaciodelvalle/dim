@@ -94,7 +94,7 @@ export function OrgSetupChecklist({ steps, orgToken, autoFocusFirst = false }: P
                   <div className="flex-1 min-w-0 space-y-1">
                     <p
                       className={[
-                        "text-[13px] font-semibold",
+                        "text-md font-semibold",
                         step.done ? "text-ln-op-mute line-through" : "text-ln-op-ink",
                       ].join(" ")}
                     >

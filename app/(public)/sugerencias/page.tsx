@@ -21,7 +21,7 @@ export default function SugerenciasPage() {
           Hacer una sugerencia
         </h1>
         <div className="rounded-xl border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-6 py-8 space-y-3">
-          <p className="text-[15px] font-semibold text-[var(--color-ln-ink)]">
+          <p className="text-base font-semibold text-[var(--color-ln-ink)]">
             Canal de sugerencias en preparación.
           </p>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -31,7 +31,7 @@ export default function SugerenciasPage() {
         </div>
         <Link
           href="/"
-          className="inline-block text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-md text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

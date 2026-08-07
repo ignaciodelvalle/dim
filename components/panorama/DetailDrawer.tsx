@@ -233,13 +233,13 @@ function Row({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 border-b border-ln-op-line-2 py-2 last:border-b-0">
       <dt className="text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">{label}</dt>
-      <dd className="text-[13px] text-ln-op-ink">{value ?? "—"}</dd>
+      <dd className="text-md text-ln-op-ink">{value ?? "—"}</dd>
     </div>
   );
 }
 
 const DRILL_CLS =
-  "inline-flex items-center gap-1 rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white no-underline hover:bg-ln-op-azul-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
+  "inline-flex items-center gap-1 rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white no-underline hover:bg-ln-op-azul-700 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul";
 
 /**
  * map-QOL no-silent-crossing: drill links to /gob/* surfaces get an explicit
@@ -638,7 +638,7 @@ export function FeatureBody({
     }
 
     default:
-      return <p className="text-[13px] text-ln-op-mute">Sin detalle para esta capa.</p>;
+      return <p className="text-md text-ln-op-mute">Sin detalle para esta capa.</p>;
   }
 }
 
@@ -746,7 +746,7 @@ function UnitHistorySection({
     <section aria-labelledby="unit-history-heading" className="border-t border-ln-op-line pt-3">
       <h3
         id="unit-history-heading"
-        className="mb-2 text-[11px] font-bold uppercase tracking-[0.1em] text-ln-op-mute"
+        className="mb-2 text-sm font-bold uppercase tracking-[0.1em] text-ln-op-mute"
       >
         Historia de la unidad
         {place ? <span className="font-normal normal-case"> · {place}</span> : null}
@@ -906,7 +906,7 @@ export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
                 Detalle de capa
               </p>
-              <h2 id={titleId} className="text-[15px] font-semibold text-ln-op-ink">
+              <h2 id={titleId} className="text-base font-semibold text-ln-op-ink">
                 {selected.layerLabel}
               </h2>
             </div>
@@ -914,7 +914,7 @@ export function DetailDrawer({ selected, periodLabel, onClose }: Props) {
               type="button"
               onClick={onClose}
               aria-label="Cerrar"
-              className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
+              className="rounded-[var(--radius-md)] border border-ln-op-line px-2 py-1 text-md text-ln-op-ink-2 hover:bg-ln-op-stripe focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
             >
               <Icon name="close" size="sm" decorative />
             </button>

@@ -42,10 +42,10 @@ export default async function CheckinsPage({
     return (
       <div className="max-w-2xl space-y-4 py-8">
         <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
-        <p className="text-[13px] text-ln-op-mute">{auth.error}</p>
+        <p className="text-md text-ln-op-mute">{auth.error}</p>
         <Link
           href={`/org/${orgToken}`}
-          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+          className="text-md text-ln-op-azul hover:underline no-underline"
         >
           ← Volver al panel
         </Link>
@@ -77,7 +77,7 @@ export default async function CheckinsPage({
     return (
       <div className="max-w-3xl space-y-8">
         <PageHeader orgName={organization.displayName} />
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Todavía no hay adopciones registradas por esta organización. Cuando finalices una, los
           check-ins post-adopción del adoptante aparecerán acá.
         </p>
@@ -145,8 +145,7 @@ export default async function CheckinsPage({
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-ln-op-ink">
-          Vencidos{" "}
-          <span className="text-[13px] font-normal text-ln-op-mute">({overdue.length})</span>
+          Vencidos <span className="text-md font-normal text-ln-op-mute">({overdue.length})</span>
         </h2>
         {/* The 30-row cap is applied to the combined reminder set BEFORE the
             overdue/upcoming split, so a large overdue backlog can be truncated
@@ -159,7 +158,7 @@ export default async function CheckinsPage({
           </p>
         )}
         {overdue.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Ningún check-in vencido. Si el adoptante se atrasa, va a aparecer acá.
           </p>
         ) : (
@@ -174,7 +173,7 @@ export default async function CheckinsPage({
                       className="px-4 py-3 flex items-start justify-between gap-3"
                     >
                       <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
+                        <p className="text-md font-medium text-ln-op-ink">
                           <Link
                             href={`/mis-mascotas/${row.publicToken}`}
                             className="text-ln-op-azul hover:underline no-underline"
@@ -200,8 +199,7 @@ export default async function CheckinsPage({
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-ln-op-ink">
-          Próximos{" "}
-          <span className="text-[13px] font-normal text-ln-op-mute">({upcoming.length})</span>
+          Próximos <span className="text-md font-normal text-ln-op-mute">({upcoming.length})</span>
         </h2>
         {remindersTruncated && (
           <p className="text-sm text-ln-op-mute">
@@ -209,7 +207,7 @@ export default async function CheckinsPage({
           </p>
         )}
         {upcoming.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">No hay próximos check-ins en agenda.</p>
+          <p className="text-md text-ln-op-mute">No hay próximos check-ins en agenda.</p>
         ) : (
           <OpCard>
             <OpCardBody className="p-0">
@@ -222,7 +220,7 @@ export default async function CheckinsPage({
                       className="px-4 py-3 flex items-start justify-between gap-3"
                     >
                       <div className="flex-1 min-w-0 space-y-1">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
+                        <p className="text-md font-medium text-ln-op-ink">
                           <Link
                             href={`/mis-mascotas/${row.publicToken}`}
                             className="text-ln-op-azul hover:underline no-underline"
@@ -248,7 +246,7 @@ export default async function CheckinsPage({
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-ln-op-ink">
           Check-ins recibidos{" "}
-          <span className="text-[13px] font-normal text-ln-op-mute">
+          <span className="text-md font-normal text-ln-op-mute">
             ({checkinsTruncated ? `${CHECKIN_CAP}+` : displayCheckins.length})
           </span>
         </h2>
@@ -256,14 +254,14 @@ export default async function CheckinsPage({
           <p className="text-sm text-ln-op-mute">Mostrando los {CHECKIN_CAP} más recientes.</p>
         )}
         {displayCheckins.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">Ningún check-in registrado todavía.</p>
+          <p className="text-md text-ln-op-mute">Ningún check-in registrado todavía.</p>
         ) : (
           <OpCard>
             <OpCardBody className="p-0">
               <ul className="divide-y divide-ln-op-line">
                 {displayCheckins.map((row) => (
                   <li key={row.eventId} className="px-4 py-3 space-y-1">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
+                    <p className="text-md font-medium text-ln-op-ink">
                       <Link
                         href={`/mis-mascotas/${row.publicToken}`}
                         className="text-ln-op-azul hover:underline no-underline"
@@ -295,7 +293,7 @@ function PageHeader({ orgName }: { orgName: string }) {
     <header className="space-y-2">
       <p className="text-sm uppercase tracking-wider text-ln-op-mute">Seguimiento · {orgName}</p>
       <h1 className="text-title font-semibold text-ln-op-ink">Check-ins post-adopción</h1>
-      <p className="text-[13px] text-ln-op-mute">
+      <p className="text-md text-ln-op-mute">
         Los adoptantes se autoreportan en las ventanas pactadas. Acá ves lo que llegó, lo que está
         por venir y lo que no llegó a tiempo.
       </p>
@@ -308,7 +306,7 @@ function BackLink({ orgToken }: { orgToken: string }) {
     <footer className="pt-4 border-t border-ln-op-line">
       <Link
         href={`/org/${orgToken}`}
-        className="text-[13px] text-ln-op-azul hover:underline no-underline"
+        className="text-md text-ln-op-azul hover:underline no-underline"
       >
         ← Volver al panel
       </Link>

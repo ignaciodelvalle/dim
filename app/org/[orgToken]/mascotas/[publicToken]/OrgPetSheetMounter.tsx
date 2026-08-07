@@ -125,7 +125,7 @@ export function OrgPetSheetMounter({
           open
           onClose={close}
         >
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             {petName} no tiene microchip registrado todavía. No hay chip que reemplazar.
           </p>
         </Sheet>
@@ -149,7 +149,7 @@ export function OrgPetSheetMounter({
     if (!fosterName) {
       return (
         <Sheet id="fin-transito" title={`Cerrar tránsito · ${petName}`} open onClose={close}>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             {petName} no tiene un tránsito activo para cerrar.
           </p>
         </Sheet>
@@ -172,7 +172,7 @@ export function OrgPetSheetMounter({
     if (!canProposeReturn) {
       return (
         <Sheet id="devolver-al-dueno" title={`Devolver · ${petName}`} open onClose={close}>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Esta acción no está disponible para {petName} en este momento. La mascota debe estar en
             estado perdida y sin propuesta de devolución pendiente.
           </p>

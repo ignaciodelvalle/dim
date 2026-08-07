@@ -150,7 +150,7 @@ export default async function RefugiosIndexPage() {
               const items = byProvince.get(province) ?? [];
               return (
                 <section key={province} className="space-y-3">
-                  <h2 className="text-[11px] font-bold uppercase tracking-[.1em] text-[var(--color-ln-mute)] border-b border-[var(--color-ln-line)] pb-1">
+                  <h2 className="text-sm font-bold uppercase tracking-[.1em] text-[var(--color-ln-mute)] border-b border-[var(--color-ln-line)] pb-1">
                     {province}
                   </h2>
                   <ul className="grid gap-2 sm:grid-cols-2">
@@ -161,16 +161,16 @@ export default async function RefugiosIndexPage() {
                           className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-4 py-3 no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
                         >
                           <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-semibold text-[var(--color-ln-ink)] truncate">
+                            <p className="text-md font-semibold text-[var(--color-ln-ink)] truncate">
                               {org.displayName}
                             </p>
-                            <p className="text-[11px] text-[var(--color-ln-mute)] mt-0.5">
+                            <p className="text-sm text-[var(--color-ln-mute)] mt-0.5">
                               {ORG_TYPE_LABELS[org.orgType] ?? org.orgType}
                               {org.jurisdictionLocality && ` · ${org.jurisdictionLocality}`}
                             </p>
                           </div>
                           <span
-                            className="mt-0.5 flex-shrink-0 text-[11px] text-[var(--color-ln-azul)]"
+                            className="mt-0.5 flex-shrink-0 text-sm text-[var(--color-ln-azul)]"
                             aria-hidden="true"
                           >
                             →

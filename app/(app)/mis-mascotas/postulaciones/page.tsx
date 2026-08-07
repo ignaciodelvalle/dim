@@ -235,7 +235,7 @@ export default async function MisPostulacionesPage({
       {/* Back */}
       <Link
         href="/mis-mascotas"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis mascotas
       </Link>
@@ -274,7 +274,7 @@ export default async function MisPostulacionesPage({
           action={
             <Link
               href="/adoptar"
-              className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-2 font-ln-sans text-[13px] font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
+              className="inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-2 font-ln-sans text-md font-medium text-[var(--color-ln-ok)] no-underline hover:opacity-80 transition-opacity"
             >
               Ver mascotas en adopción
             </Link>
@@ -295,15 +295,15 @@ export default async function MisPostulacionesPage({
                     {app.petName}
                   </p>
                   <span
-                    className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] ${config.cls}`}
+                    className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${config.cls}`}
                   >
                     {config.label}
                   </span>
                 </div>
-                <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+                <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
                   Refugio: {app.orgDisplayName}
                 </p>
-                <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
                   Enviada el {formatDateShort(app.submittedAt)}
                   {app.decisionAt && (
                     <>
@@ -333,7 +333,7 @@ export default async function MisPostulacionesPage({
 function StatusBody({ status, app }: { status: ApplicationStatus; app: ApplicationRow }) {
   if (status === "pending") {
     return (
-      <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+      <p className="text-md text-[var(--color-ln-mute)]">
         El refugio está revisando tu postulación.
         {app.stillListed && (
           <>
@@ -353,7 +353,7 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "info_requested") {
     return (
-      <p className="text-[12.5px] text-[var(--color-ln-azul)]">
+      <p className="text-md text-[var(--color-ln-azul)]">
         {app.orgDisplayName} te pidió más información sobre tu postulación. Revisá tus
         notificaciones y respondé por email para que puedan avanzar.
       </p>
@@ -361,7 +361,7 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "withdrawn") {
     return (
-      <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+      <p className="text-md text-[var(--color-ln-mute)]">
         Retiraste esta postulación.{" "}
         <Link href="/adoptar" className="text-[var(--color-ln-azul)] no-underline hover:underline">
           Ver otras en adopción
@@ -372,14 +372,14 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "approved") {
     return (
-      <p className="text-[12.5px] text-[var(--color-ln-ok)]">
+      <p className="text-md text-[var(--color-ln-ok)]">
         El refugio aprobó tu postulación. Coordinan los próximos pasos por email.
       </p>
     );
   }
   if (status === "finalized_to_me") {
     return (
-      <p className="text-[12.5px] text-[var(--color-ln-ok)]">
+      <p className="text-md text-[var(--color-ln-ok)]">
         ¡Adoptaste a {app.petName}! Mirá su libreta digital en{" "}
         <Link
           href="/mis-mascotas"
@@ -393,7 +393,7 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
   }
   if (status === "auto_rejected") {
     return (
-      <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+      <p className="text-md text-[var(--color-ln-mute)]">
         {app.petName} encontró hogar con otra postulación. Mirá{" "}
         <Link
           href={`/adoptar?org=${app.orgPublicToken}`}
@@ -410,7 +410,7 @@ function StatusBody({ status, app }: { status: ApplicationStatus; app: Applicati
     );
   }
   return (
-    <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+    <p className="text-md text-[var(--color-ln-mute)]">
       El refugio no avanzó con esta postulación.{" "}
       <Link href="/adoptar" className="text-[var(--color-ln-azul)] no-underline hover:underline">
         Ver otras en adopción

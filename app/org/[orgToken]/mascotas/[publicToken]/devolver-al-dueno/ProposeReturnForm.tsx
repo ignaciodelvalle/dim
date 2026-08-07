@@ -87,15 +87,13 @@ export function ProposeReturnForm({
           inert={step !== 1 ? true : undefined}
         >
           <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
-            <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">Vas a devolver</p>
-            <p className="mt-1 text-[17px] font-semibold text-ln-op-ink">
-              {petName ?? "Esta mascota"}
-            </p>
-            <p className="mt-2 text-[11px] text-ln-op-mute">
+            <p className="text-sm uppercase tracking-wider text-ln-op-mute">Vas a devolver</p>
+            <p className="mt-1 text-lg font-semibold text-ln-op-ink">{petName ?? "Esta mascota"}</p>
+            <p className="mt-2 text-sm text-ln-op-mute">
               Token: <span className="font-mono">{petPublicToken}</span>
             </p>
           </div>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Confirmá que esta es la mascota correcta. Si tenés acceso al chip o foto del dueño, te
             recomendamos hacer el cross-check antes de continuar.
           </p>
@@ -110,11 +108,11 @@ export function ProposeReturnForm({
           aria-hidden={step !== 2}
           inert={step !== 2 ? true : undefined}
         >
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Coordiná lugar y momento de entrega con el dueño antes de enviar la propuesta. Podés
             anotar detalles abajo (opcional) — el dueño los ve cuando recibe la notificación.
           </p>
-          <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[11px] text-ln-op-warn">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-sm text-ln-op-warn">
             Sugerencia: si no es posible reunirse, dejá un teléfono o canal de contacto en las notas
             de la próxima pantalla.
           </div>
@@ -139,7 +137,7 @@ export function ProposeReturnForm({
               rows={4}
               maxLength={1000}
               placeholder="Ej: El animal está en buen estado, coordinamos horario de búsqueda…"
-              className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
+              className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
             />
           </div>
 

@@ -157,7 +157,7 @@ export function UrlTabs({
                 tabIndex={isActive ? 0 : -1}
                 onClick={() => handleTabClick(tab.value)}
                 className={[
-                  "inline-flex items-center gap-[7px] min-h-11 px-[18px] text-[13px] font-semibold",
+                  "inline-flex items-center gap-[7px] min-h-11 px-[18px] text-md font-semibold",
                   "transition-colors border-b-2 -mb-px",
                   "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
                   isActive

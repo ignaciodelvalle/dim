@@ -105,7 +105,7 @@ export function MatchConfirmationCard({
         <div className="p-4 space-y-3">
           <div>
             <h2 className="text-lg font-semibold text-ln-op-ink">{petName}</h2>
-            {speciesLine && <p className="text-[13px] text-ln-op-ink-2">{speciesLine}</p>}
+            {speciesLine && <p className="text-md text-ln-op-ink-2">{speciesLine}</p>}
             {details && <p className="text-sm text-ln-op-mute">{details}</p>}
           </div>
 
@@ -114,14 +114,14 @@ export function MatchConfirmationCard({
           </div>
 
           {ownerFirstName && (
-            <p className="text-[13px] text-ln-op-ink">
+            <p className="text-md text-ln-op-ink">
               <span className="text-ln-op-mute">Dueño/a: </span>
               <span className="font-medium">{ownerFirstName}</span>
             </p>
           )}
 
           {lastLocationText && (
-            <p className="text-[13px] text-ln-op-ink">
+            <p className="text-md text-ln-op-ink">
               <span className="text-ln-op-mute">Última ubicación conocida: </span>
               <span>{lastLocationText}</span>
               {lastLocationDate && (
@@ -139,7 +139,7 @@ export function MatchConfirmationCard({
       </div>
 
       {error && (
-        <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
+        <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-md text-ln-op-danger">
           {error}
         </p>
       )}

@@ -209,7 +209,7 @@ export async function ServiciosScreen({
                             className="flex items-start justify-between gap-3 group no-underline"
                           >
                             <div className="min-w-0 space-y-0.5">
-                              <p className="text-[13px] font-medium text-ln-op-ink">
+                              <p className="text-md font-medium text-ln-op-ink">
                                 {offering.displayName}
                               </p>
                               <p className="text-sm text-ln-op-mute">

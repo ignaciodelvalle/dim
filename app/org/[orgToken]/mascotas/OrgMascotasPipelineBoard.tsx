@@ -111,8 +111,8 @@ function PipelineCard({
       ].join(" ")}
       aria-label={`Ver perfil de ${card.name}`}
     >
-      <p className="text-[13px] font-semibold text-ln-op-ink truncate">{card.name}</p>
-      <p className="text-[11px] text-ln-op-mute truncate">
+      <p className="text-md font-semibold text-ln-op-ink truncate">{card.name}</p>
+      <p className="text-sm text-ln-op-mute truncate">
         {speciesLabel(card.species)}
         {card.breed ? ` · ${card.breed}` : ""}
         {ageInfo ? ` · ${ageInfo}` : ""}
@@ -153,7 +153,7 @@ function PipelineColumn({
           style.border,
         ].join(" ")}
       >
-        <h2 className={`text-[11px] font-bold uppercase tracking-wider ${style.headerText}`}>
+        <h2 className={`text-sm font-bold uppercase tracking-wider ${style.headerText}`}>
           {label}
         </h2>
         <span
@@ -170,7 +170,7 @@ function PipelineColumn({
         aria-label={`Animales en ${label}`}
       >
         {cards.length === 0 ? (
-          <li className="text-[11px] text-ln-op-mute text-center py-4 italic list-none">
+          <li className="text-sm text-ln-op-mute text-center py-4 italic list-none">
             Sin animales
           </li>
         ) : (
@@ -209,7 +209,7 @@ export function OrgMascotasPipelineBoard({ cards, fosteredPetIds, orgToken }: Pr
 
   if (cards.length === 0) {
     return (
-      <p className="text-[13px] text-ln-op-mute">
+      <p className="text-md text-ln-op-mute">
         Todavía no hay animales registrados a nombre de la organización.
       </p>
     );

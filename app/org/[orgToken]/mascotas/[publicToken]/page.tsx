@@ -48,13 +48,13 @@ export default async function OrgPetDetailPage({
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Para ver la ficha del animal necesitás el permiso{" "}
-            <code className="text-[11px]">pet.read_held</code>.
+            <code className="text-sm">pet.read_held</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -109,7 +109,7 @@ export default async function OrgPetDetailPage({
           <h1 className="text-title font-semibold text-ln-op-ink">
             Esta mascota ya no está bajo tu custodia
           </h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Pasó a un nuevo dueño o fue transferida, así que salió del listado de tu organización.
             Es el resultado esperado de una adopción o transferencia finalizada.
           </p>
@@ -124,7 +124,7 @@ export default async function OrgPetDetailPage({
           )}
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -328,11 +328,11 @@ export default async function OrgPetDetailPage({
           />
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+              <p className="text-sm uppercase tracking-wider text-ln-op-mute">
                 {organization.displayName}
               </p>
               <h1 className="text-title font-semibold text-ln-op-ink">{pet.name}</h1>
-              <p className="text-[13px] text-ln-op-ink-2">
+              <p className="text-md text-ln-op-ink-2">
                 {petSpeciesLabel}
                 {pet.breed ? ` · ${pet.breed}` : ""}
                 {pet.color ? ` · ${pet.color}` : ""}
@@ -346,7 +346,7 @@ export default async function OrgPetDetailPage({
         <OpCard>
           <OpCardHead title="Datos del animal" />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-md">
               <dt className="text-ln-op-mute">Token público</dt>
               <dd>
                 <OpCodeBadge tone="neutral">{pet.publicToken}</OpCodeBadge>
@@ -402,9 +402,7 @@ export default async function OrgPetDetailPage({
           canProposeReturn ||
           canFinalizeAdoption) && (
           <section className="space-y-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-ln-op-mute">
-              Acciones
-            </h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-ln-op-mute">Acciones</h2>
             <div className="flex flex-wrap gap-2">
               {/* Azul, not green (one-primary-per-screen review, 2026-08-06):
                   this NAVIGATES to /adoption — the green stays on that form's

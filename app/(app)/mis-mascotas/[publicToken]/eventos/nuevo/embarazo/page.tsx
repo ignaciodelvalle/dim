@@ -97,13 +97,13 @@ function BlockedShell({
     <LnSheetWrap>
       <LnSheetCard>
         <div className="px-[18px] py-6 space-y-[12px]">
-          <p className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-3 py-2.5 text-[13px] text-[var(--color-ln-warn)]">
+          <p className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] px-3 py-2.5 text-md text-[var(--color-ln-warn)]">
             {message}
           </p>
           {showEndedLink && (
             <Link
               href={`/mis-mascotas/${publicToken}/eventos/nuevo/embarazo?phase=ended`}
-              className="inline-block rounded-[var(--radius-pill)] border border-[var(--color-ln-rosa)] bg-[var(--color-ln-rosa)] px-3.5 py-2 font-ln-mono text-[11.5px] font-semibold text-white"
+              className="inline-block rounded-[var(--radius-pill)] border border-[var(--color-ln-rosa)] bg-[var(--color-ln-rosa)] px-3.5 py-2 font-ln-mono text-sm font-semibold text-white"
             >
               Registrar cierre del embarazo
             </Link>

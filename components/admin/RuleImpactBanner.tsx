@@ -67,7 +67,7 @@ export function RuleImpactBanner({ input, onResult }: Props) {
 
   if (status === "loading") {
     return (
-      <p className="text-[13px] text-ln-op-mute italic" aria-live="polite" aria-busy="true">
+      <p className="text-md text-ln-op-mute italic" aria-live="polite" aria-busy="true">
         Calculando impacto…
       </p>
     );
@@ -78,7 +78,7 @@ export function RuleImpactBanner({ input, onResult }: Props) {
     // operator knows the estimate is unavailable (submission stays allowed; the
     // preview is advisory, not a gate).
     return (
-      <p className="text-[13px] text-ln-op-mute" aria-live="polite">
+      <p className="text-md text-ln-op-mute" aria-live="polite">
         No se pudo calcular el impacto estimado. Podés continuar igual.
       </p>
     );
@@ -88,7 +88,7 @@ export function RuleImpactBanner({ input, onResult }: Props) {
 
   if (count === 0) {
     return (
-      <p className="text-[13px] text-ln-op-mute" aria-live="polite">
+      <p className="text-md text-ln-op-mute" aria-live="polite">
         Esta regla no afecta a ninguna mascota actualmente no clasificada.
       </p>
     );
@@ -96,7 +96,7 @@ export function RuleImpactBanner({ input, onResult }: Props) {
 
   return (
     <p
-      className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn"
+      className="text-md rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn"
       aria-live="polite"
     >
       Esta regla afecta a ~{count.toLocaleString("es-AR")} {count === 1 ? "mascota" : "mascotas"}{" "}

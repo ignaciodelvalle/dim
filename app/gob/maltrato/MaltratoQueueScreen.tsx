@@ -658,7 +658,7 @@ export async function MaltratoQueueScreen({
         <div className="flex min-w-0 flex-col lg:w-2/5 lg:min-h-0 lg:overflow-y-auto">
           {/* Queue ≠ status: the chips are a workflow lens (urgentes / sin asignar /
               mías…), NOT the "Estado" filter (that lives in the bar above). */}
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
+          <p className="mb-1.5 text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute">
             Cola de trabajo
           </p>
           <QueueFilterChips

@@ -135,7 +135,7 @@ export default async function CuentaPage() {
         <LnCard>
           <LnCardHead title="No pudimos cargar tu cuenta" />
           <LnCardBody>
-            <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+            <p className="text-md text-[var(--color-ln-ink-2)]">
               {load.reason === "timeout"
                 ? "La carga está tardando más de lo esperado."
                 : "Hubo un problema al cargar tus datos."}{" "}
@@ -143,7 +143,7 @@ export default async function CuentaPage() {
             </p>
             <Link
               href="/cuenta"
-              className="mt-4 inline-flex items-center justify-center rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] text-[13px] font-semibold text-[var(--color-ln-ink)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+              className="mt-4 inline-flex items-center justify-center rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] text-md font-semibold text-[var(--color-ln-ink)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
             >
               Reintentar
             </Link>
@@ -158,7 +158,7 @@ export default async function CuentaPage() {
   if (!profile) {
     return (
       <div className="mx-auto max-w-4xl px-8 py-7">
-        <p className="text-[13px] text-[var(--color-ln-err)]">
+        <p className="text-md text-[var(--color-ln-err)]">
           No se encontró tu perfil. Cerrá sesión e intentá de nuevo.
         </p>
       </div>
@@ -242,7 +242,7 @@ export default async function CuentaPage() {
             {profile.dniLast4 ? (
               <div className="flex items-center gap-2.5">
                 <VerificationBadge verified={profile.dniVerified} />
-                <span className="text-[13px] text-[var(--color-ln-ink-2)]">
+                <span className="text-md text-[var(--color-ln-ink-2)]">
                   DNI <span className="font-ln-mono">{`••••${profile.dniLast4}`}</span>{" "}
                   {/* DNI verification is self-declared (trust-on-input) until the Mi Argentina
                       integration lands. Use "declarado" to avoid overclaiming identity assurance. */}
@@ -252,7 +252,7 @@ export default async function CuentaPage() {
             ) : (
               <div className="flex items-center gap-2.5">
                 <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-mute)]" />
-                <span className="text-[13px] text-[var(--color-ln-mute)]">DNI no declarado</span>
+                <span className="text-md text-[var(--color-ln-mute)]">DNI no declarado</span>
                 <Link
                   href="?sheet=verificar-dni"
                   className="inline-flex items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-1.5 text-sm font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
@@ -266,7 +266,7 @@ export default async function CuentaPage() {
             {profile.matriculaNumber ? (
               <div className="flex items-center gap-2.5">
                 <VerificationBadge verified={profile.matriculaVerified} />
-                <span className="text-[13px] text-[var(--color-ln-ink-2)]">
+                <span className="text-md text-[var(--color-ln-ink-2)]">
                   Matrícula M.N. {profile.matriculaNumber}
                   {profile.matriculaJurisdiccion && ` (${profile.matriculaJurisdiccion})`}{" "}
                   {profile.matriculaVerified
@@ -277,9 +277,7 @@ export default async function CuentaPage() {
             ) : profile.role === "vet" ? (
               <div className="flex items-center gap-2.5">
                 <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-warn)]" />
-                <span className="text-[13px] text-[var(--color-ln-mute)]">
-                  Matrícula no cargada
-                </span>
+                <span className="text-md text-[var(--color-ln-mute)]">Matrícula no cargada</span>
               </div>
             ) : null}
           </div>
@@ -293,7 +291,7 @@ export default async function CuentaPage() {
         <div className="mb-7 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] border-t-[3px] border-t-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-[18px] py-3.5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
+              <p className="text-md font-semibold text-[var(--color-ln-ink)]">
                 ¿Vas a ofrecer servicios profesionales?
               </p>
               <p className="mt-0.5 text-sm text-[var(--color-ln-ink-2)]">
@@ -303,7 +301,7 @@ export default async function CuentaPage() {
             </div>
             <Link
               href="/cuenta/crear-consultorio"
-              className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-ln-sans text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+              className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-ln-sans text-md font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
             >
               Crear consultorio →
             </Link>
@@ -450,7 +448,7 @@ export default async function CuentaPage() {
             </span>
             <h2
               id="zona-riesgo-heading"
-              className="m-0 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-err)]"
+              className="m-0 font-ln-serif text-title font-semibold tracking-[-0.01em] text-[var(--color-ln-err)]"
             >
               Zona de riesgo
             </h2>
@@ -465,14 +463,14 @@ export default async function CuentaPage() {
       <form action={logoutAction} className="mt-1 mb-7">
         <button
           type="submit"
-          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] font-ln-sans text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] font-ln-sans text-md font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
         >
           Cerrar sesión
         </button>
       </form>
 
       {/* Footer */}
-      <div className="mt-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-sm uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Documento sincronizado</span>
         <span>miMAR · Registro Nacional de Mascotas</span>
       </div>
@@ -562,12 +560,12 @@ function ActionRow({
     >
       <div className="min-w-0">
         <p
-          className={`flex items-center gap-1.5 text-[13.5px] font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
+          className={`flex items-center gap-1.5 text-md font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
         >
           {danger && <Icon name="alerta" size={14} decorative />}
           {label}
         </p>
-        <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
+        <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{description}</p>
       </div>
       <div className="flex flex-shrink-0 items-center gap-2">
         {badge !== undefined && (

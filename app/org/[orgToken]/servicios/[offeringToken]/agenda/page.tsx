@@ -98,7 +98,7 @@ export default async function AgendaPage({
           {organization.displayName} · {kind?.label ?? offering.serviceKind}
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">Agenda</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Reglas de disponibilidad recurrente para{" "}
           <strong className="text-ln-op-ink-2">{offering.displayName}</strong>.
         </p>
@@ -108,7 +108,7 @@ export default async function AgendaPage({
       <section className="space-y-4">
         <h2 className="text-md font-semibold text-ln-op-ink">Reglas activas</h2>
         {rules.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Todavía no hay reglas de agenda. Agregá una abajo para que se materialicen turnos.
           </p>
         ) : (
@@ -123,32 +123,32 @@ export default async function AgendaPage({
                     <tr>
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
                       >
                         Días
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
                       >
                         Horario
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
                       >
                         Desde
                       </th>
                       <th
                         scope="col"
-                        className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
                       >
                         Hasta
                       </th>
                       {canManage && (
                         <th
                           scope="col"
-                          className="px-4 py-2 text-right text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                          className="px-4 py-2 text-right text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
                         >
                           Acción
                         </th>
@@ -158,16 +158,16 @@ export default async function AgendaPage({
                   <tbody className="divide-y divide-ln-op-line">
                     {rules.map((rule) => (
                       <tr key={rule.id} className="hover:bg-ln-op-stripe transition-colors">
-                        <td className="px-4 py-3 text-[13px] text-ln-op-ink">
+                        <td className="px-4 py-3 text-md text-ln-op-ink">
                           {formatDays(rule.daysOfWeek as number[])}
                         </td>
                         <td className="px-4 py-3 font-mono text-sm text-ln-op-ink-2">
                           {rule.startTimeLocal} – {rule.endTimeLocal}
                         </td>
-                        <td className="px-4 py-3 text-[13px] text-ln-op-mute">
+                        <td className="px-4 py-3 text-md text-ln-op-mute">
                           {formatDate(rule.effectiveFrom)}
                         </td>
-                        <td className="px-4 py-3 text-[13px] text-ln-op-mute">
+                        <td className="px-4 py-3 text-md text-ln-op-mute">
                           {rule.effectiveUntil ? formatDate(rule.effectiveUntil) : "Abierto"}
                         </td>
                         {canManage && (
@@ -211,7 +211,7 @@ export default async function AgendaPage({
       {canManage && rules.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-md font-semibold text-ln-op-ink">Materializar turnos</h2>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
             hace automáticamente; este botón es para preview inmediato.
           </p>

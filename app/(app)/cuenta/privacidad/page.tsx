@@ -20,7 +20,7 @@ export default async function PrivacidadPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -45,7 +45,7 @@ export default async function PrivacidadPage() {
       <LnCard>
         <LnCardHead title="¿Qué se conserva si me borro?" />
         <LnCardBody>
-          <p className="text-[13px] leading-[1.6] text-[var(--color-ln-ink-2)]">
+          <p className="text-md leading-[1.6] text-[var(--color-ln-ink-2)]">
             La supresión es <strong>soft-delete con hash de PII</strong>: nombre, teléfono y DNI
             quedan anonimizados; tu cuenta sale de las consultas habituales. Los eventos sanitarios
             de tus mascotas (libreta, vacunas, observaciones antirrábicas) se preservan porque su

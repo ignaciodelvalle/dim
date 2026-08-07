@@ -173,7 +173,7 @@ export default async function WelfareReportDetailPage({
       {/* Back */}
       <Link
         href="/denuncias/mias"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis denuncias
       </Link>
@@ -186,12 +186,12 @@ export default async function WelfareReportDetailPage({
           </h1>
           <div className="flex flex-shrink-0 flex-wrap gap-1.5">
             <span
-              className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
+              className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
             >
               {welfareReportStatusLabel(report.status)}
             </span>
             <span
-              className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${severityBadgeClass(report.severity)}`}
+              className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${severityBadgeClass(report.severity)}`}
             >
               {welfareReportSeverityLabel(report.severity)}
             </span>
@@ -199,26 +199,26 @@ export default async function WelfareReportDetailPage({
         </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3.5 gap-y-1">
-          <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+          <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
             Código <span className="text-[var(--color-ln-ink-2)]">{report.referenceCode}</span>
           </p>
           <a
             href={`/denuncias/codigo/${report.referenceCode}`}
             target="_blank"
             rel="noopener noreferrer"
-            className="font-ln-mono text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="font-ln-mono text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             Compartir link ↗
           </a>
         </div>
-        <p className="mt-1 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+        <p className="mt-1 font-ln-mono text-sm text-[var(--color-ln-mute)]">
           Enviada {formatDateTime(report.createdAt)}
           {report.occurredAt && ` · Ocurrió el ${formatDate(report.occurredAt)}`}
         </p>
         {casePublicCode && (
           <Link
             href={`/casos/${casePublicCode}`}
-            className="mt-1 inline-block font-ln-mono text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="mt-1 inline-block font-ln-mono text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             Ver caso {casePublicCode} →
           </Link>
@@ -255,7 +255,7 @@ export default async function WelfareReportDetailPage({
         <LnCard>
           <LnCardHead title="¿Qué pasó?" />
           <LnCardBody>
-            <p className="text-[13.5px] text-[var(--color-ln-ink-2)] leading-relaxed whitespace-pre-wrap">
+            <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed whitespace-pre-wrap">
               {report.description}
             </p>
           </LnCardBody>
@@ -265,22 +265,22 @@ export default async function WelfareReportDetailPage({
         <LnCard>
           <LnCardHead title="¿Sobre quién?" />
           <LnCardBody>
-            <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+            <p className="text-md text-[var(--color-ln-ink-2)]">
               {welfareReportSubjectKindLabel(report.subjectKind)}
             </p>
             {report.subjectKind === "registered_pet" && subjectPet && (
               <Link
                 href={`/mis-mascotas/${subjectPet.publicToken}`}
-                className="mt-1.5 inline-flex items-center gap-1.5 text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="mt-1.5 inline-flex items-center gap-1.5 text-md text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 {subjectPet.name}
-                <span className="font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+                <span className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
                   {subjectPet.publicToken}
                 </span>
               </Link>
             )}
             {report.subjectDescription && (
-              <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
+              <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
                 {report.subjectDescription}
               </p>
             )}
@@ -294,12 +294,10 @@ export default async function WelfareReportDetailPage({
             <LnCardBody>
               <div className="flex flex-col gap-2">
                 {report.locationAddress && (
-                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
-                    {report.locationAddress}
-                  </p>
+                  <p className="text-md text-[var(--color-ln-ink-2)]">{report.locationAddress}</p>
                 )}
                 {(report.jurisdictionLocality || report.jurisdictionProvince) && (
-                  <p className="font-ln-mono text-[11.5px] text-[var(--color-ln-mute)]">
+                  <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
                     {[report.jurisdictionLocality, report.jurisdictionProvince]
                       .filter(Boolean)
                       .join(", ")}
@@ -308,7 +306,7 @@ export default async function WelfareReportDetailPage({
                 {locationPoint && (
                   <>
                     <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
-                    <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
                       {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
                     </p>
                   </>
@@ -325,12 +323,12 @@ export default async function WelfareReportDetailPage({
             <LnCardBody>
               <div className="flex flex-col gap-1.5">
                 {report.reporterContactEmail && (
-                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                  <p className="text-md text-[var(--color-ln-ink-2)]">
                     {report.reporterContactEmail}
                   </p>
                 )}
                 {report.reporterContactPhone && (
-                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                  <p className="text-md text-[var(--color-ln-ink-2)]">
                     {report.reporterContactPhone}
                   </p>
                 )}
@@ -398,7 +396,7 @@ export default async function WelfareReportDetailPage({
                       key={c.id}
                       className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3.5 py-3"
                     >
-                      <p className="text-[13px] text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
+                      <p className="text-md text-[var(--color-ln-ink-2)] whitespace-pre-wrap">
                         {c.notes}
                       </p>
                       <time className="mt-1 block font-ln-mono text-xs text-[var(--color-ln-mute)]">

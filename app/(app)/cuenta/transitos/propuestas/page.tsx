@@ -29,7 +29,7 @@ export default async function PropuestasInboxPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -47,7 +47,7 @@ export default async function PropuestasInboxPage() {
         </div>
         <Link
           href="/cuenta/ofrecerme-como-transito"
-          className="mt-1 flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-ln-sans text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+          className="mt-1 flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-ln-sans text-md font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
         >
           Ofrecerme como tránsito
         </Link>
@@ -67,9 +67,7 @@ export default async function PropuestasInboxPage() {
             className="mb-4"
           />
           {active.length === 0 ? (
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
-              No tenés propuestas pendientes.
-            </p>
+            <p className="text-md text-[var(--color-ln-mute)]">No tenés propuestas pendientes.</p>
           ) : (
             <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {active.map(({ proposal, pet, org }) => (
@@ -79,11 +77,11 @@ export default async function PropuestasInboxPage() {
                   className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   <div>
-                    <p className="text-[13.5px] font-medium text-[var(--color-ln-ink)]">
+                    <p className="text-md font-medium text-[var(--color-ln-ink)]">
                       {org.displayName}{" "}
                       <span className="font-normal text-[var(--color-ln-mute)]">→ {pet.name}</span>
                     </p>
-                    <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                       {speciesLabel(pet.species)}
                       {proposal.proposedDurationWeeks &&
                         ` · ${proposal.proposedDurationWeeks} sem.`}{" "}
@@ -112,7 +110,7 @@ export default async function PropuestasInboxPage() {
                   key={proposal.id}
                   className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 last:border-b-0"
                 >
-                  <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+                  <p className="text-md text-[var(--color-ln-ink-2)]">
                     {org.displayName} · {pet.name}
                   </p>
                   <span

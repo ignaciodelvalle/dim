@@ -39,7 +39,7 @@ export function LnDocCode({ children, className = "" }: LnDocCodeProps) {
   return (
     <span
       className={[
-        "ml-auto font-ln-mono text-[11px] tracking-[.04em] text-[var(--color-ln-faint)]",
+        "ml-auto font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-faint)]",
         className,
       ]
         .filter(Boolean)
@@ -133,11 +133,11 @@ export function LnSectionHead({ num, title, meta, className = "" }: LnSectionHea
           {num}
         </span>
       )}
-      <h2 className="m-0 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
+      <h2 className="m-0 font-ln-serif text-title font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
         {title}
       </h2>
       {meta && (
-        <span className="ml-auto self-center font-ln-mono text-[11px] tracking-[.02em] text-[var(--color-ln-mute)]">
+        <span className="ml-auto self-center font-ln-mono text-sm tracking-[.02em] text-[var(--color-ln-mute)]">
           {meta}
         </span>
       )}
@@ -171,11 +171,11 @@ export function LnCallout({ tone = "azul", title, children, className = "" }: Ln
         .join(" ")}
     >
       {title && (
-        <p className="mb-1 flex items-center gap-[7px] text-[12.5px] font-semibold text-[var(--color-ln-ink)]">
+        <p className="mb-1 flex items-center gap-[7px] text-md font-semibold text-[var(--color-ln-ink)]">
           {title}
         </p>
       )}
-      <p className="text-[11.5px] leading-[1.5] text-[var(--color-ln-ink-2)]">{children}</p>
+      <p className="text-sm leading-[1.5] text-[var(--color-ln-ink-2)]">{children}</p>
     </div>
   );
 }

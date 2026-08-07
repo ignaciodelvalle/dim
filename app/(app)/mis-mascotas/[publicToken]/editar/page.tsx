@@ -53,7 +53,7 @@ export default async function EditPetPage({
         <div className="flex flex-col gap-3.5 px-[18px] py-[18px]">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="font-ln-mono text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+            className="font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
           >
             ← Volver al perfil
           </Link>

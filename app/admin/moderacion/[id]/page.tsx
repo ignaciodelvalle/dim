@@ -167,9 +167,9 @@ export default async function ModeracionDetailPage({
       <OpCard>
         <OpCardHead title="¿Qué pasó?" />
         <OpCardBody>
-          <p className="whitespace-pre-wrap text-[13px] text-ln-op-ink">{report.description}</p>
+          <p className="whitespace-pre-wrap text-md text-ln-op-ink">{report.description}</p>
           {report.occurredAt && (
-            <p className="mt-2 text-[11px] text-ln-op-mute">
+            <p className="mt-2 text-sm text-ln-op-mute">
               {"Ocurrió el "}
               {formatDate(report.occurredAt)}
             </p>
@@ -181,12 +181,12 @@ export default async function ModeracionDetailPage({
       <OpCard>
         <OpCardHead title="Sujeto" />
         <OpCardBody>
-          <p className="text-[13px] text-ln-op-ink">
+          <p className="text-md text-ln-op-ink">
             {welfareReportSubjectKindLabel(report.subjectKind)}
             {report.subjectPetId && subjectPetPublicToken && (
               <Link
                 href={`/p/${subjectPetPublicToken}`}
-                className="ml-2 font-mono text-[11px] text-ln-op-azul underline underline-offset-4 hover:opacity-80"
+                className="ml-2 font-mono text-sm text-ln-op-azul underline underline-offset-4 hover:opacity-80"
               >
                 {subjectPetPublicToken}
               </Link>
@@ -235,7 +235,7 @@ export default async function ModeracionDetailPage({
             <ul className="space-y-1.5">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate font-mono text-[11px] text-ln-op-mute">
+                  <span className="truncate font-mono text-sm text-ln-op-mute">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (
@@ -252,7 +252,7 @@ export default async function ModeracionDetailPage({
                     // the object isn't in the welfare-evidence bucket. Say so —
                     // "(no disponible)" left an operator unsure if it was a
                     // permission wall or a missing file.
-                    <span className="shrink-0 text-right text-[11px] text-ln-op-faint">
+                    <span className="shrink-0 text-right text-sm text-ln-op-faint">
                       No disponible — el archivo no se encontró en el almacenamiento
                     </span>
                   )}

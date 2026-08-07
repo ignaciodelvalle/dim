@@ -55,7 +55,7 @@ export default async function TransitosActivosPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -78,7 +78,7 @@ export default async function TransitosActivosPage() {
           action={
             <Link
               href="/cuenta/transitos/propuestas"
-              className="text-[12.5px] text-[var(--color-ln-azul)] no-underline hover:underline"
+              className="text-md text-[var(--color-ln-azul)] no-underline hover:underline"
             >
               Mirá tus propuestas →
             </Link>
@@ -100,7 +100,7 @@ export default async function TransitosActivosPage() {
                   >
                     {pet.name}
                   </Link>
-                  <p className="mt-0.5 font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+                  <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                     {speciesLabel(pet.species)}
                     {pet.breed && ` · ${pet.breed}`}
                     {org && ` · refugio: ${org.displayName}`}
@@ -119,7 +119,7 @@ export default async function TransitosActivosPage() {
       )}
 
       {/* Nav footer */}
-      <div className="mt-8 flex gap-5 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-[11px]">
+      <div className="mt-8 flex gap-5 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-sm">
         <Link
           href="/cuenta/transitos/propuestas"
           className="text-[var(--color-ln-azul)] no-underline hover:underline"

@@ -18,7 +18,7 @@ export default function AcercaPage() {
         </h1>
 
         <section aria-labelledby="que-es-heading" className="space-y-3">
-          <h2 id="que-es-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
+          <h2 id="que-es-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Qué es miMAR?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -36,10 +36,7 @@ export default function AcercaPage() {
         </section>
 
         <section aria-labelledby="para-quien-heading" className="space-y-3">
-          <h2
-            id="para-quien-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="para-quien-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Para quién es?
           </h2>
           <ul className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-2 list-disc pl-5">
@@ -60,10 +57,7 @@ export default function AcercaPage() {
         </section>
 
         <section aria-labelledby="que-hace-heading" className="space-y-3">
-          <h2
-            id="que-hace-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="que-hace-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Qué hace?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -83,7 +77,7 @@ export default function AcercaPage() {
         <section aria-labelledby="transparencia-heading" className="space-y-3">
           <h2
             id="transparencia-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
+            className="text-lg font-semibold text-[var(--color-ln-ink)]"
           >
             Transparencia de datos y metodología
           </h2>
@@ -104,7 +98,7 @@ export default function AcercaPage() {
 
         <Link
           href="/"
-          className="inline-block text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-md text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

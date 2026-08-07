@@ -428,7 +428,7 @@ export function MinimalNewPetForm({
           {/* Location — REQUIRED. Province-first cascade (commit 38fb1f44). */}
           <div className="flex flex-col gap-1.5">
             <LocationFields mode="l1" required cascade />
-            <p className="font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+            <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
               Requerido. Ayuda a las campañas regionales de salud animal.
             </p>
           </div>
@@ -461,7 +461,7 @@ export function MinimalNewPetForm({
 
         {/* ── Error ──────────────────────────────────────────────────── */}
         {errorText && (
-          <p className="mt-4 font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
+          <p className="mt-4 font-ln-mono text-sm text-[var(--color-ln-err)]" role="alert">
             {errorText}
           </p>
         )}
@@ -920,7 +920,7 @@ function PhotoField({
           <p className="text-md font-medium text-[var(--color-ln-ink-2)]">
             {preview ? "Cambiar foto" : "Tomar o elegir una foto"}
           </p>
-          <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+          <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
             Cámara o galería. JPG o PNG, hasta 5 MB.
           </p>
         </div>

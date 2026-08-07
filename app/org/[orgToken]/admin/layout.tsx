@@ -26,7 +26,7 @@ export default async function OrgAdminLayout({
           detail={
             <>
               Esta sección es para administradores. Necesitás el permiso{" "}
-              <code className="text-[11px] font-bold text-ln-op-ink-2 bg-ln-op-stripe px-1 rounded">
+              <code className="text-sm font-bold text-ln-op-ink-2 bg-ln-op-stripe px-1 rounded">
                 capability.grant
               </code>{" "}
               para revisar solicitudes.{" "}

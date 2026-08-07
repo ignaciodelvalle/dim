@@ -461,7 +461,7 @@ export default async function AdminProgramaPage({
           title={<span id={panelRabiesForecastId}>Proyección de vacunación antirrábica</span>}
           actions={
             rabiesTrend.suppressedCount > 0 ? (
-              <span className="text-[11px] text-ln-op-mute">
+              <span className="text-sm text-ln-op-mute">
                 {rabiesTrend.suppressedCount}{" "}
                 {rabiesTrend.suppressedCount === 1 ? "período oculto" : "períodos ocultos"}{" "}
                 (privacidad)
@@ -471,7 +471,7 @@ export default async function AdminProgramaPage({
         />
         <OpCardBody>
           {!hasRabiesTrend ? (
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Sin eventos de vacunación antirrábica en el período para proyectar.
             </p>
           ) : (
@@ -491,7 +491,7 @@ export default async function AdminProgramaPage({
         <OpCardHead
           title={<span id={panelOutliersId}>Valores atípicos por provincia</span>}
           actions={
-            <span className="text-[11px] text-ln-op-mute">
+            <span className="text-sm text-ln-op-mute">
               {outlierCount} de {outliers.length} combinaciones bajo meta
             </span>
           }
@@ -521,7 +521,7 @@ export default async function AdminProgramaPage({
                 mascotas registradas.
               </p>
               <div className="overflow-x-auto">
-                <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+                <table className="w-full text-md text-ln-op-ink border-collapse">
                   <caption className="sr-only">
                     Cobertura por provincia y métrica vs meta programática, ordenada por impacto
                     estimado (mascotas sin cobertura). Filas marcadas en rojo están por debajo de la
@@ -653,12 +653,12 @@ export default async function AdminProgramaPage({
             />
             <OpCardBody>
               {piiOversight.length === 0 ? (
-                <p className="text-[13px] text-ln-op-mute">
+                <p className="text-md text-ln-op-mute">
                   Sin consultas PII registradas en el período.
                 </p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+                  <table className="w-full text-md text-ln-op-ink border-collapse">
                     <caption className="sr-only">
                       Top actores por cantidad de consultas PII-sensibles en el período. Datos del
                       audit_log (pii_queried, welfare_location_viewed).
@@ -700,7 +700,7 @@ export default async function AdminProgramaPage({
                           key={`${row.actorUserId ?? "deleted"}-${row.action}-${row.surface ?? ""}`}
                           className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
                         >
-                          <td className="py-2 pr-4 text-[13px] text-ln-op-ink-2">
+                          <td className="py-2 pr-4 text-md text-ln-op-ink-2">
                             {row.actorUserId
                               ? (actorNameMap.get(row.actorUserId) ?? "Operador desconocido")
                               : "Usuario eliminado"}
@@ -714,7 +714,7 @@ export default async function AdminProgramaPage({
                           <td className="py-2 pr-4 text-right tabular-nums font-medium">
                             {row.count.toLocaleString("es-AR")}
                           </td>
-                          <td className="py-2 text-right text-[11px] text-ln-op-mute">
+                          <td className="py-2 text-right text-sm text-ln-op-mute">
                             {formatDateShort(row.lastAt)}
                           </td>
                         </tr>
@@ -732,7 +732,7 @@ export default async function AdminProgramaPage({
               <OpCardHead title={<span id={panelQualityId}>Calidad de datos</span>} />
               <OpCardBody>
                 {dataQuality.total === 0 ? (
-                  <p className="text-[13px] text-ln-op-mute">Sin mascotas activas en el padrón.</p>
+                  <p className="text-md text-ln-op-mute">Sin mascotas activas en el padrón.</p>
                 ) : (
                   <div className="space-y-3">
                     {/* Completeness bar */}
@@ -741,7 +741,7 @@ export default async function AdminProgramaPage({
                         <span className="text-sm text-ln-op-mute">Completitud</span>
                         <span
                           className={[
-                            "text-[13px] font-semibold tabular-nums",
+                            "text-md font-semibold tabular-nums",
                             dataQuality.completenessPct >= 80
                               ? "text-ln-op-ok"
                               : dataQuality.completenessPct >= 60

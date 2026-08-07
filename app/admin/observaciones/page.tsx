@@ -324,7 +324,7 @@ export default async function ObservacionesPage({
     <div className="space-y-6">
       {header}
       <ViewScopeCaption scope={narrowedView} />
-      <p className="text-[13px] text-ln-op-ink-2">
+      <p className="text-md text-ln-op-ink-2">
         Período de 10 días por Decreto 4669/1973 (PBA), Ord. CABA 41.831/1987. Las activas requieren
         cierre profesional cuando hubo síntomas escalables; las completadas se muestran como
         referencia (últimos 30 días) salvo que filtres por un estado específico.
@@ -358,7 +358,7 @@ export default async function ObservacionesPage({
                 <OpCardBody>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-[13px] font-semibold text-ln-op-ink">
+                      <p className="text-md font-semibold text-ln-op-ink">
                         {r.petName}{" "}
                         <span className="text-sm font-normal text-ln-op-mute">
                           {"· "}

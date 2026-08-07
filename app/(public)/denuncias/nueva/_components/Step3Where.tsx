@@ -130,7 +130,7 @@ export function Step3Where({
         />
         <p
           id="description-hint"
-          className="text-[10.5px] text-right text-[var(--color-ln-faint)]"
+          className="text-sm text-right text-[var(--color-ln-faint)]"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           {description.length} / {DESCRIPTION_MAX}
@@ -211,7 +211,7 @@ export function Step3Where({
           onChange={onLocationChange}
         />
         {!hasPoint && (
-          <output className="mt-2 block rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2 text-[12.5px] text-[var(--color-ln-warn)] leading-snug">
+          <output className="mt-2 block rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-3 py-2 text-md text-[var(--color-ln-warn)] leading-snug">
             Marcá el lugar exacto tocando el mapa, arrastrando el pin o con “Usar mi ubicación”. La
             denuncia necesita un punto preciso para llegar a la autoridad de esa zona.
           </output>

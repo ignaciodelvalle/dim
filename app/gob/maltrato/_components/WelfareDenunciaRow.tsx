@@ -152,7 +152,7 @@ export function WelfareDenunciaRow({
           <div className="flex items-baseline justify-between gap-3">
             <div className="min-w-0 space-y-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <p className="text-[13px] font-medium text-ln-op-ink">
+                <p className="text-md font-medium text-ln-op-ink">
                   {welfareReportKindLabel(report.kind)}
                 </p>
                 <OpPill tone={severityTone}>
@@ -171,7 +171,7 @@ export function WelfareDenunciaRow({
                   that row is the urgency voice, and this is not an urgency
                   statement — it is a warning that the address printed one line
                   below may belong to somebody else's municipality. */}
-              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-ln-op-mute">
+              <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-ln-op-mute">
                 <span>
                   {report.jurisdictionLocality && report.jurisdictionProvince
                     ? `${report.jurisdictionLocality}, ${report.jurisdictionProvince}`

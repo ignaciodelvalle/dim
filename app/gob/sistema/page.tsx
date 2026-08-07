@@ -203,13 +203,13 @@ export default async function GobSistemaPage({
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm text-ln-op-mute">En tiempo (on-time)</span>
-              <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
+              <span className="text-md font-medium tabular-nums text-ln-op-ink">
                 {formatPercent(enoSla.onTimePct)}
               </span>
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm text-ln-op-mute">Total notificaciones</span>
-              <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
+              <span className="text-md font-medium tabular-nums text-ln-op-ink">
                 {enoSla.total.toLocaleString("es-AR")}
               </span>
             </div>
@@ -217,7 +217,7 @@ export default async function GobSistemaPage({
               <span className="text-sm text-ln-op-mute">En incumplimiento activo</span>
               <span
                 className={[
-                  "text-[13px] font-medium tabular-nums",
+                  "text-md font-medium tabular-nums",
                   enoSla.breachedOpen > 0 ? "text-ln-op-danger" : "text-ln-op-ink",
                 ].join(" ")}
               >
@@ -240,7 +240,7 @@ export default async function GobSistemaPage({
           <div className="space-y-2">
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm text-ln-op-mute">Pendientes</span>
-              <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
+              <span className="text-md font-medium tabular-nums text-ln-op-ink">
                 {queue.pendingTotal.toLocaleString("es-AR")}
               </span>
             </div>
@@ -248,7 +248,7 @@ export default async function GobSistemaPage({
               <span className="text-sm text-ln-op-mute">Más vieja (días)</span>
               <span
                 className={[
-                  "text-[13px] font-medium tabular-nums",
+                  "text-md font-medium tabular-nums",
                   queue.oldestPendingDaysAgo !== null && queue.oldestPendingDaysAgo > 30
                     ? "text-ln-op-danger"
                     : queue.oldestPendingDaysAgo !== null && queue.oldestPendingDaysAgo > 14
@@ -261,7 +261,7 @@ export default async function GobSistemaPage({
             </div>
             <div className="flex items-baseline justify-between gap-3">
               <span className="text-sm text-ln-op-mute">14d+ / 30d+ / 60d+</span>
-              <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
+              <span className="text-md font-medium tabular-nums text-ln-op-ink">
                 {queue.pending14dPlus} / {queue.pending30dPlus} / {queue.pending60dPlus}
               </span>
             </div>

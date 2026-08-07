@@ -19,10 +19,7 @@ export default function AccesibilidadPage() {
 
         {/* Commitment statement */}
         <section aria-labelledby="compromiso-heading" className="space-y-3">
-          <h2
-            id="compromiso-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="compromiso-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             Nuestro compromiso
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -37,7 +34,7 @@ export default function AccesibilidadPage() {
 
         {/* Implemented measures */}
         <section aria-labelledby="medidas-heading" className="space-y-3">
-          <h2 id="medidas-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
+          <h2 id="medidas-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             Medidas implementadas
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -100,7 +97,7 @@ export default function AccesibilidadPage() {
         <section aria-labelledby="limitaciones-heading" className="space-y-3">
           <h2
             id="limitaciones-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
+            className="text-lg font-semibold text-[var(--color-ln-ink)]"
           >
             Limitaciones conocidas
           </h2>
@@ -125,10 +122,7 @@ export default function AccesibilidadPage() {
 
         {/* Contact */}
         <section aria-labelledby="contacto-heading" className="space-y-3">
-          <h2
-            id="contacto-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="contacto-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             Reportar un problema de accesibilidad
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -145,14 +139,14 @@ export default function AccesibilidadPage() {
         </section>
 
         {/* Last reviewed */}
-        <p className="text-[13px] text-[var(--color-ln-ink-2)] leading-relaxed border-t border-[var(--color-ln-line)] pt-4">
+        <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed border-t border-[var(--color-ln-line)] pt-4">
           Esta declaración fue redactada en junio de 2026 y refleja el estado actual del producto.
           Se actualiza a medida que el producto evoluciona.
         </p>
 
         <Link
           href="/"
-          className="inline-block text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-md text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

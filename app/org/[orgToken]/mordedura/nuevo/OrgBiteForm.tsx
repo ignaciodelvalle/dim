@@ -331,7 +331,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
           ).map((opt) => (
             <label
               key={opt.value}
-              className={`flex items-center justify-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-[13px] cursor-pointer transition-colors ${
+              className={`flex items-center justify-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-md cursor-pointer transition-colors ${
                 victimKind === opt.value
                   ? "border-ln-op-azul bg-ln-op-azul/10 text-ln-op-ink"
                   : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -474,7 +474,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
         </div>
 
         {state.error && (
-          <p className="text-[13px] text-ln-op-danger" role="alert">
+          <p className="text-md text-ln-op-danger" role="alert">
             {state.error}
           </p>
         )}

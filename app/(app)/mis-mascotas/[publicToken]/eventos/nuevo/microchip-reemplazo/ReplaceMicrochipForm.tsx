@@ -56,8 +56,8 @@ export function ReplaceMicrochipForm({
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           {/* Current chip display */}
           <LnSubCard>
-            <p className="font-ln-mono text-[11px] text-[var(--color-ln-mute)]">Chip actual</p>
-            <p className="font-ln-mono text-[13px] font-semibold text-[var(--color-ln-ink)]">
+            <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">Chip actual</p>
+            <p className="font-ln-mono text-md font-semibold text-[var(--color-ln-ink)]">
               {currentChip}
             </p>
           </LnSubCard>
@@ -139,7 +139,7 @@ export function ReplaceMicrochipForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

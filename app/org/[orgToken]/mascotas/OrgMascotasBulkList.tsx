@@ -217,7 +217,7 @@ export function OrgMascotasBulkList({
 
   if (cards.length === 0) {
     return (
-      <p className="text-[13px] text-ln-op-mute">
+      <p className="text-md text-ln-op-mute">
         {hasActiveFilters
           ? "Ningún animal coincide con el filtro aplicado."
           : "Todavía no hay animales registrados a nombre de la organización."}
@@ -422,7 +422,7 @@ export function OrgMascotasBulkList({
             {mode === "none" && (
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-[13px]">
+                  <p className="text-md">
                     <span className="font-medium">{selected.size}</span>{" "}
                     {pluralizeEs(selected.size, "seleccionada")}
                     {selected.size > BULK_MAX && (
@@ -596,7 +596,7 @@ function BulkVaccinationForm({
 
   return (
     <div className="space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">
+      <p className="text-md font-medium text-ln-op-ink">
         Vacunar {count} {pluralizeEs(count, "animal")}
       </p>
 
@@ -611,7 +611,7 @@ function BulkVaccinationForm({
             value={vaccineName}
             onChange={(e) => setVaccineName(e.target.value)}
             placeholder="Ej. Cuádruple canina"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -624,7 +624,7 @@ function BulkVaccinationForm({
             type="date"
             value={occurredAt}
             onChange={(e) => setOccurredAt(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -638,7 +638,7 @@ function BulkVaccinationForm({
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
             placeholder="Ej. Nobivac"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -652,7 +652,7 @@ function BulkVaccinationForm({
             value={batch}
             onChange={(e) => setBatch(e.target.value)}
             placeholder="Ej. L-2024-07"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -666,7 +666,7 @@ function BulkVaccinationForm({
             value={administeredBy}
             onChange={(e) => setAdministeredBy(e.target.value)}
             placeholder="Ej. Dr. Gómez MP 1234"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -679,7 +679,7 @@ function BulkVaccinationForm({
             type="date"
             value={nextDueAt}
             onChange={(e) => setNextDueAt(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
       </div>
@@ -743,12 +743,12 @@ function BulkEligibilityForm({
 
   return (
     <div className="space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">
+      <p className="text-md font-medium text-ln-op-ink">
         Marcar elegibilidad — {count} {pluralizeEs(count, "animal")}
       </p>
 
       <div className="flex gap-4">
-        <label className="flex items-center gap-2 text-[13px] cursor-pointer text-ln-op-ink">
+        <label className="flex items-center gap-2 text-md cursor-pointer text-ln-op-ink">
           <input
             type="radio"
             name="bulk-elig-toggle"
@@ -763,7 +763,7 @@ function BulkEligibilityForm({
           />
           Apta para adopción
         </label>
-        <label className="flex items-center gap-2 text-[13px] cursor-pointer text-ln-op-ink">
+        <label className="flex items-center gap-2 text-md cursor-pointer text-ln-op-ink">
           <input
             type="radio"
             name="bulk-elig-toggle"
@@ -787,7 +787,7 @@ function BulkEligibilityForm({
               onChange={(e) =>
                 setIneligibleReason(e.target.value as (typeof BULK_INELIGIBLE_REASONS)[number] | "")
               }
-              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
             >
               <option value="">Seleccioná una razón</option>
               {BULK_INELIGIBLE_REASONS.map((r) => (
@@ -807,7 +807,7 @@ function BulkEligibilityForm({
               type="date"
               value={ineligibleUntilIso}
               onChange={(e) => setIneligibleUntilIso(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
             />
           </div>
 
@@ -822,7 +822,7 @@ function BulkEligibilityForm({
                 value={ineligibleReasonNotes}
                 onChange={(e) => setIneligibleReasonNotes(e.target.value)}
                 placeholder="Describí la situación"
-                className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-[13px]"
+                className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
               />
             </div>
           )}
@@ -856,7 +856,7 @@ function BulkListingForm({
 }) {
   return (
     <div className="space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">
+      <p className="text-md font-medium text-ln-op-ink">
         Publicar en adopción — {count} {pluralizeEs(count, "animal")}
       </p>
       <p className="text-sm text-ln-op-mute">

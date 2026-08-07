@@ -71,12 +71,12 @@ export default async function NewMedicationEndPage({
       <LnSheetWrap>
         <LnSheetCard>
           <div className="px-[18px] py-6 space-y-[10px]">
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               No hay medicaciones abiertas para {pet.name}.
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}`}
-              className="inline-block font-ln-mono text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
+              className="inline-block font-ln-mono text-sm text-[var(--color-ln-azul)] underline underline-offset-2"
             >
               ← Volver al perfil
             </Link>

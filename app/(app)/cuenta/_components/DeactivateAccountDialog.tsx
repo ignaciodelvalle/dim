@@ -58,10 +58,10 @@ export function DeactivateAccountDialog() {
         className="flex w-full items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-err-050)] transition-colors text-left"
       >
         <div className="min-w-0">
-          <p className="text-[13.5px] font-medium leading-tight text-[var(--color-ln-err)]">
+          <p className="text-md font-medium leading-tight text-[var(--color-ln-err)]">
             Desactivar mi cuenta
           </p>
-          <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">
+          <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
             Desactiva tu cuenta de miMAR — acción irreversible desde este panel
           </p>
         </div>
@@ -99,14 +99,12 @@ export function DeactivateAccountDialog() {
             }}
             rows={3}
             placeholder="Ej: Ya no necesito la cuenta, me mudé al exterior, etc."
-            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-[13px] text-[var(--color-ln-ink)] placeholder-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-err)] focus:shadow-[0_0_0_3px_var(--color-ln-err-050)] resize-none"
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-md text-[var(--color-ln-ink)] placeholder-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-err)] focus:shadow-[0_0_0_3px_var(--color-ln-err-050)] resize-none"
           />
           {!canConfirm && reason.length > 0 && (
-            <p className="text-[11px] text-[var(--color-ln-warn)]">
-              Necesitás al menos 5 caracteres.
-            </p>
+            <p className="text-sm text-[var(--color-ln-warn)]">Necesitás al menos 5 caracteres.</p>
           )}
-          {error && <p className="text-[11px] text-[var(--color-ln-err)]">{error}</p>}
+          {error && <p className="text-sm text-[var(--color-ln-err)]">{error}</p>}
         </div>
       </ConfirmDialog>
     </>

@@ -114,7 +114,7 @@ function severityBadgeClass(severity: string): string {
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
     <h2
-      className="text-[9.5px] uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)]"
+      className="text-xs uppercase tracking-[.1em] font-semibold text-[var(--color-ln-mute)]"
       style={{ fontFamily: "var(--font-ln-mono)" }}
     >
       {children}
@@ -206,7 +206,7 @@ export default async function WelfareReportByCodePage({
         <Link
           href="/denuncias/buscar"
           data-print-hide
-          className="inline-block text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] transition-colors no-underline"
+          className="inline-block text-sm font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] hover:text-[var(--color-ln-ink-2)] transition-colors no-underline"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           ← Buscar otra denuncia
@@ -249,7 +249,7 @@ export default async function WelfareReportByCodePage({
           </div>
           <div className="flex flex-wrap gap-2">
             <span
-              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[var(--radius-xs)] ${statusBadgeClass(report.status)}`}
+              className={`text-xs font-semibold px-2.5 py-0.5 rounded-[var(--radius-xs)] ${statusBadgeClass(report.status)}`}
               style={{
                 fontFamily: "var(--font-ln-mono)",
                 letterSpacing: ".04em",
@@ -259,7 +259,7 @@ export default async function WelfareReportByCodePage({
               {welfareReportStatusLabel(report.status)}
             </span>
             <span
-              className={`text-[9.5px] font-semibold px-2.5 py-0.5 rounded-[var(--radius-xs)] ${severityBadgeClass(report.severity)}`}
+              className={`text-xs font-semibold px-2.5 py-0.5 rounded-[var(--radius-xs)] ${severityBadgeClass(report.severity)}`}
               style={{
                 fontFamily: "var(--font-ln-mono)",
                 letterSpacing: ".04em",

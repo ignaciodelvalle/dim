@@ -113,7 +113,7 @@ export function CasesWidget({
                 icon={<CaseIcon severity={c.severity} icon={c.icon} />}
                 trailing={
                   <p
-                    className="shrink-0 text-[11px] text-ln-mute"
+                    className="shrink-0 text-sm text-ln-mute"
                     title={c.since.toLocaleString("es-AR", { timeZone: AR_TIME_ZONE })}
                   >
                     {relativeShort(c.since)}

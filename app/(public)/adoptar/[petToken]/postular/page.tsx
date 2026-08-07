@@ -138,7 +138,7 @@ export default async function PostularPage({
         {/* Back link */}
         <Link
           href={`/adoptar/${petToken}`}
-          className="inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="inline-block font-ln-mono text-sm uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
           style={{ color: "var(--color-ln-mute)" }}
         >
           ← Volver a la ficha
@@ -206,13 +206,13 @@ export default async function PostularPage({
           }}
         >
           <p
-            className="mb-1.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em]"
+            className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.12em]"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Lo que verá el refugio de vos
           </p>
           <div className="space-y-[3px]">
-            <p className="text-[13px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
+            <p className="text-md font-semibold" style={{ color: "var(--color-ln-ink)" }}>
               {profile?.displayName ?? "(sin nombre)"}
             </p>
             <p className="text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
@@ -228,7 +228,7 @@ export default async function PostularPage({
 
         {intentExpired && (
           <output
-            className="block rounded-[var(--radius-md)] border border-l-[4px] px-4 py-3.5 text-[13px]"
+            className="block rounded-[var(--radius-md)] border border-l-[4px] px-4 py-3.5 text-md"
             style={{
               background: "var(--color-ln-celeste-050)",
               borderColor: "var(--color-ln-celeste-100)",
@@ -278,7 +278,7 @@ function InstitutionalBlocked({ petToken }: { petToken: string }) {
         </p>
         <Link
           href={`/adoptar/${petToken}`}
-          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-md font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Volver a la ficha
@@ -315,7 +315,7 @@ function NoLongerAvailable({ name }: { name: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-md font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
@@ -352,7 +352,7 @@ function AlreadyApplied({ name }: { name: string }) {
         </p>
         <Link
           href="/mis-mascotas/postulaciones"
-          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-md font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver mis postulaciones

@@ -39,7 +39,7 @@ export default async function TransferPage({
       <div className="mx-auto max-w-md px-8 py-7 pb-12">
         <Link
           href="/transferencias"
-          className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Transferencias
         </Link>
@@ -66,7 +66,7 @@ export default async function TransferPage({
       {/* Back */}
       <Link
         href="/transferencias"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Transferencias
       </Link>
@@ -80,13 +80,13 @@ export default async function TransferPage({
               : `Transferencia de ${transfer.petName}`}
           </h1>
           {transfer.fromDisplayName && transfer.isRecipient && (
-            <p className="mt-1 text-[13px] text-[var(--color-ln-mute)]">
+            <p className="mt-1 text-md text-[var(--color-ln-mute)]">
               {transfer.fromDisplayName} te quiere transferir esta mascota.
             </p>
           )}
         </div>
         <span
-          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass}`}
+          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${statusBadgeClass}`}
         >
           {statusLabel}
         </span>
@@ -101,7 +101,7 @@ export default async function TransferPage({
             {transfer.note && <DetailRow label="Comentario">{transfer.note}</DetailRow>}
             <DetailRow label="Vence">{formatDateTime(transfer.expiresAt)}</DetailRow>
             <DetailRow label="Email del receptor">
-              <span className="font-ln-mono text-[12.5px]">{transfer.toEmail}</span>
+              <span className="font-ln-mono text-md">{transfer.toEmail}</span>
             </DetailRow>
           </dl>
         </LnCardBody>
@@ -131,7 +131,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
       <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }

@@ -101,17 +101,17 @@ export function MagicLinkResultPanel({
     <div className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">
       <div>
         <h3 className="text-base font-semibold text-ln-op-ok">{title}</h3>
-        <p className="mt-1 text-[13px] text-ln-op-ok">
+        <p className="mt-1 text-md text-ln-op-ok">
           {displayName} &middot; {email}
         </p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-[13px] font-medium text-ln-op-ink-2">Link de acceso (magic link)</p>
+        <p className="text-md font-medium text-ln-op-ink-2">Link de acceso (magic link)</p>
         <div className="flex gap-2">
           <code
             aria-label={revealed ? "Link de acceso visible" : "Link de acceso oculto"}
-            className="flex-1 block overflow-hidden text-ellipsis whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-2 font-ln-mono text-[11px] text-ln-op-ink select-none"
+            className="flex-1 block overflow-hidden text-ellipsis whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-2 font-ln-mono text-sm text-ln-op-ink select-none"
           >
             {magicLink
               ? revealed
@@ -142,9 +142,9 @@ export function MagicLinkResultPanel({
           )}
         </div>
         {copyState === "error" && (
-          <p className="text-[11px] text-ln-op-danger">No se pudo copiar — copialo manualmente.</p>
+          <p className="text-sm text-ln-op-danger">No se pudo copiar — copialo manualmente.</p>
         )}
-        <p className="text-[11px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           {subtitle} El link expira en {ttlLabel}. Si lo perdés, podés regenerarlo desde la página
           de detalle del operador.
         </p>
@@ -153,7 +153,7 @@ export function MagicLinkResultPanel({
       <div className="flex gap-3 pt-2">
         <a
           href={detailPath}
-          className="rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+          className="rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-md font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
         >
           Ver cuenta
         </a>

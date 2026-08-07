@@ -101,10 +101,10 @@ function Step1({ onContinue }: { onContinue: () => void }) {
         <div className="space-y-[16px]">
           {/* Legal context */}
           <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-050)] bg-[var(--color-ln-warn-025)] px-3.5 py-3 space-y-[8px]">
-            <p className="font-semibold text-[13px] text-[var(--color-ln-warn)]">
+            <p className="font-semibold text-md text-[var(--color-ln-warn)]">
               Régimen de Animales Potencialmente Peligrosos
             </p>
-            <p className="text-[12.5px] text-[var(--color-ln-warn)]">
+            <p className="text-md text-[var(--color-ln-warn)]">
               Las leyes CABA 4078 y Prov. BA 14.107 establecen obligaciones específicas para
               tenedores de razas consideradas potencialmente peligrosas. La atestación que vas a
               registrar queda anclada a tu DNI y a la jurisdicción de tu domicilio.
@@ -127,7 +127,7 @@ function Step1({ onContinue }: { onContinue: () => void }) {
                   checked={!!checked[c.id]}
                   onChange={() => toggle(c.id)}
                 />
-                <span className="text-[13px] text-[var(--color-ln-ink-2)] leading-[1.5]">
+                <span className="text-md text-[var(--color-ln-ink-2)] leading-[1.5]">
                   {c.label}
                 </span>
               </label>
@@ -146,7 +146,7 @@ function Step1({ onContinue }: { onContinue: () => void }) {
           Continuar con la atestación →
         </button>
         {!allChecked && (
-          <p className="mt-2 text-center font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+          <p className="mt-2 text-center font-ln-mono text-sm text-[var(--color-ln-mute)]">
             Confirmá todas las obligaciones para continuar
           </p>
         )}
@@ -210,7 +210,7 @@ function Step2({
                 >
                   <span className="flex flex-col gap-px">
                     {opt.label}
-                    <span className="text-[11px] text-[var(--color-ln-mute)]">{opt.help}</span>
+                    <span className="text-sm text-[var(--color-ln-mute)]">{opt.help}</span>
                   </span>
                 </LnRadio>
               ))}
@@ -263,7 +263,7 @@ function Step2({
           </LnField>
           <AttachmentField />
           {state.error && (
-            <p className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
+            <p className="font-ln-mono text-sm text-[var(--color-ln-err)]" role="alert">
               {state.error}
             </p>
           )}
@@ -282,7 +282,7 @@ function Step2({
           type="button"
           onClick={onBack}
           disabled={isPending}
-          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 font-ln-sans text-[13px] font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-40"
+          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-2.5 font-ln-sans text-md font-medium text-[var(--color-ln-ink-2)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-40"
         >
           ← Volver al paso anterior
         </button>

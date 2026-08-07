@@ -67,7 +67,7 @@ export default async function BuscarTurnosPage({
         <div className="mt-8">
           <Link
             href="/mis-mascotas"
-            className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             ← Mis mascotas
           </Link>
@@ -167,7 +167,7 @@ export default async function BuscarTurnosPage({
 
       {/* Results */}
       {offeringsWithSlots.length === 0 ? (
-        <p className="py-6 text-[13px] text-[var(--color-ln-mute)]">
+        <p className="py-6 text-md text-[var(--color-ln-mute)]">
           {locationLabel
             ? `Sin servicios disponibles en ${locationLabel}. Probá otra localidad.`
             : "No hay turnos disponibles para este servicio en los próximos 7 días."}
@@ -190,10 +190,10 @@ export default async function BuscarTurnosPage({
                 className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-ln-serif text-[15px] font-semibold text-[var(--color-ln-ink)]">
+                  <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ink)]">
                     {offering.displayName}
                   </p>
-                  <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                  <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                     {providerLabel}
                     {offering.priceArs !== null
                       ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
@@ -232,7 +232,7 @@ export default async function BuscarTurnosPage({
       <div className="mt-8">
         <Link
           href="/mis-mascotas"
-          className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Mis mascotas
         </Link>
@@ -254,7 +254,7 @@ function ServiceKindSelector() {
           href={`/turnos/buscar?service_kind=${kind.code}`}
           className="flex items-center justify-between border-b border-[var(--color-ln-line-2)] px-4 py-[13px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
-          <span className="text-[13.5px] text-[var(--color-ln-ink)]">{kind.label}</span>
+          <span className="text-md text-[var(--color-ln-ink)]">{kind.label}</span>
           <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
             ›
           </span>

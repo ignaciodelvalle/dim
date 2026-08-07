@@ -91,13 +91,13 @@ export default async function OrgTransferenciasSalientesPage({
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
           <h1 className="text-title font-semibold text-ln-op-ink">Transferencias salientes</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Propuestas que {organization.displayName} envió a otras organizaciones.
           </p>
         </div>
         <Link
           href={`/org/${orgToken}/transferencias/nueva`}
-          className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+          className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
         >
           + Nueva propuesta
         </Link>
@@ -129,7 +129,7 @@ export default async function OrgTransferenciasSalientesPage({
                     <li key={r.caseId} className="px-4 py-3 space-y-2">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 space-y-1">
-                          <p className="text-[13px] font-medium text-ln-op-ink">
+                          <p className="text-md font-medium text-ln-op-ink">
                             {r.petName ?? "(sin pet)"}{" "}
                             <span className="font-mono text-sm text-ln-op-mute">
                               · {r.publicCode}

@@ -48,7 +48,7 @@ export function LnTabs({ tabs, active, onChange, className = "" }: LnTabsProps) 
             aria-selected={isActive}
             onClick={() => onChange(tab.key)}
             className={[
-              "inline-flex cursor-pointer items-center gap-[7px] border-b-2 px-[18px] py-2.5 text-[13px] font-semibold transition-colors",
+              "inline-flex cursor-pointer items-center gap-[7px] border-b-2 px-[18px] py-2.5 text-md font-semibold transition-colors",
               "-mb-px", // overlap the tablist bottom border
               "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
               isActive
@@ -124,7 +124,7 @@ export function LnAccordion({
           .join(" ")}
       >
         {num && (
-          <span className="font-ln-mono text-[11px] font-semibold text-[var(--color-ln-azul)]">
+          <span className="font-ln-mono text-sm font-semibold text-[var(--color-ln-azul)]">
             {num}
           </span>
         )}
@@ -138,7 +138,7 @@ export function LnAccordion({
         )}
 
         {/* Chevron rotates 90° when open */}
-        <span className="ml-auto text-[13px] text-[var(--color-ln-mute)] transition-transform duration-150 group-open:rotate-90">
+        <span className="ml-auto text-md text-[var(--color-ln-mute)] transition-transform duration-150 group-open:rotate-90">
           ›
         </span>
       </summary>

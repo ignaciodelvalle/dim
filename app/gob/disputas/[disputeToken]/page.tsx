@@ -119,7 +119,7 @@ export default async function DisputeDetailPage({
       <header className="space-y-2">
         <Link
           href="/gob/casos?expediente=disputas"
-          className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4"
+          className="text-md text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4"
         >
           {"←"} Volver a la lista
         </Link>
@@ -138,7 +138,7 @@ export default async function DisputeDetailPage({
       </header>
 
       {dispute.status === "open" && (
-        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[13px] text-ln-op-warn">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-md text-ln-op-warn">
           Disputa abierta — la mascota queda bloqueada para transferencias o adopción hasta que se
           resuelva o retire.
         </div>
@@ -146,24 +146,22 @@ export default async function DisputeDetailPage({
 
       {dispute.status === "resolved" && dispute.resolutionSummary && (
         <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
-          <p className="text-[13px] font-medium text-ln-op-ok">Resolucion: {dispute.resolution}</p>
-          <p className="text-[13px] text-ln-op-ok whitespace-pre-wrap">
-            {dispute.resolutionSummary}
-          </p>
+          <p className="text-md font-medium text-ln-op-ok">Resolucion: {dispute.resolution}</p>
+          <p className="text-md text-ln-op-ok whitespace-pre-wrap">{dispute.resolutionSummary}</p>
         </section>
       )}
 
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-ln-op-ink">Partes</h2>
         {parties.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">Sin partes registradas todavia.</p>
+          <p className="text-md text-ln-op-mute">Sin partes registradas todavia.</p>
         ) : (
           <ul className="space-y-2">
             {parties.map(({ party, userProfile, org }) => (
               <li key={party.id}>
                 <OpCard>
                   <OpCardBody>
-                    <p className="text-[13px] font-medium text-ln-op-ink">
+                    <p className="text-md font-medium text-ln-op-ink">
                       {userProfile?.displayName ?? org?.displayName ?? "Desconocido"}
                       <span className="ml-2 text-sm text-ln-op-mute font-normal">
                         {partyRoleLabel(party.partyRole)}
@@ -187,9 +185,9 @@ export default async function DisputeDetailPage({
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-ln-op-ink">Historia de custodia</h2>
         {timeline.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">Sin eventos de custodia previos.</p>
+          <p className="text-md text-ln-op-mute">Sin eventos de custodia previos.</p>
         ) : (
-          <ul className="space-y-1.5 text-[13px]">
+          <ul className="space-y-1.5 text-md">
             {timeline.map((e) => (
               <li
                 key={e.id}

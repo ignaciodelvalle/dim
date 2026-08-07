@@ -17,7 +17,7 @@ type Props = {
 export function EventLedgerTable({ rows }: Props) {
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[13px] text-ln-op-ink">
+      <table className="w-full border-collapse text-md text-ln-op-ink">
         <caption className="sr-only">
           Libro de eventos: registro append-only de eventos del sistema. Cada fila muestra el tipo,
           el actor, la jurisdicción, cuándo ocurrió y cuándo se registró. Las filas corregidas por

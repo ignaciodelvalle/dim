@@ -40,14 +40,14 @@ const LAST_ORG_COOKIE = "dim_last_org";
 function MiMarBrandHeader({ subtitle }: { subtitle: string }) {
   return (
     <div className="flex items-center gap-2.5">
-      <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-navy font-ln-mono text-[13px] font-bold text-white">
+      <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-navy font-ln-mono text-md font-bold text-white">
         m·
       </div>
       <div className="flex flex-col leading-tight">
-        <span className="font-ln-serif text-[15px] font-semibold tracking-[-0.005em] text-ln-op-ink">
+        <span className="font-ln-serif text-base font-semibold tracking-[-0.005em] text-ln-op-ink">
           {BRANDING.appName}
         </span>
-        <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-mute">
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ln-op-mute">
           {subtitle}
         </span>
       </div>
@@ -77,7 +77,7 @@ export default async function OrgIndexPage() {
         </div>
         <div className="max-w-md text-center space-y-3">
           <h1 className="text-title font-semibold text-ln-op-ink">Sin organizaciones</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             No sos miembro activo de ninguna organización. Si tu organización te invitó, revisá tu
             email para aceptar la invitación. Si querés registrar una nueva, andá a{" "}
             <Link href="/cuenta/upgrade" className="underline text-ln-op-azul">
@@ -87,7 +87,7 @@ export default async function OrgIndexPage() {
           </p>
           <Link
             href="/mis-mascotas"
-            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium"
           >
             Volver a mis mascotas
           </Link>
@@ -126,7 +126,7 @@ export default async function OrgIndexPage() {
         <MiMarBrandHeader subtitle="Portal de organizaciones" />
         <header className="space-y-2">
           <h1 className="text-title font-semibold text-ln-op-ink">Seleccionar organización</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Pertenecés a {myOrgs.length} organizaciones. Elegí con cuál querés trabajar.
           </p>
         </header>
@@ -138,7 +138,7 @@ export default async function OrgIndexPage() {
                 className="block p-4 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
               >
                 <div className="flex items-center gap-2">
-                  <p className="text-[13px] font-semibold text-ln-op-ink">{org.displayName}</p>
+                  <p className="text-md font-semibold text-ln-op-ink">{org.displayName}</p>
                   {org.publicToken === lastOrgToken && <OpPill tone="neutral">Última usada</OpPill>}
                 </div>
                 <p className="text-sm text-ln-op-mute mt-0.5">

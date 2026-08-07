@@ -87,7 +87,7 @@ export default async function ReservarTurnoPage({
       {/* Back */}
       <Link
         href={`/turnos/buscar/${offeringToken}`}
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver a los turnos
       </Link>
@@ -109,7 +109,7 @@ export default async function ReservarTurnoPage({
           <dl className="flex flex-col gap-3">
             <DetailRow label="Servicio">
               <span className="font-medium">{offering.displayName}</span>
-              <span className="ml-1.5 font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+              <span className="ml-1.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                 {kindDef?.label ?? offering.serviceKind}
               </span>
             </DetailRow>
@@ -153,7 +153,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
       <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }

@@ -41,7 +41,7 @@ export function LnToggle({
     return (
       <div className={["flex items-center gap-2.5", className].filter(Boolean).join(" ")}>
         <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
-        <span className="text-[12.5px] font-semibold text-[var(--color-ln-ink)]">{label}</span>
+        <span className="text-md font-semibold text-[var(--color-ln-ink)]">{label}</span>
       </div>
     );
   }
@@ -62,13 +62,9 @@ export function LnToggle({
     >
       <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
       <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] font-semibold leading-tight text-[var(--color-ln-ink)]">
-          {label}
-        </p>
+        <p className="text-md font-semibold leading-tight text-[var(--color-ln-ink)]">{label}</p>
         {description && (
-          <p className="mt-px text-[11px] leading-[1.4] text-[var(--color-ln-mute)]">
-            {description}
-          </p>
+          <p className="mt-px text-sm leading-[1.4] text-[var(--color-ln-mute)]">{description}</p>
         )}
       </div>
     </div>
@@ -140,7 +136,7 @@ export function LnToggleGroup({ heading, items, onChange, className = "" }: LnTo
   return (
     <div className={["flex flex-col gap-2", className].filter(Boolean).join(" ")}>
       {heading && (
-        <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+        <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
           {heading}
         </p>
       )}

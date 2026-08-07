@@ -28,7 +28,7 @@ export default async function OrgConfigPage({
         <h1 className="text-title font-semibold text-ln-op-ink">
           Configuración de la organización
         </h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Editá el perfil público de{" "}
           <strong className="text-ln-op-ink-2">{organization.displayName}</strong>.
         </p>

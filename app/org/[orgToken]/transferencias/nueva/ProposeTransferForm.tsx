@@ -53,7 +53,7 @@ const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Mascota", "Destino", "Razón y notas"];
 
 const selectCls =
-  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, receivers }: Props) {
   const [pending, startTransition] = useTransition();
@@ -128,7 +128,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             Token: <span className="font-mono">{petPublicToken}</span>
           </p>
         </div>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           Esta propuesta crea un handshake con otra organización. La transferencia se concreta solo
           si el destinatario acepta.
         </p>
@@ -144,10 +144,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         inert={step !== 2 ? true : undefined}
       >
         <div>
-          <label
-            htmlFor="receiverOrgId"
-            className="mb-1 block text-[13px] font-medium text-ln-op-ink"
-          >
+          <label htmlFor="receiverOrgId" className="mb-1 block text-md font-medium text-ln-op-ink">
             Organización destinataria
           </label>
           <select
@@ -181,7 +178,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         inert={step !== 3 ? true : undefined}
       >
         <div>
-          <label htmlFor="reason" className="mb-1 block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="reason" className="mb-1 block text-md font-medium text-ln-op-ink">
             Motivo de la transferencia
           </label>
           <select
@@ -201,7 +198,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         <div>
-          <label htmlFor="notes" className="mb-1 block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="notes" className="mb-1 block text-md font-medium text-ln-op-ink">
             Notas{reasonRequiresNotes ? " (obligatorias)" : " (opcional)"}
           </label>
           <textarea
@@ -211,7 +208,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
             rows={4}
             required={reasonRequiresNotes}
             placeholder="Contexto para que el destinatario evalúe — visible al receiver."
-            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
           />
         </div>
 
@@ -223,7 +220,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         {error && (
-          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 p-3 text-[13px] text-ln-op-danger">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 p-3 text-md text-ln-op-danger">
             {error}
           </p>
         )}

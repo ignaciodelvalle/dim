@@ -65,7 +65,7 @@ export function CorrectSpeciesForm({
       </LnField>
 
       {state.error && (
-        <p className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
+        <p className="font-ln-mono text-sm text-[var(--color-ln-err)]" role="alert">
           {state.error}
         </p>
       )}
@@ -74,7 +74,7 @@ export function CorrectSpeciesForm({
         type="submit"
         disabled={isPending}
         className={[
-          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-2.5 text-[13px] font-semibold text-white transition-colors",
+          "inline-flex w-full cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-2.5 text-md font-semibold text-white transition-colors",
           "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
           "disabled:cursor-not-allowed disabled:opacity-60",
         ].join(" ")}

@@ -18,7 +18,7 @@ export default function CookiesPage() {
         </h1>
 
         <section aria-labelledby="que-son-heading" className="space-y-3">
-          <h2 id="que-son-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
+          <h2 id="que-son-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Qué son las cookies?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -29,7 +29,7 @@ export default function CookiesPage() {
         </section>
 
         <section aria-labelledby="cuales-heading" className="space-y-3">
-          <h2 id="cuales-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
+          <h2 id="cuales-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Qué cookies usa miMAR?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -39,7 +39,7 @@ export default function CookiesPage() {
             mientras navegás el portal.
           </p>
           <div className="overflow-x-auto">
-            <table className="w-full text-[13px] text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)] rounded-lg overflow-hidden">
+            <table className="w-full text-md text-[var(--color-ln-ink-2)] border border-[var(--color-ln-line)] rounded-lg overflow-hidden">
               <thead className="bg-[var(--color-ln-card)]">
                 <tr>
                   <th className="text-left px-4 py-2 font-semibold text-[var(--color-ln-ink)] border-b border-[var(--color-ln-line)]">
@@ -72,7 +72,7 @@ export default function CookiesPage() {
         </section>
 
         <section aria-labelledby="control-heading" className="space-y-3">
-          <h2 id="control-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
+          <h2 id="control-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Podés controlarlas?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -88,7 +88,7 @@ export default function CookiesPage() {
 
         <Link
           href="/"
-          className="inline-block text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-md text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

@@ -146,14 +146,14 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
         aria-label="Acciones en lote"
         className="sticky bottom-4 z-[var(--z-header)] mx-auto mt-6 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-ln-op-line bg-ln-op-card px-4 py-3 shadow-lg"
       >
-        <span aria-live="polite" className="text-[13px] font-medium text-ln-op-ink-2">
+        <span aria-live="polite" className="text-md font-medium text-ln-op-ink-2">
           {selectionSummary(count)}
         </span>
         <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={onClear}
-            className="rounded-md px-3 py-1.5 text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe"
+            className="rounded-md px-3 py-1.5 text-md text-ln-op-ink-2 hover:bg-ln-op-stripe"
           >
             Limpiar
           </button>
@@ -210,10 +210,10 @@ export function OpBulkBar({ count, actions, onClear }: Props) {
                 onChange={(e) => setReason(e.target.value)}
                 rows={3}
                 disabled={pending}
-                className="w-full rounded-md border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-2 text-[13px] text-[var(--color-ln-ink)] disabled:opacity-50"
+                className="w-full rounded-md border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-2 text-md text-[var(--color-ln-ink)] disabled:opacity-50"
                 placeholder="Describí el motivo de esta acción."
               />
-              <p className="mt-1 text-[11px] text-[var(--color-ln-ink-2)]">
+              <p className="mt-1 text-sm text-[var(--color-ln-ink-2)]">
                 {reason.trim().length}/{minReason}
                 {!reasonValid && reason.length > 0 && " — motivo demasiado corto"}
               </p>

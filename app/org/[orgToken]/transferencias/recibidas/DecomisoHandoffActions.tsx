@@ -139,7 +139,7 @@ export function DecomisoHandoffActions({
             onChange={(e) => setRejectReason(e.target.value)}
             rows={2}
             placeholder="Motivo del rechazo (opcional)"
-            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
           />
         </div>
       </ConfirmDialog>

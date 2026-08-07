@@ -429,7 +429,7 @@ export default async function GobMortalidadPage({
                         // this period", never a target/obligation.
                         aria-label={`${label}: ${b.count} ${pluralizeEs(b.count, "fallecimiento")} — ${Math.round(pct)}% del método más frecuente en el período (no es una cifra de cumplimiento)`}
                       >
-                        <span className="w-40 shrink-0 text-[13px] text-ln-op-ink">{label}</span>
+                        <span className="w-40 shrink-0 text-md text-ln-op-ink">{label}</span>
                         <div
                           className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                           aria-hidden="true"
@@ -440,7 +440,7 @@ export default async function GobMortalidadPage({
                           />
                         </div>
                         <span
-                          className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                          className="w-8 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                           aria-hidden="true"
                         >
                           {b.count}
@@ -541,7 +541,7 @@ export default async function GobMortalidadPage({
         />
         <OpCardBody>
           {localityCells.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               No hay localidades con fallecimientos visibles en el período.
             </p>
           ) : (
@@ -571,7 +571,7 @@ export default async function GobMortalidadPage({
                       }
                     >
                       <span
-                        className={`w-40 shrink-0 truncate text-[13px] ${isRollup ? "italic text-ln-op-mute" : "text-ln-op-ink"}`}
+                        className={`w-40 shrink-0 truncate text-md ${isRollup ? "italic text-ln-op-mute" : "text-ln-op-ink"}`}
                       >
                         {c.key}
                       </span>
@@ -585,7 +585,7 @@ export default async function GobMortalidadPage({
                         />
                       </div>
                       <span
-                        className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        className="w-8 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                         aria-hidden="true"
                       >
                         {c.count}

@@ -132,15 +132,15 @@ export function TriageActions({
 
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
+      <p className="text-md font-medium text-ln-op-ink">{titles[mode]}</p>
       <textarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholders[mode]}
-        className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+        className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
       />
-      <p className="text-[11px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
+      <p className="text-sm text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
         <OpButton

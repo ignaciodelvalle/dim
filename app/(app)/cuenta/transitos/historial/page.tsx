@@ -52,7 +52,7 @@ export default async function TransitosHistorialPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -72,7 +72,7 @@ export default async function TransitosHistorialPage() {
         <section>
           <LnSectionHead num="01" title="Tránsitos finalizados" className="mb-4" />
           {past.length === 0 ? (
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               Todavía no tenés tránsitos finalizados.
             </p>
           ) : (
@@ -85,11 +85,11 @@ export default async function TransitosHistorialPage() {
                   <div>
                     <Link
                       href={`/mis-mascotas/${pet.publicToken}`}
-                      className="text-[13.5px] font-medium text-[var(--color-ln-ink)] no-underline hover:underline"
+                      className="text-md font-medium text-[var(--color-ln-ink)] no-underline hover:underline"
                     >
                       {pet.name}
                     </Link>
-                    <p className="mt-px font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                    <p className="mt-px font-ln-mono text-sm text-[var(--color-ln-mute)]">
                       {ownership.startedAt ? formatDateShort(ownership.startedAt) : ""}
                       {ownership.endedAt && ` → ${formatDateShort(ownership.endedAt)}`}
                     </p>
@@ -104,7 +104,7 @@ export default async function TransitosHistorialPage() {
         <section>
           <LnSectionHead num="02" title="Propuestas no concretadas" className="mb-4" />
           {noProposals.length === 0 ? (
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               No hay propuestas en el historial.
             </p>
           ) : (
@@ -115,14 +115,14 @@ export default async function TransitosHistorialPage() {
                   className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 last:border-b-0"
                 >
                   <div>
-                    <p className="text-[13px] font-medium text-[var(--color-ln-ink)]">
+                    <p className="text-md font-medium text-[var(--color-ln-ink)]">
                       {pet.name}{" "}
                       <span className="font-normal text-[var(--color-ln-mute)]">
                         · {org.displayName}
                       </span>
                     </p>
                     {proposal.rejectionReason && (
-                      <p className="mt-0.5 text-[11.5px] text-[var(--color-ln-mute)]">
+                      <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
                         Motivo: {proposal.rejectionReason}
                       </p>
                     )}
@@ -142,7 +142,7 @@ export default async function TransitosHistorialPage() {
       <div className="mt-8 border-t border-[var(--color-ln-line-2)] pt-3.5">
         <Link
           href="/cuenta/transitos/activos"
-          className="font-ln-mono text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Tránsitos activos
         </Link>

@@ -13,7 +13,7 @@
 //   - Async RSC: awaits lastIngestAt so no client-side fetch is needed.
 //   - Uses new Date() for "now" (server render time), NOT Date.now() stored
 //     in state — this is intentionally a server-time snapshot.
-//   - Token classes: text-[11px] text-ln-op-mute — matches the OpKpi sub/
+//   - Token classes: text-sm text-ln-op-mute — matches the OpKpi sub/
 //     hint row style used across the dashboard component set.
 //   - No border, no padding — caller controls vertical spacing.
 
@@ -50,7 +50,7 @@ export async function DashboardFreshnessFooter({ ctx }: Props) {
           serializes a new value, and resets the band's elapsed clock — it is
           never compared against the client clock (skew-immune). */}
       <FreshnessStaleBand refreshSignal={`${Date.now()}`} />
-      <p className="text-[11px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         Calculado al {nowLabel} · último evento {eventLabel}
       </p>
     </>

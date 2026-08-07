@@ -60,7 +60,7 @@ export default async function MembershipsPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -111,7 +111,7 @@ export default async function MembershipsPage() {
                   href={`/org/${organization.publicToken}`}
                   className="group min-w-0 flex-1 no-underline"
                 >
-                  <p className="font-ln-serif text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate group-hover:underline">
+                  <p className="font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)] truncate group-hover:underline">
                     {organization.displayName}
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1.5">
@@ -119,7 +119,7 @@ export default async function MembershipsPage() {
                     <VerifiedBadge verified={organization.verified} />
                     <RoleBadge role={membership.role} />
                   </div>
-                  <p className="mt-[5px] font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                  <p className="mt-[5px] font-ln-mono text-sm text-[var(--color-ln-mute)]">
                     Desde {formatDate(membership.joinedAt)}
                   </p>
                 </Link>
@@ -145,7 +145,7 @@ export default async function MembershipsPage() {
 function OrgTypeBadge({ orgType }: { orgType: string }) {
   const label = ORG_TYPE_LABELS[orgType] ?? orgType;
   return (
-    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-ln-mono text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
+    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
       {label}
     </span>
   );
@@ -154,13 +154,13 @@ function OrgTypeBadge({ orgType }: { orgType: string }) {
 function VerifiedBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
-      <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-0.5 font-ln-mono text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
+      <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-[7px] py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
         Verificada
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[7px] py-0.5 font-ln-mono text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
+    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[7px] py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-warn)]">
       Pendiente
     </span>
   );
@@ -169,7 +169,7 @@ function VerifiedBadge({ verified }: { verified: boolean }) {
 function RoleBadge({ role }: { role: string }) {
   const label = ROLE_LABELS[role] ?? role;
   return (
-    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[7px] py-0.5 font-ln-mono text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[7px] py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
       {label}
     </span>
   );

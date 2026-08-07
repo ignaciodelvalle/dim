@@ -80,19 +80,19 @@ export function ExportFormClient({
 
       {/* Period selector */}
       <section className="space-y-2">
-        <h2 className="text-[13px] font-medium text-ln-op-ink">Periodo</h2>
+        <h2 className="text-md font-medium text-ln-op-ink">Periodo</h2>
         <PeriodPicker defaultPreset={EXPORT_DEFAULT_PRESET} />
       </section>
 
       {/* Jurisdiction selector */}
       <section className="space-y-2">
-        <h2 className="text-[13px] font-medium text-ln-op-ink">Jurisdiccion</h2>
+        <h2 className="text-md font-medium text-ln-op-ink">Jurisdiccion</h2>
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
       </section>
 
       {/* Data slices */}
       <fieldset className="space-y-2">
-        <legend className="text-[13px] font-medium text-ln-op-ink">Datos a incluir</legend>
+        <legend className="text-md font-medium text-ln-op-ink">Datos a incluir</legend>
         <div className="space-y-2 pt-1">
           <LnCheckbox name="slice" value="pets" defaultChecked>
             Mascotas (anonimizado)
@@ -111,9 +111,9 @@ export function ExportFormClient({
 
       {/* Format */}
       <fieldset className="space-y-2">
-        <legend className="text-[13px] font-medium text-ln-op-ink">Formato</legend>
+        <legend className="text-md font-medium text-ln-op-ink">Formato</legend>
         <div className="flex flex-col gap-2 pt-1">
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer">
+          <label className="flex items-center gap-2 text-md cursor-pointer">
             <input
               type="radio"
               name="format"
@@ -123,7 +123,7 @@ export function ExportFormClient({
             />
             CSV
           </label>
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer">
+          <label className="flex items-center gap-2 text-md cursor-pointer">
             <input type="radio" name="format" value="json" className="accent-ln-op-azul" />
             JSON
           </label>
@@ -134,7 +134,7 @@ export function ExportFormClient({
               una fecha que nadie fijó. "Todavía no disponible" dice lo mismo
               sin comprometer un plazo. Mismo idioma que ADR-17c. */}
           <label
-            className="flex items-center gap-2 text-[13px] opacity-50"
+            className="flex items-center gap-2 text-md opacity-50"
             title="Formato columnar para procesamiento analítico. Todavía no está construido."
           >
             <input type="radio" name="format" value="parquet" disabled />
@@ -149,7 +149,7 @@ export function ExportFormClient({
 
       {/* Error state */}
       {state.status === "error" && (
-        <p className="text-[13px] font-medium text-ln-op-danger" role="alert">
+        <p className="text-md font-medium text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -157,11 +157,11 @@ export function ExportFormClient({
       {/* Success state: show download link */}
       {state.status === "ok" && (
         <div className="space-y-3 rounded-lg border border-ln-op-line bg-ln-op-card p-4">
-          <p className="text-[13px] font-medium text-ln-op-ink">Exportación lista</p>
+          <p className="text-md font-medium text-ln-op-ink">Exportación lista</p>
           <a
             href={state.signedUrl}
             download
-            className="inline-flex items-center gap-1 text-[13px] font-medium text-ln-op-azul underline underline-offset-2 hover:opacity-80"
+            className="inline-flex items-center gap-1 text-md font-medium text-ln-op-azul underline underline-offset-2 hover:opacity-80"
           >
             Descargar exportación →
           </a>

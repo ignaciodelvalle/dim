@@ -507,14 +507,14 @@ export async function ProgramaResumenScreen({
         <OpCardHead
           title={<span id={panelOutliersId}>Tus provincias — cobertura vs meta</span>}
           actions={
-            <span className="text-[11px] text-ln-op-mute">
+            <span className="text-sm text-ln-op-mute">
               {outlierCount} de {outliers.length} combinaciones bajo meta
             </span>
           }
         />
         <OpCardBody>
           {outliers.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">Sin datos provinciales disponibles.</p>
+            <p className="text-md text-ln-op-mute">Sin datos provinciales disponibles.</p>
           ) : (
             <div className="space-y-2">
               {topImpactSummary && (
@@ -527,7 +527,7 @@ export async function ProgramaResumenScreen({
                 </p>
               )}
               <div className="overflow-x-auto">
-                <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+                <table className="w-full text-md text-ln-op-ink border-collapse">
                   <caption className="sr-only">
                     Cobertura por provincia y métrica vs meta programática en tu jurisdicción,
                     ordenada por impacto estimado (mascotas sin cobertura). Filas marcadas en rojo
@@ -642,12 +642,12 @@ export async function ProgramaResumenScreen({
         <OpCardHead title={<span id={panelPiiId}>Supervisión de PII — tu jurisdicción</span>} />
         <OpCardBody>
           {piiOversight.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               Sin consultas PII registradas en el período en tu jurisdicción.
             </p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Top actores por cantidad de consultas PII-sensibles en el período, restringido a
                   tu jurisdicción asignada.
@@ -677,7 +677,7 @@ export async function ProgramaResumenScreen({
                       key={`${row.actorUserId ?? "deleted"}-${row.action}-${row.surface ?? ""}`}
                       className="border-b border-ln-op-line last:border-0 hover:bg-ln-op-stripe/50 transition-colors"
                     >
-                      <td className="py-2 pr-4 text-[13px] text-ln-op-ink-2">
+                      <td className="py-2 pr-4 text-md text-ln-op-ink-2">
                         {row.actorUserId
                           ? (actorNameMap.get(row.actorUserId) ?? "Operador desconocido")
                           : "Usuario eliminado"}
@@ -691,7 +691,7 @@ export async function ProgramaResumenScreen({
                       <td className="py-2 pr-4 text-right tabular-nums font-medium">
                         {row.count.toLocaleString("es-AR")}
                       </td>
-                      <td className="py-2 text-right text-[11px] text-ln-op-mute">
+                      <td className="py-2 text-right text-sm text-ln-op-mute">
                         {formatDateShort(row.lastAt)}
                       </td>
                     </tr>
@@ -709,7 +709,7 @@ export async function ProgramaResumenScreen({
           <OpCardHead title={<span id={panelQualityId}>Calidad de datos</span>} />
           <OpCardBody>
             {dataQuality.total === 0 ? (
-              <p className="text-[13px] text-ln-op-mute">Sin mascotas activas en el padrón.</p>
+              <p className="text-md text-ln-op-mute">Sin mascotas activas en el padrón.</p>
             ) : (
               <div className="space-y-3">
                 <div>
@@ -717,7 +717,7 @@ export async function ProgramaResumenScreen({
                     <span className="text-sm text-ln-op-mute">Completitud</span>
                     <span
                       className={[
-                        "text-[13px] font-semibold tabular-nums",
+                        "text-md font-semibold tabular-nums",
                         dataQuality.completenessPct >= 80
                           ? "text-ln-op-ok"
                           : dataQuality.completenessPct >= 60
@@ -794,19 +794,19 @@ export async function ProgramaResumenScreen({
             <div className="space-y-2">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm text-ln-op-mute">Pendientes</span>
-                <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
+                <span className="text-md font-medium tabular-nums text-ln-op-ink">
                   {queue.pendingTotal}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm text-ln-op-mute">Más vieja (días)</span>
-                <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
+                <span className="text-md font-medium tabular-nums text-ln-op-ink">
                   {queue.oldestPendingDaysAgo ?? "—"}
                 </span>
               </div>
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm text-ln-op-mute">14d+ / 30d+ / 60d+</span>
-                <span className="text-[13px] font-medium tabular-nums text-ln-op-ink">
+                <span className="text-md font-medium tabular-nums text-ln-op-ink">
                   {queue.pending14dPlus} / {queue.pending30dPlus} / {queue.pending60dPlus}
                 </span>
               </div>

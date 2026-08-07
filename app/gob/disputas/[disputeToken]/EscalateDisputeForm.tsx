@@ -47,7 +47,7 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
 
   return (
     <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line p-4">
-      <p className="text-[13px] font-medium text-ln-op-ink">Escalar a vía judicial</p>
+      <p className="text-md font-medium text-ln-op-ink">Escalar a vía judicial</p>
       <p className="text-sm text-ln-op-mute">
         La disputa queda abierta. Se registra una nota en la historia de la mascota y en el
         historial de auditoría.
@@ -62,13 +62,13 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder="Describí el motivo para derivar a vía judicial."
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
         <p className="text-sm text-ln-op-mute mt-1 tabular-nums">{notes.trim().length} / 20 mín.</p>
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
-      {okMessage && <output className="block text-[13px] text-ln-op-ok">{okMessage}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
+      {okMessage && <output className="block text-md text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
         <OpButton

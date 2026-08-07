@@ -40,14 +40,14 @@ export function EndFosterForm({
 
   return (
     <form ref={formRef} action={formAction} className="space-y-4">
-      <p className="text-[13px] text-ln-op-ink-2">
+      <p className="text-md text-ln-op-ink-2">
         Vas a cerrar el tránsito{fosterName ? ` de ${fosterName}` : ""}. El animal vuelve a figurar
         solo en custodia del refugio. Esta acción queda en el historial como evento inmutable.
       </p>
 
       <fieldset className="space-y-1">
         <legend className="text-sm font-medium text-ln-op-ink">¿Quién finalizó el tránsito?</legend>
-        <div className="flex flex-col gap-1 text-[13px] text-ln-op-ink-2">
+        <div className="flex flex-col gap-1 text-md text-ln-op-ink-2">
           {ENDED_BY_OPTIONS.map((option) => (
             <label key={option.value} className="flex items-center gap-2">
               <input
@@ -68,7 +68,7 @@ export function EndFosterForm({
           name="reason"
           rows={3}
           maxLength={500}
-          className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+          className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
           placeholder="Notas para el historial. El tránsito recibe el mensaje."
         />
       </label>

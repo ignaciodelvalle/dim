@@ -79,15 +79,15 @@ export function PppAttestationRegistriesForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[13px] text-ln-op-ink-2">
+      <p className="text-md text-ln-op-ink-2">
         Lista de registros oficiales en los que el dueno debe registrar (atestar) a su mascota PPP.
         Marca required en los obligatorios.
       </p>
 
       <fieldset className="space-y-3">
-        <legend className="text-[13px] font-medium text-ln-op-ink">Registros configurados</legend>
+        <legend className="text-md font-medium text-ln-op-ink">Registros configurados</legend>
         {registries.length === 0 && (
-          <p className="text-[11px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Aun no agregaste registros. Sin registros la regla equivale al default (ninguno
             requerido).
           </p>
@@ -99,9 +99,9 @@ export function PppAttestationRegistriesForm({
             key={r.id}
             className="flex items-start gap-2 rounded-[var(--radius-md)] border border-ln-op-line p-3"
           >
-            <div className="flex-1 text-[13px]">
+            <div className="flex-1 text-md">
               <p className="font-medium text-ln-op-ink">{r.label}</p>
-              <p className="text-[11px] text-ln-op-mute">
+              <p className="text-sm text-ln-op-mute">
                 <span className="font-mono">{r.id}</span> {"·"}{" "}
                 {r.required ? "Required" : "Optional"}
               </p>
@@ -125,7 +125,7 @@ export function PppAttestationRegistriesForm({
       </fieldset>
 
       <fieldset className="space-y-2 rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-3">
-        <legend className="text-[13px] font-medium text-ln-op-ink">Agregar registro</legend>
+        <legend className="text-md font-medium text-ln-op-ink">Agregar registro</legend>
         {/* Inline add-registry row: compact grid alongside Checkbox — Field not used (rule #2) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <LnInput
@@ -166,9 +166,9 @@ export function PppAttestationRegistriesForm({
         )}
       </LnField>
 
-      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
+      {state.warning && <p className="text-md text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-[13px] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

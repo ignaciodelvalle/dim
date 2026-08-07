@@ -98,7 +98,7 @@ export default async function GobServicioDetailPage({
       <div>
         <Link
           href={`${base}/servicios`}
-          className="text-[13px] text-ln-op-azul underline underline-offset-4 hover:text-ln-op-ink no-underline"
+          className="text-md text-ln-op-azul underline underline-offset-4 hover:text-ln-op-ink no-underline"
         >
           {"←"} Volver a servicios pendientes
         </Link>
@@ -120,14 +120,14 @@ export default async function GobServicioDetailPage({
       </header>
 
       <DetailSection title="Proveedor">
-        <p className="text-[13px] text-ln-op-ink">{providerLabel}</p>
+        <p className="text-md text-ln-op-ink">{providerLabel}</p>
         {offering.organizationId && org?.legalName && (
           <p className="text-sm text-ln-op-mute">{org.legalName}</p>
         )}
       </DetailSection>
 
       <DetailSection title="Servicio">
-        <p className="text-[13px] text-ln-op-ink">{kindLabel}</p>
+        <p className="text-md text-ln-op-ink">{kindLabel}</p>
         {offering.description && (
           <p className="text-sm text-ln-op-ink-2 mt-1">{offering.description}</p>
         )}
@@ -137,17 +137,17 @@ export default async function GobServicioDetailPage({
         <dl className="space-y-1">
           <div className="flex gap-3">
             <dt className="text-sm text-ln-op-mute w-32 shrink-0">Duracion</dt>
-            <dd className="text-[13px] text-ln-op-ink">{offering.durationMinutes} min</dd>
+            <dd className="text-md text-ln-op-ink">{offering.durationMinutes} min</dd>
           </div>
           <div className="flex gap-3">
             <dt className="text-sm text-ln-op-mute w-32 shrink-0">Capacidad</dt>
-            <dd className="text-[13px] text-ln-op-ink">
+            <dd className="text-md text-ln-op-ink">
               {offering.slotCapacity} {pluralizeEs(offering.slotCapacity, "turno")} por slot
             </dd>
           </div>
           <div className="flex gap-3">
             <dt className="text-sm text-ln-op-mute w-32 shrink-0">Precio</dt>
-            <dd className="text-[13px] text-ln-op-ink">
+            <dd className="text-md text-ln-op-ink">
               {offering.priceArs !== null
                 ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
                 : "Gratuito"}
@@ -156,16 +156,14 @@ export default async function GobServicioDetailPage({
           {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
             <div className="flex gap-3">
               <dt className="text-sm text-ln-op-mute w-32 shrink-0">Especies</dt>
-              <dd className="text-[13px] text-ln-op-ink">
-                {offering.eligibilitySpecies.join(", ")}
-              </dd>
+              <dd className="text-md text-ln-op-ink">{offering.eligibilitySpecies.join(", ")}</dd>
             </div>
           )}
           {(offering.eligibilityAgeMinMonths !== null ||
             offering.eligibilityAgeMaxMonths !== null) && (
             <div className="flex gap-3">
               <dt className="text-sm text-ln-op-mute w-32 shrink-0">Edad elegible</dt>
-              <dd className="text-[13px] text-ln-op-ink">
+              <dd className="text-md text-ln-op-ink">
                 {offering.eligibilityAgeMinMonths !== null
                   ? `desde ${offering.eligibilityAgeMinMonths} ${pluralizeEs(offering.eligibilityAgeMinMonths, "mes")}`
                   : ""}
@@ -188,7 +186,7 @@ export default async function GobServicioDetailPage({
         </DetailSection>
       ) : (
         <DetailSection title="Decisión">
-          <p className="text-[13px] text-ln-op-ink">
+          <p className="text-md text-ln-op-ink">
             {STATUS_LABELS[offering.status] ?? offering.status}
             {offering.reviewedAt && ` el ${formatDateTimeNumericAr(offering.reviewedAt)}`}
           </p>

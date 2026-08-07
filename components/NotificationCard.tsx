@@ -49,7 +49,7 @@ export function NotificationCard({
             <h3 className={`text-sm ${unread ? "font-semibold" : "font-medium"} text-ln-ink `}>
               {notification.title}
             </h3>
-            <p className="text-[11px] uppercase tracking-wider text-ln-mute ">
+            <p className="text-sm uppercase tracking-wider text-ln-mute ">
               {notificationSeverityLabel(notification.severity)} {"·"}
               {notificationTypeLabel(notification.notificationType)}
             </p>

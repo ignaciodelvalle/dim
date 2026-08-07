@@ -392,7 +392,7 @@ export default async function OrgDashboardPage({
           Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">{organization.displayName}</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Actuando como{" "}
           <strong className="text-ln-op-ink-2">
             {ROLE_LABELS[membership.role] ?? membership.role}
@@ -538,7 +538,7 @@ export default async function OrgDashboardPage({
               <div className="flex items-center gap-3 px-4 py-5">
                 <Icon name="check-circle" size="md" className="text-ln-op-ok shrink-0" decorative />
                 <div>
-                  <p className="text-[13px] font-semibold text-ln-op-ink">Todo en orden</p>
+                  <p className="text-md font-semibold text-ln-op-ink">Todo en orden</p>
                   <p className="text-sm text-ln-op-mute">
                     Ningún animal requiere atención inmediata.
                   </p>
@@ -552,7 +552,7 @@ export default async function OrgDashboardPage({
                 {actionItems.map((item) => (
                   <li key={item.petId} className="flex items-start gap-3 px-4 py-3">
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-[13px] font-semibold text-ln-op-ink truncate">
+                      <p className="text-md font-semibold text-ln-op-ink truncate">
                         <Link
                           href={`/org/${orgToken}/mascotas/${item.petPublicToken}`}
                           className="hover:underline no-underline text-ln-op-ink"
@@ -570,14 +570,14 @@ export default async function OrgDashboardPage({
                               className="text-ln-op-warn shrink-0"
                               decorative
                             />
-                            <span className="text-[11px] text-ln-op-warn font-medium">
+                            <span className="text-sm text-ln-op-warn font-medium">
                               {actionReasonLabel(reason)}
                             </span>
                           </li>
                         ))}
                       </ul>
                     </div>
-                    <span className="text-[11px] text-ln-op-mute whitespace-nowrap pt-0.5">
+                    <span className="text-sm text-ln-op-mute whitespace-nowrap pt-0.5">
                       {item.daysInCustody}d en custodia
                     </span>
                   </li>
@@ -609,7 +609,7 @@ export default async function OrgDashboardPage({
                   <li key={q.key} className="flex items-center justify-between px-4 py-3">
                     <Link
                       href={`/org/${orgToken}/${q.path}`}
-                      className="text-[13px] text-ln-op-ink hover:underline no-underline"
+                      className="text-md text-ln-op-ink hover:underline no-underline"
                     >
                       {q.label}
                     </Link>
@@ -641,7 +641,7 @@ export default async function OrgDashboardPage({
               href={`/org/${orgToken}/mascotas`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-semibold text-ln-op-ink">Animales en custodia</p>
+              <p className="text-md font-semibold text-ln-op-ink">Animales en custodia</p>
               <p className="text-sm text-ln-op-mute mt-1">
                 Listado de animales bajo custodia activa de la organización.
               </p>
@@ -652,7 +652,7 @@ export default async function OrgDashboardPage({
               href={`/org/${orgToken}/intake`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-semibold text-ln-op-ink">Registrar ingreso</p>
+              <p className="text-md font-semibold text-ln-op-ink">Registrar ingreso</p>
               <p className="text-sm text-ln-op-mute mt-1">
                 Dar de alta un animal que entra a custodia de la organización.
               </p>
@@ -663,7 +663,7 @@ export default async function OrgDashboardPage({
               href={`/org/${orgToken}/voluntarios`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-semibold text-ln-op-ink">Pool de voluntarios</p>
+              <p className="text-md font-semibold text-ln-op-ink">Pool de voluntarios</p>
               <p className="text-sm text-ln-op-mute mt-1">
                 Buscar voluntarios y proponer tránsitos.
               </p>
@@ -674,7 +674,7 @@ export default async function OrgDashboardPage({
               href={`/org/${orgToken}/pets/no-aptas`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-semibold text-ln-op-ink">
+              <p className="text-md font-semibold text-ln-op-ink">
                 Mascotas no aptas para adopción
               </p>
               <p className="text-sm text-ln-op-mute mt-1">
@@ -706,7 +706,7 @@ export default async function OrgDashboardPage({
                 href={`/org/${orgToken}/atender`}
                 className="block rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline sm:col-span-2"
               >
-                <p className="text-[13px] font-semibold text-ln-op-ink">
+                <p className="text-md font-semibold text-ln-op-ink">
                   Registrar / firmar evento clínico
                 </p>
                 <p className="text-sm text-ln-op-mute mt-1">
@@ -721,7 +721,7 @@ export default async function OrgDashboardPage({
                 href={`/org/${orgToken}/agenda`}
                 className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
-                <p className="text-[13px] font-semibold text-ln-op-ink">Turnos de hoy</p>
+                <p className="text-md font-semibold text-ln-op-ink">Turnos de hoy</p>
                 <p className="text-sm text-ln-op-mute mt-1">
                   La agenda del día: asistencia, ausencias y cancelaciones.
                 </p>
@@ -732,7 +732,7 @@ export default async function OrgDashboardPage({
                 href={`/org/${orgToken}/mordedura/nuevo`}
                 className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
-                <p className="text-[13px] font-semibold text-ln-op-ink">Reportar mordedura</p>
+                <p className="text-md font-semibold text-ln-op-ink">Reportar mordedura</p>
                 <p className="text-sm text-ln-op-mute mt-1">
                   Registrar una mordedura e iniciar la observación antirrábica.
                 </p>
@@ -743,7 +743,7 @@ export default async function OrgDashboardPage({
                 href={`/org/${orgToken}/servicios`}
                 className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
               >
-                <p className="text-[13px] font-semibold text-ln-op-ink">Servicios</p>
+                <p className="text-md font-semibold text-ln-op-ink">Servicios</p>
                 <p className="text-sm text-ln-op-mute mt-1">
                   Publicar y gestionar ofrecimientos de servicios.
                 </p>
@@ -769,7 +769,7 @@ export default async function OrgDashboardPage({
             href={`/org/${orgToken}/casos`}
             className="block rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
           >
-            <p className="text-[13px] font-semibold text-ln-op-ink">Casos</p>
+            <p className="text-md font-semibold text-ln-op-ink">Casos</p>
             <p className="text-sm text-ln-op-mute mt-1">Expedientes abiertos por la autoridad.</p>
           </Link>
           {hasWelfareQueue && (
@@ -777,7 +777,7 @@ export default async function OrgDashboardPage({
               href={`/org/${orgToken}/maltrato/recibidos`}
               className="block rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-semibold text-ln-op-ink">Maltrato derivado</p>
+              <p className="text-md font-semibold text-ln-op-ink">Maltrato derivado</p>
               <p className="text-sm text-ln-op-mute mt-1">
                 Denuncias de maltrato derivadas a la autoridad para fiscalización.
               </p>
@@ -788,7 +788,7 @@ export default async function OrgDashboardPage({
               href={`/org/${orgToken}/mordedura/nuevo`}
               className="block rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 hover:bg-ln-op-stripe transition-colors no-underline"
             >
-              <p className="text-[13px] font-semibold text-ln-op-ink">Mordeduras</p>
+              <p className="text-md font-semibold text-ln-op-ink">Mordeduras</p>
               <p className="text-sm text-ln-op-mute mt-1">
                 Registrar una mordedura e iniciar la observación antirrábica.
               </p>
@@ -862,7 +862,7 @@ export default async function OrgDashboardPage({
                       className={`mt-1.5 inline-block h-2 w-2 shrink-0 rounded-full ${STATE_DOT[state.kind]}`}
                     />
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
+                      <p className="text-md font-medium text-ln-op-ink">
                         {entry.label}
                         <OpCodeBadge tone="neutral">{entry.capability}</OpCodeBadge>
                       </p>

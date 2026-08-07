@@ -144,12 +144,12 @@ export function LayerPanel({
                         </span>
                       )}
                       {st?.loading && (
-                        <span className="text-[11px] text-ln-op-mute" aria-live="polite">
+                        <span className="text-sm text-ln-op-mute" aria-live="polite">
                           cargando…
                         </span>
                       )}
                       {active && !st?.loading && (
-                        <span className="tabular-nums text-[11px] text-ln-op-mute">
+                        <span className="tabular-nums text-sm text-ln-op-mute">
                           {st.count.toLocaleString("es-AR")}
                         </span>
                       )}

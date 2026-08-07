@@ -165,7 +165,7 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
     // consumer. `op-surface` stays what it always was: the operator SKIN
     // selector (globals.css), also worn by non-shell cards — never target it for
     // layout.
-    <div className="op-shell-root op-surface fixed inset-0 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-[13px] leading-[1.45] [&_*]:box-border">
+    <div className="op-shell-root op-surface fixed inset-0 flex flex-col overflow-hidden bg-ln-op-page text-ln-op-ink text-md leading-[1.45] [&_*]:box-border">
       {/* Skip-link (a11y) — visually hidden until keyboard-focused, jumps past
           the rail + topbar straight to the main content landmark below. */}
       <a

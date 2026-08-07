@@ -169,11 +169,11 @@ export default async function OrgMaltratoRecibidosPage({
           {/* "Maltrato" — the surface's single name across nav, breadcrumb and
               H1 (QA round 2 2026-07-03 finished unifying the 3 old names). */}
           <h1 className="text-title font-semibold text-ln-op-ink">Maltrato</h1>
-          <p className="text-[13px] text-ln-op-mute">{organization.displayName}</p>
+          <p className="text-md text-ln-op-mute">{organization.displayName}</p>
         </div>
         <Link
           href={`/org/${orgToken}/maltrato/nuevo`}
-          className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+          className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-danger px-3 py-1.5 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
         >
           + Nueva denuncia
         </Link>
@@ -188,7 +188,7 @@ export default async function OrgMaltratoRecibidosPage({
             <Link
               key={tab}
               href={`/org/${orgToken}/maltrato/recibidos?tab=${tab}`}
-              className={`px-4 py-2 text-[13px] font-medium no-underline border-b-2 transition-colors ${
+              className={`px-4 py-2 text-md font-medium no-underline border-b-2 transition-colors ${
                 isActive
                   ? "border-ln-op-azul text-ln-op-azul"
                   : "border-transparent text-ln-op-mute hover:text-ln-op-ink-2"
@@ -229,7 +229,7 @@ export default async function OrgMaltratoRecibidosPage({
                 <li key={r.reportId} className="px-4 py-3 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
+                      <p className="text-md font-medium text-ln-op-ink">
                         {welfareReportKindLabel(r.kind)}{" "}
                         <OpPill
                           tone={

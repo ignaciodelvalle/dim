@@ -50,7 +50,7 @@ export function OpenInvestigationForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
-        <label htmlFor="diseaseCode" className="block text-[13px] font-medium text-ln-op-ink">
+        <label htmlFor="diseaseCode" className="block text-md font-medium text-ln-op-ink">
           Enfermedad (ENO)
         </label>
         <select
@@ -58,7 +58,7 @@ export function OpenInvestigationForm({
           value={diseaseCode}
           onChange={(e) => setDiseaseCode(e.target.value)}
           required
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
         >
           <option value="">Seleccionar enfermedad...</option>
           {diseases.map((d) => (
@@ -70,7 +70,7 @@ export function OpenInvestigationForm({
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="reason" className="block text-[13px] font-medium text-ln-op-ink">
+        <label htmlFor="reason" className="block text-md font-medium text-ln-op-ink">
           Motivo de apertura (mínimo 10 caracteres)
         </label>
         <textarea
@@ -81,13 +81,13 @@ export function OpenInvestigationForm({
           required
           minLength={10}
           placeholder="Describí la situación epidemiológica que motiva la apertura..."
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
         />
         <p className="text-sm text-ln-op-mute tabular-nums">{reason.trim().length} caracteres</p>
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="signalId" className="block text-[13px] font-medium text-ln-op-ink">
+        <label htmlFor="signalId" className="block text-md font-medium text-ln-op-ink">
           Signal vinculada (opcional)
         </label>
         <input
@@ -96,11 +96,11 @@ export function OpenInvestigationForm({
           value={signalId}
           onChange={(e) => setSignalId(e.target.value)}
           placeholder="ID del outbreak_signal event (si existe)"
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md font-mono text-ln-op-ink"
         />
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-3">
         <OpButton

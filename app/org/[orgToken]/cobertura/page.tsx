@@ -40,7 +40,7 @@ export default async function CoberturaPage({
         {/* H1 matches the nav label "Cobertura" (audit #17 — nav↔H1 parity);
             the subtitle carries the "zonas / jurisdicciones" explanation. */}
         <h1 className="text-title font-semibold text-ln-op-ink">Cobertura</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Configurá las jurisdicciones donde{" "}
           <strong className="text-ln-op-ink-2">{organization.displayName}</strong> recibe alertas de
           mascotas perdidas.

@@ -66,7 +66,7 @@ export function LnLedger<T>({ columns, rows, rowKey, className = "", caption }: 
       tabIndex={0}
       aria-label={caption}
     >
-      <table className="w-full border-collapse bg-[var(--color-ln-card)] text-[13px]">
+      <table className="w-full border-collapse bg-[var(--color-ln-card)] text-md">
         {caption && <caption className="sr-only">{caption}</caption>}
         <thead>
           <tr>
@@ -132,7 +132,7 @@ export function LnVaccineLedger({
       render: (r) => (
         <div>
           <p className="font-semibold text-[var(--color-ln-ink)]">{r.name}</p>
-          {r.dose && <p className="mt-px text-[11px] text-[var(--color-ln-mute)]">{r.dose}</p>}
+          {r.dose && <p className="mt-px text-sm text-[var(--color-ln-mute)]">{r.dose}</p>}
         </div>
       ),
     },
@@ -143,7 +143,7 @@ export function LnVaccineLedger({
         <div>
           <p className="font-ln-mono text-sm text-[var(--color-ln-ink-2)]">{r.appliedAt}</p>
           {r.nextDue && (
-            <p className="mt-px font-ln-mono text-[11px] text-[var(--color-ln-mute)]">
+            <p className="mt-px font-ln-mono text-sm text-[var(--color-ln-mute)]">
               próx: {r.nextDue}
             </p>
           )}
@@ -161,11 +161,9 @@ export function LnVaccineLedger({
       header: "Profesional",
       render: (r) => (
         <div>
-          <p className="text-[11.5px] text-[var(--color-ln-ink-2)]">{r.vet}</p>
+          <p className="text-sm text-[var(--color-ln-ink-2)]">{r.vet}</p>
           {r.vetLicense && (
-            <p className="mt-px font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
-              {r.vetLicense}
-            </p>
+            <p className="mt-px font-ln-mono text-sm text-[var(--color-ln-mute)]">{r.vetLicense}</p>
           )}
         </div>
       ),

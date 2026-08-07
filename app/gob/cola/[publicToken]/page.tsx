@@ -129,7 +129,7 @@ export default async function ReviewRequestPage({
       <div>
         <Link
           href={`${base}/cola`}
-          className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
+          className="text-md text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4 no-underline"
         >
           ← Volver a la cola
         </Link>
@@ -160,7 +160,7 @@ export default async function ReviewRequestPage({
             2026-07); the email is demoted to a contact line below it. The
             approver verifies a PERSON, not an inbox. */}
       <Section title="Aplicante">
-        <p className="text-[15px] font-semibold text-ln-op-ink">
+        <p className="text-base font-semibold text-ln-op-ink">
           {applicant?.displayName ?? "Usuario"}
         </p>
         <p className="text-sm text-ln-op-mute">
@@ -172,7 +172,7 @@ export default async function ReviewRequestPage({
       {/* Target org */}
       {targetOrg && (
         <Section title="Organización a verificar">
-          <p className="text-[13px] text-ln-op-ink">{targetOrg.displayName}</p>
+          <p className="text-md text-ln-op-ink">{targetOrg.displayName}</p>
           <p className="text-sm text-ln-op-mute">
             {targetOrg.legalName} ·{" "}
             <OpCodeBadge tone="neutral">
@@ -193,7 +193,7 @@ export default async function ReviewRequestPage({
             {payloadRows.map((row) => (
               <div key={row.label} className="contents">
                 <dt className="text-sm text-ln-op-mute">{row.label}</dt>
-                <dd className="text-[13px] text-ln-op-ink">{row.value}</dd>
+                <dd className="text-md text-ln-op-ink">{row.value}</dd>
               </div>
             ))}
           </dl>
@@ -208,7 +208,7 @@ export default async function ReviewRequestPage({
       {isVetMatricula && (
         <Section title="Consulta del registro oficial">
           {registryLink ? (
-            <p className="text-[13px] text-ln-op-ink">
+            <p className="text-md text-ln-op-ink">
               <a
                 href={registryLink.url}
                 target="_blank"
@@ -240,7 +240,7 @@ export default async function ReviewRequestPage({
         </Section>
       ) : (
         <Section title="Decisión">
-          <p className="text-[13px] text-ln-op-ink">
+          <p className="text-md text-ln-op-ink">
             {STATUS_LABELS[request.status]}
             {request.decidedAt && ` el ${formatDateTimeNumericAr(request.decidedAt)}`}
           </p>

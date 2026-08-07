@@ -62,7 +62,7 @@ export function OpPill({ tone, children }: Props) {
     <span
       className={[
         "inline-flex items-center gap-[3px] rounded-[3px] border px-[7px] py-0.5",
-        "font-ln-mono text-[9px] font-bold uppercase tracking-[0.06em]",
+        "font-ln-mono text-xs font-bold uppercase tracking-[0.06em]",
         rawClass,
       ].join(" ")}
     >

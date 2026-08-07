@@ -306,7 +306,7 @@ export function OpOmnibox({
             // Width: full-width inside the expanded mobile row; the resting
             // w-64/md:w-72 (+focus growth) is unchanged at >=md.
             className={[
-              "rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card pl-9 pr-3 py-1.5 text-[13px] text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul transition-[width]",
+              "rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card pl-9 pr-3 py-1.5 text-md text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul transition-[width]",
               mobileOpen ? "w-full md:w-72 md:focus:w-80" : "w-64 focus:w-72 md:w-72 md:focus:w-80",
             ].join(" ")}
           />
@@ -404,12 +404,8 @@ export function OpOmnibox({
                             isActive ? "bg-ln-op-stripe" : "",
                           ].join(" ")}
                         >
-                          <p className="text-[13px] leading-snug text-ln-op-ink">
-                            {resultLabel(item)}
-                          </p>
-                          <p className="text-[11px] leading-snug text-ln-op-mute">
-                            {resultMeta(item)}
-                          </p>
+                          <p className="text-md leading-snug text-ln-op-ink">{resultLabel(item)}</p>
+                          <p className="text-sm leading-snug text-ln-op-mute">{resultMeta(item)}</p>
                         </div>
                       );
                     })}

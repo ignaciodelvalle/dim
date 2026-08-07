@@ -229,7 +229,7 @@ export async function UsuariosScreen({ searchParams: sp, underHub = false }: Usu
                 <div className="space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-[13px] font-medium text-ln-op-ink">{u.displayName}</p>
+                      <p className="text-md font-medium text-ln-op-ink">{u.displayName}</p>
                       {/* I1: email (rol is the pill, estado es el marker below) —
                           the opaque UUID that used to sit here told a human nothing. */}
                       <p className="text-xs text-ln-op-mute">{emailMap.get(u.id) || "Sin email"}</p>

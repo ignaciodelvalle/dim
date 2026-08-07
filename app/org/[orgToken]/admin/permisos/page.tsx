@@ -161,7 +161,7 @@ export default async function PermisosPage({
           {organization.displayName}
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">Solicitudes de permisos</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.
         </p>
       </div>
@@ -178,14 +178,14 @@ export default async function PermisosPage({
         />
         <OpCardBody className="p-0">
           {pending.length === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-ln-op-mute">No hay solicitudes pendientes.</p>
+            <p className="px-4 py-4 text-md text-ln-op-mute">No hay solicitudes pendientes.</p>
           ) : (
             <ul className="divide-y divide-ln-op-line">
               {pending.map((row) => (
                 <li key={row.id} className="px-4 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
+                      <p className="text-md font-medium text-ln-op-ink">
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
                         <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
@@ -220,7 +220,7 @@ export default async function PermisosPage({
         />
         <OpCardBody className="p-0">
           {approved.length === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-ln-op-mute">
+            <p className="px-4 py-4 text-md text-ln-op-mute">
               Ningún permiso concedido fuera del rol admin.
             </p>
           ) : (
@@ -229,7 +229,7 @@ export default async function PermisosPage({
                 <li key={row.id} className="px-4 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
+                      <p className="text-md font-medium text-ln-op-ink">
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
                         <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
@@ -254,7 +254,7 @@ export default async function PermisosPage({
         <OpCardHead
           title="Matriz de permisos"
           actions={
-            <span className="text-[11px] font-normal text-ln-op-mute">
+            <span className="text-sm font-normal text-ln-op-mute">
               Solo lectura · los permisos explícitos son revocables
             </span>
           }
@@ -270,7 +270,7 @@ export default async function PermisosPage({
       </OpCard>
 
       <footer className="pt-2">
-        <Link href={`/org/${orgToken}`} className="text-[13px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-md text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </footer>

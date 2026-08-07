@@ -181,11 +181,11 @@ export function CaseDetailShell({
             Partes
           </h2>
           {parties.length === 0 ? (
-            <p className="mt-2 text-[13px] text-ln-op-mute">
+            <p className="mt-2 text-md text-ln-op-mute">
               {isPublic ? "Datos de partes no disponibles" : "Apertura automática del sistema"}
             </p>
           ) : (
-            <ul className="mt-2 space-y-1 text-[13px]">
+            <ul className="mt-2 space-y-1 text-md">
               {parties.map((party, idx) => (
                 <PartyRow
                   // biome-ignore lint/suspicious/noArrayIndexKey: stable short list
@@ -206,7 +206,7 @@ export function CaseDetailShell({
           <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Jurisdicción
           </h2>
-          <p className="mt-2 text-[13px] text-ln-op-ink">
+          <p className="mt-2 text-md text-ln-op-ink">
             {jurisdictionLocality && jurisdictionProvince
               ? `${jurisdictionLocality}, ${jurisdictionProvince}`
               : (jurisdictionProvince ?? "Sin especificar")}
@@ -222,9 +222,9 @@ export function CaseDetailShell({
             Normativa aplicable
           </h2>
           {resolvedNormatives.length === 0 ? (
-            <p className="mt-2 text-[13px] text-ln-op-mute">Sin norma específica catalogada</p>
+            <p className="mt-2 text-md text-ln-op-mute">Sin norma específica catalogada</p>
           ) : (
-            <ul className="mt-2 space-y-2 text-[13px]">
+            <ul className="mt-2 space-y-2 text-md">
               {resolvedNormatives.map((law) => (
                 <li key={law.id}>
                   <span className="font-medium text-ln-op-ink">
@@ -241,7 +241,7 @@ export function CaseDetailShell({
                       law.label
                     )}
                   </span>
-                  <span className="block text-[11px] text-ln-op-mute">{law.scope}</span>
+                  <span className="block text-sm text-ln-op-mute">{law.scope}</span>
                 </li>
               ))}
             </ul>
@@ -260,7 +260,7 @@ export function CaseDetailShell({
           <h2 className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-ln-op-mute">
             Motivo de apertura
           </h2>
-          <p className="mt-2 text-[13px] text-ln-op-ink">
+          <p className="mt-2 text-md text-ln-op-ink">
             {caseOpenedReasonDisplay({ openedReasonCode, openedReasonParams, openedReason })}
           </p>
         </section>
@@ -343,7 +343,7 @@ export function SubjectCard({ subject }: { subject: CaseSubjectDescriptor }) {
       aria-label="Sujeto del caso"
       className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-5"
     >
-      <p className="text-[13px] text-ln-op-mute">{descriptor}</p>
+      <p className="text-md text-ln-op-mute">{descriptor}</p>
     </section>
   );
 }

@@ -82,7 +82,7 @@ function NavLink({
         aria-disabled="true"
         className={[
           "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
-          "text-[12.5px] -ml-0.5 border-l-2 border-transparent",
+          "text-md -ml-0.5 border-l-2 border-transparent",
           "text-ln-op-rail-mute cursor-not-allowed select-none",
         ].join(" ")}
       >
@@ -131,7 +131,7 @@ function NavLink({
       }
       className={[
         "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
-        "text-[12.5px] no-underline transition-colors",
+        "text-md no-underline transition-colors",
         "-ml-0.5",
         active
           ? activeClasses

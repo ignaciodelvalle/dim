@@ -75,7 +75,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
       <div className="flex flex-col gap-1">
         {successMsg && <output className="text-sm text-ln-op-ok">{successMsg}</output>}
         <div className="flex items-center gap-3">
-          <span className="text-[13px] text-ln-op-ink">
+          <span className="text-md text-ln-op-ink">
             {capacity} {pluralizeEs(capacity, "lugar")} por turno
           </span>
           <OpButton variant="ghost" size="sm" onClick={openEditor}>
@@ -100,7 +100,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           step={1}
           defaultValue={capacity}
           disabled={pending}
-          className="w-24 rounded-[var(--radius-sm)] border border-ln-op-line px-2 py-[5px] text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul disabled:opacity-60"
+          className="w-24 rounded-[var(--radius-sm)] border border-ln-op-line px-2 py-[5px] text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul disabled:opacity-60"
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSave();
             if (e.key === "Escape") cancel();

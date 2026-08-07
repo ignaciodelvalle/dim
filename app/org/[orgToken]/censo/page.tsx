@@ -35,7 +35,7 @@ export default async function OrgCensoPage({
       <div className="space-y-6">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Censo" }]} />
         <h1 className="text-title font-semibold text-ln-op-ink">Censo de animales</h1>
-        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-6 text-[13px] text-ln-op-mute">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-6 text-md text-ln-op-mute">
           El censo de ocupación solo está disponible para refugios y redes de rescate con acceso a
           ingresos.
         </div>
@@ -70,7 +70,7 @@ export default async function OrgCensoPage({
       <div className="space-y-1">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Censo" }]} />
         <h1 className="text-title font-semibold text-ln-op-ink">Censo de animales</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Animales actualmente en custodia de{" "}
           <strong className="text-ln-op-ink-2">{organization.displayName}</strong>.
         </p>
@@ -80,7 +80,7 @@ export default async function OrgCensoPage({
       {breakdown.anyOverCapacity && (
         <div
           role="alert"
-          className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-[13px] text-ln-op-danger font-medium"
+          className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-md text-ln-op-danger font-medium"
         >
           Sobre capacidad — la organización tiene más animales de los que declaró como capacidad
           máxima. Esto no bloquea nuevos ingresos, es solo informativo.
@@ -150,13 +150,13 @@ export default async function OrgCensoPage({
       {breakdown.noCapacityDeclared && (
         <OpCard>
           <OpCardBody>
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               No declaraste capacidad para esta organización. Declarar la capacidad te permite ver
               el porcentaje de ocupación y recibir alertas cuando estés llegando al límite.
             </p>
             <Link
               href={`/org/${orgToken}/configuracion`}
-              className="mt-3 inline-block text-[13px] font-medium text-ln-op-azul hover:underline no-underline"
+              className="mt-3 inline-block text-md font-medium text-ln-op-azul hover:underline no-underline"
             >
               Declarar capacidad →
             </Link>
@@ -168,7 +168,7 @@ export default async function OrgCensoPage({
       <OpCard>
         <OpCardHead title="Desglose por especie" />
         <OpCardBody className="p-0">
-          <table className="w-full text-[13px]">
+          <table className="w-full text-md">
             <caption className="sr-only">Desglose de animales en custodia por especie</caption>
             <thead>
               <tr className="border-b border-ln-op-line text-xs font-bold uppercase tracking-[0.1em] text-ln-op-mute">

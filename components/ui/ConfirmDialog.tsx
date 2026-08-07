@@ -212,12 +212,12 @@ export function ConfirmDialog({
       <div className="px-5 pt-5 pb-3">
         <h2
           id={titleId}
-          className="text-[15px] font-semibold text-[var(--color-ln-ink)] leading-snug"
+          className="text-base font-semibold text-[var(--color-ln-ink)] leading-snug"
         >
           {title}
         </h2>
         {description && (
-          <p id={descId} className="mt-1.5 text-[13px] text-[var(--color-ln-ink-2)] leading-snug">
+          <p id={descId} className="mt-1.5 text-md text-[var(--color-ln-ink-2)] leading-snug">
             {description}
           </p>
         )}

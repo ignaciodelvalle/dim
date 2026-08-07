@@ -43,7 +43,7 @@ const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Identificación", "Identidad", "Estado", "Confirmar"];
 
 const inputCls =
-  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 /** Fields the action reads. Always sent, even when empty. */
 const REQUIRED_KEYS = [
@@ -252,13 +252,13 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         aria-hidden={step !== 1}
         inert={step !== 1 ? true : undefined}
       >
-        <p className="text-[13px] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           Si la mascota tiene microchip o tatuaje, ingrésalos. Si el chip coincide con una mascota
           perdida en miMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Número de microchip</span>
+            <span className="text-md text-ln-op-ink">Número de microchip</span>
             <input
               type="text"
               value={microchipId}
@@ -269,7 +269,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">País del chip</span>
+            <span className="text-md text-ln-op-ink">País del chip</span>
             <input
               type="text"
               value={microchipCountryCode}
@@ -280,7 +280,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </label>
         </div>
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Código de tatuaje</span>
+          <span className="text-md text-ln-op-ink">Código de tatuaje</span>
           <input
             type="text"
             value={tattooCode}
@@ -306,7 +306,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Nombre o alias temporal *</span>
+            <span className="text-md text-ln-op-ink">Nombre o alias temporal *</span>
             <input
               type="text"
               value={name}
@@ -318,7 +318,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Especie *</span>
+            <span className="text-md text-ln-op-ink">Especie *</span>
             <select
               value={species}
               onChange={(e) => setSpecies(e.target.value)}
@@ -336,8 +336,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         <fieldset className="space-y-1">
-          <legend className="text-[13px] text-ln-op-ink">Sexo</legend>
-          <div className="flex flex-wrap gap-3 text-[13px]">
+          <legend className="text-md text-ln-op-ink">Sexo</legend>
+          <div className="flex flex-wrap gap-3 text-md">
             {(["unknown", "male", "female"] as const).map((v) => (
               <label key={v} className="flex items-center gap-1 text-ln-op-ink">
                 <input
@@ -355,7 +355,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Edad — años</span>
+            <span className="text-md text-ln-op-ink">Edad — años</span>
             <input
               type="number"
               min={0}
@@ -366,7 +366,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Edad — meses</span>
+            <span className="text-md text-ln-op-ink">Edad — meses</span>
             <input
               type="number"
               min={0}
@@ -380,7 +380,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Raza</span>
+            <span className="text-md text-ln-op-ink">Raza</span>
             <input
               type="text"
               value={breed}
@@ -390,7 +390,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Color / pelaje</span>
+            <span className="text-md text-ln-op-ink">Color / pelaje</span>
             <input
               type="text"
               value={color}
@@ -418,7 +418,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </label>
 
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Señas particulares</span>
+          <span className="text-md text-ln-op-ink">Señas particulares</span>
           <textarea
             value={distinguishingFeatures}
             onChange={(e) => setDistinguishingFeatures(e.target.value)}
@@ -441,8 +441,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         inert={step !== 3 ? true : undefined}
       >
         <fieldset className="space-y-1">
-          <legend className="text-[13px] text-ln-op-ink">Motivo del ingreso *</legend>
-          <div className="flex flex-col gap-1 text-[13px]">
+          <legend className="text-md text-ln-op-ink">Motivo del ingreso *</legend>
+          <div className="flex flex-col gap-1 text-md">
             {INTAKE_REASONS.map((r) => (
               <label key={r.value} className="flex items-center gap-2 text-ln-op-ink">
                 <input
@@ -459,7 +459,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </fieldset>
 
         <fieldset className="space-y-1">
-          <legend className="text-[13px] text-ln-op-ink">Rol de la organización</legend>
+          <legend className="text-md text-ln-op-ink">Rol de la organización</legend>
           <div className="flex flex-col gap-2">
             <LnRadio
               name="custodyRole"
@@ -492,7 +492,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </fieldset>
 
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Fecha del ingreso</span>
+          <span className="text-md text-ln-op-ink">Fecha del ingreso</span>
           <input
             type="date"
             value={occurredAt}
@@ -502,7 +502,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </label>
 
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Condición al ingreso</span>
+          <span className="text-md text-ln-op-ink">Condición al ingreso</span>
           <textarea
             value={intakeCondition}
             onChange={(e) => setIntakeCondition(e.target.value)}
@@ -514,7 +514,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </label>
 
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Jurisdicción / lugar de rescate</span>
+          <span className="text-md text-ln-op-ink">Jurisdicción / lugar de rescate</span>
           <input
             type="text"
             value={rescueJurisdiction}
@@ -537,7 +537,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         inert={step !== 4 ? true : undefined}
       >
         <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
-          <p className="text-[13px] font-semibold text-ln-op-ink">Resumen del ingreso</p>
+          <p className="text-md font-semibold text-ln-op-ink">Resumen del ingreso</p>
           <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">
             <dt className="text-ln-op-mute">Nombre</dt>
             <dd className="col-span-2 text-ln-op-ink">{name || "—"}</dd>
@@ -592,7 +592,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         )}
 
         {state.error && (
-          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-md text-ln-op-danger">
             {state.error}
           </p>
         )}

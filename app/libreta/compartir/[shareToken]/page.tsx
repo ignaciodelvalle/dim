@@ -184,7 +184,7 @@ export default async function PublicLibretaPage({
             borderLeft: "3px solid var(--color-ln-azul)",
           }}
         >
-          <p className="text-[13px]" style={{ color: "var(--color-ln-ink-2)" }}>
+          <p className="text-md" style={{ color: "var(--color-ln-ink-2)" }}>
             <strong style={{ color: "var(--color-ln-ink)" }}>Vista de solo lectura.</strong> Estás
             viendo la libreta sanitaria compartida por el dueño/a. Para sumar nuevos eventos,
             contactá al dueño/a.
@@ -248,7 +248,7 @@ export default async function PublicLibretaPage({
           vista="agrupada"
         />
 
-        <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+        <footer className="border-t border-[var(--color-ln-line-2)] pt-8 font-ln-mono text-sm text-[var(--color-ln-mute)]">
           <p>Generada por miMAR · {formatDateTime(new Date())}</p>
           {share.expiresAt && <p>El enlace vence el {formatDateTime(share.expiresAt)}.</p>}
           <p className="mt-1 text-xs">Token: {shareToken}</p>
@@ -309,22 +309,22 @@ function TerminalShell({
           <h1 className="font-ln-serif text-3xl font-semibold text-[var(--color-ln-ink)]">
             {title}
           </h1>
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
+          <p className="text-md text-[var(--color-ln-mute)]">
             Era un resumen médico temporal de <strong>{context.name}</strong> ({speciesLabel})
             compartido el {createdAt}.
           </p>
-          <p className="text-[13px] text-[var(--color-ln-mute)]">{description}</p>
+          <p className="text-md text-[var(--color-ln-mute)]">{description}</p>
         </div>
 
         {/* Primary CTA — keyboard-operable Link with visible focus ring. */}
         <Link
           href={`/p/${context.publicToken}`}
-          className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-3 text-[13px] font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+          className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-3 text-md font-semibold text-white no-underline transition-colors hover:bg-[var(--color-ln-azul-700)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
         >
           Ver el perfil público de {context.name}
         </Link>
 
-        <p className="text-[11px] text-[var(--color-ln-mute)]">
+        <p className="text-sm text-[var(--color-ln-mute)]">
           Desde el perfil público podés escribirle al dueño para pedir un acceso nuevo.
         </p>
       </div>

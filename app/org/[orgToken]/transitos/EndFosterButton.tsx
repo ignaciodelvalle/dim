@@ -16,7 +16,7 @@ const SELECTABLE_END_REASONS = [
 type ReasonValue = (typeof SELECTABLE_END_REASONS)[number]["value"];
 
 const fieldCls =
-  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function EndFosterButton({
   orgToken,

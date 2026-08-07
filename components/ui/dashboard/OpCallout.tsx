@@ -47,7 +47,7 @@ export function OpCallout({ title, body, icon, nature }: Props) {
       {icon && (
         <div
           className={[
-            "grid h-9 w-9 flex-shrink-0 place-items-center rounded-[var(--radius-md)] text-[15px] text-white",
+            "grid h-9 w-9 flex-shrink-0 place-items-center rounded-[var(--radius-md)] text-base text-white",
             isNoSignal ? "bg-ln-op-warn" : "bg-ln-op-navy",
           ].join(" ")}
         >
@@ -58,7 +58,7 @@ export function OpCallout({ title, body, icon, nature }: Props) {
       <div className="flex-1">
         <b
           className={[
-            "mb-0.5 block text-[13.5px] font-bold",
+            "mb-0.5 block text-md font-bold",
             isNoSignal ? "text-ln-op-warn" : "text-ln-op-ink",
           ].join(" ")}
         >

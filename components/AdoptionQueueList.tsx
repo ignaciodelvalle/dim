@@ -281,7 +281,7 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
           a dead end, but it still shouldn't strand the operator with no next
           step (copy audit 2026-08-04, S8). Point back at the org's own pets. */}
       {rows.length === 0 ? (
-        <div className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute space-y-2">
+        <div className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-md text-ln-op-mute space-y-2">
           <p>
             {activeStatus === "pending"
               ? "No tenés postulaciones pendientes de revisión."
@@ -350,11 +350,11 @@ export function AdoptionQueueList({ rows, orgToken, activeStatus }: AdoptionQueu
                   {/* Row content */}
                   <Link href={href} className="flex-1 min-w-0 space-y-1 no-underline">
                     <div className="flex flex-wrap items-center gap-2 justify-between">
-                      <p className="flex items-center gap-2 flex-wrap text-[13px] font-medium text-ln-op-ink">
+                      <p className="flex items-center gap-2 flex-wrap text-md font-medium text-ln-op-ink">
                         {row.applicantName ?? "Postulante"}
                         <span className="text-sm font-normal text-ln-op-mute">→ {row.petName}</span>
                         {row.infoRequested && (
-                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-ln-op-azul bg-ln-op-celeste-050 px-1.5 py-px text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
+                          <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-ln-op-azul bg-ln-op-celeste-050 px-1.5 py-px text-xs font-semibold uppercase tracking-[.08em] text-ln-op-azul">
                             Info pedida
                           </span>
                         )}

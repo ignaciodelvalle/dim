@@ -65,7 +65,7 @@ export default async function MisDenunciasPage() {
           not the pet roster (QA 2026-07-03). */}
       <Link
         href="/inicio"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Inicio
       </Link>
@@ -107,12 +107,12 @@ export default async function MisDenunciasPage() {
                 <p className="font-ln-serif text-md font-semibold text-[var(--color-ln-ink)]">
                   {welfareReportKindLabel(report.kind)}
                 </p>
-                <p className="mt-0.5 font-ln-mono text-[10.5px] text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                   {welfareReportSeverityLabel(report.severity)}
                   {" · "}
                   {report.referenceCode}
                 </p>
-                <p className="mt-1 text-[12.5px] text-[var(--color-ln-ink-2)] line-clamp-2">
+                <p className="mt-1 text-md text-[var(--color-ln-ink-2)] line-clamp-2">
                   {report.description.length > 150
                     ? `${report.description.slice(0, 150)}…`
                     : report.description}
@@ -131,7 +131,7 @@ export default async function MisDenunciasPage() {
               </div>
               <div className="flex flex-shrink-0 items-center gap-2">
                 <span
-                  className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9px] font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
+                  className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${statusBadgeClass(report.status)}`}
                 >
                   {welfareReportStatusLabel(report.status)}
                 </span>

@@ -96,11 +96,11 @@ export function AppShellDrawer({
         >
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
-            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
+            <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-md font-bold text-ln-op-navy">
               m·
             </div>
             <div className="flex flex-col leading-tight">
-              <span className="font-ln-serif text-[15px] font-semibold text-white">
+              <span className="font-ln-serif text-base font-semibold text-white">
                 {BRANDING.appName}
               </span>
               <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
@@ -147,7 +147,7 @@ export function AppShellDrawer({
                         }
                         className={[
                           "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-[9px] py-2",
-                          "text-[12.5px] no-underline transition-colors -ml-0.5",
+                          "text-md no-underline transition-colors -ml-0.5",
                           active
                             ? activeClasses
                             : "border-l-2 border-transparent text-ln-op-rail-text hover:bg-[rgba(255,255,255,0.05)]",

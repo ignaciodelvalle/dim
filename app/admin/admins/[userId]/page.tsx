@@ -152,7 +152,7 @@ export default async function AdminDetailPage({
       {/* Account actions */}
       {isActive && actorProfile && (
         <section className="space-y-3">
-          <h2 className="text-[13px] font-semibold text-ln-op-ink">Acciones de cuenta</h2>
+          <h2 className="text-md font-semibold text-ln-op-ink">Acciones de cuenta</h2>
           <div className="flex items-start gap-3 flex-wrap">
             <DeactivateAdminActions
               target={{ id: target.id, displayName: target.displayName }}
@@ -178,7 +178,7 @@ export default async function AdminDetailPage({
 
       {/* Audit log tail */}
       <section className="space-y-3">
-        <h2 className="text-[13px] font-semibold text-ln-op-ink">
+        <h2 className="text-md font-semibold text-ln-op-ink">
           Audit log (últimas {auditEntries.length} entradas)
         </h2>
         {auditEntries.length === 0 ? (
@@ -193,7 +193,7 @@ export default async function AdminDetailPage({
               return (
                 <li key={entry.id} className="py-2 space-y-0.5">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-[13px] font-medium text-ln-op-ink" title={entry.action}>
+                    <span className="text-md font-medium text-ln-op-ink" title={entry.action}>
                       {view.label}
                     </span>
                     <OpCodeBadge tone="neutral">{entry.action}</OpCodeBadge>

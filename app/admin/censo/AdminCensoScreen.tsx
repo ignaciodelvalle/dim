@@ -344,9 +344,7 @@ export async function AdminCensoScreen({
                   className="flex items-center gap-3"
                   aria-label={`Total: ${funnel.total.toLocaleString("es-AR")} mascotas (100%)`}
                 >
-                  <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
-                    Total registradas
-                  </span>
+                  <span className="w-44 shrink-0 text-md text-ln-op-ink">Total registradas</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -354,7 +352,7 @@ export async function AdminCensoScreen({
                     <div className="h-full rounded bg-ln-op-azul" style={{ width: "100%" }} />
                   </div>
                   <span
-                    className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                    className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                     aria-hidden="true"
                   >
                     {funnel.total.toLocaleString("es-AR")} (100%)
@@ -375,7 +373,7 @@ export async function AdminCensoScreen({
                       className="flex items-center gap-3"
                       aria-label={`Con chip: ${funnel.chipped.toLocaleString("es-AR")} mascotas (${formatPercent(pct)})`}
                     >
-                      <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
+                      <span className="w-44 shrink-0 text-md text-ln-op-ink">
                         Con chip ISO activo
                       </span>
                       <div
@@ -388,7 +386,7 @@ export async function AdminCensoScreen({
                         />
                       </div>
                       <span
-                        className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                         aria-hidden="true"
                       >
                         {funnel.chipped.toLocaleString("es-AR")} ({formatPercent(pct)})
@@ -404,7 +402,7 @@ export async function AdminCensoScreen({
                       className="flex items-center gap-3"
                       aria-label={`ISO válido: ${funnel.isoValid.toLocaleString("es-AR")} mascotas (${formatPercent(pct)})`}
                     >
-                      <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
+                      <span className="w-44 shrink-0 text-md text-ln-op-ink">
                         ISO 11784/11785 válido
                       </span>
                       <div
@@ -417,7 +415,7 @@ export async function AdminCensoScreen({
                         />
                       </div>
                       <span
-                        className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                         aria-hidden="true"
                       >
                         {funnel.isoValid.toLocaleString("es-AR")} ({formatPercent(pct)})
@@ -433,7 +431,7 @@ export async function AdminCensoScreen({
                       className="flex items-center gap-3"
                       aria-label={`Escaneada en el período: ${funnel.scanned.toLocaleString("es-AR")} mascotas (${formatPercent(pct)})`}
                     >
-                      <span className="w-44 shrink-0 text-[13px] text-ln-op-ink">
+                      <span className="w-44 shrink-0 text-md text-ln-op-ink">
                         Escaneada en el período
                         <span className="sr-only"> (eventos de los últimos 90 días solamente)</span>
                       </span>
@@ -447,7 +445,7 @@ export async function AdminCensoScreen({
                         />
                       </div>
                       <span
-                        className="w-20 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink"
+                        className="w-20 shrink-0 text-right text-md tabular-nums text-ln-op-ink"
                         aria-hidden="true"
                       >
                         {funnel.scanned.toLocaleString("es-AR")} ({formatPercent(pct)})
@@ -470,10 +468,10 @@ export async function AdminCensoScreen({
         <OpCardHead title={<span id={panelTableId}>Ranking por provincia</span>} />
         <OpCardBody>
           {provinceRows.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">Sin datos provinciales disponibles.</p>
+            <p className="text-md text-ln-op-mute">Sin datos provinciales disponibles.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Ranking de mascotas registradas por provincia, ordenado de mayor a menor.
                 </caption>
@@ -511,7 +509,7 @@ export async function AdminCensoScreen({
                         ].join(" ")}
                       >
                         <td className="py-2 pr-4">
-                          <span className="text-[11px] tabular-nums text-ln-op-mute mr-2">
+                          <span className="text-sm tabular-nums text-ln-op-mute mr-2">
                             {i + 1}.
                           </span>
                           {drillHref ? (

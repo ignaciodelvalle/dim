@@ -383,7 +383,7 @@ export default async function GobHistorialPage({
       </OpFilterBar>
 
       {entries.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>
+        <p className="text-md text-ln-op-mute">No hay entradas que coincidan.</p>
       ) : (
         <OpCard>
           <OpCardHead

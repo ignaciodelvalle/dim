@@ -250,9 +250,7 @@ export default async function AdminAdopcionesPage({
                   className="flex items-center gap-3"
                   aria-label={`Ingresos al refugio: ${funnel.intake.toLocaleString("es-AR")}`}
                 >
-                  <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">
-                    Ingresos al refugio
-                  </span>
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">Ingresos al refugio</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -262,7 +260,7 @@ export default async function AdminAdopcionesPage({
                       style={{ width: `${fPct.intakePct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.intake.toLocaleString("es-AR")}
                   </span>
                 </li>
@@ -272,9 +270,7 @@ export default async function AdminAdopcionesPage({
                   className="flex items-center gap-3"
                   aria-label={`Asignados a tránsito: ${funnel.foster.toLocaleString("es-AR")}`}
                 >
-                  <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">
-                    Asignados a tránsito
-                  </span>
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">Asignados a tránsito</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -284,7 +280,7 @@ export default async function AdminAdopcionesPage({
                       style={{ width: `${fPct.fosterPct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.foster.toLocaleString("es-AR")}
                   </span>
                 </li>
@@ -297,7 +293,7 @@ export default async function AdminAdopcionesPage({
                   className="flex items-center gap-3"
                   aria-label={`${KPI_CATALOG.adoptions_finalized.label}: ${funnel.adoption.toLocaleString("es-AR")}`}
                 >
-                  <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">
                     {KPI_CATALOG.adoptions_finalized.label}
                   </span>
                   <div
@@ -309,7 +305,7 @@ export default async function AdminAdopcionesPage({
                       style={{ width: `${fPct.adoptionPct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.adoption.toLocaleString("es-AR")}
                   </span>
                 </li>
@@ -325,7 +321,7 @@ export default async function AdminAdopcionesPage({
                       : ""
                   }`}
                 >
-                  <span className="w-48 shrink-0 text-[13px] text-ln-op-ink">Devoluciones</span>
+                  <span className="w-48 shrink-0 text-md text-ln-op-ink">Devoluciones</span>
                   <div
                     className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden"
                     aria-hidden="true"
@@ -335,7 +331,7 @@ export default async function AdminAdopcionesPage({
                       style={{ width: `${fPct.reversedPct}%` }}
                     />
                   </div>
-                  <span className="w-28 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {funnel.reversed.toLocaleString("es-AR")}
                     {returnRatePct != null ? (
                       <span className="ml-1 text-ln-op-mute">({formatPercent(returnRatePct)})</span>
@@ -366,7 +362,7 @@ export default async function AdminAdopcionesPage({
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   {/* "Mediana", not "promedio" — fetchTimeInState computes
                       percentile_cont(0.5); the caption must name the statistic
@@ -441,7 +437,7 @@ export default async function AdminAdopcionesPage({
                 <div className="text-title font-semibold text-ln-op-ink tabular-nums">
                   {shelterOccupancy.occupied.toLocaleString("es-AR")}
                 </div>
-                <div className="text-[13px] text-ln-op-mute">
+                <div className="text-md text-ln-op-mute">
                   {shelterOccupancy.capacity != null ? (
                     <>
                       de {shelterOccupancy.capacity.toLocaleString("es-AR")} cupos declarados
@@ -490,19 +486,19 @@ export default async function AdminAdopcionesPage({
               <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeVolunteers.toLocaleString("es-AR")}
               </div>
-              <div className="text-[11px] text-ln-op-mute mt-0.5">Voluntarios activos</div>
+              <div className="text-sm text-ln-op-mute mt-0.5">Voluntarios activos</div>
             </div>
             <div className="text-center">
               <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.withCapacity.toLocaleString("es-AR")}
               </div>
-              <div className="text-[11px] text-ln-op-mute mt-0.5">Con cupo disponible</div>
+              <div className="text-sm text-ln-op-mute mt-0.5">Con cupo disponible</div>
             </div>
             <div className="text-center">
               <div className="text-xl font-semibold text-ln-op-ink tabular-nums">
                 {fosterPool.activeFosterPlacements.toLocaleString("es-AR")}
               </div>
-              <div className="text-[11px] text-ln-op-mute mt-0.5">Colocaciones activas</div>
+              <div className="text-sm text-ln-op-mute mt-0.5">Colocaciones activas</div>
             </div>
           </div>
           <p className="mt-3 text-xs text-ln-op-mute">

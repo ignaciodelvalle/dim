@@ -249,14 +249,14 @@ export default async function AdminLibroPage({
         <OpCardHead
           title="Flujo de eventos"
           actions={
-            <span className="text-[11px] text-ln-op-mute">
+            <span className="text-sm text-ln-op-mute">
               {viewRows.length} {viewRows.length === 1 ? "evento" : "eventos"} en esta página
             </span>
           }
         />
         <OpCardBody>
           {viewRows.length === 0 ? (
-            <p className="text-[13px] text-ln-op-mute">
+            <p className="text-md text-ln-op-mute">
               {hasActiveFilters
                 ? "Sin eventos con estos filtros. Probá ampliar el rango o quitar filtros."
                 : "El libro está vacío — todavía no hay eventos registrados."}
@@ -268,7 +268,7 @@ export default async function AdminLibroPage({
                 <div className="mt-4 flex justify-center">
                   <Link
                     href={buildLoadMoreHref(sp, nextCursor)}
-                    className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-[13px] leading-[44px] text-ln-op-ink hover:bg-ln-op-stripe"
+                    className="h-11 rounded-[var(--radius-md)] border border-ln-op-line px-4 text-md leading-[44px] text-ln-op-ink hover:bg-ln-op-stripe"
                   >
                     Cargar más
                   </Link>

@@ -128,7 +128,7 @@ export function AdoptionListingCard({
       {/* Publisher link — rendered outside the card anchor so it is never
           nested inside another <a>. Positioned at the bottom of the card. */}
       {showPublisher && (
-        <p className="text-[11px] text-ln-mute px-4 pb-4 -mt-2 relative z-10">
+        <p className="text-sm text-ln-mute px-4 pb-4 -mt-2 relative z-10">
           Publica:{" "}
           <Link href={`/refugios/${item.orgPublicToken}`} className="underline hover:text-ln-ink">
             {item.orgDisplayName}

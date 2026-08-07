@@ -63,7 +63,7 @@ export default async function OrgNuevaDenunciaPage({
               : `Tu rol actual dentro de la organización (${membership?.role ?? "—"}) no habilita este canal. Pediselo a un coordinador o admin de la organización para que lo emita en tu nombre.`
           }
         />
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Mientras tanto, podés usar el{" "}
           <Link href="/denuncias/nueva" className="text-ln-op-azul hover:underline no-underline">
             canal público de denuncias
@@ -96,7 +96,7 @@ export default async function OrgNuevaDenunciaPage({
 
       <header className="space-y-2">
         <h1 className="text-title font-semibold text-ln-op-ink">Nueva investigación de maltrato</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Canal profesional: tu reporte se procesa con prioridad crítica y notifica inmediatamente a
           las autoridades de la jurisdicción.
         </p>

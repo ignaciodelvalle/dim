@@ -334,7 +334,7 @@ export function CaseQueue({
 
       {/* Table */}
       {rows.length === 0 ? (
-        <div className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute space-y-2">
+        <div className="rounded-[var(--radius-sm)] border border-dashed border-ln-op-line p-8 text-center text-md text-ln-op-mute space-y-2">
           <p>{emptyMessage}</p>
           {emptyAction && <div>{emptyAction}</div>}
         </div>
@@ -347,7 +347,7 @@ export function CaseQueue({
         // structure as MapDataTable: max-height + overflow-auto on the
         // container, sticky + opaque bg + z on the thead.
         <div className="max-h-[70vh] overflow-auto rounded-[var(--radius-sm)] border border-ln-op-line">
-          <table className="w-full border-collapse text-[13px]">
+          <table className="w-full border-collapse text-md">
             <caption className="sr-only">{caption}</caption>
             <thead className="sticky top-0 z-10 bg-ln-op-stripe">
               <tr>

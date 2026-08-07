@@ -60,12 +60,12 @@ export default async function IntakeMatchPage({
       <div className="flex items-center justify-center py-16">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-title font-semibold text-ln-op-ink">Mascota ya no esta perdida</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             {pet.name} ya fue encontrada o su estado cambio. Podes continuar el ingreso normalmente.
           </p>
           <Link
             href={`/org/${orgToken}/intake`}
-            className="inline-block rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            className="inline-block rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             Volver al ingreso
           </Link>
@@ -123,7 +123,7 @@ export default async function IntakeMatchPage({
           {organization.displayName}
         </p>
         <h1 className="text-title font-semibold text-ln-op-ink">Coincidencia de microchip</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Este chip ya esta registrado en miMAR. Confirmá si es el mismo animal.
         </p>
       </header>
@@ -149,7 +149,7 @@ export default async function IntakeMatchPage({
       <footer className="pt-4 border-t border-ln-op-line">
         <Link
           href={`/org/${orgToken}/intake`}
-          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+          className="text-md text-ln-op-azul hover:underline no-underline"
         >
           Cancelar y volver al ingreso
         </Link>

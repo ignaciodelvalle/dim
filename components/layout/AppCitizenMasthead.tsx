@@ -103,11 +103,11 @@ export function AppCitizenMasthead({
         className="flex flex-shrink-0 items-center gap-3 no-underline transition-opacity hover:opacity-90"
         aria-label={`${BRANDING.appName} — ${BRANDING.appNameLong}, ir al inicio`}
       >
-        <span className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-full border-[2px] border-white/50 bg-white/[0.06] font-ln-serif text-[17px] font-semibold tracking-[-0.02em]">
+        <span className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-full border-[2px] border-white/50 bg-white/[0.06] font-ln-serif text-lg font-semibold tracking-[-0.02em]">
           m
         </span>
         <span className="leading-[1.1]">
-          <span className="block font-ln-serif text-[19px] font-semibold tracking-[-0.01em]">
+          <span className="block font-ln-serif text-xl font-semibold tracking-[-0.01em]">
             {BRANDING.appName}
           </span>
           {/* Hidden below md: the wide letter-spacing (tracking-[.22em]) makes this
@@ -117,7 +117,7 @@ export function AppCitizenMasthead({
           {/* celeste-100 (not celeste): on the azul-900 band, base celeste
               is ~4.0:1 at this 9.5px size — below WCAG 1.4.3's 4.5:1 (a11y
               audit 2026-07-04 §4). celeste-100 clears ~10:1 on the same bg. */}
-          <span className="hidden font-ln-mono text-[9.5px] uppercase tracking-[.22em] text-[var(--color-ln-celeste-100)] md:block">
+          <span className="hidden font-ln-mono text-xs uppercase tracking-[.22em] text-[var(--color-ln-celeste-100)] md:block">
             MI MASCOTA ARGENTINA
           </span>
         </span>
@@ -134,7 +134,7 @@ export function AppCitizenMasthead({
                 href={item.href}
                 aria-current={active ? "page" : undefined}
                 className={[
-                  "rounded-[var(--radius-sm)] px-3.5 py-2 text-[13px] font-medium tracking-[.01em] no-underline transition-colors",
+                  "rounded-[var(--radius-sm)] px-3.5 py-2 text-md font-medium tracking-[.01em] no-underline transition-colors",
                   active
                     ? "bg-white/10 text-white shadow-[inset_0_-2px_0_var(--color-ln-celeste)]"
                     : "text-white/70 hover:text-white",
@@ -154,7 +154,7 @@ export function AppCitizenMasthead({
         {showReturn && returnHref && (
           <Link
             href={returnHref}
-            className="hidden items-center gap-1 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-[12.5px] font-medium text-white/85 no-underline transition-colors hover:border-white/50 hover:text-white md:inline-flex"
+            className="hidden items-center gap-1 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-md font-medium text-white/85 no-underline transition-colors hover:border-white/50 hover:text-white md:inline-flex"
           >
             ← Volver a mi app
           </Link>
@@ -179,7 +179,7 @@ export function AppCitizenMasthead({
               {unreadCount > 0 && (
                 <span
                   aria-hidden="true"
-                  className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-1 text-center font-ln-mono text-[9px] font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
+                  className="absolute -right-[7px] -top-[5px] min-w-[15px] rounded-full bg-[var(--color-ln-celeste)] px-1 text-center font-ln-mono text-xs font-bold leading-[15px] text-[var(--color-ln-azul-900)]"
                 >
                   {unreadCount > 9 ? "9+" : unreadCount}
                 </span>
@@ -196,7 +196,7 @@ export function AppCitizenMasthead({
         ) : (
           <Link
             href="/login"
-            className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-[18px] text-[13px] font-semibold text-[var(--color-ln-azul-900)] no-underline transition-opacity hover:opacity-90 active:opacity-80"
+            className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-[18px] text-md font-semibold text-[var(--color-ln-azul-900)] no-underline transition-opacity hover:opacity-90 active:opacity-80"
           >
             Iniciar sesión
           </Link>
@@ -264,7 +264,7 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
         <span className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-full bg-[var(--color-ln-celeste)] font-ln-mono text-sm font-semibold text-[var(--color-ln-azul-900)]">
           {user.initials}
         </span>
-        <span className="hidden text-[12.5px] font-medium md:block">{user.name}</span>
+        <span className="hidden text-md font-medium md:block">{user.name}</span>
       </button>
 
       {open && (
@@ -278,7 +278,7 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
           <Link
             href="/cuenta"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2 px-3 py-[7px] text-[12.5px] text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
+            className="flex items-center gap-2 px-3 py-[7px] text-md text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
           >
             Mi cuenta
           </Link>
@@ -286,7 +286,7 @@ function CitizenUserMenu({ user }: { user: CitizenUser }) {
           <form action={logoutAction}>
             <button
               type="submit"
-              className="flex w-full items-center gap-2 px-3 py-[7px] text-left text-[12.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-ln-stripe"
+              className="flex w-full items-center gap-2 px-3 py-[7px] text-left text-md font-medium text-[var(--color-ln-err)] transition-colors hover:bg-ln-stripe"
             >
               Cerrar sesión
             </button>
@@ -342,7 +342,7 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-[12.5px] font-medium text-white/85 transition-colors hover:border-white/50 hover:text-white"
+        className="flex items-center gap-1.5 rounded-[var(--radius-sm)] border border-white/25 px-3 py-1.5 text-md font-medium text-white/85 transition-colors hover:border-white/50 hover:text-white"
       >
         <span className="max-w-[160px] truncate">{triggerLabel}</span>
         <Icon name="chevron-down" size="sm" decorative className="opacity-70" />
@@ -360,7 +360,7 @@ function CitizenSwitcher({ switcher }: { switcher: SwitcherTarget[] }) {
                 <Link
                   href={t.href}
                   onClick={() => setOpen(false)}
-                  className="flex items-center gap-2 px-3 py-[7px] text-[12.5px] text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
+                  className="flex items-center gap-2 px-3 py-[7px] text-md text-ln-ink no-underline transition-colors hover:bg-ln-stripe"
                 >
                   {t.label}
                 </Link>
@@ -416,12 +416,12 @@ function CitizenMobileDrawer({
         >
           {/* Brand header */}
           <div className="flex items-center gap-2.5 border-b border-white/10 px-4 py-3.5">
-            <span className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-full border border-white/30 bg-white/[0.06] font-ln-serif text-[15px] font-semibold">
+            <span className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-full border border-white/30 bg-white/[0.06] font-ln-serif text-base font-semibold">
               m
             </span>
             <span className="flex flex-col leading-tight">
-              <span className="font-ln-serif text-[15px] font-semibold">{BRANDING.appName}</span>
-              <span className="font-ln-mono text-[9px] uppercase tracking-[0.2em] text-[var(--color-ln-celeste-100)]">
+              <span className="font-ln-serif text-base font-semibold">{BRANDING.appName}</span>
+              <span className="font-ln-mono text-xs uppercase tracking-[0.2em] text-[var(--color-ln-celeste-100)]">
                 MI MASCOTA ARGENTINA
               </span>
             </span>
@@ -454,7 +454,7 @@ function CitizenMobileDrawer({
                     aria-current={active ? "page" : undefined}
                     className={[
                       "flex min-h-11 items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2",
-                      "text-[13px] no-underline transition-colors",
+                      "text-md no-underline transition-colors",
                       active
                         ? "border-l-2 border-[var(--color-ln-celeste)] bg-white/10 font-semibold text-white"
                         : "border-l-2 border-transparent text-white/75 hover:bg-white/5 hover:text-white active:bg-white/10",
@@ -473,7 +473,7 @@ function CitizenMobileDrawer({
               {showReturn && returnHref && (
                 <Link
                   href={returnHref}
-                  className="flex min-h-11 items-center rounded-[var(--radius-sm)] px-3 py-2 text-[13px] font-medium text-white/85 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
+                  className="flex min-h-11 items-center rounded-[var(--radius-sm)] px-3 py-2 text-md font-medium text-white/85 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
                 >
                   ← Volver a mi app
                 </Link>
@@ -482,7 +482,7 @@ function CitizenMobileDrawer({
                 <Link
                   key={t.key + t.href}
                   href={t.href}
-                  className="flex min-h-11 items-center rounded-[var(--radius-sm)] px-3 py-2 text-[13px] text-white/75 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
+                  className="flex min-h-11 items-center rounded-[var(--radius-sm)] px-3 py-2 text-md text-white/75 no-underline hover:bg-white/5 hover:text-white active:bg-white/10"
                 >
                   {t.label}
                 </Link>

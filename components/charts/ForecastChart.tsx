@@ -173,10 +173,10 @@ export function ForecastChart({
         {cannotPlot ? (
           // Insufficient: actuals only, NO band, explicit message (no invented line).
           <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-6 text-center">
-            <p className="text-[13px] font-medium text-ln-op-ink-2">
+            <p className="text-md font-medium text-ln-op-ink-2">
               Datos insuficientes para proyectar
             </p>
-            <p className="mt-1 text-[11px] text-ln-op-mute">
+            <p className="mt-1 text-sm text-ln-op-mute">
               Se necesitan al menos 4 períodos con datos para estimar una tendencia confiable.
             </p>
           </div>
@@ -274,10 +274,10 @@ export function ForecastChart({
           RA-9 BR-7: the sr-only suffix disambiguates N "Ver datos" toggles on a
           multi-chart dashboard (WCAG 2.4.6). */}
       <details className="mt-2 text-sm">
-        <summary className="cursor-pointer text-[11px] font-medium text-ln-op-azul hover:underline">
+        <summary className="cursor-pointer text-sm font-medium text-ln-op-azul hover:underline">
           Ver datos<span className="sr-only"> — {seriesLabel}, observado y proyectado</span>
         </summary>
-        <table className="mt-2 w-full border-collapse text-[11px]">
+        <table className="mt-2 w-full border-collapse text-sm">
           <caption className="sr-only">
             Datos de {seriesLabel}: períodos observados y proyectados con banda de confianza.
           </caption>

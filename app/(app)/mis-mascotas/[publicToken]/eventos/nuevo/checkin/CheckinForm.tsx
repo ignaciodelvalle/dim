@@ -82,7 +82,7 @@ export function CheckinForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

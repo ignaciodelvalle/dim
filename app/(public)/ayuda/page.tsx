@@ -19,10 +19,7 @@ export default function AyudaPage() {
 
         {/* Register a pet */}
         <section aria-labelledby="registrar-heading" className="space-y-3">
-          <h2
-            id="registrar-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="registrar-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Cómo registro a mi mascota?
           </h2>
           <ol className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-1 list-decimal pl-5">
@@ -53,7 +50,7 @@ export default function AyudaPage() {
 
         {/* QR credential */}
         <section aria-labelledby="qr-heading" className="space-y-3">
-          <h2 id="qr-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
+          <h2 id="qr-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Qué es la credencial QR?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -71,7 +68,7 @@ export default function AyudaPage() {
 
         {/* Lost pet */}
         <section aria-labelledby="perdida-heading" className="space-y-3">
-          <h2 id="perdida-heading" className="text-[17px] font-semibold text-[var(--color-ln-ink)]">
+          <h2 id="perdida-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             Mi mascota se perdió — ¿qué hago?
           </h2>
           <ol className="text-md text-[var(--color-ln-ink-2)] leading-relaxed space-y-1 list-decimal pl-5">
@@ -102,10 +99,7 @@ export default function AyudaPage() {
 
         {/* Denuncias */}
         <section aria-labelledby="denuncias-heading" className="space-y-3">
-          <h2
-            id="denuncias-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="denuncias-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Cómo reporto un caso de maltrato o animal en riesgo?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -124,10 +118,7 @@ export default function AyudaPage() {
 
         {/* Adoptions */}
         <section aria-labelledby="adopciones-heading" className="space-y-3">
-          <h2
-            id="adopciones-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="adopciones-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Cómo busco mascotas en adopción?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -146,10 +137,7 @@ export default function AyudaPage() {
 
         {/* Shelters */}
         <section aria-labelledby="refugios-heading" className="space-y-3">
-          <h2
-            id="refugios-heading"
-            className="text-[17px] font-semibold text-[var(--color-ln-ink)]"
-          >
+          <h2 id="refugios-heading" className="text-lg font-semibold text-[var(--color-ln-ink)]">
             ¿Dónde veo los refugios y organizaciones?
           </h2>
           <p className="text-md text-[var(--color-ln-ink-2)] leading-relaxed">
@@ -167,7 +155,7 @@ export default function AyudaPage() {
 
         <Link
           href="/"
-          className="inline-block text-[13px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="inline-block text-md text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Volver al inicio
         </Link>

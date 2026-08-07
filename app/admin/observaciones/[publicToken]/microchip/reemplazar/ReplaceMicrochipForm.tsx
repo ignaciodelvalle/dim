@@ -76,7 +76,7 @@ export function ReplaceMicrochipForm({
             >
               <span className="space-y-0.5">
                 <span>{r.label}</span>
-                {r.hint && <span className="block text-[11px] text-ln-op-mute">{r.hint}</span>}
+                {r.hint && <span className="block text-sm text-ln-op-mute">{r.hint}</span>}
               </span>
             </LnRadio>
           ))}

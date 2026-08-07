@@ -104,7 +104,7 @@ async function GovtReglasReadOnlyView({
               {g.resolved.map(({ ruleType, payload, source }) => (
                 <li key={ruleType} className="px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
+                    <p className="text-md font-medium text-ln-op-ink">
                       {RULE_TYPE_REGISTRY[ruleType].label}
                     </p>
                     <span className="text-sm text-ln-op-mute">{SOURCE_LABEL[source]}</span>
@@ -124,7 +124,7 @@ async function GovtReglasReadOnlyView({
                   ) : (
                     // es-AR summary instead of raw JSON — operators read the
                     // console, they don't parse payloads (QA round 2 #7).
-                    <p className="text-[12.5px] text-ln-op-ink-2">
+                    <p className="text-md text-ln-op-ink-2">
                       {summarizeRulePayload(ruleType, payload)}
                     </p>
                   )}

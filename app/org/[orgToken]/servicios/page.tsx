@@ -59,7 +59,7 @@ export default async function ServiciosPage({
           </p>
           {/* H1 matches the nav label "Servicios" (audit #17 — nav↔H1 parity). */}
           <h1 className="text-title font-semibold text-ln-op-ink">Servicios</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             {offerings.length === 0
               ? "Todavía no hay servicios registrados."
               : `${offerings.length} ${pluralizeEs(offerings.length, "servicio")} ${pluralizeEs(offerings.length, "registrado")}.`}
@@ -68,7 +68,7 @@ export default async function ServiciosPage({
         {canCreate && (
           <Link
             href={`/org/${orgToken}/servicios/nuevo`}
-            className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:opacity-90 transition-opacity"
           >
             + Crear servicio
           </Link>
@@ -89,8 +89,8 @@ export default async function ServiciosPage({
           body={
             <>
               Para crear servicios necesitás el permiso{" "}
-              <code className="text-[11px]">service_offering.create</code>. Pedíselo a un
-              administrador desde el panel.
+              <code className="text-sm">service_offering.create</code>. Pedíselo a un administrador
+              desde el panel.
             </>
           }
         />
@@ -111,7 +111,7 @@ export default async function ServiciosPage({
                       className="flex items-start justify-between gap-3 px-4 py-3 hover:bg-ln-op-stripe transition-colors"
                     >
                       <div className="min-w-0 space-y-0.5">
-                        <p className="text-[13px] font-medium text-ln-op-ink">{o.displayName}</p>
+                        <p className="text-md font-medium text-ln-op-ink">{o.displayName}</p>
                         <p className="text-sm text-ln-op-mute">
                           {kind?.label ?? o.serviceKind}
                           {o.priceArs !== null

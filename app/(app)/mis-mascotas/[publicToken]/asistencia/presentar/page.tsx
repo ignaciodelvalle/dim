@@ -69,7 +69,7 @@ export default async function AsistenciaPresentarPage({
       <div className="px-4 pt-4">
         <Link
           href={`/mis-mascotas/${publicToken}/asistencia`}
-          className="font-ln-mono text-[11px] text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="font-ln-mono text-sm text-[var(--color-ln-mute)] no-underline hover:text-[var(--color-ln-ink-2)]"
         >
           ← Volver
         </Link>
@@ -82,7 +82,7 @@ export default async function AsistenciaPresentarPage({
           <p className="font-ln-mono text-xs uppercase tracking-[.3em] text-[var(--color-ln-mute)]">
             Credencial de perro de asistencia
           </p>
-          <p className="mt-[3px] font-ln-mono text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
+          <p className="mt-[3px] font-ln-mono text-sm font-semibold uppercase tracking-[.1em] text-[var(--color-ln-ok)]">
             Ley 26.858
           </p>
         </div>
@@ -113,38 +113,38 @@ export default async function AsistenciaPresentarPage({
         <dl className="w-full divide-y divide-[var(--color-ln-line)]">
           {canonicalIds.microchip && (
             <div className="flex justify-between py-2.5">
-              <dt className="text-[13px] text-[var(--color-ln-mute)]">Microchip</dt>
-              <dd className="font-ln-mono text-[13px] text-[var(--color-ln-ink)]">
+              <dt className="text-md text-[var(--color-ln-mute)]">Microchip</dt>
+              <dd className="font-ln-mono text-md text-[var(--color-ln-ink)]">
                 {canonicalIds.microchip.code}
               </dd>
             </div>
           )}
           {serviceDog.rupgaCredential && (
             <div className="flex justify-between py-2.5">
-              <dt className="text-[13px] text-[var(--color-ln-mute)]">RUPGA</dt>
-              <dd className="font-ln-mono text-[13px] text-[var(--color-ln-ink)]">
+              <dt className="text-md text-[var(--color-ln-mute)]">RUPGA</dt>
+              <dd className="font-ln-mono text-md text-[var(--color-ln-ink)]">
                 {serviceDog.rupgaCredential}
               </dd>
             </div>
           )}
           <div className="flex justify-between py-2.5">
-            <dt className="text-[13px] text-[var(--color-ln-mute)]">Centro de entrenamiento</dt>
-            <dd className="max-w-[55%] text-right text-[13px] text-[var(--color-ln-ink)]">
+            <dt className="text-md text-[var(--color-ln-mute)]">Centro de entrenamiento</dt>
+            <dd className="max-w-[55%] text-right text-md text-[var(--color-ln-ink)]">
               {serviceDog.trainingCenter}
             </dd>
           </div>
           {serviceDog.credentialIssueDate && (
             <div className="flex justify-between py-2.5">
-              <dt className="text-[13px] text-[var(--color-ln-mute)]">Emitida</dt>
-              <dd className="text-[13px] text-[var(--color-ln-ink)]">
+              <dt className="text-md text-[var(--color-ln-mute)]">Emitida</dt>
+              <dd className="text-md text-[var(--color-ln-ink)]">
                 {formatDate(serviceDog.credentialIssueDate)}
               </dd>
             </div>
           )}
           {serviceDog.credentialExpiryDate && (
             <div className="flex justify-between py-2.5">
-              <dt className="text-[13px] text-[var(--color-ln-mute)]">Vence</dt>
-              <dd className="text-[13px] text-[var(--color-ln-ink)]">
+              <dt className="text-md text-[var(--color-ln-mute)]">Vence</dt>
+              <dd className="text-md text-[var(--color-ln-ink)]">
                 {formatDate(serviceDog.credentialExpiryDate)}
               </dd>
             </div>
@@ -159,7 +159,7 @@ export default async function AsistenciaPresentarPage({
 
         {/* QR toggle — server-rendered SVG, native disclosure */}
         <details className="w-full text-center">
-          <summary className="cursor-pointer font-ln-mono text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
+          <summary className="cursor-pointer font-ln-mono text-sm text-[var(--color-ln-azul)] select-none hover:underline">
             Mostrar QR de verificación
           </summary>
           <div className="mt-3 flex flex-col items-center gap-2">

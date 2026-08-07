@@ -352,11 +352,9 @@ export default async function GobMaltratoDetailPage({
       <OpCard>
         <OpCardHead title="¿Qué pasó?" />
         <OpCardBody className="space-y-2">
-          <p className="text-[13px] text-ln-op-ink whitespace-pre-wrap">{report.description}</p>
+          <p className="text-md text-ln-op-ink whitespace-pre-wrap">{report.description}</p>
           {report.occurredAt && (
-            <p className="text-[11px] text-ln-op-mute">
-              Ocurrió el {formatDate(report.occurredAt)}
-            </p>
+            <p className="text-sm text-ln-op-mute">Ocurrió el {formatDate(report.occurredAt)}</p>
           )}
         </OpCardBody>
       </OpCard>
@@ -364,7 +362,7 @@ export default async function GobMaltratoDetailPage({
       <OpCard>
         <OpCardHead title="Sujeto" />
         <OpCardBody className="space-y-1">
-          <p className="text-[13px] text-ln-op-ink">
+          <p className="text-md text-ln-op-ink">
             {welfareReportSubjectKindLabel(report.subjectKind)}
           </p>
           {report.subjectDescription && (
@@ -411,10 +409,10 @@ export default async function GobMaltratoDetailPage({
         <OpCard>
           <OpCardHead title={`Evidencia (${attachments.length})`} />
           <OpCardBody>
-            <ul className="space-y-1.5 text-[13px]">
+            <ul className="space-y-1.5 text-md">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="font-mono text-[11px] truncate text-ln-op-ink-2">
+                  <span className="font-mono text-sm truncate text-ln-op-ink-2">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (
@@ -422,12 +420,12 @@ export default async function GobMaltratoDetailPage({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[11px] text-ln-op-azul underline hover:text-ln-op-azul-700"
+                      className="text-sm text-ln-op-azul underline hover:text-ln-op-azul-700"
                     >
                       Abrir →
                     </a>
                   ) : (
-                    <span className="text-[11px] text-ln-op-mute">(no disponible)</span>
+                    <span className="text-sm text-ln-op-mute">(no disponible)</span>
                   )}
                 </li>
               ))}
@@ -469,7 +467,7 @@ export default async function GobMaltratoDetailPage({
       {(report.triagedAt || report.closedAt) && (
         <OpCard>
           <OpCardHead title="Trayectoria" />
-          <OpCardBody className="space-y-2 text-[13px]">
+          <OpCardBody className="space-y-2 text-md">
             {report.triagedAt && (
               <p className="text-ln-op-ink">
                 Revisada el {formatDateTime(report.triagedAt)}
@@ -485,7 +483,7 @@ export default async function GobMaltratoDetailPage({
               <p className="text-ln-op-ink">Cerrada el {formatDateTime(report.closedAt)}</p>
             )}
             {report.resolutionNotes && (
-              <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 whitespace-pre-wrap">
+              <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-sm text-ln-op-ink-2 whitespace-pre-wrap">
                 {report.resolutionNotes}
               </div>
             )}
@@ -505,7 +503,7 @@ export default async function GobMaltratoDetailPage({
         <OpCard>
           <OpCardHead title="Derivar a organización" />
           <OpCardBody className="space-y-2">
-            <p className="text-[11px] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               Derivá esta denuncia a un refugio o red de rescate verificada para seguimiento en
               campo. La organización recibirá una notificación.
             </p>
@@ -548,18 +546,18 @@ export default async function GobMaltratoDetailPage({
         <OpCard>
           <OpCardHead title="Derivar a decomiso" />
           <OpCardBody className="space-y-2">
-            <p className="text-[11px] text-ln-op-mute">
+            <p className="text-sm text-ln-op-mute">
               Si la denuncia amerita una incautación bajo Ley 14.346, iniciá el decomiso desde acá.
               El ID de esta denuncia se pre-completará en el formulario.
             </p>
             <Link
               href={`/gob/decomisos/nuevo?welfareReportId=${report.id}${subjectPetToken ? `&pet=${subjectPetToken}` : ""}`}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:opacity-90 transition-opacity"
             >
               Iniciar decomiso →
             </Link>
             {report.subjectKind !== "registered_pet" && (
-              <p className="text-[11px] text-ln-op-warn">
+              <p className="text-sm text-ln-op-warn">
                 La denuncia no tiene una mascota registrada vinculada. El formulario de decomiso
                 admite solo mascotas con token DIM-XXXX-XXXX — tendrás que ingresar el token
                 manualmente si la mascota está registrada.

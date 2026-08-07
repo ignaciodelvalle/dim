@@ -79,13 +79,13 @@ export default async function OrgMascotasPage({
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Para ver el listado de animales necesitás el permiso{" "}
-            <code className="text-[11px]">pet.read_held</code>.
+            <code className="text-sm">pet.read_held</code>.
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al panel
           </Link>
@@ -229,7 +229,7 @@ export default async function OrgMascotasPage({
             {/* Title matches the nav-rail item "Mascotas" (QA 2026-07-03:
                 sidebar said Mascotas, page said Animales en custodia). */}
             <h1 className="text-title font-semibold text-ln-op-ink">Mascotas en custodia</h1>
-            <p className="text-[13px] text-ln-op-ink-2">
+            <p className="text-md text-ln-op-ink-2">
               {allCards.length === 0
                 ? "Todavía no hay animales registrados a nombre de la organización."
                 : `${allCards.length} ${pluralizeEs(allCards.length, "animal")} bajo custodia activa.`}
@@ -238,7 +238,7 @@ export default async function OrgMascotasPage({
           {canIntake && (
             <Link
               href={`/org/${orgToken}/intake`}
-              className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700"
+              className="px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700"
             >
               Registrar ingreso
             </Link>

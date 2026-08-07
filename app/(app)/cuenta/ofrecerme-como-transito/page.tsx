@@ -28,7 +28,7 @@ export default async function OfrecermeComoTransitoPage() {
   if (!profile) {
     return (
       <div className="mx-auto max-w-2xl px-8 py-7">
-        <p className="text-[13px] text-[var(--color-ln-err)]">No se encontró tu perfil.</p>
+        <p className="text-md text-[var(--color-ln-err)]">No se encontró tu perfil.</p>
       </div>
     );
   }
@@ -50,7 +50,7 @@ export default async function OfrecermeComoTransitoPage() {
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
@@ -150,11 +150,11 @@ function PreCheckChecklist({
             >
               <Icon name={item.ok ? "check" : "circle"} size={14} decorative />
             </span>
-            <span className="flex-1 text-[12.5px] text-[var(--color-ln-ink-2)]">{item.label}</span>
+            <span className="flex-1 text-md text-[var(--color-ln-ink-2)]">{item.label}</span>
             {item.cta && (
               <Link
                 href={item.cta.href}
-                className="flex-shrink-0 text-[11.5px] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="flex-shrink-0 text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 {item.cta.text}
               </Link>

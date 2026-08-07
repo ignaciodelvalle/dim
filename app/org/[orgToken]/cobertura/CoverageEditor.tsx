@@ -30,7 +30,7 @@ import {
 } from "@/src/modules/organizations/actions";
 
 const selectClasses =
-  "min-h-11 px-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink " +
+  "min-h-11 px-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink " +
   "focus:border-ln-op-azul focus:outline-none focus:ring-1 focus:ring-ln-op-azul " +
   "disabled:opacity-50 disabled:cursor-not-allowed w-full";
 
@@ -177,12 +177,12 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
         <h2 className="text-md font-semibold text-ln-op-ink">Zonas registradas ({zones.length})</h2>
 
         {zones.length === 0 ? (
-          <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-[13px] text-ln-op-mute">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-md text-ln-op-mute">
             Esta organización aún no tiene zonas de cobertura configuradas.
           </p>
         ) : (
           <div className="overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
-            <table className="w-full text-[13px]">
+            <table className="w-full text-md">
               <caption className="sr-only">
                 Zonas de cobertura de la organización por provincia y localidad
               </caption>
@@ -227,7 +227,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                     </td>
                     <td className="px-4 py-3">
                       {zone.isPrimary ? (
-                        <span className="inline-flex items-center rounded-full bg-ln-op-blue-bg px-2.5 py-0.5 text-[11px] font-medium text-ln-op-azul border border-ln-op-blue-bd">
+                        <span className="inline-flex items-center rounded-full bg-ln-op-blue-bg px-2.5 py-0.5 text-sm font-medium text-ln-op-azul border border-ln-op-blue-bd">
                           Principal
                         </span>
                       ) : (

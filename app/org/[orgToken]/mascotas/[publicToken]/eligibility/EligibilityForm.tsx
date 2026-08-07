@@ -86,7 +86,7 @@ export function EligibilityForm({
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 text-[13px]">
+      <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 text-md">
         <p className="text-ln-op-ink-2">
           Estado actual:{" "}
           <strong className="text-ln-op-ink">
@@ -131,7 +131,7 @@ export function EligibilityForm({
               id="elig-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as Reason)}
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             >
               {REASONS.map((r) => (
                 <option key={r.value} value={r.value}>
@@ -150,7 +150,7 @@ export function EligibilityForm({
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder={reason === "other" ? "Describí el motivo" : "Notas (opcional)"}
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
           </div>
           <div>
@@ -162,9 +162,9 @@ export function EligibilityForm({
               type="date"
               value={until}
               onChange={(e) => setUntil(e.target.value)}
-              className="px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              className="px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
-            <p className="text-[11px] text-ln-op-mute mt-1">
+            <p className="text-sm text-ln-op-mute mt-1">
               Si lo dejás vacío, queda no-apta hasta que la marques manualmente otra vez.
             </p>
           </div>

@@ -19,7 +19,7 @@ export default async function NuevaInvestigacionPage({
     <div className="max-w-xl space-y-6">
       <Link
         href="/gob/vigilancia/investigaciones"
-        className="text-[13px] text-ln-op-mute hover:text-ln-op-ink no-underline"
+        className="text-md text-ln-op-mute hover:text-ln-op-ink no-underline"
       >
         &larr; Volver al listado
       </Link>

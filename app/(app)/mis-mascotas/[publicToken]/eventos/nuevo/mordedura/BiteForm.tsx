@@ -121,7 +121,7 @@ export function BiteForm({
                 key={opt.value}
                 className={[
                   "flex cursor-pointer items-center justify-center rounded-[var(--radius-sm)] border px-2.5 py-2",
-                  "font-ln-mono text-[11px] font-semibold transition-colors",
+                  "font-ln-mono text-sm font-semibold transition-colors",
                   victimKind === opt.value
                     ? "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)]"
                     : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)]",
@@ -143,7 +143,7 @@ export function BiteForm({
 
           {victimKind === "human" && (
             <LnSubCard heading="Datos de la persona (opcionales)">
-              <p className="text-[11.5px] text-[var(--color-ln-mute)]">
+              <p className="text-sm text-[var(--color-ln-mute)]">
                 Quedan en el registro para denuncia obligatoria si la autoridad sanitaria los pide.
               </p>
               <LnField label="Nombre">
@@ -239,7 +239,7 @@ export function BiteForm({
                 onChange={(e) => setConfirmObservation(e.target.checked)}
                 className="mt-0.5 h-[14px] w-[14px] flex-shrink-0 accent-[var(--color-ln-warn)]"
               />
-              <span className="text-[12.5px] font-semibold text-[var(--color-ln-warn)]">
+              <span className="text-md font-semibold text-[var(--color-ln-warn)]">
                 Entiendo que reportar esto inicia un período de observación antirrábica obligatorio
                 de 10 días por ley (Decreto 4669/1973 PBA, Ord. CABA 41.831/1987).
               </span>
@@ -249,7 +249,7 @@ export function BiteForm({
           {state.error && (
             <p
               ref={errorRef}
-              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

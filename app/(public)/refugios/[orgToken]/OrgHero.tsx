@@ -109,7 +109,7 @@ export function OrgHero({ org, localityLabel, adoptionCount, serviceCount }: Pro
               )}
             </div>
             {(localityLabel || (org.legalName && org.legalName !== org.displayName)) && (
-              <p className="text-[13px] text-[var(--color-ln-mute)]">
+              <p className="text-md text-[var(--color-ln-mute)]">
                 {[
                   localityLabel,
                   org.legalName && org.legalName !== org.displayName ? org.legalName : null,

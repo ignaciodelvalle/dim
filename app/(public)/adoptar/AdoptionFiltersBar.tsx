@@ -108,7 +108,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
         <div>
           <label
             htmlFor="q"
-            className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+            className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
           >
             Buscar por nombre o raza
           </label>
@@ -126,7 +126,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           <div>
             <label
               htmlFor="species"
-              className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+              className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
             >
               Especie
             </label>
@@ -148,7 +148,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           <div>
             <label
               htmlFor="provincia"
-              className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+              className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
             >
               Provincia
             </label>
@@ -171,7 +171,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           <div>
             <label
               htmlFor="localidad-input"
-              className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+              className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
             >
               Localidad
             </label>
@@ -193,7 +193,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           <div>
             <label
               htmlFor="edad"
-              className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+              className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
             >
               Edad
             </label>
@@ -215,7 +215,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           <div>
             <label
               htmlFor="talle"
-              className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+              className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
             >
               Talle
             </label>
@@ -237,7 +237,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           <div>
             <label
               htmlFor="energia"
-              className="block font-ln-mono text-[9.5px] uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
+              className="block font-ln-mono text-xs uppercase tracking-[0.1em] font-semibold text-[var(--color-ln-mute)] mb-1"
             >
               Energía
             </label>
@@ -327,7 +327,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           })}
           <Link
             href="/adoptar"
-            className="text-[11px] font-medium hover:underline"
+            className="text-sm font-medium hover:underline"
             style={{ color: "var(--color-ln-mute)" }}
           >
             Limpiar filtros

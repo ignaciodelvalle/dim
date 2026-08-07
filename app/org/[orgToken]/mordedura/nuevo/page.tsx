@@ -63,7 +63,7 @@ export default async function NewOrgBitePage({
 
       <header className="space-y-2">
         <h1 className="text-title font-semibold text-ln-op-ink">Reportar mordedura</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Registrar una mordedura que presenciaste o conocés clínicamente. Inicia automáticamente el
           período de observación antirrábica de 10 días según la legislación vigente.
         </p>

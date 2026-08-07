@@ -171,7 +171,7 @@ export function ContactarSheet({ orgToken, orgDisplayName, orgEmail, orgPhone }:
               {isPending ? "Enviando…" : "Enviar mensaje"}
             </button>
 
-            <p className="text-[11px] text-[var(--color-ln-mute)] text-center">
+            <p className="text-sm text-[var(--color-ln-mute)] text-center">
               Hay un límite diario de mensajes por persona para evitar abuso. Si no entra, esperá un
               rato y volvé a intentar.
             </p>

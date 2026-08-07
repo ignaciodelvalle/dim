@@ -22,7 +22,7 @@ export default function IntegracionMiArgPage() {
       <output
         aria-label="Aviso de vista ilustrativa"
         data-testid="miarg-disclaimer"
-        className="block rounded-[var(--radius-lg)] border-2 border-ln-op-warn-bd bg-ln-op-warn-bg px-5 py-3 text-center text-[13px] font-semibold text-ln-op-ink"
+        className="block rounded-[var(--radius-lg)] border-2 border-ln-op-warn-bd bg-ln-op-warn-bg px-5 py-3 text-center text-md font-semibold text-ln-op-ink"
       >
         Integración en desarrollo — vista ilustrativa
       </output>
@@ -39,7 +39,7 @@ export default function IntegracionMiArgPage() {
             AR
           </div>
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-white/70">
+            <p className="text-sm font-semibold uppercase tracking-wider text-white/70">
               República Argentina
             </p>
             <p className="text-base font-bold text-white">Mi Argentina</p>
@@ -49,7 +49,7 @@ export default function IntegracionMiArgPage() {
         {/* Body */}
         <div className="space-y-5 px-6 py-6">
           <div className="space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
+            <p className="text-sm font-semibold uppercase tracking-wide text-ln-op-mute">
               Ciudadano verificado
             </p>
             <p className="text-lg font-semibold text-ln-op-ink">Carlos Ramírez Moreno</p>
@@ -57,17 +57,17 @@ export default function IntegracionMiArgPage() {
           </div>
 
           <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
+            <p className="text-sm font-semibold uppercase tracking-wide text-ln-op-mute">
               Mascotas registradas en miMAR
             </p>
-            <ul className="space-y-0.5 text-[13px] text-ln-op-ink">
+            <ul className="space-y-0.5 text-md text-ln-op-ink">
               <li>• Duque — Labrador Retriever — Microchip 858000011223</li>
               <li>• Mimi — Angora — sin microchip</li>
             </ul>
           </div>
 
           <div className="rounded-[var(--radius-lg)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 space-y-1">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-ln-op-mute">
+            <p className="text-sm font-semibold uppercase tracking-wide text-ln-op-mute">
               Acciones disponibles
             </p>
             <ul className="space-y-0.5 text-sm text-ln-op-ink-2">
@@ -85,7 +85,7 @@ export default function IntegracionMiArgPage() {
       </div>
 
       {/* Footer note */}
-      <p className="text-center text-[11px] text-ln-op-mute">
+      <p className="text-center text-sm text-ln-op-mute">
         La autenticación con Mi Argentina (OIDC) está en desarrollo. Esta pantalla es una maqueta
         ilustrativa para el proceso de demo.
       </p>

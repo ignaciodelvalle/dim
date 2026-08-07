@@ -42,14 +42,14 @@ export default async function IntakePage({
       <div className="flex items-center justify-center py-16">
         <div className="max-w-md text-center space-y-4">
           <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Para registrar ingresos necesitás el permiso{" "}
             <code className="text-sm font-mono">intake.create</code>. Pedíselo a un administrador
             desde el panel.
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            className="inline-block rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             Volver al panel
           </Link>
@@ -107,7 +107,7 @@ export default async function IntakePage({
             </Link>
             <Link
               href={`/org/${orgToken}/intake?tab=registrar`}
-              className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+              className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
             >
               + Nuevo ingreso
             </Link>
@@ -124,7 +124,7 @@ export default async function IntakePage({
             <Link
               key={tab}
               href={`/org/${orgToken}/intake?tab=${tab}`}
-              className={`px-4 py-2 text-[13px] font-medium no-underline border-b-2 transition-colors ${
+              className={`px-4 py-2 text-md font-medium no-underline border-b-2 transition-colors ${
                 isActive
                   ? "border-ln-op-azul text-ln-op-azul"
                   : "border-transparent text-ln-op-mute hover:text-ln-op-ink-2"
@@ -138,7 +138,7 @@ export default async function IntakePage({
 
       {activeTab === "cola" ? (
         intakeRows.length === 0 ? (
-          <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+          <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-md text-ln-op-mute">
             No hay ingresos registrados.{" "}
             <Link
               href={`/org/${orgToken}/intake?tab=registrar`}
@@ -171,7 +171,7 @@ export default async function IntakePage({
                     className="flex items-center justify-between gap-3 px-4 py-3"
                   >
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-[13px] font-medium text-ln-op-ink">{row.petName}</p>
+                      <p className="text-md font-medium text-ln-op-ink">{row.petName}</p>
                       <p className="text-sm text-ln-op-mute">
                         {speciesLabel(row.petSpecies)} · {formatDate(row.occurredAt)}
                       </p>
@@ -190,7 +190,7 @@ export default async function IntakePage({
         )
       ) : (
         <div className="space-y-4">
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Cargá los datos básicos del animal y el motivo de ingreso. La organización queda como
             custodia temporal hasta que se asigne tránsito o se concrete una adopción.
           </p>

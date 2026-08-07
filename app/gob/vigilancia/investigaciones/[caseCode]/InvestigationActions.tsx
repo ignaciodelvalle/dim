@@ -175,7 +175,7 @@ export function InvestigationActions({
 
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
+      <p className="text-md font-medium text-ln-op-ink">{titles[mode]}</p>
 
       {mode === "add_note" && (
         <div className="space-y-1.5">
@@ -186,7 +186,7 @@ export function InvestigationActions({
             id="entry-type"
             value={entryType}
             onChange={(e) => setEntryType(e.target.value as InvestigationNoteEntryType)}
-            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
           >
             {ENTRY_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
@@ -208,7 +208,7 @@ export function InvestigationActions({
               type="date"
               value={extDate}
               onChange={(e) => setExtDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
             />
           </div>
           <div className="space-y-1.5">
@@ -221,7 +221,7 @@ export function InvestigationActions({
               value={extChannel}
               onChange={(e) => setExtChannel(e.target.value)}
               placeholder="SNVS / SENASA / zoonosis…"
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
             />
           </div>
           <div className="space-y-1.5">
@@ -234,7 +234,7 @@ export function InvestigationActions({
               value={extReference}
               onChange={(e) => setExtReference(e.target.value)}
               placeholder="N.º de expediente / acta…"
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
             />
           </div>
         </div>
@@ -251,7 +251,7 @@ export function InvestigationActions({
             onChange={(e) => setFinalReport(e.target.value)}
             rows={3}
             placeholder="Texto del informe epidemiológico final (opcional si ya existe un registro previo)..."
-            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
           />
         </div>
       )}
@@ -276,12 +276,12 @@ export function InvestigationActions({
                 ? "A quien y que se notifico por el canal externo..."
                 : "Explica el motivo..."
           }
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
         />
         <p className="text-sm text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
         <OpButton

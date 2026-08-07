@@ -159,7 +159,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           id="outcome"
           value={outcome}
           onChange={(e) => setOutcome(e.target.value as Outcome)}
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {OUTCOMES.map((o) => (
             <option key={o.value} value={o.value}>
@@ -208,7 +208,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
                 value={currentTargetId}
                 onChange={(e) => handleTargetChange(e.target.value)}
                 placeholder="00000000-0000-0000-0000-000000000000"
-                className="flex-1 px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                className="flex-1 px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
               />
               <OpButton
                 type="button"
@@ -251,7 +251,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setResolutionSummary(e.target.value)}
           rows={5}
           placeholder="Explicá el fundamento, evidencia considerada y decisión tomada."
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
         <p className="text-sm text-ln-op-mute mt-1 tabular-nums">
           {resolutionSummary.trim().length} / 100
@@ -268,12 +268,12 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="Notas que quedan en el payload del evento"
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
-      {okMessage && <output className="block text-[13px] text-ln-op-ok">{okMessage}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
+      {okMessage && <output className="block text-md text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
         <OpButton

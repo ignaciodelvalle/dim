@@ -124,7 +124,7 @@ export default async function JurisdictionReglasPage({
           más específico (si existe) puede tener su propia excepción.
         </p>
         {rows.length === 0 && (
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Esta jurisdicción no tiene excepciones. Toda regla cae a la cascada superior.
           </p>
         )}
@@ -151,10 +151,10 @@ export default async function JurisdictionReglasPage({
               }
             />
             <OpCardBody>
-              <p className="text-[11px] text-ln-op-mute mb-2">
+              <p className="text-sm text-ln-op-mute mb-2">
                 Actualizado {formatDate(rule.updatedAt)} {"·"} {updatedBy ?? "Sistema"}
               </p>
-              <pre className="text-[11px] bg-ln-op-stripe rounded-[var(--radius-sm)] p-3 overflow-x-auto text-ln-op-ink-2">
+              <pre className="text-sm bg-ln-op-stripe rounded-[var(--radius-sm)] p-3 overflow-x-auto text-ln-op-ink-2">
                 {JSON.stringify(rule.rulePayload, null, 2)}
               </pre>
               {rule.notes && <p className="text-sm text-ln-op-ink-2 mt-2">{rule.notes}</p>}
@@ -176,10 +176,10 @@ export default async function JurisdictionReglasPage({
                   <OpCardBody>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
+                        <p className="text-md font-medium text-ln-op-ink">
                           {RULE_TYPE_REGISTRY[t].label}
                         </p>
-                        <p className="text-[11px] text-ln-op-mute">
+                        <p className="text-sm text-ln-op-mute">
                           {RULE_TYPE_REGISTRY[t].description}
                         </p>
                         {/* Cascade-mask indicator (E5, 2026-07-21 facades
@@ -187,7 +187,7 @@ export default async function JurisdictionReglasPage({
                             read-only lens uses, so a country/province
                             override above this level shows up honestly
                             instead of a blind "using the hardcoded default". */}
-                        <p className="text-[11px] text-ln-op-mute mt-1">
+                        <p className="text-sm text-ln-op-mute mt-1">
                           <span
                             className={source === "default" ? "" : "font-medium text-ln-op-warn"}
                           >

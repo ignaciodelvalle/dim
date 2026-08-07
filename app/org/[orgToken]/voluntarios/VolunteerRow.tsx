@@ -76,7 +76,7 @@ export function VolunteerRow({
     <li className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
       <div className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <p className="text-[13px] font-medium text-ln-op-ink">{row.displayName}</p>
+          <p className="text-md font-medium text-ln-op-ink">{row.displayName}</p>
           <p className="text-sm text-ln-op-mute space-x-2">
             <span>{row.availableSlots} slot(s)</span>
             <span>·</span>
@@ -125,7 +125,7 @@ export function VolunteerRow({
             <div>
               <label
                 htmlFor={`propose-pet-${row.userId}`}
-                className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+                className="mb-1 block text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
               >
                 Mascota
               </label>
@@ -145,7 +145,7 @@ export function VolunteerRow({
             <div>
               <label
                 htmlFor={`propose-duration-${row.userId}`}
-                className="mb-1 block text-[11px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+                className="mb-1 block text-sm font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
               >
                 Duración (semanas)
               </label>

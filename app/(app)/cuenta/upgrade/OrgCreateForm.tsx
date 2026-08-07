@@ -56,11 +56,11 @@ export function OrgCreateForm({ dniVerified }: Props) {
       <div className="space-y-3">
         {/* Requirements panel */}
         <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-4 py-3">
-          <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+          <p className="text-sm font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
             Requisitos para crear una organización
           </p>
           <ul className="mt-2 space-y-1.5">
-            <li className="flex items-center gap-2 text-[13px] text-[var(--color-ln-ink-2)]">
+            <li className="flex items-center gap-2 text-md text-[var(--color-ln-ink-2)]">
               {/* X — not met */}
               <svg
                 width="14"
@@ -105,11 +105,11 @@ export function OrgCreateForm({ dniVerified }: Props) {
     <div className="space-y-4">
       {/* Requirements met indicator */}
       <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+        <p className="text-sm font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
           Requisitos para crear una organización
         </p>
         <ul className="mt-2 space-y-1.5">
-          <li className="flex items-center gap-2 text-[13px] text-[var(--color-ln-ink-2)]">
+          <li className="flex items-center gap-2 text-md text-[var(--color-ln-ink-2)]">
             {/* Checkmark — met */}
             <svg
               width="14"

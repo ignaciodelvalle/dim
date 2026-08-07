@@ -53,14 +53,14 @@ export function OpRail({
       {/* Brand */}
       <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
         {/* Monogram */}
-        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
+        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-md font-bold text-ln-op-navy">
           m·
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="font-ln-serif text-[15px] font-semibold tracking-[-0.005em] text-white">
+          <span className="font-ln-serif text-base font-semibold tracking-[-0.005em] text-white">
             {BRANDING.appName}
           </span>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
             {brandSubtitle}
           </span>
         </div>
@@ -72,7 +72,7 @@ export function OpRail({
       {/* Footer user strip */}
       {user && (
         <div className="flex items-center gap-2.5 border-t border-[rgba(255,255,255,0.10)] px-[13px] py-[11px]">
-          <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3a6cb3] to-[#6a4c93] text-[11px] font-bold text-white">
+          <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3a6cb3] to-[#6a4c93] text-sm font-bold text-white">
             {initials || "?"}
           </div>
           <div className="flex min-w-0 flex-1 flex-col">

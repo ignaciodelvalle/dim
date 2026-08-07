@@ -73,7 +73,7 @@ function StatusBadge({ status }: { status: AlertFiringStatus }) {
     <span
       className={[
         "inline-flex items-center gap-1 rounded-[var(--radius-sm)] border px-[7px] py-0.5",
-        "font-ln-mono text-[9px] font-bold uppercase tracking-[0.06em]",
+        "font-ln-mono text-xs font-bold uppercase tracking-[0.06em]",
         STATUS_CLASSES[status],
       ].join(" ")}
     >
@@ -104,7 +104,7 @@ export type AlertInboxRow = AlertFiring;
 export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
   if (rows.length === 0) {
     return (
-      <p className="text-[13px] text-ln-op-mute">
+      <p className="text-md text-ln-op-mute">
         Sin alertas que coincidan con los filtros seleccionados.
       </p>
     );
@@ -112,7 +112,7 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse text-[13px] text-ln-op-ink">
+      <table className="w-full border-collapse text-md text-ln-op-ink">
         <caption className="sr-only">
           Bandeja de alertas sanitarias. Cada fila muestra la métrica, la jurisdicción, el valor
           observado frente al umbral, la antigüedad, el estado del triage y las acciones
@@ -184,7 +184,7 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
                   </span>
                   {isBreach ? (
                     <span
-                      className="ml-2 inline-flex items-center gap-[3px] rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-1.5 py-px font-ln-mono text-[9px] font-bold uppercase text-ln-op-danger"
+                      className="ml-2 inline-flex items-center gap-[3px] rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-1.5 py-px font-ln-mono text-xs font-bold uppercase text-ln-op-danger"
                       title={`Sin reconocer hace ${days} días (SLA ${BREACH_DAYS} días)`}
                     >
                       <span aria-hidden="true">!</span>

@@ -108,16 +108,16 @@ export function PppBreedListForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
+      <p className="text-md rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 text-ln-op-warn">
         Las mascotas con raza marcada se evalúan automáticamente al guardar. Los dueños afectados
         reciben notificación.
       </p>
 
       <fieldset className="space-y-2">
-        <legend className="text-[13px] font-medium text-ln-op-ink">Razas consideradas PPP</legend>
+        <legend className="text-md font-medium text-ln-op-ink">Razas consideradas PPP</legend>
         <div className="max-h-72 overflow-y-auto rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-1.5">
           {ALL_BREEDS.map((b) => (
-            <label key={b} className="flex items-center gap-2 text-[13px]">
+            <label key={b} className="flex items-center gap-2 text-md">
               <input
                 type="checkbox"
                 name="breeds"
@@ -127,7 +127,7 @@ export function PppBreedListForm({
               />
               <span className="text-ln-op-ink">{b}</span>
               {DEFAULT_BREEDS_SET.has(b) && (
-                <span className="text-[11px] text-ln-op-mute">(default AR)</span>
+                <span className="text-sm text-ln-op-mute">(default AR)</span>
               )}
             </label>
           ))}
@@ -189,9 +189,9 @@ export function PppBreedListForm({
         )}
       </LnField>
 
-      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
+      {state.warning && <p className="text-md text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-[13px] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

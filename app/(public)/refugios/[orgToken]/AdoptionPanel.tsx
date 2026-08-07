@@ -40,7 +40,7 @@ export function AdoptionPanel({ orgToken, displayName, items, hasMore }: Props) 
         <div className="mb-3 flex justify-end">
           <Link
             href={`/adoptar?org=${orgToken}`}
-            className="font-ln-mono text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+            className="font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-azul)] hover:underline focus:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
           >
             Ver todas →
           </Link>

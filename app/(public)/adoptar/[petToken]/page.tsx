@@ -252,7 +252,7 @@ export default async function AdoptarFichaPage({
         {/* Back link — mono eyebrow style */}
         <Link
           href="/adoptar"
-          className="inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
+          className="inline-block font-ln-mono text-sm uppercase tracking-[.06em] no-underline hover:text-[var(--color-ln-ink-2)]"
           style={{ color: "var(--color-ln-mute)" }}
         >
           ← Volver al listado
@@ -300,7 +300,7 @@ export default async function AdoptarFichaPage({
               <div className="absolute bottom-[12px] left-[12px] flex gap-1.5 flex-wrap">
                 {hasVaccinations && (
                   <span
-                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
+                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-sm font-semibold"
                     style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
                   >
                     <Icon name="check" size="sm" decorative /> Vacunas al día
@@ -308,7 +308,7 @@ export default async function AdoptarFichaPage({
                 )}
                 {isSterilized && (
                   <span
-                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
+                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-sm font-semibold"
                     style={{ background: "rgba(255,255,255,.95)", color: "var(--color-ln-ink)" }}
                   >
                     {/* Was a hardcoded "Castrada" for every pet — a male dog
@@ -319,7 +319,7 @@ export default async function AdoptarFichaPage({
                 )}
                 {hasMicrochip && (
                   <span
-                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-[11px] font-semibold"
+                    className="inline-flex items-center gap-[5px] rounded-[var(--radius-sm)] px-2.5 py-1 text-sm font-semibold"
                     style={{
                       background: "rgba(255,255,255,.95)",
                       color: "var(--color-ln-azul)",
@@ -579,7 +579,7 @@ export default async function AdoptarFichaPage({
                 ))}
             </div>
             {pet.permanentConditions.includes("otra") && pet.permanentConditionsOther && (
-              <p className="mt-2.5 text-[13px] italic" style={{ color: "var(--color-ln-ink-2)" }}>
+              <p className="mt-2.5 text-md italic" style={{ color: "var(--color-ln-ink-2)" }}>
                 {pet.permanentConditionsOther}
               </p>
             )}
@@ -606,7 +606,7 @@ export default async function AdoptarFichaPage({
             </div>
             <div>
               <p
-                className="font-ln-serif text-[17px] font-semibold"
+                className="font-ln-serif text-lg font-semibold"
                 style={{ color: "var(--color-ln-ink)" }}
               >
                 {org.displayName}
@@ -616,10 +616,7 @@ export default async function AdoptarFichaPage({
                   {[org.jurisdictionLocality, org.jurisdictionProvince].filter(Boolean).join(", ")}
                 </p>
               )}
-              <p
-                className="mt-1.5 font-ln-mono text-[11px]"
-                style={{ color: "var(--color-ln-mute)" }}
-              >
+              <p className="mt-1.5 font-ln-mono text-sm" style={{ color: "var(--color-ln-mute)" }}>
                 En custodia desde {formatDate(row.ownerStartedAt)}
               </p>
               <Link
@@ -675,7 +672,7 @@ function HealthRow({
   return (
     <li className="grid gap-2.5 py-2" style={{ gridTemplateColumns: "22px 1fr" }}>
       <span
-        className="w-[22px] h-[22px] rounded-full grid place-items-center text-[11px] font-bold flex-shrink-0"
+        className="w-[22px] h-[22px] rounded-full grid place-items-center text-sm font-bold flex-shrink-0"
         style={
           ok
             ? { background: "var(--color-ln-ok-050)", color: "var(--color-ln-ok)" }
@@ -691,11 +688,11 @@ function HealthRow({
         {ok ? <Icon name="check" size="sm" decorative /> : "—"}
       </span>
       <div>
-        <span className="text-[13px] font-semibold" style={{ color: "var(--color-ln-ink)" }}>
+        <span className="text-md font-semibold" style={{ color: "var(--color-ln-ink)" }}>
           {label}
         </span>
         {detail && (
-          <span className="block text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
+          <span className="block text-sm" style={{ color: "var(--color-ln-mute)" }}>
             {detail}
           </span>
         )}
@@ -760,7 +757,7 @@ function RecentlyAdopted({ name }: { name: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-md font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción
@@ -786,7 +783,7 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
       />
       <div className="max-w-md mx-auto px-6 py-16 text-center space-y-[16px]">
         <div
-          className="inline-block rounded-full px-4 py-[7px] text-[13px] font-semibold"
+          className="inline-block rounded-full px-4 py-[7px] text-md font-semibold"
           style={{
             background: "var(--color-ln-warn-050)",
             color: "var(--color-ln-warn)",
@@ -807,7 +804,7 @@ function PausedView({ name, orgName }: { name: string; orgName: string }) {
         </p>
         <Link
           href="/adoptar"
-          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-[13px] font-semibold text-white no-underline"
+          className="inline-block px-5 py-[11px] rounded-[var(--radius-md)] text-md font-semibold text-white no-underline"
           style={{ background: "var(--color-ln-azul)" }}
         >
           Ver otras en adopción

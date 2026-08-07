@@ -300,7 +300,7 @@ export function LnSheetFooter({
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] active:scale-[0.98] active:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-md font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] active:scale-[0.98] active:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Cancelar
         </button>
@@ -313,7 +313,7 @@ export function LnSheetFooter({
           disabled={isPending}
           aria-busy={isPending || undefined}
           className={[
-            "inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-[9px] text-[13px] font-semibold text-white transition-colors",
+            "inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-[9px] text-md font-semibold text-white transition-colors",
             "active:scale-[0.98] active:opacity-90",
             "disabled:cursor-not-allowed disabled:opacity-60",
             toneCtaClass[tone],
@@ -364,10 +364,10 @@ export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetR
       </div>
       {/* Name + meta */}
       <div className="min-w-0 flex-1">
-        <p className="font-ln-serif text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <p className="font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
-        {meta && <p className="mt-px text-[11.5px] text-[var(--color-ln-mute)]">{meta}</p>}
+        {meta && <p className="mt-px text-sm text-[var(--color-ln-mute)]">{meta}</p>}
       </div>
       {/* Change */}
       {onChangePet && (
@@ -418,7 +418,7 @@ export function LnSubCard({ heading, children, className = "" }: LnSubCardProps)
 
 export function LnGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+    <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
       {children}
     </p>
   );
@@ -456,9 +456,7 @@ export function LnSheetAccordion({
           {num}
         </span>
         {/* Title */}
-        <span className="flex-1 text-[13.5px] font-semibold text-[var(--color-ln-ink)]">
-          {title}
-        </span>
+        <span className="flex-1 text-md font-semibold text-[var(--color-ln-ink)]">{title}</span>
         {/* Complete badge — hidden when open */}
         {complete && (
           <span className="inline-flex items-center gap-1 font-ln-mono text-xs text-[var(--color-ln-ok)] group-open:hidden">

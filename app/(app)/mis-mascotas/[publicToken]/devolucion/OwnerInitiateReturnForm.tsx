@@ -60,7 +60,7 @@ export function OwnerInitiateReturnForm({
         <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ok)]">
           Devolución iniciada
         </p>
-        <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+        <p className="text-md text-[var(--color-ln-ink-2)]">
           Tu propuesta fue enviada a <strong>{orgDisplayName}</strong>. El refugio la va a revisar y
           se va a poner en contacto con vos para coordinar la entrega.
         </p>
@@ -89,7 +89,7 @@ export function OwnerInitiateReturnForm({
           name="reason"
           required
           defaultValue=""
-          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] appearance-none"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-md text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] appearance-none"
         >
           <option value="" disabled>
             Elegí un motivo…
@@ -121,7 +121,7 @@ export function OwnerInitiateReturnForm({
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Contale al refugio detalles sobre la situación, el estado de la mascota, disponibilidad horaria…"
-          className="resize-y rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-[13px] text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="resize-y rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-md text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>
 
@@ -139,7 +139,7 @@ export function OwnerInitiateReturnForm({
           type="date"
           value={proposedAt}
           onChange={(e) => setProposedAt(e.target.value)}
-          className="w-[200px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-mono text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-[200px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-mono text-md text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>
 
@@ -147,7 +147,7 @@ export function OwnerInitiateReturnForm({
       {state.error && (
         <p
           role="alert"
-          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[13px] text-[var(--color-ln-seal)]"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-md text-[var(--color-ln-seal)]"
         >
           {state.error}
         </p>
@@ -157,12 +157,12 @@ export function OwnerInitiateReturnForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-4 py-2.5 font-ln-sans text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-4 py-2.5 font-ln-sans text-md font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {isPending ? "Enviando…" : `Confirmar devolución de ${petName}`}
       </button>
 
-      <p className="text-[11px] text-[var(--color-ln-faint)]">
+      <p className="text-sm text-[var(--color-ln-faint)]">
         El refugio recibe una notificación y coordina con vos la entrega. La custodia sigue en tus
         manos hasta que ellos acepten.
       </p>

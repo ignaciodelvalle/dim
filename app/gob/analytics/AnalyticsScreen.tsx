@@ -443,7 +443,7 @@ export async function AnalyticsScreen({
             title={
               <span id={panelRankingId}>
                 Ranking · {RABIES_VACCINATION_RATE_LABEL_ES}{" "}
-                <span className="text-[11px] font-normal text-ln-op-mute">por provincia</span>
+                <span className="text-sm font-normal text-ln-op-mute">por provincia</span>
               </span>
             }
           />
@@ -501,7 +501,7 @@ export async function AnalyticsScreen({
             />
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-[13px] text-ln-op-ink border-collapse">
+              <table className="w-full text-md text-ln-op-ink border-collapse">
                 <caption className="sr-only">
                   Visitas veterinarias por cada 1.000 mascotas activas, por localidad, de menor a
                   mayor acceso relativo dentro del alcance seleccionado.
@@ -608,7 +608,7 @@ export async function AnalyticsScreen({
             <ul className="space-y-2">
               {deathCauses.map((row) => (
                 <li key={row.cause} className="flex items-center gap-3">
-                  <span className="w-28 shrink-0 text-[13px] text-ln-op-ink">
+                  <span className="w-28 shrink-0 text-md text-ln-op-ink">
                     {deathCauseLabel(row.cause)}
                   </span>
                   <div className="flex-1 h-4 rounded bg-ln-op-stripe overflow-hidden">
@@ -619,7 +619,7 @@ export async function AnalyticsScreen({
                       }}
                     />
                   </div>
-                  <span className="w-8 shrink-0 text-right text-[13px] tabular-nums text-ln-op-ink">
+                  <span className="w-8 shrink-0 text-right text-md tabular-nums text-ln-op-ink">
                     {row.count}
                   </span>
                 </li>

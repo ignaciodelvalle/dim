@@ -55,7 +55,7 @@ export function ServiceOfferingForm({
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {state.error && (
-          <p className="text-[13px] rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+          <p className="text-md rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
             {state.error}
           </p>
         )}
@@ -67,7 +67,7 @@ export function ServiceOfferingForm({
           inert={step !== 1 ? true : undefined}
         >
           <div className="space-y-1">
-            <label htmlFor="serviceKind" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="serviceKind" className="block text-md font-medium text-ln-op-ink">
               Tipo de servicio <span className="text-ln-op-danger">*</span>
             </label>
             <LnSelect id="serviceKind" name="serviceKind" required>
@@ -81,7 +81,7 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="displayName" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="displayName" className="block text-md font-medium text-ln-op-ink">
               Nombre del servicio <span className="text-ln-op-danger">*</span>
             </label>
             <LnInput
@@ -96,7 +96,7 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="description" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="description" className="block text-md font-medium text-ln-op-ink">
               Descripción <span className="text-ln-op-mute font-normal">(opcional)</span>
             </label>
             <LnTextarea
@@ -122,10 +122,7 @@ export function ServiceOfferingForm({
         >
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label
-                htmlFor="durationMinutes"
-                className="block text-[13px] font-medium text-ln-op-ink"
-              >
+              <label htmlFor="durationMinutes" className="block text-md font-medium text-ln-op-ink">
                 Duración (minutos) <span className="text-ln-op-danger">*</span>
               </label>
               <LnInput
@@ -139,10 +136,7 @@ export function ServiceOfferingForm({
               />
             </div>
             <div className="space-y-1">
-              <label
-                htmlFor="slotCapacity"
-                className="block text-[13px] font-medium text-ln-op-ink"
-              >
+              <label htmlFor="slotCapacity" className="block text-md font-medium text-ln-op-ink">
                 Capacidad por turno <span className="text-ln-op-danger">*</span>
               </label>
               <LnInput
@@ -158,7 +152,7 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="priceArs" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="priceArs" className="block text-md font-medium text-ln-op-ink">
               Precio (ARS){" "}
               <span className="text-ln-op-mute font-normal">— vacío para campaña gratuita</span>
             </label>
@@ -184,7 +178,7 @@ export function ServiceOfferingForm({
           inert={step !== 3 ? true : undefined}
         >
           <div className="space-y-1">
-            <span className="block text-[13px] font-medium text-ln-op-ink">Especies elegibles</span>
+            <span className="block text-md font-medium text-ln-op-ink">Especies elegibles</span>
             <div className="flex gap-4">
               <LnCheckbox name="eligibilitySpecies" value="dog" defaultChecked>
                 Perros
@@ -199,7 +193,7 @@ export function ServiceOfferingForm({
             <div className="space-y-1">
               <label
                 htmlFor="eligibilityAgeMinMonths"
-                className="block text-[13px] font-medium text-ln-op-ink"
+                className="block text-md font-medium text-ln-op-ink"
               >
                 Edad mínima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>
@@ -215,7 +209,7 @@ export function ServiceOfferingForm({
             <div className="space-y-1">
               <label
                 htmlFor="eligibilityAgeMaxMonths"
-                className="block text-[13px] font-medium text-ln-op-ink"
+                className="block text-md font-medium text-ln-op-ink"
               >
                 Edad máxima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>

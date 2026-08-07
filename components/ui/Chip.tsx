@@ -147,7 +147,7 @@ export function LnPetPill({ name, status = "ok", active = false, onClick }: LnPe
       type="button"
       onClick={onClick}
       className={[
-        "inline-flex cursor-pointer items-center gap-[7px] rounded-full border px-[11px] py-1 pl-[5px] text-[12.5px] font-medium transition-colors",
+        "inline-flex cursor-pointer items-center gap-[7px] rounded-full border px-[11px] py-1 pl-[5px] text-md font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
         active
           ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul-700)]"

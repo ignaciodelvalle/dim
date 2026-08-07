@@ -83,7 +83,7 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName, base }: Prop
 
   return (
     <div className="relative pl-4">
-      <label htmlFor={inputId} className="block text-[11px] text-ln-op-mute mb-1">
+      <label htmlFor={inputId} className="block text-sm text-ln-op-mute mb-1">
         Crear/ver regla en una localidad de {provinceName}
       </label>
       <input
@@ -125,9 +125,9 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName, base }: Prop
           ))}
         </ul>
       )}
-      {pending && <span className="ml-2 text-[11px] text-ln-op-mute">…</span>}
+      {pending && <span className="ml-2 text-sm text-ln-op-mute">…</span>}
       {errored && (
-        <p className="mt-1 text-[11px] text-ln-op-mute">
+        <p className="mt-1 text-sm text-ln-op-mute">
           No pudimos buscar localidades ahora. Probá de nuevo en un momento.
         </p>
       )}

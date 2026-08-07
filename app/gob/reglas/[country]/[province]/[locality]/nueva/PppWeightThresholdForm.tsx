@@ -88,7 +88,7 @@ export function PppWeightThresholdForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
-      <p className="text-[13px] text-ln-op-ink-2">
+      <p className="text-md text-ln-op-ink-2">
         Define un umbral de peso por sobre el cual el animal se considera PPP por tamano. Deja kg
         vacio para no aplicar threshold (solo regla de razas).
       </p>
@@ -116,8 +116,8 @@ export function PppWeightThresholdForm({
         onChange={(e) => setAppliesIfBreedNotPPP(e.target.checked)}
       >
         Aplicar el threshold incluso a razas NO listadas en{" "}
-        <span className="font-mono text-[11px]">ppp_breed_list</span>. Si esta desactivado, el
-        threshold solo agrega una segunda condicion a las razas ya consideradas PPP.
+        <span className="font-mono text-sm">ppp_breed_list</span>. Si esta desactivado, el threshold
+        solo agrega una segunda condicion a las razas ya consideradas PPP.
       </LnCheckbox>
 
       {/* Impact preview — shown before submission. C9: thread the result up
@@ -157,9 +157,9 @@ export function PppWeightThresholdForm({
         )}
       </LnField>
 
-      {state.warning && <p className="text-[13px] text-ln-op-warn">{state.warning}</p>}
+      {state.warning && <p className="text-md text-ln-op-warn">{state.warning}</p>}
       {state.error && (
-        <p className="text-[13px] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}

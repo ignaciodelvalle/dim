@@ -110,7 +110,7 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
       <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Casos" }]} />
       <header className="space-y-1">
         <h1 className="text-title font-semibold text-ln-op-ink">Casos</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Expedientes donde {organization.displayName} es la organización que abrió el caso o
           actualmente tiene custodia activa.
         </p>

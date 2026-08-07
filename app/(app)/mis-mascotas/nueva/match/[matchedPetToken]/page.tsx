@@ -56,7 +56,7 @@ export default async function VecinoMatchPage({
         <p className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
           Mascota ya no está perdida
         </p>
-        <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
+        <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
           {pet.name} ya fue encontrada o su estado cambió. Podés continuar registrando la mascota.
         </p>
         <div className="mt-5 flex justify-center">
@@ -131,7 +131,7 @@ export default async function VecinoMatchPage({
       <div className="mt-6 border-t border-[var(--color-ln-line-2)] pt-4">
         <Link
           href="/mis-mascotas/nueva"
-          className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Cancelar y volver al registro
         </Link>

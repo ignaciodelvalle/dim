@@ -92,7 +92,7 @@ export default async function GobInvestigacionesPage({
         />
         <Link
           href="/gob/vigilancia/investigaciones/nuevo"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700 transition-colors no-underline"
         >
           Nueva investigación
         </Link>
@@ -145,9 +145,7 @@ export default async function GobInvestigacionesPage({
                 >
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-[11px] text-ln-op-mute">
-                        {inv.publicCode}
-                      </span>
+                      <span className="font-mono text-sm text-ln-op-mute">{inv.publicCode}</span>
                       <OpPill tone={STATUS_PILL_TONE[inv.status] ?? "neutral"}>
                         {STATUS_LABEL[inv.status] ?? inv.status}
                       </OpPill>
@@ -160,7 +158,7 @@ export default async function GobInvestigacionesPage({
                         migrated; this list was the surface the columns were
                         plumbed to and never wired. CSS truncates; slicing the
                         string cut mid-word and mid-token. */}
-                    <p className="text-[13px] text-ln-op-ink truncate">
+                    <p className="text-md text-ln-op-ink truncate">
                       {caseOpenedReasonDisplay({
                         openedReasonCode: inv.openedReasonCode,
                         openedReasonParams: inv.openedReasonParams,
@@ -176,7 +174,7 @@ export default async function GobInvestigacionesPage({
                   </div>
                   <Link
                     href={`/gob/vigilancia/investigaciones/${inv.publicCode}`}
-                    className="shrink-0 px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line text-[13px] text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
+                    className="shrink-0 px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line text-md text-ln-op-azul hover:bg-ln-op-stripe transition-colors no-underline"
                   >
                     Ver &rarr;
                   </Link>

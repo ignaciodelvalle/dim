@@ -94,7 +94,7 @@ export default async function AppointmentDetailPage({
       {/* Back */}
       <Link
         href="/mis-turnos"
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis turnos
       </Link>
@@ -105,7 +105,7 @@ export default async function AppointmentDetailPage({
           {offering.displayName}
         </h1>
         <span
-          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
         >
           {statusConfig.label}
         </span>
@@ -149,7 +149,7 @@ export default async function AppointmentDetailPage({
         <LnCard className="mb-5">
           <LnCardHead title="Check-in en la clínica" label="QR" />
           <LnCardBody className="flex flex-col items-center gap-2.5">
-            <p className="self-start text-[12.5px] text-[var(--color-ln-ink-2)]">
+            <p className="self-start text-md text-[var(--color-ln-ink-2)]">
               Mostrá este QR cuando llegues. Si el escáner no lo lee, dictá el código de abajo.
             </p>
             <div
@@ -200,7 +200,7 @@ function DetailRow({ label, children }: { label: string; children: React.ReactNo
       <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }

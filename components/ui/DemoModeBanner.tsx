@@ -41,7 +41,7 @@ export function DemoModeBanner({ enabled }: DemoModeBannerProps) {
     // implicit role, not a correction of it.
     <output
       aria-live="polite"
-      className="block w-full border-b border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-1.5 text-center text-[11px] font-semibold uppercase tracking-[0.04em] text-ln-op-ink-2"
+      className="block w-full border-b border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-1.5 text-center text-sm font-semibold uppercase tracking-[0.04em] text-ln-op-ink-2"
     >
       Entorno de demostración — datos sintéticos
     </output>

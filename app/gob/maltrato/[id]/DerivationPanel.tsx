@@ -53,7 +53,7 @@ export function DerivationPanel({
     return (
       <div className="flex items-center gap-3 flex-wrap">
         {alreadyDerivedTo && (
-          <p className="text-[11px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Ya derivada a{" "}
             <span className="font-medium text-ln-op-ink-2">{alreadyDerivedTo.orgDisplayName}</span>
             {" — "}
@@ -76,7 +76,7 @@ export function DerivationPanel({
 
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">Derivar a refugio u org de rescate</p>
+      <p className="text-md font-medium text-ln-op-ink">Derivar a refugio u org de rescate</p>
       {availableOrgs.length === 0 ? (
         <p className="text-sm text-ln-op-mute">
           No hay refugios ni redes de rescate verificados disponibles.
@@ -85,7 +85,7 @@ export function DerivationPanel({
         <select
           value={selectedOrgId}
           onChange={(e) => setSelectedOrgId(e.target.value)}
-          className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+          className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
         >
           <option value="">Seleccioná una organización…</option>
           {availableOrgs.map((o) => (

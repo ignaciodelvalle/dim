@@ -71,7 +71,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
               {OUTCOMES.map((o) => (
                 <label
                   key={o.value}
-                  className="flex cursor-pointer items-center gap-2 text-[13px] text-[var(--color-ln-ink)]"
+                  className="flex cursor-pointer items-center gap-2 text-md text-[var(--color-ln-ink)]"
                 >
                   <input
                     type="radio"
@@ -144,7 +144,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
           {state.error && (
             <p
               ref={errorRef}
-              className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]"
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
               tabIndex={-1}
             >

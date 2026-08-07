@@ -237,7 +237,7 @@ export function MarkLostWizard({
                 affirmative-consent model where disclose_last_location_when_lost
                 defaults OFF. It now states the truth: nothing shows publicly
                 unless the owner enables the disclosure below. */}
-            <p className="text-[12.5px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               Marcá el lugar y la hora aproximada del último avistaje. La ubicación no se muestra en
               la credencial pública salvo que actives compartirla — podés elegirlo acá abajo o en el
               último paso.
@@ -478,7 +478,7 @@ export function MarkLostWizard({
           ))}
 
           {errorMessage && (
-            <p className="font-ln-mono text-[11.5px] text-[var(--color-ln-err)]" role="alert">
+            <p className="font-ln-mono text-sm text-[var(--color-ln-err)]" role="alert">
               {errorMessage}
             </p>
           )}
@@ -491,7 +491,7 @@ export function MarkLostWizard({
           <button
             type="button"
             onClick={goBack}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-md font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
           >
             ← Atrás
           </button>
@@ -501,7 +501,7 @@ export function MarkLostWizard({
           <button
             type="button"
             onClick={goNext}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-[9px] text-md font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Continuar →
           </button>
@@ -511,7 +511,7 @@ export function MarkLostWizard({
             onClick={handleSubmit}
             disabled={isPending}
             aria-busy={isPending || undefined}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-4 py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-4 py-[9px] text-md font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? (
               <>

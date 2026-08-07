@@ -181,7 +181,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             </p>
           )}
           {item.availabilityLabel && (
-            <p className="mt-0.5 text-[11px] text-ln-mute">
+            <p className="mt-0.5 text-sm text-ln-mute">
               {item.availabilityLabel === "indefinido"
                 ? "Puede cuidarla indefinidamente"
                 : `Puede cuidarla hasta ${item.availabilityLabel}`}
@@ -202,7 +202,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             </div>
           )}
         </div>
-        <p className="shrink-0 text-[11px] text-ln-mute">{relativeShort(item.at)}</p>
+        <p className="shrink-0 text-sm text-ln-mute">{relativeShort(item.at)}</p>
       </div>
     );
   }
@@ -263,7 +263,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             </p>
           )}
         </div>
-        <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
+        <p className="shrink-0 text-sm text-ln-mute ">{relativeShort(item.at)}</p>
       </div>
     );
   }
@@ -284,7 +284,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
           {item.localityLabel ?? "Ubicación desconocida"}
         </p>
       </div>
-      <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
+      <p className="shrink-0 text-sm text-ln-mute ">{relativeShort(item.at)}</p>
     </div>
   );
 }
@@ -293,7 +293,7 @@ function CountBox({ value, label }: { value: number; label: string }) {
   return (
     <div className="rounded-lg bg-ln-stripe px-3 py-2 text-center ">
       <p className="text-xl font-semibold text-ln-ink ">{value}</p>
-      <p className="text-[11px] text-ln-mute ">{label}</p>
+      <p className="text-sm text-ln-mute ">{label}</p>
     </div>
   );
 }

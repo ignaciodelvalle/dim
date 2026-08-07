@@ -186,7 +186,7 @@ export default async function OrgTransferenciasEntrantesPage({
 
       <header className="space-y-1">
         <h1 className="text-title font-semibold text-ln-op-ink">Transferencias entrantes</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Propuestas dirigidas a {organization.displayName}.
         </p>
       </header>
@@ -235,7 +235,7 @@ export default async function OrgTransferenciasEntrantesPage({
 
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0 space-y-1">
-                          <p className="text-[13px] font-medium text-ln-op-ink">
+                          <p className="text-md font-medium text-ln-op-ink">
                             {r.petName ?? "(sin pet)"}
                           </p>
                           <p className="text-sm text-ln-op-mute">

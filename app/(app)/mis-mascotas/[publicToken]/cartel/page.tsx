@@ -43,12 +43,10 @@ export default async function CartelPage({
         <p className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
           {pet.name} no {lostThirdPersonPhrase(pet.sex)}.
         </p>
-        <p className="mt-1.5 text-[13px] text-[var(--color-ln-mute)]">
-          {markLostFirstPrompt(pet.sex)}
-        </p>
+        <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">{markLostFirstPrompt(pet.sex)}</p>
         <Link
           href={`/mis-mascotas/${publicToken}?sheet=marcar-perdida`}
-          className="mt-5 inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-[9px] font-ln-sans text-[13px] font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
+          className="mt-5 inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-[9px] font-ln-sans text-md font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
         >
           {markLostActionLabel(pet.sex)}
         </Link>

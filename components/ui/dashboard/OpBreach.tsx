@@ -28,7 +28,7 @@ export function OpBreach({ title, detail, icon }: Props) {
       {icon && <span className="flex-shrink-0 text-lg text-ln-op-danger">{icon}</span>}
 
       <div className="min-w-0 flex-1">
-        <b className="block text-[13px] font-bold text-ln-op-danger">{title}</b>
+        <b className="block text-md font-bold text-ln-op-danger">{title}</b>
         {detail && <span className="text-sm text-ln-op-danger opacity-85">{detail}</span>}
       </div>
     </div>

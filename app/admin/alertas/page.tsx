@@ -190,7 +190,7 @@ export default async function AdminAlertasPage({
           title="Alertas"
           actions={
             degraded ? undefined : (
-              <span className="text-[11px] text-ln-op-mute">
+              <span className="text-sm text-ln-op-mute">
                 {rows.length} {rows.length === 1 ? "alerta" : "alertas"}
               </span>
             )

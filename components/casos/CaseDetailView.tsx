@@ -183,7 +183,7 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
   // Breadcrumb nav — operator context (casosHref set) links "Casos" back to
   // the operator queue and omits the citizen "Inicio" link entirely.
   const breadcrumb = (
-    <nav className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-ln-mute">
+    <nav className="font-ln-mono text-sm uppercase tracking-[.06em] text-ln-mute">
       {casosHref ? (
         <Link href={casosHref} className="hover:text-ln-ink-2 hover:underline">
           Casos
@@ -243,7 +243,7 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
 
         {/* Timeline */}
         <section>
-          <h2 className="mb-3 font-ln-serif text-[21px] font-semibold tracking-[-0.01em] text-ln-ink">
+          <h2 className="mb-3 font-ln-serif text-title font-semibold tracking-[-0.01em] text-ln-ink">
             Línea de tiempo
           </h2>
           {timelineEvents.length === 0 ? (
@@ -256,27 +256,27 @@ export async function CaseDetailView({ publicCode, casosHref }: CaseDetailViewPr
                   className="rounded-[var(--radius-sm)] border border-ln-line bg-ln-card p-4"
                 >
                   <div className="flex items-baseline justify-between">
-                    <span className="text-[13.5px] font-medium text-ln-ink">
+                    <span className="text-md font-medium text-ln-ink">
                       {/* finder_tip is a case_events entry type, not a pet
                           EventType — label it directly (authority-only render). */}
                       {e.eventType === "finder_tip"
                         ? "Información de un tercero"
                         : eventTypeLabel(e.eventType as EventType)}
                     </span>
-                    <time className="font-ln-mono text-[10.5px] text-ln-mute">
+                    <time className="font-ln-mono text-sm text-ln-mute">
                       {formatDateTime(e.occurredAt)}
                     </time>
                   </div>
                   {(() => {
                     const summary = eventPayloadSummary(e.eventType, e.payload);
                     const text = [summary.primary, summary.secondary].filter(Boolean).join(" · ");
-                    return text ? <p className="mt-1 text-[12.5px] text-ln-mute">{text}</p> : null;
+                    return text ? <p className="mt-1 text-md text-ln-mute">{text}</p> : null;
                   })()}
                   {/* Internal notes hidden for anon: they're free-form and
                       routinely contain PII (denouncer descriptions, internal
                       org coordination, addresses). */}
                   {!isPublic && e.notes ? (
-                    <p className="mt-2 rounded-[var(--radius-sm)] bg-ln-stripe p-2 font-ln-mono text-[11px] text-ln-mute">
+                    <p className="mt-2 rounded-[var(--radius-sm)] bg-ln-stripe p-2 font-ln-mono text-sm text-ln-mute">
                       {e.notes}
                     </p>
                   ) : null}
@@ -318,10 +318,10 @@ function PublicTransparencyBanner({ caseKind }: { caseKind: string }) {
         borderLeft: "3px solid var(--color-ln-azul)",
       }}
     >
-      <p className="font-ln-mono text-[9.5px] font-semibold uppercase tracking-[.1em] text-ln-azul mb-1">
+      <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-ln-azul mb-1">
         ¿Por qué es público?
       </p>
-      <p className="text-[13px] leading-[1.5] text-ln-ink-2">{reason}</p>
+      <p className="text-md leading-[1.5] text-ln-ink-2">{reason}</p>
     </div>
   );
 }

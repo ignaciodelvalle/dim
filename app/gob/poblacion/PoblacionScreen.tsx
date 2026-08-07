@@ -567,16 +567,16 @@ export async function PoblacionScreen({
       {sterilNatalidadRatio !== null && (
         <section aria-label={KPI_CATALOG.sterilization_natalidad_ratio.label}>
           <div className="rounded-xl border border-ln-op-line bg-white px-5 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute">
+            <p className="text-sm font-semibold uppercase tracking-[0.1em] text-ln-op-mute">
               Contexto · Ratio esterilización / natalidad registrada
             </p>
             <p className="mt-1 text-lg font-semibold tabular-nums text-ln-op-ink">
               {formatRate(sterilNatalidadRatio, { decimals: 2 })}
             </p>
-            <p className="mt-1 text-[11px] text-ln-op-mute">
+            <p className="mt-1 text-sm text-ln-op-mute">
               esterilizaciones del período por parto en seguimiento
             </p>
-            <p className="mt-1 text-[11px] italic text-ln-op-mute">{ratioOverstatementCaveat}</p>
+            <p className="mt-1 text-sm italic text-ln-op-mute">{ratioOverstatementCaveat}</p>
           </div>
         </section>
       )}
@@ -587,26 +587,26 @@ export async function PoblacionScreen({
           header, so it stays a plain div rather than a full OpCard conversion. */}
       {hasData && (
         <div className="rounded-xl border border-ln-op-line bg-ln-op-card px-5 py-4">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-ln-op-mute mb-3">
+          <p className="text-sm font-semibold uppercase tracking-[0.1em] text-ln-op-mute mb-3">
             Componentes del balance
           </p>
           {/* Stacked below sm (mobile-polish 2026-07): 3-across crushed the
               stat captions at 390px. */}
           <div className="grid grid-cols-1 gap-4 text-center sm:grid-cols-3">
             <div>
-              <p className="text-[11px] text-ln-op-mute">Altas nuevas</p>
+              <p className="text-sm text-ln-op-mute">Altas nuevas</p>
               <p className="text-lg font-semibold tabular-nums text-ln-op-ink">
                 +{netGrowth.altas.toLocaleString("es-AR")}
               </p>
             </div>
             <div>
-              <p className="text-[11px] text-ln-op-mute">Nacimientos registrados</p>
+              <p className="text-sm text-ln-op-mute">Nacimientos registrados</p>
               <p className="text-lg font-semibold tabular-nums text-ln-op-ink">
                 +{netGrowth.registeredBirths.toLocaleString("es-AR")}
               </p>
             </div>
             <div>
-              <p className="text-[11px] text-ln-op-mute">Muertes registradas</p>
+              <p className="text-sm text-ln-op-mute">Muertes registradas</p>
               <p className="text-lg font-semibold tabular-nums text-ln-op-ink">
                 −{netGrowth.deaths.toLocaleString("es-AR")}
               </p>

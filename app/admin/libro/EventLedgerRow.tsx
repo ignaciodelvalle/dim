@@ -65,7 +65,7 @@ export function EventLedgerRow({ row }: Props) {
           <div className="flex flex-col gap-1">
             <span className="font-medium text-ln-op-ink">{row.eventTypeLabel}</span>
             {row.hasAmendment && (
-              <span className="inline-flex items-center gap-[5px] text-[11px] text-ln-op-warn">
+              <span className="inline-flex items-center gap-[5px] text-sm text-ln-op-warn">
                 <Icon name="editar" size={12} decorative />
                 Corregido por enmienda
               </span>
@@ -101,7 +101,7 @@ export function EventLedgerRow({ row }: Props) {
             )}
           </span>
           {row.authorOrganizationId && (
-            <span className="block text-[11px] text-ln-op-mute">vía organización</span>
+            <span className="block text-sm text-ln-op-mute">vía organización</span>
           )}
         </td>
 
@@ -113,9 +113,7 @@ export function EventLedgerRow({ row }: Props) {
           <span className="block">
             <span className="text-ln-op-mute">ocurrió</span> {row.occurredAtLabel}
           </span>
-          <span className="block text-[11px] text-ln-op-mute">
-            se registró {row.recordedAtLabel}
-          </span>
+          <span className="block text-sm text-ln-op-mute">se registró {row.recordedAtLabel}</span>
         </td>
 
         {/* Temporal replay deep-link */}
@@ -153,7 +151,7 @@ export function EventLedgerRow({ row }: Props) {
                         <span className="font-medium text-ln-op-ink">
                           Enmienda · {AUTHOR_ROLE_LABELS[a.actorRole] ?? a.actorRole}
                         </span>
-                        <span className="text-[11px] text-ln-op-mute">
+                        <span className="text-sm text-ln-op-mute">
                           {new Date(a.occurredAt).toLocaleString("es-AR", {
                             day: "numeric",
                             month: "short",
@@ -170,7 +168,7 @@ export function EventLedgerRow({ row }: Props) {
                         <ul className="space-y-0.5">
                           {a.changes.map((c, i) => (
                             <li key={`${a.id}-${c.field}-${i}`} className="text-ln-op-ink-2">
-                              <span className="font-ln-mono text-[11px] text-ln-op-mute">
+                              <span className="font-ln-mono text-sm text-ln-op-mute">
                                 {c.field}
                               </span>
                               : {formatChangeValue(c.old)} → {formatChangeValue(c.new)}

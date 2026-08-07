@@ -28,7 +28,7 @@ export default function DenunciasPage() {
           >
             Denuncias
           </h1>
-          <p className="max-w-prose text-[15px] leading-relaxed text-[var(--color-ln-ink-2)]">
+          <p className="max-w-prose text-base leading-relaxed text-[var(--color-ln-ink-2)]">
             Reportá situaciones de maltrato, abandono o negligencia animal. Cada denuncia queda
             registrada con un código de seguimiento y es derivada a la autoridad correspondiente.
             Podés denunciar de forma anónima.
@@ -62,7 +62,7 @@ export default function DenunciasPage() {
               <p className="text-md font-semibold text-[var(--color-ln-azul)]">
                 Hacer una denuncia
               </p>
-              <p className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">
+              <p className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">
                 Reportá maltrato, abandono o negligencia. Recibís un código de seguimiento al
                 enviar.
               </p>
@@ -94,7 +94,7 @@ export default function DenunciasPage() {
               <p className="text-md font-semibold text-[var(--color-ln-ink)]">
                 Consultar estado de una denuncia
               </p>
-              <p className="mt-0.5 text-[13px] text-[var(--color-ln-ink-2)]">
+              <p className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">
                 Ingresá el código de seguimiento que recibiste al enviar tu denuncia.
               </p>
             </div>
@@ -103,7 +103,7 @@ export default function DenunciasPage() {
 
         {/* Legal note */}
         <aside className="mt-10 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-5 py-4">
-          <p className="text-[12.5px] leading-relaxed text-[var(--color-ln-mute)]">
+          <p className="text-md leading-relaxed text-[var(--color-ln-mute)]">
             <strong className="font-semibold text-[var(--color-ln-ink-2)]">Aviso:</strong> Las
             denuncias registradas en este portal son derivadas a las autoridades competentes
             conforme a la Ley 14.346. La integración con canales gubernamentales está en desarrollo

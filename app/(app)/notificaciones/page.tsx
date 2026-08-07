@@ -219,7 +219,7 @@ export default async function NotificacionesPage({
                   relatedPet={entry.leader.pet}
                 />
                 <details className="mt-2 ml-3 border-l-2 border-[var(--color-ln-line)] pl-3">
-                  <summary className="cursor-pointer font-ln-mono text-[11px] text-[var(--color-ln-azul)] select-none hover:underline">
+                  <summary className="cursor-pointer font-ln-mono text-sm text-[var(--color-ln-azul)] select-none hover:underline">
                     + {entry.rest.length} más del mismo tipo
                   </summary>
                   <ul className="mt-2.5 flex flex-col gap-2">
@@ -246,7 +246,7 @@ export default async function NotificacionesPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -256,7 +256,7 @@ export default async function NotificacionesPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

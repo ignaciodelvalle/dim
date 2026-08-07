@@ -98,7 +98,7 @@ export default async function BuscarHogarPage({
       {/* Back */}
       <Link
         href={`/mis-mascotas/${publicToken}`}
-        className="mb-5 inline-block font-ln-mono text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
@@ -126,7 +126,7 @@ export default async function BuscarHogarPage({
             !province ? (
               <Link
                 href={`/mis-mascotas/${publicToken}/editar`}
-                className="font-ln-mono text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="font-ln-mono text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 Editar mascota →
               </Link>
@@ -144,7 +144,7 @@ export default async function BuscarHogarPage({
                 <p className="font-ln-serif text-md font-semibold text-[var(--color-ln-ink)]">
                   {org.displayName}
                 </p>
-                <p className="mt-0.5 font-ln-mono text-[10.5px] capitalize text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 font-ln-mono text-sm capitalize text-[var(--color-ln-mute)]">
                   {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {" · "}
                   {org.jurisdictionLocality ?? org.jurisdictionProvince}
