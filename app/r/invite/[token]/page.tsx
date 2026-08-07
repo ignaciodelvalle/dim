@@ -7,11 +7,15 @@
 //
 // Invalid/expired/revoked tokens render a friendly error, NOT notFound().
 // Only the org display name and invited role are exposed — no other PII.
+//
+// Item 24.2: invalid-token states distinguish revoked / expired / used and
+// include a CTA to the org's public contact page when the org is known.
 
 import { eq } from "drizzle-orm";
 
 import { db, organizationInvitations, organizations } from "@/db";
 import { createClient } from "@/lib/supabase/server";
+import { formatDate } from "@/lib/utils/format";
 
 import { AcceptButton } from "./AcceptButton";
 import { maskEmail } from "./helpers";
@@ -34,7 +38,9 @@ export default async function InviteAcceptPage({
 
   // Load invitation row — only the columns the page actually uses.
   // (organizations has sensitive fields like cuit/cbu; narrow the select so
-  // only displayName is fetched from that table.)
+  // only displayName + publicToken are fetched from that table.)
+  // Item 24.2: publicToken added so invalid states can link to the org's
+  // public contact page (/refugios/[orgToken]) instead of just the homepage.
   const [inviteRow] = await db
     .select({
       invite: {
@@ -47,6 +53,7 @@ export default async function InviteAcceptPage({
       },
       org: {
         displayName: organizations.displayName,
+        publicToken: organizations.publicToken,
       },
     })
     .from(organizationInvitations)
@@ -63,32 +70,83 @@ export default async function InviteAcceptPage({
     inviteRow.invite.expiresAt <= now;
 
   if (isInvalid) {
-    const reason = !inviteRow
-      ? "Este link de invitación no existe o ya no es válido."
+    // Item 24.2: distinguish each state with clear, specific messaging.
+    const { heading, reason } = !inviteRow
+      ? {
+          heading: "Invitación no encontrada",
+          reason: "Este link de invitación no existe o ya no es válido.",
+        }
       : inviteRow.invite.acceptedAt
-        ? "Esta invitación ya fue aceptada."
+        ? {
+            heading: "Invitación ya aceptada",
+            reason: "Esta invitación ya fue aceptada anteriormente.",
+          }
         : inviteRow.invite.revokedAt
-          ? "Esta invitación fue revocada."
-          : "Esta invitación ya expiró.";
+          ? {
+              heading: "Invitación revocada",
+              reason: "Esta invitación fue revocada por la organización.",
+            }
+          : {
+              heading: "Invitación vencida",
+              reason: "Esta invitación ya expiró. Solicitá una nueva al equipo de la organización.",
+            };
+
+    // If we know the org, offer a direct link to their public contact page.
+    const orgPublicToken = inviteRow?.org.publicToken ?? null;
+    const orgDisplayName = inviteRow?.org.displayName ?? null;
 
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
-        <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
-          <p className="text-4xl" aria-hidden="true">
-            ⚠️
-          </p>
-          <h1 className="font-[var(--font-ln-serif)] text-[19px] font-semibold text-[var(--color-ln-ink)]">
-            Link no válido
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
+        <div className="w-full max-w-sm space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
+          {/* warning glyph — decorative, aria-hidden on both span and svg */}
+          <span
+            className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]"
+            aria-hidden="true"
+          >
+            <svg
+              aria-hidden="true"
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          {/* a11y: h1 is the focus target; keyboard users Tab here first. */}
+          <h1 className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
+            {heading}
           </h1>
           <p className="text-sm text-[var(--color-ln-ink-2)]">{reason}</p>
-          <a
-            href="/"
-            className="inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
-          >
-            Ir al inicio
-          </a>
+          {/* Item 24.2: CTA to the org's public page when known, else homepage. */}
+          {orgPublicToken ? (
+            <>
+              <a
+                href={`/refugios/${orgPublicToken}`}
+                className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+              >
+                Contactar a {orgDisplayName}
+              </a>
+              <p className="text-xs text-[var(--color-ln-mute)]">
+                Desde el perfil de la organización podés solicitar una nueva invitación.
+              </p>
+            </>
+          ) : (
+            <a
+              href="/"
+              className="inline-block rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-ln-azul)] focus-visible:ring-offset-2"
+            >
+              Ir al inicio
+            </a>
+          )}
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -106,13 +164,13 @@ export default async function InviteAcceptPage({
   // State 1: no session.
   if (!user) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
-        <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
+        <div className="w-full max-w-sm space-y-5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
           <div className="space-y-1 text-center">
             <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
               Invitación
             </p>
-            <h1 className="font-[var(--font-ln-serif)] text-[22px] font-semibold text-[var(--color-ln-ink)]">
+            <h1 className="font-ln-serif text-title font-semibold text-[var(--color-ln-ink)]">
               {org.displayName}
             </h1>
           </div>
@@ -122,27 +180,21 @@ export default async function InviteAcceptPage({
           </p>
           <a
             href={loginHref}
-            className="block w-full rounded-[3px] bg-[var(--color-ln-azul)] px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="block w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Iniciar sesión
           </a>
           <a
             href={`/signup?returnTo=${encodeURIComponent(`/r/invite/${token}`)}`}
-            className="block w-full rounded-[3px] border border-[var(--color-ln-line-strong)] px-5 py-2.5 text-center text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+            className="block w-full rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-5 py-2.5 text-center text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Crear cuenta
           </a>
           <p className="text-center text-xs text-[var(--color-ln-mute)]">
-            Este link vence el{" "}
-            {invite.expiresAt.toLocaleDateString("es-AR", {
-              day: "numeric",
-              month: "long",
-              year: "numeric",
-            })}
-            .
+            Este link vence el {formatDate(invite.expiresAt)}.
           </p>
         </div>
-      </main>
+      </div>
     );
   }
 
@@ -152,12 +204,29 @@ export default async function InviteAcceptPage({
   // full invite email to whoever holds the token).
   if (invite.email.toLowerCase() !== sessionEmail) {
     return (
-      <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
-        <div className="w-full max-w-sm space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
-          <p className="text-4xl" aria-hidden="true">
-            🔒
-          </p>
-          <h1 className="font-[var(--font-ln-serif)] text-[19px] font-semibold text-[var(--color-ln-ink)]">
+      <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
+        <div className="w-full max-w-sm space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 text-center shadow-sm">
+          {/* lock glyph */}
+          <span
+            className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]"
+            aria-hidden="true"
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </span>
+          <h1 className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
             Cuenta incorrecta
           </h1>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
@@ -167,24 +236,24 @@ export default async function InviteAcceptPage({
           </p>
           <a
             href={loginHref}
-            className="inline-block rounded-[3px] border border-[var(--color-ln-line-strong)] px-5 py-2 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+            className="inline-block rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-5 py-2 text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Cambiar cuenta
           </a>
         </div>
-      </main>
+      </div>
     );
   }
 
   // State 3: session + email matches → show accept button.
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center px-4 py-16 bg-[var(--color-ln-paper)]">
-      <div className="w-full max-w-sm space-y-5 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
+    <div className="flex min-h-[70vh] flex-col items-center justify-center px-4 py-16">
+      <div className="w-full max-w-sm space-y-5 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-8 shadow-sm">
         <div className="space-y-1 text-center">
           <p className="text-xs uppercase tracking-widest text-[var(--color-ln-mute)]">
             Invitación
           </p>
-          <h1 className="font-[var(--font-ln-serif)] text-[22px] font-semibold text-[var(--color-ln-ink)]">
+          <h1 className="font-ln-serif text-title font-semibold text-[var(--color-ln-ink)]">
             {org.displayName}
           </h1>
         </div>
@@ -202,6 +271,6 @@ export default async function InviteAcceptPage({
           </a>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

@@ -16,6 +16,7 @@ import {
   type WelfareReportSeverity,
   type WelfareReportStatus,
   type WelfareReportSubjectKind,
+  welfareAssignmentLabel,
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
@@ -161,7 +162,7 @@ describe("WELFARE_REPORT_SUBJECT_KINDS", () => {
 
 describe("welfareReportSubjectKindLabel", () => {
   it("returns correct label for registered_pet", () => {
-    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota MiMAR registrada");
+    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota miMAR registrada");
   });
 
   it("returns correct label for location", () => {
@@ -188,6 +189,27 @@ describe("FLAG_REASONS", () => {
 
   it("has exactly 5 reason codes", () => {
     expect(FLAG_REASONS).toHaveLength(5);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// welfareAssignmentLabel (G0b — derived case must not read as unowned)
+// ---------------------------------------------------------------------------
+
+describe("welfareAssignmentLabel", () => {
+  it("shows the named operator when assigned (assignment wins over derivation)", () => {
+    expect(welfareAssignmentLabel("Ana Gómez", "Mascotas BA Centro")).toBe("Ana Gómez");
+  });
+
+  it("shows 'Derivada a {org}' when derived but not assigned to an operator", () => {
+    expect(welfareAssignmentLabel(null, "Mascotas BA Centro")).toBe(
+      "Derivada a Mascotas BA Centro",
+    );
+  });
+
+  it("shows 'Sin asignar' only when neither assigned nor derived", () => {
+    expect(welfareAssignmentLabel(null, null)).toBe("Sin asignar");
+    expect(welfareAssignmentLabel(undefined, undefined)).toBe("Sin asignar");
   });
 });
 

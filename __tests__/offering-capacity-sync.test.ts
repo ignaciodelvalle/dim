@@ -16,10 +16,9 @@
 // updated in the same transaction, so the next cron run will materialize
 // new slots with the correct capacity — no separate fix needed.
 
-import { and, eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { updateOfferingCapacityWriter } from "@/app/actions/service-offerings";
 import {
   appointments,
   db,
@@ -34,8 +33,11 @@ import {
   generateAppointmentToken,
   generateOfferingToken,
   generatePublicToken,
-} from "@/lib/publicToken";
+} from "@/lib/infra/publicToken";
+import { updateOfferingCapacityWriter } from "@/src/modules/service-offerings/application/update-offering-capacity";
 import { createClient } from "@supabase/supabase-js";
+
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
 // Supabase admin client (bypasses RLS for fixture setup / cleanup)
@@ -67,6 +69,10 @@ let cancelledSlotId: string; // future, cancelled — must stay untouched
 
 // Appointments created to simulate bookingsCount = 2 on futureSlotB
 const insertedAppointmentTokens: string[] = [];
+
+// Pets this test inserts directly. Tracked so afterAll can delete exactly
+// these ids — never a name match or a token-prefix LIKE.
+const insertedPetIds: string[] = [];
 
 // ---------------------------------------------------------------------------
 // Setup
@@ -158,6 +164,7 @@ beforeAll(async () => {
       name: "Capacity Sync Dog",
     })
     .returning({ id: pets.id });
+  insertedPetIds.push(pet.id);
 
   await db.insert(ownerships).values({
     petId: pet.id,
@@ -214,6 +221,21 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 
 afterAll(async () => {
+  // Pets go first, in their own per-id transaction, so a failure anywhere
+  // below can never leave an ownerless fixture pet behind. Each id is scoped
+  // individually — a partial failure loses one pet, not the whole cleanup.
+  //
+  // pet_events deletes are blocked by enforce_pet_events_append_only; bypass
+  // via the accountable SET LOCAL GUC pair (see _helpers/db-overrides.ts).
+  for (const pid of insertedPetIds) {
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM appointments WHERE pet_id = ${pid}`);
+      await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pid}`);
+      await tx.delete(ownerships).where(eq(ownerships.petId, pid));
+      await tx.execute(sql`DELETE FROM pets WHERE id = ${pid}`);
+    }).catch(() => {});
+  }
+
   // Delete appointments first (FK on time_slots.id RESTRICT).
   for (const token of insertedAppointmentTokens) {
     await db
@@ -240,7 +262,10 @@ afterAll(async () => {
     .where(eq(organizations.id, orgId))
     .catch(() => {});
 
-  // The owner user's ownerships and pets cascade via profile delete.
+  // The owner user's ownerships cascade via profile delete. Pets do NOT —
+  // there is no FK from pets to profiles, so they are deleted explicitly
+  // above. (This comment used to claim pets cascaded; they never did, and
+  // every run of this suite leaked one orphan pet as a result.)
   const { data: allUsers } = await supabase.auth.admin.listUsers();
   const found = allUsers?.users.find((u) => u.email === OWNER_EMAIL);
   if (found) await supabase.auth.admin.deleteUser(found.id).catch(() => {});

@@ -20,7 +20,7 @@
 // Runs against the local Supabase + Postgres stack (127.0.0.1:54321/54322).
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, gte, isNull } from "drizzle-orm";
+import { and, eq, gte } from "drizzle-orm";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({

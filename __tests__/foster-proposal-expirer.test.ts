@@ -18,7 +18,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { generatePrefixedToken, generatePublicToken } from "@/lib/publicToken";
+import { generatePrefixedToken, generatePublicToken } from "@/lib/infra/publicToken";
 import { expireFosterProposalsAction as expireFosterProposals } from "@/src/modules/foster/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 

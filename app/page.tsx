@@ -1,22 +1,47 @@
 import { and, eq, isNull } from "drizzle-orm";
-import Link from "next/link";
 import { redirect } from "next/navigation";
+import QRCode from "qrcode";
 
-import { db, organizationMemberships, profiles } from "@/db";
-import { pathForRole, resolveVetLanding } from "@/lib/role-landing";
+import { BondBand } from "@/components/landing/BondBand";
+import { CrisisBand } from "@/components/landing/CrisisBand";
+import { EmpezarSection } from "@/components/landing/EmpezarSection";
+import { FaqSection } from "@/components/landing/FaqSection";
+import { FeaturesSection } from "@/components/landing/FeaturesSection";
+import { LandingFooter } from "@/components/landing/LandingFooter";
+import { LandingHero } from "@/components/landing/LandingHero";
+import { LandingNav } from "@/components/landing/LandingNav";
+import { MilestoneNav } from "@/components/landing/MilestoneNav";
+import { RevealManager } from "@/components/landing/RevealManager";
+import { StorySection } from "@/components/landing/StorySection";
+import { resolveDemoPetToken } from "@/components/landing/demo-pet";
+import { GobStripe } from "@/components/layout/GobStripe";
+import { ScrollReset } from "@/components/layout/ScrollReset";
+import { db, organizationMemberships, pets } from "@/db";
+import { getProfileCached } from "@/lib/infra/request-cache";
+import {
+  isDeactivatedInstitutional,
+  pathForRole,
+  resolveVetLanding,
+} from "@/lib/infra/role-landing";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createClient } from "@/lib/supabase/server";
 
-// Marketing landing — handoff P4-1.
+// Public landing — "una mascota, muchas manos" (design handoff
+// docs/design_handoff_landing, benchmark L1–L8). Replaces the P4-1 hero /
+// theme blocks with the storytelling landing:
 //
-// Three-CTA hero per D8 (extend, no rediseño): dueño → /signup,
-// refugio/vet → /signup (post-signup the user can /cuenta/upgrade),
-// gobierno → /login (govts are admin-invited, no self-serve signup).
+//   Nav (sticky, ABOVE the gob stripe — intentional order) → Hero (Pampa's
+//   credential + FlipCard-motif lost-mode demo + real scannable QR) →
+//   CrisisBand (L1: perdí / encontré / code lookup, no login) → BondBand
+//   (full-bleed emotional bridge: the human–animal bond the product protects)
+//   → Story (CastFila + 6 chapters + sticky scroll-spy rail) → Features as life
+//   moments (L6) → FAQ + trust row (L7/L4, beta chip) → Empezar (2 doors
+//   ONLY: dueño / organización) → Footer (+ closing GobStripe).
 //
-// Below the CTAs:
-//   - 3-step "how it works" explainer (kept from sprint 6 / doc 10 §6)
-//   - 4 theme blocks (credential, lost, denuncia, adopción)
-//   - Quiet links to /denuncias/nueva + /denuncias/buscar
-//   - Footer with legal references (Ley 14.346, Ley 25.326)
+// The landing owns its chrome (no AppShell): the handoff requires the nav
+// ABOVE the institutional stripe, which no shell variant provides. The page
+// still renders the single <main id="main-content"> that the root layout's
+// skip-link targets.
 
 export default async function Home() {
   const supabase = await createClient();
@@ -25,13 +50,14 @@ export default async function Home() {
   } = await supabase.auth.getUser();
 
   // Logged-in users skip the landing and go straight to their portal.
-  if (user) {
-    const [profile] = await db
-      .select({ role: profiles.role })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1);
-
+  //
+  // EXCEPT deactivated institutional accounts: their portal guards bounce
+  // them right back to `/`, so redirecting them by role creates an infinite
+  // 307 loop (/admin → / → /admin → ERR_TOO_MANY_REDIRECTS, task #39). They
+  // fall through to the public landing instead; /login shows the deactivated
+  // notice with a working "Cerrar sesión".
+  const profile = user ? await getProfileCached(user.id) : null;
+  if (user && !isDeactivatedInstitutional(profile)) {
     const role = profile?.role ?? "owner";
     if (role === "vet") {
       redirect(await resolveVetLanding(user.id));
@@ -54,231 +80,70 @@ export default async function Home() {
     redirect(pathForRole(role, { hasOrgAdminMembership }));
   }
 
+  // Hero QR — TWO gates before we promise anything scannable (RA-6 finding 1).
+  //
+  // 1. The deployment must DECLARE it has demo furniture (DEMO_PET_TOKEN, see
+  //    components/landing/demo-pet.ts). Production, provisioned the way
+  //    docs/ops/cutover-playbook.md mandates ("no seed pets, no demo
+  //    accounts"), declares nothing.
+  // 2. The declared token must actually resolve. This probe is the SAME
+  //    condition /p/[publicToken] uses before calling notFound(), so a stale
+  //    or mistyped value degrades here instead of shipping a QR that scans to
+  //    a 404 — which on a government front door is worse than no QR at all.
+  //
+  // Either gate failing hands LandingHero nulls and it renders an illustrative
+  // credential that promises nothing.
+  const declaredDemoToken = resolveDemoPetToken();
+  let demoToken: string | null = null;
+  if (declaredDemoToken) {
+    const [demoPet] = await db
+      .select({ id: pets.id })
+      .from(pets)
+      .where(eq(pets.publicToken, declaredDemoToken))
+      .limit(1);
+    demoToken = demoPet ? declaredDemoToken : null;
+  }
+
+  // Real, scannable QR → declared demo pet credential. Same absolute-URL +
+  // inline-SVG pattern as /mis-mascotas/[publicToken] (no image route).
+  // resolveSiteUrl handles the set-but-empty env pitfall that would otherwise
+  // encode a host-less relative URL no phone camera can resolve.
+  const publicHref = demoToken ? `/p/${demoToken}` : null;
+  // width 160 (up from 64) + errorCorrectionLevel "Q": the hero QR must scan
+  // comfortably from a phone against the on-screen credential. The SVG is vector
+  // so the real display size comes from the `.lp-hcard-qr` container (globals.css),
+  // but generating at a larger module size keeps it crisp; "Q" adds scan
+  // robustness (25% recovery) for camera reads off a glossy screen.
+  const qrSvg = publicHref
+    ? await QRCode.toString(`${resolveSiteUrl()}${publicHref}`, {
+        type: "svg",
+        margin: 1,
+        width: 160,
+        errorCorrectionLevel: "Q",
+      })
+    : null;
+
   return (
-    <main className="min-h-screen flex flex-col bg-ln-paper">
-      {/* Hero */}
-      <section className="flex-1 flex flex-col items-center justify-center p-8 pt-20">
-        <div className="max-w-3xl text-center space-y-6">
-          <h1 className="text-6xl font-bold tracking-tight text-ln-ink font-ln-serif">MiMAR</h1>
-          <p className="text-xl text-ln-ink-2">Mi Mascota Argentina</p>
-          <p className="text-base text-ln-mute max-w-xl mx-auto leading-relaxed">
-            La credencial digital de salud para tu mascota. Para encontrarse, para cuidarse, para
-            ayudarnos a cuidar a todas.
-          </p>
-
-          {/* 3-CTA hero — segmented by who you are. Each lands the right
-              flow on the other side (signup for self-serve, login for
-              admin-invited govt accounts). */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-6 max-w-2xl mx-auto">
-            <Link
-              href="/signup"
-              className="px-5 py-4 rounded-xl bg-ln-azul text-white font-semibold hover:opacity-90 transition-opacity"
-            >
-              Soy dueño
-              <span className="block text-xs font-normal opacity-70 mt-1">Crear mi cuenta</span>
-            </Link>
-            <Link
-              href="/signup"
-              className="px-5 py-4 rounded-xl border-2 border-ln-line-strong text-ln-ink font-semibold hover:bg-ln-stripe transition-colors"
-            >
-              Soy refugio o vet
-              <span className="block text-xs font-normal opacity-70 mt-1">
-                Después configurás la org
-              </span>
-            </Link>
-            <Link
-              href="/login"
-              className="px-5 py-4 rounded-xl border border-ln-line-strong text-ln-ink font-medium hover:bg-ln-stripe transition-colors"
-            >
-              Soy gobierno
-              <span className="block text-xs font-normal text-ln-mute mt-1">Cuenta invitada</span>
-            </Link>
-          </div>
-
-          <p className="text-xs text-ln-mute pt-2">
-            ¿Ya tenés cuenta?{" "}
-            <Link href="/login" className="underline underline-offset-4 hover:text-ln-ink-2">
-              Iniciá sesión
-            </Link>
-          </p>
-
-          {/* 3-step explainer (sprint 6 PR-055 / doc 10 §6) */}
-          <section
-            id="explainer"
-            aria-label="Cómo funciona MiMAR"
-            className="pt-10 grid grid-cols-1 md:grid-cols-3 gap-4 text-left"
-          >
-            <div className="rounded-2xl border border-ln-line p-4 space-y-2">
-              <div
-                className="h-10 w-10 rounded-full bg-ln-stripe flex items-center justify-center text-xl"
-                aria-hidden="true"
-              >
-                🐾
-              </div>
-              <p className="text-sm font-semibold text-ln-ink">1. Cargá tu mascota</p>
-              <p className="text-xs text-ln-ink-2 leading-relaxed">
-                Datos básicos, foto, y microchip si tenés. Tarda menos de un minuto.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-ln-line p-4 space-y-2">
-              <div
-                className="h-10 w-10 rounded-full bg-ln-stripe flex items-center justify-center text-xl"
-                aria-hidden="true"
-              >
-                📱
-              </div>
-              <p className="text-sm font-semibold text-ln-ink">2. Imprimí su QR</p>
-              <p className="text-xs text-ln-ink-2 leading-relaxed">
-                Pegalo en la chapita del collar. Es la credencial pública que muestra solo lo que
-                decidís compartir.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-ln-line p-4 space-y-2">
-              <div
-                className="h-10 w-10 rounded-full bg-ln-stripe flex items-center justify-center text-xl"
-                aria-hidden="true"
-              >
-                📍
-              </div>
-              <p className="text-sm font-semibold text-ln-ink">
-                3. Si se pierde, todos pueden ayudar
-              </p>
-              <p className="text-xs text-ln-ink-2 leading-relaxed">
-                Quien la encuentre escanea el QR y ve cómo contactarte. Vecinos pueden reportar
-                dónde la vieron.
-              </p>
-            </div>
-          </section>
-        </div>
-      </section>
-
-      {/* 4 theme blocks — what MiMAR does beyond the credential.
-          Anchored sections so future deeplinks can target them. */}
-      <section aria-label="Más sobre MiMAR" className="bg-ln-stripe py-16 px-8">
-        <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-6">
-          <ThemeBlock
-            id="que-es-la-credencial"
-            icon="🪪"
-            title="¿Qué es la credencial?"
-            body="Es la identidad digital de tu mascota. Combina datos básicos (nombre, foto, microchip) con un QR escaneable. Cuando alguien lo escanea, ve solo lo que vos decidiste compartir."
-            ctaLabel="Cómo funciona el QR"
-            ctaHref="#explainer"
-          />
-          <ThemeBlock
-            id="reportar-perdida"
-            icon="🧭"
-            title="¿Cómo reportar una mascota perdida?"
-            body="Desde tu cuenta marcás a la mascota como perdida en 3 pasos. La credencial pública se transforma en alerta visible para cualquiera que escanee el QR o entre al perfil público."
-            ctaLabel="Crear cuenta y registrar"
-            ctaHref="/signup"
-          />
-          <ThemeBlock
-            id="denunciar-maltrato"
-            icon="🚨"
-            title="¿Cómo denunciar maltrato?"
-            body="Denuncia anónima de maltrato animal, online y en minutos. Se enruta automáticamente a la autoridad sanitaria de la jurisdicción. La Ley 14.346 está de tu lado."
-            ctaLabel="Hacer una denuncia"
-            ctaHref="/denuncias/nueva"
-          />
-          <ThemeBlock
-            id="adoptar"
-            icon="❤"
-            title="¿Cómo adoptar?"
-            body="Mascotas en adopción de refugios verificados de toda Argentina. Filtrás por especie, zona y tamaño; la postulación llega directo al refugio."
-            ctaLabel="Ver mascotas en adopción"
-            ctaHref="/adoptar"
-          />
-        </div>
-      </section>
-
-      {/* Quiet links — lost listing + denuncia + buscar with code. Anonymous. */}
-      <section className="py-10 px-8 text-center bg-ln-paper">
-        <div className="max-w-md mx-auto flex flex-col items-center gap-2">
-          <Link
-            href="/perdidas"
-            className="text-sm text-ln-mute underline underline-offset-4 hover:text-ln-ink-2 transition-colors"
-          >
-            Buscá mascotas perdidas cerca tuyo →
-          </Link>
-          <Link
-            href="/denuncias/nueva"
-            className="text-sm text-ln-mute underline underline-offset-4 hover:text-ln-ink-2 transition-colors"
-          >
-            Denunciar maltrato animal
-          </Link>
-          <Link
-            href="/denuncias/buscar"
-            className="text-sm text-ln-mute underline underline-offset-4 hover:text-ln-ink-2 transition-colors"
-          >
-            Buscar mi denuncia con código →
-          </Link>
-        </div>
-      </section>
-
-      {/* Footer with legal references */}
-      <footer className="border-t border-ln-line py-8 px-8 bg-ln-paper">
-        <div className="max-w-5xl mx-auto space-y-4">
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-ln-mute">
-            <p>© {new Date().getFullYear()} MiMAR — Mi Mascota Argentina</p>
-            <div className="flex gap-4">
-              <Link href="/privacidad" className="underline underline-offset-4 hover:text-ln-ink-2">
-                Privacidad
-              </Link>
-              <Link href="/terminos" className="underline underline-offset-4 hover:text-ln-ink-2">
-                Términos
-              </Link>
-              <a
-                href="https://github.com/ignaciodelvalle/dim"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="underline underline-offset-4 hover:text-ln-ink-2"
-              >
-                GitHub
-              </a>
-            </div>
-          </div>
-          <p className="text-[11px] text-ln-mute leading-relaxed">
-            MiMAR opera bajo el marco de la <strong>Ley 14.346</strong> (penalización del maltrato
-            animal) y la <strong>Ley 25.326</strong> (protección de datos personales). El
-            tratamiento de datos personales requiere consentimiento informado; las denuncias
-            anónimas no recopilan PII del denunciante.
-          </p>
-        </div>
-      </footer>
-    </main>
-  );
-}
-
-function ThemeBlock({
-  id,
-  icon,
-  title,
-  body,
-  ctaLabel,
-  ctaHref,
-}: {
-  id: string;
-  icon: string;
-  title: string;
-  body: string;
-  ctaLabel: string;
-  ctaHref: string;
-}) {
-  return (
-    <article id={id} className="rounded-2xl bg-ln-card border border-ln-line p-6 space-y-3">
-      <div
-        className="h-12 w-12 rounded-full bg-ln-stripe flex items-center justify-center text-2xl"
-        aria-hidden
-      >
-        {icon}
-      </div>
-      <h2 className="text-lg font-semibold text-ln-ink">{title}</h2>
-      <p className="text-sm text-ln-ink-2 leading-relaxed">{body}</p>
-      <Link href={ctaHref} className="inline-block text-sm font-medium text-ln-ok hover:underline">
-        {ctaLabel} →
-      </Link>
-    </article>
+    <div className="lp flex min-h-screen flex-col" data-landing-root>
+      <RevealManager />
+      <LandingNav />
+      <GobStripe height={6} />
+      <main id="main-content" data-scroll-reset className="flex-1">
+        <ScrollReset />
+        <LandingHero qrSvg={qrSvg} publicHref={publicHref} publicToken={demoToken} />
+        <CrisisBand />
+        <BondBand />
+        <StorySection />
+        <FeaturesSection />
+        <FaqSection />
+        <EmpezarSection />
+      </main>
+      <LandingFooter />
+      {/* Milestone "Continuar ↓" CTA — progressive-reveal choreography over the
+          six milestone sections above (FAQ + footer stay outside the sequence).
+          Fixed bottom-right, so it can never collide with the sticky nav's
+          sign-in/signup entry points; hidden past the last milestone. */}
+      <MilestoneNav />
+    </div>
   );
 }

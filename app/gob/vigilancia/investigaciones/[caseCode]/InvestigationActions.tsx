@@ -1,8 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   type InvestigationNoteEntryType,
   addInvestigationNoteAction,
@@ -23,7 +24,7 @@ const ENTRY_TYPES: { value: InvestigationNoteEntryType; label: string }[] = [
   { value: "lab_result", label: "Resultado de laboratorio" },
   { value: "control_action", label: "Medida de control" },
   { value: "contact_tracing", label: "Rastreo de contactos" },
-  { value: "final_report", label: "Informe epidemiologico final" },
+  { value: "final_report", label: "Informe epidemiológico final" },
   { value: "system", label: "Nota general" },
 ];
 
@@ -34,7 +35,6 @@ export function InvestigationActions({
   casePublicCode: string;
   currentStatus: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("none");
   const [notes, setNotes] = useState("");
@@ -65,7 +65,9 @@ export function InvestigationActions({
         return;
       }
       reset();
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
@@ -113,25 +115,40 @@ export function InvestigationActions({
   if (mode === "none") {
     return (
       <div className="flex flex-wrap gap-2">
-        <ActionButton onClick={() => setMode("add_note")} tone="primary">
+        <OpButton type="button" onClick={() => setMode("add_note")} variant="primary" size="sm">
           Registrar dato / nota
-        </ActionButton>
-        <ActionButton onClick={() => setMode("external_notification")} tone="muted">
-          Registrar notificacion externa
-        </ActionButton>
+        </OpButton>
+        <OpButton
+          type="button"
+          onClick={() => setMode("external_notification")}
+          variant="ghost"
+          size="sm"
+        >
+          Registrar notificación externa
+        </OpButton>
         {canEscalate && (
-          <ActionButton onClick={() => setMode("escalate")} tone="warning">
+          <OpButton type="button" onClick={() => setMode("escalate")} variant="danger" size="sm">
             Escalar
-          </ActionButton>
+          </OpButton>
         )}
         {canClose && (
           <>
-            <ActionButton onClick={() => setMode("close_resolved")} tone="success">
+            <OpButton
+              type="button"
+              onClick={() => setMode("close_resolved")}
+              variant="ok"
+              size="sm"
+            >
               Cerrar como resuelta
-            </ActionButton>
-            <ActionButton onClick={() => setMode("close_dismissed")} tone="muted">
+            </OpButton>
+            <OpButton
+              type="button"
+              onClick={() => setMode("close_dismissed")}
+              variant="ghost"
+              size="sm"
+            >
               Cerrar como desestimada
-            </ActionButton>
+            </OpButton>
           </>
         )}
       </div>
@@ -139,78 +156,81 @@ export function InvestigationActions({
   }
 
   const titles: Record<Exclude<Mode, "none">, string> = {
-    add_note: "Registrar dato epidemiologico o nota",
-    external_notification: "Registrar notificacion externa",
-    escalate: "Escalar investigacion",
+    add_note: "Registrar dato epidemiológico o nota",
+    external_notification: "Registrar notificación externa",
+    escalate: "Escalar investigación",
+    close_resolved: "Cerrar como resuelta",
+    close_dismissed: "Cerrar como desestimada",
+  };
+
+  // Verb of the act per mode, never "Confirmar" (D.3, 2026-07-30). Shorter than
+  // the panel titles above because these sit on a button next to "Cancelar".
+  const submitLabels: Record<Exclude<Mode, "none">, string> = {
+    add_note: "Registrar nota",
+    external_notification: "Registrar notificación",
+    escalate: "Escalar investigación",
     close_resolved: "Cerrar como resuelta",
     close_dismissed: "Cerrar como desestimada",
   };
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+      <p className="text-md font-medium text-ln-op-ink">{titles[mode]}</p>
 
       {mode === "add_note" && (
         <div className="space-y-1.5">
-          <label htmlFor="entry-type" className="block text-[12px] font-medium text-ln-op-mute">
+          <label htmlFor="entry-type" className="block text-sm font-medium text-ln-op-mute">
             Tipo de registro
           </label>
-          <select
+          <OpSelect
             id="entry-type"
             value={entryType}
             onChange={(e) => setEntryType(e.target.value as InvestigationNoteEntryType)}
-            className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
           >
             {ENTRY_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
             ))}
-          </select>
+          </OpSelect>
         </div>
       )}
 
       {mode === "external_notification" && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <div className="space-y-1.5">
-            <label htmlFor="ext-date" className="block text-[12px] font-medium text-ln-op-mute">
-              Fecha de notificacion
+            <label htmlFor="ext-date" className="block text-sm font-medium text-ln-op-mute">
+              Fecha de notificación
             </label>
-            <input
+            <OpInput
               id="ext-date"
               type="date"
               value={extDate}
               onChange={(e) => setExtDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
             />
           </div>
           <div className="space-y-1.5">
-            <label htmlFor="ext-channel" className="block text-[12px] font-medium text-ln-op-mute">
+            <label htmlFor="ext-channel" className="block text-sm font-medium text-ln-op-mute">
               Canal
             </label>
-            <input
+            <OpInput
               id="ext-channel"
               type="text"
               value={extChannel}
               onChange={(e) => setExtChannel(e.target.value)}
               placeholder="SNVS / SENASA / zoonosis…"
-              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
             />
           </div>
           <div className="space-y-1.5">
-            <label
-              htmlFor="ext-reference"
-              className="block text-[12px] font-medium text-ln-op-mute"
-            >
+            <label htmlFor="ext-reference" className="block text-sm font-medium text-ln-op-mute">
               Referencia (opcional)
             </label>
-            <input
+            <OpInput
               id="ext-reference"
               type="text"
               value={extReference}
               onChange={(e) => setExtReference(e.target.value)}
               placeholder="N.º de expediente / acta…"
-              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
             />
           </div>
         </div>
@@ -218,29 +238,28 @@ export function InvestigationActions({
 
       {mode === "close_resolved" && (
         <div className="space-y-1.5">
-          <label htmlFor="final-report" className="block text-[12px] font-medium text-ln-op-mute">
+          <label htmlFor="final-report" className="block text-sm font-medium text-ln-op-mute">
             Informe final (si no lo registraste antes)
           </label>
-          <textarea
+          <OpTextarea
             id="final-report"
             value={finalReport}
             onChange={(e) => setFinalReport(e.target.value)}
             rows={3}
-            placeholder="Texto del informe epidemiologico final (opcional si ya existe un registro previo)..."
-            className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+            placeholder="Texto del informe epidemiológico final (opcional si ya existe un registro previo)..."
           />
         </div>
       )}
 
       <div className="space-y-1.5">
-        <label htmlFor="notes" className="block text-[12px] font-medium text-ln-op-mute">
+        <label htmlFor="notes" className="block text-sm font-medium text-ln-op-mute">
           {mode === "add_note"
-            ? "Detalle (minimo 5 caracteres)"
+            ? "Detalle (mínimo 5 caracteres)"
             : mode === "external_notification"
-              ? "Detalle de la notificacion (minimo 5 caracteres)"
-              : "Motivo (minimo 10 caracteres)"}
+              ? "Detalle de la notificación (mínimo 5 caracteres)"
+              : "Motivo (mínimo 10 caracteres)"}
         </label>
-        <textarea
+        <OpTextarea
           id="notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -252,15 +271,14 @@ export function InvestigationActions({
                 ? "A quien y que se notifico por el canal externo..."
                 : "Explica el motivo..."
           }
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         />
-        <p className="text-[12px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
+        <p className="text-sm text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={
@@ -269,47 +287,21 @@ export function InvestigationActions({
               ? notes.trim().length < 5
               : notes.trim().length < 10)
           }
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
+          variant="primary"
+          className="px-4 py-2"
         >
-          {pending ? "Procesando..." : "Confirmar"}
-        </button>
-        <button
+          {pending ? "Procesando..." : submitLabels[mode]}
+        </OpButton>
+        <OpButton
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          variant="ghost"
+          className="px-4 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  tone,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  tone: "primary" | "success" | "warning" | "muted";
-}) {
-  const toneClass =
-    tone === "primary"
-      ? "bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
-      : tone === "success"
-        ? "bg-ln-op-ok text-white hover:opacity-90"
-        : tone === "warning"
-          ? "bg-ln-op-warn-bg text-ln-op-warn border border-ln-op-warn-bd hover:opacity-90"
-          : "border border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-[6px] text-[13px] font-medium transition-colors ${toneClass}`}
-    >
-      {children}
-    </button>
   );
 }

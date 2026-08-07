@@ -14,13 +14,20 @@ import type { ReactNode } from "react";
 
 // ---------- Status dot ----------------------------------------------------
 
-export type LnPetStatus = "ok" | "sick" | "lost" | "pregnant";
+// "ok" (AL DÍA) is a COMPLIANCE claim — callers may only pass it when the
+// pet's tracked obligations are all satisfied (deriveComplianceState).
+// "registered" is the neutral resting state for an active pet that hasn't
+// earned the compliance claim (QA 2026-07-03: header said AL DÍA while the
+// compliance panel said 0 de 3 al día).
+export type LnPetStatus = "ok" | "registered" | "sick" | "lost" | "pregnant" | "deceased";
 
 const statusDotColors: Record<LnPetStatus, string> = {
   ok: "bg-[var(--color-ln-ok)]",
-  sick: "bg-[var(--color-ln-warn)] rounded-[2px]",
+  registered: "bg-[var(--color-ln-mute)]",
+  sick: "bg-[var(--color-ln-warn)] rounded-[var(--radius-xs)]",
   lost: "bg-[var(--color-ln-err)] rounded-[1px]",
   pregnant: "bg-[var(--color-ln-rosa)]",
+  deceased: "bg-[var(--color-ln-memorial-chip-text)]",
 };
 
 export type LnStatusDotProps = {
@@ -66,7 +73,7 @@ export function LnChip({
   className = "",
 }: LnChipProps) {
   const base =
-    "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] text-[12px] font-medium transition-colors " +
+    "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] text-sm font-medium transition-colors " +
     "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]";
   const inactive =
     "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)]";
@@ -110,7 +117,7 @@ export function LnChipGroup({ items, selected, onChange, className = "" }: LnChi
   }
 
   return (
-    <div className={["flex flex-wrap gap-[6px]", className].filter(Boolean).join(" ")}>
+    <div className={["flex flex-wrap gap-1.5", className].filter(Boolean).join(" ")}>
       {items.map((item) => (
         <LnChip
           key={item.key}
@@ -140,7 +147,7 @@ export function LnPetPill({ name, status = "ok", active = false, onClick }: LnPe
       type="button"
       onClick={onClick}
       className={[
-        "inline-flex cursor-pointer items-center gap-[7px] rounded-full border px-[11px] py-[4px] pl-[5px] text-[12.5px] font-medium transition-colors",
+        "inline-flex cursor-pointer items-center gap-[7px] rounded-full border px-[11px] py-1 pl-[5px] text-md font-medium transition-colors",
         "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
         active
           ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul-700)]"
@@ -150,7 +157,7 @@ export function LnPetPill({ name, status = "ok", active = false, onClick }: LnPe
         .join(" ")}
     >
       {/* Pet dot avatar */}
-      <span className="relative h-[18px] w-[18px] flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-ln-line-strong)] bg-[repeating-linear-gradient(135deg,#e7e2d6_0_4px,#f2efe6_4px_8px)]">
+      <span className="relative h-[18px] w-[18px] flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-ln-line-strong)] bg-[repeating-linear-gradient(135deg,var(--pattern-no-photo-a)_0_4px,var(--pattern-no-photo-b)_4px_8px)]">
         {/* Status indicator */}
         <span
           className={[

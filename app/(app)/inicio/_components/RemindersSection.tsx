@@ -6,7 +6,8 @@
 
 import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import type { ActiveReminderRow } from "@/lib/owner-dashboard";
+import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
+import { pluralizeEs } from "@/lib/utils/format";
 
 import { ReminderActions } from "./ReminderActions";
 
@@ -38,13 +39,13 @@ function formatDueAt(dueAt: Date): string {
 
 function buildStatusText(daysUntilDue: number): string {
   if (daysUntilDue > 0) {
-    return `Vence en ${daysUntilDue} día${daysUntilDue === 1 ? "" : "s"}`;
+    return `Vence en ${daysUntilDue} ${pluralizeEs(daysUntilDue, "día")}`;
   }
   if (daysUntilDue === 0) {
     return "Vence hoy";
   }
   const abs = Math.abs(daysUntilDue);
-  return `Vencida hace ${abs} día${abs === 1 ? "" : "s"}`;
+  return `Vencida hace ${abs} ${pluralizeEs(abs, "día")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -82,7 +83,6 @@ function ReminderBanner({ reminder }: { reminder: ActiveReminderRow }) {
       <ReminderActions
         reminderId={reminder.reminderId}
         petToken={reminder.petToken}
-        title={reminder.title}
         variant="banner"
       />
     </section>
@@ -100,6 +100,11 @@ export function RemindersSection({
 }: {
   reminders: ActiveReminderRow[];
 }) {
+  // Intentional: this is an additive urgency surface above the capture card, not a
+  // section that owns its own slot. No pending reminders is the healthy default, the
+  // greeting already carries the urgency count, and the sibling IntentApplyBanner
+  // renders nothing when empty too — so we render nothing rather than a "Sin
+  // recordatorios" card that would add noise for the common case.
   if (reminders.length === 0) return null;
 
   // Single reminder → inline banner with CTA.
@@ -133,12 +138,7 @@ export function RemindersSection({
                 statusText={buildStatusText(r.daysUntilDue)}
                 dueAt={`Vence el ${formatDueAt(r.dueAt)}`}
                 actions={
-                  <ReminderActions
-                    reminderId={r.reminderId}
-                    petToken={r.petToken}
-                    title={r.title}
-                    variant="row"
-                  />
+                  <ReminderActions reminderId={r.reminderId} petToken={r.petToken} variant="row" />
                 }
               />
             </li>
@@ -163,7 +163,6 @@ export function RemindersSection({
                       <ReminderActions
                         reminderId={r.reminderId}
                         petToken={r.petToken}
-                        title={r.title}
                         variant="row"
                       />
                     }

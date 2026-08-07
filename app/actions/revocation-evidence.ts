@@ -1,63 +1,39 @@
 "use server";
 
-// Pre-upload server action for revocation evidence attachments.
+// revocation-evidence.ts — thin shim (strangler migration 55/61).
 //
-// The client uploads the file to Supabase Storage directly, then calls
-// this action with the resulting storage path + metadata. The action creates
-// an `attachments` row with all foreign-keys NULL (no audit_log_id yet).
-// The revocation writer later "claims" the attachment by setting audit_log_id
-// inside the transaction.
+// Business logic moved to:
+//   src/modules/organizations/application/revocations/upload-evidence.ts
 //
-// Design §2f, spec REQ-6.
-
-import { eq } from "drizzle-orm";
-
-import { attachments, db, profiles } from "@/db";
-
-export type UploadEvidenceInput = {
-  storagePath: string;
-  mimeType: string;
-  fileSize?: number | null;
-};
-
-export type UploadEvidenceResult = { attachmentId: string } | { error: string };
-
-// Validates that the caller is an admin or govt user, then inserts an
-// attachments row with all FKs NULL. Returns the new attachment id.
+// The actor is derived from the Supabase session HERE — never accepted from
+// the client (authz triage 2026-07-04: the old signature took a
+// caller-supplied actorUserId, letting any authenticated caller act as any
+// admin/govt whose UUID was known).
 //
-// Note: this action deliberately does NOT call requireAdminOrGovtOrRedirect
-// (which redirects) — it returns a typed error so the caller can handle it
-// without a page redirect (the upload is triggered from a form, not a page
-// navigation).
-//
-// @no-auth-required: caller passes `actorUserId`; the role check below
-// (admin | govt) IS the auth gate. Matches the inner-writer contract but
-// the name doesn't end in `ForUser`/`ForAuthority` — renaming is a
-// follow-up. The role check stays inline for the typed-error return shape.
+// The action boundary now gates with requireAdminOrGovtOrRedirect — the SAME
+// full-invariant institutional guard admin-revocations.ts uses (role ∈
+// {admin,govt} + accountType==='institutional' + deactivatedAt IS NULL +
+// deletedAt IS NULL). The delegated use-case still re-checks role as
+// data-layer defense-in-depth, but the boundary is now the primary gate:
+// previously entry did only getUser(), so a DEACTIVATED operator or an ERASED
+// (soft-deleted, session still valid — Ley 25.326 art. 16) admin/govt whose
+// role column still read 'admin'/'govt' passed the use-case's role-only check.
+
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import type {
+  UploadEvidenceInput,
+  UploadEvidenceResult,
+} from "@/src/modules/organizations/application/revocations/upload-evidence";
+import { uploadRevocationEvidence as _uploadEvidence } from "@/src/modules/organizations/application/revocations/upload-evidence";
+
+export type {
+  UploadEvidenceInput,
+  UploadEvidenceResult,
+} from "@/src/modules/organizations/application/revocations/upload-evidence";
+
 export async function uploadRevocationEvidence(
-  actorUserId: string,
   input: UploadEvidenceInput,
 ): Promise<UploadEvidenceResult> {
-  // Capability check — only admin/govt may upload revocation evidence.
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, actorUserId))
-    .limit(1);
-  if (!profile || (profile.role !== "admin" && profile.role !== "govt")) {
-    return { error: "Solo admin o govt pueden subir evidencia de revocación." };
-  }
-
-  const [row] = await db
-    .insert(attachments)
-    .values({
-      uploadedByUserId: actorUserId,
-      storagePath: input.storagePath,
-      mimeType: input.mimeType,
-      fileSize: input.fileSize ?? null,
-      // All domain FKs stay NULL at upload time — claimed by the writer.
-    })
-    .returning({ id: attachments.id });
-
-  return { attachmentId: row.id };
+  const { user } = await requireAdminOrGovtOrRedirect();
+  return _uploadEvidence(user.id, input);
 }

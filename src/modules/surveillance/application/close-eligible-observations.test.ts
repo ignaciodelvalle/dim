@@ -242,6 +242,50 @@ describe("closeEligibleObservations — error handling", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Robustness: seed/older observations with missing payload fields (QA 2026-07-08)
+// ---------------------------------------------------------------------------
+
+describe("closeEligibleObservations — resilient close for incomplete payloads", () => {
+  it("auto-closes when observation_until is MISSING (fallback = started.occurredAt + 10d)", async () => {
+    // started.occurredAt = 2024-08-10 → fallback deadline 2024-08-20 < NOW.
+    const startedNoUntil = {
+      ...makeStartedEvent(PAST_DUE),
+      payload: {
+        bite_event_id: FAKE_BITE_ID,
+        location: "in_situ",
+        official_site_organization_id: null,
+      },
+    } as unknown as PetEvent;
+    const deps = makeDeps({
+      findLatestObservationStarted: vi.fn().mockResolvedValue(startedNoUntil),
+    });
+    const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
+    expect(stats.errors).toHaveLength(0);
+    expect(stats.closedNegative).toBe(1);
+  });
+
+  it("auto-closes when bite_event_id is MISSING — records null, never throws", async () => {
+    const startedNoBite = {
+      ...makeStartedEvent(PAST_DUE),
+      payload: {
+        observation_until: PAST_DUE.toISOString(),
+        location: "in_situ",
+        official_site_organization_id: null,
+      },
+    } as unknown as PetEvent;
+    const deps = makeDeps({
+      findLatestObservationStarted: vi.fn().mockResolvedValue(startedNoBite),
+    });
+    const stats = await closeEligibleObservations(BASE_OPTIONS, deps);
+    expect(stats.errors).toHaveLength(0);
+    expect(stats.closedNegative).toBe(1);
+    const call = (deps.repo.insertObservationEnded as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as { payload: Record<string, unknown> };
+    expect(call.payload.bite_event_id).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Audit log parity (spec §E AUDIT_LOG: NONE)
 // ---------------------------------------------------------------------------
 

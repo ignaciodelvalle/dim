@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { db, ownerships, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -23,14 +23,14 @@ export default async function AdoptarOrgPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-md text-ln-op-ink-2">
             Para publicar adopciones necesitás el permiso{" "}
-            <code className="text-[11px]">adoption.listing.manage</code>.
+            <code className="text-sm">adoption.listing.manage</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -93,22 +93,22 @@ export default async function AdoptarOrgPage({
               { label: "Publicar en adopción" },
             ]}
           />
-          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             Publicar en adopción · {pet.name}
           </h1>
-          <p className="text-[13px] text-ln-op-ink-2">
-            Esto controla la aparición de {pet.name} en{" "}
-            <code className="text-[11px]">/adoptar</code> + ficha pública.
+          <p className="text-md text-ln-op-ink-2">
+            Esto controla la aparición de {pet.name} en <code className="text-sm">/adoptar</code> +
+            ficha pública.
           </p>
         </header>
 
         <OpCard>
           <OpCardHead title="Estado actual" />
           <OpCardBody>
-            <p className="text-[13px] text-ln-op-ink-2">
+            <p className="text-md text-ln-op-ink-2">
               {isPublished
                 ? "Publicada y visible en /adoptar."
                 : isPaused
@@ -136,6 +136,7 @@ export default async function AdoptarOrgPage({
         )}
 
         <AdoptionListingForm
+          orgToken={orgToken}
           petPublicToken={publicToken}
           initial={{
             isPublished,
@@ -158,7 +159,7 @@ export default async function AdoptarOrgPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

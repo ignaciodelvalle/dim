@@ -4,8 +4,9 @@
 //
 // All DB/repo calls mocked. No Postgres required.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import type { WelfareRepository } from "../../infrastructure/welfare-repository";
 import { createOrgWelfareReport } from "../create-org-welfare-report";
 
@@ -17,13 +18,13 @@ type OpenCaseFn = (input: {
   kind: string;
   primarySubjectKind: string;
   primaryPetId: string | null;
-  primaryLocationLat: string | null;
-  primaryLocationLng: string | null;
+  locationLat: string | null;
+  locationLng: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedByUserId: string;
   openedByOrganizationId: string;
-  openedReason: string;
+  openedReason: OpenedReason;
   welfareReportId: string;
 }) => Promise<{ id: string; publicCode: string }>;
 
@@ -48,6 +49,7 @@ function makeRepo(
   | "insertAttachments"
   | "linkCase"
   | "insertPetEvent"
+  | "insertPetEventIdempotent"
   | "insertAudit"
   | "insertNotifications"
   | "findOpenOtherWelfareCasesForPet"
@@ -57,6 +59,7 @@ function makeRepo(
     insertAttachments: vi.fn().mockResolvedValue(undefined),
     linkCase: vi.fn().mockResolvedValue(undefined),
     insertPetEvent: vi.fn().mockResolvedValue(undefined),
+    insertPetEventIdempotent: vi.fn().mockResolvedValue({ wasNoop: false }),
     insertAudit: vi.fn().mockResolvedValue(undefined),
     insertNotifications: vi.fn().mockResolvedValue(undefined),
     findOpenOtherWelfareCasesForPet: vi.fn().mockResolvedValue([]),
@@ -67,6 +70,7 @@ function makeRepo(
     | "insertAttachments"
     | "linkCase"
     | "insertPetEvent"
+    | "insertPetEventIdempotent"
     | "insertAudit"
     | "insertNotifications"
     | "findOpenOtherWelfareCasesForPet"
@@ -126,6 +130,7 @@ const BASE_INPUT = {
   }>,
   uploadedPaths: ["welfare-evidence/c3d4e5f6-a7b8-4333-aced-333333333333/evidence.jpg"],
   orgMember: ORG_MEMBER,
+  clientIdempotencyKey: null as string | null,
 };
 
 // ---------------------------------------------------------------------------

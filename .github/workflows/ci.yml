@@ -1,8 +1,13 @@
 name: CI
 
+# integration/** is here because of what happened without it: CI last ran on
+# 2026-06-12, and the 794 commits built since then on integration branches —
+# including every fence added in July — never once went through it. A pipeline
+# that only watches the branch you merge INTO tells you about the breakage after
+# you own it. Long-lived integration branches get the same gate as main.
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, "integration/**"]
   pull_request:
     branches: [main, develop]
 
@@ -38,6 +43,92 @@ jobs:
         # and the autofix codemods.
         run: pnpm lint:tokens
 
+      - name: Lint (authorization guards)
+        # CRITICAL: enforces the impersonation-export guard and server-action
+        # guard discipline. Runs in `pnpm verify` (the Definition of Done) but
+        # was previously absent from CI — a PR could merge green while
+        # introducing an unguarded action. Keep CI in parity with `pnpm verify`.
+        #
+        # The four DB-backed fences (lint:rls, lint:scope-authz, lint:spine,
+        # lint:locality) are NOT here: this job has no Postgres, so all four
+        # would skip and report nothing. They run in the `test` job, which has
+        # the real stack.
+        run: pnpm lint:authz
+
+      - name: Lint (actions, UI, deps, guardrails)
+        run: pnpm lint:ui && pnpm lint:actions && pnpm lint:deps && pnpm lint:lib-root && pnpm lint:mocks && pnpm lint:buttons
+
+      - name: Lint (notifications single write path)
+        # Bans NEW direct db.insert(notifications). Every notification must go
+        # through createNotification()/createNotificationsBulk() in
+        # lib/infra/notification-service.ts (idempotent + dead-lettered).
+        # See scripts/check-notifications-service.ts and the 2026-07-04
+        # notifications consistency review.
+        run: pnpm lint:notifications
+
+      - name: Lint (atender walk-in owner alerts)
+        # The Atender walk-in writes clinical events with NO custody check — the
+        # PO's accepted mitigation is that the owner is always told. This derives
+        # the writer set from the module's own imports (a hand-written list would
+        # fail open on writer #8) and fails if any of them can reach success
+        # without completeAtenderSignature(). See scripts/check-atender-owner-alerts.ts.
+        run: pnpm lint:atender-alerts
+
+      - name: Lint (jurisdiction scope + authorization derivation)
+        # The scope layer's offline fences. Every one of these ran in `pnpm
+        # verify` and none had ever run in CI — see the parity note on the
+        # `lint:ci-parity` step below for how that happened.
+        run: >-
+          pnpm lint:scope && pnpm lint:view-scope &&
+          pnpm lint:authz-scoping && pnpm lint:authz-subsumption &&
+          pnpm lint:authz-orgtoken && pnpm lint:events
+
+      - name: Lint (metric contracts + query budget)
+        run: >-
+          pnpm lint:metric-labels && pnpm lint:metric-contract &&
+          pnpm lint:opened-reason && pnpm lint:db-budget && pnpm lint:timezone
+
+      - name: Lint (UI conventions)
+        run: >-
+          pnpm lint:select && pnpm lint:op-controls && pnpm lint:tablist && pnpm lint:eyebrow &&
+          pnpm lint:states && pnpm lint:empty-states && pnpm lint:screens &&
+          pnpm lint:icons && pnpm lint:maplibre && pnpm lint:hard-nav
+
+      - name: Lint (copy, brand, and identifiers)
+        run: >-
+          pnpm lint:copy-contract && pnpm lint:brand && pnpm lint:plural &&
+          pnpm lint:professionalism && pnpm lint:uuid && pnpm lint:dupes &&
+          pnpm lint:file-size && pnpm lint:seed-ids
+
+      - name: Lint (post-mutation redirect ban)
+        # The sibling of lint:nav. router.refresh() was already banned for this
+        # defect; redirect() inside a server action has the same one and nothing
+        # looked for it — which is how the LOGIN kept calling it three times on
+        # the app's busiest screen. Ratchets against
+        # scripts/action-redirect-baseline.json: existing calls are counted debt,
+        # a new one fails. See scripts/check-action-redirect.ts.
+        run: pnpm lint:action-redirect
+
+      - name: Lint (router.refresh ban)
+        # Nav burn-down N2 (2026-07-04): router.refresh() rides the App
+        # Router transition machinery with the production silent-drop defect
+        # (engram #621/#622). Post-mutation UI truth comes from full document
+        # navigation or optimistic local state — never router.refresh().
+        # See scripts/check-router-refresh.ts and
+        # docs/design/handoffs/2026-07-04-router-refresh-tiers.md.
+        run: pnpm lint:nav
+
+      - name: Lint (CI ↔ verify parity)
+        # The ratchet that keeps this workflow honest. `pnpm verify` is the
+        # Definition of Done and runs on one machine; CI is what blocks a merge.
+        # When a lint joins one and not the other they quietly stop meaning the
+        # same thing — measured 2026-07-27, verify ran 43 lints and this file ran
+        # 13, so 29 fences had never executed in CI once.
+        #
+        # Adding them was the easy half. This step is the half that lasts: add a
+        # lint to `verify` without adding it here and the build fails, naming it.
+        run: pnpm lint:ci-parity
+
       - name: Typecheck (tsc)
         run: pnpm typecheck
 
@@ -53,6 +144,14 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
           SUPABASE_SERVICE_ROLE_KEY: dummy_service_role_key
           DATABASE_URL: postgresql://postgres:postgres@localhost:54322/postgres
+
+      - name: Lint (CSP × prerender)
+        # Runs AFTER the build because it reads the build output. The CSP mints a
+        # per-request nonce and carries 'strict-dynamic', so a prerendered page
+        # ships with unnonce'd scripts and 100% of its JS is refused in prod: it
+        # renders and arrives dead. Found twice (the 404, then /recuperar); this
+        # is what stops the third.
+        run: pnpm lint:csp-prerender
 
   dep-audit:
     name: Dependency audit
@@ -104,7 +203,12 @@ jobs:
 
       - name: Audit dependencies (HIGH+)
         if: steps.skip-check.outputs.skip != 'true'
-        run: pnpm audit --audit-level=high
+        # GHSA-fx2h-pf6j-xcff (vite server.fs.deny bypass on Windows) is dev/test
+        # tooling only — vite ships via vitest + @vitejs/plugin-react, is NOT in
+        # the prod bundle, and the app never runs the vite dev server. Ignored by
+        # GHSA id so any NEW high/critical advisory still fails the gate.
+        # Remove once vitest / @vitejs/plugin-react pull vite >=8.0.16.
+        run: pnpm audit --audit-level=high --ignore GHSA-fx2h-pf6j-xcff
 
   migration-presence:
     name: Migration presence check
@@ -174,8 +278,13 @@ jobs:
     runs-on: ubuntu-latest
 
     # Catches schema.ts changes that aren't backed by a migration (or vice
-    # versa). Spins up a clean Postgres, applies the migrations, and asks
-    # drizzle-kit if `db:push` would change anything — if it would, drift exists.
+    # versa). Spins up a clean Postgres, applies the prerequisites, pushes
+    # schema.ts, and asks drizzle-kit whether a SECOND push would change
+    # anything — if it would, drift exists.
+    #
+    # It does NOT replay db/migrations/*.sql, despite what this comment said
+    # until 2026-07-27. The check is schema.ts against itself via push
+    # idempotency; the migration tree is covered by the `test` job's bootstrap.
     services:
       postgres:
         image: postgres:16
@@ -212,7 +321,15 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Apply migrations via drizzle-kit push
+      - name: Apply schema prerequisites
+        # push emits generated columns that call public.immutable_unaccent, so
+        # the function has to exist before it runs. On this job's bare Postgres
+        # it does not, and push fails partway while still exiting 0 — which is
+        # what made the drift check below report phantom drift rather than the
+        # missing function. See the header of db/prerequisites.sql.
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/prerequisites.sql
+
+      - name: Apply schema via drizzle-kit push
         run: pnpm db:push
 
       - name: Confirm zero pending changes
@@ -227,6 +344,11 @@ jobs:
         #
         #   1. pets.permanent_conditions — empty-array default
         #      (drizzle-orm 0.36 vs PG array default normalization)
+        #   1b. pets.dismissed_first_steps — same class, `'{}'::text[]` instead
+        #      of `ARRAY[]::text[]`. Added to schema.ts after this list was
+        #      written; nobody noticed because CI had not run since 2026-06-12.
+        #      It was the ONLY line of the eight that survived this filter on
+        #      2026-07-28, i.e. the entire drift failure.
         #   2. pet_achievement_views.pulse_until — `now() + interval '7 days'`
         #      (drizzle's sql template emits without parens, PG stores with)
         #   3. organization_coverage unique constraint — drizzle-kit 0.45 introspection
@@ -243,6 +365,7 @@ jobs:
           fi
           FILTERED=$(echo "$OUTPUT" \
             | grep -vF 'ALTER TABLE "pets" ALTER COLUMN "permanent_conditions" SET DEFAULT' \
+            | grep -vF 'ALTER TABLE "pets" ALTER COLUMN "dismissed_first_steps" SET DEFAULT' \
             | grep -vF 'ALTER TABLE "pet_achievement_views" ALTER COLUMN "pulse_until" SET DEFAULT' \
             | grep -vF 'ALTER TABLE "organization_coverage" DROP CONSTRAINT "org_coverage_org_province_locality_unique"' \
             | grep -vF 'ALTER TABLE "organization_coverage" ADD CONSTRAINT "org_coverage_org_province_locality_unique" UNIQUE NULLS NOT DISTINCT' \
@@ -258,7 +381,7 @@ jobs:
   test:
     name: Tests (vitest)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     # Tests need the full Supabase local stack (Postgres + GoTrue + PostgREST),
     # not just bare Postgres — 11 tests call admin.auth.admin.{listUsers,
@@ -271,12 +394,39 @@ jobs:
     # version family. The seed step's auth.admin.createUser calls need a
     # real local key (not a dummy) to land users that the trigger picks up.
     #
+    # NEXT_PUBLIC_SUPABASE_ANON_KEY is DELIBERATELY ABSENT from this map. It is
+    # exported by the `Extract Supabase env vars` step below (the same composite
+    # action the e2e job uses) once the stack is up. It used to be pinned here
+    # to the literal `dummy_anon_key`, and that placeholder is what made the
+    # `anon` row of __tests__/rls/matrix.test.ts vacuous: with no session,
+    # supabase-js sends the anon key as the bearer token, PostgREST rejected the
+    # malformed JWT with 401 before RLS ran, and the harness scored the empty
+    # result as "deny". 11 anon cells passed without evaluating a single policy.
+    # A job-level `env:` entry would also SHADOW the $GITHUB_ENV export, so do
+    # not "helpfully" add a default back.
+    #
     # timeout-minutes raised from 15 → 20 to account for v8 coverage
     # instrumentation overhead (~20-30% on a cold run).
+    #
+    # 2026-07-31: 20 → 30. The job had been finishing at 19m59s (run
+    # 30624892995, sha 324e853d) — ONE SECOND inside its own budget — and the
+    # next commit tipped it over. Two things made that invisible for however
+    # long it had been true:
+    #   - A green check reports "19:59" and "healthy" identically. Nothing
+    #     watches the margin, so the job was one commit from breaking for
+    #     anyone, not just whoever happened to push.
+    #   - GitHub reports a timeout-minutes kill as `cancelled`, not `failure`
+    #     (same trap the always()-vs-failure() note further down documents), so
+    #     the death read as flaky infrastructure rather than an exhausted
+    #     budget. It was neither: 13k tests plus ~4.5min of Supabase bootstrap
+    #     simply do not fit in 20.
+    # 30 leaves real headroom on a loaded runner while still killing a genuine
+    # hang. If this ever creeps past ~25 again, the answer is a faster suite,
+    # not another bump — raising it forever is how a timeout stops meaning
+    # anything.
     env:
       DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
       NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: dummy_anon_key
       SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
 
     steps:
@@ -304,11 +454,65 @@ jobs:
         # list if a future test needs it.
         run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
 
+      - name: Extract Supabase env vars
+        # Publishes the REAL anon key (and the rest of `supabase status -o env`)
+        # to $GITHUB_ENV for every step below. Same composite action the e2e job
+        # runs — one mechanism, so the two jobs cannot drift again.
+        #
+        # Placed before db:bootstrap so the seeding scripts and the test run see
+        # identical credentials.
+        uses: ./.github/actions/supabase-env
+
       - name: Bootstrap DB (schema + triggers + RLS + seeds)
         # One script replaces what used to be four CI steps: db:push, replay
         # migrations, apply db/*.sql (triggers/RLS/storage), seed reference
         # data + test users. See scripts/db-bootstrap.ts for the contract.
         run: pnpm db:bootstrap
+
+      - name: Seed the analytic population + build the cube
+        # Five suites measure a POPULATION, not a fixture: the outbreak history,
+        # the cube↔live parity, the province/locality choropleth rollups. On a
+        # database that only holds catalogues and six test users they assert
+        # against nothing and fail — which is exactly what the first CI run in
+        # six weeks reported.
+        #
+        # seed-panorama is a legitimate test fixture rather than demo furniture
+        # (the distinction PO decision D2 drew): a fixed-seed PRNG and a
+        # hardcoded anchor date make it byte-identical run to run, it is
+        # idempotent, and it emits pet_registered + seed_tag for every pet, so
+        # the spine fence below stays green — verified against 32,373 locally
+        # seeded PANO- pets, zero of them orphans.
+        #
+        # SCALE=0.0004 is ~4,800 pets, ~200 per province. The default (0.002,
+        # ~24,000) is more density than any assertion here needs and costs CI
+        # minutes for nothing; going much thinner risks k-anon censoring the
+        # very cells the rollup tests read.
+        #
+        # cube:refresh follows because cube-parity asserts the cube AGAINST the
+        # live query — with no cube built there is nothing to compare.
+        env:
+          SCALE: "0.0004"
+        run: pnpm seed:panorama && pnpm cube:refresh
+
+      - name: Lint (DB-backed security fences)
+        # The three fences in `pnpm verify` that need a real database. They live
+        # in this job and not in `check` because a DB-less box makes all three
+        # skip — honestly, and loudly, but a skip proves nothing. Here, right
+        # after bootstrap, they run against the same schema the tests will use.
+        #
+        #   lint:rls         every public table has RLS + at least one policy
+        #   lint:scope-authz the jurisdiction WHERE-clauses are backed by RLS
+        #   lint:spine       no pet exists as a cache row without its
+        #                    pet_registered event (invariant #3)
+        #   lint:locality    the INDEC locality catalogue is internally coherent
+        #
+        # These three close the DB-backed half of the CI ↔ `pnpm verify` drift.
+        # The offline half is still open and is WIDER than it looks: measured
+        # 2026-07-27, `verify` runs 43 lints and this workflow runs 14 of them.
+        # See docs/plans/ola1-spec-conflicts.md §SC-1 for the list and why
+        # closing it was left out of this batch. When you add a lint to
+        # `verify`, add it here or to `check` — the parity is the whole point.
+        run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine && pnpm lint:locality
 
       - name: Run tests with coverage (vitest)
         # Coverage-threshold enforcement (V1-9). The thresholds in
@@ -321,3 +525,124 @@ jobs:
       - name: Stop Supabase local stack
         if: always()
         run: pnpm exec supabase stop --no-backup
+
+  e2e:
+    name: E2E (Playwright)
+    runs-on: ubuntu-latest
+    # BACKSTOP, not the alarm. The alarm is `globalTimeout` in
+    # playwright.config.ts (22 min), which fails LOUD with an HTML report; this
+    # ceiling only catches runner pathology that Playwright itself can't see.
+    #
+    # Why it moved from 30 → 35 (measured 2026-07-31, runs 30513536370 /
+    # 30521111221 / 30521116031 — all three `cancelled` at the old ceiling):
+    #   setup (checkout → build)  5m30s – 6m00s   measured, worst of three
+    #   playwright globalTimeout        22m00s    hard cap on the suite itself
+    #   supabase stop + artifact  ~1m30s
+    #                             --------------
+    #                             ~29m30s worst case → 35 leaves real margin.
+    # At 30 the cap and the worst case were the same number, so globalTimeout
+    # could never fire and produce its report — the job would die first, which
+    # is the failure mode being fixed. Do not lower this without also lowering
+    # globalTimeout.
+    timeout-minutes: 35
+
+    # The e2e suite runs the built Next.js app against the real Supabase local
+    # stack. It needs the same stack the vitest job uses — but the app also
+    # needs the real ANON_KEY at runtime (not a dummy), because the browser
+    # auth flow calls the GoTrue API directly with it.
+    #
+    # SUPABASE_SERVICE_ROLE_KEY is the deterministic local-stack secret —
+    # same as in the vitest job. NEXT_PUBLIC_SUPABASE_ANON_KEY is extracted
+    # from `supabase status` after the stack starts.
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers (chromium only)
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start Supabase local stack
+        # Same exclusions as the vitest job — e2e tests don't need studio,
+        # inbucket, imgproxy, edge-runtime, or realtime.
+        run: pnpm exec supabase start --exclude studio,inbucket,imgproxy,edge-runtime,realtime
+
+      - name: Extract Supabase env vars for runtime
+        # Was an inline script AFTER db:bootstrap; now the shared composite
+        # action the vitest job also runs, hoisted above bootstrap so every
+        # later step in both jobs sees the same credentials.
+        #
+        # The move also fixed a live bug this copy carried: `supabase status
+        # -o env` QUOTES its values, and $GITHUB_ENV keeps the quotes, so the
+        # exported key was `"eyJ..."`. GoTrue tolerated it (it does not validate
+        # `apikey`) but PostgREST answered every browser-side read with
+        # 401 PGRST301. See .github/actions/supabase-env/action.yml.
+        uses: ./.github/actions/supabase-env
+
+      - name: Bootstrap DB (schema + triggers + RLS + seeds)
+        # Bootstraps the full schema, triggers, RLS policies, reference data,
+        # and test users (owner@dim.test / Test1234! — see scripts/seed-test-users.ts).
+        #
+        # No NEXT_PUBLIC_SUPABASE_ANON_KEY here: it used to be pinned to
+        # `dummy_anon_key`, and a step-level `env:` SHADOWS the $GITHUB_ENV
+        # export above. Inherit the real one.
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm db:bootstrap
+
+      - name: Build Next.js app
+        # The build step needs env vars to resolve module-level reads; the
+        # ANON_KEY extracted above is now available in the environment.
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+        run: pnpm build
+
+      - name: Run Playwright e2e suite
+        # NEXT_BUILT=1 tells playwright.config.ts to skip `pnpm build` in the
+        # webServer command (build already ran in the previous step).
+        # NEXT_PUBLIC_SUPABASE_ANON_KEY is set via ${{ env.* }} from the
+        # extract step above; the webServer (`next start`) reads it at runtime.
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ env.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz
+          PORT: "3333"
+          NEXT_BUILT: "1"
+        run: pnpm e2e
+
+      - name: Stop Supabase local stack
+        if: always()
+        run: pnpm exec supabase stop --no-backup
+
+      - name: Upload Playwright HTML report
+        # `always()`, not `failure()`: a job killed by `timeout-minutes` is
+        # CANCELLED, and `failure()` is false for a cancelled job — so the three
+        # dead runs of 2026-07-30 uploaded nothing and left no way to see where
+        # the suite had got to. The report is the only forensic artifact this
+        # job produces; upload it whatever the outcome.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7

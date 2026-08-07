@@ -135,26 +135,27 @@ create policy "Ownerships readable by self"
   to authenticated
   using (owner_user_id = auth.uid());
 
--- A user can only create ownership rows for themselves. Org-side inserts
--- (refugio portal) will get their own policy in a later pass.
-drop policy if exists "Ownerships insertable by self" on public.ownerships;
-create policy "Ownerships insertable by self"
-  on public.ownerships
-  for insert
-  to authenticated
-  with check (owner_user_id = auth.uid());
-
--- UPDATE for marking ended_at on transfers. Owner can only update their own rows.
-drop policy if exists "Ownerships updatable by self" on public.ownerships;
-create policy "Ownerships updatable by self"
-  on public.ownerships
-  for update
-  to authenticated
-  using (owner_user_id = auth.uid())
-  with check (owner_user_id = auth.uid());
-
--- No DELETE policy: ownership history is preserved by setting ended_at, not by
--- deleting rows.
+-- NO INSERT / UPDATE / DELETE POLICY — deny-all for writes (migration 0163,
+-- RA-8 finding R1).
+--
+-- This table used to carry "Ownerships insertable by self"
+-- (with check owner_user_id = auth.uid()) and "Ownerships updatable by self".
+-- Neither clause pinned `pet_id` to anything the caller already held, so a
+-- single POST /rest/v1/ownerships {"pet_id":"<victim>","owner_user_id":"<self>",
+-- "role":"co_owner"} minted an ACTIVE ownership on ANY pet in the country:
+-- ownerships_one_active_owner_per_pet is partial (role='owner' only), and every
+-- downstream policy — pets SELECT/UPDATE, pet_events SELECT/INSERT,
+-- attachments — tests for an ownership row with NO role filter. The UPDATE
+-- policy was the same hole via `pet_id` repointing.
+--
+-- Every legitimate writer (createPet, accept-transfer, adoption, foster,
+-- intake, free-claim, chip-match, dispute resolution, decomiso, owner-return,
+-- seeds) inserts through Drizzle's BYPASSRLS connection, which never consults
+-- these policies. Zero legitimate writers reach this table via PostgREST, so
+-- the policy that admits exactly them is no write policy at all.
+--
+-- Ownership history is preserved by setting ended_at, never by deleting rows —
+-- and that write, too, is server-side only.
 
 -- ============================================================================
 -- pet_events — APPEND-ONLY (AGENTS.md:39, 231, 465)
@@ -484,3 +485,30 @@ create policy "audit log visible to actor or admin"
 -- the append-only trigger (with app.allow_audit_mutation GUC bypass for
 -- test cleanup) — no RLS rule needed.
 
+
+-- ============================================================================
+-- pet_tags — physical tag lifecycle (migration 0169)
+-- ============================================================================
+alter table public.pet_tags enable row level security;
+
+-- SELECT own: the activating user, or a current owner of the linked pet.
+-- Explicit TO authenticated (0168 posture). The public /t/[serial] resolver
+-- reads through the server (BYPASSRLS) with a {status, publicToken}-only
+-- projection; anon never reads this table.
+drop policy if exists "pet_tags select own" on public.pet_tags;
+create policy "pet_tags select own"
+  on public.pet_tags
+  for select
+  to authenticated
+  using (
+    activated_by_user_id = (select auth.uid())
+    or pet_id in (
+      select o.pet_id from public.ownerships o
+      where o.owner_user_id = (select auth.uid())
+        and o.ended_at is null
+    )
+  );
+
+-- No INSERT / UPDATE / DELETE policies: issuance, activation and revocation
+-- flow through server actions (Drizzle BYPASSRLS). RLS is the PostgREST
+-- backstop only.

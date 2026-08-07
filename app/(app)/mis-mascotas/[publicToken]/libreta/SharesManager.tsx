@@ -1,38 +1,65 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState, useTransition } from "react";
 
 import {
   type CreateShareResult,
-  type RevokeShareResult,
   createLibretaShareAction,
   revokeLibretaShareAction,
 } from "@/app/actions/libreta-share";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { LnCheckbox } from "@/components/ui/Field";
 import type { LibretaShareToken } from "@/db/schema";
+import { notifySaved } from "@/lib/ui/action-feedback";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 type Props = {
   petPublicToken: string;
   shares: LibretaShareToken[];
+  /**
+   * Fired once after a link is successfully created, so the parent can
+   * re-fetch the active-shares list. This component's list is a mirror of the
+   * `shares` prop, which is a mount-time snapshot — without a parent re-fetch a
+   * newly created link never appears until reload (staging regression O-3).
+   */
+  onShareCreated?: () => void;
 };
 
 const DURATION_OPTIONS = [
-  { label: "7 dias", days: 7 },
-  { label: "30 dias", days: 30 },
-  { label: "90 dias", days: 90 },
+  { label: "7 días", days: 7 },
+  { label: "30 días", days: 30 },
+  { label: "90 días", days: 90 },
   { label: "Sin vencimiento", days: null },
 ] as const;
 
 const initialCreateState: CreateShareResult | null = null;
-const initialRevokeState: RevokeShareResult | null = null;
 
-export function SharesManager({ petPublicToken, shares }: Props) {
+export function SharesManager({ petPublicToken, shares, onShareCreated }: Props) {
   const [creating, setCreating] = useState(false);
   const [expiresInDays, setExpiresInDays] = useState<number | null>(30);
   const [noExpiryConfirmed, setNoExpiryConfirmed] = useState(false);
   const [label, setLabel] = useState("");
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
-  const [revokingId, setRevokingId] = useState<string | null>(null);
+  // The share pending a revoke confirmation — null when the dialog is closed.
+  const [confirmingShare, setConfirmingShare] = useState<LibretaShareToken | null>(null);
+  const [revokeError, setRevokeError] = useState<string | null>(null);
+  const [isRevoking, startRevokeTransition] = useTransition();
+  // The just-created share token whose "Enlace generado" box has been
+  // dismissed — cleared independently of `newShareToken` (which comes from
+  // `createState` and can't be reset directly) so revoking that same link
+  // also clears its box instead of leaving a dead link on screen.
+  const [dismissedToken, setDismissedToken] = useState<string | null>(null);
+  const revokeTriggerRef = useRef<HTMLButtonElement | null>(null);
+  // Mirrors the `shares` prop but can also be trimmed locally on a
+  // successful revoke — revalidatePath() (server action) only refreshes
+  // RSC trees, it doesn't touch this already-mounted client component's
+  // state, so without this the revoked row + its "Revocar" button stayed
+  // live until a hard reload.
+  const [localShares, setLocalShares] = useState(shares);
+
+  useEffect(() => {
+    setLocalShares(shares);
+  }, [shares]);
 
   const [createState, createAction, createPending] = useActionState(
     async (_prev: CreateShareResult | null, formData: FormData) => {
@@ -48,13 +75,40 @@ export function SharesManager({ petPublicToken, shares }: Props) {
     initialCreateState,
   );
 
-  const [revokeState, revokeAction, revokePending] = useActionState(
-    async (_prev: RevokeShareResult | null, formData: FormData) => {
-      const id = formData.get("shareTokenRowId") as string;
-      return revokeLibretaShareAction(id);
-    },
-    initialRevokeState,
-  );
+  // Revoking requires a confirm step (matches the weight-correction
+  // double-confirm pattern) so a stray tap can't silently kill a link a vet
+  // or family member is actively using. Called from the ConfirmDialog, not
+  // straight off the row button click.
+  function handleConfirmRevoke() {
+    const target = confirmingShare;
+    if (!target) return;
+    setRevokeError(null);
+    startRevokeTransition(async () => {
+      const result = await revokeLibretaShareAction(target.id);
+      if ("error" in result) {
+        setRevokeError(result.error);
+        setConfirmingShare(null);
+        return;
+      }
+      setLocalShares((prev) => prev.filter((s) => s.id !== target.id));
+      if (newShareToken && target.shareToken === newShareToken) {
+        setDismissedToken(newShareToken);
+      }
+      setConfirmingShare(null);
+      // No reload here (revalidatePath alone doesn't touch this already-
+      // mounted client list) — the toast is the confirmation (mutation-
+      // feedback convention, lib/ui/action-feedback.ts).
+      notifySaved("Enlace revocado");
+    });
+  }
+
+  // On a successful create, ask the parent to re-fetch the active-shares list
+  // so the just-generated link shows up in "Enlaces activos" immediately
+  // (staging regression O-3). The parent pushing a fresh `shares` prop syncs
+  // into localShares via the effect above.
+  useEffect(() => {
+    if (createState && "shareToken" in createState) onShareCreated?.();
+  }, [createState, onShareCreated]);
 
   function buildShareUrl(token: string): string {
     return `${window.location.origin}/libreta/compartir/${token}`;
@@ -67,9 +121,13 @@ export function SharesManager({ petPublicToken, shares }: Props) {
     });
   }
 
-  const newShareToken = createState && "shareToken" in createState ? createState.shareToken : null;
+  const rawNewShareToken =
+    createState && "shareToken" in createState ? createState.shareToken : null;
+  // Suppressed once its own share row has been revoked (see handleConfirmRevoke)
+  // so the "Enlace generado" box doesn't keep showing a link that no longer works.
+  const newShareToken =
+    rawNewShareToken && rawNewShareToken !== dismissedToken ? rawNewShareToken : null;
   const createError = createState && "error" in createState ? createState.error : null;
-  const revokeError = revokeState && "error" in revokeState ? revokeState.error : null;
 
   return (
     <section className="space-y-4 print:hidden">
@@ -82,7 +140,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               setCreating(true);
               setCopiedToken(null);
             }}
-            className="text-xs px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Nuevo enlace
           </button>
@@ -93,7 +151,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
       {creating && (
         <form
           action={createAction}
-          className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4"
+          className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-4"
         >
           <div className="space-y-1">
             <label className="text-xs text-[var(--color-ln-ink-2)]" htmlFor="share-label">
@@ -106,7 +164,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
               value={label}
               onChange={(e) => setLabel(e.target.value)}
               placeholder="Ej: Para Dra. Perez"
-              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-1.5 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3 py-1.5 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
 
@@ -152,12 +210,12 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 <input
                   readOnly
                   value={buildShareUrl(newShareToken)}
-                  className="flex-1 text-xs font-mono rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-1.5 focus:outline-none"
+                  className="flex-1 text-xs font-mono rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-1.5"
                 />
                 <button
                   type="button"
                   onClick={() => copyToClipboard(newShareToken)}
-                  className="text-xs px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   {copiedToken === newShareToken ? "Copiado" : "Copiar"}
                 </button>
@@ -169,7 +227,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
             <button
               type="submit"
               disabled={createPending || (expiresInDays === null && !noExpiryConfirmed)}
-              className="text-xs px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-50"
+              className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-50"
             >
               {createPending ? "Creando..." : "Crear enlace"}
             </button>
@@ -181,7 +239,7 @@ export function SharesManager({ petPublicToken, shares }: Props) {
                 setExpiresInDays(30);
                 setNoExpiryConfirmed(false);
               }}
-              className="text-xs px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+              className="text-xs px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
             >
               Cancelar
             </button>
@@ -190,48 +248,49 @@ export function SharesManager({ petPublicToken, shares }: Props) {
       )}
 
       {/* Active shares list */}
-      {shares.length > 0 ? (
+      {localShares.length > 0 ? (
         <ul className="space-y-2">
-          {shares.map((share) => (
+          {localShares.map((share) => (
             <li
               key={share.id}
-              className="flex items-start justify-between gap-3 rounded-[4px] border border-[var(--color-ln-line)] px-3 py-2.5"
+              className="flex items-start justify-between gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] px-3 py-2.5"
             >
               <div className="space-y-0.5 min-w-0">
                 <p className="text-xs font-medium text-[var(--color-ln-ink)] truncate">
                   {share.label ?? "Sin etiqueta"}
                 </p>
-                <p className="text-[10px] text-[var(--color-ln-mute)]">
+                <p className="text-xs text-[var(--color-ln-mute)]">
                   {share.expiresAt
-                    ? `Vence ${new Date(share.expiresAt).toLocaleDateString("es-AR")}`
+                    ? `Vence ${new Date(share.expiresAt).toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}`
                     : "Sin vencimiento"}
                   {" · "}
                   {share.viewCountCached === 0
                     ? "Sin vistas"
                     : `${share.viewCountCached} vista${share.viewCountCached !== 1 ? "s" : ""}`}
                   {share.lastViewedAtCached &&
-                    ` · Ultima: ${new Date(share.lastViewedAtCached).toLocaleDateString("es-AR")}`}
+                    ` · Última: ${new Date(share.lastViewedAtCached).toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}`}
                 </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={() => copyToClipboard(share.shareToken)}
-                  className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="text-xs px-2 py-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   {copiedToken === share.shareToken ? "Copiado" : "Copiar"}
                 </button>
-                <form action={revokeAction}>
-                  <input type="hidden" name="shareTokenRowId" value={share.id} />
-                  <button
-                    type="submit"
-                    disabled={revokePending && revokingId === share.id}
-                    onClick={() => setRevokingId(share.id)}
-                    className="text-[10px] px-2 py-1 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
-                  >
-                    Revocar
-                  </button>
-                </form>
+                <button
+                  type="button"
+                  disabled={isRevoking && confirmingShare?.id === share.id}
+                  onClick={(e) => {
+                    revokeTriggerRef.current = e.currentTarget;
+                    setRevokeError(null);
+                    setConfirmingShare(share);
+                  }}
+                  className="text-xs px-2 py-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors disabled:opacity-50"
+                >
+                  Revocar
+                </button>
               </div>
             </li>
           ))}
@@ -245,6 +304,18 @@ export function SharesManager({ petPublicToken, shares }: Props) {
       )}
 
       {revokeError && <p className="text-xs text-[var(--color-ln-err)]">{revokeError}</p>}
+
+      <ConfirmDialog
+        open={confirmingShare !== null}
+        onClose={() => setConfirmingShare(null)}
+        onConfirm={handleConfirmRevoke}
+        title={`¿Revocar el enlace${confirmingShare?.label ? ` "${confirmingShare.label}"` : ""}?`}
+        description="Quien lo tenga guardado deja de poder ver la libreta al instante. Esta acción no se puede deshacer."
+        confirmLabel="Revocar"
+        tone="danger"
+        pending={isRevoking}
+        triggerRef={revokeTriggerRef}
+      />
     </section>
   );
 }

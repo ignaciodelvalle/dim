@@ -8,8 +8,11 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { hashDni } from "@/lib/utils/dni-hash";
+
 import {
   attachments,
+  cases,
   db,
   organizations,
   ownerships,
@@ -47,7 +50,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: actorUserId,
     displayName: "AdoptionRepo Actor",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: false,
     role: "owner",
   });
@@ -185,7 +188,7 @@ describe("AdoptionRepository.findActiveFoster", () => {
     await db.insert(profiles).values({
       id: fosterProfileId,
       displayName: "FosterTestUser",
-      dniNumber: `9${Math.floor(Math.random() * 9000000 + 1000000)}`,
+      dniHash: hashDni(`9${Math.floor(Math.random() * 9000000 + 1000000)}`),
       dniVerified: false,
       role: "owner",
     });
@@ -344,15 +347,34 @@ const ORG_DISPLAY_NAME = "Repo Test Refugio";
 // Pet name as inserted in beforeAll.
 const PET_NAME = "RepoTestPet1";
 
+type FinalizeTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Seeds the adopter's profile row.
+ *
+ * The repo does NOT create it: the stub-profile insert was removed once
+ * finalize-adoption started refusing anything but a REGISTERED account, so the
+ * new owner row's FK needs a profile that already exists. Callers seed it in
+ * the SAME transaction, so a rolled-back fixture leaves nothing behind.
+ */
+async function seedAdopterProfile(tx: FinalizeTx, adopterUserId: string): Promise<void> {
+  await tx.insert(profiles).values({
+    id: adopterUserId,
+    displayName: "Test Adoptante",
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
+    dniVerified: false,
+    role: "owner",
+  });
+}
+
 /**
  * Builds a minimal valid InsertAdoptionFinalizedArgs for parity tests.
- * Uses a fresh adopterUserId (stub profile) per call so tests don't conflict.
+ * The caller passes the adopter id it has already seeded (seedAdopterProfile).
  */
 function makeFinalizeArgs(
+  adopterUserId: string,
   overrides: Record<string, unknown> = {},
 ): Parameters<typeof AdoptionRepository.insertAdoptionFinalized>[0] {
-  const adopterUserId = crypto.randomUUID();
-  const dni = `${Math.floor(Math.random() * 90000000 + 10000000)}`;
   return {
     petId: petId1,
     userId: actorUserId,
@@ -360,13 +382,9 @@ function makeFinalizeArgs(
     orgVerified: true,
     custodyOwnershipId: custodyOwnershipId1,
     adopterUserId,
-    isStubAdopter: true,
     fosterRow: null,
     fosterUserId: null,
     custodyCaseId: null,
-    displayName: "Test Adoptante",
-    phone: null,
-    dni,
     contractAttachmentId: null,
     contractStoragePath: null,
     contractMimeType: null,
@@ -392,8 +410,10 @@ describe("W-1 parity: insertAdoptionFinalized inserts attachments row inside tx"
 
     await db
       .transaction(async (tx) => {
+        const adopterUserId = crypto.randomUUID();
+        await seedAdopterProfile(tx, adopterUserId);
         const { eventId } = await AdoptionRepository.insertAdoptionFinalized(
-          makeFinalizeArgs({
+          makeFinalizeArgs(adopterUserId, {
             contractAttachmentId,
             contractStoragePath: storagePath,
             contractMimeType: mimeType,
@@ -441,8 +461,10 @@ describe("W-1 parity: insertAdoptionFinalized inserts attachments row inside tx"
 
     await db
       .transaction(async (tx) => {
+        const adopterUserId = crypto.randomUUID();
+        await seedAdopterProfile(tx, adopterUserId);
         await AdoptionRepository.insertAdoptionFinalized(
-          makeFinalizeArgs({ contractAttachmentId: null }),
+          makeFinalizeArgs(adopterUserId, { contractAttachmentId: null }),
           tx,
         );
         throw new Error("intentional rollback");
@@ -469,24 +491,11 @@ describe("W-2 parity: reminder description uses org displayName and pet name", (
 
     await db
       .transaction(async (tx) => {
-        // Insert a minimal personal profile for the adopter.
-        await tx.insert(profiles).values({
-          id: adopterUserId,
-          displayName: "Adopter W2 Test",
-          dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
-          dniVerified: true,
-          role: "owner",
-        });
+        await seedAdopterProfile(tx, adopterUserId);
 
         await AdoptionRepository.insertAdoptionFinalized(
-          makeFinalizeArgs({
-            // Non-stub adopter with followup months so reminders are inserted.
-            isStubAdopter: false,
-            followupMonths: 1,
-            adopterUserId,
-            // No stub profile insert (isStubAdopter=false, profile already created above).
-            dni: null,
-          }),
+          // Followup months set so the reminder rows are inserted.
+          makeFinalizeArgs(adopterUserId, { followupMonths: 1 }),
           tx,
         );
 
@@ -510,5 +519,407 @@ describe("W-2 parity: reminder description uses org displayName and pet name", (
     expect(capturedDescription).toBe(
       `${ORG_DISPLAY_NAME} pidió un check-in sobre ${PET_NAME}. Subí fotos y contanos cómo está.`,
     );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Bugfix regression: case records were never opened for adoption events.
+//
+// setEligibility() and insertApplication() insert pet_events rows without
+// ever calling openCase(), despite CASE_ATTACHMENT_RULES declaring
+// opensKind: "adoption_listing" / "adoption_application" for these event
+// kinds. case_id is append-only on pet_events (DB trigger), so the
+// open-or-attach decision has to be made atomically with the insert — these
+// tests cover that wiring directly against Postgres (not mocks).
+// ---------------------------------------------------------------------------
+
+describe("AdoptionRepository — case-opening wiring (bugfix)", () => {
+  describe("setEligibility", () => {
+    it("opens an adoption_listing case and attaches its id to the pet_event when eligible=true", async () => {
+      const now = new Date();
+
+      await db.transaction(async (tx) => {
+        await AdoptionRepository.setEligibility(
+          {
+            petId: petId2,
+            eligible: true,
+            ineligibleReason: null,
+            ineligibleReasonNotes: null,
+            ineligibleUntil: null,
+            now,
+            userId: actorUserId,
+            orgId,
+            orgVerified: true,
+            previousState: null,
+          },
+          tx,
+        );
+      });
+
+      const [event] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(
+          and(eq(petEvents.petId, petId2), eq(petEvents.eventType, "adoption_eligibility_set")),
+        )
+        .limit(1);
+
+      expect(event?.caseId).not.toBeNull();
+
+      const [caseRow] = await db
+        .select()
+        .from(cases)
+        .where(eq(cases.id, event?.caseId as string));
+
+      expect(caseRow).toBeTruthy();
+      expect(caseRow.caseKind).toBe("adoption_listing");
+      expect(caseRow.status).toBe("open");
+      expect(caseRow.primaryPetId).toBe(petId2);
+      expect(caseRow.openedByOrganizationId).toBe(orgId);
+    });
+  });
+
+  describe("insertApplication", () => {
+    let applicantAId: string;
+    let applicantBId: string;
+
+    beforeAll(async () => {
+      applicantAId = crypto.randomUUID();
+      applicantBId = crypto.randomUUID();
+      await db.insert(profiles).values([
+        {
+          id: applicantAId,
+          displayName: "Applicant A",
+          dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
+          dniVerified: false,
+          role: "owner",
+        },
+        {
+          id: applicantBId,
+          displayName: "Applicant B",
+          dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
+          dniVerified: false,
+          role: "owner",
+        },
+      ]);
+    });
+
+    afterAll(async () => {
+      // Deleting these profiles cascades to SET NULL on
+      // pet_events.recorded_by_user_id, which is an UPDATE on pet_events —
+      // the append-only trigger blocks that without the escape hatch.
+      await withMutationOverride(async (tx) => {
+        await tx.delete(profiles).where(eq(profiles.id, applicantAId));
+        await tx.delete(profiles).where(eq(profiles.id, applicantBId));
+      });
+    });
+
+    it("opens an adoption_application case on the first application and attaches its id to the pet_event", async () => {
+      let eventId = "";
+
+      await db.transaction(async (tx) => {
+        const result = await AdoptionRepository.insertApplication(
+          {
+            petId: petId2,
+            userId: applicantAId,
+            orgId,
+            housingType: "casa_con_patio",
+            otherPets: null,
+            dailyRoutine: null,
+            notes: null,
+            motivation: "Quiero darle un hogar seguro.",
+            priorPets: "no",
+            now: new Date(),
+          },
+          tx,
+        );
+        eventId = result.eventId;
+      });
+
+      const [event] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(eq(petEvents.id, eventId));
+
+      expect(event?.caseId).not.toBeNull();
+
+      const [caseRow] = await db
+        .select()
+        .from(cases)
+        .where(eq(cases.id, event?.caseId as string));
+
+      expect(caseRow).toBeTruthy();
+      expect(caseRow.caseKind).toBe("adoption_application");
+      expect(caseRow.status).toBe("open");
+      expect(caseRow.primaryPetId).toBe(petId2);
+      expect(caseRow.applicantUserId).toBe(applicantAId);
+    });
+
+    it("opens a SECOND, distinct adoption_application case for a second application from a DIFFERENT applicant", async () => {
+      // CASE_ATTACHMENT_RULES.adoption_application_submitted is mode "opens",
+      // but the production lookup (findOpenAdoptionApplicationCase) is scoped
+      // by (petId, applicantUserId) — matching the partial unique index
+      // `cases_open_adoption_app_per_applicant_idx`, which allows multiple
+      // applicants to each hold their own concurrent open
+      // adoption_application case for the same pet. So a second applicant's
+      // submission must NOT attach to the first applicant's still-open case
+      // — it opens its own.
+      let firstEventId = "";
+      await db.transaction(async (tx) => {
+        const result = await AdoptionRepository.insertApplication(
+          {
+            petId: petId2,
+            userId: applicantAId,
+            orgId,
+            housingType: "casa_con_patio",
+            otherPets: null,
+            dailyRoutine: null,
+            notes: null,
+            motivation: "Quiero darle un hogar seguro.",
+            priorPets: "no",
+            now: new Date(),
+          },
+          tx,
+        );
+        firstEventId = result.eventId;
+      });
+
+      let secondEventId = "";
+      await db.transaction(async (tx) => {
+        const result = await AdoptionRepository.insertApplication(
+          {
+            petId: petId2,
+            userId: applicantBId,
+            orgId,
+            housingType: "departamento",
+            otherPets: null,
+            dailyRoutine: null,
+            notes: null,
+            motivation: "Quiero darle un hogar seguro.",
+            priorPets: "no",
+            now: new Date(),
+          },
+          tx,
+        );
+        secondEventId = result.eventId;
+      });
+
+      const [firstEvent] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(eq(petEvents.id, firstEventId));
+      const [secondEvent] = await db
+        .select({ caseId: petEvents.caseId })
+        .from(petEvents)
+        .where(eq(petEvents.id, secondEventId));
+
+      expect(firstEvent?.caseId).not.toBeNull();
+      expect(secondEvent?.caseId).not.toBeNull();
+      // Distinct cases — the second applicant does NOT attach to the first's.
+      expect(secondEvent?.caseId).not.toBe(firstEvent?.caseId);
+
+      const openCases = await db
+        .select()
+        .from(cases)
+        .where(and(eq(cases.primaryPetId, petId2), eq(cases.caseKind, "adoption_application")));
+
+      expect(openCases).toHaveLength(2);
+      expect(openCases.every((c) => c.status === "open")).toBe(true);
+      expect(new Set(openCases.map((c) => c.applicantUserId))).toEqual(
+        new Set([applicantAId, applicantBId]),
+      );
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Adoption reversal (adoption-reversal facade harvest, 2026-07-21)
+//
+// PO-locked semantics: reversing a finalized adoption returns custody to the
+// finalizing org's shelter_custody and forces the pet UN-LISTED — the org
+// must explicitly re-publish. Fixture: a genuinely-finalized adoption
+// (via the real insertAdoptionFinalized, committed — not a rolled-back tx)
+// so findReversibleAdoption/insertAdoptionReversed exercise real Postgres
+// state, not a fake.
+// ---------------------------------------------------------------------------
+
+describe("AdoptionRepository — reversal (findReversibleAdoption / insertAdoptionReversed)", () => {
+  const PET_TOKEN_REV = "DIM-ADOPTREP-REV";
+  const PET_NAME_REV = "RepoTestPetRev";
+  let petIdRev: string;
+  let custodyOwnershipIdRev: string;
+  let adopterUserIdRev: string;
+  let finalizeEventIdRev: string;
+
+  beforeAll(async () => {
+    // Fresh pet, in shelter_custody for `orgId`, adoption-eligible AND listed
+    // (adoptionListedAt set) — this is exactly the stale-listing risk
+    // insertAdoptionReversed must defend against: finalize never clears
+    // adoptionListedAt, so a naive reversal that only restores shelter_custody
+    // would silently resurrect this pet on /adoptar.
+    const [pet] = await db
+      .insert(pets)
+      .values({
+        publicToken: PET_TOKEN_REV,
+        name: PET_NAME_REV,
+        species: "dog",
+        sex: "female",
+        potentiallyDangerousBreed: false,
+        status: "active",
+        adoptionEligible: true,
+        adoptionEligibilitySetAt: new Date(),
+        adoptionListedAt: new Date(),
+      })
+      .returning();
+    petIdRev = pet.id;
+
+    const [custody] = await db
+      .insert(ownerships)
+      .values({ petId: petIdRev, ownerOrganizationId: orgId, role: "shelter_custody" })
+      .returning();
+    custodyOwnershipIdRev = custody.id;
+
+    adopterUserIdRev = crypto.randomUUID();
+
+    // Genuine finalize (committed, via the real repo method) — the fixture
+    // the reversal tests need: a real adoption_finalized event + owner row.
+    await db.transaction(async (tx) => {
+      // The adopter profile is seeded here, not by the repo: the stub-insert
+      // branch is gone (adopters are always registered accounts).
+      await seedAdopterProfile(tx, adopterUserIdRev);
+      const { eventId } = await AdoptionRepository.insertAdoptionFinalized(
+        {
+          petId: petIdRev,
+          userId: actorUserId,
+          orgId,
+          orgVerified: true,
+          custodyOwnershipId: custodyOwnershipIdRev,
+          adopterUserId: adopterUserIdRev,
+          fosterRow: null,
+          fosterUserId: null,
+          custodyCaseId: null,
+          contractAttachmentId: null,
+          contractStoragePath: null,
+          contractMimeType: null,
+          contractFileSize: null,
+          followupMonths: null,
+          notes: null,
+          orgDisplayName: ORG_DISPLAY_NAME,
+          petName: PET_NAME_REV,
+          now: new Date(),
+        },
+        tx,
+      );
+      finalizeEventIdRev = eventId;
+    });
+  });
+
+  afterAll(async () => {
+    // Deleting the pet cascades to ownerships/pet_events (append-only trigger
+    // needs the mutation override, same as petId1/petId2's cleanup above).
+    await withMutationOverride(async (tx) => {
+      await tx.delete(pets).where(eq(pets.id, petIdRev));
+      await tx.delete(profiles).where(eq(profiles.id, adopterUserIdRev));
+    });
+  });
+
+  it("rejects reversal for an org that did not finalize this adoption", async () => {
+    const result = await AdoptionRepository.findReversibleAdoption(
+      petIdRev,
+      "00000000-0000-0000-0000-000000000000",
+    );
+    expect(result.ok).toBe(false);
+  });
+
+  it("finds the reversible adoption for the finalizing org", async () => {
+    const result = await AdoptionRepository.findReversibleAdoption(petIdRev, orgId);
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.finalizeEventId).toBe(finalizeEventIdRev);
+      expect(result.adopterUserId).toBe(adopterUserIdRev);
+      expect(result.petName).toBe(PET_NAME_REV);
+    }
+  });
+
+  it("reverses: closes the owner row, restores shelter_custody for the org, " +
+    "un-lists the pet, appends adoption_reversed, leaves adoption_finalized untouched", async () => {
+    const reversible = await AdoptionRepository.findReversibleAdoption(petIdRev, orgId);
+    expect(reversible.ok).toBe(true);
+    if (!reversible.ok) return;
+
+    let reversedEventId = "";
+    await db.transaction(async (tx) => {
+      const { eventId } = await AdoptionRepository.insertAdoptionReversed(
+        {
+          petId: petIdRev,
+          userId: actorUserId,
+          orgId,
+          orgVerified: true,
+          adopterOwnershipId: reversible.adopterOwnershipId,
+          finalizeEventId: reversible.finalizeEventId,
+          reason: "Test: unit reversal",
+          now: new Date(),
+        },
+        tx,
+      );
+      reversedEventId = eventId;
+    });
+
+    // The adopter's owner row is closed.
+    const [ownerRow] = await db
+      .select({ endedAt: ownerships.endedAt })
+      .from(ownerships)
+      .where(eq(ownerships.id, reversible.adopterOwnershipId));
+    expect(ownerRow.endedAt).not.toBeNull();
+
+    // Custody returned to the finalizing org: a fresh active shelter_custody row.
+    const [custodyRow] = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petIdRev),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      );
+    expect(custodyRow).toBeTruthy();
+
+    // The pet is UN-LISTED (it was listed going in) — org must re-publish.
+    const [petRow] = await db
+      .select({
+        adoptionListedAt: pets.adoptionListedAt,
+        adoptionListingPausedAt: pets.adoptionListingPausedAt,
+      })
+      .from(pets)
+      .where(eq(pets.id, petIdRev));
+    expect(petRow.adoptionListedAt).toBeNull();
+    expect(petRow.adoptionListingPausedAt).toBeNull();
+
+    // adoption_finalized is append-only — untouched, still there.
+    const [finalizeEvent] = await db
+      .select({ id: petEvents.id, eventType: petEvents.eventType })
+      .from(petEvents)
+      .where(eq(petEvents.id, finalizeEventIdRev));
+    expect(finalizeEvent).toBeTruthy();
+    expect(finalizeEvent.eventType).toBe("adoption_finalized");
+
+    // adoption_reversed is a NEW event, referencing the finalize event.
+    const [reversedEvent] = await db
+      .select({ eventType: petEvents.eventType, payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, reversedEventId));
+    expect(reversedEvent).toBeTruthy();
+    expect(reversedEvent.eventType).toBe("adoption_reversed");
+    const payload = reversedEvent.payload as Record<string, unknown>;
+    expect(payload.reverted_finalization_event_id).toBe(finalizeEventIdRev);
+    expect(payload.actor).toBe("shelter");
+  });
+
+  it("rejects a double-reverse — the same adoption cannot be reversed twice", async () => {
+    // The previous test already committed a reversal for this pet/org pair.
+    const result = await AdoptionRepository.findReversibleAdoption(petIdRev, orgId);
+    expect(result.ok).toBe(false);
   });
 });

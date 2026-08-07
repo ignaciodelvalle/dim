@@ -6,7 +6,7 @@
 // Runs against the local Supabase + Postgres stack (127.0.0.1:54321/54322).
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -17,10 +17,10 @@ vi.mock("next/cache", () => ({
   revalidatePath: vi.fn(),
 }));
 
-import { createOrganizationForUser } from "@/app/actions/upgrade";
 import { db, organizationMemberships, organizations, profiles } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { updateOrganizationForUser } from "@/src/modules/organizations/actions";
+import { updateOrganizationForUser } from "@/src/modules/organizations/actions.internal";
+import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

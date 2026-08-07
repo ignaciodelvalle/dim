@@ -21,10 +21,11 @@
 
 import "server-only";
 
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { signalAuthorityReport } from "@/lib/authority";
-import { closeCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { type AuthoritySignalResult, signalAuthorityReport } from "@/lib/domain/authority";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { closeCase } from "@/lib/infra/case-helpers";
+import { dispositionMethodLabel } from "@/lib/utils/format";
 
 type CaseExecutor = Parameters<typeof closeCase>[1];
 
@@ -86,6 +87,13 @@ export type CreateDeathRecordResult =
       insertedEventId: string | null;
       rabiesObservationClosed: boolean;
       diseaseCode: string | null;
+      /**
+       * Honest authority-transmission state for reportable deaths (G7):
+       * `{ delivered: false, v1_noop: true, ... }` until the SNVS 2.0 API
+       * exists. Null when no report obligation applied (non-reportable death
+       * or idempotency noop). Callers must never render this as "sent".
+       */
+      authoritySignal: AuthoritySignalResult | null;
     }
   | { ok: false; error: string };
 
@@ -337,8 +345,12 @@ export async function createDeathRecord(
   await deps.flushNotifications(pendingNotifications);
 
   // Post-tx: signal authority report when disease is reportable.
+  // G7: no longer a silent no-op — signalAuthorityReport durably records the
+  // pending-transmission obligation (audit_log, v1_noop marker) and returns
+  // the honest { delivered: false } state surfaced in this use-case's result.
+  let authoritySignal: AuthoritySignalResult | null = null;
   if (isReportable && diseaseCode && insertedEventId) {
-    await signalAuthorityReport({
+    authoritySignal = await signalAuthorityReport({
       eventId: insertedEventId,
       petId: pet.id,
       diseaseCode,
@@ -346,6 +358,7 @@ export async function createDeathRecord(
       occurredAt,
       jurisdictionProvince: pet.jurisdictionProvince ?? null,
       jurisdictionLocality: pet.jurisdictionLocality ?? null,
+      reportedByUserId: recordedByUserId,
     });
   }
 
@@ -359,13 +372,19 @@ export async function createDeathRecord(
         });
         if (authorityIds.length > 0) {
           const { db, notifications } = await import("@/db");
+          // The disposal is always named (compliant or not): the authority's
+          // first question after a death-in-observation is whether the body
+          // remains analyzable — "sin registrar" is itself signal.
+          const dispositionSentence = `Disposición declarada: ${
+            dispositionMethod ? dispositionMethodLabel(dispositionMethod) : "sin registrar"
+          }${facility ? ` (${facility})` : ""}.`;
           await db.insert(notifications).values(
             authorityIds.map((authorityId) => ({
               userId: authorityId,
               notificationType: "rabies_observation_completed_dead_authority",
               severity: "urgent" as const,
               title: `URGENTE — fallecimiento durante observación antirrábica (${pet.name})`,
-              body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. Requiere revisión inmediata por riesgo de rabia.`,
+              body: `La mascota falleció dentro del período de 10 días de observación post-mordedura. Causa declarada: ${cause}. ${dispositionSentence} Requiere revisión inmediata por riesgo de rabia.`,
               relatedPetId: pet.id,
               relatedEventId: insertedEventId as string,
               // Authority recipient: surveillance hub (cannot open /mis-mascotas).
@@ -380,5 +399,5 @@ export async function createDeathRecord(
     }
   }
 
-  return { ok: true, insertedEventId, rabiesObservationClosed, diseaseCode };
+  return { ok: true, insertedEventId, rabiesObservationClosed, diseaseCode, authoritySignal };
 }

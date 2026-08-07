@@ -13,7 +13,7 @@
 export function AttachmentField() {
   return (
     <div className="flex flex-col gap-[5px]">
-      <span className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+      <span className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
         Foto adjunta{" "}
         <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
           opcional
@@ -21,7 +21,7 @@ export function AttachmentField() {
       </span>
       <label
         htmlFor="attachment"
-        className="flex cursor-pointer items-center justify-center gap-[9px] rounded-[5px] border-[1.5px] border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[16px] py-[16px] text-[12px] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-line-2)]"
+        className="flex cursor-pointer items-center justify-center gap-[9px] rounded-[var(--radius-md)] border-[1.5px] border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-4 py-4 text-sm text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-line-2)]"
       >
         {/* Paperclip */}
         <svg
@@ -40,7 +40,7 @@ export function AttachmentField() {
         <span>Elegir imagen adjunta — hasta 5 MB</span>
       </label>
       <input id="attachment" name="attachment" type="file" accept="image/*" className="sr-only" />
-      <p className="font-[var(--font-ln-mono)] text-[10.5px] leading-[1.45] text-[var(--color-ln-mute)]">
+      <p className="font-ln-mono text-sm leading-[1.45] text-[var(--color-ln-mute)]">
         Imagen de hasta 5 MB. Por ejemplo: carnet, receta, o foto del momento.
       </p>
     </div>

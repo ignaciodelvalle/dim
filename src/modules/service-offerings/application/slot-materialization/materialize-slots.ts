@@ -1,0 +1,165 @@
+// materialize-slots.ts — slot materialization writers (strangler 28/61).
+// Moved verbatim from app/actions/slot-materialization.ts.
+//
+// materializeAllActiveSlots(): loads ALL active rules for approved offerings,
+// calls the pure generator, and bulk-inserts with onConflictDoNothing() so
+// re-runs are idempotent.
+//
+// materializeSlotsForOffering(): same, scoped to a single offering by DB id.
+
+import { and, asc, eq, gt } from "drizzle-orm";
+
+import { db, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
+import { materializeSlotsForRule } from "@/lib/infra/slot-materialization";
+
+// Keyset page size + per-run bounds (review 23 item 9): the sweep used to load
+// ALL active rules and bulk-insert 60-day windows in one invocation, unbounded
+// at province scale. Now paged over service_schedule_rules.id with a wall-clock
+// budget; the route persists the cursor so the next run resumes.
+const RULES_BATCH_SIZE = 200;
+const MAX_RULES_PER_RUN = 5_000;
+const MAX_DURATION_MS = 45_000;
+
+// ────────────────────────────────────────────────────────────────────────────
+// Helpers
+// ────────────────────────────────────────────────────────────────────────────
+
+function rollingWindow(): { windowStart: Date; windowEnd: Date } {
+  const windowStart = new Date();
+  const windowEnd = new Date(windowStart.getTime() + 60 * 24 * 60 * 60 * 1000); // +60 days
+  return { windowStart, windowEnd };
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Writers
+// ────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Materializes slots for all approved offerings with active schedule rules.
+ * Safe to call in a cron — idempotent via onConflictDoNothing on the
+ * (service_offering_id, starts_at) unique index.
+ */
+// @no-auth-required: cron-driven materialization, no caller identity.
+// Idempotent via onConflictDoNothing on (service_offering_id, starts_at).
+export async function materializeAllActiveSlots(opts?: {
+  /** Keyset cursor: process rules whose id sorts after this value. */
+  afterRuleId?: string | null;
+  /** Wall-clock budget (ms). Default 45s. */
+  maxDurationMs?: number;
+}): Promise<{
+  rulesProcessed: number;
+  slotsInserted: number;
+  /** Resume cursor for the next run: last rule id when stopped early, else null. */
+  nextCursor: string | null;
+  earlyStop: boolean;
+}> {
+  const { windowStart, windowEnd } = rollingWindow();
+  const maxDurationMs = opts?.maxDurationMs ?? MAX_DURATION_MS;
+  const start = Date.now();
+
+  let rulesProcessed = 0;
+  let slotsInserted = 0;
+  let cursor: string | null = opts?.afterRuleId ?? null;
+  let earlyStop = false;
+
+  loop: for (;;) {
+    if (rulesProcessed >= MAX_RULES_PER_RUN || Date.now() - start >= maxDurationMs) {
+      earlyStop = true;
+      break;
+    }
+
+    // Keyset page of active rules joined to their approved offering.
+    const rows = await db
+      .select({
+        rule: serviceScheduleRules,
+        offering: {
+          id: serviceOfferings.id,
+          slotCapacity: serviceOfferings.slotCapacity,
+          durationMinutes: serviceOfferings.durationMinutes,
+        },
+      })
+      .from(serviceScheduleRules)
+      .innerJoin(serviceOfferings, eq(serviceScheduleRules.serviceOfferingId, serviceOfferings.id))
+      .where(
+        and(
+          eq(serviceScheduleRules.status, "active"),
+          eq(serviceOfferings.status, "approved"),
+          ...(cursor ? [gt(serviceScheduleRules.id, cursor)] : []),
+        ),
+      )
+      .orderBy(asc(serviceScheduleRules.id))
+      .limit(RULES_BATCH_SIZE);
+
+    if (rows.length === 0) break;
+
+    for (const { rule, offering } of rows) {
+      const candidates = materializeSlotsForRule({ rule, offering }, windowStart, windowEnd);
+      if (candidates.length > 0) {
+        const result = await db
+          .insert(timeSlots)
+          .values(candidates)
+          .onConflictDoNothing({ target: [timeSlots.serviceOfferingId, timeSlots.startsAt] });
+        // rowCount is available on the pg query result.
+        slotsInserted += (result as { rowCount?: number }).rowCount ?? 0;
+      }
+      cursor = rule.id;
+      rulesProcessed += 1;
+      if (rulesProcessed >= MAX_RULES_PER_RUN || Date.now() - start >= maxDurationMs) {
+        earlyStop = true;
+        break loop;
+      }
+    }
+
+    if (rows.length < RULES_BATCH_SIZE) break; // drained
+  }
+
+  // Stopped early → resume from cursor next run; fully drained → wrap around.
+  return { rulesProcessed, slotsInserted, nextCursor: earlyStop ? cursor : null, earlyStop };
+}
+
+// @no-auth-required: pure inner writer; the shim action auth-gates the caller.
+/**
+ * Same as materializeAllActiveSlots but scoped to one offering by DB id.
+ * Used by the "Materializar ahora" button for immediate preview.
+ */
+export async function materializeSlotsForOffering(offeringId: string): Promise<{
+  rulesProcessed: number;
+  slotsInserted: number;
+}> {
+  const { windowStart, windowEnd } = rollingWindow();
+
+  const rows = await db
+    .select({
+      rule: serviceScheduleRules,
+      offering: {
+        id: serviceOfferings.id,
+        slotCapacity: serviceOfferings.slotCapacity,
+        durationMinutes: serviceOfferings.durationMinutes,
+      },
+    })
+    .from(serviceScheduleRules)
+    .innerJoin(serviceOfferings, eq(serviceScheduleRules.serviceOfferingId, serviceOfferings.id))
+    .where(
+      and(
+        eq(serviceScheduleRules.serviceOfferingId, offeringId),
+        eq(serviceScheduleRules.status, "active"),
+        eq(serviceOfferings.status, "approved"),
+      ),
+    );
+
+  let slotsInserted = 0;
+
+  for (const { rule, offering } of rows) {
+    const candidates = materializeSlotsForRule({ rule, offering }, windowStart, windowEnd);
+    if (candidates.length === 0) continue;
+
+    const result = await db
+      .insert(timeSlots)
+      .values(candidates)
+      .onConflictDoNothing({ target: [timeSlots.serviceOfferingId, timeSlots.startsAt] });
+
+    slotsInserted += (result as { rowCount?: number }).rowCount ?? 0;
+  }
+
+  return { rulesProcessed: rows.length, slotsInserted };
+}

@@ -12,26 +12,32 @@
 //     actor_user_id; admin view batch name-lookup handles NULL actor gracefully.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { completeIdentityAction } from "@/app/actions/auth";
 import {
   auditLog,
+  caseEvents,
+  cases,
+  custodyDisputeParties,
+  custodyDisputes,
   db,
   notifications,
   orgContactMessages,
   organizationMemberships,
   organizations,
   ownerships,
+  petEvents,
   petTransfers,
   pets,
   profiles,
+  pushSubscriptions,
   welfareReports,
 } from "@/db";
-import { pgErrorCode } from "@/lib/db-errors";
-import { LEGAL_VERSION } from "@/lib/legal-version";
-import { generatePublicToken } from "@/lib/publicToken";
+import { pgErrorCode } from "@/lib/infra/db-errors";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { LEGAL_VERSION } from "@/lib/reference/legal-version";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // Mock next/navigation redirect so completeIdentityAction doesn't throw NEXT_REDIRECT.
@@ -145,7 +151,9 @@ async function resetProfilePIIToFresh(userId: string, displayName: string) {
     .set({
       displayName,
       phone: "+5491100000000",
-      dniNumber: null,
+      // Wave 5 Item 25a: no plaintext DNI column.
+      dniHash: null,
+      dniLast4: null,
       // Seed the extended PII columns so the erase test can assert they are
       // nulled (V1-2 fix B). preferred_vet_* is third-party PII, avatar_url a
       // face photo, matricula_* professional-license PII.
@@ -347,7 +355,9 @@ describe("export_subject_data RPC", () => {
   });
 
   // V1-2 fix C: export now includes every relation the subject is party to.
-  it("includes welfare reports, disputes, transfers, notifications, memberships and audit rows (schema v2)", async () => {
+  // Schema v3 since migration 0170 (adds the pet_tags section — covered in
+  // depth by subject-rights-pet-tags.test.ts).
+  it("includes welfare reports, disputes, transfers, notifications, memberships and audit rows (schema v3)", async () => {
     const { data, error } = await callRpcAs<Record<string, unknown>>(
       ownerUserId,
       sql`SELECT public.export_subject_data(${ownerUserId}::uuid) AS result`,
@@ -355,7 +365,7 @@ describe("export_subject_data RPC", () => {
     expect(error).toBeNull();
     const payload = data as Record<string, unknown>;
 
-    expect(payload.schema_version).toBe(2);
+    expect(payload.schema_version).toBe(3);
 
     const welfare = payload.welfare_reports_filed as Array<Record<string, unknown>>;
     expect(Array.isArray(welfare)).toBe(true);
@@ -397,7 +407,8 @@ describe("erase_subject_data RPC", () => {
       .select({
         displayName: profiles.displayName,
         phone: profiles.phone,
-        dniNumber: profiles.dniNumber,
+        // Wave 5 Item 25a: check hash is cleared, not plaintext DNI.
+        dniHash: profiles.dniHash,
         deletedAt: profiles.deletedAt,
         // V1-2 fix B: extended PII columns.
         preferredVetName: profiles.preferredVetName,
@@ -411,7 +422,7 @@ describe("erase_subject_data RPC", () => {
     expect(row.deletedAt).not.toBeNull();
     expect(row.displayName).toMatch(/^erased:/);
     expect(row.phone).toBeNull();
-    expect(row.dniNumber).toBeNull();
+    expect(row.dniHash).toBeNull();
     // Newly-covered profile PII columns are nulled.
     expect(row.preferredVetName).toBeNull();
     expect(row.preferredVetPhone).toBeNull();
@@ -541,6 +552,587 @@ describe("erase_subject_data — negative: third-party welfare reports are untou
     expect(row.reporterContactEmail).toBe("third-party-reporter@dim-test.local");
     expect(row.reporterContactPhone).toBe("+5491177770000");
     expect(row.description).toBe("Descripción original del tercero denunciante.");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wave D2 (migration 0129): third-party PII in event payloads is redacted.
+// ---------------------------------------------------------------------------
+// Finding 27-#3: an incident_reported event carries the victim's identifying
+// contact details (victim_contact_name / victim_contact_phone) as free text.
+// erase_subject_data must redact those keys for events tied to the erasing
+// subject, while leaving sanitary event payloads (vaccination/medical) intact
+// for retention. The redaction runs under the append-only override, so each
+// redacted row must also emit a pet_events_mutation_override audit row.
+
+describe("erase_subject_data — redacts third-party PII in event payloads (0129)", () => {
+  let incidentEventId: string | undefined;
+  let sanitaryEventId: string | undefined;
+
+  beforeAll(async () => {
+    // Re-seed the subject to an erasable state (prior suites already erased it).
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner Events");
+
+    const petId = createdPetIds[0];
+    if (!petId) throw new Error("createdPetIds[0] not set");
+
+    // Incident report the subject filed on their own pet — carries a THIRD
+    // party's (the bite victim's) contact PII.
+    const [incident] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "incident_reported",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          incident_type: "bite_inflicted",
+          severity: "moderate",
+          injuries_summary: "Herida leve en la mano.",
+          victim_kind: "human",
+          victim_contact_name: "Vecino Tercero",
+          victim_contact_phone: "+5491188889999",
+          reporter_role: "owner",
+        },
+      })
+      .returning({ id: petEvents.id });
+    incidentEventId = incident.id;
+
+    // Sanitary event on the same pet — must be retained verbatim.
+    const [sanitary] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "vaccination_administered",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          vaccine: "antirrábica",
+          lote_biologico: "LOTE-2026-XYZ",
+          laboratorio: "Lab Fixture",
+        },
+      })
+      .returning({ id: petEvents.id });
+    sanitaryEventId = sanitary.id;
+  });
+
+  it("removes victim contact keys from the incident payload but keeps sanitary payloads", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'event pii redaction'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    if (!incidentEventId) throw new Error("incidentEventId not set");
+    const [incidentRow] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, incidentEventId));
+    const incidentPayload = incidentRow.payload as Record<string, unknown>;
+    // Third-party contact PII gone.
+    expect("victim_contact_name" in incidentPayload).toBe(false);
+    expect("victim_contact_phone" in incidentPayload).toBe(false);
+    // Non-PII incident fields retained.
+    expect(incidentPayload.incident_type).toBe("bite_inflicted");
+    expect(incidentPayload.severity).toBe("moderate");
+    expect(incidentPayload.injuries_summary).toBe("Herida leve en la mano.");
+
+    // Sanitary payload untouched (retention).
+    if (!sanitaryEventId) throw new Error("sanitaryEventId not set");
+    const [sanitaryRow] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, sanitaryEventId));
+    const sanitaryPayload = sanitaryRow.payload as Record<string, unknown>;
+    expect(sanitaryPayload.lote_biologico).toBe("LOTE-2026-XYZ");
+    expect(sanitaryPayload.laboratorio).toBe("Lab Fixture");
+  });
+
+  it("emits a pet_events_mutation_override audit row for the redacted event", async () => {
+    if (!incidentEventId) throw new Error("incidentEventId not set");
+    // The pet_event_id predicate belongs in SQL, not in a JS .some() over the
+    // whole table. This used to select EVERY override row and filter after the
+    // fetch: fine on a fresh database, and a 5-second timeout on a developer
+    // machine where seed runs have piled up 1.7 MILLION override rows (each
+    // seed clean deletes hundreds of thousands of events through the audited
+    // hatch, and every one writes an audit row). Measured 2026-08-01 — this is
+    // the intermittent failure that showed up once in a full-suite run and
+    // could not be reproduced afterwards, because it depends on how much
+    // history the local database has accumulated, not on the code.
+    //
+    // Same shape as two other defects found the same day: a query that is
+    // correct at small scale and wrong past a threshold, because the predicate
+    // that discriminates is applied after the rows are fetched instead of by
+    // the database.
+    const overrides = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "pet_events_mutation_override"),
+          sql`${auditLog.payload}->>'pet_event_id' = ${incidentEventId}`,
+        ),
+      );
+    expect(overrides.length).toBeGreaterThan(0);
+  });
+
+  it("is idempotent — re-erasing matches no event rows the second time", async () => {
+    // The first erase already stripped the keys; a re-run's key-presence guard
+    // must match nothing and not error.
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'event pii redaction rerun'::text) AS result`,
+    );
+    expect(error).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Migration 0159: free-text payload keys redacted on the subject's OWN
+// pet_events (cursor privacy P6).
+// ---------------------------------------------------------------------------
+// Unlike the 0129/0131 victim_contact fix (scoped to incident_reported and
+// DELETES the keys), this redaction runs across ANY event_type and REPLACES a
+// known set of free-text keys with a sentinel, mirroring the case_events
+// pattern. Seeds a status_changed event carrying reason/location_description
+// plus a nested lost_description object, and a sanitary vaccination event
+// whose unrelated keys must survive untouched.
+
+describe("erase_subject_data — redacts free-text payload keys on own pet_events (0159)", () => {
+  let statusChangedEventId: string | undefined;
+  let sanitaryEventId: string | undefined;
+
+  beforeAll(async () => {
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner 0159");
+
+    const petId = createdPetIds[0];
+    if (!petId) throw new Error("createdPetIds[0] not set");
+
+    const [statusChanged] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "status_changed",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          payload_version: 1,
+          from_status: "active",
+          to_status: "lost",
+          reason: "Se escapó por el portón, lo vio mi vecino Juan Pérez.",
+          location_description: "Plaza San Martín, cerca de la casa de mi ex Ana Gómez.",
+          lost_description: {
+            accessories_when_lost: "Collar con chapita con mi teléfono +5491100000000.",
+            behavior_notes: "Se esconde cuando lo llama mi hijo Tomás.",
+            last_seen_context: "Salió corriendo detrás del auto de mi vecino Carlos.",
+          },
+        },
+      })
+      .returning({ id: petEvents.id });
+    statusChangedEventId = statusChanged.id;
+
+    const [sanitary] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "vaccination_administered",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: {
+          vaccine: "antirrábica",
+          lote_biologico: "LOTE-0159-XYZ",
+          laboratorio: "Lab Fixture 0159",
+        },
+      })
+      .returning({ id: petEvents.id });
+    sanitaryEventId = sanitary.id;
+  });
+
+  it("redacts top-level and nested free-text keys but keeps the event row + non-text fields", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'free text redaction'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    if (!statusChangedEventId) throw new Error("statusChangedEventId not set");
+    const [row] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, statusChangedEventId));
+    const payload = row.payload as Record<string, unknown>;
+
+    expect(payload.reason).toBe("[dato removido]");
+    expect(payload.location_description).toBe("[dato removido]");
+    const lostDescription = payload.lost_description as Record<string, unknown>;
+    expect(lostDescription.accessories_when_lost).toBe("[dato removido]");
+    expect(lostDescription.behavior_notes).toBe("[dato removido]");
+    expect(lostDescription.last_seen_context).toBe("[dato removido]");
+    // Structural fields untouched — only free text is redacted.
+    expect(payload.from_status).toBe("active");
+    expect(payload.to_status).toBe("lost");
+    expect(payload.payload_version).toBe(1);
+
+    // Sanitary payload untouched (retention) — no matching free-text keys.
+    if (!sanitaryEventId) throw new Error("sanitaryEventId not set");
+    const [sanitaryRow] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, sanitaryEventId));
+    const sanitaryPayload = sanitaryRow.payload as Record<string, unknown>;
+    expect(sanitaryPayload.lote_biologico).toBe("LOTE-0159-XYZ");
+    expect(sanitaryPayload.laboratorio).toBe("Lab Fixture 0159");
+  });
+
+  it("emits a pet_events_mutation_override audit row for the redacted event", async () => {
+    if (!statusChangedEventId) throw new Error("statusChangedEventId not set");
+    // Same fetch-then-filter defect as the sibling assertion above — see the
+    // note there for why it only failed on a database with history.
+    const overrides = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.action, "pet_events_mutation_override"),
+          sql`${auditLog.payload}->>'pet_event_id' = ${statusChangedEventId}`,
+        ),
+      );
+    expect(overrides.length).toBeGreaterThan(0);
+  });
+
+  it("is idempotent — re-erasing matches no free-text event rows the second time", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, 'free text redaction rerun'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    // Values from the first pass remain the sentinel — a second pass is a no-op.
+    if (!statusChangedEventId) throw new Error("statusChangedEventId not set");
+    const [row] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(eq(petEvents.id, statusChangedEventId));
+    const payload = row.payload as Record<string, unknown>;
+    expect(payload.reason).toBe("[dato removido]");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Migration 0130: dispute-party / case_events / notification PII redaction.
+// ---------------------------------------------------------------------------
+// The subject's own free-text contributions across the remaining PII holders
+// (custody_dispute_parties.party_position_summary, case_events reporter_comment
+// notes, notifications title/body/cta) must all be scrubbed on erasure. Seeds a
+// row in every holder, erases, and asserts nothing identifying remains — while
+// a counterparty's dispute-party row is left intact.
+
+describe("erase_subject_data — scrubs dispute/case/notification PII (0130)", () => {
+  let disputeId: string | undefined;
+  let subjectPartyId: string | undefined;
+  let otherPartyId: string | undefined;
+  let caseId: string | undefined;
+  let caseEventId: string | undefined;
+  let notificationId: string | undefined;
+  let raisingEventId: string | undefined;
+
+  beforeAll(async () => {
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner 0130");
+
+    const petId = createdPetIds[0];
+    if (!petId) throw new Error("createdPetIds[0] not set");
+
+    // A raising pet_event for the dispute FK.
+    const [raising] = await db
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "custody_dispute_raised",
+        occurredAt: new Date(),
+        recordedByUserId: ownerUserId,
+        authorRole: "owner",
+        payload: { raised_by_role: "owner" },
+      })
+      .returning({ id: petEvents.id });
+
+    const [dispute] = await db
+      .insert(custodyDisputes)
+      .values({
+        publicToken: `DIS-0130-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        petId,
+        raisedByUserId: ownerUserId,
+        raisedByRole: "owner",
+        raisingEventId: raising.id,
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "La Plata",
+      })
+      .returning({ id: custodyDisputes.id });
+    disputeId = dispute.id;
+    raisingEventId = raising.id;
+
+    // The subject's own party row — position statement carries their PII.
+    const [subjectParty] = await db
+      .insert(custodyDisputeParties)
+      .values({
+        disputeId: dispute.id,
+        partyUserId: ownerUserId,
+        partyRole: "claimant_owner",
+        partyPositionSummary: "Soy SR Test Owner, teléfono +5491100000000, la mascota es mía.",
+      })
+      .returning({ id: custodyDisputeParties.id });
+    subjectPartyId = subjectParty.id;
+
+    // A counterparty party row — MUST survive erasure of the subject.
+    const [otherParty] = await db
+      .insert(custodyDisputeParties)
+      .values({
+        disputeId: dispute.id,
+        partyUserId: otherUserId,
+        partyRole: "current_owner",
+        partyPositionSummary: "Posición de la contraparte — no debe borrarse.",
+      })
+      .returning({ id: custodyDisputeParties.id });
+    otherPartyId = otherParty.id;
+
+    // A welfare-denuncia case + reporter_comment authored by the subject.
+    const [c] = await db
+      .insert(cases)
+      .values({
+        publicCode: `CAS-0130-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+        caseKind: "welfare_denuncia",
+        primarySubjectKind: "general",
+        status: "open",
+        openedReason: "Fixture for 0130 reporter-comment redaction",
+      })
+      .returning({ id: cases.id });
+    caseId = c.id;
+
+    const [ce] = await db
+      .insert(caseEvents)
+      .values({
+        caseId: c.id,
+        entryType: "reporter_comment",
+        payload: { source: "reporter" },
+        notes: "Mi nombre es SR Test Owner y mi teléfono es +5491100000000.",
+        recordedByUserId: ownerUserId,
+      })
+      .returning({ id: caseEvents.id });
+    caseEventId = ce.id;
+
+    // A notification addressed to the subject with free-text content + CTA.
+    const [n] = await db
+      .insert(notifications)
+      .values({
+        userId: ownerUserId,
+        notificationType: "custody_update_0130",
+        title: "Novedad sobre Firulais",
+        body: "Tu mascota Firulais tiene una actualización.",
+        ctaLabel: "Ver",
+        ctaUrl: "/mis-mascotas/DIM-SECRET-TOKEN",
+      })
+      .returning({ id: notifications.id });
+    notificationId = n.id;
+  });
+
+  afterAll(async () => {
+    await withMutationOverride(async (tx) => {
+      if (caseEventId) await tx.delete(caseEvents).where(eq(caseEvents.id, caseEventId));
+    });
+    if (disputeId) {
+      await db.delete(custodyDisputeParties).where(eq(custodyDisputeParties.disputeId, disputeId));
+      await db.delete(custodyDisputes).where(eq(custodyDisputes.id, disputeId));
+    }
+    if (caseId) await db.delete(cases).where(eq(cases.id, caseId));
+    if (notificationId) await db.delete(notifications).where(eq(notifications.id, notificationId));
+    await withMutationOverride(async (tx) => {
+      // SCOPED to this suite's own event. It used to delete EVERY
+      // custody_dispute_raised row in the database, and
+      // custody_disputes.raising_event_id is ON DELETE CASCADE — so it wiped
+      // every dispute in the DB, including the demo dispute on
+      // DIM-BRUNO-DEMO, while leaving pets.in_custody_dispute = true and the
+      // open case behind. That orphan trio is what made
+      // __tests__/pet-cache-rederivation.test.ts's fitness sweep fail on every
+      // full-suite run, and with it the project's "pnpm test green" Definition
+      // of Done (traced 2026-07-25 with a DB trigger on the cascade path).
+      if (raisingEventId) {
+        await tx.delete(petEvents).where(eq(petEvents.id, raisingEventId));
+      }
+    });
+  });
+
+  it("nulls the subject's dispute position, redacts their case comment + notifications, keeps the counterparty", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, '0130 redaction'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    // Subject's own dispute-party position statement → nulled.
+    if (!subjectPartyId) throw new Error("subjectPartyId not set");
+    const [subjRow] = await db
+      .select({ summary: custodyDisputeParties.partyPositionSummary })
+      .from(custodyDisputeParties)
+      .where(eq(custodyDisputeParties.id, subjectPartyId));
+    expect(subjRow.summary).toBeNull();
+
+    // Counterparty's position statement → untouched.
+    if (!otherPartyId) throw new Error("otherPartyId not set");
+    const [otherRow] = await db
+      .select({ summary: custodyDisputeParties.partyPositionSummary })
+      .from(custodyDisputeParties)
+      .where(eq(custodyDisputeParties.id, otherPartyId));
+    expect(otherRow.summary).toBe("Posición de la contraparte — no debe borrarse.");
+
+    // case_events reporter_comment notes → redacted to the sentinel.
+    if (!caseEventId) throw new Error("caseEventId not set");
+    const [ceRow] = await db
+      .select({ notes: caseEvents.notes })
+      .from(caseEvents)
+      .where(eq(caseEvents.id, caseEventId));
+    expect(ceRow.notes).toBe("[contenido eliminado a pedido del titular]");
+
+    // Notification content → scrubbed, CTA dropped.
+    if (!notificationId) throw new Error("notificationId not set");
+    const [nRow] = await db
+      .select({
+        title: notifications.title,
+        body: notifications.body,
+        ctaUrl: notifications.ctaUrl,
+        ctaLabel: notifications.ctaLabel,
+      })
+      .from(notifications)
+      .where(eq(notifications.id, notificationId));
+    expect(nRow.title).toBe("[eliminado]");
+    expect(nRow.body).toBe("[contenido eliminado a pedido del titular]");
+    expect(nRow.ctaUrl).toBeNull();
+    expect(nRow.ctaLabel).toBeNull();
+
+    // A case_events_mutation_override audit row was emitted for the redaction.
+    const overrides = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(eq(auditLog.action, "case_events_mutation_override"));
+    expect(
+      overrides.some((a) => (a.payload as Record<string, unknown>).case_event_id === caseEventId),
+    ).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// PRIV-1 (migration 0166): Web Push registrations are DELETED, not left behind.
+// ---------------------------------------------------------------------------
+// push_subscriptions.user_id is declared ON DELETE CASCADE to profiles, and the
+// table's schema comment says hard deletion happens "only via profiles cascade".
+// That cascade never fires: erase_subject_data SOFT-deletes the profile, and the
+// auth.users row the caller deletes afterwards has no FK to public.profiles. So
+// every endpoint + p256dh/auth key pair used to survive erasure forever. This
+// suite proves the rows are gone and that the audit payload counts them.
+
+describe("erase_subject_data — deletes push subscriptions (0166)", () => {
+  const subjectEndpoint = `https://push.dim-test.local/subject/${Math.random().toString(36).slice(2)}`;
+  const otherEndpoint = `https://push.dim-test.local/other/${Math.random().toString(36).slice(2)}`;
+
+  beforeAll(async () => {
+    await resetProfilePIIToFresh(ownerUserId, "SR Test Owner 0166");
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, ownerUserId));
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, otherUserId));
+
+    // Two rows for the subject: one live, one already soft-revoked. Revocation
+    // is not erasure — a revoked row still carries the endpoint and both keys,
+    // so it must go too.
+    await db.insert(pushSubscriptions).values([
+      {
+        userId: ownerUserId,
+        endpoint: subjectEndpoint,
+        p256dh: "BSubjectP256dhKeyFixture",
+        auth: "subjectAuthFixture",
+        userAgent: "Mozilla/5.0 (Subject Device)",
+      },
+      {
+        userId: ownerUserId,
+        endpoint: `${subjectEndpoint}-revoked`,
+        p256dh: "BSubjectRevokedP256dhFixture",
+        auth: "subjectRevokedAuthFixture",
+        userAgent: "Mozilla/5.0 (Subject Old Device)",
+        revokedAt: new Date(),
+      },
+    ]);
+
+    // A third party's subscription — MUST survive the subject's erasure.
+    await db.insert(pushSubscriptions).values({
+      userId: otherUserId,
+      endpoint: otherEndpoint,
+      p256dh: "BOtherP256dhKeyFixture",
+      auth: "otherAuthFixture",
+      userAgent: "Mozilla/5.0 (Other Device)",
+    });
+  });
+
+  afterAll(async () => {
+    await db.delete(pushSubscriptions).where(eq(pushSubscriptions.userId, otherUserId));
+  });
+
+  it("removes every push_subscriptions row of the subject and keeps third-party rows", async () => {
+    const before = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, ownerUserId));
+    expect(before.length).toBe(2);
+
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, '0166 push erasure'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    const after = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, ownerUserId));
+    expect(after.length).toBe(0);
+
+    // Third-party subscription untouched.
+    const others = await db
+      .select({ endpoint: pushSubscriptions.endpoint })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, otherUserId));
+    expect(others.map((o) => o.endpoint)).toEqual([otherEndpoint]);
+
+    // The erasure audit row reports how many were deleted (same shape as every
+    // other step this function counts).
+    const audits = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "subject_erasure"), eq(auditLog.targetUserId, ownerUserId)));
+    expect(
+      audits.some((a) => (a.payload as Record<string, unknown>).push_subscriptions_deleted === 2),
+    ).toBe(true);
+  });
+
+  it("is idempotent — a re-run finds nothing and counts zero", async () => {
+    const { error } = await callRpcAs(
+      ownerUserId,
+      sql`SELECT public.erase_subject_data(${ownerUserId}::uuid, '0166 push erasure rerun'::text) AS result`,
+    );
+    expect(error).toBeNull();
+
+    const after = await db
+      .select({ id: pushSubscriptions.id })
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.userId, ownerUserId));
+    expect(after.length).toBe(0);
+
+    const audits = await db
+      .select({ payload: auditLog.payload })
+      .from(auditLog)
+      .where(and(eq(auditLog.action, "subject_erasure"), eq(auditLog.targetUserId, ownerUserId)));
+    expect(
+      audits.some((a) => (a.payload as Record<string, unknown>).push_subscriptions_deleted === 0),
+    ).toBe(true);
   });
 });
 

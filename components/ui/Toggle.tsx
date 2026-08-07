@@ -39,38 +39,32 @@ export function LnToggle({
 
   if (inline) {
     return (
-      <div className={["flex items-center gap-[10px]", className].filter(Boolean).join(" ")}>
+      <div className={["flex items-center gap-2.5", className].filter(Boolean).join(" ")}>
         <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
-        <span className="text-[12.5px] font-semibold text-[var(--color-ln-ink)]">{label}</span>
+        <span className="text-md font-semibold text-[var(--color-ln-ink)]">{label}</span>
       </div>
     );
   }
 
+  // B-4: click/key handlers removed from the non-semantic div.
+  // The inner <button role="switch"> (Track) already handles all interaction.
+  // The div is kept purely for layout; pointer-events on the div are benign but
+  // the div is not in the tab order and has no role, so removing the handlers
+  // avoids the "interactive element without role" a11y violation.
   return (
     <div
       className={[
-        "flex cursor-pointer items-start gap-[11px] rounded-[4px] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-[12px] py-[10px]",
+        "flex cursor-pointer items-start gap-[11px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-3 py-2.5",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
-      onClick={() => onChange(!checked)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onChange(!checked);
-        }
-      }}
     >
       <Track checked={checked} trackOn={trackOn} onChange={onChange} label={label} />
       <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] font-semibold leading-tight text-[var(--color-ln-ink)]">
-          {label}
-        </p>
+        <p className="text-md font-semibold leading-tight text-[var(--color-ln-ink)]">{label}</p>
         {description && (
-          <p className="mt-[1px] text-[11px] leading-[1.4] text-[var(--color-ln-mute)]">
-            {description}
-          </p>
+          <p className="mt-px text-sm leading-[1.4] text-[var(--color-ln-mute)]">{description}</p>
         )}
       </div>
     </div>
@@ -100,7 +94,7 @@ function Track({
         onChange(!checked);
       }}
       className={[
-        "relative mt-[1px] h-[21px] w-[38px] flex-shrink-0 rounded-full transition-colors duration-150",
+        "relative mt-px h-[21px] w-[38px] flex-shrink-0 rounded-full transition-colors duration-150",
         "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]",
         checked ? trackOn : "bg-[var(--color-ln-line-strong)]",
       ]
@@ -140,9 +134,9 @@ export type LnToggleGroupProps = {
 
 export function LnToggleGroup({ heading, items, onChange, className = "" }: LnToggleGroupProps) {
   return (
-    <div className={["flex flex-col gap-[8px]", className].filter(Boolean).join(" ")}>
+    <div className={["flex flex-col gap-2", className].filter(Boolean).join(" ")}>
       {heading && (
-        <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+        <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
           {heading}
         </p>
       )}

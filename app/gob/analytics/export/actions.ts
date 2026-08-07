@@ -9,21 +9,22 @@
 import { Resend } from "resend";
 
 import { auditLog, db } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
 import {
   type ExportPeriod,
   fetchCasesForExport,
   fetchEventsForExport,
   fetchOrganizationsForExport,
   fetchPetsForExport,
-} from "@/lib/govt-dashboards";
+} from "@/lib/analytics/govt-dashboards";
 import {
   EXPORT_SCHEMA_VERSION,
   type ExportSlice,
   anonymizeRows,
   rowsToCsv,
-  rowsToJson,
-} from "@/lib/govt-exports";
+} from "@/lib/analytics/govt-exports";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { UnknownExportPeriodError, resolveExportPeriod } from "./export-period";
 
 export type GenerateExportResult =
   | { ok: true; signedUrl: string; emailSent: boolean }
@@ -31,23 +32,11 @@ export type GenerateExportResult =
 
 const BUCKET_NAME = "analytics-exports";
 
-function parsePeriod(formData: FormData): ExportPeriod {
-  const preset = formData.get("period");
-  const fromStr = formData.get("from");
-  const toStr = formData.get("to");
-
-  if (fromStr && toStr) {
-    return { since: new Date(String(fromStr)), until: new Date(String(toStr)) };
-  }
-
-  const now = Date.now();
-  const DAY_MS = 24 * 60 * 60 * 1000;
-  if (preset === "7d") return { since: new Date(now - 7 * DAY_MS) };
-  if (preset === "90d") return { since: new Date(now - 90 * DAY_MS) };
-  if (preset === "1y") return { since: new Date(now - 365 * DAY_MS) };
-  // Default: 30d
-  return { since: new Date(now - 30 * DAY_MS) };
-}
+// parsePeriod used to live here as a hand-rolled branch set that recognised
+// "1y" (emitted by nothing) and silently defaulted "trailing12m" / "ytd" to 30
+// days — mislabelling both the file AND the audit row. It now lives in
+// ./export-period.ts, shares the canonical vocabulary, and throws on an
+// unrecognised value. See that module's header (RA-2 F11).
 
 export async function generateExportAction(formData: FormData): Promise<GenerateExportResult> {
   try {
@@ -74,7 +63,33 @@ export async function generateExportAction(formData: FormData): Promise<Generate
     const rawFormat = formData.get("format");
     const format = rawFormat === "json" ? "json" : "csv";
 
-    const period = parsePeriod(formData);
+    // Throws UnknownExportPeriodError on a value outside the canonical
+    // vocabulary — caught below and surfaced to the operator. It must NEVER
+    // fall back to an arbitrary window: the resolved since/until is persisted
+    // verbatim into the audit_log row further down (RA-2 F11).
+    const period: ExportPeriod = resolveExportPeriod(formData);
+
+    // 2b. Jurisdiction filter — identical logic to app/gob/analytics/export/page.tsx
+    // (export honors the active filter, Fase C 2026-07-21). Previously this action
+    // ignored any province/locality narrowed via the form's JurisdictionSwitcher and
+    // always exported the operator's FULL jurisdiction assignment (govt) / the
+    // entire nation (admin) — a view↔export honesty gap: the switcher visibly
+    // updated but had no effect on what was actually exported. filteredJurisdictions
+    // narrows the govt case (assignments ∩ selection); adminSelectedProvince/Locality
+    // carry the admin drill-down (admin has no assignments to narrow).
+    const rawProvince = formData.get("province");
+    const rawLocality = formData.get("locality");
+    const { filteredJurisdictions, adminSelectedProvince, adminSelectedLocality } =
+      await resolveJurisdictionScope({
+        role: profile.role,
+        jurisdictions,
+        params: {
+          province: typeof rawProvince === "string" ? rawProvince : undefined,
+          locality: typeof rawLocality === "string" ? rawLocality : undefined,
+        },
+      });
+    const adminProvince = adminSelectedProvince ?? undefined;
+    const adminLocality = adminSelectedLocality ?? undefined;
 
     // 3. Fetch rows per requested slice.
     const sliceData: Partial<
@@ -82,28 +97,51 @@ export async function generateExportAction(formData: FormData): Promise<Generate
     > = {};
 
     if (requestedSlices.includes("pets")) {
-      const raw = await fetchPetsForExport(actor, jurisdictions, period);
+      const raw = await fetchPetsForExport(
+        actor,
+        filteredJurisdictions,
+        period,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.pets = anonymizeRows("pets", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
       };
     }
     if (requestedSlices.includes("events")) {
-      const raw = await fetchEventsForExport(actor, jurisdictions, period);
+      const raw = await fetchEventsForExport(
+        actor,
+        filteredJurisdictions,
+        period,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.events = anonymizeRows("events", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
       };
     }
     if (requestedSlices.includes("cases")) {
-      const raw = await fetchCasesForExport(actor, jurisdictions, period);
+      const raw = await fetchCasesForExport(
+        actor,
+        filteredJurisdictions,
+        period,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.cases = anonymizeRows("cases", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
       };
     }
     if (requestedSlices.includes("organizations")) {
-      const raw = await fetchOrganizationsForExport(actor, jurisdictions);
+      const raw = await fetchOrganizationsForExport(
+        actor,
+        filteredJurisdictions,
+        adminProvince,
+        adminLocality,
+      );
       sliceData.organizations = anonymizeRows("organizations", raw) as {
         rows: Record<string, unknown>[];
         rejected: number;
@@ -195,7 +233,7 @@ export async function generateExportAction(formData: FormData): Promise<Generate
       try {
         const resend = new Resend(resendKey);
         const { error: emailError } = await resend.emails.send({
-          from: "DIM Analytics <noreply@dim.ar>",
+          from: "miMAR Analytics <noreply@dim.ar>",
           to: recipientEmail,
           subject: "Tu export de analytics está listo",
           html: `
@@ -246,6 +284,11 @@ export async function generateExportAction(formData: FormData): Promise<Generate
           since: period.since?.toISOString() ?? null,
           until: period.until?.toISOString() ?? null,
         },
+        jurisdiction: {
+          province: adminProvince ?? null,
+          locality: adminLocality ?? null,
+          filtered_jurisdiction_count: filteredJurisdictions.length,
+        },
         file_path: filePath,
         row_counts: rowCounts,
         rejected_counts: rejectedCounts,
@@ -254,6 +297,18 @@ export async function generateExportAction(formData: FormData): Promise<Generate
 
     return { ok: true, signedUrl, emailSent };
   } catch (err) {
+    // A drifted period vocabulary is a NAMED failure, not an "unexpected
+    // error" — the whole point of RA-2 F11 is that this case must be loud.
+    // No file is produced and no audit row is written, so nothing false is
+    // persisted.
+    if (err instanceof UnknownExportPeriodError) {
+      console.error("[generateExportAction] unknown period preset:", err.received);
+      return {
+        ok: false,
+        error:
+          "No pudimos interpretar el período seleccionado. Elegí uno de los períodos del selector y volvé a intentar.",
+      };
+    }
     console.error("[generateExportAction] unexpected error:", err);
     return {
       ok: false,

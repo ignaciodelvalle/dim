@@ -1,5 +1,7 @@
 import type { ReactNode } from "react";
 
+import { Icon } from "@/components/Icon";
+
 /**
  * Libreta Nacional Card + Sheet frame.
  *
@@ -36,7 +38,7 @@ export function LnCard({
     <div
       aria-labelledby={ariaLabelledBy}
       className={[
-        "overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] shadow-[0_1px_0_rgba(0,0,0,.02)]",
+        "overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] shadow-[0_1px_0_rgba(0,0,0,.02)]",
         className,
       ]
         .filter(Boolean)
@@ -60,24 +62,24 @@ export function LnCardHead({ title, label, icon, actions, className = "" }: LnCa
   return (
     <div
       className={[
-        "flex items-center gap-[8px] border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px]",
+        "flex items-center gap-2 border-b border-[var(--color-ln-line-2)] px-4 py-3",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
       {icon && <span className="text-[var(--color-ln-mute)]">{icon}</span>}
-      <h3 className="m-0 font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+      <h3 className="m-0 font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
         {title}
       </h3>
       {(label || actions) && (
-        <div className="ml-auto flex items-center gap-[8px]">
+        <div className="ml-auto flex items-center gap-2">
           {label && (
-            <span className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
+            <span className="font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]">
               {label}
             </span>
           )}
-          {actions && <div className="flex items-center gap-[8px] shrink-0">{actions}</div>}
+          {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
         </div>
       )}
     </div>
@@ -85,9 +87,7 @@ export function LnCardHead({ title, label, icon, actions, className = "" }: LnCa
 }
 
 export function LnCardBody({ className = "", children }: LnCardProps) {
-  return (
-    <div className={["px-[16px] py-[14px]", className].filter(Boolean).join(" ")}>{children}</div>
-  );
+  return <div className={["px-4 py-3.5", className].filter(Boolean).join(" ")}>{children}</div>;
 }
 
 // ---------- Sheet frame ---------------------------------------------------
@@ -98,7 +98,7 @@ const toneTopBorder: Record<LnSheetTone, string> = {
   azul: "border-t-[var(--color-ln-azul)]",
   verde: "border-t-[var(--color-ln-ok)]",
   warn: "border-t-[var(--color-ln-warn)]",
-  violeta: "border-t-[#6b4ea8]",
+  violeta: "border-t-[var(--color-ln-violeta)]",
   seal: "border-t-[var(--color-ln-seal)]",
 };
 
@@ -106,7 +106,8 @@ const toneIconColors: Record<LnSheetTone, string> = {
   azul: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border-[var(--color-ln-celeste-100)]",
   verde: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border-[var(--color-ln-ok-100)]",
   warn: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border-[var(--color-ln-warn-100)]",
-  violeta: "bg-[#f0ecf8] text-[#6b4ea8] border-[#ddd2f0]",
+  violeta:
+    "bg-[var(--color-ln-violeta-050)] text-[var(--color-ln-violeta)] border-[var(--color-ln-violeta-100)]",
   seal: "bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] border-[var(--color-ln-err-100)]",
 };
 
@@ -139,8 +140,8 @@ export function LnSheet({
     // Dotted paper backdrop
     <div
       className={[
-        "relative flex min-h-full w-full items-start justify-center overflow-auto px-[24px] py-[28px]",
-        "font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]",
+        "relative flex min-h-full w-full items-start justify-center overflow-auto px-6 py-7",
+        "font-ln-sans text-[var(--color-ln-ink)]",
         // Dotted backdrop pattern
         "[background:radial-gradient(circle_at_12px_12px,var(--color-ln-line)_1.2px,transparent_1.2px)_0_0/22px_22px,var(--color-ln-paper)]",
         className,
@@ -150,7 +151,7 @@ export function LnSheet({
     >
       {/* Route chip */}
       {routeChip && (
-        <span className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[10px] py-[3px] font-[var(--font-ln-mono)] text-[10px] tracking-[.08em] text-[var(--color-ln-faint)]">
+        <span className="absolute left-[var(--space-sheet)] top-3 rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-1 font-ln-mono text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
           {routeChip}
         </span>
       )}
@@ -158,7 +159,7 @@ export function LnSheet({
       {/* Card */}
       <div
         className={[
-          "flex w-full flex-col overflow-hidden rounded-[5px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] shadow-[0_18px_50px_rgba(20,40,60,.14)]",
+          "flex w-full flex-col overflow-hidden rounded-[var(--radius-md)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] shadow-[0_18px_50px_rgba(20,40,60,.14)]",
           wide ? "max-w-[620px]" : "max-w-[560px]",
         ]
           .filter(Boolean)
@@ -167,7 +168,7 @@ export function LnSheet({
         {/* Header */}
         <div
           className={[
-            "flex items-center gap-[13px] border-b border-[var(--color-ln-line)] border-t-[3px] px-[18px] py-[16px]",
+            "flex items-center gap-3.5 border-b border-[var(--color-ln-line)] border-t-[3px] px-[var(--space-sheet)] py-4",
             toneTopBorder[tone],
           ]
             .filter(Boolean)
@@ -177,7 +178,7 @@ export function LnSheet({
           {icon && (
             <div
               className={[
-                "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border text-[16px]",
+                "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] border text-base",
                 toneIconColors[tone],
               ]
                 .filter(Boolean)
@@ -189,12 +190,10 @@ export function LnSheet({
 
           {/* Title */}
           <div className="min-w-0 flex-1">
-            <h2 className="m-0 font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+            <h2 className="m-0 font-ln-serif text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
               {title}
             </h2>
-            {subtitle && (
-              <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">{subtitle}</p>
-            )}
+            {subtitle && <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{subtitle}</p>}
           </div>
 
           {/* Close button */}
@@ -203,21 +202,19 @@ export function LnSheet({
               type="button"
               aria-label="Cerrar"
               onClick={onClose}
-              className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+              className="grid h-[30px] w-[30px] flex-shrink-0 place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
             >
-              <span aria-hidden="true" className="text-[16px] leading-none">
-                ×
-              </span>
+              <Icon name="close" size="sm" decorative />
             </button>
           )}
         </div>
 
         {/* Body */}
-        <div className="flex flex-col gap-[14px] p-[18px]">{children}</div>
+        <div className="flex flex-col gap-3.5 p-[var(--space-sheet)]">{children}</div>
 
         {/* Footer */}
         {footer && (
-          <div className="flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+          <div className="flex items-center gap-2.5 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[var(--space-sheet)] py-3.5">
             {footer}
           </div>
         )}
@@ -248,7 +245,7 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
   return (
     <div
       className={[
-        "flex items-center gap-[12px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[12px] py-[10px]",
+        "flex items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-2.5",
         className,
       ]
         .filter(Boolean)
@@ -261,10 +258,10 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <p className="m-0 font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <p className="m-0 font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
-        {meta && <p className="mt-[1px] text-[11.5px] text-[var(--color-ln-mute)]">{meta}</p>}
+        {meta && <p className="mt-px text-sm text-[var(--color-ln-mute)]">{meta}</p>}
       </div>
 
       {/* Change link */}
@@ -272,7 +269,7 @@ export function LnSheetPet({ photo, name, meta, onChangePet, className = "" }: L
         <button
           type="button"
           onClick={onChangePet}
-          className="flex-shrink-0 cursor-pointer font-[var(--font-ln-mono)] text-[10px] tracking-[.04em] text-[var(--color-ln-azul)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
+          className="flex-shrink-0 cursor-pointer font-ln-mono text-xs tracking-[.04em] text-[var(--color-ln-azul)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
         >
           CAMBIAR
         </button>

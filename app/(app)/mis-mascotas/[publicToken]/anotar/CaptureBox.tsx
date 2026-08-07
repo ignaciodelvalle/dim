@@ -1,15 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
 import type { EventType } from "@/db/schema";
-import { matchCaptureIntent } from "@/lib/event-capture-matcher";
-import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/event-capture-registry";
+import { matchCaptureIntent, matchToCaptureUrl } from "@/lib/events/event-capture-matcher";
+import { EVENT_CAPTURE_REGISTRY, buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
+import { goToCaptureUrl } from "@/lib/ui/capture-nav";
+import { todayIsoInAr } from "@/lib/utils/format";
 import { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey } from "./handoff";
 
-// Re-exports keep existing callers (tests, EventCatcher) working without churn.
+// Re-exports keep existing callers (tests, deeplink handoff) working without churn.
 export { QUICK_ACTIONS, buildKindDeeplink, findQuickAction, getNoteSlotKey };
 export type { QuickAction } from "./handoff";
 
@@ -33,12 +36,13 @@ export function CaptureBox({
   initialKind?: string;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const [pending, startTransition] = useTransition();
   const [text, setText] = useState(initialText ?? "");
   const [unmatched, setUnmatched] = useState(false);
   const [placeholderIdx] = useState(() => Math.floor(Math.random() * PLACEHOLDER_EXAMPLES.length));
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect — initialText/initialKind drive a one-shot router.replace, not reactive updates.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: mount-only effect — initialText/initialKind drive a one-shot redirect, not reactive updates.
   useEffect(() => {
     if (initialKind) {
       const url = buildKindDeeplink(
@@ -47,7 +51,11 @@ export function CaptureBox({
         initialText?.trim() || undefined,
       );
       if (url) {
-        router.replace(url);
+        // Router-hot-path fix (same as identify() below): a same-route
+        // ?sheet= destination (CaptureBox mounted inside SheetMounter at
+        // `?sheet=anotar` on the profile route) must go through pushSheetUrl,
+        // not router.replace — see lib/ui/capture-nav.ts.
+        goToCaptureUrl(pathname, url, router, "replace");
         return;
       }
     }
@@ -60,22 +68,10 @@ export function CaptureBox({
         setUnmatched(true);
         return;
       }
-      let url: string | null;
-      if (match.routeOverride) {
-        const base = `/mis-mascotas/${petPublicToken}${match.routeOverride}`;
-        const sep = match.routeOverride.includes("?") ? "&" : "?";
-        const slotParams = new URLSearchParams();
-        for (const [k, v] of Object.entries(match.slots)) {
-          if (v !== "" && v !== undefined) slotParams.set(k, v);
-        }
-        const qs = slotParams.toString();
-        url = qs ? `${base}${sep}${qs}` : base;
-      } else {
-        url = buildCaptureDeeplink(match.eventType, petPublicToken, match.slots);
-      }
+      const url = matchToCaptureUrl(petPublicToken, match, buildCaptureDeeplink);
       if (url) {
         startTransition(() => {
-          router.push(url);
+          goToCaptureUrl(pathname, url, router);
         });
       } else {
         setUnmatched(true);
@@ -100,19 +96,7 @@ export function CaptureBox({
     // clinical_info_logged) opt into a routeOverride. When present, build
     // the URL by appending slots as querystring; otherwise fall back to
     // the registry deeplink.
-    let url: string | null;
-    if (match.routeOverride) {
-      const base = `/mis-mascotas/${petPublicToken}${match.routeOverride}`;
-      const sep = match.routeOverride.includes("?") ? "&" : "?";
-      const slotParams = new URLSearchParams();
-      for (const [k, v] of Object.entries(match.slots)) {
-        if (v !== "" && v !== undefined) slotParams.set(k, v);
-      }
-      const qs = slotParams.toString();
-      url = qs ? `${base}${sep}${qs}` : base;
-    } else {
-      url = buildCaptureDeeplink(match.eventType, petPublicToken, match.slots);
-    }
+    const url = matchToCaptureUrl(petPublicToken, match, buildCaptureDeeplink);
     if (!url) {
       // Registry entry missing for the matched event type. Shouldn't
       // happen because the matcher only emits types that we registered,
@@ -122,14 +106,28 @@ export function CaptureBox({
     }
 
     startTransition(() => {
-      router.push(url);
+      goToCaptureUrl(pathname, url, router);
+    });
+  }
+
+  // No-match fallback (QA A8/B): the matcher must NEVER silently discard the
+  // owner's text. When nothing matches, offer to keep it as a free note with
+  // the raw text prefilled — a one-tap escape hatch to the nota sheet — instead
+  // of leaving the user with only a "probá de nuevo" dead end.
+  function saveAsNote() {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+    const url = buildCaptureDeeplink("note_added", petPublicToken, { text: trimmed });
+    if (!url) return;
+    startTransition(() => {
+      goToCaptureUrl(pathname, url, router);
     });
   }
 
   // For the quick-action cards we prefill `occurredAt=today` so the
   // form lands ready-to-submit on the most common case (an event that
   // just happened). Date formatting is local.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   return (
     <div className="space-y-6">
@@ -146,19 +144,51 @@ export function CaptureBox({
           }}
           rows={3}
           placeholder={PLACEHOLDER_EXAMPLES[placeholderIdx]}
-          className="w-full px-4 py-3 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full px-4 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] text-base outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
-        <button
-          type="submit"
-          disabled={pending || !text.trim()}
-          className="px-5 py-2.5 rounded-[3px] bg-[var(--color-ln-ok)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {pending ? "Buscando formulario..." : "Identificar →"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="submit"
+            disabled={pending || !text.trim()}
+            className="px-5 py-2.5 rounded-[var(--radius-sm)] bg-[var(--color-ln-ok)] text-white text-sm font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {pending ? "Buscando formulario..." : "Identificar →"}
+          </button>
+          {/* Roadmap placeholder — voice dictation (PO-approved pattern:
+              visible, disabled, reads as "coming", never as broken —
+              precedent: "Informe de situación (en desarrollo)" in panorama's
+              SituationalMap). Grouped with its sibling action (the submit
+              button) instead of floating beside the textarea, and given a
+              dashed border + muted fill so the "not yet built" read is
+              visible at a glance, not only on hover. Disabled semantics
+              only: no submit, no focus trap, doesn't touch the textarea's
+              onChange/value wiring. */}
+          <button
+            type="button"
+            disabled
+            aria-disabled="true"
+            aria-label="Dictado por voz (próximamente)"
+            title="Dictado por voz (próximamente)"
+            className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-faint)] opacity-70 cursor-not-allowed"
+          >
+            <Icon name="mic" size="sm" decorative />
+          </button>
+        </div>
         {unmatched && (
-          <p className="text-sm text-[var(--color-ln-warn)]">
-            No pude identificar el tipo de evento. Probá decirlo distinto, o tocá uno de los atajos.
-          </p>
+          <div className="space-y-2">
+            <p className="text-sm text-[var(--color-ln-warn)]">
+              No reconocimos el evento. Podés decirlo distinto, tocar uno de los atajos, o guardarlo
+              como nota tal cual lo escribiste.
+            </p>
+            <button
+              type="button"
+              onClick={saveAsNote}
+              disabled={pending || !text.trim()}
+              className="px-4 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Guardar como nota
+            </button>
+          </div>
         )}
       </form>
 
@@ -180,7 +210,7 @@ export function CaptureBox({
             <Link
               key={qa.eventType}
               href={href}
-              className="text-center px-3 py-3 rounded-[4px] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] text-sm font-medium text-[var(--color-ln-ink)]"
+              className="text-center px-3 py-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] text-sm font-medium text-[var(--color-ln-ink)]"
             >
               {qa.label}
             </Link>

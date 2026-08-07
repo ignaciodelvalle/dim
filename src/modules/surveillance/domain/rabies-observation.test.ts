@@ -15,6 +15,7 @@ import {
   computeObservationUntil,
   isRabiesVaccineValid,
   outcomeToStatus,
+  resolveObservationDeadline,
 } from "./rabies-observation";
 
 // ---------------------------------------------------------------------------
@@ -144,6 +145,57 @@ describe("computeObservationUntil", () => {
     // 10 calendar days later = Oct 28
     const biteDay = biteLocal.getDate();
     expect(until.getDate()).toBe(biteDay + 10);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// resolveObservationDeadline — T4.13 (2026-08-01) shared fallback.
+//
+// Extracted from close-eligible-observations.ts (the auto-close sweep) and
+// reused by /admin/observaciones's "Cierre estimado" render — the deadline
+// must be the SAME whether a cron reads it to decide auto-close or an
+// operator reads it to plan a follow-up. Pinned here so the two call sites
+// can never silently diverge again.
+// ---------------------------------------------------------------------------
+
+describe("resolveObservationDeadline", () => {
+  const startedAt = new Date("2026-01-01T12:00:00Z");
+
+  it("uses the payload's observation_until when present and valid", () => {
+    const explicit = "2026-01-15T00:00:00Z";
+    const result = resolveObservationDeadline(explicit, startedAt);
+    expect(result.toISOString()).toBe(new Date(explicit).toISOString());
+  });
+
+  it("falls back to computeObservationUntil(startedAt) when the field is absent (undefined)", () => {
+    const result = resolveObservationDeadline(undefined, startedAt);
+    expect(result.toISOString()).toBe(computeObservationUntil(startedAt).toISOString());
+  });
+
+  it("falls back to computeObservationUntil(startedAt) when the field is null", () => {
+    const result = resolveObservationDeadline(null, startedAt);
+    expect(result.toISOString()).toBe(computeObservationUntil(startedAt).toISOString());
+  });
+
+  it("falls back to computeObservationUntil(startedAt) when the field is an empty string", () => {
+    const result = resolveObservationDeadline("", startedAt);
+    expect(result.toISOString()).toBe(computeObservationUntil(startedAt).toISOString());
+  });
+
+  it("falls back to computeObservationUntil(startedAt) when the field is an unparsable string", () => {
+    const result = resolveObservationDeadline("not-a-date", startedAt);
+    expect(result.toISOString()).toBe(computeObservationUntil(startedAt).toISOString());
+  });
+
+  it("accepts a Date instance directly (not just a string), for callers that already parsed it", () => {
+    const explicit = new Date("2026-01-20T00:00:00Z");
+    const result = resolveObservationDeadline(explicit, startedAt);
+    expect(result.toISOString()).toBe(explicit.toISOString());
+  });
+
+  it("falls back for a non-date-like value (e.g. a number), never throws", () => {
+    const result = resolveObservationDeadline(12345, startedAt);
+    expect(result.toISOString()).toBe(computeObservationUntil(startedAt).toISOString());
   });
 });
 

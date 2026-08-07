@@ -27,7 +27,7 @@ export function OpCodeBadge({ tone, children }: Props) {
       className={[
         "inline-flex w-fit items-center gap-[5px] rounded-[3px] border",
         "px-2 py-0.5",
-        "font-ln-mono text-[11px] font-bold",
+        "font-ln-mono text-sm font-bold",
         toneClasses[tone],
       ].join(" ")}
     >

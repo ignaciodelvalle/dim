@@ -2,26 +2,45 @@
 // (cleaned up after each test) and runs against the dev DB.
 
 import { createClient } from "@supabase/supabase-js";
-import { eq, inArray, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, ownerships, petEvents, pets, profiles, welfareReports } from "@/db";
 import {
+  cases,
+  custodyDisputes,
+  db,
+  ownerships,
+  petEvents,
+  pets,
+  profiles,
+  welfareReports,
+} from "@/db";
+import {
+  custodyDisputesScopeClause,
   fetchAcquisitionTrend,
   fetchAnalyticsMetrics,
+  fetchCasesForExport,
+  fetchCasesPerCapita,
   fetchCasesPerLocality,
   fetchDeathCauses,
   fetchDiseaseSummary,
+  fetchEventsForExport,
   fetchLostPets,
   fetchOutbreakHistory,
   fetchPerdidasMetrics,
+  fetchPetsForExport,
   fetchSurveillanceSignals,
   fetchVigilanciaMetrics,
   fetchWelfareMetrics,
   fetchZoonosisTrend,
-} from "@/lib/govt-dashboards";
-import { generatePublicToken } from "@/lib/publicToken";
+} from "@/lib/analytics/govt-dashboards";
+import { fetchOpenWelfareReportsCount } from "@/lib/analytics/govt-home-kpis";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { buildProjectionContext } from "@/lib/metrics";
+import { ANONYMITY_K } from "@/lib/metrics/anonymity";
+import { windows } from "@/lib/metrics/period";
 import { withMutationOverride } from "./_helpers/db-overrides";
+import { assertKpiListParity } from "./helpers/kpi-list-parity";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -68,6 +87,11 @@ async function cleanupFixtureRows() {
   });
 
   if (ids.length === 0) return;
+  // custody_disputes must be deleted BEFORE pet_events: raising_event_id FKs to
+  // pet_events with NO cascade (migration 0025), so an event can't be deleted
+  // while a dispute still references it. (pet_id IS cascade, but cleanup deletes
+  // events before pets.) custody_dispute_parties cascades from custody_disputes.
+  await db.delete(custodyDisputes).where(inArray(custodyDisputes.petId, ids));
   // pet_events has a BEFORE DELETE trigger blocking mutations; the
   // app.allow_event_mutation GUC is the documented escape hatch.
   await withMutationOverride(async (tx) => {
@@ -294,6 +318,376 @@ describe("fetchSurveillanceSignals", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Payload/pets jurisdiction drift (scope-security review 2026-07-04 A1/A2).
+//
+// The outbreak_signal payload carries pet_jurisdiction_* as a snapshot at
+// event time. When the pet later moves, the payload and pets.jurisdiction_*
+// diverge; a payload-only scope would leak the (moved-away) pet to the govt
+// viewer of the OLD jurisdiction. Each fetcher must also require the pet's
+// CURRENT jurisdiction to be in scope. Fixtures use a unique locality so no
+// other dev-DB rows can match the scoped queries.
+// ---------------------------------------------------------------------------
+
+describe("jurisdiction drift — payload vs pets.jurisdiction", () => {
+  const DRIFT_PROV = "CABA";
+  const DRIFT_LOC = "GD-DriftVille"; // unique to this suite
+  const DRIFT_SCOPE = [{ province: DRIFT_PROV, locality: DRIFT_LOC }];
+  const DISEASE = "drift_test_disease";
+  const since = () => new Date(Date.now() - 24 * 60 * 60 * 1000);
+
+  /** Pet that MOVED AWAY: current jurisdiction elsewhere, payload in scope. */
+  async function insertMovedPetWithSignal(): Promise<string> {
+    const petId = await insertFixturePet({
+      name: "DriftMovedPet",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitOutbreakSignal({
+      petId,
+      diseaseCode: DISEASE,
+      province: DRIFT_PROV,
+      locality: DRIFT_LOC,
+      hoursAgo: 1,
+    });
+    return petId;
+  }
+
+  /** Resident pet: current jurisdiction AND payload both in scope. */
+  async function insertResidentPetWithSignal(): Promise<string> {
+    const petId = await insertFixturePet({
+      name: "DriftResidentPet",
+      species: "dog",
+      province: DRIFT_PROV,
+      locality: DRIFT_LOC,
+    });
+    await emitOutbreakSignal({
+      petId,
+      diseaseCode: DISEASE,
+      province: DRIFT_PROV,
+      locality: DRIFT_LOC,
+      hoursAgo: 1,
+    });
+    return petId;
+  }
+
+  it("fetchSurveillanceSignals: govt does not see a signal whose pet moved out of scope; resident pet still visible", async () => {
+    await insertMovedPetWithSignal();
+    await insertResidentPetWithSignal();
+
+    const r = await fetchSurveillanceSignals({ role: "govt" }, DRIFT_SCOPE, { since: since() });
+    const names = r.map((s) => s.petName);
+    expect(names).not.toContain("DriftMovedPet");
+    expect(names).toContain("DriftResidentPet");
+  });
+
+  it("fetchSurveillanceSignals: admin still sees the drifted signal (universal scope preserved)", async () => {
+    await insertMovedPetWithSignal();
+
+    const r = await fetchSurveillanceSignals({ role: "admin" }, [], { since: since() });
+    expect(r.map((s) => s.petName)).toContain("DriftMovedPet");
+  });
+
+  it("fetchZoonosisTrend: govt counts exclude signals from pets that moved out of scope", async () => {
+    await insertMovedPetWithSignal();
+    await insertResidentPetWithSignal();
+
+    const trend = await fetchZoonosisTrend({ role: "govt" }, DRIFT_SCOPE);
+    // Only the resident pet's signal may count within this unique locality.
+    const total = trend.reduce((s, p) => s + p.y, 0);
+    expect(total).toBe(1);
+  });
+
+  // RA-3 C3: fetchOutbreakHistory now k-anonymises its (disease, locality,
+  // province) groups, so a ONE-signal fixture is withheld for privacy reasons
+  // and a drift assertion built on it would pass without testing drift at all.
+  // These two tests top the fixture up to the k floor so the only thing that can
+  // hide a group is the SCOPE rule they are actually about.
+  async function topUpToKSignals(petId: string): Promise<void> {
+    for (let i = 1; i < ANONYMITY_K; i++) {
+      await emitOutbreakSignal({
+        petId,
+        diseaseCode: DISEASE,
+        province: DRIFT_PROV,
+        locality: DRIFT_LOC,
+        hoursAgo: 1 + i,
+      });
+    }
+  }
+
+  it("fetchOutbreakHistory: govt history excludes signals from pets that moved out of scope", async () => {
+    const moved = await insertMovedPetWithSignal();
+    await topUpToKSignals(moved);
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, DRIFT_SCOPE);
+    expect(r.rows.filter((row) => row.diseaseCode === DISEASE)).toEqual([]);
+    // Excluded by SCOPE, not by k — the group is at the k floor, so a non-zero
+    // suppressedCount here would mean the test is measuring the wrong rule.
+    expect(r.suppressedCount).toBe(0);
+  });
+
+  it("fetchOutbreakHistory: resident pet's signals still appear for govt", async () => {
+    const resident = await insertResidentPetWithSignal();
+    await topUpToKSignals(resident);
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, DRIFT_SCOPE);
+    const group = r.rows.find((row) => row.diseaseCode === DISEASE);
+    expect(group).toBeDefined();
+    expect(group?.totalSignals).toBe(ANONYMITY_K);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Jurisdiction drift — fitness sweep across the REMAINING govt fetchers
+// (task #33 / test-coverage-review TOP-5 gap #3). fetchSurveillanceSignals,
+// fetchZoonosisTrend, and fetchOutbreakHistory already got moved-pet drift
+// coverage above (scope-security review 2026-07-04 A1/A2). This block closes
+// the "verify the OTHERS" gap for the export tail + fetchAnalyticsMetrics /
+// fetchDeathCauses (lib/analytics/govt-dashboards.ts:2163+).
+//
+// fetchPetsForExport / fetchAnalyticsMetrics / fetchDeathCauses scope on the
+// pet's CURRENT jurisdiction (pets.jurisdiction_province/locality, either
+// directly or via an inner join) — they never read the payload snapshot, so
+// they are drift-safe BY CONSTRUCTION. These tests assert that and lock it
+// in as a regression control.
+//
+// fetchEventsForExport ALSO scopes via petEventsScopeClause (the event-payload
+// jurisdiction snapshot), so it originally leaked a moved-away pet's events into
+// the old jurisdiction's export. Fixed 2026-07-04: it now additionally applies
+// petsCurrentJurisdictionClause (pets is inner-joined), matching its sibling
+// fetchers (fetchSurveillanceSignals / fetchZoonosisTrend / fetchOutbreakHistory).
+// The test below is now a plain regression control.
+// ---------------------------------------------------------------------------
+
+describe("jurisdiction drift — export & analytics fetchers fitness sweep (task #33)", () => {
+  const SWEEP_PROV = "CABA";
+  const SWEEP_LOC = "GD-DriftSweepVille"; // unique to this suite
+  const SWEEP_SCOPE = [{ province: SWEEP_PROV, locality: SWEEP_LOC }];
+
+  async function petPublicTokenOf(petId: string): Promise<string> {
+    const [row] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, petId));
+    return row.publicToken;
+  }
+
+  it("fetchPetsForExport: excludes a pet whose CURRENT jurisdiction is outside govt scope (drift-safe by construction)", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepPetsExpMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    const residentId = await insertFixturePet({
+      name: "DriftSweepPetsExpResident",
+      species: "dog",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+    const movedToken = await petPublicTokenOf(movedId);
+    const residentToken = await petPublicTokenOf(residentId);
+
+    const r = await fetchPetsForExport({ role: "govt" }, SWEEP_SCOPE);
+    const tokens = r.map((row) => row.publicToken);
+    expect(tokens).not.toContain(movedToken);
+    expect(tokens).toContain(residentToken);
+  });
+
+  it("fetchAnalyticsMetrics: rabiesVaccinationRate never counts a vaccination event whose pet moved OUT of govt scope, even though the payload still carries the old jurisdiction", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepAnalyticsMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await insertFixturePet({
+      name: "DriftSweepAnalyticsResident",
+      species: "dog",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+    // Moved pet's vaccination payload claims the govt's scope (stale
+    // event-time snapshot) — but the pet's CURRENT jurisdiction is elsewhere.
+    await emitVaccinationWithName({
+      petId: movedId,
+      vaccineName: "Antirrábica",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+    // Resident pet has no vaccination — if the moved pet's event leaked in
+    // via the payload, the rate would be > 0.
+
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, SWEEP_SCOPE);
+    expect(m.totalPets).toBeGreaterThanOrEqual(1);
+    expect(m.rabiesVaccinationRate).toBe(0);
+  });
+
+  it("fetchDeathCauses: excludes a death event whose pet moved OUT of govt scope, even though the payload still carries the old jurisdiction", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepDeathMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitDeathEvent({
+      petId: movedId,
+      cause: "accident",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+    });
+
+    const r = await fetchDeathCauses({ role: "govt" }, SWEEP_SCOPE);
+    expect(r.find((row) => row.cause === "accident")).toBeUndefined();
+  });
+
+  it("fetchEventsForExport: govt export excludes events from a pet that moved OUT of scope (pets-current-jurisdiction guard, matching its sibling fetchers)", async () => {
+    const movedId = await insertFixturePet({
+      name: "DriftSweepEventsExpMoved",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitOutbreakSignal({
+      petId: movedId,
+      diseaseCode: "drift_sweep_export_disease",
+      province: SWEEP_PROV,
+      locality: SWEEP_LOC,
+      hoursAgo: 1,
+    });
+    const movedToken = await petPublicTokenOf(movedId);
+
+    const r = await fetchEventsForExport({ role: "govt" }, SWEEP_SCOPE);
+    const tokens = r.map((row) => row.petPublicToken);
+    expect(tokens).not.toContain(movedToken);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Export honors active filters — admin province/locality drill-down
+// (Fase C, saved-views/export-honors-filters, 2026-07-21).
+//
+// /gob/analytics/export's JurisdictionSwitcher lets an admin narrow the
+// export to a single province/locality (Panorama-style drill-down), same as
+// every other analytics dashboard's OpFilterBar. Before this fix, the
+// export server action never forwarded the selection into fetchPetsForExport/
+// fetchEventsForExport/fetchCasesForExport/fetchOrganizationsForExport — the
+// switcher visibly updated but the generated file always covered the WHOLE
+// nation for an admin (view↔export honesty gap). These fetchers' admin-drill
+// params (adminProvince/adminLocality) already existed on the underlying
+// _scope.ts helpers (petsScopeClause/petsCurrentJurisdictionClause/
+// casesScopeClause) for the on-screen dashboards — this closes the gap by
+// threading them through the EXPORT fetchers too.
+describe("export honors active filters — admin province/locality drill-down (Fase C)", () => {
+  const DRILL_PROV = "CABA";
+  const DRILL_LOC = "GD-ExportDrillVille"; // unique to this suite
+
+  it("fetchPetsForExport: admin + adminProvince/adminLocality narrows to that jurisdiction only", async () => {
+    const insideId = await insertFixturePet({
+      name: "ExportDrillPetInside",
+      species: "dog",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+    });
+    const outsideId = await insertFixturePet({
+      name: "ExportDrillPetOutside",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    const [insideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, insideId));
+    const [outsideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, outsideId));
+
+    // No drill-down (backward-compat): admin export is UNRESTRICTED by
+    // jurisdiction but row-capped — against a seeded DB larger than the cap,
+    // "universal contains my fixture" is unsound (the fixture may fall outside
+    // the capped window by ordering). Assert the backward-compat property that
+    // is actually guaranteed: the universal export returns rows and is not
+    // narrowed to the drill jurisdiction (it spans >1 province).
+    const universal = await fetchPetsForExport({ role: "admin" }, []);
+    expect(universal.length).toBeGreaterThan(0);
+    const universalProvinces = new Set(universal.map((r) => r.jurisdictionProvince));
+    expect(universalProvinces.size).toBeGreaterThan(1);
+
+    // Drilled down: only the selected province/locality survives.
+    const drilled = await fetchPetsForExport({ role: "admin" }, [], {}, DRILL_PROV, DRILL_LOC);
+    const drilledTokens = drilled.map((r) => r.publicToken);
+    expect(drilledTokens).toContain(insideRow.publicToken);
+    expect(drilledTokens).not.toContain(outsideRow.publicToken);
+  });
+
+  it("fetchEventsForExport: admin drill-down excludes events from a pet outside the selected jurisdiction", async () => {
+    const insideId = await insertFixturePet({
+      name: "ExportDrillEventInside",
+      species: "dog",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+    });
+    const outsideId = await insertFixturePet({
+      name: "ExportDrillEventOutside",
+      species: "dog",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+    await emitOutbreakSignal({
+      petId: insideId,
+      diseaseCode: "export_drill_disease",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+      hoursAgo: 1,
+    });
+    await emitOutbreakSignal({
+      petId: outsideId,
+      diseaseCode: "export_drill_disease",
+      province: "Buenos Aires",
+      locality: "La Plata",
+      hoursAgo: 1,
+    });
+    const [insideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, insideId));
+    const [outsideRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, outsideId));
+
+    const drilled = await fetchEventsForExport({ role: "admin" }, [], {}, DRILL_PROV, DRILL_LOC);
+    const tokens = drilled
+      .filter((r) => r.eventType === "outbreak_signal")
+      .map((r) => r.petPublicToken);
+    expect(tokens).toContain(insideRow.publicToken);
+    expect(tokens).not.toContain(outsideRow.publicToken);
+  });
+
+  it("fetchCasesForExport: admin drill-down excludes a case outside the selected jurisdiction", async () => {
+    await insertFixtureCase({
+      caseKind: "custody_dispute",
+      province: DRILL_PROV,
+      locality: DRILL_LOC,
+    });
+    await insertFixtureCase({
+      caseKind: "custody_dispute",
+      province: "Buenos Aires",
+      locality: "La Plata",
+    });
+
+    const drilled = await fetchCasesForExport({ role: "admin" }, [], {}, DRILL_PROV, DRILL_LOC);
+    expect(drilled.length).toBeGreaterThan(0);
+    for (const row of drilled) {
+      expect(row.jurisdictionProvince).toBe(DRILL_PROV);
+      expect(row.jurisdictionLocality).toBe(DRILL_LOC);
+    }
+  });
+});
+
 describe("fetchDiseaseSummary", () => {
   it("aggregates counts into 30d / 7d / 24h buckets", async () => {
     const pet = await insertFixturePet({
@@ -370,6 +764,87 @@ describe("fetchLostPets", () => {
       locationLng: "-58.3815",
     });
   }
+
+  /** Mark a pet recovered the way the app does: status back to active + the
+   *  status_changed event the KPI counts. */
+  async function markRecovered(petId: string, hoursAgo: number) {
+    await db.update(pets).set({ status: "active" }).where(eq(pets.id, petId));
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "status_changed",
+      occurredAt: new Date(Date.now() - hoursAgo * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        from_status: "lost",
+        to_status: "active",
+        location_description: null,
+        reason: null,
+      },
+      authorRole: "owner",
+      recordedByUserId: ownerUserId,
+    });
+  }
+
+  // The tab labelled "Recuperadas" used to map to `status=active` and therefore
+  // listed the whole living padrón — 260 rows beside a KPI reading 2 (live
+  // review 2026-07-28). Recovery is a TRANSITION in the spine, not a status: a
+  // pet that was never lost is `active` too.
+  describe("status=recovered — event-sourced, not a status", () => {
+    it("lists a pet that went lost → active, and NOT one that was merely never lost", async () => {
+      const recovered = await insertFixturePet({
+        name: "Recovered-CABA",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      const neverLost = await insertFixturePet({
+        name: "NeverLost-CABA",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      await markLost(recovered, 48);
+      await markRecovered(recovered, 2);
+
+      const names = new Set(
+        (await fetchLostPets({ role: "admin" }, [], { status: "recovered" })).map((r) => r.petName),
+      );
+      expect(names.has("Recovered-CABA")).toBe(true);
+      // The whole point: `neverLost` is status=active too, and must NOT appear.
+      expect(names.has("NeverLost-CABA")).toBe(false);
+    });
+
+    it("excludes a recovery older than the window the KPI uses", async () => {
+      const old = await insertFixturePet({
+        name: "RecoveredLongAgo",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      await markLost(old, 24 * 90);
+      await markRecovered(old, 24 * 60); // 60 days ago — outside the 30d window
+
+      const names = new Set(
+        (await fetchLostPets({ role: "admin" }, [], { status: "recovered" })).map((r) => r.petName),
+      );
+      expect(names.has("RecoveredLongAgo")).toBe(false);
+    });
+
+    it("does not count a pet still lost as recovered", async () => {
+      const stillLost = await insertFixturePet({
+        name: "StillLost",
+        species: "dog",
+        province: "CABA",
+        locality: "CABA",
+      });
+      await markLost(stillLost, 3);
+
+      const names = new Set(
+        (await fetchLostPets({ role: "admin" }, [], { status: "recovered" })).map((r) => r.petName),
+      );
+      expect(names.has("StillLost")).toBe(false);
+    });
+  });
 
   it("admin sees all lost pets across provinces", async () => {
     const a = await insertFixturePet({
@@ -562,6 +1037,42 @@ describe("fetchLostPets", () => {
     expect(names).not.toContain("OldLost");
   });
 
+  // G0 (PO decision): the /gob/perdidas LIST defaults to the full currently-lost
+  // STOCK (no `since` window), so its count matches the same-page "Perdidas
+  // activas" KPI (fetchPerdidasMetrics.activeCount) — both count status='lost'.
+  // Without a `since`, an old lost episode (72h) is INCLUDED (unlike the windowed
+  // path above), and the unwindowed list length equals activeCount for the scope.
+  it("no `since` returns the full lost stock and matches the activeCount KPI", async () => {
+    const prov = "Catamarca";
+    const loc = "San Fernando del Valle de Catamarca";
+    const recent = await insertFixturePet({
+      name: "StockRecent",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    const old = await insertFixturePet({
+      name: "StockOld",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(recent, 1);
+    await markLost(old, 72);
+
+    const scope = [{ province: prov, locality: loc }];
+    const list = await fetchLostPets({ role: "govt" }, scope);
+    const names = list.map((p) => p.petName);
+    // Both the recent AND the old lost pet appear — no default window drops the old one.
+    expect(names).toContain("StockRecent");
+    expect(names).toContain("StockOld");
+
+    // List count (unwindowed, status='lost') == the "Perdidas activas" KPI.
+    const metrics = await fetchPerdidasMetrics({ role: "govt" }, scope);
+    expect(metrics.activeCount).toBe(list.length);
+    expect(list.length).toBe(2);
+  });
+
   it("q containing % is escaped and does not act as a wildcard", async () => {
     const prov = "Misiones";
     const loc = "Posadas";
@@ -609,6 +1120,25 @@ describe("fetchLostPets", () => {
     expect(names).not.toContain("UnderscorePetA");
     expect(names).not.toContain("UnderscorePetB");
   });
+
+  // Accent-parity: unaccented q must find a pet whose name contains diacritics.
+  // PostgreSQL ILIKE folds case but NOT diacritics; unaccent() on both column
+  // and pattern is required for "gonzalez" to find "González".
+  it("q filter matches accented pet name via unaccented query", async () => {
+    const prov = "Entre Ríos";
+    const loc = "Paraná";
+    const pet = await insertFixturePet({
+      name: "Ñoño",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await markLost(pet, 1);
+
+    const r = await fetchLostPets({ role: "admin" }, [], { q: "nono" });
+    const names = r.map((p) => p.petName);
+    expect(names).toContain("Ñoño");
+  });
 });
 
 // ============================================================================
@@ -618,12 +1148,13 @@ describe("fetchLostPets", () => {
 let caseSeq = 0;
 async function insertFixtureCase(input: {
   caseKind: string;
-  status?: "open" | "closed";
+  status?: "open" | "escalated" | "closed";
   province?: string;
   locality?: string;
   petId?: string;
 }): Promise<string> {
   caseSeq += 1;
+  const status = input.status ?? "open";
   const [row] = await db
     .insert(cases)
     .values({
@@ -631,11 +1162,50 @@ async function insertFixtureCase(input: {
       caseKind: input.caseKind,
       primarySubjectKind: input.petId ? "registered_pet" : "general",
       primaryPetId: input.petId ?? null,
-      status: input.status ?? "open",
+      status,
+      // cases_closed_consistency requires closedAt whenever status='closed'.
+      closedAt: status === "closed" ? new Date() : null,
       jurisdictionProvince: input.province ?? null,
       jurisdictionLocality: input.locality ?? null,
     })
     .returning({ id: cases.id });
+  return row.id;
+}
+
+let disputeSeq = 0;
+// Inserts a custody_disputes row (the domain aggregate /gob/disputas lists and
+// the analytics disputes KPI now counts), plus its NOT NULL raising pet_event.
+// The pet must be a GD-TEST- fixture so cleanupFixtureRows reclaims it.
+async function insertFixtureDispute(input: {
+  petId: string;
+  status?: "open" | "resolved" | "withdrawn";
+  province?: string;
+  locality?: string;
+}): Promise<string> {
+  disputeSeq += 1;
+  const [raising] = await db
+    .insert(petEvents)
+    .values({
+      petId: input.petId,
+      eventType: "custody_dispute_raised",
+      occurredAt: new Date("2026-05-01T00:00:00.000Z"),
+      authorRole: "govt",
+      payload: { source: "govt-dashboards-test" },
+    })
+    .returning({ id: petEvents.id });
+  const [row] = await db
+    .insert(custodyDisputes)
+    .values({
+      publicToken: `DIS-GD-TEST-${Date.now()}-${disputeSeq}`,
+      petId: input.petId,
+      raisedByRole: "govt",
+      raisingEventId: raising.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: input.province ?? "Buenos Aires",
+      jurisdictionLocality: input.locality ?? "La Plata",
+      status: input.status ?? "open",
+    })
+    .returning({ id: custodyDisputes.id });
   return row.id;
 }
 
@@ -662,7 +1232,7 @@ async function emitVaccinationEvent(input: {
 // ============================================================================
 
 describe("fetchVigilanciaMetrics", () => {
-  it("returns all four metrics with correct shape", async () => {
+  it("returns all five metrics with correct shape", async () => {
     const pet = await insertFixturePet({
       name: "MetricsTestPet",
       species: "dog",
@@ -676,8 +1246,11 @@ describe("fetchVigilanciaMetrics", () => {
       locality: "La Plata",
       hoursAgo: 1,
     });
+    // 'bite_incident' is the kind rabiesActiveCount counts — the expediente a
+    // rabies observation actually lives on. (Was 'rabies_observation', a kind
+    // no production code opens or closes.)
     await insertFixtureCase({
-      caseKind: "rabies_observation",
+      caseKind: "bite_incident",
       status: "open",
       province: "Buenos Aires",
       locality: "La Plata",
@@ -689,6 +1262,7 @@ describe("fetchVigilanciaMetrics", () => {
     expect(typeof m.rabiesActiveCount).toBe("number");
     expect(typeof m.petsRegisteredToday).toBe("number");
     expect(typeof m.vaccinationsThisWeek).toBe("number");
+    expect(typeof m.investigationActiveCount).toBe("number");
     expect(m.outbreakActiveCount).toBeGreaterThanOrEqual(1);
     expect(m.rabiesActiveCount).toBeGreaterThanOrEqual(1);
     // pet inserted today → should be counted
@@ -782,6 +1356,63 @@ describe("fetchVigilanciaMetrics", () => {
     // We verify the count is at least 1 (recent) and at most what we inserted
     // in this test (2 total, but only 1 is within 30d).
     expect(govtMetrics.outbreakActiveCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("investigationActiveCount counts open + escalated outbreak_investigation cases, excludes closed", async () => {
+    const province = "Tierra del Fuego";
+    const locality = `InvActive-${Date.now()}`;
+
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "open",
+      province,
+      locality,
+    });
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "escalated",
+      province,
+      locality,
+    });
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "closed",
+      province,
+      locality,
+    });
+
+    const m = await fetchVigilanciaMetrics({ role: "govt" }, [{ province, locality }]);
+    // Only the open + escalated cases count as "active" — the closed one must not.
+    expect(m.investigationActiveCount).toBe(2);
+  });
+
+  it("investigationActiveCount respects jurisdiction scope — govt never sees another jurisdiction's cases", async () => {
+    const localityA = `InvScopeA-${Date.now()}`;
+    const localityB = `InvScopeB-${Date.now()}`;
+
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "open",
+      province: "Chubut",
+      locality: localityA,
+    });
+    await insertFixtureCase({
+      caseKind: "outbreak_investigation",
+      status: "escalated",
+      province: "Chubut",
+      locality: localityB,
+    });
+
+    const adminMetrics = await fetchVigilanciaMetrics({ role: "admin" }, []);
+    const govtMetrics = await fetchVigilanciaMetrics({ role: "govt" }, [
+      { province: "Chubut", locality: localityA },
+    ]);
+
+    expect(adminMetrics.investigationActiveCount).toBeGreaterThanOrEqual(2);
+    expect(govtMetrics.investigationActiveCount).toBeGreaterThanOrEqual(1);
+    expect(govtMetrics.investigationActiveCount).toBeLessThan(
+      adminMetrics.investigationActiveCount,
+    );
   });
 });
 
@@ -1029,6 +1660,29 @@ describe("fetchPerdidasMetrics", () => {
     });
   }
 
+  // Pins the honesty fix (2026-07-19): a lost pet that exits via a BAJA
+  // (e.g. deceased) is not a recovery. Real writers never emit this shape
+  // (death goes through `death_recorded`, not `status_changed`) — this
+  // fixture exercises the query predicate directly so a future writer or a
+  // query regression can't silently re-inflate recoveredMonth.
+  async function markDeceasedFixture(petId: string, hoursAgo: number) {
+    await db.update(pets).set({ status: "deceased" }).where(eq(pets.id, petId));
+    await db.insert(petEvents).values({
+      petId,
+      eventType: "status_changed",
+      occurredAt: new Date(Date.now() - hoursAgo * 60 * 60 * 1000),
+      payload: {
+        payload_version: 1,
+        from_status: "lost",
+        to_status: "deceased",
+        location_description: null,
+        reason: null,
+      },
+      authorRole: "owner",
+      recordedByUserId: ownerUserId,
+    });
+  }
+
   it("returns the 3-key shape", async () => {
     const m = await fetchPerdidasMetrics({ role: "admin" }, []);
     expect(typeof m.activeCount).toBe("number");
@@ -1099,7 +1753,7 @@ describe("fetchPerdidasMetrics", () => {
     expect(m.recoveredMonth).toBeGreaterThanOrEqual(0);
   });
 
-  it("recoveredMonth correctly counts pets that went lost → other status within 30d", async () => {
+  it("recoveredMonth correctly counts pets that went lost → active within 30d", async () => {
     const pet = await insertFixturePet({
       name: "RecoveredPet",
       species: "dog",
@@ -1116,6 +1770,26 @@ describe("fetchPerdidasMetrics", () => {
     expect(m.recoveredMonth).toBeGreaterThanOrEqual(1);
   });
 
+  it("recoveredMonth does NOT count a lost → deceased exit (baja, not a recovery)", async () => {
+    // Isolated jurisdiction (not reused by other tests in this file) so the
+    // scoped recoveredMonth count for this fixture pet is exact, not just
+    // ">= 0" — this is what pins the fix, not just non-regression.
+    const pet = await insertFixturePet({
+      name: "SoloDeceasedWhileLostPet",
+      species: "dog",
+      province: "Chaco",
+      locality: "Resistencia",
+    });
+    await markLostFixture(pet, 48);
+    await markDeceasedFixture(pet, 24);
+
+    const m = await fetchPerdidasMetrics({ role: "govt" }, [
+      { province: "Chaco", locality: "Resistencia" },
+    ]);
+    // A lost→deceased exit is a BAJA, not a recovery — must contribute 0.
+    expect(m.recoveredMonth).toBe(0);
+  });
+
   it("avgDaysActive returns 0 when there are no active lost pets in scope", async () => {
     // Govt with no assignments → immediate 0 return path.
     const m = await fetchPerdidasMetrics({ role: "govt" }, []);
@@ -1123,28 +1797,118 @@ describe("fetchPerdidasMetrics", () => {
   });
 
   it("avgDaysActive correctly averages now - markedLostAt", async () => {
+    // Synthetic locality so the average is over THIS test's lost pets only.
+    // avgDaysActive is a scope-wide aggregate; a real locality (e.g. Rosario)
+    // would also pick up the national demo seed's lost pets and skew the average.
+    const prov = "Santa Fe";
+    const loc = `avgdays-test-${Date.now()}`;
     const pet1 = await insertFixturePet({
       name: "AvgPet1",
       species: "dog",
-      province: "Santa Fe",
-      locality: "Rosario",
+      province: prov,
+      locality: loc,
     });
     const pet2 = await insertFixturePet({
       name: "AvgPet2",
       species: "cat",
-      province: "Santa Fe",
-      locality: "Rosario",
+      province: prov,
+      locality: loc,
     });
     // Mark lost ~2 days ago and ~4 days ago respectively → avg ~3 days.
     await markLostFixture(pet1, 2 * 24);
     await markLostFixture(pet2, 4 * 24);
 
-    const m = await fetchPerdidasMetrics({ role: "govt" }, [
-      { province: "Santa Fe", locality: "Rosario" },
-    ]);
+    const m = await fetchPerdidasMetrics({ role: "govt" }, [{ province: prov, locality: loc }]);
     // avgDaysActive should be approximately 3 (± 1 due to timing).
     expect(m.avgDaysActive).toBeGreaterThanOrEqual(2);
     expect(m.avgDaysActive).toBeLessThanOrEqual(5);
+  });
+
+  // --------------------------------------------------------------------------
+  // KPI↔list parity harness (task #57) — activeCount (the "Perdidas activas"
+  // KPI) must always equal fetchLostPets()'s row count under the SAME
+  // actor/jurisdiction/admin-drilldown filters. This is the second dashboard
+  // wiring for the reusable assertKpiListParity helper; the maltrato wiring
+  // lives in __tests__/maltrato-sql-queue.test.ts.
+  // --------------------------------------------------------------------------
+  describe("KPI↔list parity harness (assertKpiListParity)", () => {
+    it("govt scope: activeCount matches fetchLostPets row count for an isolated locality", async () => {
+      const prov = "Entre Ríos";
+      const loc = `parity-govt-${Date.now()}`;
+      const petA = await insertFixturePet({
+        name: "ParityGovtA",
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      const petB = await insertFixturePet({
+        name: "ParityGovtB",
+        species: "cat",
+        province: prov,
+        locality: loc,
+      });
+      await markLostFixture(petA, 1);
+      await markLostFixture(petB, 30);
+
+      const scope = [{ province: prov, locality: loc }];
+      await assertKpiListParity({
+        filters: { actor: { role: "govt" as const }, jurisdictions: scope },
+        getKpiCount: async (f) =>
+          (await fetchPerdidasMetrics(f.actor, f.jurisdictions)).activeCount,
+        getListRows: async (f) => fetchLostPets(f.actor, f.jurisdictions),
+        label: "perdidas — govt scope, no display filters",
+      });
+    });
+
+    it("admin province+locality drill-down: activeCount matches fetchLostPets row count, excluding out-of-drilldown pets", async () => {
+      const prov = "Formosa";
+      const loc = `parity-admin-${Date.now()}`;
+      const petA = await insertFixturePet({
+        name: "ParityAdminA",
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      const petB = await insertFixturePet({
+        name: "ParityAdminB",
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      // Out-of-drilldown pet: must be excluded from BOTH sides identically, or
+      // this test would catch a KPI/list drift the same way the real bug did.
+      const outOfScope = await insertFixturePet({
+        name: "ParityAdminOutOfScope",
+        species: "dog",
+        province: "Jujuy",
+        locality: "San Salvador de Jujuy",
+      });
+      await markLostFixture(petA, 1);
+      await markLostFixture(petB, 5);
+      await markLostFixture(outOfScope, 1);
+
+      await assertKpiListParity({
+        filters: {
+          actor: { role: "admin" as const },
+          jurisdictions: [],
+          adminProvince: prov,
+          adminLocality: loc,
+        },
+        getKpiCount: async (f) =>
+          (
+            await fetchPerdidasMetrics(f.actor, f.jurisdictions, {
+              adminProvince: f.adminProvince,
+              adminLocality: f.adminLocality,
+            })
+          ).activeCount,
+        getListRows: async (f) =>
+          fetchLostPets(f.actor, f.jurisdictions, {
+            adminProvince: f.adminProvince,
+            adminLocality: f.adminLocality,
+          }),
+        label: "perdidas — admin province+locality drill-down",
+      });
+    });
   });
 });
 
@@ -1162,6 +1926,8 @@ async function insertFixtureWelfareReport(input: {
   status?: "open" | "triaged" | "in_progress" | "closed" | "invalid" | "duplicate";
   assignedToUserId?: string | null;
   closedAt?: Date | null;
+  flaggedAt?: Date | null;
+  moderationResolvedAt?: Date | null;
 }): Promise<string> {
   wrSeq += 1;
   const [row] = await db
@@ -1177,6 +1943,8 @@ async function insertFixtureWelfareReport(input: {
       status: input.status ?? "open",
       assignedToUserId: input.assignedToUserId ?? null,
       closedAt: input.closedAt ?? null,
+      flaggedAt: input.flaggedAt ?? null,
+      moderationResolvedAt: input.moderationResolvedAt ?? null,
     })
     .returning({ id: welfareReports.id });
   return row.id;
@@ -1219,6 +1987,48 @@ describe("fetchWelfareMetrics", () => {
     );
     // At least 1 open+unassigned fixture; assigned and closed ones should not be included.
     expect(m.unassignedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  // Regression guard for the KPI↔list moderation-exclusion fix (commit b0d427e3):
+  // a flagged-but-unresolved report must stay OUT of the tiles, exactly like it
+  // stays out of buildMaltratoListConditions({queue: 'unassigned'}). A flagged
+  // report whose moderation HAS been resolved is a normal report again and must
+  // be counted — this is the positive control proving the exclusion targets the
+  // unresolved-flag case specifically, not "flagged" in general.
+  it("unassignedCount excludes a flagged-but-unresolved report, but counts one whose flag was resolved", async () => {
+    const prov = "Chubut";
+    const loc = `moderation-scope-${Date.now()}`;
+
+    // Flagged, unresolved — must NOT be counted (mirrors buildMaltratoListConditions
+    // excluding it from the 'unassigned' queue).
+    await insertFixtureWelfareReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: null,
+      flaggedAt: new Date(),
+      moderationResolvedAt: null,
+    });
+    // Flagged AND resolved — positive control: must be counted like any other
+    // open+unassigned report once moderation has cleared it.
+    await insertFixtureWelfareReport({
+      province: prov,
+      locality: loc,
+      status: "open",
+      assignedToUserId: null,
+      flaggedAt: new Date(),
+      moderationResolvedAt: new Date(),
+    });
+
+    const scope = [{ province: prov, locality: loc }];
+    const m = await fetchWelfareMetrics({ role: "govt" }, scope, ownerUserId);
+    // Only the resolved report may count — the unresolved-flagged one must not.
+    expect(m.unassignedCount).toBe(1);
+    // The other active tiles must also stay honest for the unresolved-flagged
+    // report: it is not assigned to anyone, so myCount/inProgressCount are
+    // unaffected by it either way, but closedMonth must not pick it up (it's
+    // still status='open').
+    expect(m.closedMonth).toBe(0);
   });
 
   it("myCount counts only reports assigned to currentUserId with non-terminal status", async () => {
@@ -1299,6 +2109,44 @@ describe("fetchWelfareMetrics", () => {
     expect(m.myCount).toBe(0);
     expect(m.inProgressCount).toBe(0);
     expect(m.closedMonth).toBe(0);
+  });
+});
+
+// ============================================================================
+// C4 — fetchOpenWelfareReportsCount treats invalid/duplicate as terminal
+// ============================================================================
+
+describe("fetchOpenWelfareReportsCount — terminal statuses (C4)", () => {
+  afterEach(cleanupFixtureWelfareReports);
+
+  // Isolated jurisdiction so only these fixtures are in scope.
+  const PROV = "La Rioja";
+  const LOC = "La Rioja Capital";
+
+  function ctx() {
+    return buildProjectionContext(
+      { role: "govt" },
+      [{ province: PROV, locality: LOC }],
+      windows.trailing12m(),
+    );
+  }
+
+  it("excludes invalid and duplicate reports from the open count", async () => {
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "open" });
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "in_progress" });
+    // Terminal — must NOT count as open. Before C4 'invalid' leaked through here.
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "invalid" });
+    await insertFixtureWelfareReport({ province: PROV, locality: LOC, status: "duplicate" });
+    await insertFixtureWelfareReport({
+      province: PROV,
+      locality: LOC,
+      status: "closed",
+      closedAt: new Date(),
+    });
+
+    const { count } = await fetchOpenWelfareReportsCount(ctx());
+    // open + in_progress = 2; invalid/duplicate/closed excluded.
+    expect(count).toBe(2);
   });
 });
 
@@ -1427,9 +2275,10 @@ describe("fetchAnalyticsMetrics", () => {
   });
 
   it("rabiesVaccinationRate returns 0 when totalPets is 0 in scope", async () => {
-    // Isolated province with no pets.
+    // Synthetic locality guaranteed empty even on the demo-seeded DB (a real
+    // locality like Ushuaia is populated by the national seed → non-zero rate).
     const m = await fetchAnalyticsMetrics({ role: "govt" }, [
-      { province: "Tierra del Fuego", locality: "Ushuaia" },
+      { province: "Tierra del Fuego", locality: `empty-scope-test-${Date.now()}` },
     ]);
     expect(m.rabiesVaccinationRate).toBe(0);
   });
@@ -1517,7 +2366,7 @@ describe("fetchAnalyticsMetrics", () => {
     expect(mAdmin.totalPets).toBeGreaterThanOrEqual(mScoped.totalPets);
   });
 
-  it("custodyDisputes counts open custody_dispute cases in scope", async () => {
+  it("custodyDisputes counts open custody_disputes rows in scope (NOT custody_dispute cases)", async () => {
     const prov = "Catamarca";
     const loc = "San Fernando del Valle";
     const pet = await insertFixturePet({
@@ -1526,16 +2375,91 @@ describe("fetchAnalyticsMetrics", () => {
       province: prov,
       locality: loc,
     });
+    await insertFixtureDispute({ petId: pet, status: "open", province: prov, locality: loc });
+
+    // A location-subject custody_dispute CASE with no custody_disputes aggregate
+    // must NOT inflate the KPI — that superset was the "9 alarm, empty queue" bug.
     await insertFixtureCase({
       caseKind: "custody_dispute",
       status: "open",
       province: prov,
       locality: loc,
-      petId: pet,
+      // no petId → location/general subject, no custody_disputes row
     });
 
     const m = await fetchAnalyticsMetrics({ role: "govt" }, [{ province: prov, locality: loc }]);
     expect(m.custodyDisputes).toBeGreaterThanOrEqual(1);
+  });
+
+  it("count↔queue parity: the KPI equals the /gob/disputas open-queue count in the same scope", async () => {
+    // Unique locality so this fixture is the ONLY dispute data in scope — the KPI
+    // number and the queue-query number must be EQUAL, not merely both non-zero.
+    const prov = "Tierra del Fuego";
+    const loc = `parity-scope-${Date.now()}`;
+    const scope = [{ province: prov, locality: loc }];
+
+    // 2 open disputes (each on its own pet — one-open-dispute-per-pet constraint)
+    // + 1 resolved dispute. The KPI (open-only) and the open queue must both be 2.
+    for (let i = 0; i < 2; i++) {
+      const p = await insertFixturePet({
+        name: `ParityOpen${i}`,
+        species: "dog",
+        province: prov,
+        locality: loc,
+      });
+      await insertFixtureDispute({ petId: p, status: "open", province: prov, locality: loc });
+    }
+    const resolvedPet = await insertFixturePet({
+      name: "ParityResolved",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    // A resolved dispute needs a resolver + resolved_at (resolution_consistent check).
+    await db
+      .insert(custodyDisputes)
+      .values({
+        publicToken: `DIS-GD-PARITY-${Date.now()}`,
+        petId: resolvedPet,
+        raisedByRole: "govt",
+        raisingEventId: (
+          await db
+            .insert(petEvents)
+            .values({
+              petId: resolvedPet,
+              eventType: "custody_dispute_raised",
+              occurredAt: new Date("2026-05-01T00:00:00.000Z"),
+              authorRole: "govt",
+              payload: { source: "govt-dashboards-test" },
+            })
+            .returning({ id: petEvents.id })
+        )[0].id,
+        jurisdictionCountry: "AR",
+        jurisdictionProvince: prov,
+        jurisdictionLocality: loc,
+        status: "resolved",
+        resolution: "ownership_confirmed",
+        resolutionSummary: "parity fixture",
+        resolvedByUserId: ownerUserId,
+        resolvedAt: new Date("2026-05-02T00:00:00.000Z"),
+      })
+      .returning({ id: custodyDisputes.id });
+
+    // KPI (open-only, scoped) — the number the analytics "Disputas" tile shows.
+    const m = await fetchAnalyticsMetrics({ role: "govt" }, scope);
+
+    // The EXACT queue shape app/gob/disputas/page.tsx runs, filtered to open,
+    // using the SHARED scope helper — this is the wiring the page depends on.
+    const scopeFilter = custodyDisputesScopeClause({ role: "govt" }, scope) ?? sql`false`;
+    const queueRows = await db
+      .select({ id: custodyDisputes.id })
+      .from(custodyDisputes)
+      .innerJoin(pets, eq(pets.id, custodyDisputes.petId))
+      .where(and(eq(custodyDisputes.status, "open"), scopeFilter));
+
+    expect(m.custodyDisputes).toBe(2);
+    expect(queueRows).toHaveLength(2);
+    expect(m.custodyDisputes).toBe(queueRows.length);
   });
 });
 
@@ -1733,9 +2657,29 @@ describe("fetchDeathCauses", () => {
 // ============================================================================
 
 describe("fetchOutbreakHistory", () => {
-  it("returns empty array for govt with no assignments", async () => {
+  /** Emit `n` signals of one disease into one (province, locality). */
+  async function emitSignalBurst(input: {
+    petId: string;
+    diseaseCode: string;
+    province: string;
+    locality: string;
+    n: number;
+  }) {
+    for (let i = 0; i < input.n; i++) {
+      await emitOutbreakSignal({
+        petId: input.petId,
+        diseaseCode: input.diseaseCode,
+        province: input.province,
+        locality: input.locality,
+        hoursAgo: 2 + i,
+      });
+    }
+  }
+
+  it("returns no rows for govt with no assignments", async () => {
     const r = await fetchOutbreakHistory({ role: "govt" }, []);
-    expect(r).toEqual([]);
+    expect(r.rows).toEqual([]);
+    expect(r.suppressedCount).toBe(0);
   });
 
   it("returns rows with required shape", async () => {
@@ -1745,17 +2689,17 @@ describe("fetchOutbreakHistory", () => {
       province: "Buenos Aires",
       locality: "Tigre",
     });
-    await emitOutbreakSignal({
+    await emitSignalBurst({
       petId: pet,
       diseaseCode: "rabies_suspected",
       province: "Buenos Aires",
       locality: "Tigre",
-      hoursAgo: 2,
+      n: ANONYMITY_K,
     });
 
     const r = await fetchOutbreakHistory({ role: "admin" }, []);
-    expect(Array.isArray(r)).toBe(true);
-    for (const row of r) {
+    expect(Array.isArray(r.rows)).toBe(true);
+    for (const row of r.rows) {
       expect(typeof row.diseaseCode).toBe("string");
       expect(typeof row.diseaseName).toBe("string");
       expect(typeof row.locality).toBe("string");
@@ -1774,29 +2718,75 @@ describe("fetchOutbreakHistory", () => {
       province: prov,
       locality: loc,
     });
-    // Two signals of the same disease in the same locality.
-    await emitOutbreakSignal({
+    // Signals of the same disease in the same locality. At the k floor, not
+    // below it — below it the group is withheld and this test would be
+    // asserting the privacy rule instead of the grouping rule (RA-3 C3).
+    await emitSignalBurst({
       petId: pet,
       diseaseCode: "leptospirosis_suspected",
       province: prov,
       locality: loc,
-      hoursAgo: 10,
-    });
-    await emitOutbreakSignal({
-      petId: pet,
-      diseaseCode: "leptospirosis_suspected",
-      province: prov,
-      locality: loc,
-      hoursAgo: 5,
+      n: ANONYMITY_K,
     });
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const lepto = r.find(
+    const lepto = r.rows.find(
       (row) => row.diseaseCode === "leptospirosis_suspected" && row.locality === loc,
     );
     expect(lepto).toBeDefined();
     if (!lepto) return;
-    expect(lepto.totalSignals).toBeGreaterThanOrEqual(2);
+    expect(lepto.totalSignals).toBeGreaterThanOrEqual(ANONYMITY_K);
+  });
+
+  // RA-3 C3 — THE finding. A single reportable-disease signal used to render
+  // "Rabia · Ushuaia · Tierra del Fuego · 12 mar 2026 · 1": one animal, one
+  // locality, one date. Pinned both ways: the sub-k group must be ABSENT from
+  // `rows` AND present in `suppressedCount`, because dropping it silently would
+  // make the table say "nothing was ever reported here".
+  it("k-anon: a sub-k (disease, locality) group is withheld and COUNTED, never published", async () => {
+    const prov = "Tierra del Fuego";
+    const loc = "Ushuaia";
+    const pet = await insertFixturePet({
+      name: "KanonHistoryPet",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await emitSignalBurst({
+      petId: pet,
+      diseaseCode: "rabies_suspected",
+      province: prov,
+      locality: loc,
+      n: ANONYMITY_K - 1,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    expect(r.rows.find((x) => x.locality === loc)).toBeUndefined();
+    expect(r.suppressedCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it("k-anon: the SAME group crossing the k floor becomes publishable", async () => {
+    const prov = "Tierra del Fuego";
+    const loc = "Río Grande";
+    const pet = await insertFixturePet({
+      name: "KanonHistoryPetAtFloor",
+      species: "dog",
+      province: prov,
+      locality: loc,
+    });
+    await emitSignalBurst({
+      petId: pet,
+      diseaseCode: "rabies_suspected",
+      province: prov,
+      locality: loc,
+      n: ANONYMITY_K,
+    });
+
+    const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
+    const row = r.rows.find((x) => x.locality === loc);
+    expect(row).toBeDefined();
+    expect(row?.totalSignals).toBe(ANONYMITY_K);
+    expect(r.suppressedCount).toBe(0);
   });
 
   it("scope-bound: govt only sees signals in their jurisdictions", async () => {
@@ -1816,26 +2806,29 @@ describe("fetchOutbreakHistory", () => {
       province: prov2,
       locality: loc2,
     });
-    await emitOutbreakSignal({
+    // Both bursts sit AT the k floor: neither can be hidden by k-anon, so the
+    // only rule that can keep loc2 out of loc1's view is the scope rule.
+    await emitSignalBurst({
       petId: pet1,
       diseaseCode: "rabies_suspected",
       province: prov1,
       locality: loc1,
-      hoursAgo: 1,
+      n: ANONYMITY_K,
     });
-    await emitOutbreakSignal({
+    await emitSignalBurst({
       petId: pet2,
       diseaseCode: "rabies_suspected",
       province: prov2,
       locality: loc2,
-      hoursAgo: 1,
+      n: ANONYMITY_K,
     });
 
     const govtR = await fetchOutbreakHistory({ role: "govt" }, [
       { province: prov1, locality: loc1 },
     ]);
+    expect(govtR.rows.some((row) => row.locality === loc1)).toBe(true);
     // Must not contain rows from prov2/loc2.
-    for (const row of govtR) {
+    for (const row of govtR.rows) {
       expect(row.locality).not.toBe(loc2);
     }
   });
@@ -1907,7 +2900,7 @@ describe("fetchOutbreakHistory", () => {
     });
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const row = r.find((x) => x.diseaseCode === "brucellosis_suspected" && x.locality === loc);
+    const row = r.rows.find((x) => x.diseaseCode === "brucellosis_suspected" && x.locality === loc);
     expect(row).toBeDefined();
     if (!row) return;
 
@@ -1934,38 +2927,29 @@ describe("fetchOutbreakHistory", () => {
     const newer = new Date(now - 2 * 24 * 60 * 60 * 1000);
     const midnightOf = (d: Date) => new Date(`${d.toISOString().slice(0, 10)}T12:00:00.000Z`);
 
-    // 2 signals each on older and newer days — tied count; newer should win.
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: midnightOf(older),
-    });
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: new Date(midnightOf(older).getTime() + 1000),
-    });
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: midnightOf(newer),
-    });
-    await emitOutbreakSignalAt({
-      petId: pet,
-      diseaseCode: "hantavirus_suspected",
-      province: prov,
-      locality: loc,
-      occurredAt: new Date(midnightOf(newer).getTime() + 1000),
-    });
+    // 3 signals each on older and newer days — tied count; newer should win.
+    // THREE, not two: 2+2 = 4 is below ANONYMITY_K, so after RA-3 C3 the group
+    // would be withheld and this tie-break assertion would never run. The tie
+    // is what matters, not the size, so both days grew by one.
+    for (const offsetMs of [0, 1000, 2000]) {
+      await emitOutbreakSignalAt({
+        petId: pet,
+        diseaseCode: "hantavirus_suspected",
+        province: prov,
+        locality: loc,
+        occurredAt: new Date(midnightOf(older).getTime() + offsetMs),
+      });
+      await emitOutbreakSignalAt({
+        petId: pet,
+        diseaseCode: "hantavirus_suspected",
+        province: prov,
+        locality: loc,
+        occurredAt: new Date(midnightOf(newer).getTime() + offsetMs),
+      });
+    }
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const row = r.find((x) => x.diseaseCode === "hantavirus_suspected" && x.locality === loc);
+    const row = r.rows.find((x) => x.diseaseCode === "hantavirus_suspected" && x.locality === loc);
     expect(row).toBeDefined();
     if (!row) return;
 
@@ -1982,64 +2966,46 @@ describe("fetchOutbreakHistory", () => {
       province: prov,
       locality: loc,
     });
-    // Emit an outbreak_signal with NO disease_label in the payload.
+    // Emit outbreak_signals with NO disease_label in the payload.
     // The COALESCE fix must prevent this group from being dropped by the JOIN.
-    await db.insert(petEvents).values({
-      petId: pet,
-      eventType: "outbreak_signal",
-      occurredAt: new Date(Date.now() - 2 * 60 * 60 * 1000),
-      payload: {
-        payload_version: 1,
-        source_symptom_event_id: "00000000-0000-0000-0000-000000000000",
-        disease_code: "null_label_disease",
-        // disease_label intentionally omitted — simulates a NULL in the DB column
-        match_strength: {
-          high_count: 1,
-          medium_count: 0,
-          low_count: 0,
-          matched_symptom_codes: ["s_test"],
+    // ANONYMITY_K of them, not two: below the k floor the group is withheld for
+    // PRIVACY and this test could no longer tell that apart from the JOIN drop
+    // it exists to catch (RA-3 C3).
+    for (let i = 0; i < ANONYMITY_K; i++) {
+      await db.insert(petEvents).values({
+        petId: pet,
+        eventType: "outbreak_signal",
+        occurredAt: new Date(Date.now() - (i + 1) * 60 * 60 * 1000),
+        payload: {
+          payload_version: 1,
+          source_symptom_event_id: `00000000-0000-0000-0000-00000000000${i}`,
+          disease_code: "null_label_disease",
+          // disease_label intentionally omitted — simulates a NULL in the DB column
+          match_strength: {
+            high_count: 1,
+            medium_count: 0,
+            low_count: 0,
+            matched_symptom_codes: ["s_test"],
+          },
+          pet_jurisdiction_country: "AR",
+          pet_jurisdiction_province: prov,
+          pet_jurisdiction_locality: loc,
+          pet_species: "dog",
         },
-        pet_jurisdiction_country: "AR",
-        pet_jurisdiction_province: prov,
-        pet_jurisdiction_locality: loc,
-        pet_species: "dog",
-      },
-      authorRole: "system",
-      recordedByUserId: null,
-    });
-    await db.insert(petEvents).values({
-      petId: pet,
-      eventType: "outbreak_signal",
-      occurredAt: new Date(Date.now() - 1 * 60 * 60 * 1000),
-      payload: {
-        payload_version: 1,
-        source_symptom_event_id: "00000000-0000-0000-0000-000000000001",
-        disease_code: "null_label_disease",
-        // disease_label intentionally omitted
-        match_strength: {
-          high_count: 1,
-          medium_count: 0,
-          low_count: 0,
-          matched_symptom_codes: ["s_test"],
-        },
-        pet_jurisdiction_country: "AR",
-        pet_jurisdiction_province: prov,
-        pet_jurisdiction_locality: loc,
-        pet_species: "dog",
-      },
-      authorRole: "system",
-      recordedByUserId: null,
-    });
+        authorRole: "system",
+        recordedByUserId: null,
+      });
+    }
 
     const r = await fetchOutbreakHistory({ role: "govt" }, [{ province: prov, locality: loc }]);
-    const row = r.find((x) => x.diseaseCode === "null_label_disease" && x.locality === loc);
+    const row = r.rows.find((x) => x.diseaseCode === "null_label_disease" && x.locality === loc);
 
     // Without the COALESCE fix this group would be silently dropped by the JOIN.
     expect(row).toBeDefined();
     if (!row) return;
 
-    // Both signals must be counted.
-    expect(row.totalSignals).toBeGreaterThanOrEqual(2);
+    // Every signal must be counted.
+    expect(row.totalSignals).toBeGreaterThanOrEqual(ANONYMITY_K);
 
     // peakDate must be a valid ISO string.
     expect(typeof row.peakDate).toBe("string");
@@ -2049,11 +3015,117 @@ describe("fetchOutbreakHistory", () => {
     expect(row.diseaseName).toBe("null_label_disease");
   });
 
-  it("ordered by peakDate desc (most recent first)", async () => {
-    const r = await fetchOutbreakHistory({ role: "admin" }, []);
-    for (let i = 1; i < r.length; i++) {
-      expect(r[i - 1].peakDate >= r[i].peakDate).toBe(true);
+  // PO decision 2026-07-26: the list leads with MOST RECENTLY ACTIVE, which is
+  // what the SQL already does (ORDER BY t.last_seen DESC) and what surveillance
+  // asks — "where is something still happening?" — not "which outbreak peaked
+  // hardest".
+  //
+  // This assertion used to check `peakDate`, which the query never promised.
+  // Last-seen and peak-day are different quantities, so it only ever agreed by
+  // luck; re-seeding shifted the RNG and exposed it (1 violating pair in 100).
+  // A green test is not evidence the behaviour is right.
+  //
+  // Seeds its OWN two groups (2026-07-31, RA-3 C3). It used to rely on the
+  // ambient seed having >1 publishable group; once sub-k groups stopped being
+  // published that stopped being true, and a test whose precondition depends on
+  // seed volume is the "green-and-dead" shape this wave keeps finding.
+  it("ordered by lastSeen desc — most recently active first", async () => {
+    const recent = await insertFixturePet({
+      name: "OrderRecentPet",
+      species: "dog",
+      province: "Chubut",
+      locality: "Rawson",
+    });
+    const older = await insertFixturePet({
+      name: "OrderOlderPet",
+      species: "dog",
+      province: "Chubut",
+      locality: "Trelew",
+    });
+    // Both at the k floor so both are publishable; only their recency differs.
+    for (let i = 0; i < ANONYMITY_K; i++) {
+      await emitOutbreakSignal({
+        petId: recent,
+        diseaseCode: "rabies_suspected",
+        province: "Chubut",
+        locality: "Rawson",
+        hoursAgo: 1 + i,
+      });
+      await emitOutbreakSignal({
+        petId: older,
+        diseaseCode: "rabies_suspected",
+        province: "Chubut",
+        locality: "Trelew",
+        hoursAgo: 200 + i,
+      });
     }
+
+    const r = await fetchOutbreakHistory({ role: "admin" }, []);
+    const rawsonAt = r.rows.findIndex((x) => x.locality === "Rawson");
+    const trelewAt = r.rows.findIndex((x) => x.locality === "Trelew");
+    expect(rawsonAt).toBeGreaterThanOrEqual(0);
+    expect(trelewAt).toBeGreaterThanOrEqual(0);
+    expect(rawsonAt).toBeLessThan(trelewAt);
+
+    expect(r.rows.length).toBeGreaterThan(1);
+    for (let i = 1; i < r.rows.length; i++) {
+      expect(r.rows[i - 1].lastSeen >= r.rows[i].lastSeen).toBe(true);
+    }
+  });
+});
+
+// ============================================================================
+// RA-3 C4 — fetchCasesPerCapita k-anonymity (data side).
+//
+// The render side is pinned in CasesPerCapitaTable.test.tsx against hand-built
+// rows; without THIS block the fetcher could hand back raw sub-k counts and
+// every existing test would stay green (the per-capita test file only exercises
+// the rate FORMULA, not the query).
+// ============================================================================
+
+describe("fetchCasesPerCapita — k-anonymity", () => {
+  const PROV = "Tierra del Fuego";
+  // A synthetic locality: the seeded demo data has open cases in every real
+  // TdF locality, and an ambient row pushing the cell over k would make these
+  // tests pass for the wrong reason. Province stays canonical so the INDEC 2022
+  // census join (province-level) still resolves and the rate is exercised.
+  const LOC = "GD-TEST-Localidad-Kanon";
+  const SCOPE = [{ province: PROV, locality: LOC }];
+
+  async function openCasesHere(n: number) {
+    for (let i = 0; i < n; i++) {
+      await insertFixtureCase({ caseKind: "welfare_denuncia", province: PROV, locality: LOC });
+    }
+  }
+
+  it("fixture precondition: no ambient open cases in this jurisdiction", async () => {
+    // Guards the two tests below from a seeded row silently pushing the cell
+    // over k (which would make them pass for the wrong reason).
+    const rows = await fetchCasesPerCapita({ role: "govt" }, SCOPE);
+    expect(rows).toEqual([]);
+  });
+
+  it("a sub-k province publishes NEITHER the count NOR the rate — and null, not 0", async () => {
+    await openCasesHere(ANONYMITY_K - 1);
+
+    const rows = await fetchCasesPerCapita({ role: "govt" }, SCOPE);
+    const tdf = rows.find((r) => r.province === PROV);
+    expect(tdf).toBeDefined();
+    expect(tdf?.suppressed).toBe(true);
+    // A false zero is itself a disclosure and reads as real data.
+    expect(tdf?.count).toBeNull();
+    // The rate is not exempt: INDEC 2022 is public, so count = rate × pop / 10k.
+    expect(tdf?.ratePer10k).toBeNull();
+  });
+
+  it("the SAME province at the k floor publishes both", async () => {
+    await openCasesHere(ANONYMITY_K);
+
+    const rows = await fetchCasesPerCapita({ role: "govt" }, SCOPE);
+    const tdf = rows.find((r) => r.province === PROV);
+    expect(tdf?.suppressed).toBe(false);
+    expect(tdf?.count).toBe(ANONYMITY_K);
+    expect(tdf?.ratePer10k).not.toBeNull();
   });
 });
 

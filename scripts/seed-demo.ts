@@ -7,7 +7,8 @@
  *
  * What this file does:
  *   1. Bootstraps 7 demo users (shared password "Test1234!").
- *   2. Creates 5 organizations and Lucas's govt assignments (CABA C1/C2/C14).
+ *   2. Creates 5 organizations and Lucas's govt assignment (whole CABA —
+ *      see provisionGovtAssignments below; C5 fix, 2026-07-22).
  *   3. Wires memberships (Alejo as multi-org coordinator, Lilian as vet,
  *      Noelí + Graciela as foster volunteers).
  *   4. Creates the `seed-photos` Supabase Storage bucket and uploads pet
@@ -45,6 +46,10 @@ loadEnv({ path: ".env.local" });
 loadEnv({ path: ".env" });
 
 const STATS_ONLY = process.argv.includes("--stats");
+// --allow-remote opts out of the local-only guard so the demo storylines can be
+// seeded into a remote (e.g. staging) project. NODE_ENV=production stays hard-
+// blocked. The seed is idempotent (every entity upserts on a stable key).
+const ALLOW_REMOTE = process.argv.includes("--allow-remote");
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
@@ -62,11 +67,17 @@ if (!STATS_ONLY) {
     console.error("Refusing to seed: NODE_ENV=production.");
     process.exit(2);
   }
-  if (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL)) {
+  const isLocal = isLocalUrl(SUPABASE_URL) && isLocalUrl(DATABASE_URL);
+  if (!isLocal && !ALLOW_REMOTE) {
     console.error(
-      `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local.`,
+      `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local. Re-run with --allow-remote to seed a remote (e.g. staging) project.`,
     );
     process.exit(2);
+  }
+  if (!isLocal && ALLOW_REMOTE) {
+    console.warn(
+      `WARNING: --allow-remote in effect — seeding the demo dataset into a REMOTE project (${SUPABASE_URL}).`,
+    );
   }
 }
 
@@ -76,7 +87,8 @@ if (!STATS_ONLY) {
 // ---------------------------------------------------------------------------
 
 import { EVENT_TYPES, type EventType } from "../db/schema";
-import { chipImplantSiteFromLocation } from "../src/modules/pets/domain/pet-rules";
+import { WHOLE_PROVINCE_LOCALITY } from "../lib/domain/jurisdiction-canonical";
+import { chipImplantSiteFromLocation } from "../lib/domain/microchip-implant-site";
 import { DANGEROUS_STORYLINES } from "./seed-storylines-dangerous";
 import { STORYLINES as ICONIC_STORYLINES } from "./seed-storylines-iconic";
 import { LEGEND_STORYLINES } from "./seed-storylines-legends";
@@ -95,7 +107,7 @@ export const STORYLINES = [
 
 type DbDeps = {
   db: any;
-  drizzle: { and: any; eq: any; isNull: any; sql: any };
+  drizzle: { and: any; eq: any; ne: any; or: any; isNull: any; inArray: any; sql: any };
   supabase: any;
   schemas: {
     profiles: any;
@@ -107,6 +119,7 @@ type DbDeps = {
     organizationMemberships: any;
     organizationCoverage: any;
     govtAssignments: any;
+    arLocalities: any;
     attachments: any;
     petServiceDog: any;
     reminders: any;
@@ -120,7 +133,7 @@ async function loadDbDeps(): Promise<DbDeps> {
   const { createClient: createSdkClient } = await import("@supabase/supabase-js");
   const drizzle = await import("drizzle-orm");
   const db = (await import("../db")) as any;
-  const publicTokenLib = await import("../lib/publicToken");
+  const publicTokenLib = await import("@/lib/infra/publicToken");
 
   const supabase = createSdkClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
     auth: { autoRefreshToken: false, persistSession: false },
@@ -128,7 +141,15 @@ async function loadDbDeps(): Promise<DbDeps> {
 
   return {
     db: db.db,
-    drizzle: { and: drizzle.and, eq: drizzle.eq, isNull: drizzle.isNull, sql: drizzle.sql },
+    drizzle: {
+      and: drizzle.and,
+      eq: drizzle.eq,
+      ne: drizzle.ne,
+      or: drizzle.or,
+      isNull: drizzle.isNull,
+      inArray: drizzle.inArray,
+      sql: drizzle.sql,
+    },
     supabase,
     schemas: {
       profiles: db.profiles,
@@ -140,6 +161,7 @@ async function loadDbDeps(): Promise<DbDeps> {
       organizationMemberships: db.organizationMemberships,
       organizationCoverage: db.organizationCoverage,
       govtAssignments: db.govtAssignments,
+      arLocalities: db.arLocalities,
       attachments: db.attachments,
       petServiceDog: db.petServiceDog,
       reminders: db.reminders,
@@ -195,7 +217,7 @@ export const USERS = {
   },
   admin: {
     email: "admin@dim.test",
-    displayName: "DIM Admin",
+    displayName: "Administración miMAR",
     role: "admin" as const,
     phone: null,
   },
@@ -279,13 +301,24 @@ export const ORGS = {
 
 export type OrgKey = keyof typeof ORGS;
 
-const GOVT_ASSIGNMENTS = [
-  { province: "CABA", locality: "Retiro" },
-  { province: "CABA", locality: "Puerto Madero" },
-  { province: "CABA", locality: "San Nicolás" },
-  { province: "CABA", locality: "Recoleta" },
-  { province: "CABA", locality: "Palermo" },
-];
+// Lucas's govt scope — WHOLE CABA (C5 fix, 2026-07-22, plan-maestro-integridad).
+//
+// He used to be assigned every individual locality across 8 provinces
+// (~1.8k rows: CABA + Buenos Aires + the litoral up to Formosa) as a
+// deliberate "scale case" — the operator whose every scoped query fans out
+// nationwide. That is not a shape any real funcionario holds: SEED_ORGS'
+// coordinators, the govt@/govt-local@ test accounts, and every other seeded
+// government account hold ONE jurisdiction. A funcionario with 1774
+// localities reads as broken data, not as a realistic power-user — a
+// reviewer flagged the literal number ("1774 LOCALIDADES") as a symptom, not
+// a feature. Whole-province assignment DOES exist for CABA
+// (lib/domain/jurisdiction-canonical.ts WHOLE_PROVINCE_LOCALITY —
+// `isWholeProvinceLocality`), so this is also the canonical form, not a
+// downgrade: one row, subsumption resolves every CABA barrio underneath it,
+// and it exercises the SAME census-denominator + subsumption code paths the
+// old enumeration existed to stress. National-scale query fan-out is better
+// tested by a dedicated load-test seed (scripts/seed-perf.ts) than by
+// misrepresenting what a single official's jurisdiction looks like.
 
 const PHOTO_DIR_ABS = path.join(process.cwd(), "docs", "archive", "Fotos");
 
@@ -499,38 +532,77 @@ async function provisionUsers(deps: DbDeps): Promise<Record<UserKey, string>> {
   return ids as Record<UserKey, string>;
 }
 
+/**
+ * Lucas's govt scope — whole CABA, one row (C5 fix). Revokes any OTHER live
+ * assignment he holds first (idempotent repair path for a DB seeded before
+ * this fix, which left him with ~1774 individual-locality rows), then
+ * upserts the canonical whole-province row.
+ */
 async function provisionGovtAssignments(
   deps: DbDeps,
   lucasId: string,
   adminId: string,
 ): Promise<void> {
-  log("STEP", "Lucas govt assignments — CABA Comunas 1/2/14");
   const { db, drizzle, schemas } = deps;
-  for (const loc of GOVT_ASSIGNMENTS) {
-    const [existing] = await db
-      .select({ id: schemas.govtAssignments.id })
-      .from(schemas.govtAssignments)
-      .where(
-        drizzle.and(
-          drizzle.eq(schemas.govtAssignments.userId, lucasId),
-          drizzle.eq(schemas.govtAssignments.jurisdictionProvince, loc.province),
-          drizzle.eq(schemas.govtAssignments.jurisdictionLocality, loc.locality),
-          drizzle.isNull(schemas.govtAssignments.revokedAt),
+  const province = "CABA";
+  const locality = WHOLE_PROVINCE_LOCALITY.CABA;
+
+  log("STEP", `Lucas govt assignment — whole ${province} (${locality})`);
+
+  // Revoke every OTHER live assignment (repairs a pre-fix over-scoped Lucas
+  // without touching the canonical row itself, so this stays a no-op once
+  // clean).
+  const stale = await db
+    .select({ id: schemas.govtAssignments.id })
+    .from(schemas.govtAssignments)
+    .where(
+      drizzle.and(
+        drizzle.eq(schemas.govtAssignments.userId, lucasId),
+        drizzle.isNull(schemas.govtAssignments.revokedAt),
+        drizzle.or(
+          drizzle.ne(schemas.govtAssignments.jurisdictionProvince, province),
+          drizzle.ne(schemas.govtAssignments.jurisdictionLocality, locality),
         ),
-      )
-      .limit(1);
-    if (existing) {
-      log("SKIP", `${loc.province} / ${loc.locality}`);
-      continue;
-    }
-    await db.insert(schemas.govtAssignments).values({
-      userId: lucasId,
-      jurisdictionProvince: loc.province,
-      jurisdictionLocality: loc.locality,
-      grantedByUserId: adminId,
-    });
-    log("OK", `${loc.province} / ${loc.locality}`);
+      ),
+    );
+  if (stale.length > 0) {
+    await db
+      .update(schemas.govtAssignments)
+      .set({ revokedAt: new Date(), revokedByUserId: adminId })
+      .where(
+        drizzle.inArray(
+          schemas.govtAssignments.id,
+          stale.map((r: { id: string }) => r.id),
+        ),
+      );
+    log("OK", `Revoked ${stale.length} stale/over-scoped assignment(s) for Lucas.`);
   }
+
+  const [existing] = await db
+    .select({ id: schemas.govtAssignments.id })
+    .from(schemas.govtAssignments)
+    .where(
+      drizzle.and(
+        drizzle.eq(schemas.govtAssignments.userId, lucasId),
+        drizzle.eq(schemas.govtAssignments.jurisdictionProvince, province),
+        drizzle.eq(schemas.govtAssignments.jurisdictionLocality, locality),
+        drizzle.isNull(schemas.govtAssignments.revokedAt),
+      ),
+    )
+    .limit(1);
+
+  if (existing) {
+    log("SKIP", `${province} / ${locality} (already assigned)`);
+    return;
+  }
+
+  await db.insert(schemas.govtAssignments).values({
+    userId: lucasId,
+    jurisdictionProvince: province,
+    jurisdictionLocality: locality,
+    grantedByUserId: adminId,
+  });
+  log("OK", `${province} / ${locality}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -871,6 +943,18 @@ async function loadStoryline(
 
   // Insert events
   let eventCount = 0;
+  // Track the LATEST adoption_eligibility_set event so the cache dual-write
+  // below can mirror replayPetAdoptionEligibility (latest-wins). We capture the
+  // DB-assigned recordedAt so adoptionEligibilitySetAt matches the event instant.
+  let lastAdoptionEligibility: { recordedAt: Date; payload: Record<string, unknown> } | null = null;
+  // Pairing invariant (cursor UX G1, 2026-07-23): every production close path
+  // stamps rabies_observation_ended with observation_started_event_id; the A9
+  // breach query pairs strictly on it, so a storyline that omits the key
+  // leaves a PHANTOM open observation — the panel then shows a legal-breach
+  // alert beside a KPI reading 0. The runner (not each storyline author)
+  // guarantees the pairing: track the last started id and inject it into a
+  // keyless ended payload.
+  let lastRabiesObservationStartedId: string | null = null;
   for (const e of story.events) {
     const author = pickAuthorFromRole(e.author_role, ownerResolved.user ?? null, userIds);
     // If the event author_role is 'shelter' or the pet is org-owned, attribute
@@ -881,16 +965,36 @@ async function loadStoryline(
         : ownerOrgId && e.author_role === "owner"
           ? ownerOrgId
           : null;
-    await db.insert(schemas.petEvents).values({
-      petId: pet.id,
-      eventType: e.event_type,
-      occurredAt: dateAtNoonUtc(e.date),
-      recordedByUserId: author,
-      authorRole: e.author_role ?? "system",
-      authorOrganizationId: authorOrgId,
-      authorVerified: true,
-      payload: e.payload ?? {},
-    });
+    let payload: Record<string, unknown> = (e.payload ?? {}) as Record<string, unknown>;
+    if (
+      e.event_type === "rabies_observation_ended" &&
+      lastRabiesObservationStartedId &&
+      payload.observation_started_event_id === undefined
+    ) {
+      payload = { ...payload, observation_started_event_id: lastRabiesObservationStartedId };
+    }
+    const [inserted] = await db
+      .insert(schemas.petEvents)
+      .values({
+        petId: pet.id,
+        eventType: e.event_type,
+        occurredAt: dateAtNoonUtc(e.date),
+        recordedByUserId: author,
+        authorRole: e.author_role ?? "system",
+        authorOrganizationId: authorOrgId,
+        authorVerified: true,
+        payload,
+      })
+      .returning({ id: schemas.petEvents.id, recordedAt: schemas.petEvents.recordedAt });
+    if (e.event_type === "rabies_observation_started") {
+      lastRabiesObservationStartedId = inserted.id;
+    }
+    if (e.event_type === "adoption_eligibility_set") {
+      lastAdoptionEligibility = {
+        recordedAt: inserted.recordedAt,
+        payload: (e.payload ?? {}) as Record<string, unknown>,
+      };
+    }
     eventCount++;
   }
 
@@ -958,6 +1062,61 @@ async function loadStoryline(
     });
   }
 
+  // Canonical dual-write for microchip_replaced — mirror replaceMicrochipForUser
+  // (src/modules/pets/application/microchip/replace-microchip.ts).
+  //
+  // WHY: the block above only writes the INITIAL implant row. A storyline whose
+  // timeline carries a microchip_replaced event (replacement OR pure revocation)
+  // must fold that lifecycle into pet_identifications too, otherwise the canonical
+  // row keeps the ORIGINAL chip code while replayPetMicrochip(events) reflects the
+  // replacement/revocation — cache<->events drift the pet-cache fitness sweep
+  // (__tests__/pet-cache-rederivation.test.ts) rightly rejects. Fold each replace
+  // event chronologically: flip the current active microchip_iso row to
+  // 'replaced', then (unless new_chip_number is null → pure revocation) insert the
+  // successor as the new active row, mirroring the real writer's field mapping.
+  const replaceEvents = (story.events as any[])
+    .filter((e) => e.event_type === "microchip_replaced")
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  for (const re of replaceEvents) {
+    const rp = (re.payload ?? {}) as Record<string, unknown>;
+    const newChip =
+      typeof rp.new_chip_number === "string" && rp.new_chip_number.length > 0
+        ? rp.new_chip_number
+        : null;
+
+    // Flip the currently-active microchip_iso row to 'replaced'.
+    await db
+      .update(schemas.petIdentifications)
+      .set({ status: "replaced", updatedAt: new Date() })
+      .where(
+        drizzle.and(
+          drizzle.eq(schemas.petIdentifications.petId, pet.id),
+          drizzle.eq(schemas.petIdentifications.kind, "microchip_iso"),
+          drizzle.eq(schemas.petIdentifications.status, "active"),
+        ),
+      );
+
+    // Replacement (not a pure revocation) → insert the successor active row.
+    // Fields mirror both the writer's insert and replayPetMicrochip's fold:
+    // recordedAt = the replace date, recordedByLabel = replaced_by, ISO subfields
+    // sliced from the new code, implantationSite unset (null).
+    if (newChip) {
+      const replacedBy =
+        typeof rp.replaced_by === "string" && rp.replaced_by.length > 0 ? rp.replaced_by : null;
+      await db.insert(schemas.petIdentifications).values({
+        petId: pet.id,
+        kind: "microchip_iso",
+        code: newChip,
+        recordedAt: typeof re.date === "string" ? re.date : story.events[0].date,
+        recordedByLabel: replacedBy,
+        isoCountryCode: newChip.slice(0, 3),
+        isoManufacturerCode: newChip.slice(3, 7),
+        isoNationalId: newChip.slice(7, 15),
+        isoCompliant: true,
+      });
+    }
+  }
+
   // Canonical tattoo row — written when the storyline carries a tattoo_recorded event.
   // Uses the FIRST tattoo_recorded event's payload as the canonical identifier.
   // If a subsequent tattoo_updated event changes the code, the original row is
@@ -969,7 +1128,24 @@ async function loadStoryline(
     const tattooLocation = typeof tp.location_on_body === "string" ? tp.location_on_body : null;
     const tattooDescription = typeof tp.description === "string" ? tp.description : null;
     const tattooRecordedBy = typeof tp.recorded_by === "string" ? tp.recorded_by : null;
-    const tattooRecordedAt = typeof tp.recorded_at === "string" ? tp.recorded_at : tattooEvent.date;
+    // MIRRORS THE PROJECTION, and must keep doing so.
+    //
+    // `recordedAt` on the identification row means "when the TATTOO was made",
+    // not "when we wrote this down". The tattoo_recorded payload says which of
+    // those it knows: `tattoo_date_known: false` with `recorded_at: null` is an
+    // event explicitly declining to state the date.
+    //
+    // This used to fall back to `tattooEvent.date` — the day the event was
+    // recorded — so the cache carried a tattoo date the event had refused to
+    // give, and the pet's credential showed it as fact. lib/projections/
+    // pet-tattoo.ts derives `dateKnown ? recorded_at : null`, so the fitness
+    // sweep (__tests__/pet-cache-rederivation.test.ts) caught the drift on
+    // DIM-JUF5-ZW5J: stored "2026-07-26", derived null.
+    //
+    // The projection is right. Unknown stays unknown.
+    const tattooDateKnown = tp.tattoo_date_known === true;
+    const tattooRecordedAt =
+      tattooDateKnown && typeof tp.recorded_at === "string" ? tp.recorded_at : null;
     if (tattooCode) {
       const [existingTattoo] = await db
         .select({ id: schemas.petIdentifications.id })
@@ -1092,7 +1268,161 @@ async function loadStoryline(
     .set({ rabiesObservationStatus: rabiesStatus, updatedAt: new Date() })
     .where(drizzle.eq(schemas.pets.id, pet.id));
 
+  // Cache: adoptionEligible / adoptionEligibilitySetAt must mirror the
+  // re-derivation projection (replayPetAdoptionEligibility). A storyline that
+  // emits an adoption_eligibility_set event but leaves the pets row at its
+  // default null drifts the pet-cache fitness sweep (stored=null vs
+  // derived=<event>). Fold the LATEST event's payload into the cache, dual-
+  // writing all five columns the projection derives. The CHECK constraints
+  // require both eligible+setAt non-null together, and a reason when eligible
+  // is false — both satisfied here.
+  if (lastAdoptionEligibility) {
+    const p = lastAdoptionEligibility.payload;
+    const eligible = typeof p.eligible === "boolean" ? p.eligible : null;
+    if (eligible !== null) {
+      const untilRaw = p.ineligible_until;
+      await db
+        .update(schemas.pets)
+        .set({
+          adoptionEligible: eligible,
+          adoptionEligibilitySetAt: lastAdoptionEligibility.recordedAt,
+          adoptionIneligibleReason:
+            eligible || typeof p.ineligible_reason !== "string" ? null : p.ineligible_reason,
+          adoptionIneligibleReasonNotes:
+            eligible || typeof p.ineligible_reason_notes !== "string"
+              ? null
+              : p.ineligible_reason_notes,
+          adoptionIneligibleUntil:
+            eligible || typeof untilRaw !== "string" ? null : new Date(untilRaw),
+          updatedAt: new Date(),
+        })
+        .where(drizzle.eq(schemas.pets.id, pet.id));
+    }
+  }
+
   log("OK", `${publicToken} (${story.pet.display_name}) — ${eventCount} events`);
+}
+
+// ---------------------------------------------------------------------------
+// 9b. Adoption listing publish — makes /adoptar populate
+// ---------------------------------------------------------------------------
+
+type ListingContent = {
+  story: string;
+  requirements: string;
+  ageBucket: "puppy" | "junior" | "young" | "adult" | "senior";
+  sizeEstimate: "small" | "medium" | "large" | "xl";
+  energyLevel: "low" | "medium" | "high";
+  goodWithKids: boolean | null;
+  goodWithDogs: boolean | null;
+  goodWithCats: boolean | null;
+  needsYard: boolean | null;
+  feeArs: number | null;
+};
+
+// Storyline pets that Patitas del Norte (verified shelter) publishes as ACTIVE
+// adoption listings. All three are adoption-eligible under shelter_custody, so
+// they satisfy the /adoptar query guards (D18–D21) once listed.
+const ADOPTION_LISTINGS: Array<{ token: string; content: ListingContent }> = [
+  {
+    token: "DIM-S009-PLRM", // Lola — mestiza, Palermo
+    content: {
+      story:
+        "Lola llegó al refugio como perra callejera en noviembre de 2024. Está castrada, vacunada y al día con todo. Es cariñosa, sociable con otros perros y muy buena con chicos. Busca una familia tranquila que le dé el hogar que se merece.",
+      requirements:
+        "Casa o departamento con red de protección en balcones y ventanas. Compromiso de tenencia responsable. Aceptamos una entrevista previa y seguimiento post-adopción durante los primeros meses.",
+      ageBucket: "adult",
+      sizeEstimate: "medium",
+      energyLevel: "medium",
+      goodWithKids: true,
+      goodWithDogs: true,
+      goodWithCats: null,
+      needsYard: false,
+      feeArs: 0,
+    },
+  },
+  {
+    token: "DIM-S012-RECO", // Negro — mestizo, Recoleta
+    content: {
+      story:
+        "Negro es un perro joven, mestizo, de pelaje negro con pecho blanco. Rescatado y bajo cuidado del refugio. Tiene una postulación en revisión, pero sigue disponible para conocer nuevas familias. Es enérgico, leal y muy compañero.",
+      requirements:
+        "Familia activa que pueda darle paseos diarios y contención. Ambiente seguro. Entrevista previa y seguimiento post-adopción.",
+      ageBucket: "young",
+      sizeEstimate: "medium",
+      energyLevel: "high",
+      goodWithKids: true,
+      goodWithDogs: null,
+      goodWithCats: null,
+      needsYard: false,
+      feeArs: 0,
+    },
+  },
+  {
+    token: "DIM-S013-PLRM", // Bichita — cobaya, Palermo
+    content: {
+      story:
+        "Bichita es una cobaya tricolor rescatada, sana y sociable. Ideal para una familia que quiera sumar una mascota pequeña y de bajo mantenimiento. Busca un hogar con espacio adecuado y compañía diaria.",
+      requirements:
+        "Jaula amplia y dieta adecuada (heno y verduras frescas). Preferentemente con otra cobaya para compañía. Sin exposición a corrientes de aire.",
+      ageBucket: "young",
+      sizeEstimate: "small",
+      energyLevel: "low",
+      goodWithKids: true,
+      goodWithDogs: null,
+      goodWithCats: null,
+      needsYard: null,
+      feeArs: 0,
+    },
+  },
+];
+
+/**
+ * Publishes a few ACTIVE adoption listings so /adoptar is not empty and
+ * /adoptar/[token] resolves — owner2 can then apply through the real
+ * event-first flow (adoption_application_submitted). Uses the SAME writer the
+ * production publish flow uses (AdoptionRepository.updateListingContent +
+ * setListingStatus) rather than a raw column poke. Publishing emits no
+ * pet_event by design (listing status is shelf-curated metadata, per the
+ * repository contract), so calling the real writer is the faithful path — there
+ * is no event to bypass. Idempotent: reruns re-publish with the existing
+ * adoptionListedAt so the listed-at timestamp stays stable.
+ */
+async function publishAdoptionListings(deps: DbDeps): Promise<void> {
+  log("STEP", "Publishing adoption listings (Lola, Negro, Bichita)");
+  const { db, drizzle, schemas } = deps;
+  const { AdoptionRepository } = await import(
+    "@/src/modules/adoption/infrastructure/adoption-repository"
+  );
+
+  for (const { token, content } of ADOPTION_LISTINGS) {
+    const [pet] = await db
+      .select({
+        id: schemas.pets.id,
+        adoptionListedAt: schemas.pets.adoptionListedAt,
+        adoptionEligible: schemas.pets.adoptionEligible,
+      })
+      .from(schemas.pets)
+      .where(drizzle.eq(schemas.pets.publicToken, token))
+      .limit(1);
+
+    if (!pet) {
+      log("WARN", `${token} not found — skipping listing publish.`);
+      continue;
+    }
+    if (!pet.adoptionEligible) {
+      log("WARN", `${token} not adoption-eligible — skipping listing publish.`);
+      continue;
+    }
+
+    const now = new Date();
+    await AdoptionRepository.updateListingContent({ petId: pet.id, ...content }, undefined);
+    await AdoptionRepository.setListingStatus(
+      { petId: pet.id, action: "publish", currentListedAt: pet.adoptionListedAt, now },
+      undefined,
+    );
+    log("OK", `${token} published as active adoption listing.`);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1149,6 +1479,8 @@ async function main(): Promise<void> {
   for (const story of STORYLINES) {
     await loadStoryline(deps, story, userIds, orgIds);
   }
+
+  await publishAdoptionListings(deps);
 
   log("DONE", "seed complete");
   // eslint-disable-next-line no-console

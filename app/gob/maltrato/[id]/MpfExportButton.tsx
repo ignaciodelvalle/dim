@@ -1,26 +1,45 @@
 "use client";
 
 // Client component: "Generar PDF MPF" button for the welfare detail page.
-// Calls generateMpfExportAction and opens the signed URL in a new tab.
+// Calls generateMpfExportAction and renders the signed URL as a visible link.
 // Visible to admin and govt in scope (the detail page already enforces scope).
+//
+// MPF EXPORT FORMAT CASCADE (jurisdiction-compliance, 2026-07-22) — this
+// button used to be disabled outside MPF_CONFIGURED_PROVINCES (CABA-only
+// gate, lib/domain/mpf-jurisdiction.ts, removed): a rollout artifact, not a
+// real per-province integration difference — the PDF is a free-form Ley
+// 14.346 document (decision F-D1) that works for any jurisdiction. EVERY
+// jurisdiction can now export; the FORMAT is resolved per-jurisdiction via
+// resolveBusinessRule("mpf_export_format", ...) (locality > province >
+// country > national default) and printed on the PDF itself with its
+// provenance — see lib/analytics/welfare-exports.ts.
+//
+// WHY a visible <a> instead of window.open(url) after the await: the browser
+// popup blocker kills a window.open() call that isn't inside the direct click
+// gesture (this one runs after an async server action), so the tab silently
+// never opens while the UI still claimed success — the único fiscal output
+// could vanish behind a green check. Mirrors TravelExportButton.tsx's pattern
+// (H3 backlog fix).
 
 import { useState } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import { generateMpfExportAction } from "@/src/modules/welfare/actions";
 
 type Props = {
   welfareReportId: string;
+  jurisdictionProvince: string | null;
 };
 
-export function MpfExportButton({ welfareReportId }: Props) {
+export function MpfExportButton({ welfareReportId, jurisdictionProvince }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [signedUrl, setSignedUrl] = useState<string | null>(null);
 
   async function handleClick() {
     setLoading(true);
     setError(null);
-    setSuccess(false);
+    setSignedUrl(null);
     try {
       const result = await generateMpfExportAction(welfareReportId);
       if (!result.ok) {
@@ -32,8 +51,7 @@ export function MpfExportButton({ welfareReportId }: Props) {
               : "Error al generar el export. Intentá de nuevo.",
         );
       } else {
-        setSuccess(true);
-        window.open(result.signedUrl, "_blank", "noopener,noreferrer");
+        setSignedUrl(result.signedUrl);
       }
     } catch {
       setError("Error inesperado. Intentá de nuevo.");
@@ -44,12 +62,7 @@ export function MpfExportButton({ welfareReportId }: Props) {
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={loading}
-        className="inline-flex items-center gap-2 px-4 py-2 text-[12px] font-medium rounded-[6px] border border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul hover:bg-ln-op-celeste-050 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
+      <OpButton type="button" onClick={handleClick} disabled={loading} variant="primary">
         {loading ? (
           <>
             <svg
@@ -95,17 +108,27 @@ export function MpfExportButton({ welfareReportId }: Props) {
             Generar PDF MPF
           </>
         )}
-      </button>
+      </OpButton>
 
-      {error && <p className="text-[11px] text-ln-op-danger">{error}</p>}
-      {success && (
-        <p className="text-[11px] text-ln-op-ok">
-          PDF generado. Se abrió en una nueva pestaña. El link expira en 24 horas.
+      {error && <p className="text-xs text-ln-op-danger">{error}</p>}
+      {signedUrl && (
+        <p className="text-xs text-ln-op-ok">
+          PDF generado.{" "}
+          <a
+            href={signedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-ln-op-azul hover:underline font-medium"
+          >
+            Abrir/Descargar el informe
+          </a>{" "}
+          — el link expira en 24 horas.
         </p>
       )}
-      <p className="text-[10px] text-ln-op-mute">
-        PDF formal para presentar ante la Unidad Fiscal de Maltrato Animal del MPF CABA (Ley
-        14.346).
+      <p className="text-xs text-ln-op-mute">
+        PDF formal para presentar ante la Unidad Fiscal de Maltrato Animal competente
+        {jurisdictionProvince ? ` en ${jurisdictionProvince}` : ""} (Ley 14.346). El formato
+        aplicado y su origen (cascada de jurisdicción) quedan impresos en el PDF.
       </p>
     </div>
   );

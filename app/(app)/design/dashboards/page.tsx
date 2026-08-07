@@ -4,13 +4,13 @@
 
 import { Suspense } from "react";
 
-import { MapChoropleth } from "@/components/charts/MapChoropleth";
-import { TimeSeriesChart } from "@/components/charts/TimeSeriesChart";
+import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
+import { TimeSeriesChartDynamic } from "@/components/charts/TimeSeriesChartDynamic";
 import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { MetricCard } from "@/components/gob/MetricCard";
 import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { OpKpi } from "@/components/ui/dashboard";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 
 export const dynamic = "force-dynamic";
 
@@ -67,38 +67,34 @@ export default async function DashboardPrimitivasPage() {
         </header>
 
         {/* ------------------------------------------------------------------ */}
-        {/* 1. MetricCard */}
+        {/* 1. OpKpi — KPI tile (operator design system) */}
         {/* ------------------------------------------------------------------ */}
-        <LnCard aria-labelledby="metric-card-heading">
-          <LnCardHead title={<span id="metric-card-heading">MetricCard — KPI tile</span>} />
+        <LnCard aria-labelledby="op-kpi-heading">
+          <LnCardHead title={<span id="op-kpi-heading">OpKpi — KPI tile</span>} />
           <LnCardBody>
             <p className="text-xs text-[var(--color-ln-mute)] mb-4">
-              Tres tonos: neutral / warning / danger. Con delta y subline opcionales.
+              Tres tonos: neutral / warn / danger. Con delta y sub opcionales.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <MetricCard
+              <OpKpi
                 label="Mascotas registradas"
                 value="12,480"
-                unit="mascotas"
-                subline="Actualizado hoy"
+                sub="mascotas · Actualizado hoy"
                 tone="neutral"
               />
-              <MetricCard
+              <OpKpi
                 label="Vacunas vencidas"
                 value="348"
-                unit="vencidas"
-                delta="+12% vs mes anterior"
-                tone="warning"
-                icon="alert-circle"
+                delta={{ text: "+12% vs mes anterior", up: false }}
+                sub="vacunas vencidas"
+                tone="warn"
               />
-              <MetricCard
+              <OpKpi
                 label="Denuncias abiertas"
                 value="27"
-                unit="denuncias"
-                delta="+5 esta semana"
-                subline="3 requieren intervención"
+                delta={{ text: "+5 esta semana", up: false }}
+                sub="3 requieren intervención"
                 tone="danger"
-                icon="alert-triangle"
               />
             </div>
           </LnCardBody>
@@ -124,15 +120,13 @@ export default async function DashboardPrimitivasPage() {
               </code>
               .
             </p>
-            {/* MapChoropleth es client component — Suspense necesario en el server component padre. */}
-            <Suspense fallback={null}>
-              <MapChoropleth
-                data={SAMPLE_MAP_DATA}
-                colorScale={["#bfdbfe", "#1e40af"]}
-                height={400}
-                fallbackTableLabel="Mascotas registradas por provincia"
-              />
-            </Suspense>
+            {/* MapChoroplethDynamic already wraps next/dynamic({ ssr: false }) — no Suspense needed. */}
+            <MapChoroplethDynamic
+              data={SAMPLE_MAP_DATA}
+              colorScale={["#bfdbfe", "#1e40af"]}
+              height={400}
+              fallbackTableLabel="Mascotas registradas por provincia"
+            />
           </LnCardBody>
         </LnCard>
 
@@ -148,17 +142,15 @@ export default async function DashboardPrimitivasPage() {
               12 puntos mensuales sintéticos. Variante &ldquo;area&rdquo;. Animaciones respetan
               prefers-reduced-motion.
             </p>
-            <Suspense fallback={null}>
-              <TimeSeriesChart
-                data={SAMPLE_TIMESERIES}
-                seriesLabel="Denuncias registradas"
-                yLabel="Denuncias"
-                variant="area"
-                strokeColor="#1e40af"
-                height={300}
-                fallbackTableLabel="Denuncias registradas por mes"
-              />
-            </Suspense>
+            <TimeSeriesChartDynamic
+              data={SAMPLE_TIMESERIES}
+              seriesLabel="Denuncias registradas"
+              yLabel="Denuncias"
+              variant="area"
+              strokeColor="#1e40af"
+              height={300}
+              fallbackTableLabel="Denuncias registradas por mes"
+            />
           </LnCardBody>
         </LnCard>
 

@@ -42,6 +42,9 @@ supabase/.branches/
 supabase/.temp/
 supabase/snippets/Untitled*.sql
 
+# agent/script scratch output (also the launchworthy audit report target)
+tmp/
+
 # agent tool caches
 .atl/
 .claude/
@@ -49,3 +52,54 @@ supabase/snippets/Untitled*.sql
 # design handoff reference (local only — source for the Libreta Nacional redesign, not production)
 design_handoff_*/
 install.cmd
+
+# playwright
+playwright-report/
+test-results/
+e2e/.auth/
+
+# vercel CLI (local project linkage + build cache — never commit)
+.vercel/
+.superpowers/
+
+# Local demo screen recordings — never commit (large binaries)
+*.webm
+scripts/assets/pet-photos-real/*
+!scripts/assets/pet-photos-real/README.md
+.ds-sync/
+ds-bundle/
+.design-sync/.cache/
+.design-sync/learnings/
+.design-sync/node_modules
+
+.vercel
+.env*
+
+# Playwright MCP session artifacts (screenshots, snapshots)
+.playwright-mcp/
+
+# Graphify knowledge-graph output (local index, rebuilt on demand)
+graphify-out/
+
+# Scratch scripts from parallel QA agents (cursor / cowork / one-off seeding).
+#
+# WHY THIS EXISTS: on 2026-08-01 an untracked one-off dropped into scripts/ put
+# `pnpm verify` in the red for work that had nothing to do with it, and every
+# gate run after that had to be discounted by hand — which is exactly the kind
+# of thing that later gets discounted when it IS real. biome.json sets
+# `vcs.useIgnoreFile: true`, so an entry here takes the file out of the gate AND
+# out of reach of a broad `git add` in one move.
+#
+# Convention: one-off scripts go in scripts/scratch/. Anything meant to survive
+# gets a real name, a test, and a commit.
+scripts/scratch/
+scripts/bulk-cursor-pets-staging.mjs
+
+# Playwright MCP writes snapshots and screenshots to CWD, which is the repo root.
+# `.playwright-mcp/` above only covers the cases where it uses its own directory.
+# Telling a browser agent "don't touch the repo" cannot prevent this — it is the
+# tool's default, not the agent's choice. These are session artifacts: the .md is
+# an accessibility-tree dump, the .png a screenshot. Neither is a finding.
+/*.png
+/*-snapshot.md
+/panorama.md

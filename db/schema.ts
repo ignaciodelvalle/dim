@@ -23,6 +23,7 @@ import {
   pgEnum,
   pgSchema,
   pgTable,
+  primaryKey,
   smallint,
   text,
   time,
@@ -100,7 +101,11 @@ export const ownershipRoleEnum = pgEnum("ownership_role", [
 // `owner` in v1 self-serve flows.
 // `scanner` is for credential_scanned events when an anonymous or non-owner user
 // loads the public credential page.
-// `finder` is for finder_in_possession events submitted via /p/[token]/encontre.
+// `finder` is for events authored by someone who found an animal they do not
+// own: finder_in_possession via /p/[token]/encontre, and the note_added rows
+// the chip-collision adjudication writes onto a third party's record. The test
+// is who the author IS, not which event type they reached for — signing those
+// notes "owner" showed the real owner a note apparently written by themselves.
 // `shelter` activates when refugios author events on pets they hold in custody.
 // `vet`, `govt`, `system` activate in later phases.
 export const authorRoleEnum = pgEnum("author_role", [
@@ -306,7 +311,8 @@ export const EVENT_TYPES = [
   "rabies_observation_ended",
   // Medication adherence — dual-write with reminder.completedAt.
   "medication_dose_taken",
-  // Schema-ready, UI deferred — these require a non-owner reporting flow:
+  // Non-owner reporting flow — writers live in src/modules/welfare (abandonment/maltreatment)
+  // and src/modules/events/application/surveillance (symptom_observed).
   "symptom_observed",
   "abandonment_reported",
   "maltreatment_reported",
@@ -366,6 +372,25 @@ export const EVENT_TYPES = [
   // (lepto | hidatidosis | other) so new zoonoses don't need a new
   // event_type entry. Powers /gob/* KPI tiles (handoff P4-3).
   "disease_reported",
+  // Jurisdictional mobility (movilidad-jurisdiccional Fase 1, 2026-07-04).
+  // ONE event type with a `sub_kind` discriminator for its three faces:
+  //   jurisdiction_changed — multi-locality move (denormalizes pets.jurisdiction*)
+  //   cvi_issued           — records the FACT of a foreign CVI (DIM never issues)
+  //   transport_recorded   — outbound trip on one of the 5 registered corridors
+  "movement_recorded",
+  // Correction by amendment — core principle #2 (2026-06-19).
+  // Immutable correction: references the original event, never edits it.
+  // Only events in AMENDABLE_EVENT_TYPES may be amended (D4).
+  // D5: admin/govt amendments are sensitive — reason required, audit logged,
+  // owner notified via notification_type='admin_event_amended'.
+  "event_amended",
+  // Physical tag (chapa) lifecycle — migration 0169. Payloads NEVER carry the
+  // activation code (plaintext or hashed) under any field. tag_revoked uses
+  // payload key `revoke_reason` (NOT `reason`) because erase_subject_data
+  // sentinel-redacts the key `reason` across ALL event types (0159→0166) and
+  // would destroy the enum fact on subject erasure (design D5).
+  "tag_activated",
+  "tag_revoked",
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
@@ -387,18 +412,33 @@ export const profiles = pgTable(
     displayName: text("display_name").notNull(),
     phone: text("phone"),
     avatarUrl: text("avatar_url"),
-    // Mi Argentina-ready columns. Never required in v1.
-    dniNumber: text("dni_number"),
+    // Mi Argentina identity (Wave 5 Item 25a — migration 0106).
+    // No DNI in plaintext rule (Ley 25.326 / Mi Argentina premise).
+    //   miarg_sub       — opaque, stable subject ID from Mi Argentina OIDC.
+    //   identity_source — 'miarg' (verified via OIDC) | 'legacy' (form-verified).
+    //   dni_hash        — HMAC-SHA256(dni, pepper) hex. Equality matching only.
+    //                     Pepper in env/KMS, never in DB. See lib/dni-hash.ts.
+    //   dni_last4       — right(dni, 4). Human disambiguation in operator UI only.
+    //   dni_verified    — boolean flag (preserved from pre-25a schema).
+    //   dni_verified_at — when verification happened.
+    // TODO(25b): wire miarg_sub via Mi Argentina OIDC callback.
+    miargSub: text("miarg_sub"),
+    identitySource: text("identity_source").default("legacy").$type<"miarg" | "legacy">(),
+    dniHash: text("dni_hash"),
+    dniLast4: text("dni_last4"),
     dniVerified: boolean("dni_verified").notNull().default(false),
+    dniVerifiedAt: timestamp("dni_verified_at", { withTimezone: true }),
     // Vet professional license. Nullable; submitted via /cuenta/upgrade.
     // Admin manually flips role='vet' after verification. jurisdiccion is the
     // province/jurisdiction that issued the matricula — the registry to check.
     matriculaNumber: text("matricula_number"),
     matriculaJurisdiccion: text("matricula_jurisdiccion"),
     matriculaVerified: boolean("matricula_verified").notNull().default(false),
-    // Emergency contact + preferred vet — surfaced on <PetEmergencyCard> in
-    // the v2 pet detail (Chunk J) and in the lost-mode public credential.
-    // Added by migration 0042.
+    // Emergency contact + preferred vet — the ACCOUNT-LEVEL default, rendered
+    // by LibretaFace's EmergenciaBlock only as the fallback when the pet has
+    // no per-pet override (pets.preferred_vet_* / emergency_contact_*, P2).
+    // NOT shown on the public credential — /p exposes at most the owner phone
+    // behind pets.disclosePhoneWhenLost. Added by migration 0042.
     preferredVetName: text("preferred_vet_name"),
     preferredVetPhone: text("preferred_vet_phone"),
     emergencyContactName: text("emergency_contact_name"),
@@ -410,15 +450,13 @@ export const profiles = pgTable(
       .notNull()
       .default("personal")
       .$type<"personal" | "institutional">(),
-    // Global disclosure prefs (handoff P1-2). Each toggle controls a
-    // single surface; per-pet overrides live on `pets.disclose_*_when_lost`.
-    // Defaults follow privacy-first: name + phone hidden, org contact
-    // opt-in (allows shelters/clinics to reach you), zone alerts opt-in
-    // (community help). Surfaced in /cuenta Privacy section (handoff P3-3).
-    discloseNameCredential: boolean("disclose_name_credential").notNull().default(false),
-    disclosePhoneCredential: boolean("disclose_phone_credential").notNull().default(false),
-    allowOrgContact: boolean("allow_org_contact").notNull().default(true),
-    allowLostAlertsInZone: boolean("allow_lost_alerts_in_zone").notNull().default(true),
+    // System service account flag (migration 0109 — C21). Distinguishes
+    // machine/service accounts (e.g. the panorama seeder, automation actors)
+    // from human operators. Replaces the brittle `display_name LIKE 'system:%'`
+    // heuristic that broke once auth-user enumeration exceeded one page and
+    // emails came back blank. The last-admin guard and the admin roster
+    // partition read this flag instead of inspecting the display name.
+    isSystem: boolean("is_system").notNull().default(false),
     // Irreversible soft-deactivation timestamp. NULL = active. Set by
     // deactivateAdminAction / deactivateGovtAction in Fase 5.
     deactivatedAt: timestamp("deactivated_at", { withTimezone: true }),
@@ -430,6 +468,11 @@ export const profiles = pgTable(
     // Added by migration 0087.
     tosAcceptedAt: timestamp("tos_accepted_at", { withTimezone: true }),
     tosVersion: text("tos_version"),
+    // Coarse location of the user — collected at registration (step 2) and
+    // used for regional health-campaign targeting. Never precise coordinates.
+    // Added by migration 0097.
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
     // PII baseline (compliance PR 1, migration 0058). Added by
     // pii.apply_baseline(). See lib/audit/log.ts (todo, separate sprint).
     createdBy: uuid("created_by").references((): AnyPgColumn => profiles.id, {
@@ -445,9 +488,15 @@ export const profiles = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
-    dniUnique: uniqueIndex("profiles_dni_unique_when_present")
-      .on(table.dniNumber)
-      .where(sql`${table.dniNumber} IS NOT NULL`),
+    // Unique index on miarg_sub (partial — only when set). Added by migration 0106.
+    miargSubUnique: uniqueIndex("profiles_miarg_sub_unique")
+      .on(table.miargSub)
+      .where(sql`${table.miargSub} IS NOT NULL`),
+    // Unique index on dni_hash (partial — only when set). Replaces former
+    // profiles_dni_unique_when_present on dni_number. Added by migration 0106.
+    dniHashUnique: uniqueIndex("profiles_dni_hash_unique")
+      .on(table.dniHash)
+      .where(sql`${table.dniHash} IS NOT NULL`),
     matriculaUnique: uniqueIndex("profiles_matricula_unique_when_present")
       .on(table.matriculaNumber)
       .where(sql`${table.matriculaNumber} IS NOT NULL`),
@@ -474,7 +523,12 @@ export const profiles = pgTable(
     ),
     profilesInstitutionalNoPii: check(
       "profiles_institutional_no_pii",
-      sql`${table.accountType} = 'personal' or (${table.dniNumber} is null and ${table.matriculaNumber} is null and ${table.matriculaJurisdiccion} is null)`,
+      sql`${table.accountType} = 'personal' or (${table.dniHash} is null and ${table.matriculaNumber} is null and ${table.matriculaJurisdiccion} is null and ${table.miargSub} is null)`,
+    ),
+    // Added by migration 0097.
+    profilesJurisdictionProvinceCanonical: check(
+      "profiles_jurisdiction_province_canonical",
+      sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
     ),
   }),
 );
@@ -527,10 +581,36 @@ export const pets = pgTable(
     // Pet-insurance info — entirely optional, owner-provided.
     insuranceCompany: text("insurance_company"),
     insurancePolicyNumber: text("insurance_policy_number"),
+    // Per-pet emergency contact / preferred vet override (owner-ia-redesign P2,
+    // PO decision 2 — migration 0145). Mirror of the account-level defaults on
+    // profiles (migration 0042). NULL = fall back to the owner's profile-level
+    // value; a non-null pet value overrides it for this pet only. UI preference,
+    // NOT a fact about the pet — editing does NOT emit a pet event. Fallback
+    // resolution lives in lib/domain/emergency-contacts.ts.
+    preferredVetName: text("preferred_vet_name"),
+    preferredVetPhone: text("preferred_vet_phone"),
+    emergencyContactName: text("emergency_contact_name"),
+    emergencyContactPhone: text("emergency_contact_phone"),
     // Coarse administrative tagging for aggregation. Never precise coordinates.
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
+    // Structural locality-attribution FK (migration 0147). Nullable + additive:
+    // the free-text jurisdiction_locality above stays the display/backfill source;
+    // this is the NEW join key into the ar_localities catalog (its uuid PK). Set on
+    // the write path via normalizeLocationForWrite and backfilled for historical
+    // rows; NULL when the locality does not resolve (centroid fallback keeps it
+    // visible). References the uuid PK — not indec_id — so CABA barrios (null
+    // indec_id) are attributable too.
+    localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
+    // Internal seed-provenance marker (migration 0160). NULL for every real pet
+    // registration; set ONLY by scripts/seed-*.ts to the generating script's tag
+    // ('panorama', 'panorama-hist', 'perf'). Mirrors welfare_reports.seed_tag
+    // (0155): a plain column carries the provenance so the rendered public_token
+    // does not have to double as one. Never rendered — do NOT select this column
+    // in citizen/operator-facing queries. The spine-integrity fence reads it to
+    // exempt bulk volume fixtures (seed-perf) explicitly rather than silently.
+    seedTag: text("seed_tag"),
     // How the owner came to have this pet. Nullable so existing rows survive db:push
     // without a default. Collected at registration and included in pet_registered payload.
     acquisitionMethod: petAcquisitionMethodEnum("acquisition_method"),
@@ -541,19 +621,37 @@ export const pets = pgTable(
     emergencyInfoVisible: boolean("emergency_info_visible").notNull().default(false),
     // Lost & Found — per-field disclosure preferences (Fase 1).
     // Owner controls what contact info is visible on the public credential when
-    // the pet is lost. Defaults mirror the previous hardcoded Tier 1 reveal
-    // (first name + phone + last location + finder form = true; email = false).
-    // These are UI preferences — changes do NOT emit pet_profile_updated events,
-    // analogous to emergencyInfoVisible above. Source of truth for the
-    // credential render; the status_changed event optionally carries a
-    // disclosure_prefs_snapshot for historical audit.
-    discloseFirstNameWhenLost: boolean("disclose_first_name_when_lost").notNull().default(true),
-    disclosePhoneWhenLost: boolean("disclose_phone_when_lost").notNull().default(true),
+    // the pet is lost. These are UI preferences — changes do NOT emit
+    // pet_profile_updated events, analogous to emergencyInfoVisible above.
+    // Source of truth for the credential render; the status_changed event
+    // optionally carries a disclosure_prefs_snapshot for historical audit.
+    //
+    // Privacy hardening (cursor privacy P4, migration 0158): these three
+    // PII-disclosing columns used to default to true (the old hardcoded Tier 1
+    // reveal), which disagreed with MarkLostWizard's affirmative-consent
+    // defaults (all OFF) — defense-in-depth now aligns the column DEFAULT with
+    // the wizard so any insert path that skips the wizard's explicit values
+    // still lands closed, not open. allow_finder_form_when_lost stays true —
+    // it exposes no owner PII (see MarkLostWizard DISCLOSURE_DEFAULTS).
+    discloseFirstNameWhenLost: boolean("disclose_first_name_when_lost").notNull().default(false),
+    disclosePhoneWhenLost: boolean("disclose_phone_when_lost").notNull().default(false),
     discloseEmailWhenLost: boolean("disclose_email_when_lost").notNull().default(false),
     discloseLastLocationWhenLost: boolean("disclose_last_location_when_lost")
       .notNull()
-      .default(true),
+      .default(false),
     allowFinderFormWhenLost: boolean("allow_finder_form_when_lost").notNull().default(true),
+    // "Primeros pasos" onboarding checklist — per-pet dismissed step keys
+    // (owner-onboarding train, migration 0153). A step key here ("photo",
+    // "microchip", "vaccines", "emergency_contact", "disclosure_prefs") means
+    // the owner explicitly chose "Omitir" for that nudge — NOT that the
+    // underlying task was done (done is derived live from the pet's own
+    // fields/ledger events) and NOT that the capability is disabled: the
+    // owner can still add a photo / set disclosure prefs later through their
+    // normal surfaces, this only silences the onboarding nudge. UI
+    // preference like the disclose_*_when_lost columns above — a dismissal
+    // does NOT emit a pet_profile_updated event (the append-only event log
+    // stays for facts about the pet, not for owner UI choices).
+    dismissedFirstSteps: text("dismissed_first_steps").array().notNull().default(sql`'{}'::text[]`),
     // Tier 2 público temporal — owner opt-in window for /p/[publicToken].
     // When non-null and > now(), the public credential reveals a curated
     // medical summary (vacunas vigentes, esterilización, medicación
@@ -562,6 +660,10 @@ export const pets = pgTable(
     // +24h in v1), cleared by revokeTier2PublicAction or naturally by
     // expiration. Owner contact / address / notes are never exposed.
     tier2PublicEnabledUntil: timestamp("tier2_public_enabled_until", { withTimezone: true }),
+    // Permanent (no-expiry) Tier 2 flag for the "siempre visible" option.
+    // Active when true, regardless of tier2PublicEnabledUntil.
+    // Cleared by revokeTier2PublicAction together with tier2PublicEnabledUntil.
+    tier2PublicPermanent: boolean("tier2_public_permanent").notNull().default(false),
     // External legal custody proceedings flag. Set true by
     // custody_dispute_raised events (admin or govt initiated), unset by
     // custody_dispute_resolved. Features that should respect the flag
@@ -643,6 +745,16 @@ export const pets = pgTable(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
     ),
+    // Structural locality-attribution FK index (migration 0147). Partial on
+    // IS NOT NULL — only resolved rows carry the key.
+    localityIdIdx: index("pets_locality_id_idx")
+      .on(table.localityId)
+      .where(sql`${table.localityId} IS NOT NULL`),
+    // Seed-provenance index (migration 0160). Partial on IS NOT NULL — only
+    // synthetic rows carry a tag, so the index stays empty in production.
+    seedTagIdx: index("pets_seed_tag_idx")
+      .on(table.seedTag)
+      .where(sql`${table.seedTag} IS NOT NULL`),
     statusIdx: index("pets_status_idx").on(table.status),
     // PII soft-delete partial (compliance PR 1).
     // Renamed from public_pets_deleted_idx → pets_deleted_idx (migration 0095).
@@ -761,8 +873,17 @@ export const organizations = pgTable(
     logoStoragePath: text("logo_storage_path"),
     discloseAddress: boolean("disclose_address").notNull().default(true),
     donationMethods: jsonb("donation_methods"),
-    latitude: numeric("latitude", { precision: 9, scale: 6 }),
-    longitude: numeric("longitude", { precision: 9, scale: 6 }),
+    // Canonical coordinate columns (P3 location convergence, DEPLOY 2).
+    // Legacy latitude/longitude numeric(9,6) dropped in migration 0103.
+    locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
+    locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
+    // Declared shelter capacity (Item 16 D1, migration 0102). All nullable — capacity is optional.
+    // Occupancy is always derived from active shelter_custody ownerships (lib/org-census.ts),
+    // never stored here. See docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md §Item 16.
+    capacityDogs: integer("capacity_dogs"),
+    capacityCats: integer("capacity_cats"),
+    capacityOther: integer("capacity_other"),
+    capacityTotal: integer("capacity_total"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     createdByUserId: uuid("created_by_user_id").references(() => profiles.id, {
@@ -776,9 +897,9 @@ export const organizations = pgTable(
       "organizations_description_length_check",
       sql`${table.description} IS NULL OR length(${table.description}) <= 2000`,
     ),
-    coordinatesPairCheck: check(
-      "organizations_coordinates_pair_check",
-      sql`(${table.latitude} IS NULL) = (${table.longitude} IS NULL)`,
+    locationPairCheck: check(
+      "organizations_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
     ),
     organizationsJurisdictionProvinceCanonical: check(
       "organizations_jurisdiction_province_canonical",
@@ -1009,6 +1130,12 @@ export const ownerships = pgTable(
       .where(sql`${table.role} = 'shelter_custody' AND ${table.endedAt} IS NULL`),
     ownerUserIdx: index("ownerships_owner_user_id_idx").on(table.ownerUserId),
     ownerOrgIdx: index("ownerships_owner_organization_id_idx").on(table.ownerOrganizationId),
+    // General (pet_id) index — covers the unfiltered orphan-detection EXISTS in
+    // lib/metrics/program-health.ts fetchDataQuality. The partial unique indexes
+    // above only cover specific role+active rows, so they can't serve the
+    // all-rows lookup; without this the check seq-scanned ownerships per pet
+    // (~135 s on the seed). A FK does not create an index in Postgres (0112).
+    petIdIdx: index("ownerships_pet_id_idx").on(table.petId),
   }),
 );
 
@@ -1084,12 +1211,36 @@ export const petEvents = pgTable(
   (table) => ({
     petTimelineIdx: index("pet_events_pet_id_occurred_at_idx").on(table.petId, table.occurredAt),
     eventTypeIdx: index("pet_events_event_type_idx").on(table.eventType),
+    // Composite for province-scale analytics scans that filter by event_type +
+    // a time window WITHOUT pet_id (govt-home-kpis.ts rabies coverage KPI) —
+    // perf/scale review 2026-07-04, migration 0122.
+    eventTypeOccurredAtIdx: index("pet_events_event_type_occurred_at_idx").on(
+      table.eventType,
+      table.occurredAt,
+    ),
+    // Transaction-time twin of the above (viz-suite wave 0, migration 0142):
+    // the reporting-lag aggregate (median(recorded_at - occurred_at) per unit,
+    // filtered by type) and every basis=transaction window scan sort/filter on
+    // recorded_at, which had no index. Same composite shape as its valid-time
+    // sibling so the planner treats both bases symmetrically.
+    eventTypeRecordedAtIdx: index("pet_events_event_type_recorded_at_idx").on(
+      table.eventType,
+      table.recordedAt,
+    ),
     authorRoleIdx: index("pet_events_author_role_idx").on(table.authorRole),
     locationIdx: index("pet_events_location_idx").on(table.locationLat, table.locationLng),
     // Partial unique index for client-side idempotency keys (migration 0047).
     // Only rows with a non-null key participate — see comment on column above.
     idempotencyIdx: uniqueIndex("pet_events_idempotency_idx")
       .on(table.petId, table.eventType, table.clientIdempotencyKey)
+      .where(sql`client_idempotency_key is not null`),
+    // Cross-pet idempotency lookup (migration 0119): the org-intake guard looks
+    // up pet_registered events by (event_type, client_idempotency_key) BEFORE a
+    // pet exists, so the pet_id-leading idempotencyIdx above cannot serve it.
+    // Partial (key IS NOT NULL) keeps it tiny. Declared here so drizzle-kit push
+    // does not drop the migration-created index (schema↔migration agreement).
+    typeClientKeyIdx: index("pet_events_type_client_key_idx")
+      .on(table.eventType, table.clientIdempotencyKey)
       .where(sql`client_idempotency_key is not null`),
     // SENASA alignment partial index (compliance PR 3, migration 0061).
     tipoEventoCodeIdx: index("pet_events_tipo_evento_code_idx")
@@ -1108,6 +1259,21 @@ export const petEvents = pgTable(
     payloadApplicantUserIdIdx: index("pet_events_payload_applicant_user_id_idx")
       .on(sql`(payload->>'applicant_user_id')`)
       .where(sql`payload->>'applicant_user_id' IS NOT NULL`),
+    // Amendment overlay probe (migration 0118, projection-cron audit 2026-07-03
+    // A2): SQL KPI aggregates resolve the latest correction per target event
+    // via payload->>'target_event_id' (lib/infra/amendment-sql.ts). Partial:
+    // only event_amended rows participate, so the index stays tiny.
+    payloadAmendedTargetIdx: index("pet_events_amended_target_idx")
+      .on(sql`(payload->>'target_event_id')`)
+      .where(sql`event_type = 'event_amended'`),
+    // Org-scoped overdue-checkins driver (migration 0141, staging-readiness
+    // triage #42): countOverdueCheckins (lib/analytics/org-dashboard.ts)
+    // filters adoption_finalized events by payload->>'previous_owner_organization_id'
+    // to bound the DRIVE side of the checkins join. Partial: only
+    // adoption_finalized rows participate, same shape as payloadAmendedTargetIdx.
+    payloadPreviousOwnerOrgIdx: index("pet_events_payload_previous_owner_org_idx")
+      .on(sql`(payload->>'previous_owner_organization_id')`)
+      .where(sql`event_type = 'adoption_finalized'`),
     // Cases system FK index (shipped in migration 0033, mirrored here for
     // schema↔migration agreement). Partial: most events carry no case_id.
     caseIdIdx: index("pet_events_case_id_idx")
@@ -1123,6 +1289,13 @@ export const petEvents = pgTable(
     authorOrganizationIdx: index("pet_events_author_organization_id_idx")
       .on(table.authorOrganizationId)
       .where(sql`${table.authorOrganizationId} IS NOT NULL`),
+    // Data-integrity: lat and lng must be stored together or not at all
+    // (migration 0100). NOT VALID on first apply — validate once data confirmed
+    // clean. Mirrors organizations_coordinates_pair_check.
+    locationPairCheck: check(
+      "pet_events_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
+    ),
   }),
 );
 
@@ -1273,6 +1446,12 @@ export type NewAttachment = typeof attachments.$inferInsert;
 // Notifications often *project from* events — e.g. registering a pet with a
 // dangerous breed produces a `ppp_registration_reminder`. Some are pure
 // system messages (welcome, app updates) with no source event.
+//
+// `first_stranger_scan` (owner-onboarding train): fired once per pet, the
+// first time a non-owner scans its public credential — see
+// lib/infra/notify-owner-of-first-stranger-scan.ts. Every notificationType
+// literal's es-AR label lives in lib/utils/format.ts's
+// NOTIFICATION_TYPE_LABELS, kept in sync by convention (no schema enum here).
 
 export const notifications = pgTable(
   "notifications",
@@ -1305,12 +1484,24 @@ export const notifications = pgTable(
     }),
     // Cases system (migration 0033). Lets the dashboard collapse N
     // case-derived notifications into one "Caso X" entry. Nullable —
-    // free-standing notifications never set this.
-    relatedCaseId: uuid("related_case_id"),
+    // free-standing notifications never set this. FK to cases(id) added in
+    // migration 0128 (C6 defense-in-depth): ON DELETE SET NULL so a deleted
+    // case nulls the grouping rather than leaving a dangling ref. Forward
+    // reference (cases is declared later in this file), same as petEvents.caseId.
+    relatedCaseId: uuid("related_case_id").references((): AnyPgColumn => cases.id, {
+      onDelete: "set null",
+    }),
     // Category for /notificaciones tab filtering (C2, migration 0040).
     // Values: 'health', 'custody', 'adoption', 'welfare', 'admin'. Nullable
     // for pre-C2 rows that were inserted without a category.
     category: text("category"),
+    // Caller-supplied idempotency key, set by createNotification()
+    // (lib/infra/notification-service.ts). Generalizes migration 0088's
+    // event-natural-key guard to cover cron + broadcast notifications, which
+    // have no related_event_id. The partial unique index below enforces one
+    // row per key. NULL for legacy / not-yet-migrated direct inserts (exempt).
+    // Migration 0124.
+    dedupeKey: text("dedupe_key"),
     // State.
     readAt: timestamp("read_at", { withTimezone: true }),
     archivedAt: timestamp("archived_at", { withTimezone: true }),
@@ -1350,11 +1541,101 @@ export const notifications = pgTable(
     relatedPetIdx: index("notifications_related_pet_idx")
       .on(table.relatedPetId)
       .where(sql`${table.relatedPetId} IS NOT NULL`),
+    // Generalized idempotency guard for the createNotification() service.
+    // Applies to ALL notification types (cron + broadcast included), unlike
+    // 0088's event-only guard. The service inserts with ON CONFLICT
+    // (dedupe_key) DO NOTHING so a retry / concurrent double-run is a no-op.
+    // Partial: rows with dedupe_key IS NULL (legacy direct inserts) are exempt.
+    // Migration 0124.
+    dedupeKeyUnique: uniqueIndex("notifications_dedupe_key_unique")
+      .on(table.dedupeKey)
+      .where(sql`${table.dedupeKey} IS NOT NULL`),
   }),
 );
 
 export type Notification = typeof notifications.$inferSelect;
 export type NewNotification = typeof notifications.$inferInsert;
+
+// ---------------------------------------------------------------------------
+// Push subscriptions (migration 0152) — Web Push (VAPID) delivery targets.
+//
+// PWA push v1 (ADR 2026-07-18-native-readiness §4): the notifications table
+// stays the source of truth; Web Push is a best-effort second delivery leg for
+// severity='urgent' rows only. Each row is one browser PushSubscription
+// (endpoint + client keys) owned by one user. Revocation is soft (revoked_at)
+// — set when the user toggles push off or the push service answers 410/404 —
+// so the row keeps an auditable trail; hard deletion only via profiles cascade.
+// ---------------------------------------------------------------------------
+
+export const pushSubscriptions = pgTable(
+  "push_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    // Push service URL for this browser registration. Globally unique: the
+    // same endpoint re-submitted (same browser, new session) upserts in place.
+    endpoint: text("endpoint").notNull().unique(),
+    // Client public key + auth secret from PushSubscription.getKey(), base64url.
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    // Best-effort browser identification for the user's device list. Optional.
+    userAgent: text("user_agent"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Set on every successful delivery; lets a cleanup cron drop stale rows.
+    lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+    // Soft revocation: user toggled off, or the push service returned 410/404.
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  },
+  (table) => ({
+    // Send-path index: all active subscriptions for one user.
+    userActiveIdx: index("push_subscriptions_user_active_idx")
+      .on(table.userId)
+      .where(sql`${table.revokedAt} IS NULL`),
+  }),
+);
+
+export type PushSubscription = typeof pushSubscriptions.$inferSelect;
+export type NewPushSubscription = typeof pushSubscriptions.$inferInsert;
+
+// ============================================================================
+// NotificationDeadLetter — recoverable failure surface (migration 0124)
+// ============================================================================
+// When the createNotification() service's insert throws (pool exhaustion,
+// deploy-time connection drop, brief outage) it writes the payload here instead
+// of only console.error'ing — closing the ARCH-P silent-dropout gap
+// (consistency review 2026-07-04 C.1). A follow-on retry cron drains
+// unresolved rows.
+export const notificationDeadLetter = pgTable(
+  "notification_dead_letter",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The dedupe_key the failed insert would have used (nullable). NOT unique:
+    // a dead-letter row is a failure record, not a live notification, and the
+    // same key may fail more than once before it is resolved.
+    dedupeKey: text("dedupe_key"),
+    // The full notification insert payload, so a retry cron can replay it
+    // verbatim through createNotification() once the transient fault clears.
+    payload: jsonb("payload").notNull(),
+    // Best-effort capture of the error that caused the flush to fail.
+    errorMessage: text("error_message"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    // Set by the retry cron when it re-attempts this payload.
+    retriedAt: timestamp("retried_at", { withTimezone: true }),
+    // Set when the payload was successfully re-delivered (or manually resolved).
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (table) => ({
+    // The "unresolved" working set the retry cron scans.
+    unresolvedIdx: index("notification_dead_letter_unresolved_idx")
+      .on(table.createdAt)
+      .where(sql`${table.resolvedAt} IS NULL`),
+  }),
+);
+
+export type NotificationDeadLetter = typeof notificationDeadLetter.$inferSelect;
+export type NewNotificationDeadLetter = typeof notificationDeadLetter.$inferInsert;
 
 // ============================================================================
 // WelfareReports — animal-cruelty / welfare denuncia (Ley 14.346)
@@ -1407,6 +1688,15 @@ export const welfareReports = pgTable(
     locationAddress: text("location_address"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
+    // Structural locality-attribution FK (migration 0147). Nullable + additive —
+    // mirrors pets.localityId. References the ar_localities uuid PK.
+    localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
+    // Low-confidence routing mark (migration 0162, PO decision D.11).
+    // TRUE = the geocoder was unreachable and the (province, locality) above was
+    // read out of the FORM TEXT instead. The report is routed on a GUESS, so the
+    // triage queue MUST show it (WelfareDenunciaRow) — a flag no screen renders
+    // would ship D.11's accepted risk without D.11's mitigation.
+    jurisdictionUnverified: boolean("jurisdiction_unverified").notNull().default(false),
     // Coordinate pair. Numeric(10,7) matches pet_events.location_lat/lng so
     // both tables can flow through the same accessor (`lib/location.ts`).
     locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
@@ -1431,6 +1721,16 @@ export const welfareReports = pgTable(
     flagReasons: jsonb("flag_reasons").notNull().default([]),
     moderationResolvedAt: timestamp("moderation_resolved_at", { withTimezone: true }),
     moderationResolvedByUserId: uuid("moderation_resolved_by_user_id").references(
+      () => profiles.id,
+      { onDelete: "set null" },
+    ),
+    // Govt→admin escalation (migration 0132). A jurisdiction govt can hand a
+    // flagged denuncia back to the national admin queue instead of approving or
+    // rejecting it. The row stays moderation-pending (admin still owns it) but
+    // leaves the govt actionable queue. Motivo lives in the
+    // welfare_report_escalated_to_admin audit_log row.
+    moderationEscalatedAt: timestamp("moderation_escalated_at", { withTimezone: true }),
+    moderationEscalatedByUserId: uuid("moderation_escalated_by_user_id").references(
       () => profiles.id,
       { onDelete: "set null" },
     ),
@@ -1462,6 +1762,13 @@ export const welfareReports = pgTable(
     // the only closer; these columns never transition the welfare status enum.
     orgInterventionStatus: text("org_intervention_status"),
     orgInterventionAt: timestamp("org_intervention_at", { withTimezone: true }),
+
+    // Internal, NON-RENDERED seed-cleanup marker (migration 0155). NULL for
+    // every real citizen report — only scripts/seed-panorama.ts writes it, to
+    // find its own rows on --clean/re-seed without smuggling a marker into
+    // `description` (which IS rendered). Never select this column in a
+    // citizen/operator-facing query.
+    seedTag: text("seed_tag"),
   },
   (table) => ({
     referenceCodeIdx: uniqueIndex("welfare_reports_reference_code_unique").on(table.referenceCode),
@@ -1472,6 +1779,10 @@ export const welfareReports = pgTable(
       table.jurisdictionProvince,
       table.jurisdictionLocality,
     ),
+    // Structural locality-attribution FK index (migration 0147).
+    localityIdIdx: index("welfare_reports_locality_id_idx")
+      .on(table.localityId)
+      .where(sql`${table.localityId} IS NOT NULL`),
     locationIdx: index("welfare_reports_location_idx").on(table.locationLat, table.locationLng),
     assignedToIdx: index("welfare_reports_assigned_to_idx").on(table.assignedToUserId),
     derivedToOrgIdx: index("welfare_reports_derived_to_org_idx").on(table.derivedToOrganizationId),
@@ -1501,6 +1812,13 @@ export const welfareReports = pgTable(
     welfareReportsOrgInterventionStatusCheck: check(
       "welfare_reports_org_intervention_status_check",
       sql`${table.orgInterventionStatus} is null or ${table.orgInterventionStatus} in ('tomado', 'devuelto')`,
+    ),
+    // Data-integrity: lat and lng must be stored together or not at all
+    // (migration 0100). NOT VALID on first apply — validate once data confirmed
+    // clean. Mirrors organizations_coordinates_pair_check.
+    locationPairCheck: check(
+      "welfare_reports_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
     ),
   }),
 );
@@ -1589,31 +1907,16 @@ export const libretaShareTokens = pgTable(
 export type LibretaShareToken = typeof libretaShareTokens.$inferSelect;
 export type NewLibretaShareToken = typeof libretaShareTokens.$inferInsert;
 
-// Share telemetry — Tier-2 libreta share-view tracking (catalog cleanup
-// 2026-05-19). Lives in its own table so `pet_events` stays free of
-// non-medical noise. Server-only; no RLS (no public endpoint exposes it).
-// PII posture: viewer_ip_hash, not the raw IP.
-export const shareTelemetry = pgTable(
-  "share_telemetry",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    petId: uuid("pet_id")
-      .notNull()
-      .references(() => pets.id, { onDelete: "cascade" }),
-    shareTokenId: uuid("share_token_id")
-      .notNull()
-      .references(() => libretaShareTokens.id, { onDelete: "cascade" }),
-    viewedAt: timestamp("viewed_at", { withTimezone: true }).notNull().defaultNow(),
-    viewerIpHash: text("viewer_ip_hash"),
-    userAgent: text("user_agent"),
-  },
-  (table) => ({
-    petIdx: index("share_telemetry_pet_idx").on(table.petId),
-    tokenIdx: index("share_telemetry_token_viewed_idx").on(table.shareTokenId, table.viewedAt),
-  }),
-);
-
-export type ShareTelemetry = typeof shareTelemetry.$inferSelect;
+// REMOVED — `share_telemetry` (migrations 0032 → 0167).
+//
+// It held one row per view of a Tier-2 libreta share link (pet_id,
+// share_token_id, viewed_at, viewer_ip_hash, user_agent). The 2026-08-04 sweep
+// found exactly one writer and ZERO readers: no query, no projection, no
+// screen. The owner-visible view count has always come from
+// libretaShareTokens.viewCountCached / lastViewedAtCached, which stay.
+// PO decision TEL-1 (2026-08-04): stop collecting and delete what accumulated.
+// Migration 0167 drops the table. Do not reintroduce it without a specified
+// reader and its own retention rule.
 
 // ============================================================================
 // Admin governance — govt_assignments, approval_requests, audit_log
@@ -1782,8 +2085,18 @@ export type NewApprovalRequest = typeof approvalRequests.$inferInsert;
 export const AUDIT_LOG_ACTIONS = [
   "request_viewed",
   "evidence_viewed",
+  // Audience-precision plan (2026-06-19): an authority opened a welfare report's
+  // EXACT coordinate. Ley 14.346 justifies the access; Ley 25.326 accountability
+  // requires the trail. Payload: { welfare_report_id, reference_code }.
+  "welfare_location_viewed",
   "request_approved",
   "request_rejected",
+  // Non-terminal "pedir más información" on a pending approval request (UI/UX
+  // audit 2026-07). The approval_requests status CHECK constraint has no
+  // compatible intermediate state (pending must keep decided_at/decided_by
+  // NULL), so the info request is a notes-only audit event + applicant
+  // notification that leaves the request pending. Payload: { message }.
+  "request_info_requested",
   "revocation_org_verified",
   "revocation_vet_role",
   "revocation_govt_assignment",
@@ -1848,6 +2161,10 @@ export const AUDIT_LOG_ACTIONS = [
   // either by passing it to triage (unflag) or confirming it as spam.
   "welfare_report_unflagged",
   "welfare_report_confirmed_spam",
+  // Jurisdiction moderation (migration 0132): a govt escalates a flagged
+  // denuncia to the national admin queue with a motivo. Payload:
+  // { welfare_report_id, reference_code, flag_reasons_snapshot, notes }.
+  "welfare_report_escalated_to_admin",
   // Org-side welfare denuncia (spec 2026-05-19-org-abuse-investigation).
   // Emitted by `createOrgWelfareReportAction` to distinguish institutional
   // reports from the anon/civil flow tracked by `welfare_report_submitted`.
@@ -1875,17 +2192,28 @@ export const AUDIT_LOG_ACTIONS = [
   // The session must also set app.allow_event_mutation_actor (uuid) so the
   // trigger has an accountable actor; otherwise the mutation is refused.
   "pet_events_mutation_override",
+  // Same append-only escape hatch for case_events (migration 0121), sharing the
+  // app.allow_event_mutation + app.allow_event_mutation_actor GUC pair.
+  "case_events_mutation_override",
   // Microchip replacement / revocation (Sprint 1B Phase B).
   "microchip.replace",
   // Analytics bulk export — generated by a govt/admin user from /gob/analytics/export.
   // Payload: { schema_version, includes, format, period, file_path, row_counts, rejected_counts }.
   "analytics_export_generated",
+  // Wave C (gob-audit-inventory): CSV export button on a single /gob dashboard
+  // (poblacion, censo, adopciones, campanas) — aggregate/scoped rows only, no
+  // raw PII pet lists (contrast with analytics_export_generated's storage+email
+  // multi-slice bulk export). Payload: { dashboard, row_counts }.
+  "gob_dashboard_export_generated",
   // Welfare MPF CABA export — formal denuncia PDF for fiscalía (Ley 14.346).
   // Payload: { welfareReportId, referenceCode, storagePath, schemaVersion }.
   "welfare_mpf_export_generated",
   // PPP export — RUPPPA CABA registration PDF for potentially dangerous breed owners.
   // Payload: { petId, petPublicToken, targetJurisdiction, breed, schemaVersion }.
   "ppp_export_generated",
+  // Travel doc bundle export (movilidad-jurisdiccional Fase 1, R5.3).
+  // Payload: { petId, petPublicToken, corridorIds, semaforo, schemaVersion }.
+  "travel_export_generated",
   // ENO (Enfermedades de Notificación Obligatoria) — govt notification fanout.
   // Spec: 2026-05-21-eno-pipeline-design.md (ENO-D2, ENO-D3, ENO-D4, ENO-D5).
   // Payload: { disease_code, disease_severity, pet_id, targets_count,
@@ -1915,6 +2243,10 @@ export const AUDIT_LOG_ACTIONS = [
   "decomiso_handoff_accepted",
   "decomiso_handoff_rejected",
   "decomiso_handoff_cancelled",
+  // Return-to-owner terminal (closed_to_owner_return in
+  // src/modules/cases/domain/lifecycles/custody-episode.ts). Emitted by
+  // returnCustodyToOwnerAction.
+  "decomiso_returned_to_owner",
   // Outbreak investigation lifecycle (Ley 15.465/60 + Decreto 3640/64 ENO).
   // Emitted by outbreak investigation server actions (app/actions/outbreak-investigation.ts).
   "outbreak_investigation_opened",
@@ -1963,6 +2295,29 @@ export const AUDIT_LOG_ACTIONS = [
   //   adopter_pii_viewed payload:
   //     { org_id, application_event_id, applicant_user_id, pet_id }
   "adopter_pii_viewed",
+  // Item 14.1: personal account self-deactivation (owner/vet). No coverage
+  // check needed (govt-only concern). Payload: { reason, role }.
+  "personal_self_deactivated",
+  // Wave 2 Item 15 — correction by amendment (principle #2, 2026-06-19).
+  // D5: admin/govt amendments are sensitive — emits this audit row with
+  // full amendment details (pet_id, target_event_id, amendment_event_id,
+  // reason, changes, actor_role). Payload: { pet_id, target_event_id,
+  // amendment_event_id, reason, changes, actor_role }.
+  "event_amended_sensitive",
+  // Outreach "Enviar recordatorio(s)" (sweep-fixes-2 2026-07-23) — a govt/admin
+  // operator triggers a system-mediated vaccine_due reminder from the overdue-
+  // antirrábica list (/gob/operativos?vista=alcance). One row per invocation
+  // (single "Recordar" or the bulk "Enviar recordatorios (N)"), never per
+  // notification — the write-path companion to pii_queried. Payload:
+  // { surface, pipeline, requested_count, sent_count, already_notified_count,
+  //   no_owner_count, out_of_scope_count }.
+  "outreach_reminder_sent",
+  // Physical tag (chapa) lifecycle — owner activation, owner revocation, and
+  // admin batch issuance (design D9). tag.lote_issue payload: {lote_id, count}
+  // — never the serials' activation codes.
+  "tag.activate",
+  "tag.revoke",
+  "tag.lote_issue",
 ] as const;
 export type AuditLogAction = (typeof AUDIT_LOG_ACTIONS)[number];
 
@@ -1996,6 +2351,9 @@ export const auditLog = pgTable(
       table.targetOrganizationId,
     ),
     actionIdx: index("audit_log_action_idx").on(table.action, table.performedAt),
+    // WS-PERF P1: default ORDER BY (performed_at DESC, id DESC) now hits this
+    // index directly instead of doing a full sort on every unfiltered page load.
+    performedAtIdx: index("audit_log_performed_at_idx").on(table.performedAt, table.id),
   }),
 );
 
@@ -2018,6 +2376,26 @@ export const GOVT_BUSINESS_RULE_TYPES = [
   "ppp_breed_list",
   "ppp_weight_threshold",
   "ppp_attestation_required_registries",
+  "physical_credential_channels",
+  // Whether this jurisdiction requires a microchip (migration 0150). Default
+  // TRUE (lib/domain/business-rules-defaults.ts) so the microchip obligation
+  // keeps showing everywhere until a jurisdiction opts out. Pet-scope rule.
+  "microchip_required",
+  // Promoted rule types (admin-rules-console, migration 0116) — see
+  // lib/domain/rule-types-registry.ts for label/schema/resolutionScope.
+  "rabies_observation_window",
+  "due_soon_window",
+  "reminder_windows",
+  "long_stay_days",
+  // Which format the MPF (fiscalía) welfare export PDF uses for this
+  // jurisdiction (migration 0156). Default "estandar_nacional" (the only
+  // format the codebase renders today — lib/analytics/welfare-exports.ts) so
+  // the cascade is real ahead of any second format's rollout. Unlocks the MPF
+  // export for every jurisdiction (see jurisdiction-compliance 2026-07-22):
+  // the old CABA-only gate (MPF_CONFIGURED_PROVINCES) is replaced by "every
+  // jurisdiction gets the national default format unless configured
+  // otherwise" — no fake per-province integrations.
+  "mpf_export_format",
 ] as const;
 export type GovtBusinessRuleType = (typeof GOVT_BUSINESS_RULE_TYPES)[number];
 
@@ -2045,7 +2423,7 @@ export const govtBusinessRules = pgTable(
     ruleTypeIdx: index("govt_business_rules_rule_type_idx").on(table.ruleType),
     govtBusinessRulesRuleTypeValid: check(
       "govt_business_rules_rule_type_valid",
-      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries')`,
+      sql`${table.ruleType} in ('ppp_breed_list', 'ppp_weight_threshold', 'ppp_attestation_required_registries', 'physical_credential_channels', 'microchip_required', 'rabies_observation_window', 'due_soon_window', 'reminder_windows', 'long_stay_days', 'travel_corridor_requirements', 'mpf_export_format')`,
     ),
     govtBusinessRulesJurisdictionProvinceCanonical: check(
       "govt_business_rules_jurisdiction_province_canonical",
@@ -2388,6 +2766,13 @@ export const arLocalities = pgTable(
     departmentCode: text("department_code"),
     localityName: text("locality_name").notNull(),
     localitySlug: text("locality_slug").notNull(),
+    // Sargable normalized locality name (migration 0146). Materializes the exact
+    // normNameSql() expression the panorama centroid joins apply at query time,
+    // so the (province_code, locality_name_norm) index below can serve the join
+    // as a plain equality instead of an unindexable per-row unaccent()/regexp.
+    localityNameNorm: text("locality_name_norm").generatedAlwaysAs(
+      sql`btrim(regexp_replace(lower(translate(public.immutable_unaccent(locality_name), '.', '')), '\\s+', ' ', 'g'))`,
+    ),
     indecId: text("indec_id").unique(),
     category: text("category").notNull().$type<ArgentineLocalityCategory>(),
     latitude: numeric("latitude", { precision: 10, scale: 7 }),
@@ -2408,6 +2793,11 @@ export const arLocalities = pgTable(
       .where(sql`${table.removedAt} IS NULL`),
     provinceIdx: index("ar_localities_province_idx")
       .on(table.provinceCode)
+      .where(sql`${table.removedAt} IS NULL`),
+    // Sargable centroid-join index (migration 0146): (province, normalized name)
+    // resolves the panorama locality rollup joins with an index scan.
+    provinceLocalityNormIdx: index("ar_localities_province_locality_norm_idx")
+      .on(table.provinceCode, table.localityNameNorm)
       .where(sql`${table.removedAt} IS NULL`),
     // CHECK constraints — also declared inline in migration 0019 (province,
     // category) and 0028 (source). Declared here too so that `drizzle-kit
@@ -2662,6 +3052,178 @@ export const cronRuns = pgTable(
 
 export type CronRun = typeof cronRuns.$inferSelect;
 export type NewCronRun = typeof cronRuns.$inferInsert;
+
+// ============================================================================
+// Alert subscriptions — Paquete H (threshold alerts on /admin/programa)
+// ============================================================================
+// Each row represents an admin user's threshold subscription for a program
+// metric. When the current value crosses the threshold in the configured
+// direction, the subscription is "breaching" and is surfaced on the dashboard.
+//
+// Metrics: active_zoonosis, eno_sla_ontime_pct, queue_oldest_days,
+//          sterilization_coverage_pct, microchip_penetration_pct, open_welfare_reports
+//
+// Jurisdiction scope is optional — when set, the metric is fetched scoped to
+// that jurisdiction. queue_oldest_days is always global (no jurisdiction dim).
+//
+// RLS: owner SELECT/INSERT/UPDATE/DELETE own; admin SELECT all via RLS.
+// Admin writes go through Drizzle BYPASSRLS (no permissive admin write policy).
+
+export const ALERT_METRIC_KEYS = [
+  "active_zoonosis",
+  "eno_sla_ontime_pct",
+  "queue_oldest_days",
+  "sterilization_coverage_pct",
+  "microchip_penetration_pct",
+  "open_welfare_reports",
+] as const;
+
+export type AlertMetricKey = (typeof ALERT_METRIC_KEYS)[number];
+
+export const ALERT_DIRECTIONS = ["above", "below"] as const;
+export type AlertDirection = (typeof ALERT_DIRECTIONS)[number];
+
+export const alertSubscriptions = pgTable(
+  "alert_subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    actorUserId: uuid("actor_user_id")
+      .notNull()
+      .references(() => profiles.id, { onDelete: "cascade" }),
+    metricKey: text("metric_key").notNull().$type<AlertMetricKey>(),
+    direction: text("direction").notNull().$type<AlertDirection>(),
+    threshold: numeric("threshold").notNull(),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    label: text("label"),
+    isActive: boolean("is_active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    // Partial index: fast lookup of a user's active subscriptions.
+    actorActiveIdx: index("alert_subscriptions_actor_active_idx")
+      .on(table.actorUserId)
+      .where(sql`${table.isActive} = true`),
+    // CHECK: metric_key must be one of the 6 supported keys.
+    metricKeyValid: check(
+      "alert_subscriptions_metric_key_valid",
+      sql`${table.metricKey} IN ('active_zoonosis','eno_sla_ontime_pct','queue_oldest_days','sterilization_coverage_pct','microchip_penetration_pct','open_welfare_reports')`,
+    ),
+    // CHECK: direction must be 'above' or 'below'.
+    directionValid: check(
+      "alert_subscriptions_direction_valid",
+      sql`${table.direction} IN ('above','below')`,
+    ),
+    // CHECK: jurisdiction_province must be null or a canonical Argentine province.
+    provinceValid: check(
+      "alert_subscriptions_province_valid",
+      sql`${table.jurisdictionProvince} IS NULL OR ${table.jurisdictionProvince} IN ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+  }),
+);
+
+export type AlertSubscription = typeof alertSubscriptions.$inferSelect;
+export type NewAlertSubscription = typeof alertSubscriptions.$inferInsert;
+
+// ============================================================================
+// Alert firings — Paquete K (alert inbox + triage)
+// ============================================================================
+// One row per OPEN alert raised when an alert_subscriptions threshold is
+// crossed during evaluation (on-page or via the daily evaluate-alerts cron).
+// Each firing carries a triage lifecycle so an admin can acknowledge it, open
+// (or link) an outbreak investigation, contact the jurisdiction's authority,
+// and close it. The transition audit lives in the *_at / *_by columns — there
+// is intentionally NO new AUDIT_LOG_ACTIONS entry (decision K-D4).
+//
+// State machine (ALERT_FIRING_STATUSES):
+//   disparada → reconocida → en_investigacion → autoridad_contactada → resuelta
+//   disparada / reconocida → descartada
+//
+// Dedup: at most ONE open firing per (subscription_id, jurisdiction) at a time
+// (enforced in lib/metrics/alert-firing.ts#shouldOpenFiring + the writer).
+//
+// RLS: defense-in-depth deny-all for the PostgREST surface. Admin reads/writes
+// go through Drizzle (BYPASSRLS service-role). Classified in
+// __tests__/rls/coverage.test.ts → RLS_REQUIRED.
+
+export const ALERT_FIRING_STATUSES = [
+  "disparada",
+  "reconocida",
+  "en_investigacion",
+  "autoridad_contactada",
+  "resuelta",
+  "descartada",
+] as const;
+
+export type AlertFiringStatus = (typeof ALERT_FIRING_STATUSES)[number];
+
+/** Open (non-terminal) firing statuses — used for dedup + the inbox badge. */
+export const ALERT_FIRING_OPEN_STATUSES = [
+  "disparada",
+  "reconocida",
+  "en_investigacion",
+  "autoridad_contactada",
+] as const satisfies readonly AlertFiringStatus[];
+
+export const alertFirings = pgTable(
+  "alert_firings",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // The subscription whose threshold was crossed. SET NULL on delete so a
+    // firing survives the subscription being removed (its history is audit).
+    subscriptionId: uuid("subscription_id").references(() => alertSubscriptions.id, {
+      onDelete: "set null",
+    }),
+    metricKey: text("metric_key").notNull().$type<AlertMetricKey>(),
+    direction: text("direction").notNull().$type<AlertDirection>(),
+    threshold: numeric("threshold").notNull(),
+    observedValue: numeric("observed_value").notNull(),
+    jurisdictionProvince: text("jurisdiction_province"),
+    jurisdictionLocality: text("jurisdiction_locality"),
+    status: text("status").notNull().default("disparada").$type<AlertFiringStatus>(),
+    firedAt: timestamp("fired_at", { withTimezone: true }).notNull().defaultNow(),
+    acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+    acknowledgedBy: uuid("acknowledged_by").references(() => profiles.id, { onDelete: "set null" }),
+    // publicCode of the linked outbreak investigation (active_zoonosis only).
+    investigationCode: text("investigation_code"),
+    contactedGovtUserId: uuid("contacted_govt_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    contactedAt: timestamp("contacted_at", { withTimezone: true }),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+    resolvedBy: uuid("resolved_by").references(() => profiles.id, { onDelete: "set null" }),
+    notes: text("notes"),
+  },
+  (table) => ({
+    // Inbox ordering + status filter.
+    statusFiredIdx: index("alert_firings_status_fired_idx").on(table.status, table.firedAt),
+    // Dedup: fast lookup of open firings for a subscription.
+    subscriptionStatusIdx: index("alert_firings_subscription_status_idx").on(
+      table.subscriptionId,
+      table.status,
+    ),
+    metricKeyValid: check(
+      "alert_firings_metric_key_valid",
+      sql`${table.metricKey} IN ('active_zoonosis','eno_sla_ontime_pct','queue_oldest_days','sterilization_coverage_pct','microchip_penetration_pct','open_welfare_reports')`,
+    ),
+    directionValid: check(
+      "alert_firings_direction_valid",
+      sql`${table.direction} IN ('above','below')`,
+    ),
+    statusValid: check(
+      "alert_firings_status_valid",
+      sql`${table.status} IN ('disparada','reconocida','en_investigacion','autoridad_contactada','resuelta','descartada')`,
+    ),
+    provinceValid: check(
+      "alert_firings_province_valid",
+      sql`${table.jurisdictionProvince} IS NULL OR ${table.jurisdictionProvince} IN ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+  }),
+);
+
+export type AlertFiring = typeof alertFirings.$inferSelect;
+export type NewAlertFiring = typeof alertFirings.$inferInsert;
 
 // ============================================================================
 // Custody disputes — Admin Fase 10
@@ -2949,6 +3511,120 @@ export const rateLimitBuckets = pgTable("rate_limit_buckets", {
 export type RateLimitBucket = typeof rateLimitBuckets.$inferSelect;
 
 // ============================================================================
+// Panorama aggregate cube (road-to-10 infra #1) — migration 0139
+// ============================================================================
+// Precomputed choropleth aggregate. Built by the TS cube-builder
+// (src/modules/panorama/infrastructure/cube-builder.ts), which REUSES the live
+// choropleth loaders and writes here in one transaction. Read only via
+// analyticsDb (service-role); deny-all RLS to PostgREST. See migration 0139 and
+// docs/plans/2026-07-11-cube-design.md (+ the TS-builder amendment).
+
+/** The readable, k-anon'd cube surface. Suppressed department cells carry
+ * value = NULL — a sub-k count is NEVER stored here. */
+export const panoramaCube = pgTable(
+  "panorama_cube",
+  {
+    metric: text("metric").notNull(),
+    /** 'province' | 'department'. */
+    unitLevel: text("unit_level").notNull(),
+    province: text("province").notNull(),
+    /** Unique unit id within (metric, unit_level); the PK's non-null component. */
+    unitCode: text("unit_code").notNull(),
+    label: text("label"),
+    departmentCode: text("department_code"),
+    departmentName: text("department_name"),
+    centroidLat: numeric("centroid_lat"),
+    centroidLng: numeric("centroid_lng"),
+    /** department: k-anon count (NULL if suppressed); province: ratePct or count. */
+    value: numeric("value"),
+    /** REUSED (CB1, 2026-07-11): on PROVINCE rows this carries the department-grain
+     * truncation flag (0/1) for that (metric, province) — the province's locality
+     * rollup hit PER_LAYER_CAP at build. Originally reserved as a rate denominator
+     * (never written); a future rate-by-num/den reader MUST first migrate this
+     * flag to its own column. See cube-builder.ts buildProvinceCubeRows. */
+    den: integer("den"),
+    /** province grain: that province's no-locality residual for the metric. */
+    noLocality: integer("no_locality"),
+    suppressed: boolean("suppressed").notNull().default(false),
+    complementary: boolean("complementary").notNull().default(false),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.metric, table.unitLevel, table.unitCode] }),
+    lookupIdx: index("panorama_cube_lookup_idx").on(table.metric, table.unitLevel, table.province),
+  }),
+);
+
+export type PanoramaCubeRow = typeof panoramaCube.$inferSelect;
+export type NewPanoramaCubeRow = typeof panoramaCube.$inferInsert;
+
+/** Cube build metadata singleton (one row, id = 1). */
+export const panoramaCubeMeta = pgTable("panorama_cube_meta", {
+  id: integer("id").primaryKey().default(1),
+  builtAt: timestamp("built_at", { withTimezone: true }),
+  watermark: timestamp("watermark", { withTimezone: true }),
+  /** 'pending' | 'ok' | 'error'. */
+  status: text("status").notNull().default("pending"),
+  rowCount: integer("row_count"),
+  durationMs: integer("duration_ms"),
+});
+
+export type PanoramaCubeMeta = typeof panoramaCubeMeta.$inferSelect;
+
+// ============================================================================
+// Panorama KPI-strip cube — migration 0151
+// ============================================================================
+// Precomputed KPI strip. Built by the TS cube-builder REUSING getPanoramaKpis
+// (the exact live fan-out) for the admin-national scope + panorama default
+// period, so cube-vs-live drift is structurally impossible. Rows store the
+// FINISHED PanoramaKpi tile objects as jsonb — re-deriving tile formatting from
+// numeric columns would fork the presentation logic the strip single-sources.
+// Read only via analyticsDb (service-role); deny-all RLS to PostgREST.
+
+/** One row per (scope, kpi). Strip tiles carry `position`; non-strip cubed
+ * aggregates (kpi='births' — fetchNetGrowth) carry position = NULL. */
+export const panoramaKpiCube = pgTable(
+  "panorama_kpi_cube",
+  {
+    /** 'national' (v1). Future: per-province drill scopes without a migration. */
+    scope: text("scope").notNull(),
+    /** PanoramaKpiId for strip tiles, or a non-strip aggregate id ('births'). */
+    kpi: text("kpi").notNull(),
+    /** Strip display order (0-based); NULL = not a strip tile (births). */
+    position: integer("position"),
+    /** Strip tiles: the PanoramaKpi object exactly as getPanoramaKpis built it.
+     * births: the raw NetGrowthResult. */
+    payload: jsonb("payload").notNull(),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.scope, table.kpi] }),
+  }),
+);
+
+export type PanoramaKpiCubeRow = typeof panoramaKpiCube.$inferSelect;
+export type NewPanoramaKpiCubeRow = typeof panoramaKpiCube.$inferInsert;
+
+/** KPI cube build metadata singleton (one row, id = 1). The reader gates on
+ * status + built_at freshness AND the stored period window (KPIs are
+ * period-sensitive, unlike the current-state choropleth cube). */
+export const panoramaKpiCubeMeta = pgTable("panorama_kpi_cube_meta", {
+  id: integer("id").primaryKey().default(1),
+  builtAt: timestamp("built_at", { withTimezone: true }),
+  watermark: timestamp("watermark", { withTimezone: true }),
+  /** 'pending' | 'ok' | 'error'. */
+  status: text("status").notNull().default("pending"),
+  rowCount: integer("row_count"),
+  durationMs: integer("duration_ms"),
+  /** The AnalyticsPeriod the strip was computed for (panorama default preset). */
+  periodSince: timestamp("period_since", { withTimezone: true }),
+  periodUntil: timestamp("period_until", { withTimezone: true }),
+  /** Strip-level PanoramaKpis fields (recalculatedFor, dataAsOf,
+   * coverageDenominator) — everything except the tiles. */
+  strip: jsonb("strip"),
+});
+
+export type PanoramaKpiCubeMeta = typeof panoramaKpiCubeMeta.$inferSelect;
+
+// ============================================================================
 // Cases (expedientes) — coordinación liviana sobre el event log
 // ============================================================================
 // Wrapping object over `pet_events` + `welfare_reports`. Each event row can
@@ -3035,8 +3711,10 @@ export const cases = pgTable(
 
     primarySubjectKind: text("primary_subject_kind").notNull().$type<CaseSubjectKind>(),
     primaryPetId: uuid("primary_pet_id").references(() => pets.id, { onDelete: "cascade" }),
-    primaryLocationLat: numeric("primary_location_lat", { precision: 10, scale: 7 }),
-    primaryLocationLng: numeric("primary_location_lng", { precision: 10, scale: 7 }),
+    // Canonical coordinate columns (P3 location convergence, DEPLOY 2).
+    // Legacy primary_location_lat/lng dropped in migration 0103.
+    locationLat: numeric("location_lat", { precision: 10, scale: 7 }),
+    locationLng: numeric("location_lng", { precision: 10, scale: 7 }),
 
     // Used by adoption_application — write-once at open. No FK because
     // applications live as pet_events rows (no dedicated table).
@@ -3048,6 +3726,9 @@ export const cases = pgTable(
     jurisdictionCountry: text("jurisdiction_country").notNull().default("AR"),
     jurisdictionProvince: text("jurisdiction_province"),
     jurisdictionLocality: text("jurisdiction_locality"),
+    // Structural locality-attribution FK (migration 0147). Nullable + additive —
+    // mirrors pets.localityId. References the ar_localities uuid PK.
+    localityId: uuid("locality_id").references(() => arLocalities.id, { onDelete: "set null" }),
 
     openedAt: timestamp("opened_at", { withTimezone: true }).notNull().defaultNow(),
     openedByUserId: uuid("opened_by_user_id").references(() => profiles.id, {
@@ -3057,6 +3738,23 @@ export const cases = pgTable(
       onDelete: "set null",
     }),
     openedReason: text("opened_reason"),
+    // Structured opened reason (migration 0149). Additive: `opened_reason`
+    // prose keeps being written byte-identical on every open — it is a live
+    // SQL query key (surveillance-repository.ts dedupes outbreak
+    // investigations with `LIKE 'manual [code]:%'`) and the render source for
+    // pre-cutover rows, which stay (null, null) forever (no backfill —
+    // retro-translating audit prose would be a retro-edit).
+    //
+    // `text`, not a PG enum, and NOT `$type`-narrowed — same call as case_kind
+    // above, for the same reason: this file imports nothing from src/, so
+    // narrowing here would either invert the layering (schema → domain) or
+    // duplicate the vocabulary and let it drift with no compile-time link.
+    // The closed set lives in src/modules/cases/domain/opened-reason.ts (Zod
+    // discriminated union); an unmapped code is a `tsc` error THERE, at the
+    // choke point, which is where the fence belongs. Writer #19 is a
+    // TypeScript edit, not a gated migration.
+    openedReasonCode: text("opened_reason_code"),
+    openedReasonParams: jsonb("opened_reason_params"),
 
     // For custody_transfer_handshake: canonical receiver org (mirrors the
     // proposal payload's to_organization_id). The accept-path authorizes
@@ -3113,6 +3811,28 @@ export const cases = pgTable(
       .where(
         sql`${table.status} IN ('open', 'escalated') AND ${table.receiverOrganizationId} IS NOT NULL`,
       ),
+    // Keyset composites for the case-queue lists (migration 0126). Both back
+    // the shared ORDER BY (opened_at DESC, id DESC) keyset pagination in
+    // lib/infra/case-queries.ts: the jurisdiction composite serves
+    // listCasesForGovt (/gob/casos), the plain opened_at one serves the
+    // unscoped listCasesForAdmin (/admin/casos).
+    jurisOpenedAtIdx: index("cases_juris_opened_at_idx").on(
+      table.jurisdictionProvince,
+      table.jurisdictionLocality,
+      table.openedAt.desc(),
+      table.id.desc(),
+    ),
+    openedAtIdIdx: index("cases_opened_at_id_idx").on(table.openedAt.desc(), table.id.desc()),
+    // Structured opened-reason code (migration 0149). Partial: pre-cutover
+    // rows are all NULL and stay NULL (no backfill). Backs the
+    // "casos abiertos por causa" GROUP BY.
+    openedReasonCodeIdx: index("cases_opened_reason_code_idx")
+      .on(table.openedReasonCode)
+      .where(sql`${table.openedReasonCode} IS NOT NULL`),
+    // Structural locality-attribution FK index (migration 0147).
+    localityIdIdx: index("cases_locality_id_idx")
+      .on(table.localityId)
+      .where(sql`${table.localityId} IS NOT NULL`),
     // Performance indexes added in migration 0096.
     applicantUserIdx: index("cases_applicant_user_idx").on(table.applicantUserId),
     welfareReportIdx: index("cases_welfare_report_idx")
@@ -3128,7 +3848,7 @@ export const cases = pgTable(
     ),
     casesSubjectLocationConsistency: check(
       "cases_subject_location_consistency",
-      sql`(${table.primarySubjectKind} = 'location') = (${table.primaryLocationLat} is not null and ${table.primaryLocationLng} is not null)`,
+      sql`(${table.primarySubjectKind} = 'location') = (${table.locationLat} is not null and ${table.locationLng} is not null)`,
     ),
     casesMergedConsistency: check(
       "cases_merged_consistency",
@@ -3142,9 +3862,19 @@ export const cases = pgTable(
       "cases_opened_reason_min_length",
       sql`${table.openedReason} is null or length(${table.openedReason}) >= 10`,
     ),
+    // Migration 0149. Makes "code without params" unrepresentable at rest;
+    // param-less codes store `{}`, not NULL. Legacy rows are (null, null).
+    casesOpenedReasonStructuredPair: check(
+      "cases_opened_reason_structured_pair",
+      sql`${table.openedReasonCode} is null or ${table.openedReasonParams} is not null`,
+    ),
     casesJurisdictionProvinceCanonical: check(
       "cases_jurisdiction_province_canonical",
       sql`${table.jurisdictionProvince} is null or ${table.jurisdictionProvince} in ${CANONICAL_PROVINCE_SQL_LIST}`,
+    ),
+    casesLocationPairCheck: check(
+      "cases_location_pair_check",
+      sql`(${table.locationLat} IS NULL) = (${table.locationLng} IS NULL)`,
     ),
   }),
 );
@@ -3172,6 +3902,11 @@ export const CASE_EVENT_ENTRY_TYPES = [
   // Reporter comment — welfare_denuncia: reporter adds a free-text note to their case.
   // entryType is a plain string (not an enum) so this is a non-breaking additive change.
   "reporter_comment",
+  // Anonymous finder tip on a custody_dispute case — written from the public
+  // credential of a disputed pet (report-dispute-tip.ts). Authority-only:
+  // CaseDetailView filters these entries for every non-govt/non-admin viewer
+  // (the disputing parties can read the case detail, but must never see tips).
+  "finder_tip",
   // outbreak_investigation entry types
   "classification",
   "lab_result",
@@ -3209,14 +3944,6 @@ export const caseEvents = pgTable(
 
 export type CaseEvent = typeof caseEvents.$inferSelect;
 export type NewCaseEvent = typeof caseEvents.$inferInsert;
-
-// Legacy aliases kept during migration window — callers updated progressively.
-/** @deprecated Use `caseEvents` */
-export const investigationNotes = caseEvents;
-/** @deprecated Use `CaseEvent` */
-export type InvestigationNote = CaseEvent;
-/** @deprecated Use `NewCaseEvent` */
-export type NewInvestigationNote = NewCaseEvent;
 
 // ============================================================================
 // Physical tag interest — §4.20 placeholder for the future physical-QR-tag
@@ -3295,6 +4022,28 @@ export const petAchievementViews = pgTable(
 
 export type PetAchievementView = typeof petAchievementViews.$inferSelect;
 export type NewPetAchievementView = typeof petAchievementViews.$inferInsert;
+
+// ============================================================================
+// Operator "Novedades" feed watermark — viz-suite Wave 1 (migration 0143)
+// ============================================================================
+// Per-operator high-water mark (transaction-time / recorded_at) for the
+// session-start "Novedades" orientation feed on the /gob and /admin homes. One
+// row per operator (user_id PK); advanced ONLY by the explicit "Marcar como
+// visto" action (never on render). Per-user UI state — NOT an event; the
+// append-only pet_events log is never touched by the feed. RLS: owner-only for
+// every operation (see migration 0143).
+
+export const operatorFeedWatermarks = pgTable("operator_feed_watermarks", {
+  userId: uuid("user_id")
+    .primaryKey()
+    .references(() => profiles.id, { onDelete: "cascade" }),
+  /** recorded_at high-water mark: the feed shows pet_events strictly newer than this. */
+  lastSeenRecordedAt: timestamp("last_seen_recorded_at", { withTimezone: true }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type OperatorFeedWatermark = typeof operatorFeedWatermarks.$inferSelect;
+export type NewOperatorFeedWatermark = typeof operatorFeedWatermarks.$inferInsert;
 
 // ============================================================================
 // Event notification outbox — ENO Event-Trust Tier 1, Fase C.1
@@ -3485,7 +4234,11 @@ export const petIdentifications = pgTable(
     kind: identificationKindEnum("kind").notNull(),
     status: identificationStatusEnum("status").notNull().default("active"),
     code: text("code"),
-    recordedAt: date("recorded_at").notNull(),
+    // NULLABLE since migration 0161: "when the identification was MADE", and
+    // the spine models genuinely-unknown (tattoo_date_known=false). NOT NULL
+    // forced writers to invent a date, and the seed invented the event's own
+    // date — which the credential then showed as the tattoo's.
+    recordedAt: date("recorded_at"),
     recordedByUserId: uuid("recorded_by_user_id").references(() => profiles.id, {
       onDelete: "set null",
     }),
@@ -3544,6 +4297,84 @@ export const petIdentifications = pgTable(
 
 export type PetIdentification = typeof petIdentifications.$inferSelect;
 export type NewPetIdentification = typeof petIdentifications.$inferInsert;
+
+// ============================================================================
+// Pet tags — physical tag (chapa) lifecycle (migration 0169)
+// ============================================================================
+// One row per manufactured tag. Serial `TAG-XXXX-XXXX` printed as QR; the
+// wrapper-printed activation code is stored ONLY as a peppered HMAC hash
+// (lib/utils/tag-code-hash.ts) — the plaintext code exists only in the admin
+// issuance CSV response and is NEVER persisted or SELECTed back by app code.
+//
+// State machine (one-way, CHECK-enforced): unactivated -> active -> revoked.
+// `revoked` is terminal (no reuse). A blank tag has no pet_id so it cannot be
+// revoked (the tag_revoked spine event needs a pet — design D4). Custody
+// transfer never touches this table: the tag stays active on the same pet.
+
+export const PET_TAG_REVOKE_REASONS = [
+  "lost",
+  "damaged",
+  "transfer",
+  "fraud",
+  "owner_request",
+  "other",
+] as const;
+export type PetTagRevokeReason = (typeof PET_TAG_REVOKE_REASONS)[number];
+
+export type PetTagStatus = "unactivated" | "active" | "revoked";
+
+export const petTags = pgTable(
+  "pet_tags",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    serial: text("serial").notNull(),
+    // HMAC-SHA256 hex. Never SELECTed by app code — the evidence gate compares
+    // inside a SQL predicate (lib/infra/tag-lookup.ts, chip-lookup.ts shape).
+    activationCodeHash: text("activation_code_hash").notNull(),
+    status: text("status").notNull().default("unactivated").$type<PetTagStatus>(),
+    loteId: text("lote_id"),
+    petId: uuid("pet_id").references(() => pets.id),
+    activatedByUserId: uuid("activated_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    activatedAt: timestamp("activated_at", { withTimezone: true }),
+    revokedByUserId: uuid("revoked_by_user_id").references(() => profiles.id, {
+      onDelete: "set null",
+    }),
+    revokedAt: timestamp("revoked_at", { withTimezone: true }),
+    revokedReason: text("revoked_reason").$type<PetTagRevokeReason | null>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    // PII baseline (pii.apply_baseline in migration 0169).
+    createdBy: uuid("created_by").references(() => profiles.id, { onDelete: "set null" }),
+    updatedBy: uuid("updated_by").references(() => profiles.id, { onDelete: "set null" }),
+    purpose: dataPurposeEnum("purpose"),
+    deletedAt: timestamp("deleted_at", { withTimezone: true }),
+    retentionUntil: timestamp("retention_until", { withTimezone: true }),
+  },
+  (table) => ({
+    serialUnique: uniqueIndex("pet_tags_serial_unique").on(table.serial),
+    petIdx: index("pet_tags_pet_idx").on(table.petId).where(sql`${table.petId} IS NOT NULL`),
+    loteIdx: index("pet_tags_lote_idx").on(table.loteId).where(sql`${table.loteId} IS NOT NULL`),
+    statusValid: check(
+      "pet_tags_status_valid",
+      sql`${table.status} IN ('unactivated','active','revoked')`,
+    ),
+    revokedReasonValid: check(
+      "pet_tags_revoked_reason_valid",
+      sql`${table.revokedReason} IS NULL OR ${table.revokedReason} IN ('lost','damaged','transfer','fraud','owner_request','other')`,
+    ),
+    stateMachine: check(
+      "pet_tags_state_machine",
+      sql`(${table.status} = 'unactivated' AND ${table.petId} IS NULL AND ${table.activatedAt} IS NULL AND ${table.revokedAt} IS NULL)
+        OR (${table.status} = 'active' AND ${table.petId} IS NOT NULL AND ${table.activatedAt} IS NOT NULL AND ${table.revokedAt} IS NULL)
+        OR (${table.status} = 'revoked' AND ${table.petId} IS NOT NULL AND ${table.activatedAt} IS NOT NULL AND ${table.revokedAt} IS NOT NULL AND ${table.revokedReason} IS NOT NULL)`,
+    ),
+  }),
+);
+
+export type PetTag = typeof petTags.$inferSelect;
+export type NewPetTag = typeof petTags.$inferInsert;
 
 // ============================================================================
 // SENASA reference vocabularies (compliance PR 3, migration 0060)

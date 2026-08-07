@@ -1,14 +1,16 @@
 // /mis-turnos — Libreta Nacional redesign.
 // AppointmentCard (component) is unchanged.
 
-import { desc, eq, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { AppointmentCard } from "@/components/AppointmentCard";
 import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { pluralizeEs } from "@/lib/utils/format";
 
 export default async function MisTurnosPage() {
   const { user } = await requireUserOrRedirect();
@@ -63,21 +65,28 @@ export default async function MisTurnosPage() {
     (r) =>
       r.appointment.status === "cancelled" ||
       r.appointment.status === "cancelled_by_owner" ||
+      r.appointment.status === "cancelled_by_org" ||
       r.appointment.status === "no_show",
   );
 
+  // Derived from the buckets actually rendered below — NOT rows.length — so
+  // the header count always matches what's on screen. A cancelled_by_org
+  // appointment used to disappear from the list but still count toward the
+  // total (state-honesty audit: "3 turnos" header, 2 cards shown).
+  const totalShown = upcoming.length + past.length + cancelled.length;
+
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Header */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4">
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Mis turnos
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
-            {rows.length === 0
-              ? "Todavía no tenés turnos reservados."
-              : `${rows.length} turno${rows.length === 1 ? "" : "s"} en total.`}
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+            {totalShown === 0
+              ? "No hay turnos reservados."
+              : `${totalShown} ${pluralizeEs(totalShown, "turno")} en total.`}
           </p>
         </div>
         <Link href="/turnos/buscar">
@@ -88,18 +97,17 @@ export default async function MisTurnosPage() {
       </div>
 
       {rows.length === 0 && (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            Reservá tu primer turno buscando un servicio disponible.
-          </p>
-        </div>
+        <LnEmptyState
+          variant="dashed"
+          title="Reservá tu primer turno buscando un servicio disponible."
+        />
       )}
 
-      <div className="flex flex-col gap-[32px]">
+      <div className="flex flex-col gap-8">
         {upcoming.length > 0 && (
           <section>
-            <LnSectionHead num="01" title="Próximos" className="mb-[14px]" />
-            <ul className="flex flex-col gap-[10px]">
+            <LnSectionHead num="01" title="Próximos" className="mb-3.5" />
+            <ul className="flex flex-col gap-2.5">
               {upcoming.map((r) => (
                 <AppointmentCard key={r.appointment.id} row={r} />
               ))}
@@ -109,8 +117,8 @@ export default async function MisTurnosPage() {
 
         {past.length > 0 && (
           <section>
-            <LnSectionHead num="02" title="Pasados" className="mb-[14px]" />
-            <ul className="flex flex-col gap-[10px]">
+            <LnSectionHead num="02" title="Pasados" className="mb-3.5" />
+            <ul className="flex flex-col gap-2.5">
               {past.map((r) => (
                 <AppointmentCard key={r.appointment.id} row={r} />
               ))}
@@ -120,8 +128,8 @@ export default async function MisTurnosPage() {
 
         {cancelled.length > 0 && (
           <section>
-            <LnSectionHead num="03" title="Cancelados" className="mb-[14px]" />
-            <ul className="flex flex-col gap-[10px]">
+            <LnSectionHead num="03" title="Cancelados" className="mb-3.5" />
+            <ul className="flex flex-col gap-2.5">
               {cancelled.map((r) => (
                 <AppointmentCard key={r.appointment.id} row={r} />
               ))}
@@ -131,7 +139,7 @@ export default async function MisTurnosPage() {
       </div>
 
       {/* Footer */}
-      <div className="mt-[40px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-10 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-sm uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Agenda de turnos</span>
         <Link
           href="/mis-mascotas"

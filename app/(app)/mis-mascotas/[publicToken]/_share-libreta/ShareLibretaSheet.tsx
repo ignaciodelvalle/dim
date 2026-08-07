@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 
 import { LnField, LnInput } from "@/components/ui/Field";
 
@@ -20,6 +20,12 @@ type Props = {
   createShareAction: (
     input: Pick<CreateShareInput, "expiresInDays" | "label">,
   ) => Promise<CreateShareResult>;
+  /**
+   * Fired once after a link is successfully generated, so the parent can
+   * re-fetch its "Enlaces activos" list (a mount-time snapshot otherwise —
+   * staging regression O-3).
+   */
+  onShareCreated?: () => void;
 };
 
 type FormState =
@@ -49,11 +55,20 @@ async function submitShare(
   return { status: "success", shareToken: result.shareToken };
 }
 
-export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }: Props) {
+export function ShareLibretaSheet({
+  petPublicToken,
+  petName,
+  createShareAction,
+  onShareCreated,
+}: Props) {
   const boundSubmit = submitShare.bind(null, createShareAction);
   const [state, formAction, isPending] = useActionState<FormState, FormData>(boundSubmit, {
     status: "idle",
   });
+
+  useEffect(() => {
+    if (state.status === "success") onShareCreated?.();
+  }, [state, onShareCreated]);
 
   if (state.status === "success") {
     const shareUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/libreta/compartir/${state.shareToken}`;
@@ -61,7 +76,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
       <div className="space-y-6">
         <p className="text-sm text-[var(--color-ln-ink-2)]">El link está listo para compartir.</p>
 
-        <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-4 space-y-3">
           <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-ok)]">
             Link generado
           </p>
@@ -69,14 +84,14 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
           <button
             type="button"
             onClick={() => navigator.clipboard.writeText(shareUrl)}
-            className="w-full px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] hover:opacity-90 text-white text-sm font-medium"
+            className="w-full px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] hover:opacity-90 text-white text-sm font-medium"
           >
             Copiar link
           </button>
         </div>
 
         <p className="text-xs text-[var(--color-ln-mute)] text-center">
-          Podés ver y revocar todos tus links compartidos desde la libreta de {petName}.
+          Podés ver y revocar todos tus links compartidos más abajo, en esta misma pantalla.
         </p>
       </div>
     );
@@ -112,7 +127,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
         {DURATION_OPTIONS.map((opt) => (
           <label
             key={opt.value}
-            className="flex items-center gap-3 rounded-[4px] border border-[var(--color-ln-line-strong)] px-4 py-3 cursor-pointer has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[var(--color-ln-ok-050)]"
+            className="flex items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] px-4 py-3 cursor-pointer has-[:checked]:border-[var(--color-ln-ok)] has-[:checked]:bg-[var(--color-ln-ok-050)]"
           >
             <input
               type="radio"
@@ -133,7 +148,7 @@ export function ShareLibretaSheet({ petPublicToken, petName, createShareAction }
       <button
         type="submit"
         disabled={isPending}
-        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] hover:opacity-90 disabled:opacity-60 text-white font-medium"
+        className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] hover:opacity-90 disabled:opacity-60 text-white font-medium"
       >
         {isPending ? "Generando…" : "Generar link"}
       </button>

@@ -17,11 +17,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  type AttendancePayload,
-  type AuthorDescriptor,
-  markAppointmentAttendedWriter,
-} from "@/app/actions/attendance";
+import type { AttendancePayload, AuthorDescriptor } from "@/app/actions/attendance";
 import {
   appointments,
   db,
@@ -37,11 +33,15 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
+import { CHIP_CONFLICTS_WITH_CANONICAL_ERROR } from "@/lib/domain/microchip-validation";
 import {
   generateAppointmentToken,
   generateOfferingToken,
   generatePublicToken,
-} from "@/lib/publicToken";
+} from "@/lib/infra/publicToken";
+import { cancelAppointmentByOrg } from "@/src/modules/events/application/attendance/cancel-appointment-by-org";
+import { markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
+import { cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -102,6 +102,8 @@ let microchipSlotId: string;
 let microchipApptId: string;
 let microchipDupSlotId: string;
 let microchipDupApptId: string;
+let microchipConflictSlotId: string;
+let microchipConflictApptId: string;
 
 // A second pet that already owns a chip, so the duplicate-chip guard can fire.
 let secondPetId: string;
@@ -109,6 +111,9 @@ let secondPetId: string;
 // Stable chip numbers for the microchip attendance tests.
 const ATTEND_CHIP = "982000900000001";
 const DUP_CHIP = "982000900000002";
+// Free on every pet — its only job is to disagree with the chip `petId` already
+// carries, which is the case a cross-pet duplicate scan cannot see.
+const CONFLICT_CHIP = "982000900000003";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -338,7 +343,7 @@ beforeAll(async () => {
   // --- Microchip-implantation attendance fixtures (Fix UI-5) ---
 
   // Clean up any leftover pets that own our test chip numbers from a prior run.
-  for (const chip of [ATTEND_CHIP, DUP_CHIP]) {
+  for (const chip of [ATTEND_CHIP, DUP_CHIP, CONFLICT_CHIP]) {
     const rows = (await db.execute(
       sql`SELECT DISTINCT pet_id FROM pet_identifications WHERE code = ${chip} AND kind = 'microchip_iso'`,
     )) as unknown as Array<{ pet_id: string }>;
@@ -389,6 +394,16 @@ beforeAll(async () => {
   );
   microchipDupApptId = mcDup.id;
 
+  microchipConflictSlotId = await createSlot(offeringMicrochipId, 10);
+  const mcConflict = await createAppointment(
+    microchipConflictSlotId,
+    petId,
+    ownerUserId,
+    orgId,
+    offeringMicrochipId,
+  );
+  microchipConflictApptId = mcConflict.id;
+
   // A second pet that already holds DUP_CHIP as an active canonical row — used
   // to trigger the friendly duplicate-chip guard.
   const secondPetToken = generatePublicToken();
@@ -421,20 +436,41 @@ beforeAll(async () => {
 // ---------------------------------------------------------------------------
 
 afterAll(async () => {
-  // If beforeAll threw, the IDs are undefined — skip the explicit deletes and
-  // let purgeUserByEmail handle whatever orphans exist via profile cascade.
-  if (petId && offeringOrgId && offeringVetId && orgId) {
+  // Cleanup is split into two independently-committed steps, and the pet step
+  // is NOT gated on the org/offering ids.
+  //
+  // WHY (leak observed 2026-07-25): this used to be one transaction guarded by
+  // `if (petId && offeringOrgId && offeringVetId && orgId)`. Any statement
+  // failing inside it rolled the WHOLE thing back, so no pet row was deleted —
+  // and the purgeUserByEmail calls below then cascaded the ownership rows away
+  // anyway. The residue was an ownerless pet still holding its
+  // pet_identifications microchip row, which is precisely the shape that trips
+  // the pet-cache fitness sweep (a canonical chip with no microchip_implanted
+  // event derives microchipId=null and reports drift). One leaked fixture left
+  // __tests__/pet-cache-rederivation.test.ts red until someone reseeded.
+  //
+  // Deleting the pets FIRST and in their own transaction means the fixture can
+  // never outlive the ownership rows that make it reachable.
+  const petList = [petId, secondPetId].filter(Boolean);
+  if (petList.length > 0) {
     // pet_events deletes are blocked by enforce_pet_events_append_only;
     // bypass via the SET LOCAL GUC inside a transaction (same pattern as
     // admin-decisions.test.ts).
-    const offeringList = [offeringOrgId, offeringVetId, offeringMicrochipId].filter(Boolean);
-    const petList = [petId, secondPetId].filter(Boolean);
     await withMutationOverride(async (tx) => {
       for (const pid of petList) {
+        await tx.execute(sql`DELETE FROM appointments WHERE pet_id = ${pid}`);
         await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${pid}`);
         await tx.execute(sql`DELETE FROM reminders WHERE pet_id = ${pid}`);
         await tx.execute(sql`DELETE FROM pet_identifications WHERE pet_id = ${pid}::uuid`);
+        await tx.delete(ownerships).where(eq(ownerships.petId, pid));
+        await tx.execute(sql`DELETE FROM pets WHERE id = ${pid}`);
       }
+    });
+  }
+
+  const offeringList = [offeringOrgId, offeringVetId, offeringMicrochipId].filter(Boolean);
+  if (offeringList.length > 0 || orgId) {
+    await withMutationOverride(async (tx) => {
       // Delete appointments + slots by service_offering_id (broader than pet_id —
       // catches any orphan rows from prior failed runs).
       for (const oid of offeringList) {
@@ -442,12 +478,12 @@ afterAll(async () => {
         await tx.execute(sql`DELETE FROM time_slots WHERE service_offering_id = ${oid}`);
         await tx.execute(sql`DELETE FROM service_offerings WHERE id = ${oid}`);
       }
-      for (const pid of petList) {
-        await tx.delete(ownerships).where(eq(ownerships.petId, pid));
-        await tx.execute(sql`DELETE FROM pets WHERE id = ${pid}`);
+      if (orgId) {
+        await tx.execute(
+          sql`DELETE FROM organization_memberships WHERE organization_id = ${orgId}`,
+        );
+        await tx.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
       }
-      await tx.execute(sql`DELETE FROM organization_memberships WHERE organization_id = ${orgId}`);
-      await tx.execute(sql`DELETE FROM organizations WHERE id = ${orgId}`);
     });
   }
 
@@ -505,8 +541,13 @@ describe("markAppointmentAttendedWriter", () => {
     expect(ev.authorVerified).toBe(true);
     const evPayload = ev.payload as Record<string, unknown>;
     expect(evPayload.vaccine_name).toBe("Antirrábica");
+    // next_due_at is normalized to the canonical noon-UTC ISO instant (same as
+    // vaccination-use-case), NOT stored as the raw "YYYY-MM-DD" string — a raw
+    // date-only string reads back as midnight UTC = the previous AR day.
+    expect(evPayload.next_due_at).toBe("2027-05-18T12:00:00.000Z");
 
-    // Reminder inserted for next_due_at.
+    // Reminder inserted for next_due_at, anchored at noon UTC (not midnight,
+    // which would fire on the evening of the previous AR day).
     const remRows = await db
       .select()
       .from(reminders)
@@ -514,6 +555,7 @@ describe("markAppointmentAttendedWriter", () => {
 
     expect(remRows.length).toBeGreaterThan(0);
     expect(remRows[0]!.reminderType).toBe("vaccine");
+    expect(remRows[0]!.dueAt?.toISOString()).toBe("2027-05-18T12:00:00.000Z");
   });
 
   it("invalid payload (missing vaccine_name) — returns error, no event inserted", async () => {
@@ -731,6 +773,55 @@ describe("cancelAppointmentByOwnerAction (capacity freeing + provider notificati
   });
 });
 
+// ---------------------------------------------------------------------------
+// Bug fix — the owner-cancel provider notification's ctaUrl pointed at
+// "/org/agenda", a route that does not exist (real route needs the org
+// token: /org/{orgToken}/agenda). Exercise the real use-case (not a DB-path
+// simulation) so a regression back to the bare route is caught.
+// ---------------------------------------------------------------------------
+
+describe("cancelAppointmentByOwner (real use-case) — provider CTA URL", () => {
+  it("notifies org members with a ctaUrl that includes the org's public token", async () => {
+    const [orgRow] = await db
+      .select({ publicToken: organizations.publicToken })
+      .from(organizations)
+      .where(eq(organizations.id, orgId))
+      .limit(1);
+    expect(orgRow?.publicToken).toBeTruthy();
+
+    const slotId = await createSlot(offeringOrgId, 13);
+    const { id: apptId, token: apptToken } = await createAppointment(
+      slotId,
+      petId,
+      ownerUserId,
+      orgId,
+      offeringOrgId,
+    );
+
+    const result = await cancelAppointmentByOwner(apptToken, ownerUserId);
+    expect(result).toMatchObject({ ok: true });
+
+    const [notif] = await db
+      .select({ ctaUrl: notifications.ctaUrl })
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, orgMemberUserId),
+          eq(notifications.notificationType, "appointment_cancelled_by_owner"),
+        ),
+      )
+      .orderBy(sql`${notifications.createdAt} DESC`)
+      .limit(1);
+
+    expect(notif?.ctaUrl).toBe(`/org/${orgRow!.publicToken}/agenda`);
+    expect(notif?.ctaUrl).not.toBe("/org/agenda");
+
+    // Cleanup: this test's appointment isn't referenced by afterAll's cleanup
+    // list, so drop it explicitly to avoid leaking a row across test runs.
+    await db.delete(appointments).where(eq(appointments.id, apptId));
+  });
+});
+
 describe("markAppointmentAttendedWriter (vet provider path)", () => {
   it("vet provider event has author_role='vet', author_organization_id=null, author_verified=true", async () => {
     const author: AuthorDescriptor = {
@@ -766,6 +857,113 @@ describe("markAppointmentAttendedWriter (vet provider path)", () => {
     expect(ev.authorRole).toBe("vet");
     expect(ev.authorOrganizationId).toBeNull();
     expect(ev.authorVerified).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SC1 — concurrent double-cancel must free capacity only ONCE (no overbooking).
+// ---------------------------------------------------------------------------
+
+describe("cancelAppointmentByOrg — TOCTOU (SC1)", () => {
+  it("two concurrent cancels of the same appointment free capacity exactly once", async () => {
+    // Fresh slot (bookings_count=1) + confirmed appointment on the org offering.
+    // cancelAppointmentByOrg does the status flip + capacity decrement with no
+    // pre-tx status check, so two concurrent calls exercise the in-tx guard
+    // directly (unlike owner-cancel, whose pre-tx read can accidentally
+    // serialize).
+    const slotId = await createSlot(offeringOrgId, 11);
+    const { id: apptId } = await createAppointment(
+      slotId,
+      petId,
+      ownerUserId,
+      orgId,
+      offeringOrgId,
+    );
+    const appt = { id: apptId, slotId, ownerUserId };
+
+    const [a, b] = await Promise.all([
+      cancelAppointmentByOrg(appt, orgMemberUserId, "Clinica Test", "motivo A"),
+      cancelAppointmentByOrg(appt, orgMemberUserId, "Clinica Test", "motivo B"),
+    ]);
+
+    // Exactly one wins; the other is a friendly "already processed" error.
+    const oks = [a, b].filter((r) => "ok" in r);
+    const errs = [a, b].filter((r) => "error" in r);
+    expect(oks).toHaveLength(1);
+    expect(errs).toHaveLength(1);
+    expect((errs[0] as { error: string }).error).toMatch(/ya fue procesado/i);
+
+    // bookings_count decremented from 1 to exactly 0 — never -1 (overbooking).
+    const [slot] = await db
+      .select({ bookingsCount: timeSlots.bookingsCount })
+      .from(timeSlots)
+      .where(eq(timeSlots.id, slotId))
+      .limit(1);
+    expect(slot!.bookingsCount).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// SC2 — a mark-attended racing an already-processed appointment must NOT write
+// an immutable medical pet_event. Two concurrent attends → exactly one event.
+// ---------------------------------------------------------------------------
+
+describe("markAppointmentAttendedWriter — TOCTOU (SC2)", () => {
+  it("two concurrent attends of the same appointment write exactly one medical event", async () => {
+    const slotId = await createSlot(offeringOrgId, 12);
+    const { id: apptId } = await createAppointment(
+      slotId,
+      petId,
+      ownerUserId,
+      orgId,
+      offeringOrgId,
+    );
+
+    const author: AuthorDescriptor = {
+      actorUserId: orgMemberUserId,
+      authorRole: "vet",
+      authorOrganizationId: orgId,
+      authorVerified: true,
+    };
+    const payload: AttendancePayload = {
+      kind: "vaccination",
+      vaccine_name: "SC2 Race Vaccine",
+      brand: null,
+      batch: null,
+      administered_by: null,
+      next_due_at: null,
+    };
+
+    const countBefore = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "vaccination_administered")),
+    );
+
+    const [a, b] = await Promise.all([
+      markAppointmentAttendedWriter(apptId, payload, author),
+      markAppointmentAttendedWriter(apptId, payload, author),
+    ]);
+
+    // Exactly one attend wins; the loser gets a friendly "already processed".
+    const oks = [a, b].filter((r) => "ok" in r);
+    const errs = [a, b].filter((r) => "error" in r);
+    expect(oks).toHaveLength(1);
+    expect(errs).toHaveLength(1);
+    expect((errs[0] as { error: string }).error).toMatch(/ya fue procesado/i);
+
+    // CRITICAL: only ONE immutable medical event landed for this appointment.
+    const countAfter = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "vaccination_administered")),
+    );
+    expect(countAfter).toBe(countBefore + 1);
+
+    const [appt] = await db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(eq(appointments.id, apptId))
+      .limit(1);
+    expect(appt!.status).toBe("attended");
   });
 });
 
@@ -868,6 +1066,68 @@ describe("markAppointmentAttendedWriter (microchip implantation — Fix UI-5)", 
       .select({ status: appointments.status })
       .from(appointments)
       .where(eq(appointments.id, microchipDupApptId))
+      .limit(1);
+    expect(appt!.status).toBe("confirmed");
+  });
+
+  // This is the case the cross-pet duplicate scan above structurally cannot
+  // see: CONFLICT_CHIP is free everywhere, so the scan passes — and before the
+  // canonical-conflict guard the writer appended a professionally-verified
+  // microchip_implanted event carrying it, then skipped the dual-write because
+  // the pet "already had a chip". The event log said one chip, the ficha said
+  // another, and nothing anywhere said so.
+  it("chip that disagrees with THIS pet's canonical row → error, no event, canonical untouched", async () => {
+    const payload: AttendancePayload = {
+      kind: "microchip",
+      chip_number: CONFLICT_CHIP,
+      country_code: "858",
+      implanted_by: "Dr. Typo",
+      location_on_body: "interscapular",
+    };
+
+    // The first test in this block bound ATTEND_CHIP to petId.
+    const eventCountBefore = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "microchip_implanted")),
+    );
+
+    const result = await markAppointmentAttendedWriter(microchipConflictApptId, payload, {
+      ...author,
+      actorUserId: orgMemberUserId,
+      authorOrganizationId: orgId,
+    });
+
+    // Pinned to the shared constant, not to "some error": the copy is what
+    // routes a genuine chip change to «Reemplazar microchip», and a loose
+    // assertion would be satisfied by the cross-pet duplicate message one
+    // branch earlier — which would mean the new guard never ran at all.
+    expect(result).toEqual({ error: CHIP_CONFLICTS_WITH_CANONICAL_ERROR });
+
+    // Nothing reached the append-only spine.
+    const eventCountAfter = await db.$count(
+      petEvents,
+      and(eq(petEvents.petId, petId), eq(petEvents.eventType, "microchip_implanted")),
+    );
+    expect(eventCountAfter).toBe(eventCountBefore);
+
+    // The credential still carries the chip it carried before, and only that one.
+    const activeChips = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, petId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(activeChips.map((r) => r.code)).toEqual([ATTEND_CHIP]);
+
+    // Appointment survives the refusal, so the vet can retry with the right number.
+    const [appt] = await db
+      .select({ status: appointments.status })
+      .from(appointments)
+      .where(eq(appointments.id, microchipConflictApptId))
       .limit(1);
     expect(appt!.status).toBe("confirmed");
   });

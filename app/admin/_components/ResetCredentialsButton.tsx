@@ -2,7 +2,12 @@
 
 // Reset credentials button for institutional accounts.
 //
-// State machine: idle -> resetting -> done | error
+// State machine: idle -> confirming -> resetting -> done | error
+// Resetting credentials rotates the live operator's magic link and logs them
+// out, so it carries the same friction as a deactivation: an explicit confirm
+// step plus a required motivo (≥ MOTIVO_MIN chars) that is recorded in the
+// audit payload. Unlike deactivation, no evidence upload is required.
+//
 // On success: renders MagicLinkResultPanel inline with the returned magic link.
 // Used on both /admin/govts/[userId] and /admin/admins/[userId] detail pages.
 
@@ -10,8 +15,12 @@ import { useState, useTransition } from "react";
 
 import { resetInstitutionalCredentialsAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
+import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
+import { LnCheckbox } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
-type Mode = "idle" | "done" | "error";
+type Mode = "idle" | "confirming" | "done";
 
 export function ResetCredentialsButton({
   targetUserId,
@@ -26,8 +35,6 @@ export function ResetCredentialsButton({
 }) {
   const [mode, setMode] = useState<Mode>("idle");
   const [magicLink, setMagicLink] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
 
   if (mode === "done" && magicLink !== null) {
     return (
@@ -37,41 +44,110 @@ export function ResetCredentialsButton({
         email={email}
         profileId={targetUserId}
         detailPath={detailPath}
+        variant="reset"
         resetLabel="Cerrar"
         onReset={() => {
           setMode("idle");
           setMagicLink(null);
-          setError(null);
         }}
       />
     );
   }
 
-  return (
-    <div className="space-y-1">
-      <button
-        type="button"
-        onClick={handleReset}
-        disabled={pending}
-        className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe disabled:opacity-50"
-      >
-        {pending ? "Generando link..." : "Resetear credentials"}
-      </button>
-      {error && <p className="text-[10px] text-ln-op-danger">{error}</p>}
-    </div>
-  );
+  if (mode === "confirming") {
+    return (
+      <ResetCredentialsForm
+        targetUserId={targetUserId}
+        displayName={displayName}
+        onDone={(link) => {
+          setMagicLink(link);
+          setMode("done");
+        }}
+        onCancel={() => setMode("idle")}
+      />
+    );
+  }
 
-  function handleReset() {
+  return (
+    <OpButton type="button" onClick={() => setMode("confirming")} variant="ghost" size="sm">
+      Resetear credentials
+    </OpButton>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Form component
+// ---------------------------------------------------------------------------
+
+function ResetCredentialsForm({
+  targetUserId,
+  displayName,
+  onDone,
+  onCancel,
+}: {
+  targetUserId: string;
+  displayName: string;
+  onDone: (magicLink: string) => void;
+  onCancel: () => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [motivo, setMotivo] = useState("");
+  const [confirm, setConfirm] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const motivoTrimmed = motivo.trim();
+  const motivoValid = motivoTrimmed.length >= MOTIVO_MIN;
+  const canSubmit = motivoValid && confirm && !pending;
+
+  function submit() {
     setError(null);
     startTransition(async () => {
-      const result = await resetInstitutionalCredentialsAction({ targetUserId });
+      const result = await resetInstitutionalCredentialsAction({
+        targetUserId,
+        reason: motivoTrimmed,
+      });
       if ("error" in result) {
         setError(result.error);
-        setMode("error");
         return;
       }
-      setMagicLink(result.magicLink);
-      setMode("done");
+      onDone(result.magicLink);
+      // No reload — the result panel stays mounted on this same route; the
+      // toast is the confirmation (mutation-feedback convention).
+      notifySaved("Credenciales restablecidas");
     });
   }
+
+  return (
+    <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg p-3">
+      <p className="text-xs font-bold uppercase tracking-wider text-ln-op-danger">
+        Resetear credentials &mdash; {displayName}
+      </p>
+      <p className="text-xs text-ln-op-danger">
+        Esto genera un nuevo link de acceso y cierra la sesión activa del operador. Queda registrado
+        en el audit log con el motivo.
+      </p>
+
+      <MotivoField value={motivo} onChange={setMotivo} />
+
+      <LnCheckbox
+        checked={confirm}
+        onChange={(e) => setConfirm(e.target.checked)}
+        labelClassName="text-xs! text-ln-op-danger!"
+      >
+        Confirmo que quiero rotar las credenciales de {displayName}. Esta acción genera un registro
+        permanente en el audit log.
+      </LnCheckbox>
+
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
+
+      <div className="flex items-center gap-2">
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">
+          {pending ? "Generando link..." : "Resetear credentials"}
+        </OpButton>
+        <OpButton type="button" onClick={onCancel} disabled={pending} variant="ghost" size="sm">
+          Cancelar
+        </OpButton>
+      </div>
+    </div>
+  );
 }

@@ -12,15 +12,19 @@
 // Does NOT close the case (legal disputes can run for years).
 // Auth: none (system-initiated cron). No user authz inside.
 
-import { and, eq, lt } from "drizzle-orm";
+import { and, asc, eq, gt, lt } from "drizzle-orm";
 
 import { cases, db, notifications, profiles } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
 
 export interface EscalateStaleDisputesOptions {
   now?: Date;
   /** Days a dispute must be open before escalating. Default 365. */
   staleAfterDays?: number;
+  /** Keyset cursor: only return cases whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max rows to return (keyset page size). Omit for no limit. */
+  limit?: number;
 }
 
 export interface StaleDisputeCandidate {
@@ -37,7 +41,7 @@ export async function findStaleDisputes(
   const staleAfterMs = (options?.staleAfterDays ?? 365) * 24 * 60 * 60 * 1000;
   const openedBefore = new Date(now.getTime() - staleAfterMs);
 
-  const rows = await db
+  const base = db
     .select({
       id: cases.id,
       publicCode: cases.publicCode,
@@ -50,8 +54,12 @@ export async function findStaleDisputes(
         eq(cases.caseKind, "custody_dispute"),
         eq(cases.status, "open"),
         lt(cases.openedAt, openedBefore),
+        ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
       ),
-    );
+    )
+    .orderBy(asc(cases.id));
+
+  const rows = options?.limit ? await base.limit(options.limit) : await base;
 
   return rows;
 }

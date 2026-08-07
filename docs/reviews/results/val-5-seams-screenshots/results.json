@@ -1,0 +1,33 @@
+[
+  {
+    "id": "b-vacuna-atender",
+    "pass": false,
+    "entityCodes": {
+      "pet": "DIM-DEMO-0001",
+      "org": "DIM-GPWT-E247"
+    },
+    "notes": [
+      "Rabies KPI before: n/a",
+      "Error: page.waitForURL: Timeout 45000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    ]
+  },
+  {
+    "id": "c-denuncia",
+    "pass": false,
+    "entityCodes": {},
+    "notes": [
+      "Error: radio card severityCard=moderado\n\n\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('label:has(input[name=\"severityCard\"][value=\"moderado\"])')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - radio card severityCard=moderado with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('label:has(input[name=\"severityCard\"][value=\"moderado\"])')\u001b[22m\n"
+    ]
+  },
+  {
+    "id": "d-adopcion",
+    "pass": false,
+    "entityCodes": {
+      "org": "DIM-AH7Z-HMPJ",
+      "pet": "DIM-N7D2-KV68"
+    },
+    "notes": [
+      "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: getByRole('button', { name: /postular/i }).first()\nExpected: visible\nTimeout: 15000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 15000ms\u001b[22m\n\u001b[2m  - waiting for getByRole('button', { name: /postular/i }).first()\u001b[22m\n"
+    ]
+  }
+]

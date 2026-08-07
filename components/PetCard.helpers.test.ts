@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getPriorityBadge } from "./PetCard.helpers";
+import { getPriorityBadge, isTransitRole } from "./PetCard.helpers";
 
 describe("getPriorityBadge — PetCard priority logic", () => {
   it("status='lost' wins over any vaccine variant", () => {
@@ -34,5 +34,31 @@ describe("getPriorityBadge — PetCard priority logic", () => {
   it("unknown variants are ignored (returns none for active)", () => {
     // success variant: doesn't warrant a chip
     expect(getPriorityBadge("active", { variant: "success" as never })).toEqual({ kind: "none" });
+  });
+});
+
+describe("isTransitRole — 'En tránsito' badge predicate (AF-H2 / foster-alta-2026-07-21)", () => {
+  it("fires for an org-linked foster placement", () => {
+    // A fostered pet joins on ownerUserId=user.id with role='foster'.
+    expect(isTransitRole("foster")).toBe(true);
+  });
+
+  it("does not fire for an owner", () => {
+    expect(isTransitRole("owner")).toBe(false);
+  });
+
+  it("fires for shelter_custody (vecino-helps-stray, no org involved)", () => {
+    // AGENTS.md "Shelter custody is temporary by definition": a citizen who
+    // picks up a stray (or self-declares custody via the alta's
+    // CustodyKindToggle "la estoy cuidando") gets ownerUserId set +
+    // role='shelter_custody', with no org link. Both "Mis mascotas" and the
+    // pet profile page scope their ownership query to ownerUserId=user.id, so
+    // a shelter_custody row reaching this predicate is guaranteed to be this
+    // vecino case — an org-held shelter_custody row has ownerUserId=null and
+    // never joins into a user-scoped query. (2026-07-21: restored after AF-H2
+    // had narrowed this to foster-only under the false assumption that
+    // shelter_custody is always org-level, which silently made the alta's
+    // "la estoy cuidando" registration invisible as "En tránsito".)
+    expect(isTransitRole("shelter_custody")).toBe(true);
   });
 });

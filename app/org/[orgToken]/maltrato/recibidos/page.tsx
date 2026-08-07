@@ -8,27 +8,21 @@
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, organizationMemberships, pets, welfareReports } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
-import { ORG_WELFARE_PET_COLS, ORG_WELFARE_SELECT } from "@/lib/welfare-org-projection";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { ORG_WELFARE_PET_COLS, ORG_WELFARE_SELECT } from "@/lib/infra/welfare-org-projection";
+import { formatDate } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
+  welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
 } from "@/src/modules/welfare/domain/types";
 
 import { InterventionActions } from "./InterventionActions";
-
-const STATUS_LABELS: Record<string, string> = {
-  open: "Abierta",
-  triaged: "Triagueada",
-  in_progress: "En seguimiento",
-  closed: "Cerrada",
-  duplicate: "Duplicada",
-  invalid: "Inválida",
-};
 
 const STATUS_PILL_TONE: Record<string, "ok" | "open" | "danger" | "neutral" | "escalated"> = {
   open: "open",
@@ -64,6 +58,11 @@ const INTERVENTION_PILL_TONE: Record<string, "ok" | "escalated" | "neutral"> = {
 };
 
 type TabKey = "recibidos" | "emitidos";
+
+// Report list is recency-bounded; cap the fetch and signal truncation (mirrors
+// the intake queue cap — app/org/[orgToken]/intake/page.tsx) so a high-volume
+// org isn't silently shown a partial list with no notice.
+const REPORT_LIST_CAP = 100;
 
 // Shared row shape for both queries.
 // Derived from ORG_WELFARE_SELECT to ensure structural alignment with the
@@ -114,7 +113,7 @@ export default async function OrgMaltratoRecibidosPage({
         <OpCrumbs
           items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Denuncias de maltrato" }]}
         />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Denuncias de maltrato — solo para roles institucionales
         </h1>
         <OpBreach
@@ -137,6 +136,7 @@ export default async function OrgMaltratoRecibidosPage({
   } as const;
 
   let rows: ReportRow[] = [];
+  let truncated = false;
 
   if (activeTab === "recibidos") {
     const rawRows = await db
@@ -145,8 +145,9 @@ export default async function OrgMaltratoRecibidosPage({
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
       .where(eq(welfareReports.derivedToOrganizationId, organization.id))
       .orderBy(desc(welfareReports.derivedAt))
-      .limit(100);
-    rows = rawRows;
+      .limit(REPORT_LIST_CAP + 1);
+    truncated = rawRows.length > REPORT_LIST_CAP;
+    rows = truncated ? rawRows.slice(0, REPORT_LIST_CAP) : rawRows;
   } else {
     const rawRows = await db
       .select({ ...orgSafeShape, derivedAt: sql<Date | null>`null` })
@@ -154,27 +155,25 @@ export default async function OrgMaltratoRecibidosPage({
       .leftJoin(pets, eq(pets.id, welfareReports.subjectPetId))
       .where(eq(welfareReports.reporterOrganizationId, organization.id))
       .orderBy(desc(welfareReports.createdAt))
-      .limit(100);
-    rows = rawRows;
+      .limit(REPORT_LIST_CAP + 1);
+    truncated = rawRows.length > REPORT_LIST_CAP;
+    rows = truncated ? rawRows.slice(0, REPORT_LIST_CAP) : rawRows;
   }
 
   return (
     <div className="space-y-6">
-      <OpCrumbs
-        items={[
-          { label: "Panel", href: `/org/${orgToken}` },
-          { label: "Investigaciones de maltrato" },
-        ]}
-      />
+      <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Maltrato" }]} />
 
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Investigaciones de maltrato</h1>
-          <p className="text-[13px] text-ln-op-mute">{organization.displayName}</p>
+          {/* "Maltrato" — the surface's single name across nav, breadcrumb and
+              H1 (QA round 2 2026-07-03 finished unifying the 3 old names). */}
+          <h1 className="text-title font-semibold text-ln-op-ink">Maltrato</h1>
+          <p className="text-md text-ln-op-mute">{organization.displayName}</p>
         </div>
         <Link
           href={`/org/${orgToken}/maltrato/nuevo`}
-          className="inline-flex items-center rounded-[6px] bg-ln-op-danger px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+          className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-danger px-3 py-1.5 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
         >
           + Nueva denuncia
         </Link>
@@ -189,7 +188,7 @@ export default async function OrgMaltratoRecibidosPage({
             <Link
               key={tab}
               href={`/org/${orgToken}/maltrato/recibidos?tab=${tab}`}
-              className={`px-4 py-2 text-[13px] font-medium no-underline border-b-2 transition-colors ${
+              className={`px-4 py-2 text-md font-medium no-underline border-b-2 transition-colors ${
                 isActive
                   ? "border-ln-op-azul text-ln-op-azul"
                   : "border-transparent text-ln-op-mute hover:text-ln-op-ink-2"
@@ -201,27 +200,36 @@ export default async function OrgMaltratoRecibidosPage({
         })}
       </nav>
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         {activeTab === "recibidos"
           ? `Denuncias derivadas a ${organization.displayName} por el gobierno para seguimiento en campo.`
           : `Reportes emitidos por miembros de ${organization.displayName}.`}
       </p>
 
       {rows.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          {activeTab === "recibidos"
-            ? "Todavía no se derivó ninguna denuncia a esta organización."
-            : "Tu organización todavía no emitió denuncias profesionales."}
-        </p>
+        <LnEmptyState
+          icon="denuncia"
+          title={
+            activeTab === "recibidos"
+              ? "Todavía no se derivó ninguna denuncia a esta organización."
+              : "Tu organización todavía no emitió denuncias profesionales."
+          }
+        />
       ) : (
         <OpCard>
           <OpCardBody className="p-0">
+            {truncated && (
+              <p className="px-4 pt-3 text-sm text-ln-op-mute">
+                Mostrando las {REPORT_LIST_CAP} denuncias más recientes. Hay más en el historial de
+                la organización.
+              </p>
+            )}
             <ul className="divide-y divide-ln-op-line">
               {rows.map((r) => (
                 <li key={r.reportId} className="px-4 py-3 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
+                      <p className="text-md font-medium text-ln-op-ink">
                         {welfareReportKindLabel(r.kind)}{" "}
                         <OpPill
                           tone={
@@ -234,14 +242,27 @@ export default async function OrgMaltratoRecibidosPage({
                           {welfareReportSeverityLabel(r.severity)}
                         </OpPill>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {welfareReportSubjectKindLabel(r.subjectKind)}
-                        {r.petName ? ` · 🐾 ${r.petName}` : ""}
+                        {r.petName ? (
+                          <>
+                            {" · "}
+                            <Icon
+                              name="huella"
+                              size={13}
+                              decorative
+                              className="inline-block align-text-bottom"
+                            />{" "}
+                            {r.petName}
+                          </>
+                        ) : (
+                          ""
+                        )}
                         {!r.petName && r.subjectDescription
                           ? ` · ${r.subjectDescription.slice(0, 60)}`
                           : ""}
                       </p>
-                      <p className="text-[12px] font-mono text-ln-op-mute">
+                      <p className="text-sm font-mono text-ln-op-mute">
                         {r.referenceCode} ·{" "}
                         {activeTab === "recibidos" && r.derivedAt
                           ? `derivada el ${formatDate(r.derivedAt)}`
@@ -250,7 +271,7 @@ export default async function OrgMaltratoRecibidosPage({
                     </div>
                     <div className="flex flex-shrink-0 flex-col items-end gap-1.5">
                       <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>
-                        {STATUS_LABELS[r.status] ?? r.status}
+                        {welfareReportStatusLabel(r.status)}
                       </OpPill>
                       {activeTab === "recibidos" && r.orgInterventionStatus && (
                         <OpPill tone={INTERVENTION_PILL_TONE[r.orgInterventionStatus] ?? "neutral"}>

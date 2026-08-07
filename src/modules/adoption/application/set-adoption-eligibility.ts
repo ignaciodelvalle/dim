@@ -93,6 +93,27 @@ export async function setAdoptionEligibility(
   const now = new Date();
   const ineligibleUntil = input.ineligibleUntilIso ? new Date(input.ineligibleUntilIso) : null;
 
+  // Idempotency guard (projection-writes audit §6): a double-submit posts the
+  // exact same desired state twice. If the pet already holds that state, the
+  // second write would only duplicate the adoption_eligibility_set event — so
+  // it is a no-op, not a new event (desired-state semantics, same contract as
+  // the disclosure/tier2 toggles).
+  const desiredReason = input.eligible ? null : (input.ineligibleReason ?? null);
+  const desiredNotes = input.eligible ? null : input.ineligibleReasonNotes?.trim() || null;
+  const desiredUntilMs = input.eligible ? null : (ineligibleUntil?.getTime() ?? null);
+  const currentUntilMs = petRow.adoptionIneligibleUntil
+    ? new Date(petRow.adoptionIneligibleUntil).getTime()
+    : null;
+  const alreadyInDesiredState =
+    petRow.adoptionEligible === input.eligible &&
+    (petRow.adoptionIneligibleReason ?? null) === desiredReason &&
+    (petRow.adoptionIneligibleReasonNotes ?? null) === desiredNotes &&
+    currentUntilMs === desiredUntilMs;
+
+  if (alreadyInDesiredState) {
+    return { ok: true, notifications: [] };
+  }
+
   // 4. Atomic write inside a transaction.
   await transaction(async (tx) => {
     await repo.setEligibility(

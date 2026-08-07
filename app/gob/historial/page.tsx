@@ -1,172 +1,165 @@
-import { and, desc, eq, inArray } from "drizzle-orm";
+// /gob/historial — jurisdiction-scoped audit trail (Wave C, gob-audit-inventory).
+//
+// BEFORE: self-scoped only ("Mi actividad" — actorUserId = viewer). Could not
+// answer "who did what in MY jurisdiction", even though audit_log already
+// carries ~90 action types across the whole platform.
+//
+// AFTER: govt operators see every audit row whose actor shares an ACTIVE
+// govt_assignment with them (peer accountability within the same territory —
+// audit_log has no jurisdiction column of its own, see
+// lib/infra/govt-audit-scope.ts for why the scope is actor-derived, not
+// stored). Admins keep universal scope (parity with /admin/auditoria).
+// "Mi actividad" survives as an actor-filter preset, not a separate mode.
+//
+// Filters (all via URL params so links/bookmarks are shareable):
+//   action        — one or more AuditLogAction codes, comma-separated
+//                   (dropdown of known labels; an aliased label selects
+//                   every code it groups)
+//   actor         — exact user id, constrained to the jurisdiction scope by
+//                   the SQL AND (a stale/foreign id in the URL just yields
+//                   zero rows — never a scope bypass)
+//   period/from/to — the shared <PeriodPicker> date-range control (same
+//                   param names + resolveAnalyticsPeriod resolver every
+//                   other /gob dashboard uses — see
+//                   lib/analytics/analytics-period.ts). Absent `period` and
+//                   `from` defaults to trailing 12 months
+//                   (DEFAULT_DASHBOARD_PRESET), matching the chip
+//                   PeriodPicker highlights on first load (C32 convention) —
+//                   this REPLACES the screen's former unbounded-by-default,
+//                   AR-midnight-anchored bespoke parser (see git history);
+//                   resolveAnalyticsPeriod's custom-range parsing anchors on
+//                   UTC midnight, not AR midnight, same as every sibling.
+//   cursor        — keyset pagination (performed_at, id), same helper as
+//                   /admin/*
+//
+// PII note: pii_queried rows carry a free-text `query` field (whatever the
+// operator searched — may itself be a citizen's name/DNI). Now that the view
+// spans multiple operators in the same jurisdiction, that free-text detail is
+// shown ONLY for the viewer's own rows; peer rows show action + result count
+// but not the raw query string (accountability without leaking what a
+// colleague searched for).
+
+import { desc, inArray } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody } from "@/components/ui/dashboard";
+import {
+  AuditMineToggle,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  OpPill,
+} from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
+import {
+  type AuditHistoryScope,
+  buildAuditHistoryWhere,
+  resolveAuditHistoryActorOptions,
+} from "@/lib/infra/audit-history-query";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchJurisdictionActorIds } from "@/lib/infra/govt-audit-scope";
+import { windows } from "@/lib/metrics";
+import { DEFAULT_DASHBOARD_PRESET } from "@/lib/metrics/period-presets";
+import { auditActionLabel } from "@/lib/ui/audit-action-labels";
+import { buildAuditActionOptions, parseAuditActions } from "@/lib/ui/audit-filters";
+import { groupConsecutiveAuditRows } from "@/lib/ui/audit-row-grouping";
+import { buildTargetLinkInfo, businessRuleTargetSummary } from "@/lib/ui/audit-target-link";
+import { formatDateTimeNumericAr, pluralizeEs } from "@/lib/utils/format";
+import { decodeCursor, newerHref, olderHref } from "@/lib/utils/keyset-pagination";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 
-const ACTION_LABELS: Record<string, string> = {
-  // Approval queue
-  request_approved: "Solicitud aprobada",
-  request_rejected: "Solicitud rechazada",
-  request_viewed: "Solicitud vista",
-  evidence_viewed: "Evidencia vista",
-  approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",
-  approval_request_withdrawn_by_system: "Solicitud vencida (sistema)",
-  // Revocations
-  revocation_vet: "Revocación matrícula veterinaria",
-  revocation_vet_role: "Revocación matrícula veterinaria",
-  revocation_org: "Revocación verificación organización",
-  revocation_org_verified: "Revocación verificación organización",
-  revocation_govt_assignment: "Revocación localidad gobierno",
-  revocation_govt_role: "Revocación rol gobierno",
-  revocation_admin_role: "Revocación rol admin",
-  revocation_scheduling: "Revocación scheduling",
-  service_dog_credential_revoked: "Credencial animal de asistencia revocada",
-  // Deactivations
-  deactivation_govt: "Desactivación cuenta gobierno",
-  deactivation_admin: "Desactivación cuenta admin",
-  govt_deactivated_by_admin: "Desactivación cuenta gobierno (por admin)",
-  admin_deactivated_by_admin: "Desactivación cuenta admin (por admin)",
-  govt_self_deactivated: "Baja voluntaria cuenta gobierno",
-  self_resignation_govt: "Baja voluntaria cuenta gobierno",
-  self_resignation_admin: "Baja voluntaria cuenta admin",
-  self_resignation_vet: "Baja voluntaria matrícula veterinaria",
-  // Admin / account setup
-  pii_queried: "Búsqueda de información personal",
-  admin_seeded: "Admin inicializado",
-  operator_credentials_reset: "Credenciales de operador reiniciadas",
-  institutional_create_orphan_auth_user: "Usuario institucional creado sin perfil",
-  institutional_govt_created: "Cuenta gobierno creada",
-  institutional_admin_created: "Cuenta admin creada",
-  govt_locality_assigned: "Localidad asignada a usuario gobierno",
-  // Profile / account
-  profile_self_updated: "Perfil actualizado",
-  profile_avatar_updated: "Avatar actualizado",
-  profile_avatar_upload_failed: "Subida de avatar fallida",
-  dni_verified_self: "DNI verificado por el titular",
-  // Disputes
-  dispute_raised: "Disputa de custodia abierta",
-  dispute_party_added: "Parte añadida a disputa",
-  dispute_resolved: "Disputa de custodia resuelta",
-  dispute_withdrawn: "Disputa de custodia retirada",
-  dispute_escalated: "Disputa escalada a vía judicial",
-  claim_dispute_submitted: "Reclamo de custodia enviado",
-  free_pet_claimed: "Animal sin dueño reclamado",
-  // Welfare
-  welfare_report_triaged: "Denuncia de maltrato en revisión",
-  welfare_report_started: "Seguimiento de denuncia iniciado",
-  welfare_report_closed: "Denuncia de maltrato cerrada",
-  welfare_report_unflagged: "Denuncia desflagged (moderación)",
-  welfare_report_confirmed_spam: "Denuncia marcada como spam",
-  welfare_report_submitted_by_org: "Denuncia enviada por organización",
-  welfare_report_derived_to_org: "Denuncia derivada a organización",
-  welfare_mpf_export_generated: "Exportación MPF generada",
-  // Decomisos
-  decomiso_executed: "Decomiso ejecutado",
-  decomiso_handoff_accepted: "Entrega de decomiso aceptada",
-  decomiso_handoff_rejected: "Entrega de decomiso rechazada",
-  decomiso_handoff_cancelled: "Entrega de decomiso cancelada",
-  // Cross-org transfers
-  cross_org_transfer_proposed: "Transferencia entre orgs propuesta",
-  cross_org_transfer_accepted: "Transferencia entre orgs aceptada",
-  cross_org_transfer_rejected: "Transferencia entre orgs rechazada",
-  cross_org_transfer_cancelled_by_sender: "Transferencia entre orgs cancelada",
-  cross_org_transfer_auto_expired: "Transferencia entre orgs vencida",
-  // Adoption
-  adoption_application_submitted: "Solicitud de adopción enviada",
-  adoption_application_resolved: "Solicitud de adopción resuelta",
-  // Business rules
-  govt_business_rule_created: "Regla de negocio creada",
-  govt_business_rule_updated: "Regla de negocio actualizada",
-  govt_business_rule_deleted: "Regla de negocio eliminada",
-  // Org membership
-  org_member_added: "Miembro agregado a organización",
-  org_member_removed: "Miembro removido de organización",
-  org_member_role_changed: "Rol de miembro cambiado",
-  org_member_event_write_changed: "Acceso clínico de miembro actualizado",
-  org_verified: "Organización verificada",
-  org_unverified: "Verificación de organización revocada",
-  // Microchip
-  "microchip.replace": "Microchip reemplazado",
-  microchip_replaced: "Microchip reemplazado",
-  // Outbreak
-  outbreak_investigation_opened: "Investigación de brote abierta",
-  outbreak_investigation_escalated: "Investigación de brote escalada",
-  outbreak_investigation_closed_resolved: "Investigación de brote cerrada (resuelta)",
-  outbreak_investigation_closed_dismissed: "Investigación de brote cerrada (descartada)",
-  outbreak_investigation_note_added: "Nota de investigación de brote añadida",
-  // ENO
-  eno_notification_emitted: "Notificación ENO emitida",
-  eno_backfill_run_completed: "Backfill ENO ejecutado",
-  // Pet transfers
-  pet_transfer_initiated: "Transferencia de mascota iniciada",
-  pet_transfer_accepted: "Transferencia de mascota aceptada",
-  pet_transfer_rejected: "Transferencia de mascota rechazada",
-  pet_transfer_cancelled: "Transferencia de mascota cancelada",
-  pet_transfer_expired: "Transferencia de mascota vencida",
-  // Exports
-  analytics_export_generated: "Exportación analytics generada",
-  ppp_export_generated: "Exportación PPP generada",
-  // Subject rights
-  subject_data_exported: "Datos del titular exportados",
-  subject_erasure: "Datos del titular eliminados",
-  // PII
-  adopter_pii_viewed: "Datos del adoptante vistos",
-  // Misc
-  pet_events_mutation_override: "Mutación forzada de evento de mascota (override)",
-};
+export const dynamic = "force-dynamic";
 
 const GOB_HISTORIAL_PAGE_LIMIT = 100;
 
 export default async function GobHistorialPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  searchParams: Promise<{
+    actor?: string;
+    action?: string;
+    period?: string;
+    from?: string;
+    to?: string;
+    cursor?: string;
+  }>;
 }) {
-  const { user } = await requireAdminOrGovtOrRedirect();
-  const { cursor: rawCursor } = await searchParams;
+  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const isAdmin = profile.role === "admin";
+
+  const sp = await searchParams;
+  // A single dropdown selection may carry more than one code when it lands on
+  // an aliased option (buildAuditActionOptions groups codes that share a
+  // label), so this parses a comma-separated list — same contract as
+  // /admin/auditoria.
+  const actionFilters = parseAuditActions(sp.action);
+  // Q1: a repeated ?actor= hands Next a string[] — raw `.trim()` on that
+  // throws (500).
+  const actorFilter = trimmedSearchParam(sp.actor) ?? null;
+  // Same conditional shape as /gob/vigilancia and /admin/programa: only ask
+  // the resolver to parse when the picker actually set something, otherwise
+  // fall back to the named trailing-12m window that DEFAULT_DASHBOARD_PRESET
+  // (below) visually highlights — keeps the chip and the query in sync on a
+  // bare first load.
+  const period = sp.period || sp.from ? resolveAnalyticsPeriod(sp) : windows.trailing12m();
+  const fromDate = period.since;
+  const toDate = period.until;
+  const rawCursor = sp.cursor;
   const cursor = decodeCursor(rawCursor);
 
-  // Entries and actor profile are independent — run in parallel.
-  // Fetch limit+1 to detect hasMore for keyset pagination (PERF-5).
-  const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
-  const whereClause = cursorClause
-    ? and(eq(auditLog.actorUserId, user.id), cursorClause)
-    : eq(auditLog.actorUserId, user.id);
+  // Jurisdiction scope (govt only — admin keeps universal scope, same as
+  // /admin/auditoria). Shared with admin/historial via lib/infra/audit-history-query
+  // (#26 D1) — the scope predicate is the ONLY difference between the two
+  // pages' queries; both call the same WHERE-clause builder.
+  const scope: AuditHistoryScope = isAdmin
+    ? { kind: "admin" }
+    : { kind: "govt", actorIds: await fetchJurisdictionActorIds(jurisdictions) };
 
-  const [[actor], rawEntries] = await Promise.all([
-    db
-      .select({ displayName: profiles.displayName })
-      .from(profiles)
-      .where(eq(profiles.id, user.id))
-      .limit(1),
-    db
-      .select({
-        id: auditLog.id,
-        action: auditLog.action,
-        performedAt: auditLog.performedAt,
-        approvalRequestId: auditLog.approvalRequestId,
-      })
-      .from(auditLog)
-      .where(whereClause)
-      .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
-      .limit(GOB_HISTORIAL_PAGE_LIMIT + 1),
-  ]);
+  const whereClause = buildAuditHistoryWhere(scope, {
+    actionFilters,
+    actorFilter,
+    fromDate,
+    toDate,
+    cursor,
+  });
+
+  const rawEntries = await db
+    .select({
+      id: auditLog.id,
+      actorUserId: auditLog.actorUserId,
+      action: auditLog.action,
+      approvalRequestId: auditLog.approvalRequestId,
+      targetUserId: auditLog.targetUserId,
+      performedAt: auditLog.performedAt,
+      payload: auditLog.payload,
+    })
+    .from(auditLog)
+    .where(whereClause)
+    .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
+    .limit(GOB_HISTORIAL_PAGE_LIMIT + 1);
 
   const hasMore = rawEntries.length > GOB_HISTORIAL_PAGE_LIMIT;
   const entries = hasMore ? rawEntries.slice(0, GOB_HISTORIAL_PAGE_LIMIT) : rawEntries;
 
+  // Pagination links — changing a filter resets cursor to page 1.
+  const filterParams: Record<string, string | undefined> = {
+    ...(actionFilters.length > 0 ? { action: actionFilters.join(",") } : {}),
+    ...(actorFilter ? { actor: actorFilter } : {}),
+    ...(sp.period ? { period: sp.period } : {}),
+    ...(sp.from ? { from: sp.from } : {}),
+    ...(sp.to ? { to: sp.to } : {}),
+  };
   const lastEntry = entries.at(-1);
   const olderLink =
     hasMore && lastEntry
-      ? olderHref("/gob/historial", {}, { ts: lastEntry.performedAt, id: lastEntry.id })
+      ? olderHref("/gob/historial", filterParams, { ts: lastEntry.performedAt, id: lastEntry.id })
       : null;
-  const newerLink = rawCursor ? newerHref("/gob/historial", {}) : null;
+  const newerLink = rawCursor ? newerHref("/gob/historial", filterParams) : null;
 
-  // Build a lookup from approvalRequestId → publicToken so we can link to the
-  // detail page instead of showing raw UUIDs (P2 audit action labels).
+  // Batch-resolve approval request tokens (P2 audit action labels).
   const reqIds = entries.map((e) => e.approvalRequestId).filter((id): id is string => id !== null);
   const tokenByReqId = new Map<string, string>();
   if (reqIds.length > 0) {
@@ -177,62 +170,280 @@ export default async function GobHistorialPage({
     for (const r of reqRows) tokenByReqId.set(r.id, r.publicToken);
   }
 
+  // Batch-resolve actor display names.
+  const actorIds = Array.from(
+    new Set(entries.map((e) => e.actorUserId).filter((id): id is string => id !== null)),
+  );
+  const namesById = new Map<string, string>();
+  if (actorIds.length > 0) {
+    const rows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName })
+      .from(profiles)
+      .where(inArray(profiles.id, actorIds));
+    for (const r of rows) namesById.set(r.id, r.displayName);
+  }
+
+  // Batch-resolve target display names + link hrefs (C12 pattern).
+  const targetIds = Array.from(
+    new Set(entries.map((e) => e.targetUserId).filter((id): id is string => id !== null)),
+  );
+  const targetsById = new Map<string, { displayName: string; href: string | null }>();
+  if (targetIds.length > 0) {
+    const targetRows = await db
+      .select({ id: profiles.id, displayName: profiles.displayName, role: profiles.role })
+      .from(profiles)
+      .where(inArray(profiles.id, targetIds));
+    for (const r of targetRows) {
+      const info = buildTargetLinkInfo({ id: r.id, displayName: r.displayName, role: r.role });
+      targetsById.set(r.id, { displayName: info.displayName, href: info.href });
+    }
+  }
+
+  // Actor dropdown options — shared with admin/historial via
+  // resolveAuditHistoryActorOptions (#26 D1): govt lists every actor in
+  // scope (bounded), admin derives from the current page + selected extra
+  // (universal scope is unbounded — mirrors /admin/auditoria's approach).
+  const actorOptions = await resolveAuditHistoryActorOptions(
+    scope,
+    actorIds,
+    namesById,
+    actorFilter,
+  );
+
+  // Deduped by visible label so aliased codes render one dropdown row each.
+  const actionOptions = buildAuditActionOptions();
+  // A single-code filter may belong to an aliased option (its `value` carries
+  // every code sharing that label, comma-joined) — match by membership, not
+  // equality, so the <select> still preselects the right row.
+  const selectedActionOption =
+    actionFilters.length === 1
+      ? actionOptions.find((o) => o.value.split(",").includes(actionFilters[0]))
+      : undefined;
+
+  const isMineFilter = actorFilter === user.id;
+
+  const groups = groupConsecutiveAuditRows(entries);
+
+  const actorName = (uid: string | null) =>
+    uid ? (namesById.get(uid) ?? "Desconocido") : "Usuario eliminado";
+
+  const fmtTime = (d: Date) => formatDateTimeNumericAr(d);
+
+  const runFilterHref = (action: string, uid: string | null) => {
+    const params = new URLSearchParams({ action });
+    if (uid) params.set("actor", uid);
+    return `/gob/historial?${params.toString()}`;
+  };
+
+  const scopeCopy = isAdmin
+    ? "Vista universal — todas las jurisdicciones."
+    : "Acciones de los operadores de gobierno asignados a tu jurisdicción.";
+
+  // Shared row body — reused for standalone rows and expanded run children.
+  const EntryBody = ({ entry }: { entry: (typeof entries)[number] }) => {
+    const isOwnRow = entry.actorUserId === user.id;
+    return (
+      <>
+        <div className="min-w-0 space-y-0.5">
+          <p className="text-md font-medium text-ln-op-ink" title={entry.action}>
+            {auditActionLabel(entry.action)}
+          </p>
+          <p className="text-sm text-ln-op-mute">
+            {actorName(entry.actorUserId)}
+            {entry.targetUserId &&
+              (() => {
+                const target = targetsById.get(entry.targetUserId);
+                const targetName = target?.displayName ?? "Usuario eliminado";
+                const targetHref = target?.href ?? null;
+                return (
+                  <>
+                    {" "}
+                    {"·"} sobre:{" "}
+                    {targetHref ? (
+                      <Link
+                        href={targetHref}
+                        className="underline underline-offset-2 hover:text-ln-op-ink"
+                      >
+                        {targetName}
+                      </Link>
+                    ) : (
+                      <span>{targetName}</span>
+                    )}
+                  </>
+                );
+              })()}
+            {entry.approvalRequestId &&
+              (() => {
+                const token = tokenByReqId.get(entry.approvalRequestId);
+                return token ? (
+                  <>
+                    {" "}
+                    {"·"}{" "}
+                    <Link
+                      href={`/gob/cola/${token}`}
+                      className="underline underline-offset-2 hover:text-ln-op-ink"
+                    >
+                      Ver solicitud →
+                    </Link>
+                  </>
+                ) : (
+                  <>
+                    {" "}
+                    {"·"} req:{" "}
+                    <span className="font-ln-mono">{entry.approvalRequestId.slice(0, 8)}…</span>
+                  </>
+                );
+              })()}
+            {(() => {
+              const target = businessRuleTargetSummary(entry.action, entry.payload);
+              return target ? (
+                <>
+                  {" "}
+                  {"·"} sobre: <span className="font-ln-mono">{target}</span>
+                </>
+              ) : null;
+            })()}
+            {/* PII guard: the free-text search query is only shown for the
+                viewer's OWN pii_queried rows — never for peer operators'
+                rows, even within the same jurisdiction (see file header). */}
+            {entry.action === "pii_queried" &&
+              entry.payload != null &&
+              typeof entry.payload === "object" &&
+              (() => {
+                const p = entry.payload as Record<string, unknown>;
+                const surface = typeof p.surface === "string" ? p.surface : null;
+                const count = typeof p.result_count === "number" ? p.result_count : null;
+                const query = isOwnRow && typeof p.query === "string" ? p.query : null;
+                const parts: string[] = [];
+                if (query) parts.push(`"${query}"`);
+                if (surface) parts.push(surface);
+                if (count !== null) parts.push(`${count} ${pluralizeEs(count, "resultado")}`);
+                return parts.length > 0 ? (
+                  <>
+                    {" "}
+                    {"·"} {parts.join(" · ")}
+                  </>
+                ) : null;
+              })()}
+          </p>
+        </div>
+        <time className="whitespace-nowrap text-sm text-ln-op-mute">
+          {fmtTime(entry.performedAt)}
+        </time>
+      </>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Historial
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Mi historial</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Ultimas {entries.length} acciones realizadas por{" "}
-          <span className="font-medium text-ln-op-ink">{actor?.displayName ?? user.id}</span>.
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Historial"
+        title="Historial de auditoría"
+        subtitle={<p className="text-md text-ln-op-mute">{scopeCopy}</p>}
+      />
+
+      {/* Unified filter bar — Período (shared PeriodPicker, same param names
+          and default preset as before) + Acción/Actor as registered axes
+          (both no-param defaults are genuinely "todas/todos" — no
+          blank-option trap). "Ver solo mi actividad" is a TOGGLE
+          (AuditMineToggle) in `children`, not an axis: it defaults OFF ("todos
+          los actores", the same default the Actor axis already has) and just
+          writes the SAME `actor` param the axis does — mirrors the
+          pre-migration page's two affordances (dropdown + quick link) over
+          one param (F-migration 2026-07-21, off the bespoke <form> +
+          hand-rolled Período row). A filter change drops the keyset `cursor`
+          (page 1); "Limpiar todo" now covers period+action+actor in one click
+          (same reset the old bare "Limpiar filtros" link produced). */}
+      <OpFilterBar
+        period={{ defaultPreset: DEFAULT_DASHBOARD_PRESET }}
+        resetParamsOnChange={["cursor"]}
+        axes={
+          [
+            {
+              id: "action",
+              label: "Acción",
+              paramKey: "action",
+              options: actionOptions,
+              current: selectedActionOption?.value ?? null,
+              allLabel: "Todas las acciones",
+            },
+            {
+              id: "actor",
+              label: "Actor",
+              paramKey: "actor",
+              options: actorOptions.map((o) => ({ value: o.id, label: o.name })),
+              current: actorFilter,
+              allLabel: "Todos los actores",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <AuditMineToggle userId={user.id} isMine={isMineFilter} resetParamsOnChange={["cursor"]} />
+      </OpFilterBar>
 
       {entries.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">No registraste acciones todavia.</p>
+        <p className="text-md text-ln-op-mute">No hay entradas que coincidan.</p>
       ) : (
-        <ul className="space-y-2">
-          {entries.map((entry) => (
-            <li key={entry.id}>
-              <OpCard>
-                <OpCardBody className="flex items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="text-[13px] text-ln-op-ink">
-                      {ACTION_LABELS[entry.action] ?? entry.action}
-                    </p>
-                    {entry.approvalRequestId &&
-                      (() => {
-                        const token = tokenByReqId.get(entry.approvalRequestId);
-                        return token ? (
-                          <Link
-                            href={`/gob/cola/${token}`}
-                            className="font-mono text-[11px] text-ln-op-azul underline underline-offset-2 hover:opacity-80"
-                          >
-                            Ver solicitud →
-                          </Link>
-                        ) : (
-                          <p className="font-mono text-[11px] text-ln-op-mute">
-                            req: {entry.approvalRequestId.slice(0, 8)}…
+        <OpCard>
+          <OpCardHead
+            title="Registro de auditoría"
+            actions={<span className="text-sm text-ln-op-mute">{entries.length} entradas</span>}
+          />
+          <OpCardBody className="p-0">
+            <ul className="divide-y divide-ln-op-line-2">
+              {groups.map((group) =>
+                group.kind === "single" ? (
+                  <li
+                    key={group.row.id}
+                    className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
+                  >
+                    <EntryBody entry={group.row} />
+                  </li>
+                ) : (
+                  <li key={group.key} className="px-4 py-2 odd:bg-ln-op-stripe">
+                    <details className="group/run">
+                      <summary className="flex cursor-pointer list-none items-start justify-between gap-3 select-none">
+                        <div className="min-w-0 space-y-0.5">
+                          <p className="flex items-center gap-2 text-md font-medium text-ln-op-ink">
+                            {auditActionLabel(group.action)}
+                            <OpPill tone="neutral">×{group.count}</OpPill>
                           </p>
-                        );
-                      })()}
-                  </div>
-                  <time className="text-[12px] text-ln-op-mute whitespace-nowrap tabular-nums">
-                    {new Date(entry.performedAt).toLocaleString("es-AR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                </OpCardBody>
-              </OpCard>
-            </li>
-          ))}
-        </ul>
+                          <p className="text-sm text-ln-op-mute">
+                            {actorName(group.actorUserId)} {"·"} {group.count} acciones consecutivas{" "}
+                            <span className="group-open/run:hidden">{"·"} tocá para expandir</span>{" "}
+                            {"·"}{" "}
+                            <a
+                              href={runFilterHref(group.action, group.actorUserId)}
+                              className="underline underline-offset-2 hover:text-ln-op-ink"
+                            >
+                              ver filtradas
+                            </a>
+                          </p>
+                        </div>
+                        <time className="whitespace-nowrap text-sm text-ln-op-mute">
+                          {fmtTime(group.earliestAt)} {"–"} {fmtTime(group.latestAt)}
+                        </time>
+                      </summary>
+                      <ul className="mt-2 divide-y divide-ln-op-line-2 border-l-2 border-ln-op-line pl-3">
+                        {group.rows.map((entry) => (
+                          <li
+                            key={entry.id}
+                            className="flex items-start justify-between gap-3 py-2"
+                          >
+                            <EntryBody entry={entry} />
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </li>
+                ),
+              )}
+            </ul>
+          </OpCardBody>
+        </OpCard>
       )}
 
-      {/* Pagination footer */}
       {(newerLink || olderLink) && (
         <nav
           aria-label="Paginación de historial"
@@ -242,7 +453,7 @@ export default async function GobHistorialPage({
             {newerLink && (
               <Link
                 href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 ← Más recientes
               </Link>
@@ -252,7 +463,7 @@ export default async function GobHistorialPage({
             {olderLink && (
               <Link
                 href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
+                className="text-sm font-medium text-ln-op-azul no-underline hover:underline"
               >
                 Ver más antiguos →
               </Link>

@@ -5,7 +5,9 @@
 
 import type { ScheduleRuleFormState } from "@/app/actions/schedule-rules";
 import { LnCheckbox, LnInput } from "@/components/ui/Field";
-import { useActionState } from "react";
+import { OpButton } from "@/components/ui/dashboard";
+import { todayIsoInAr } from "@/lib/utils/format";
+import { useActionState, useState } from "react";
 
 const WEEKDAYS = [
   { value: 1, label: "Lun" },
@@ -34,7 +36,13 @@ export function AgendaRuleForm({
 }) {
   const [state, formAction, isPending] = useActionState(createAction, INITIAL_STATE);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
+
+  // Controlled field state — preserves typed input on validation error.
+  const [startTimeLocal, setStartTimeLocal] = useState("08:00");
+  const [endTimeLocal, setEndTimeLocal] = useState("12:00");
+  const [effectiveFrom, setEffectiveFrom] = useState(today);
+  const [effectiveUntil, setEffectiveUntil] = useState("");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -43,14 +51,14 @@ export function AgendaRuleForm({
       <input type="hidden" name="orgToken" value={orgToken} />
 
       {state.error && (
-        <p className="text-[13px] rounded-[6px] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-md rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
 
       {/* Days of week */}
       <div className="space-y-1">
-        <span className="block text-[13px] font-medium text-ln-op-ink">
+        <span className="block text-md font-medium text-ln-op-ink">
           Días <span className="text-ln-op-danger">*</span>
         </span>
         <div className="flex flex-wrap gap-2">
@@ -68,9 +76,9 @@ export function AgendaRuleForm({
       </div>
 
       {/* Time window */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label htmlFor="startTimeLocal" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="startTimeLocal" className="block text-md font-medium text-ln-op-ink">
             Hora inicio <span className="text-ln-op-danger">*</span>
           </label>
           <LnInput
@@ -78,11 +86,12 @@ export function AgendaRuleForm({
             name="startTimeLocal"
             type="time"
             required
-            defaultValue="08:00"
+            value={startTimeLocal}
+            onChange={(e) => setStartTimeLocal(e.target.value)}
           />
         </div>
         <div className="space-y-1">
-          <label htmlFor="endTimeLocal" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="endTimeLocal" className="block text-md font-medium text-ln-op-ink">
             Hora fin <span className="text-ln-op-danger">*</span>
           </label>
           <LnInput
@@ -90,15 +99,16 @@ export function AgendaRuleForm({
             name="endTimeLocal"
             type="time"
             required
-            defaultValue="12:00"
+            value={endTimeLocal}
+            onChange={(e) => setEndTimeLocal(e.target.value)}
           />
         </div>
       </div>
 
       {/* Effective range */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <label htmlFor="effectiveFrom" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="effectiveFrom" className="block text-md font-medium text-ln-op-ink">
             Válido desde <span className="text-ln-op-danger">*</span>
           </label>
           <LnInput
@@ -106,26 +116,29 @@ export function AgendaRuleForm({
             name="effectiveFrom"
             type="date"
             required
-            defaultValue={today}
+            value={effectiveFrom}
+            onChange={(e) => setEffectiveFrom(e.target.value)}
           />
         </div>
         <div className="space-y-1">
-          <label htmlFor="effectiveUntil" className="block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="effectiveUntil" className="block text-md font-medium text-ln-op-ink">
             Válido hasta{" "}
             <span className="text-ln-op-mute font-normal">(opcional — sin fecha = abierto)</span>
           </label>
-          <LnInput id="effectiveUntil" name="effectiveUntil" type="date" />
+          <LnInput
+            id="effectiveUntil"
+            name="effectiveUntil"
+            type="date"
+            value={effectiveUntil}
+            onChange={(e) => setEffectiveUntil(e.target.value)}
+          />
         </div>
       </div>
 
       <div className="flex items-center gap-3 pt-1">
-        <button
-          type="submit"
-          disabled={isPending}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-        >
+        <OpButton type="submit" variant="primary" disabled={isPending}>
           {isPending ? "Guardando…" : "Agregar regla"}
-        </button>
+        </OpButton>
       </div>
     </form>
   );

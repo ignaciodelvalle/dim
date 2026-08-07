@@ -1,44 +1,31 @@
 "use server";
 
-// signTimelineAttachments — lazily signs attachment URLs for the collapsed
-// PetHealthTimeline component. Called client-side on first <details> expand
-// via useTransition.
+// sign-timeline-attachments.ts — thin shim (strangler migration 43/61).
 //
-// Returns a Record<eventId, signedUrl> — one signed URL per event that has
-// an attachment. Events without attachments are omitted from the map.
+// Business logic moved to:
+//   src/modules/pets/application/timeline-attachments/
 //
-// Auth: requirePetAccess (owner or org custody holder — both can view the
-// timeline). This is a read-only signing operation; no DB mutations.
-
-import { and, inArray, isNotNull } from "drizzle-orm";
-import { z } from "zod";
-
-import { attachments, db } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
-import { createClient } from "@/lib/supabase/server";
-
-// ---------------------------------------------------------------------------
-// Input validation
-// ---------------------------------------------------------------------------
-
-const InputSchema = z.object({
-  petPublicToken: z.string().min(1, "petPublicToken is required"),
-  eventIds: z.array(z.string()),
-});
-
-// ---------------------------------------------------------------------------
-// Action
-// ---------------------------------------------------------------------------
-
-export type SignTimelineAttachmentsResult = Record<string, string> | { error: string };
-
-// ---------------------------------------------------------------------------
-// Bound-action factory — returns a server action already bound to a petPublicToken.
+// This file re-exports signTimelineAttachmentsForPet (used by
+// mis-mascotas/[publicToken]/page.tsx) and signTimelineAttachments (used by
+// the test suite) so all importers keep working unchanged.
 //
-// Use this in page.tsx: pass `createTimelineSigner(pet.publicToken)` as the
-// `signAttachments` prop to <PetHealthTimeline>. The returned fn matches the
-// component's `SignerFn` type — errors are swallowed and return `{}` so the
-// timeline degrades gracefully (no thumbnails) rather than crashing.
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
+
+import {
+  signTimelineAttachments as _signTimelineAttachments,
+  signTimelineAttachmentsForPet as _signTimelineAttachmentsForPet,
+} from "@/src/modules/pets/application/timeline-attachments/sign-timeline-attachments";
+import type { SignTimelineAttachmentsResult } from "@/src/modules/pets/application/timeline-attachments/types";
+
+// ---------------------------------------------------------------------------
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
+
+export type { SignTimelineAttachmentsResult } from "@/src/modules/pets/application/timeline-attachments/types";
+
+// ---------------------------------------------------------------------------
+// Writer re-exports — async wrappers (required by "use server" module contract)
 // ---------------------------------------------------------------------------
 
 // @no-auth-required: delegates entirely to signTimelineAttachments which calls
@@ -48,64 +35,15 @@ export async function signTimelineAttachmentsForPet(
   petPublicToken: string,
   eventIds: string[],
 ): Promise<Record<string, string>> {
-  const result = await signTimelineAttachments(petPublicToken, eventIds);
-  if ("error" in result) return {};
-  return result;
+  return _signTimelineAttachmentsForPet(petPublicToken, eventIds);
 }
 
+// @no-auth-required: auth enforced inside the delegated use-case (requirePetAccess
+// runs after input validation + empty-list short-circuit that must precede it —
+// lifting would reorder the validation-before-auth control flow of the original).
 export async function signTimelineAttachments(
   petPublicToken: string,
   eventIds: string[],
 ): Promise<SignTimelineAttachmentsResult> {
-  // 1. Validate input.
-  const parsed = InputSchema.safeParse({ petPublicToken, eventIds });
-  if (!parsed.success) {
-    return { error: "Invalid input" };
-  }
-
-  // 2. Empty event list — return fast, no DB round-trip.
-  if (parsed.data.eventIds.length === 0) {
-    return {};
-  }
-
-  // 3. Pet access check — owner and org custody paths are both permitted
-  //    (timeline is visible to anyone who has access to the pet profile).
-  const access = await requirePetAccess(petPublicToken);
-  if (!access.ok) {
-    return { error: "Pet not found or access denied" };
-  }
-
-  const { pet } = access;
-
-  // 4. Query attachments for the given event ids, scoped to this pet.
-  const rows = await db
-    .select({
-      eventId: attachments.eventId,
-      storagePath: attachments.storagePath,
-    })
-    .from(attachments)
-    .where(and(isNotNull(attachments.eventId), inArray(attachments.eventId, parsed.data.eventIds)));
-
-  if (rows.length === 0) {
-    return {};
-  }
-
-  // 5. Sign URLs via the event-attachments bucket.
-  const supabase = await createClient();
-  const signed: Record<string, string> = {};
-
-  await Promise.all(
-    rows.map(async (row) => {
-      if (!row.eventId || !row.storagePath) return;
-      const { data, error } = await supabase.storage
-        .from("event-attachments")
-        .createSignedUrl(row.storagePath, 3600);
-      if (error || !data?.signedUrl) return;
-      // Last attachment wins if multiple exist for the same event. In
-      // practice the timeline preview shows one thumbnail per event.
-      signed[row.eventId] = data.signedUrl;
-    }),
-  );
-
-  return signed;
+  return _signTimelineAttachments(petPublicToken, eventIds);
 }

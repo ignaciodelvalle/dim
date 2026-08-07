@@ -34,6 +34,7 @@ describe("submitOrgContact", () => {
     return {
       findOrgByToken: vi.fn().mockResolvedValue({ id: "org-1" }),
       insertContact: vi.fn().mockResolvedValue(undefined),
+      adminRecipients: vi.fn().mockResolvedValue([{ userId: "admin-1" }, { userId: "admin-2" }]),
       ...overrides,
     };
   }
@@ -115,6 +116,30 @@ describe("submitOrgContact", () => {
     });
     expect(result.ok).toBe(false);
     expect((result as { ok: false; error: string }).error).toContain("Ya enviaste varios mensajes");
+  });
+
+  it("avisa a TODOS los admins de la org — sin esto el mensaje no lo lee nadie", async () => {
+    const repo = makeRepo();
+    const result = await submitOrgContact(validInput, { repo, enforceRateLimit });
+    expect(result.ok).toBe(true);
+    const notifs = (
+      result as { ok: true; notifications: Array<{ userId: string; ctaUrl?: string | null }> }
+    ).notifications;
+    expect(notifs.map((n) => n.userId)).toEqual(["admin-1", "admin-2"]);
+    expect(notifs[0].ctaUrl).toBe("/org/token-abc/mensajes");
+  });
+
+  it("distingue voluntariado de contacto en el aviso", async () => {
+    const repo = makeRepo();
+    const result = await submitOrgContact(
+      { ...validInput, kind: "volunteer" },
+      { repo, enforceRateLimit },
+    );
+    const notifs = (
+      result as { ok: true; notifications: Array<{ notificationType: string; title: string }> }
+    ).notifications;
+    expect(notifs[0].notificationType).toBe("org_volunteer_message");
+    expect(notifs[0].title).toMatch(/voluntario/i);
   });
 });
 

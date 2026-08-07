@@ -4,28 +4,28 @@
 import Link from "next/link";
 
 import { LnCallout } from "@/components/ui/DocElements";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { ClaimWizard } from "./ClaimWizard";
 
 export default async function ClaimPage() {
   await requireUserOrRedirect();
 
   return (
-    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-md px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/mis-mascotas"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis mascotas
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-6">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Reclamar una mascota
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Si tu mascota ya está registrada por su microchip o tatuaje, podés vincularla a tu cuenta
           — o iniciar una disputa si figura a nombre de otra persona.
         </p>
@@ -33,7 +33,7 @@ export default async function ClaimPage() {
 
       <ClaimWizard />
 
-      <div className="mt-[24px]">
+      <div className="mt-6">
         <LnCallout tone="azul" title="¿Te adoptó un refugio?">
           Si te registraron por DNI durante la adopción,{" "}
           <Link

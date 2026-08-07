@@ -16,7 +16,7 @@ import {
   profiles,
   welfareReports,
 } from "@/db";
-import { openCase } from "@/lib/case-helpers";
+import { openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const ORG_TOKEN = "DIM-ORGWLF-1";
@@ -140,7 +140,11 @@ describe("Org-side welfare denuncia — schema + flow contract", () => {
           primaryPetId: petId,
           openedByUserId: reporterUserId,
           openedByOrganizationId: orgId,
-          openedReason: `auto: org-side welfare report by Org Welfare Test (${REF_CODE})`,
+          openedReason: {
+            code: "welfare_report_org",
+            referenceCode: REF_CODE,
+            orgDisplayName: "Org Welfare Test",
+          },
           welfareReportId,
         },
         tx,

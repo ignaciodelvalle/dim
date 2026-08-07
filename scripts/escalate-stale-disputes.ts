@@ -9,7 +9,7 @@ import {
   escalateStaleDispute,
   findStaleDisputes,
 } from "@/lib/case-closers/escalate-stale-disputes";
-import { runCaseCron } from "@/lib/case-cron";
+import { runCaseCron } from "@/lib/infra/case-cron";
 
 async function main() {
   const start = Date.now();

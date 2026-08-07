@@ -4,16 +4,16 @@
 // Returns domain shapes (not raw Drizzle row types).
 // No auth logic — auth lives at the action edge.
 
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 
 import { attachments, type db, ownerships, petEvents, petIdentifications, pets } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
-import { parseDateInput } from "@/lib/format";
-import { generatePublicToken } from "@/lib/publicToken";
-import { generateUniqueToken } from "@/lib/unique-token";
+import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { generateUniqueToken } from "@/lib/infra/unique-token";
+import { parseDateInput } from "@/lib/utils/format";
 import type { DiffEntry } from "@/src/modules/pets/domain/pet-diff";
 import {
-  chipImplantSiteFromLocation,
   custodyKindToOwnershipRole,
   custodyKindToRegisteredPayloadKind,
 } from "@/src/modules/pets/domain/pet-rules";
@@ -42,6 +42,12 @@ type InsertPetRegisteredArgs = {
   uploadSize: number | null;
   userId: string;
   now: Date;
+  /**
+   * Idempotency guard — anchored on the pet_registered event (audit §6).
+   * Optional at the repo boundary (defaults to NULL) so pre-existing callers /
+   * tests need not thread it; the use-case (registerPet) always supplies it.
+   */
+  clientIdempotencyKey?: string | null;
 };
 
 type UpdatePetProfileArgs = {
@@ -60,6 +66,17 @@ type UpdatePetProfileArgs = {
   now: Date;
 };
 
+type CorrectSpeciesArgs = {
+  petId: string;
+  oldSpecies: string;
+  newSpecies: string;
+  /** Recomputed PPP flag for the corrected species (a non-dog clears PPP). */
+  potentiallyDangerousBreed: boolean;
+  userId: string;
+  eventAuthorship: EventAuthorship;
+  now: Date;
+};
+
 // ---------------------------------------------------------------------------
 // Repository
 // ---------------------------------------------------------------------------
@@ -71,6 +88,40 @@ export const PetsRepository = {
    */
   async generatePublicToken(): Promise<string> {
     return generateUniqueToken(pets, pets.publicToken, generatePublicToken);
+  },
+
+  /**
+   * Double-submit idempotency lookup for the owner alta (audit §6). Must be
+   * called inside the same db.transaction() as insertPetRegistered.
+   *
+   * Mirrors the intake writer (create-intake.ts): takes a session-stable
+   * advisory lock on the key so concurrent same-key submits serialize, then
+   * looks for a pet_registered event already anchored on that key. A hit means
+   * a prior submit already created the pet — the caller must NOT insert again.
+   *
+   * NOTE: the partial unique index pet_events_idempotency_idx is keyed on
+   * (pet_id, event_type, client_idempotency_key); for a brand-new pet the
+   * pet_id differs on every attempt, so the index cannot serialize alta
+   * double-submits on its own. The advisory lock + this SELECT is the actual
+   * guard (the index remains a same-pet backstop, as in the replace flow).
+   */
+  async findDuplicateRegistration(
+    clientIdempotencyKey: string,
+    tx: Tx,
+  ): Promise<{ publicToken: string; name: string } | null> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${clientIdempotencyKey}))`);
+    const [existing] = await tx
+      .select({ publicToken: pets.publicToken, name: pets.name })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .where(
+        and(
+          eq(petEvents.eventType, "pet_registered"),
+          eq(petEvents.clientIdempotencyKey, clientIdempotencyKey),
+        ),
+      )
+      .limit(1);
+    return existing ?? null;
   },
 
   /**
@@ -97,6 +148,7 @@ export const PetsRepository = {
       uploadSize,
       userId,
       now,
+      clientIdempotencyKey,
     } = args;
 
     // Insert pet row. Legacy chip/tattoo columns (microchipId, microchipCountryCode,
@@ -122,6 +174,7 @@ export const PetsRepository = {
         insurancePolicyNumber: parsed.insurancePolicyNumber,
         jurisdictionProvince: parsed.jurisdictionProvince,
         jurisdictionLocality: parsed.jurisdictionLocality,
+        localityId: parsed.localityId ?? null,
         acquisitionMethod: parsed.acquisitionMethod,
         emergencyInfoVisible: parsed.emergencyInfoVisible,
         permanentConditions: parsed.permanentConditions,
@@ -193,6 +246,9 @@ export const PetsRepository = {
         recordedByUserId: userId,
         authorRole: "owner",
         payload: petRegisteredPayload,
+        // Anchors the double-submit idempotency guard (audit §6). NULL for any
+        // caller that does not supply a key (unaffected by the partial index).
+        clientIdempotencyKey: clientIdempotencyKey ?? null,
       })
       .returning();
 
@@ -268,11 +324,17 @@ export const PetsRepository = {
     // Legacy chip columns (microchipId, microchipCountryCode, microchipImplantedAt,
     // microchipImplantedBy, microchipLocation) omitted — ARCH-R; canonical rows
     // are managed via pet_identifications (see chipNewlyAdded block below).
+    //
+    // FULL-LOCK (PO decision #40, review 14 items 5/6): `species`,
+    // `jurisdictionProvince`, and `jurisdictionLocality` are intentionally NOT in
+    // this SET. The profile-edit path can never mutate them — even for a crafted
+    // request. Jurisdiction moves route exclusively through recordMovementWriter
+    // (movement_recorded / jurisdiction_changed); species corrections route
+    // through PetsRepository.correctSpecies below. Both emit an event first.
     await tx
       .update(pets)
       .set({
         name: parsed.name,
-        species: parsed.species,
         sex: parsed.sex,
         breed: parsed.breed,
         dateOfBirth: parsed.dateOfBirth,
@@ -285,8 +347,6 @@ export const PetsRepository = {
         potentiallyDangerousBreed,
         insuranceCompany: parsed.insuranceCompany,
         insurancePolicyNumber: parsed.insurancePolicyNumber,
-        jurisdictionProvince: parsed.jurisdictionProvince,
-        jurisdictionLocality: parsed.jurisdictionLocality,
         acquisitionMethod: parsed.acquisitionMethod,
         emergencyInfoVisible: parsed.emergencyInfoVisible,
         permanentConditions: parsed.permanentConditions,
@@ -381,5 +441,81 @@ export const PetsRepository = {
     }
 
     return { eventId };
+  },
+
+  /**
+   * Event-governed species correction (FULL-LOCK path, PO decision #40).
+   * Species is locked on the profile-edit path; a genuine correction (e.g. a
+   * cat registered as a dog) flows here. Must be called inside a
+   * db.transaction().
+   *
+   * Write order mirrors recordMovementWriter: the immutable fact (a
+   * pet_profile_updated event carrying the single species change) is inserted
+   * FIRST, then the pets.species denormalization + recomputed PPP flag. This
+   * keeps an audit trail and prevents a species change with no corresponding
+   * event (the same divergence class the movement writer guards against).
+   */
+  async correctSpecies(args: CorrectSpeciesArgs, tx: Tx): Promise<{ eventId: string }> {
+    const {
+      petId,
+      oldSpecies,
+      newSpecies,
+      potentiallyDangerousBreed,
+      userId,
+      eventAuthorship,
+      now,
+    } = args;
+
+    // A species correction can also flip the derived PPP classification (a dog
+    // corrected to a cat clears it; a cat corrected to a PPP-breed dog sets it).
+    // The pets.potentiallyDangerousBreed column is dual-written below, so the
+    // event MUST carry that change too — otherwise the correction is not fully
+    // event-derivable and the flag flip has no corresponding fact (Invariant #3
+    // / event-pairing). Read the prior flag inside the tx (before the update)
+    // and include the change ONLY when it actually differs.
+    const [currentRow] = await tx
+      .select({ potentiallyDangerousBreed: pets.potentiallyDangerousBreed })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    const oldPpp = currentRow?.potentiallyDangerousBreed ?? false;
+
+    const changes: Array<{ field: string; old: unknown; new: unknown }> = [
+      { field: "species", old: oldSpecies, new: newSpecies },
+    ];
+    if (oldPpp !== potentiallyDangerousBreed) {
+      changes.push({
+        field: "potentially_dangerous_breed",
+        old: oldPpp,
+        new: potentiallyDangerousBreed,
+      });
+    }
+
+    const payload = validateEventPayload("pet_profile_updated", {
+      changes,
+      photo_replaced: false,
+    });
+
+    const [event] = await tx
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "pet_profile_updated",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: userId,
+        authorRole: eventAuthorship.authorRole,
+        authorOrganizationId: eventAuthorship.authorOrganizationId,
+        authorVerified: eventAuthorship.authorVerified,
+        payload,
+      })
+      .returning();
+
+    await tx
+      .update(pets)
+      .set({ species: newSpecies, potentiallyDangerousBreed, updatedAt: now })
+      .where(eq(pets.id, petId));
+
+    return { eventId: event.id };
   },
 };

@@ -2,7 +2,7 @@
 //
 // Verifies that the lifecycle object satisfies the structural invariants
 // expected by the case system:
-//   - kind + statusValues + phases are declared correctly.
+//   - kind + statusValues are declared correctly.
 //   - opensEvents points to outbreak_signal.
 //   - No terminal events (investigations are closed manually by govt/admin).
 //   - No auto-close cron (ENO pipeline marks brote linkage as v2 out-of-scope).
@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { getNormativesForCase } from "@/lib/case-normatives";
+import { getNormativesForCase } from "@/lib/domain/case-normatives";
 import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 
 describe("outbreak_investigation lifecycle — declaration", () => {
@@ -29,14 +29,6 @@ describe("outbreak_investigation lifecycle — declaration", () => {
     expect(lifecycle?.statusValues).toContain("escalated");
     expect(lifecycle?.statusValues).toContain("closed");
     expect(lifecycle?.statusValues).not.toContain("merged");
-  });
-
-  it("declares all expected phases", () => {
-    const phases = lifecycle?.phases ?? [];
-    expect(phases).toContain("under_investigation");
-    expect(phases).toContain("escalated");
-    expect(phases).toContain("closed_resolved");
-    expect(phases).toContain("closed_dismissed");
   });
 
   it("opens on outbreak_signal event", () => {

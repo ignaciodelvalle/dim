@@ -1,13 +1,13 @@
 "use server";
 
-import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import { db, pets } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { parseDateInput } from "@/lib/format";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { parseDateInput } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
+import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 const ADMIN_REASONS = new Set([
   "damaged",
@@ -29,7 +29,8 @@ export async function replaceMicrochipAdminAction(
   const { user } = await requireAdminOrRedirect();
 
   const [pet] = await db
-    .select({ id: pets.id })
+    // dateOfBirth feeds the plausibility guard's BEFORE_BIRTH leg below.
+    .select({ id: pets.id, dateOfBirth: pets.dateOfBirth })
     .from(pets)
     .where(eq(pets.publicToken, publicToken))
     .limit(1);
@@ -46,6 +47,7 @@ export async function replaceMicrochipAdminAction(
   const replacedBy = String(formData.get("replacedBy") ?? "").trim() || null;
   const replacedAtRaw = String(formData.get("replacedAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!ADMIN_REASONS.has(reason)) {
     return { error: "Motivo inválido." };
@@ -70,6 +72,10 @@ export async function replaceMicrochipAdminAction(
   if (!replacedAtRaw) return { error: "Falta la fecha del reemplazo." };
   const replacedAtDate = parseDateInput(replacedAtRaw);
   if (!replacedAtDate) return { error: "Fecha de reemplazo inválida." };
+  // Date-only plausibility guard (PO decision 2026-07-16 — same family as P4
+  // item 1 on the events edge): AR calendar-day compare + BEFORE_BIRTH.
+  const plausibility = checkOccurredAtPlausible(replacedAtDate, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const result = await replaceMicrochipForUser(user.id, {
     petId: pet.id,
@@ -86,6 +92,7 @@ export async function replaceMicrochipAdminAction(
     replacedBy,
     replacedAt: replacedAtDate.toISOString(),
     notes,
+    clientIdempotencyKey,
     actorContext: { kind: "admin" },
   });
 
@@ -93,5 +100,8 @@ export async function replaceMicrochipAdminAction(
     return { error: result.error };
   }
 
-  redirect("/admin/observaciones");
+  // N3: see the org-side twin (app/org/.../microchip/reemplazar/action.ts).
+  // The App Router drops a Server Action's own redirect in production, so the
+  // action returns the destination and the form navigates.
+  return { error: null, ok: true, redirectTo: "/admin/observaciones" };
 }

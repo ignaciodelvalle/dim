@@ -7,8 +7,9 @@ import { notFound } from "next/navigation";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatTime } from "@/lib/utils/format";
 import { BookingFormClient } from "./BookingFormClient";
 
 export default async function ReservarTurnoPage({
@@ -51,11 +52,15 @@ export default async function ReservarTurnoPage({
     notFound();
   }
 
+  // Deceased pets are excluded — a turno cannot be booked for them (Cowork
+  // QA v3, B2). Same filter shape as lib/analytics/owner-dashboard.ts.
   const userPets = await db
     .select({ pet: pets })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL`)
+    .where(
+      sql`${ownerships.ownerUserId} = ${user.id} AND ${ownerships.endedAt} IS NULL AND ${pets.status} <> 'deceased'`,
+    )
     .orderBy(pets.name);
 
   const { offering, org, provider } = offeringRow;
@@ -75,40 +80,36 @@ export default async function ReservarTurnoPage({
     month: "long",
     year: "numeric",
   });
-  const slotTime = slot.startsAt.toLocaleTimeString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const slotTime = formatTime(slot.startsAt);
 
   return (
-    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-md px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href={`/turnos/buscar/${offeringToken}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Volver a los turnos
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-6">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Confirmar reserva
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Revisá los datos antes de confirmar. La reserva es inmediata.
         </p>
       </div>
 
       {/* Summary card */}
-      <LnCard className="mb-[20px]">
+      <LnCard className="mb-5">
         <LnCardHead title="Resumen del turno" />
         <LnCardBody>
-          <dl className="flex flex-col gap-[12px]">
+          <dl className="flex flex-col gap-3">
             <DetailRow label="Servicio">
               <span className="font-medium">{offering.displayName}</span>
-              <span className="ml-[6px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+              <span className="ml-1.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                 {kindDef?.label ?? offering.serviceKind}
               </span>
             </DetailRow>
@@ -149,10 +150,10 @@ export default async function ReservarTurnoPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }

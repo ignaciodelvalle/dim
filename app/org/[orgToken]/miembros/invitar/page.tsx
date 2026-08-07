@@ -7,7 +7,7 @@
 
 import { redirect } from "next/navigation";
 
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { type InvitableRole, ROLE_RANK } from "@/src/modules/organizations/domain/role-rules";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
@@ -52,12 +52,17 @@ export default async function InvitarMiembroPage({
     label: ROLE_LABELS[role],
   }));
 
+  // Default the form to the LEAST-privileged grantable role, not the list's
+  // first entry (which is "admin" whenever the inviter is an admin). An
+  // invite left unchanged should never land as admin by accident.
+  const defaultRole = [...grantableRoles].sort((a, b) => ROLE_RANK[a] - ROLE_RANK[b])[0];
+
   return (
     <div className="mx-auto max-w-xl space-y-6">
       <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">Equipo</p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Invitar miembro</h1>
-        <p className="mt-1 text-[13px] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Equipo</p>
+        <h1 className="text-title font-semibold text-ln-op-ink">Invitar miembro</h1>
+        <p className="mt-1 text-md text-ln-op-mute">
           La persona recibirá un link para unirse a {organization.displayName}. El link vence en 14
           días.
         </p>
@@ -66,6 +71,7 @@ export default async function InvitarMiembroPage({
         organizationId={organization.id}
         orgToken={orgToken}
         grantableRoles={grantableRoleOptions}
+        defaultRole={defaultRole}
       />
     </div>
   );

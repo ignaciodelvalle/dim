@@ -1,5 +1,24 @@
 # Spec-later tracker
 
+> ## ⏳ LAS TRES ENTRADAS ESPERAN A TERCEROS (marcado 2026-08-04)
+>
+> Ninguna de estas tres es trabajo de ingeniería pendiente: **las tres están
+> bloqueadas por una decisión o un dato que no depende de nosotros.** Se
+> marcan así para que ningún agente ni persona las levante como tarea.
+>
+> 1. **PPP CABA export** — falta saber si la Ciudad expone API o es carga
+>    manual de PDF, y con qué campos/firma. Producto + legal con la
+>    Subsecretaría de Bienestar Animal.
+> 2. **Credencial de perro de asistencia (Ley 26.858)** — decisión de producto
+>    y de validación documental.
+> 3. **Documentos de viaje (`pet_attachments`)** — decisión de esquema (tabla
+>    dedicada vs. `attachments` polimórfica) + la pregunta de producto de una
+>    página de documentos vs. CTAs por documento.
+>
+> El resto del documento explica cada bloqueo con su evidencia. **No arrancar
+> ninguna sin que la decisión de afuera esté cerrada.**
+
+
 > Created: 2026-05-27 · Owner: producto + ingeniería · Cadence: revisar en cada planning de sprint.
 
 This document holds features that have a `// TODO(spec-later)` or `// DEFERRED`
@@ -15,7 +34,9 @@ under a new design doc and delete the corresponding section here.
 ## 1. PPP card — Ley CABA 4078 export {#ppp-card}
 
 **Where in code:**
-- `app/(app)/mis-mascotas/[publicToken]/page.tsx` — `{/* §4.9 (3) PPP card */}` block (renders `<PpPCard>` + `<PppExportCabaButton>` when the pet is a `potentially_dangerous_breed`).
+- `app/(app)/mis-mascotas/[publicToken]/page.tsx` — `{/* §4.9 (3) PPP card */}` block (renders `<PpPCard>` when the pet is a `potentially_dangerous_breed`).
+
+> **2026-07-02 (wave-3 D15):** `components/PppExportCabaButton.tsx` was deleted — the pet-document-redesign (two-face) rewrite no longer renders it anywhere (`page.tsx`'s PPP card block dropped the export button along with the rest of the old v2.1 flat layout; the PPP row now lives on `CredentialFace`, see AGENTS.md rule 5). This entry stays open for the underlying CABA export DECISION, which is still unresolved — only the dead button component is gone.
 
 **What's there today:** the PPP card renders for PPP-flagged pets in CABA. The export button posts to a stub server action. The on-device flow works (user sees the card, can fill it).
 

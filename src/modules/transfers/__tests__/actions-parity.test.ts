@@ -20,9 +20,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   requireCapability: vi.fn(),
+  requireCapabilityForOrgToken: vi.fn(),
 }));
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
 }));
 
@@ -103,9 +104,6 @@ vi.mock("../application/reject-cross-org-transfer", () => ({
 vi.mock("../application/cancel-cross-org-transfer", () => ({
   cancelCrossOrgTransfer: vi.fn(),
 }));
-vi.mock("../application/expire-cross-org-transfers", () => ({
-  expireCrossOrgTransfers: vi.fn(),
-}));
 vi.mock("../application/transfer-custody", () => ({
   transferCustody: vi.fn(),
 }));
@@ -120,14 +118,18 @@ vi.mock("../infrastructure/transfers-repository", () => ({
 // Lazy imports (AFTER vi.mock calls)
 // ---------------------------------------------------------------------------
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 const mockRequireCapability = requireCapability as ReturnType<typeof vi.fn>;
+const mockRequireCapabilityForOrgToken = requireCapabilityForOrgToken as ReturnType<typeof vi.fn>;
 const mockRequireUser = requireUserOrRedirect as ReturnType<typeof vi.fn>;
 
 function makeUser(overrides: Record<string, unknown> = {}) {
@@ -518,7 +520,9 @@ describe("expirePetTransfersAction — auth-scope: NONE (CRON_SECRET at route)",
       notifications: [],
     });
     const result = await expirePetTransfersAction();
-    expect(result).toEqual({ expired: 3 });
+    // errors is now surfaced (was discarded) so the cron route can 500 on
+    // partial failure (review 23 fleet extension).
+    expect(result).toEqual({ expired: 3, errors: 0 });
   });
 });
 
@@ -541,7 +545,7 @@ describe("proposeCrossOrgTransferAction — auth-scope: SENDER ORG (org.transfer
   afterEach(() => vi.resetModules());
 
   it("returns capability error when auth fails", async () => {
-    mockRequireCapability.mockResolvedValue({ error: "No tenés permiso." });
+    mockRequireCapabilityForOrgToken.mockResolvedValue({ error: "No tenés permiso." });
     const result = await proposeCrossOrgTransferAction({
       senderOrgToken: "org-tok",
       petPublicToken: "pet-tok",
@@ -552,12 +556,45 @@ describe("proposeCrossOrgTransferAction — auth-scope: SENDER ORG (org.transfer
     expect(proposeCrossOrgTransferUc).not.toHaveBeenCalled();
   });
 
-  it("CRITICAL: wrong-org — token mismatch returns error, use-case NOT called", async () => {
-    // Caller's org token is "org-tok" but input says "other-org" — use-case returns error.
-    mockRequireCapability.mockResolvedValue(makeAuth());
+  // -------------------------------------------------------------------------
+  // Regression (sibling of the QA 2026-07-08 accept bug): a multi-org member
+  // proposing from the sender org URL must be authorized against THAT org, not
+  // the session-default (most-recently-joined) membership.
+  // -------------------------------------------------------------------------
+  it("CRITICAL: resolves the acting org from the senderOrgToken (not the session-default membership)", async () => {
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     proposeCrossOrgTransferUc.mockResolvedValue({
-      ok: false,
-      error: "Estás operando desde una organización distinta a la sender.",
+      ok: true,
+      value: {
+        publicCode: "CASE-001",
+        caseId: "case-1",
+        petId: "pet-1",
+        senderOrgId: "org-1",
+        receiverOrgId: "org-2",
+      },
+      notifications: [],
+    });
+    const result = await proposeCrossOrgTransferAction({
+      senderOrgToken: "SENDER-TOK",
+      petPublicToken: "pet-tok",
+      receiverOrgId: "org-2",
+      reason: "space_constraint",
+    });
+    expect(result).toEqual({ ok: true, publicCode: "CASE-001" });
+    expect(mockRequireCapabilityForOrgToken).toHaveBeenCalledWith(
+      "org.transfer.propose",
+      "SENDER-TOK",
+    );
+    // The bare (last-membership-wins) resolver is NOT used for this action.
+    expect(mockRequireCapability).not.toHaveBeenCalled();
+  });
+
+  it("CRITICAL: wrong-org — member of a different org gets the standard no-access failure, use-case NOT called", async () => {
+    // The URL-pinned resolver returns the standard failure when the caller has
+    // no qualifying membership in the URL org (indistinguishable from
+    // "org does not exist" — org existence is never leaked).
+    mockRequireCapabilityForOrgToken.mockResolvedValue({
+      error: "No pertenecés a ninguna organización activa.",
     });
     const result = await proposeCrossOrgTransferAction({
       senderOrgToken: "other-org",
@@ -565,13 +602,12 @@ describe("proposeCrossOrgTransferAction — auth-scope: SENDER ORG (org.transfer
       receiverOrgId: "org-2",
       reason: "space_constraint",
     });
-    expect(result).toEqual({
-      error: "Estás operando desde una organización distinta a la sender.",
-    });
+    expect(result).toEqual({ error: "No pertenecés a ninguna organización activa." });
+    expect(proposeCrossOrgTransferUc).not.toHaveBeenCalled();
   });
 
   it("returns ok:true with publicCode on success", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     proposeCrossOrgTransferUc.mockResolvedValue({
       ok: true,
       value: { publicCode: "CASE-001" },
@@ -606,7 +642,7 @@ describe("acceptCrossOrgTransferAction — auth-scope: RECEIVER ORG scoped to ca
   afterEach(() => vi.resetModules());
 
   it("returns capability error when auth fails", async () => {
-    mockRequireCapability.mockResolvedValue({ error: "Sin permiso." });
+    mockRequireCapabilityForOrgToken.mockResolvedValue({ error: "Sin permiso." });
     const result = await acceptCrossOrgTransferAction({
       receiverOrgToken: "org-tok",
       casePublicCode: "CASE-001",
@@ -614,11 +650,39 @@ describe("acceptCrossOrgTransferAction — auth-scope: RECEIVER ORG scoped to ca
     expect(result).toEqual({ error: "Sin permiso." });
   });
 
+  // -------------------------------------------------------------------------
+  // Regression (QA 2026-07-08): a multi-org member operating from the receiver
+  // org URL was rejected with "operando desde una organización distinta a la
+  // receiver" because the action resolved the acting org via bare
+  // requireCapability (most-recently-joined membership), not the URL token.
+  // The fix resolves the org FROM the receiverOrgToken.
+  // -------------------------------------------------------------------------
+  it("CRITICAL: resolves the acting org from the receiverOrgToken (not the session-default membership)", async () => {
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
+    acceptCrossOrgTransferUc.mockResolvedValue({
+      ok: true,
+      value: { publicCode: "CASE-001" },
+      notifications: [],
+    });
+    await acceptCrossOrgTransferAction({
+      receiverOrgToken: "RECEIVER-TOK",
+      casePublicCode: "CASE-001",
+    });
+    // The URL token drives org resolution — a member of several orgs is
+    // authorized against the receiver org, not whichever org they joined last.
+    expect(mockRequireCapabilityForOrgToken).toHaveBeenCalledWith(
+      "org.transfer.accept",
+      "RECEIVER-TOK",
+    );
+    // And the bare (last-membership-wins) resolver is NOT used for this action.
+    expect(mockRequireCapability).not.toHaveBeenCalled();
+  });
+
   it("CRITICAL: wrong-org receiver — use-case returns 'La propuesta no fue dirigida a tu organización.'", async () => {
     // This tests the receiver scope: org.id must match case.receiverOrganizationId.
     // The use-case (not the action) enforces this. We verify the action passes
     // the correct org to the use-case so it can enforce it.
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     acceptCrossOrgTransferUc.mockResolvedValue({
       ok: false,
       error: "La propuesta no fue dirigida a tu organización.",
@@ -640,7 +704,7 @@ describe("acceptCrossOrgTransferAction — auth-scope: RECEIVER ORG scoped to ca
   });
 
   it("returns ok:true with publicCode on success", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     acceptCrossOrgTransferUc.mockResolvedValue({
       ok: true,
       value: { publicCode: "CASE-001" },
@@ -672,8 +736,26 @@ describe("rejectCrossOrgTransferAction — auth-scope: RECEIVER ORG scoped to ca
 
   afterEach(() => vi.resetModules());
 
+  it("CRITICAL: resolves the acting org from the receiverOrgToken (not the session-default membership)", async () => {
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
+    rejectCrossOrgTransferUc.mockResolvedValue({
+      ok: true,
+      value: { publicCode: "CASE-001" },
+      notifications: [],
+    });
+    await rejectCrossOrgTransferAction({
+      receiverOrgToken: "RECEIVER-TOK",
+      casePublicCode: "CASE-001",
+    });
+    expect(mockRequireCapabilityForOrgToken).toHaveBeenCalledWith(
+      "org.transfer.accept",
+      "RECEIVER-TOK",
+    );
+    expect(mockRequireCapability).not.toHaveBeenCalled();
+  });
+
   it("CRITICAL: wrong-org — non-receiver org gets 'La propuesta no fue dirigida a tu organización.'", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     rejectCrossOrgTransferUc.mockResolvedValue({
       ok: false,
       error: "La propuesta no fue dirigida a tu organización.",
@@ -695,7 +777,7 @@ describe("rejectCrossOrgTransferAction — auth-scope: RECEIVER ORG scoped to ca
   });
 
   it("returns ok:true on success", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     rejectCrossOrgTransferUc.mockResolvedValue({
       ok: true,
       value: { publicCode: "CASE-001" },
@@ -728,8 +810,26 @@ describe("cancelCrossOrgTransferAction — auth-scope: SENDER ORG scoped to case
 
   afterEach(() => vi.resetModules());
 
+  it("CRITICAL: resolves the acting org from the senderOrgToken (not the session-default membership)", async () => {
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
+    cancelCrossOrgTransferUc.mockResolvedValue({
+      ok: true,
+      value: { publicCode: "CASE-001" },
+      notifications: [],
+    });
+    await cancelCrossOrgTransferAction({
+      senderOrgToken: "SENDER-TOK",
+      casePublicCode: "CASE-001",
+    });
+    expect(mockRequireCapabilityForOrgToken).toHaveBeenCalledWith(
+      "org.transfer.propose",
+      "SENDER-TOK",
+    );
+    expect(mockRequireCapability).not.toHaveBeenCalled();
+  });
+
   it("CRITICAL: wrong-org — non-sender gets 'Solo la organización que propuso puede cancelar.'", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     cancelCrossOrgTransferUc.mockResolvedValue({
       ok: false,
       error: "Solo la organización que propuso puede cancelar.",
@@ -751,7 +851,7 @@ describe("cancelCrossOrgTransferAction — auth-scope: SENDER ORG scoped to case
   });
 
   it("returns ok:true with publicCode on success", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     cancelCrossOrgTransferUc.mockResolvedValue({
       ok: true,
       value: { publicCode: "CASE-001" },
@@ -766,44 +866,10 @@ describe("cancelCrossOrgTransferAction — auth-scope: SENDER ORG scoped to case
 });
 
 // ===========================================================================
-// expireCrossOrgTransfersAction (cron)
-// ===========================================================================
-
-describe("expireCrossOrgTransfersAction — auth-scope: NONE (CRON_SECRET at route)", () => {
-  let expireCrossOrgTransfersAction: (...args: any[]) => Promise<any>;
-  let expireCrossOrgTransfersUc: ReturnType<typeof vi.fn>;
-
-  beforeEach(async () => {
-    vi.clearAllMocks();
-    const actions = await import("../actions");
-    expireCrossOrgTransfersAction = actions.expireCrossOrgTransfersAction;
-    const ucModule = await import("../application/expire-cross-org-transfers");
-    expireCrossOrgTransfersUc = ucModule.expireCrossOrgTransfers as ReturnType<typeof vi.fn>;
-  });
-
-  afterEach(() => vi.resetModules());
-
-  it("throws when use-case returns ok:false", async () => {
-    expireCrossOrgTransfersUc.mockResolvedValue({ ok: false, error: "Scan failed." });
-    await expect(expireCrossOrgTransfersAction()).rejects.toThrow("Scan failed.");
-  });
-
-  it("returns stats on success", async () => {
-    expireCrossOrgTransfersUc.mockResolvedValue({
-      ok: true,
-      value: { expired: 2, errors: 0 },
-      notifications: [],
-    });
-    const result = await expireCrossOrgTransfersAction();
-    expect(result).toEqual({ expired: 2, errors: 0 });
-  });
-});
-
-// ===========================================================================
 // transferCustodyAction
 // ===========================================================================
 
-describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) implicit-org scope", () => {
+describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) URL-token pinned", () => {
   let transferCustodyAction: (...args: any[]) => Promise<any>;
   let transferCustodyUc: ReturnType<typeof vi.fn>;
 
@@ -818,7 +884,7 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
   afterEach(() => vi.resetModules());
 
   it("returns capability error when auth fails", async () => {
-    mockRequireCapability.mockResolvedValue({ error: "Sin permiso." });
+    mockRequireCapabilityForOrgToken.mockResolvedValue({ error: "Sin permiso." });
     const formData = new FormData();
     formData.append("destinationOrgId", "org-2");
     const result = await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
@@ -826,10 +892,26 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
     expect(transferCustodyUc).not.toHaveBeenCalled();
   });
 
+  it("CONFUSED-DEPUTY GUARD: pins the capability check to the URL org token, not the session-default membership", async () => {
+    // R11 fix: transferCustodyAction resolves the acting org FROM the URL
+    // orgToken via requireCapabilityForOrgToken — never bare requireCapability
+    // (which would resolve the most-recently-joined membership).
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
+    transferCustodyUc.mockResolvedValue({
+      ok: false,
+      error: "Mascota no encontrada o no está bajo custodia de tu organización.",
+    });
+    const formData = new FormData();
+    formData.append("destinationOrgId", "org-2");
+    await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
+    expect(mockRequireCapabilityForOrgToken).toHaveBeenCalledWith("custody.transfer", "org-tok");
+    expect(mockRequireCapability).not.toHaveBeenCalled();
+  });
+
   it("CRITICAL: wrong-org — pet not under caller org returns 'Mascota no encontrada o no está bajo custodia de tu organización.'", async () => {
-    // Auth is implicit-org: the repo query is scoped to organization.id.
+    // Auth is URL-token pinned; the repo query is scoped to organization.id.
     // Use-case returns this error when findPetUnderOrg finds nothing.
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: false,
       error: "Mascota no encontrada o no está bajo custodia de tu organización.",
@@ -851,30 +933,40 @@ describe("transferCustodyAction — auth-scope: SOURCE ORG (custody.transfer) im
     );
   });
 
-  it("redirects to ?transferido=<petToken> on success", async () => {
+  it("returns the transfers hub on success (proposal opened, not an immediate flip)", async () => {
     const { redirect } = await import("next/navigation");
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: true,
-      value: undefined,
+      value: {
+        publicCode: "CASE-001",
+        caseId: "case-1",
+        petId: "pet-1",
+        senderOrgId: "org-1",
+        receiverOrgId: "org-2",
+      },
       notifications: [],
     });
     const formData = new FormData();
     formData.append("destinationOrgId", "org-2");
-    await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
-    expect(redirect).toHaveBeenCalledWith("/org/org-tok/mascotas?transferido=pet-tok");
+    // N3 (B.2): the action RETURNS the hub and the form navigates. A server
+    // action's own redirect() is dropped by the App Router in production — the
+    // transfer proposal would open and the operator would see nothing.
+    const state = await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
+    expect(state.redirectTo).toBe("/org/org-tok/transferencias");
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("returns error (no redirect) on use-case failure", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     transferCustodyUc.mockResolvedValue({
       ok: false,
-      error: "No se pudo transferir la custodia: error desconocido",
+      error: "No se pudo proponer la transferencia: error desconocido",
     });
     const formData = new FormData();
     formData.append("destinationOrgId", "org-2");
     const result = await transferCustodyAction("org-tok", "pet-tok", { error: null }, formData);
-    expect(result).toEqual({ error: "No se pudo transferir la custodia: error desconocido" });
+    expect(result).toEqual({ error: "No se pudo proponer la transferencia: error desconocido" });
   });
 });
 
@@ -1070,7 +1162,7 @@ describe("AUDIT LOG PARITY — C-1: all 9 operations insert auditLog rows", () =
   // R7 — proposeCrossOrgTransferAction → cross_org_transfer_proposed
   // --------------------------------------------------------------------------
   it("R7: proposeCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_proposed", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     const { proposeCrossOrgTransferAction } = await import("../actions");
     const { proposeCrossOrgTransfer } = await import("../application/propose-cross-org-transfer");
     (proposeCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -1109,7 +1201,7 @@ describe("AUDIT LOG PARITY — C-1: all 9 operations insert auditLog rows", () =
   // R8 — acceptCrossOrgTransferAction → cross_org_transfer_accepted
   // --------------------------------------------------------------------------
   it("R8: acceptCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_accepted", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     const { acceptCrossOrgTransferAction } = await import("../actions");
     const { acceptCrossOrgTransfer } = await import("../application/accept-cross-org-transfer");
     (acceptCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -1143,7 +1235,7 @@ describe("AUDIT LOG PARITY — C-1: all 9 operations insert auditLog rows", () =
   // R9 — rejectCrossOrgTransferAction → cross_org_transfer_rejected
   // --------------------------------------------------------------------------
   it("R9: rejectCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_rejected", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     const { rejectCrossOrgTransferAction } = await import("../actions");
     const { rejectCrossOrgTransfer } = await import("../application/reject-cross-org-transfer");
     (rejectCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -1181,7 +1273,7 @@ describe("AUDIT LOG PARITY — C-1: all 9 operations insert auditLog rows", () =
   // R10 — cancelCrossOrgTransferAction → cross_org_transfer_cancelled_by_sender
   // --------------------------------------------------------------------------
   it("R10: cancelCrossOrgTransferAction inserts auditLog with action=cross_org_transfer_cancelled_by_sender", async () => {
-    mockRequireCapability.mockResolvedValue(makeAuth());
+    mockRequireCapabilityForOrgToken.mockResolvedValue(makeAuth());
     const { cancelCrossOrgTransferAction } = await import("../actions");
     const { cancelCrossOrgTransfer } = await import("../application/cancel-cross-org-transfer");
     (cancelCrossOrgTransfer as ReturnType<typeof vi.fn>).mockResolvedValue({

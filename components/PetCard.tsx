@@ -3,18 +3,28 @@ import Link from "next/link";
 import { LnBadge } from "@/components/ui/Badge";
 import { LnPhoto } from "@/components/ui/Photo";
 import type { Pet } from "@/db";
-import { speciesLabel } from "@/lib/format";
-import { petStatusToPhotoStatus } from "@/lib/poncho-status";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
-import { type PriorityBadge, getPriorityBadge } from "./PetCard.helpers";
+import type { ReminderVariant } from "@/lib/domain/vaccine-reminder-state";
+import { petStatusToPhotoStatus } from "@/lib/infra/poncho-status";
+import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
+import { speciesLabel } from "@/lib/utils/format";
+import { type PriorityBadge, getPriorityBadge, isTransitRole } from "./PetCard.helpers";
+
+// lint:metric-labels (registry-import fence): this badge's copy now matches
+// the operator-dashboard KPI catalog's foster_active_placements label
+// verbatim (both localized off the English "foster" word — validacion-A
+// 2026-07-23). Reading it from the catalog instead of retyping the string
+// keeps the two surfaces from silently drifting apart.
+const TRANSIT_BADGE_LABEL = KPI_CATALOG.foster_active_placements.label;
 
 // Shared pet card. Used by /mis-mascotas (full grid), /inicio (top 6
 // snippet), and future surfaces. Self-contained — only depends on the
 // Pet row + the photo URL (caller resolves it via petPhotoUrl).
 //
-// "En tránsito" badge fires when the owner's ownership is a
-// shelter_custody row (vecino-en-tránsito helping a stray, not a real
-// owner). Keeps the visual contract identical to the inline original.
+// The transit badge (label sourced from KPI_CATALOG, see below) fires when
+// the owner's ownership is a foster row
+// (org-linked placement) or a shelter_custody row (vecino-en-tránsito
+// helping a stray, no org involved) — see isTransitRole in PetCard.helpers.ts.
+// Keeps the visual contract identical to the inline original.
 //
 // Priority badge (right side): lost > deceased > vaccine > none. See
 // PetCard.helpers.ts for the rule.
@@ -86,7 +96,7 @@ export function PetCard({
   ownershipRole: string;
   vaccineReminderState?: VaccineReminderState;
 }) {
-  const isTransit = ownershipRole === "shelter_custody";
+  const isTransit = isTransitRole(ownershipRole);
 
   return (
     <li>
@@ -105,7 +115,7 @@ export function PetCard({
             {pet.name}
             {isTransit && (
               <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-[var(--color-ln-warn-050)]  text-ln-warn  border border-ln-warn  align-middle">
-                En tránsito
+                {TRANSIT_BADGE_LABEL}
               </span>
             )}
           </p>

@@ -6,11 +6,11 @@
 // its own fixtures and tears them down in afterAll.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, pets, reminders } from "@/db";
-import { fetchActiveReminders, fetchActiveRemindersForPet } from "@/lib/owner-dashboard";
+import { fetchActiveReminders, fetchActiveRemindersForPet } from "@/lib/analytics/owner-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -174,10 +174,16 @@ describe("fetchActiveReminders — excludes snoozed reminders", () => {
 });
 
 // ---------------------------------------------------------------------------
-// T3: excludes reminders with dueAt > now + 14d
+// T3: COUNT-ALL — no future cap (decision D4)
+//
+// Before fix: reminders with dueAt > now+14d were excluded by a windowEnd cap,
+// making the dashboard KPI count diverge from the per-pet drilldown list.
+// After fix: all non-completed, non-snoozed reminders are returned regardless
+// of how far ahead their dueAt falls. Reminders beyond 7 days get variant
+// "upcoming" but are still counted and shown.
 // ---------------------------------------------------------------------------
 
-describe("fetchActiveReminders — excludes reminders outside 14d window", () => {
+describe("fetchActiveReminders — returns reminders beyond 14d (COUNT-ALL, D4)", () => {
   const EMAIL = "ar-window@dim-test.local";
   const PASS = "ArWindow_2026!";
   let userId: string;
@@ -187,14 +193,14 @@ describe("fetchActiveReminders — excludes reminders outside 14d window", () =>
     userId = await createUser(EMAIL, PASS);
     const pet = await createPetForUser(userId, `WN-${userId.slice(0, 4)}`);
     const now = new Date();
-    // within window: 13 days ahead
+    // 13 days ahead — previously "within" the 14d cap
     await insertReminder({
       petId: pet.id,
       userId,
       dueAt: new Date(now.getTime() + 13 * MS_PER_DAY),
       title: "Polivalente",
     });
-    // outside window: 15 days ahead
+    // 15 days ahead — previously excluded by the 14d cap, now included
     await insertReminder({
       petId: pet.id,
       userId,
@@ -205,10 +211,19 @@ describe("fetchActiveReminders — excludes reminders outside 14d window", () =>
 
   afterAll(() => cleanupUser(userId));
 
-  it("returns only the reminder within 14d window", async () => {
+  it("returns both reminders (no window cap)", async () => {
     const results = await fetchActiveReminders(userId);
-    expect(results.length).toBe(1);
-    expect(results[0].title).toBe("Polivalente");
+    expect(results.length).toBe(2);
+    const titles = results.map((r) => r.title);
+    expect(titles).toContain("Polivalente");
+    expect(titles).toContain("Sextuple");
+  });
+
+  it("both reminders beyond 7d get variant 'upcoming'", async () => {
+    const results = await fetchActiveReminders(userId);
+    for (const r of results) {
+      expect(r.variant).toBe("upcoming");
+    }
   });
 });
 

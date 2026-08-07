@@ -5,13 +5,24 @@
 // Province selection drives a searchParam update so the server can pass down
 // the correct localities list (same pattern as JurisdictionSwitcher pages).
 // Locality options are pre-loaded by the server page and passed as a prop.
+//
+// Design note (router-drop defect, same cure as components/gob/JurisdictionSwitcher.tsx):
+// Next 15.5.18's App Router can silently drop a client transition's own fetch in
+// production — the RSC request resolves 200 but the URL and UI never update.
+// This page server-renders the locality options from `?province=` on every
+// request, so a `router.replace` transition is exposed to the drop. A full
+// document navigation (`window.location.assign`) is the one mechanism proven
+// immune — the browser's native GET cannot be silently dropped, and it always
+// re-runs the server component with the new searchParams.
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
 import type { OrganizationCoverage } from "@/db";
-import type { LocalityOption } from "@/lib/ar-localidades";
-import type { Province } from "@/lib/ar-provincias";
+import type { LocalityOption } from "@/lib/infra/ar-localidades";
+import type { Province } from "@/lib/reference/ar-provincias";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   addCoverageZoneAction,
   removeCoverageZoneAction,
@@ -19,11 +30,11 @@ import {
 } from "@/src/modules/organizations/actions";
 
 const selectClasses =
-  "min-h-11 px-3 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink " +
+  "min-h-11 px-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink " +
   "focus:border-ln-op-azul focus:outline-none focus:ring-1 focus:ring-ln-op-azul " +
   "disabled:opacity-50 disabled:cursor-not-allowed w-full";
 
-const labelClasses = "text-[12px] font-medium text-ln-op-mute";
+const labelClasses = "text-sm font-medium text-ln-op-mute";
 
 type Props = {
   orgToken: string;
@@ -34,7 +45,6 @@ type Props = {
 };
 
 export function CoverageEditor({ orgToken, provinces, localities, zones, canManage }: Props) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +64,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
       params.delete("province");
     }
     params.delete("locality");
-    router.replace(`/org/${orgToken}/cobertura?${params.toString()}`, { scroll: false });
+    window.location.assign(`/org/${orgToken}/cobertura?${params.toString()}`);
   }
 
   function handleAdd() {
@@ -70,6 +80,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
         setError(result.error);
       } else {
         setSelectedLocality("");
+        notifySaved("Zona de cobertura agregada");
       }
     });
   }
@@ -78,7 +89,11 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
     setError(null);
     startTransition(async () => {
       const result = await removeCoverageZoneAction({ orgToken, coverageId });
-      if ("error" in result) setError(result.error);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        notifySaved("Zona de cobertura eliminada");
+      }
     });
   }
 
@@ -86,15 +101,19 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
     setError(null);
     startTransition(async () => {
       const result = await setPrimaryCoverageZoneAction({ orgToken, coverageId });
-      if ("error" in result) setError(result.error);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        notifySaved("Zona marcada como principal");
+      }
     });
   }
 
   return (
     <div className="space-y-6">
       {canManage && (
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-5 space-y-4">
-          <h2 className="text-[14px] font-semibold text-ln-op-ink">Agregar zona de cobertura</h2>
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-5 space-y-4">
+          <h2 className="text-md font-semibold text-ln-op-ink">Agregar zona de cobertura</h2>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
@@ -139,47 +158,59 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
           </div>
 
           {error && (
-            <p className="text-[12px] text-ln-op-danger" role="alert">
+            <p className="text-sm text-ln-op-danger" role="alert">
               {error}
             </p>
           )}
 
-          <button
-            type="button"
+          <OpButton
+            variant="primary"
             onClick={handleAdd}
             disabled={pending || !selectedProvinceCode}
-            className="inline-flex items-center gap-2 rounded-full bg-ln-op-azul px-5 py-2 text-[13px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700 disabled:opacity-60"
           >
             {pending ? "Guardando…" : "Agregar zona"}
-          </button>
+          </OpButton>
         </div>
       )}
 
       <div className="space-y-2">
-        <h2 className="text-[14px] font-semibold text-ln-op-ink">
-          Zonas registradas ({zones.length})
-        </h2>
+        <h2 className="text-md font-semibold text-ln-op-ink">Zonas registradas ({zones.length})</h2>
 
         {zones.length === 0 ? (
-          <p className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-[13px] text-ln-op-mute">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-4 py-6 text-center text-md text-ln-op-mute">
             Esta organización aún no tiene zonas de cobertura configuradas.
           </p>
         ) : (
-          <div className="overflow-x-auto rounded-[6px] border border-ln-op-line bg-ln-op-card">
-            <table className="w-full text-[13px]">
+          <div className="overflow-x-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
+            <table className="w-full text-md">
+              <caption className="sr-only">
+                Zonas de cobertura de la organización por provincia y localidad
+              </caption>
               <thead>
                 <tr className="border-b border-ln-op-line bg-ln-op-stripe">
-                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-sm font-medium text-ln-op-mute"
+                  >
                     Provincia
                   </th>
-                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-sm font-medium text-ln-op-mute"
+                  >
                     Localidad
                   </th>
-                  <th className="px-4 py-3 text-left text-[12px] font-medium text-ln-op-mute">
+                  <th
+                    scope="col"
+                    className="px-4 py-3 text-left text-sm font-medium text-ln-op-mute"
+                  >
                     Principal
                   </th>
                   {canManage && (
-                    <th className="px-4 py-3 text-right text-[12px] font-medium text-ln-op-mute">
+                    <th
+                      scope="col"
+                      className="px-4 py-3 text-right text-sm font-medium text-ln-op-mute"
+                    >
                       Acciones
                     </th>
                   )}
@@ -196,7 +227,7 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                     </td>
                     <td className="px-4 py-3">
                       {zone.isPrimary ? (
-                        <span className="inline-flex items-center rounded-full bg-ln-op-blue-bg px-2.5 py-0.5 text-[11px] font-medium text-ln-op-azul border border-ln-op-blue-bd">
+                        <span className="inline-flex items-center rounded-full bg-ln-op-blue-bg px-2.5 py-0.5 text-sm font-medium text-ln-op-azul border border-ln-op-blue-bd">
                           Principal
                         </span>
                       ) : (
@@ -207,23 +238,23 @@ export function CoverageEditor({ orgToken, provinces, localities, zones, canMana
                       <td className="px-4 py-3 text-right">
                         <div className="inline-flex gap-2">
                           {!zone.isPrimary && (
-                            <button
-                              type="button"
+                            <OpButton
+                              variant="ghost"
+                              size="sm"
                               onClick={() => handleSetPrimary(zone.id)}
                               disabled={pending}
-                              className="rounded-full border border-ln-op-line px-3 py-1 text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
                             >
                               Marcar principal
-                            </button>
+                            </OpButton>
                           )}
-                          <button
-                            type="button"
+                          <OpButton
+                            variant="danger"
+                            size="sm"
                             onClick={() => handleRemove(zone.id)}
                             disabled={pending}
-                            className="rounded-full border border-ln-op-danger-bd px-3 py-1 text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white disabled:opacity-60"
                           >
                             Eliminar
-                          </button>
+                          </OpButton>
                         </div>
                       </td>
                     )}

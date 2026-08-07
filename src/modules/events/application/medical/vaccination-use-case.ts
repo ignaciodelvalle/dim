@@ -10,7 +10,8 @@
 //   - Vaccine reminder created when nextDueAt provided.
 //   - No outbox. No audit_log.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { normalize } from "@/lib/domain/vaccine-reminder-state";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { UseCaseResult } from "../types";
@@ -40,12 +41,22 @@ export type CreateVaccinationInput = {
   uploadedMimeType: string | null;
   uploadedSize: number | null;
   clientIdempotencyKey: string | null;
+  /**
+   * Optional reminder description override. When provided (e.g. bulk path),
+   * replaces the default "Próxima dosis programada." Used so the bulk path
+   * can include the pet name without duplicating the vaccination logic.
+   */
+  reminderDescription?: string | null;
 };
 
 type Deps = {
   repo: Pick<
     EventsRepository,
-    "insertEventIdempotent" | "insertAttachment" | "completeReminder" | "insertReminders"
+    | "insertEventIdempotent"
+    | "insertAttachment"
+    | "completeReminder"
+    | "insertReminders"
+    | "findOpenReminders"
   >;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
 };
@@ -74,6 +85,7 @@ export async function createVaccination(
     uploadedMimeType,
     uploadedSize,
     clientIdempotencyKey,
+    reminderDescription,
   } = input;
   const { repo, transaction } = deps;
 
@@ -129,6 +141,30 @@ export async function createVaccination(
     }
 
     if (nextDueAt) {
+      const reminderTitle = `Refuerzo: ${vaccineName}`;
+
+      // Supersede any other open vaccine reminder that resolves to the same
+      // vaccine, case/accent-insensitively (title is free text, so
+      // "Refuerzo: antirrábica" vs "Refuerzo: Antirrábica" must NOT coexist).
+      // sourceReminderId is excluded here — it's already completed above.
+      const openVaccineReminders = await repo.findOpenReminders(
+        pet.id,
+        "vaccine",
+        tx as Parameters<typeof repo.findOpenReminders>[2],
+      );
+      const normalizedNewTitle = normalize(reminderTitle);
+      const duplicates = openVaccineReminders.filter(
+        (r) => r.id !== sourceReminderId && normalize(r.title) === normalizedNewTitle,
+      );
+      for (const duplicate of duplicates) {
+        await repo.completeReminder(
+          duplicate.id,
+          pet.id,
+          now,
+          tx as Parameters<typeof repo.completeReminder>[3],
+        );
+      }
+
       await repo.insertReminders(
         [
           {
@@ -136,8 +172,8 @@ export async function createVaccination(
             userId: user.id,
             reminderType: "vaccine",
             dueAt: nextDueAt,
-            title: `Refuerzo: ${vaccineName}`,
-            description: "Próxima dosis programada.",
+            title: reminderTitle,
+            description: reminderDescription ?? "Próxima dosis programada.",
             sourceEventId: event.id,
           },
         ],

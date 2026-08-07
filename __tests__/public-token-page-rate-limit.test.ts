@@ -51,8 +51,8 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
     enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
@@ -89,42 +89,51 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 // Mock: heavy lib deps (not under test)
 // ---------------------------------------------------------------------------
 
-vi.mock("@/lib/event-confidence", () => ({
+vi.mock("@/lib/events/event-confidence", () => ({
   computeConfidence: vi.fn(() => "self_reported"),
   isAtLeast: vi.fn(() => false),
 }));
-vi.mock("@/lib/format", () => ({
+vi.mock("@/lib/utils/format", () => ({
   sexLabel: vi.fn(() => ""),
   speciesLabel: vi.fn(() => "perro"),
   statusLabel: vi.fn(() => "activo"),
+  situationLabelForSex: vi.fn((label: string) => label),
 }));
-vi.mock("@/lib/location", () => ({ readPoint: vi.fn(() => null) }));
-vi.mock("@/lib/origin-org", () => ({
+vi.mock("@/lib/domain/location", () => ({ readPoint: vi.fn(() => null) }));
+vi.mock("@/lib/infra/origin-org", () => ({
   resolveOriginOrg: vi.fn(async () => null),
   shouldShowOriginOrgBadge: vi.fn(() => false),
 }));
-vi.mock("@/lib/permanent-conditions", () => ({
+vi.mock("@/lib/reference/permanent-conditions", () => ({
   isPermanentCondition: vi.fn(() => false),
   permanentConditionShortLabel: vi.fn(() => ""),
+  permanentConditionLabel: vi.fn(() => ""),
+  resolveLostSpecialConditions: vi.fn(() => null),
 }));
-vi.mock("@/lib/pet-identifiers", () => ({
+vi.mock("@/lib/infra/pet-identifiers", () => ({
   fetchActiveIdentifications: vi.fn(async () => ({ microchip: null, tattoo: null })),
 }));
-vi.mock("@/lib/storage", () => ({ petPhotoUrl: vi.fn(() => null) }));
+vi.mock("@/lib/infra/storage", () => ({ petPhotoUrl: vi.fn(() => null) }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: vi.fn(() => ({})) }));
 vi.mock("@/components/PppPublicBadge", () => ({ PppPublicBadge: vi.fn(() => null) }));
 vi.mock("@/components/event/ConfidenceBadge", () => ({ ConfidenceBadge: vi.fn(() => null) }));
-vi.mock("@/components/pet-profile/LostPublicCredential", () => ({
-  LostPublicCredential: vi.fn(() => null),
+vi.mock("@/components/pet-profile/PublicLostSections", () => ({
+  PublicLostSections: vi.fn(() => null),
+  formatLostSince: vi.fn(() => "hace 3 días"),
 }));
-vi.mock("@/app/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
-vi.mock("@/app/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));
-vi.mock("@/app/p/[publicToken]/Tier2MedicalView", () => ({ Tier2MedicalView: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/FoundPetForm", () => ({ FoundPetForm: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/ScanLogger", () => ({ ScanLogger: vi.fn(() => null) }));
+vi.mock("@/app/(public)/p/[publicToken]/Tier2MedicalView", () => ({
+  Tier2MedicalView: vi.fn(() => null),
+}));
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
+// Thenable (resolving []) besides .limit(): the amendments query
+// (getAmendmentEvents, on the always-run semaphore path) awaits the chain
+// directly after .where() with no .limit().
 function buildSelectChain(firstResult: unknown[] = []) {
   let callCount = 0;
   const chain = {
@@ -137,6 +146,11 @@ function buildSelectChain(firstResult: unknown[] = []) {
       callCount++;
       return callCount === 1 ? firstResult : [];
     }),
+    // biome-ignore lint/suspicious/noThenProperty: intentional thenable — mocks drizzle's awaitable query chain
+    then: (
+      onFulfilled?: (value: unknown[]) => unknown,
+      onRejected?: (reason: unknown) => unknown,
+    ) => Promise.resolve([] as unknown[]).then(onFulfilled, onRejected),
   };
   return chain;
 }
@@ -153,7 +167,7 @@ describe("PublicCredentialPage — per-IP rate limiting (V1-1)", () => {
   });
 
   it("calls enforceRateLimit with 'public_token_page' and caller IP", async () => {
-    const { default: PublicCredentialPage } = await import("@/app/p/[publicToken]/page");
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
 
     // Pet not found path — notFound() will throw. We only care that enforceRateLimit
     // was called with the right arguments.
@@ -177,7 +191,7 @@ describe("PublicCredentialPage — per-IP rate limiting (V1-1)", () => {
       ),
     );
 
-    const { default: PublicCredentialPage } = await import("@/app/p/[publicToken]/page");
+    const { default: PublicCredentialPage } = await import("@/app/(public)/p/[publicToken]/page");
 
     const result = await PublicCredentialPage({
       params: Promise.resolve({ publicToken: "DIM-AAAA-BBBB" }),

@@ -4,7 +4,8 @@
  * MisTurnosSheetMounter — deep-link driven sheets for the appointment detail page.
  *
  * Opens the appropriate sheet based on `?sheet=<id>` URL state.
- * Closing removes the `sheet` param from the URL via router.replace.
+ * Closing removes the `sheet` param from the URL via closeSheetNav (native
+ * History API — router-hot-path fix, see lib/ui/sheet-nav.ts).
  *
  * Supported sheet IDs:
  *   cancelar-turno
@@ -12,8 +13,9 @@
 
 import { LnButton } from "@/components/ui/Button";
 import { Sheet } from "@/components/ui/VaulSheet";
-import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
+import { closeSheetNav, closeSheetNavWithFullReload } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useState, useTransition } from "react";
 
 import { cancelAppointmentByOwnerAction } from "@/app/actions/booking";
@@ -23,21 +25,37 @@ type Props = {
 };
 
 export function MisTurnosSheetMounter({ appointmentToken }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sheet = searchParams.get("sheet");
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
-    router.replace(buildCloseSheetUrl(pathname, params));
-  }, [router, pathname, searchParams]);
+    closeSheetNav(buildCloseSheetUrl(pathname, params));
+  }, [pathname, searchParams]);
+
+  // Cancelling the appointment mutates server-rendered content elsewhere on
+  // the page (the status badge + this very cancel button, both rendered by
+  // the server page.tsx) that a shallow close does NOT re-fetch — same
+  // rationale as SheetMounter's closeAfterEmergencyContactSave. This used to
+  // be router.refresh() + close(), but router.refresh() rides the same
+  // client-router transition machinery that silently drops in production
+  // (see closeSheetNavWithFullReload's docblock), so it uses the full-reload
+  // close variant instead.
+  const closeAfterCancel = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString());
+    closeSheetNavWithFullReload(buildCloseSheetUrl(pathname, params));
+  }, [pathname, searchParams]);
 
   if (sheet === "cancelar-turno") {
     const action = cancelAppointmentByOwnerAction.bind(null, appointmentToken);
     return (
       <Sheet id="cancelar-turno" title="Cancelar turno" open onClose={close} size="sm">
-        <CancelarTurnoConfirmation action={action} onCancel={close} />
+        <CancelarTurnoConfirmation
+          action={action}
+          onCancel={close}
+          onCancelled={closeAfterCancel}
+        />
       </Sheet>
     );
   }
@@ -52,11 +70,12 @@ export function MisTurnosSheetMounter({ appointmentToken }: Props) {
 function CancelarTurnoConfirmation({
   action,
   onCancel,
+  onCancelled,
 }: {
   action: () => Promise<{ ok: true } | { error: string }>;
   onCancel: () => void;
+  onCancelled: () => void;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -69,9 +88,9 @@ function CancelarTurnoConfirmation({
         setError(result.error);
         return;
       }
-      // Refresh so status badge + cancel button update, then close sheet.
-      router.refresh();
-      onCancel();
+      // Status badge + cancel button are server-rendered — close via the
+      // full-reload variant so they pick up the new state (see onCancelled).
+      onCancelled();
     });
   }
 

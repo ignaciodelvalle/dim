@@ -2,13 +2,14 @@
 //
 // Tests verify:
 //   1. Anon happy path → petEvents (kind=finder_in_possession) + notification created.
-//   2. Logged-in path → recordedByUserId set, authorVerified=true.
+//   2. Logged-in path → recordedByUserId stays NULL, authorVerified=false
+//      (finder anonymity invariant — privacy hardening 2026-07-04).
 //   3. Pet not lost → ok:false.
 //   4. Rate limit → ok:false.
 //   5. Idempotency guard → ok:true without second insert.
 //   6. Photo upload failure → non-fatal (ok:true + warning).
-//   7. Missing name → ok:false.
-//   8. Missing both phone and email → ok:false.
+//   7. Missing name → accepted (anonymous handoff, PO 2026-07-24).
+//   8. Missing both phone and email → accepted; owner told no contact left.
 //   9. Missing location → ok:false.
 //  10. Notification severity=urgent, category=perdidas.
 //  11. Vet-urgent condition sets urgent body copy in notification.
@@ -29,6 +30,10 @@ const PREVIOUS_STATE = { ok: false as const, error: null };
 const BASE_FIELDS = {
   finderName: "Ana González",
   finderPhone: "11-5555-0001",
+  // Exact point is now the required location field. localityName/province are
+  // still emitted by LocationFields (L2 reverse geocode) and kept as context.
+  locationLat: "-34.92",
+  locationLng: "-57.95",
   localityName: "La Plata",
   petCondition: "bien",
 };
@@ -57,7 +62,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 // ---------------------------------------------------------------------------
 
 const mockUpload = vi.fn();
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/infra/uploads", () => ({
   uploadAttachmentIfPresent: (supabase: unknown, file: unknown, bucket: unknown) =>
     mockUpload(supabase, file, bucket),
 }));
@@ -87,8 +92,8 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
     enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
@@ -98,7 +103,9 @@ vi.mock("@/lib/rate-limit", async (importOriginal) => {
 });
 
 // ---------------------------------------------------------------------------
-// Mock: @/lib/supabase/server — no logged-in user by default.
+// Mock: @/lib/supabase/server — simulates the browser session. The action must
+// NOT read it (finder anonymity invariant): even when getUser would return a
+// logged-in user, the persisted event must carry recordedByUserId=null.
 // ---------------------------------------------------------------------------
 
 const mockGetUser = vi.fn(async () => ({
@@ -125,28 +132,50 @@ let idempotencyReturnEvent = false;
 function buildMockDb(petStatus = "lost") {
   let selectCallCount = 0;
 
+  // Positional fake: each terminated select returns the next fixture in order.
+  //
+  // Terminating on `.limit()` ALONE was a trap (2026-08-04): the action's owner
+  // lookup stopped calling `.limit(1)` — it now reads every active ownership row
+  // so it can RANK them (ROUTE-1) — and the chain silently handed back the
+  // builder object instead of rows, so `.find` was not a function. The chain is
+  // thenable now, so a query that ends at `.where()` resolves the same way and
+  // this fake stops depending on how a query happens to be spelled.
+  function nextResult(): unknown[] {
+    selectCallCount++;
+    if (selectCallCount === 1) {
+      // pet query
+      return [{ id: PET_ID, name: "Luna", status: petStatus }];
+    }
+    if (selectCallCount === 2) {
+      // active holders — ranked by role, titular wins
+      return [{ userId: OWNER_USER_ID, role: "owner" }];
+    }
+    if (selectCallCount === 3) {
+      // idempotency query
+      return idempotencyReturnEvent ? [{ id: "existing-event-id" }] : [];
+    }
+    if (selectCallCount === 4) {
+      // open case query
+      return [{ id: CASE_ID }];
+    }
+    // Origin-shelter lookup and anything after it: this fixture's pet never
+    // passed through a shelter, so the A5 notification block is skipped.
+    return [];
+  }
+
   const selectChain = {
     from: vi.fn(() => selectChain),
     where: vi.fn(() => selectChain),
     innerJoin: vi.fn(() => selectChain),
     leftJoin: vi.fn(() => selectChain),
-    limit: vi.fn(async () => {
-      selectCallCount++;
-      if (selectCallCount === 1) {
-        // pet query
-        return [{ id: PET_ID, name: "Luna", status: petStatus }];
-      }
-      if (selectCallCount === 2) {
-        // owner query
-        return [{ userId: OWNER_USER_ID }];
-      }
-      if (selectCallCount === 3) {
-        // idempotency query
-        return idempotencyReturnEvent ? [{ id: "existing-event-id" }] : [];
-      }
-      // open case query
-      return [{ id: CASE_ID }];
-    }),
+    orderBy: vi.fn(() => selectChain),
+    limit: vi.fn(async () => nextResult()),
+    // The object this fake stands in for — Drizzle's query builder — IS a
+    // thenable by design: `await db.select().from(x).where(y)` resolves with no
+    // terminal call. A double that is not thenable can only emulate the queries
+    // that happen to end in `.limit()`, and that gap is exactly what broke here.
+    // biome-ignore lint/suspicious/noThenProperty: emulating Drizzle's thenable query builder
+    then: (resolve: (v: unknown[]) => unknown) => resolve(nextResult()),
   };
 
   // insertChain supports .values().returning() (petEvents) and .values() alone
@@ -226,7 +255,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
 
   it("anon happy path: inserts petEvent (kind=finder_in_possession) and notification", async () => {
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -252,6 +281,10 @@ describe("reportFinderInPossessionAction — P0e", () => {
       provinceCode: null,
       provinceName: null,
     });
+    // Exact point persisted on the event row (columns, not payload) — this is
+    // what the owner-side map reads to show where the finder has the pet.
+    expect(capturedPetEventInsert?.locationLat).toBe("-34.92");
+    expect(capturedPetEventInsert?.locationLng).toBe("-57.95");
     expect(payload.petCondition).toBe("bien");
     expect(payload.canKeepIndefinite).toBe(true);
     expect(payload.canKeepUntil).toBeNull();
@@ -275,7 +308,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["fake-image-bytes"], "luna-now.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
@@ -298,7 +331,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["bytes"], "fail.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
@@ -311,26 +344,31 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(payload.photoStoragePath == null).toBe(true);
   });
 
-  // --- Logged-in path ---
+  // --- Logged-in path: finder anonymity invariant ---
 
-  it("logged-in user: sets recordedByUserId and authorVerified=true", async () => {
+  it("logged-in finder: recordedByUserId stays NULL and authorVerified=false (anonymity invariant)", async () => {
     vi.resetModules();
     buildMockDb("lost");
+    // Simulate a logged-in session — the action must ignore it entirely.
     mockGetUser.mockResolvedValue({
       data: { user: { id: FINDER_USER_ID, email: "ana@test.com" } },
       error: null,
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(result.ok).toBe(true);
-    expect(capturedPetEventInsert?.recordedByUserId).toBe(FINDER_USER_ID);
-    expect(capturedPetEventInsert?.authorVerified).toBe(true);
+    // The report must NOT link the finder's DIM account: identity lives only
+    // in the typed payload fields (finderName / finderContact).
+    expect(capturedPetEventInsert?.recordedByUserId).toBeNull();
+    expect(capturedPetEventInsert?.authorVerified).toBe(false);
+    const payload = capturedPetEventInsert?.payload as Record<string, unknown>;
+    expect(payload.finderName).toBe("Ana González");
   });
 
   // --- Validation failures ---
@@ -340,7 +378,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("active");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -351,32 +389,37 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(capturedPetEventInsert).toBeNull();
   });
 
-  it("returns ok:false when finderName is missing", async () => {
+  it("accepts a handoff without finderName (anonymous, PO 2026-07-24) — payload carries null, copy falls back to 'Alguien'", async () => {
     vi.resetModules();
     buildMockDb("lost");
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const { finderName: _dropped, ...noName } = BASE_FIELDS;
     const fd = makeFormData({ ...noName, canKeepIndefinite: "true" });
 
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain("nombre");
+    expect(result.ok).toBe(true);
+    const payload = capturedPetEventInsert?.payload as Record<string, unknown>;
+    expect(payload.finderName).toBeNull();
+    expect(capturedNotificationInsert?.body as string).toContain("Alguien");
   });
 
-  it("returns ok:false when both phone and email are missing", async () => {
+  it("a validation-rejected submission does NOT consume the rate-limit budget (tester fix #6)", async () => {
     vi.resetModules();
     buildMockDb("lost");
+    mockEnforceRateLimit.mockClear();
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
-    const { finderPhone: _dropped, ...noPhone } = BASE_FIELDS;
+    // No lat/lng — the required map point is missing → rejected pre-limit.
     const fd = makeFormData({
       finderName: "Ana",
+      finderPhone: "1111",
       localityName: "La Plata",
       petCondition: "bien",
       canKeepIndefinite: "true",
@@ -385,19 +428,46 @@ describe("reportFinderInPossessionAction — P0e", () => {
     const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
     expect(result.ok).toBe(false);
-    expect(result.error).toContain("contacto");
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
   });
 
-  it("returns ok:false when locality is missing", async () => {
+  it("accepts a handoff without any contact — owner is told no contact was left (PO 2026-07-24)", async () => {
+    vi.resetModules();
+    buildMockDb("lost");
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+
+    const { reportFinderInPossessionAction } = await import(
+      "@/app/(public)/p/[publicToken]/encontre/action"
+    );
+    const fd = makeFormData({
+      finderName: "Ana",
+      locationLat: "-34.92",
+      locationLng: "-57.95",
+      localityName: "La Plata",
+      petCondition: "bien",
+      canKeepIndefinite: "true",
+    });
+
+    const result = await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    const payload = capturedPetEventInsert?.payload as Record<string, unknown>;
+    expect(payload.finderContact).toBeNull();
+    expect(capturedNotificationInsert?.body as string).toContain("No dejó datos de contacto");
+  });
+
+  it("returns ok:false when the map point is missing", async () => {
     vi.resetModules();
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
+    // Has locality but NO lat/lng — the exact point is now the required field.
     const fd = makeFormData({
       finderName: "Ana",
       finderPhone: "1111",
+      localityName: "La Plata",
       petCondition: "bien",
       canKeepIndefinite: "true",
     });
@@ -413,11 +483,13 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({
       finderName: "Ana",
       finderPhone: "1111",
+      locationLat: "-34.92",
+      locationLng: "-57.95",
       localityName: "La Plata",
       petCondition: "bien",
       // no canKeepIndefinite or canKeepUntil
@@ -443,7 +515,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     );
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -462,7 +534,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     buildMockDb("lost");
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -483,11 +555,13 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({
       finderName: "Carlos",
       finderPhone: "9999",
+      locationLat: "-32.95",
+      locationLng: "-60.66",
       localityName: "Rosario",
       petCondition: "necesita_vet_urgente",
       canKeepIndefinite: "true",
@@ -506,7 +580,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -529,7 +603,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["fake-image-bytes"], "luna-now.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
@@ -546,10 +620,11 @@ describe("reportFinderInPossessionAction — P0e", () => {
     expect(att.uploadedByUserId).toBeNull();
   });
 
-  it("P0g: sets uploadedByUserId on attachment when finder is logged in", async () => {
+  it("P0g: uploadedByUserId stays NULL on attachment even when finder is logged in", async () => {
     vi.resetModules();
     buildMockDb("lost");
     capturedAttachmentInsert = null;
+    // Simulate a logged-in session — the attachment must NOT link the account.
     mockGetUser.mockResolvedValue({
       data: { user: { id: FINDER_USER_ID, email: "ana@test.com" } },
       error: null,
@@ -562,16 +637,16 @@ describe("reportFinderInPossessionAction — P0e", () => {
     });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const photo = new File(["fake-image-bytes"], "now.jpg", { type: "image/jpeg" });
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true", photoNow: photo });
 
     await reportFinderInPossessionAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
-    expect((capturedAttachmentInsert as unknown as Record<string, unknown>).uploadedByUserId).toBe(
-      FINDER_USER_ID,
-    );
+    expect(
+      (capturedAttachmentInsert as unknown as Record<string, unknown>).uploadedByUserId,
+    ).toBeNull();
   });
 
   it("P0g: does NOT insert an attachments row when no photo is provided", async () => {
@@ -581,7 +656,7 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({ ...BASE_FIELDS, canKeepIndefinite: "true" });
 
@@ -599,12 +674,14 @@ describe("reportFinderInPossessionAction — P0e", () => {
     mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
 
     const { reportFinderInPossessionAction } = await import(
-      "@/app/p/[publicToken]/encontre/action"
+      "@/app/(public)/p/[publicToken]/encontre/action"
     );
     const fd = makeFormData({
       finderName: "María",
       finderPhone: "11-1111-2222",
       finderEmail: "maria@test.com",
+      locationLat: "-34.92",
+      locationLng: "-57.95",
       localityName: "La Plata",
       petCondition: "bien",
       canKeepIndefinite: "true",

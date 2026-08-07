@@ -4,8 +4,10 @@ import Link from "next/link";
 
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, ownerships, pets } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { and, desc, eq, isNotNull, ne } from "drizzle-orm";
+
+import { formatDateShort } from "@/lib/utils/format";
 
 const STATUS_LABELS = {
   pending: "Pendiente",
@@ -46,61 +48,50 @@ export default async function TransitosHistorialPage() {
     .orderBy(desc(fosterProposals.proposedAt));
 
   return (
-    <div className="mx-auto max-w-3xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-3xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-7">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Historial de tránsitos
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Tránsitos terminados y propuestas que no llegaron a aceptarse.
         </p>
       </div>
 
-      <div className="flex flex-col gap-[32px]">
+      <div className="flex flex-col gap-8">
         {/* Finalized */}
         <section>
-          <LnSectionHead num="01" title="Tránsitos finalizados" className="mb-[16px]" />
+          <LnSectionHead num="01" title="Tránsitos finalizados" className="mb-4" />
           {past.length === 0 ? (
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               Todavía no tenés tránsitos finalizados.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {past.map(({ ownership, pet }) => (
                 <div
                   key={ownership.id}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 last:border-b-0"
                 >
                   <div>
                     <Link
                       href={`/mis-mascotas/${pet.publicToken}`}
-                      className="text-[13.5px] font-medium text-[var(--color-ln-ink)] no-underline hover:underline"
+                      className="text-md font-medium text-[var(--color-ln-ink)] no-underline hover:underline"
                     >
                       {pet.name}
                     </Link>
-                    <p className="mt-[1px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                      {ownership.startedAt
-                        ? new Date(ownership.startedAt).toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })
-                        : ""}
-                      {ownership.endedAt &&
-                        ` → ${new Date(ownership.endedAt).toLocaleDateString("es-AR", {
-                          day: "numeric",
-                          month: "short",
-                          year: "numeric",
-                        })}`}
+                    <p className="mt-px font-ln-mono text-sm text-[var(--color-ln-mute)]">
+                      {ownership.startedAt ? formatDateShort(ownership.startedAt) : ""}
+                      {ownership.endedAt && ` → ${formatDateShort(ownership.endedAt)}`}
                     </p>
                   </div>
                 </div>
@@ -111,32 +102,32 @@ export default async function TransitosHistorialPage() {
 
         {/* Not-accepted proposals */}
         <section>
-          <LnSectionHead num="02" title="Propuestas no concretadas" className="mb-[16px]" />
+          <LnSectionHead num="02" title="Propuestas no concretadas" className="mb-4" />
           {noProposals.length === 0 ? (
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               No hay propuestas en el historial.
             </p>
           ) : (
-            <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+            <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
               {noProposals.map(({ proposal, pet, org }) => (
                 <div
                   key={proposal.id}
-                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-[16px] py-[12px] last:border-b-0"
+                  className="flex items-center justify-between gap-3 border-b border-[var(--color-ln-line-2)] px-4 py-3 last:border-b-0"
                 >
                   <div>
-                    <p className="text-[13px] font-medium text-[var(--color-ln-ink)]">
+                    <p className="text-md font-medium text-[var(--color-ln-ink)]">
                       {pet.name}{" "}
                       <span className="font-normal text-[var(--color-ln-mute)]">
                         · {org.displayName}
                       </span>
                     </p>
                     {proposal.rejectionReason && (
-                      <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">
+                      <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">
                         Motivo: {proposal.rejectionReason}
                       </p>
                     )}
                   </div>
-                  <span className="flex-shrink-0 font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
+                  <span className="flex-shrink-0 font-ln-mono text-xs uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
                     {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ??
                       proposal.status}
                   </span>
@@ -148,10 +139,10 @@ export default async function TransitosHistorialPage() {
       </div>
 
       {/* Nav */}
-      <div className="mt-[32px] border-t border-[var(--color-ln-line-2)] pt-[14px]">
+      <div className="mt-8 border-t border-[var(--color-ln-line-2)] pt-3.5">
         <Link
           href="/cuenta/transitos/activos"
-          className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Tránsitos activos
         </Link>

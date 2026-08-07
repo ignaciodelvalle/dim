@@ -20,26 +20,52 @@
 // NO business logic beyond edge orchestration. NO direct pet row writes.
 
 import { db, notifications } from "@/db";
-import { isPotentiallyDangerousBreedForJurisdiction } from "@/lib/breeds-server";
-import { lookupByChip } from "@/lib/chip-lookup";
 import {
   JurisdictionValidationError,
-  resolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
-import { generateForceToken, validateForceToken } from "@/lib/microchip-force-token";
-import { validateMicrochipId } from "@/lib/microchip-validation";
-import { requirePetAccess } from "@/lib/pet-access";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+  normalizeLocationForWrite,
+} from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { validateMicrochipId } from "@/lib/domain/microchip-validation";
+import { lookupByChip } from "@/lib/infra/chip-lookup";
+import { generateForceToken, validateForceToken } from "@/lib/infra/microchip-force-token";
+import { findSameOwnerDuplicatePet } from "@/lib/infra/owner-pet-dedupe";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { resolvePppClassificationForJurisdiction } from "@/lib/infra/ppp-classification";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
 import { createClient } from "@/lib/supabase/server";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
-import { redirect } from "next/navigation";
 
-import type { NewNotification } from "@/src/modules/adoption/application/set-adoption-eligibility";
+/**
+ * Parses the domain layer's `estimatedWeightKg: string | null` into the
+ * `number | null` resolvePppClassificationForJurisdiction expects.
+ * NaN-guards a malformed string down to null (treated as "no weight data",
+ * same as omitted — never throws).
+ */
+function parseEstimatedWeightKg(raw: string | null): number | null {
+  if (raw === null || raw.trim() === "") return null;
+  const n = Number.parseFloat(raw);
+  return Number.isNaN(n) ? null : n;
+}
+
+import { recordChipDisputeAgainstActivePet } from "./application/chip-match/record-chip-dispute";
+import { recordMovementWriter } from "./application/movement/record-movement";
 import { registerPet } from "./application/register-pet";
 import { updatePet } from "./application/update-pet";
 import { parsePetForm } from "./domain/pet-form";
-import type { NewPetFormState } from "./domain/types";
+import type { NewNotification, NewPetFormState } from "./domain/types";
 import { PetsRepository } from "./infrastructure/pets-repository";
+
+// Species accepted by the credential (must match parsePetForm / the register
+// forms). Used by the FULL-LOCK species-correction path to reject junk.
+const ALLOWED_SPECIES = ["dog", "cat", "rabbit", "guinea_pig", "ferret", "other"] as const;
+
+// Duplicate-chip gate (data-quality gate P3). A microchip is a globally-unique
+// identity: if it already exists in miMAR, the pet exists — the owner must
+// claim it or request a transfer, not register a second credential for it.
+// Points at the claim wizard (/mis-mascotas/reclamar), which also opens a
+// custody dispute when the chip is registered to someone else.
+const CHIP_ALREADY_REGISTERED_MSG =
+  "Este microchip ya figura registrado en miMAR para otra mascota. Si es tuya, vinculala a tu cuenta o pedí la transferencia desde “Mis mascotas › Reclamar una mascota”.";
 
 // Re-export for consumers that import the type from this module.
 export type { NewPetFormState } from "./domain/types";
@@ -55,6 +81,9 @@ async function flushNotifications(pending: NewNotification[]): Promise<void> {
     await db
       .insert(notifications)
       .values(pending as unknown as (typeof notifications.$inferInsert)[]);
+    // Web Push leg (ADR 2026-07-18 §4): urgent-only, best-effort, never throws.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications(pending as unknown as (typeof notifications.$inferInsert)[]);
   } catch (e) {
     console.error("[pets/actions] notifications insert failed (action did succeed):", e);
   }
@@ -75,24 +104,70 @@ export async function createPetAction(
   if (!user) return { error: "Sesión expirada. Iniciá sesión de nuevo." };
 
   const parseResult = parsePetForm(formData);
-  if (parseResult.error !== null) return { error: parseResult.error };
+  if (parseResult.error !== null) {
+    const msg =
+      parseResult.error === "LOCALITY_REQUIRED"
+        ? "Seleccioná la localidad antes de continuar."
+        : parseResult.error === "LOCALITY_UNRESOLVED"
+          ? "Elegí la localidad/barrio de la lista de sugerencias."
+          : parseResult.error;
+    return { error: msg };
+  }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
   const parsed = parseResult.parsed as NonNullable<typeof parseResult.parsed>;
 
   // Jurisdiction canonicalization (pre-tx, request-edge I/O).
+  // locality:"strict" — resolveCanonicalJurisdiction (createPet behavior unchanged).
   if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
     try {
-      const canonical = await resolveCanonicalJurisdiction({
-        rawProvince: parsed.jurisdictionProvince,
-        rawLocality: parsed.jurisdictionLocality,
-      });
-      parsed.jurisdictionProvince = canonical.province.name;
-      parsed.jurisdictionLocality = canonical.locality.localityName;
+      const normalizedLoc = await normalizeLocationForWrite(
+        {
+          province: parsed.jurisdictionProvince,
+          provinceCode: null,
+          locality: parsed.jurisdictionLocality,
+          localityIndecId: null,
+          lat: null,
+          lng: null,
+          address: null,
+        },
+        { locality: "strict" },
+      );
+      parsed.jurisdictionProvince = normalizedLoc.province;
+      parsed.jurisdictionLocality = normalizedLoc.locality;
+      // Structural locality-attribution FK (migration 0147) — threaded into the
+      // pets insert via the RegisterPet use-case.
+      parsed.localityId = normalizedLoc.localityId;
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
         return { error: err.message };
       }
       throw err;
+    }
+  }
+
+  // Data-quality gate P2 — soft same-owner dedupe. BEFORE any insert (and before
+  // the photo upload, so a bounced submit leaves no orphan storage object): if
+  // the caller already has an ACTIVE owned pet matching on normalized name +
+  // species + sex, surface a non-blocking "¿es la misma?" prompt. The owner can
+  // open the existing pet or resubmit with duplicateOverride=1 to create anyway.
+  const duplicateOverride = String(formData.get("duplicateOverride") ?? "").trim() === "1";
+  if (!duplicateOverride) {
+    const dup = await findSameOwnerDuplicatePet({
+      ownerUserId: user.id,
+      name: parsed.name,
+      species: parsed.species,
+      sex: parsed.sex,
+    });
+    if (dup) {
+      return {
+        error: null,
+        duplicatePrompt: {
+          name: dup.name,
+          species: dup.species,
+          sex: dup.sex,
+          publicToken: dup.publicToken,
+        },
+      };
     }
   }
 
@@ -105,35 +180,113 @@ export async function createPetAction(
     parsed.microchipId = chipValidation.normalized;
   }
 
+  // Chip-conflict adjudication receipt (RA-2 F6) — checked BEFORE either chip
+  // gate below, because both of them would otherwise dead-end an actor who has
+  // already answered the question they ask.
+  //
+  // A valid forceToken means: this actor was shown the conflicting record and
+  // said "no es la misma". It does NOT mean "insert the chip anyway" —
+  // pet_identifications_chip_unique (migration 0056) is a partial UNIQUE on
+  // code WHERE kind='microchip_iso' AND status='active', so a second active
+  // claim on the same code cannot exist. The old `active`-branch comment
+  // "Force token valid — fall through to insert" fell through WITH
+  // parsed.microchipId still set, so the insert died on that index with an
+  // opaque Postgres error.
+  //
+  // What the escape hatch actually promises is what the match card's own copy
+  // says — "Si no es la misma, podés continuar con el registro de tu mascota":
+  // register THIS animal. The disputed code stays with the record that already
+  // holds it; the new pet is registered without a chip and its owner can add
+  // the correct one afterwards.
+  //
+  // Hoisted above BOTH gates on purpose: scoping it to the found_stray branch
+  // left the returning finder blocked by the P3 gate below the moment they
+  // picked any other acquisition method.
+  //
+  // Redeeming one is itself a fact about the OTHER record, so the code is kept
+  // here and written to that record's spine once the alta commits — see
+  // recordChipDisputeAgainstActivePet below.
+  let adjudicatedChipCode: string | null = null;
+  if (parsed.microchipId) {
+    const forceToken = String(formData.get("forceToken") ?? "").trim();
+    if (forceToken && validateForceToken(parsed.microchipId, forceToken)) {
+      adjudicatedChipCode = parsed.microchipId;
+      parsed.microchipId = null;
+      parsed.microchipCountryCode = null;
+      parsed.microchipImplantedAt = null;
+      parsed.microchipImplantedBy = null;
+      parsed.microchipLocation = null;
+    }
+  }
+
   // Chip cross-check (found_stray + chip set) — request-edge: redirect stays here.
   if (parsed.acquisitionMethod === "found_stray" && parsed.microchipId) {
     const match = await lookupByChip(parsed.microchipId);
     if (match) {
       if (match.pet.status === "lost") {
-        redirect(`/mis-mascotas/nueva/match/${match.pet.publicToken}`);
+        // N3: the form navigates. This is a MID-action branch, so the comment
+        // that once sat here ("request-edge: redirect stays here") was the only
+        // thing defending it — and it never said why this call would be immune
+        // to a defect that hits every other one (X1-F3).
+        //
+        // The match page's "No es la misma" mints the adjudication receipt this
+        // branch checks above, so the neighbour who finds a stray is no longer
+        // bounced back to a form that can only send them here again.
+        //
+        // The code travels in the query string because it is the match page's
+        // authorization: that page renders owner PII and its confirm action
+        // adjudicates the chip, and both now demand proof the caller knows the
+        // colliding code. It is this actor's own input going back to this
+        // actor's own browser — no disclosure, and the same shape the return
+        // leg already used.
+        return {
+          error: null,
+          redirectTo: `/mis-mascotas/nueva/match/${match.pet.publicToken}?chip=${encodeURIComponent(parsed.microchipId)}`,
+        };
       }
 
       if (match.pet.status === "active") {
-        const forceToken = String(formData.get("forceToken") ?? "").trim();
-        const forceValid = forceToken ? validateForceToken(parsed.microchipId, forceToken) : false;
-
-        if (!forceValid) {
-          return {
-            error: null,
-            warning: "CHIP_MATCH_ACTIVE",
-            matchedPetToken: match.pet.publicToken,
-            forceToken: generateForceToken(parsed.microchipId),
-          };
-        }
-        // Force token valid — fall through to insert.
+        // Signed over caller input — which is safe here, and only here,
+        // because lookupByChip just matched this exact string against the
+        // canonical active identification: parsed.microchipId IS the matched
+        // pet's chip. (The vecino writer reaches the same guarantee by
+        // comparing before it signs.) A token is never minted for a code the
+        // server has not first tied to a real record.
+        return {
+          error: null,
+          warning: "CHIP_MATCH_ACTIVE",
+          matchedPetToken: match.pet.publicToken,
+          forceToken: generateForceToken(parsed.microchipId),
+        };
       }
 
       if (match.pet.status === "deceased") {
+        // Still a hard block, and deliberately NOT escapable. Two things
+        // enforce that, neither of them the absence of a UI: the `active`
+        // branch above is the only mint site reachable with a deceased pet's
+        // code and it never fires for one, and the vecino writer refuses to
+        // mint unless the matched pet is 'lost'. Before that status check the
+        // claim here was false — naming a deceased pet's token to the confirm
+        // action produced a perfectly valid receipt for its code.
         return {
           error:
-            "Este chip está asociado a una mascota registrada como fallecida en MiMAR. Pedile a un admin que revise el caso antes de continuar.",
+            "Este chip está asociado a una mascota registrada como fallecida en miMAR. Pedile a un admin que revise el caso antes de continuar.",
         };
       }
+    }
+  }
+
+  // Data-quality gate P3 — duplicate-chip block for NON-found_stray alta. The
+  // found_stray path above owns its own reunification handling (lost → match
+  // page, active → force-token warning). For every other acquisition method a
+  // chip that already exists means the pet is already registered: block and
+  // point the owner at the claim/transfer path instead of minting a second
+  // credential for the same animal (the pet_identifications chip_unique index
+  // would otherwise reject the insert with an opaque error).
+  if (parsed.microchipId && parsed.acquisitionMethod !== "found_stray") {
+    const match = await lookupByChip(parsed.microchipId);
+    if (match) {
+      return { error: CHIP_ALREADY_REGISTERED_MSG };
     }
   }
 
@@ -141,15 +294,20 @@ export async function createPetAction(
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
-  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
     parsed.species,
     parsed.breed,
+    parseEstimatedWeightKg(parsed.estimatedWeightKg),
     {
       country: "AR",
       province: parsed.jurisdictionProvince,
       locality: parsed.jurisdictionLocality,
     },
   );
+
+  // Double-submit idempotency guard (audit §6): stable UUID per form session,
+  // posted by the alta wizard as a hidden field.
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   const result = await registerPet(
     {
@@ -158,6 +316,7 @@ export async function createPetAction(
       uploadedPath: upload.uploadedPath,
       uploadMimeType: upload.mimeType,
       uploadSize: upload.size,
+      clientIdempotencyKey,
     },
     {
       repo: PetsRepository,
@@ -179,10 +338,45 @@ export async function createPetAction(
     return { error: result.error };
   }
 
+  const registered = result.value as NonNullable<typeof result.value>;
+
+  // Double-submit detected: the first submit already created the pet. Remove the
+  // photo this retry just uploaded (it would otherwise orphan in storage) and
+  // resolve to the already-created pet's success surface — no second pet, no
+  // duplicate notifications (registerPet queued none on the duplicate path).
+  if (registered.wasDuplicate) {
+    if (upload.uploadedPath) {
+      try {
+        await supabase.storage.from("pet-photos").remove([upload.uploadedPath]);
+      } catch {
+        // Swallow.
+      }
+    }
+    return {
+      error: null,
+      redirectTo: `/mis-mascotas/nueva/${registered.publicToken}/credencial`,
+    };
+  }
+
   await flushNotifications(result.notifications);
 
-  const newPublicToken = (result.value as NonNullable<typeof result.value>).publicToken;
-  redirect(`/mis-mascotas/${newPublicToken}?recienCreado=true`);
+  // The ACTIVE-match escape hatch used to leave no trace anywhere. Written
+  // after the alta commits so the note describes something that happened.
+  if (adjudicatedChipCode) {
+    await recordChipDisputeAgainstActivePet({
+      disputedChipCode: adjudicatedChipCode,
+      actorUserId: user.id,
+    });
+  }
+
+  const newPublicToken = registered.publicToken;
+  // Onboarding aha: show the QR credential success screen (Item 13).
+  // N3 contract: return redirectTo — MinimalNewPetForm navigates client-side
+  // (production redirect() from server actions is dropped by Next 15.5 router).
+  return {
+    error: null,
+    redirectTo: `/mis-mascotas/nueva/${newPublicToken}/credencial`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -203,19 +397,36 @@ export async function updatePetAction(
   const existingCanonicalIds = await fetchActiveIdentifications(existingPet.id);
 
   const parseResult = parsePetForm(formData);
-  if (parseResult.error !== null) return { error: parseResult.error };
+  if (parseResult.error !== null) {
+    const msg =
+      parseResult.error === "LOCALITY_REQUIRED"
+        ? "Seleccioná la localidad antes de continuar."
+        : parseResult.error === "LOCALITY_UNRESOLVED"
+          ? "Elegí la localidad/barrio de la lista de sugerencias."
+          : parseResult.error;
+    return { error: msg };
+  }
   // Safe: parseResult.error === null implies parsed is non-null (discriminated union).
   const parsed = parseResult.parsed as NonNullable<typeof parseResult.parsed>;
 
   // Jurisdiction canonicalization (same posture as createPetAction).
+  // locality:"strict" — resolveCanonicalJurisdiction (updatePet behavior unchanged).
   if (parsed.jurisdictionProvince && parsed.jurisdictionLocality) {
     try {
-      const canonical = await resolveCanonicalJurisdiction({
-        rawProvince: parsed.jurisdictionProvince,
-        rawLocality: parsed.jurisdictionLocality,
-      });
-      parsed.jurisdictionProvince = canonical.province.name;
-      parsed.jurisdictionLocality = canonical.locality.localityName;
+      const normalizedLoc = await normalizeLocationForWrite(
+        {
+          province: parsed.jurisdictionProvince,
+          provinceCode: null,
+          locality: parsed.jurisdictionLocality,
+          localityIndecId: null,
+          lat: null,
+          lng: null,
+          address: null,
+        },
+        { locality: "strict" },
+      );
+      parsed.jurisdictionProvince = normalizedLoc.province;
+      parsed.jurisdictionLocality = normalizedLoc.locality;
     } catch (err) {
       if (err instanceof JurisdictionValidationError) {
         return { error: err.message };
@@ -224,13 +435,32 @@ export async function updatePetAction(
     }
   }
 
+  // Data-quality gate P3 — duplicate-chip block on the profile-edit path. When
+  // the owner adds a chip that this pet did not have (existingCanonicalIds.microchip
+  // === null) we normalize it and cross-check pet_identifications: a match on a
+  // DIFFERENT pet means the chip is already registered elsewhere. Block with the
+  // claim/transfer copy instead of letting the chip_unique index reject the
+  // insert with an opaque error. Only normalizes on a valid ISO code — malformed
+  // input keeps the pre-existing behavior (no new rejection path introduced here).
+  if (parsed.microchipId && existingCanonicalIds.microchip === null) {
+    const chipValidation = validateMicrochipId(parsed.microchipId);
+    if (chipValidation.ok) {
+      parsed.microchipId = chipValidation.normalized;
+      const match = await lookupByChip(parsed.microchipId);
+      if (match && match.pet.id !== existingPet.id) {
+        return { error: CHIP_ALREADY_REGISTERED_MSG };
+      }
+    }
+  }
+
   const photoFile = formData.get("photo") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, photoFile, "pet-photos");
   if (upload.error) return { error: upload.error };
 
-  const potentiallyDangerousBreed = await isPotentiallyDangerousBreedForJurisdiction(
+  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
     parsed.species,
     parsed.breed,
+    parseEstimatedWeightKg(parsed.estimatedWeightKg),
     {
       country: "AR",
       province: parsed.jurisdictionProvince,
@@ -274,5 +504,152 @@ export async function updatePetAction(
 
   await flushNotifications(result.notifications);
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
+}
+
+// ---------------------------------------------------------------------------
+// MOVE (FULL-LOCK jurisdiction path — PO decision #40)
+// ---------------------------------------------------------------------------
+//
+// The profile-edit path no longer mutates jurisdiction. A locality change for an
+// established pet flows through here, which is the ONLY owner-facing writer of
+// movement_recorded / jurisdiction_changed. The destination is canonicalized
+// strictly at the edge (friendly rejection on an off-catalog pair) and again,
+// defensively, inside recordMovementWriter before the pets denormalization.
+
+export async function recordMoveAction(
+  publicToken: string,
+  _previous: NewPetFormState,
+  formData: FormData,
+): Promise<NewPetFormState> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const loc = parseLocationFromFormData(formData);
+  const rawProvince = loc.provinceCode ?? "";
+  const rawLocality = loc.locality ?? "";
+  if (!rawLocality) return { error: "Seleccioná la localidad de destino." };
+
+  // Strict canonicalization at the edge — reject an off-catalog destination
+  // with a user-facing message before it ever reaches the writer.
+  let toProvince: string | null;
+  let toLocality: string | null;
+  try {
+    const normalized = await normalizeLocationForWrite(
+      {
+        province: rawProvince,
+        provinceCode: rawProvince,
+        locality: rawLocality,
+        localityIndecId: loc.localityIndecId,
+        lat: null,
+        lng: null,
+        address: null,
+      },
+      { locality: "strict" },
+    );
+    toProvince = normalized.province;
+    toLocality = normalized.locality;
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) return { error: err.message };
+    throw err;
+  }
+
+  const result = await recordMovementWriter({
+    pet: { id: pet.id, publicToken: pet.publicToken },
+    recordedByUserId: user.id,
+    eventAuthorship,
+    occurredAt: new Date(),
+    movement: {
+      sub_kind: "jurisdiction_changed",
+      from_country: pet.jurisdictionCountry ?? "AR",
+      from_province: pet.jurisdictionProvince,
+      from_locality: pet.jurisdictionLocality,
+      to_country: "AR",
+      to_province: toProvince,
+      to_locality: toLocality,
+      effective_date: new Date().toISOString().slice(0, 10),
+      reason: String(formData.get("reason") ?? "").trim() || null,
+    },
+    notes: null,
+  });
+
+  if (!result.ok) {
+    // The schema rejects a no-op move (destination === origin) — surface it.
+    return {
+      error:
+        result.error.includes("no-op") || result.error.includes("differ")
+          ? "El destino es igual a la localidad actual."
+          : `No se pudo registrar el movimiento: ${result.error}`,
+    };
+  }
+
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
+}
+
+// ---------------------------------------------------------------------------
+// CORRECT SPECIES (FULL-LOCK species path — PO decision #40)
+// ---------------------------------------------------------------------------
+//
+// Species is locked on the profile-edit path (it drives PPP/compliance). A
+// genuine correction flows here and emits a pet_profile_updated event carrying
+// the single species change (audit trail) before updating the column. PPP is
+// recomputed for the corrected species — a non-dog clears the flag.
+
+export async function correctPetSpeciesAction(
+  publicToken: string,
+  _previous: NewPetFormState,
+  formData: FormData,
+): Promise<NewPetFormState> {
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const newSpecies = String(formData.get("species") ?? "").trim();
+  if (!(ALLOWED_SPECIES as readonly string[]).includes(newSpecies)) {
+    return { error: "Elegí una especie válida." };
+  }
+  if (newSpecies === pet.species) {
+    return { error: "La especie es la misma; no hay nada que corregir." };
+  }
+
+  // Recompute PPP for the corrected species (a cat/rabbit/etc. clears it).
+  const potentiallyDangerousBreed = await resolvePppClassificationForJurisdiction(
+    newSpecies,
+    pet.breed,
+    parseEstimatedWeightKg(pet.estimatedWeightKg),
+    {
+      country: "AR",
+      province: pet.jurisdictionProvince,
+      locality: pet.jurisdictionLocality,
+    },
+  );
+
+  try {
+    await db.transaction(async (tx) => {
+      await PetsRepository.correctSpecies(
+        {
+          petId: pet.id,
+          oldSpecies: pet.species,
+          newSpecies,
+          potentiallyDangerousBreed,
+          userId: user.id,
+          eventAuthorship,
+          now: new Date(),
+        },
+        tx as Parameters<typeof PetsRepository.correctSpecies>[1],
+      );
+    });
+  } catch (err) {
+    return {
+      error: `No se pudo corregir la especie: ${
+        err instanceof Error ? err.message : "error desconocido"
+      }`,
+    };
+  }
+
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }

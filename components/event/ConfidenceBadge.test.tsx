@@ -7,7 +7,7 @@
 // and TIER_STYLES[tier]. The substantive logic lives in event-confidence.ts
 // which is fully covered in event-confidence.test.ts.
 
-import { type ConfidenceTier, confidenceLabel, isAtLeast } from "@/lib/event-confidence";
+import { type ConfidenceTier, confidenceLabel, isAtLeast } from "@/lib/events/event-confidence";
 import { describe, expect, it } from "vitest";
 
 // Mirrors TIER_STYLES in ConfidenceBadge.tsx. If styles drift, this test
@@ -15,6 +15,7 @@ import { describe, expect, it } from "vitest";
 const TIER_STYLES: Record<ConfidenceTier, string> = {
   institutional_verified: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]",
   professional_verified: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]",
+  org_registered: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
   corroborated: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]",
   self_reported: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-mute)]",
   unverified: "bg-[var(--color-ln-stripe)] text-[var(--color-ln-faint)]",
@@ -23,6 +24,7 @@ const TIER_STYLES: Record<ConfidenceTier, string> = {
 const ALL_TIERS: ConfidenceTier[] = [
   "institutional_verified",
   "professional_verified",
+  "org_registered",
   "corroborated",
   "self_reported",
   "unverified",

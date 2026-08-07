@@ -2,6 +2,7 @@
 
 import { Icon, type IconName, iconNames } from "@/components/Icon";
 import { LnField, LnInput } from "@/components/ui/Field";
+import { pluralizeEs } from "@/lib/utils/format";
 import { useMemo, useState } from "react";
 
 /**
@@ -29,7 +30,7 @@ export function IconSearch() {
   }
 
   const resultsHelp = query
-    ? `${results.length} resultado${results.length === 1 ? "" : "s"}`
+    ? `${results.length} ${pluralizeEs(results.length, "resultado")}`
     : `Mostrando los primeros 60 (de ${iconNames.length})`;
 
   return (
@@ -64,7 +65,7 @@ export function IconSearch() {
             <Icon name={name} size={28} color="var(--color-ln-azul)" />
             <code className="block w-full truncate text-xs text-ln-ink-2">{name}</code>
             <span
-              className="block text-[10px] text-ln-ok"
+              className="block text-xs text-ln-ok"
               style={{ opacity: copied === name ? 1 : 0, transition: "opacity 150ms" }}
             >
               copiado

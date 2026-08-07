@@ -1,10 +1,14 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRow, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -19,14 +23,26 @@ export function MicrochipForm({
   defaults?: { chipNumber: string | null; occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3 redirect contract: the action returns `redirectTo` on success and the
+  // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
+  useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
+
+  // Controlled field state — preserves typed input on validation error.
+  const [chipNumber, setChipNumber] = useState(defaults?.chipNumber ?? "");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [countryCode, setCountryCode] = useState("AR");
+  const [implantedBy, setImplantedBy] = useState("");
+  const [locationOnBody, setLocationOnBody] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   return (
     <>
       <LnSheetHeader
         tone="azul"
-        icon="📡"
+        icon={<Icon name="microchip" decorative />}
         title="Registrar microchip"
         subtitle="Libreta sanitaria oficial"
       />
@@ -40,7 +56,8 @@ export function MicrochipForm({
                 name="chipNumber"
                 type="text"
                 required
-                defaultValue={defaults?.chipNumber ?? undefined}
+                value={chipNumber}
+                onChange={(e) => setChipNumber(e.target.value)}
                 placeholder="985141004321456"
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -57,7 +74,8 @@ export function MicrochipForm({
                   type="date"
                   required
                   mono
-                  defaultValue={defaults?.occurredAt ?? today}
+                  value={occurredAt}
+                  onChange={(e) => setOccurredAt(e.target.value)}
                   aria-describedby={describedBy}
                   invalid={invalid}
                 />
@@ -69,7 +87,8 @@ export function MicrochipForm({
                   id={id}
                   name="countryCode"
                   type="text"
-                  defaultValue="AR"
+                  value={countryCode}
+                  onChange={(e) => setCountryCode(e.target.value)}
                   placeholder="AR"
                   aria-describedby={describedBy}
                   invalid={invalid}
@@ -84,6 +103,8 @@ export function MicrochipForm({
                 id={id}
                 name="implantedBy"
                 type="text"
+                value={implantedBy}
+                onChange={(e) => setImplantedBy(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -95,6 +116,8 @@ export function MicrochipForm({
                 id={id}
                 name="locationOnBody"
                 type="text"
+                value={locationOnBody}
+                onChange={(e) => setLocationOnBody(e.target.value)}
                 placeholder="lomo entre los omóplatos"
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -107,7 +130,8 @@ export function MicrochipForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaults?.notes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -116,8 +140,10 @@ export function MicrochipForm({
           <AttachmentField />
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

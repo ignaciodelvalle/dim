@@ -7,17 +7,27 @@ import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { db, organizations, profiles, serviceOfferings } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { portalBase } from "@/lib/ui/portal-base";
+import {
+  formatDateTimeNumericAr,
+  pluralizeEs,
+  serviceOfferingStatusLabel,
+} from "@/lib/utils/format";
 
 import { OfferingReviewActions } from "./OfferingReviewActions";
 
+// Label comes from serviceOfferingStatusLabel (lib/utils/format.ts), shared
+// with ../ServiciosScreen.tsx so the same offering never reads two different
+// words across the two screens (copy audit 2026-08-04).
 const STATUS_LABELS: Record<string, string> = {
-  pending_approval: "Pendiente de revision",
-  approved: "Aprobado",
-  rejected: "Rechazado",
+  pending_approval: serviceOfferingStatusLabel("pending_approval"),
+  approved: serviceOfferingStatusLabel("approved"),
+  rejected: serviceOfferingStatusLabel("rejected"),
 };
 
 type StatusTone = "open" | "ok" | "danger";
@@ -34,6 +44,7 @@ export default async function GobServicioDetailPage({
 }) {
   const { offeringToken } = await params;
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
   const [row] = await db
     .select({
@@ -59,13 +70,14 @@ export default async function GobServicioDetailPage({
   const { offering, org, provider } = row;
 
   // Scope check: govt can only act on offerings in their localities.
+  // Subsumption-aware so a whole-province operator (e.g. whole-CABA) covers an
+  // offering tagged to a barrio in that province. See jurisdictionScopeContains.
   if (profile.role === "govt") {
-    const covers = jurisdictions.some(
-      (j) =>
-        j.province === offering.jurisdictionProvince &&
-        j.locality === offering.jurisdictionLocality,
+    const covers = jurisdictionScopeContains(
+      jurisdictions,
+      offering.jurisdictionProvince,
+      offering.jurisdictionLocality,
     );
-    // j.province and j.locality are the correct field names on AdminOrGovtJurisdiction
     if (!covers) notFound();
   }
 
@@ -85,10 +97,10 @@ export default async function GobServicioDetailPage({
     <div className="space-y-6 max-w-3xl">
       <div>
         <Link
-          href="/gob/servicios"
-          className="text-[13px] text-ln-op-azul underline underline-offset-4 hover:text-ln-op-ink no-underline"
+          href={`${base}/servicios`}
+          className="text-md text-ln-op-azul underline underline-offset-4 hover:text-ln-op-ink no-underline"
         >
-          {"<-"} Volver a servicios pendientes
+          {"←"} Volver a servicios pendientes
         </Link>
       </div>
 
@@ -98,47 +110,44 @@ export default async function GobServicioDetailPage({
             {STATUS_LABELS[offering.status] ?? offering.status}
           </OpPill>
         </div>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
-        <p className="text-[12px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">{offering.displayName}</h1>
+        <p className="text-sm text-ln-op-mute">
           <OpCodeBadge tone="neutral">{offering.publicToken}</OpCodeBadge>
           {location ? ` · ${location}` : ""}
           {" · enviado "}
-          {new Date(offering.submittedAt).toLocaleString("es-AR", {
-            dateStyle: "short",
-            timeStyle: "short",
-          })}
+          {formatDateTimeNumericAr(offering.submittedAt)}
         </p>
       </header>
 
       <DetailSection title="Proveedor">
-        <p className="text-[13px] text-ln-op-ink">{providerLabel}</p>
+        <p className="text-md text-ln-op-ink">{providerLabel}</p>
         {offering.organizationId && org?.legalName && (
-          <p className="text-[12px] text-ln-op-mute">{org.legalName}</p>
+          <p className="text-sm text-ln-op-mute">{org.legalName}</p>
         )}
       </DetailSection>
 
       <DetailSection title="Servicio">
-        <p className="text-[13px] text-ln-op-ink">{kindLabel}</p>
+        <p className="text-md text-ln-op-ink">{kindLabel}</p>
         {offering.description && (
-          <p className="text-[12px] text-ln-op-ink-2 mt-1">{offering.description}</p>
+          <p className="text-sm text-ln-op-ink-2 mt-1">{offering.description}</p>
         )}
       </DetailSection>
 
       <DetailSection title="Detalles">
         <dl className="space-y-1">
           <div className="flex gap-3">
-            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Duracion</dt>
-            <dd className="text-[13px] text-ln-op-ink">{offering.durationMinutes} min</dd>
+            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Duracion</dt>
+            <dd className="text-md text-ln-op-ink">{offering.durationMinutes} min</dd>
           </div>
           <div className="flex gap-3">
-            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Capacidad</dt>
-            <dd className="text-[13px] text-ln-op-ink">
-              {offering.slotCapacity} turno{offering.slotCapacity === 1 ? "" : "s"} por slot
+            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Capacidad</dt>
+            <dd className="text-md text-ln-op-ink">
+              {offering.slotCapacity} {pluralizeEs(offering.slotCapacity, "turno")} por slot
             </dd>
           </div>
           <div className="flex gap-3">
-            <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Precio</dt>
-            <dd className="text-[13px] text-ln-op-ink">
+            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Precio</dt>
+            <dd className="text-md text-ln-op-ink">
               {offering.priceArs !== null
                 ? `$${Number(offering.priceArs).toLocaleString("es-AR")}`
                 : "Gratuito"}
@@ -146,26 +155,24 @@ export default async function GobServicioDetailPage({
           </div>
           {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
             <div className="flex gap-3">
-              <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Especies</dt>
-              <dd className="text-[13px] text-ln-op-ink">
-                {offering.eligibilitySpecies.join(", ")}
-              </dd>
+              <dt className="text-sm text-ln-op-mute w-32 shrink-0">Especies</dt>
+              <dd className="text-md text-ln-op-ink">{offering.eligibilitySpecies.join(", ")}</dd>
             </div>
           )}
           {(offering.eligibilityAgeMinMonths !== null ||
             offering.eligibilityAgeMaxMonths !== null) && (
             <div className="flex gap-3">
-              <dt className="text-[12px] text-ln-op-mute w-32 shrink-0">Edad elegible</dt>
-              <dd className="text-[13px] text-ln-op-ink">
+              <dt className="text-sm text-ln-op-mute w-32 shrink-0">Edad elegible</dt>
+              <dd className="text-md text-ln-op-ink">
                 {offering.eligibilityAgeMinMonths !== null
-                  ? `desde ${offering.eligibilityAgeMinMonths} meses`
+                  ? `desde ${offering.eligibilityAgeMinMonths} ${pluralizeEs(offering.eligibilityAgeMinMonths, "mes")}`
                   : ""}
                 {offering.eligibilityAgeMinMonths !== null &&
                 offering.eligibilityAgeMaxMonths !== null
                   ? " — "
                   : ""}
                 {offering.eligibilityAgeMaxMonths !== null
-                  ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
+                  ? `hasta ${offering.eligibilityAgeMaxMonths} ${pluralizeEs(offering.eligibilityAgeMaxMonths, "mes")}`
                   : ""}
               </dd>
             </div>
@@ -174,21 +181,17 @@ export default async function GobServicioDetailPage({
       </DetailSection>
 
       {offering.status === "pending_approval" ? (
-        <DetailSection title="Decision">
+        <DetailSection title="Decisión">
           <OfferingReviewActions publicToken={offering.publicToken} />
         </DetailSection>
       ) : (
-        <DetailSection title="Decision">
-          <p className="text-[13px] text-ln-op-ink">
+        <DetailSection title="Decisión">
+          <p className="text-md text-ln-op-ink">
             {STATUS_LABELS[offering.status] ?? offering.status}
-            {offering.reviewedAt &&
-              ` el ${new Date(offering.reviewedAt).toLocaleString("es-AR", {
-                dateStyle: "short",
-                timeStyle: "short",
-              })}`}
+            {offering.reviewedAt && ` el ${formatDateTimeNumericAr(offering.reviewedAt)}`}
           </p>
           {offering.rejectionReason && (
-            <p className="text-[12px] text-ln-op-ink-2 mt-1">Motivo: {offering.rejectionReason}</p>
+            <p className="text-sm text-ln-op-ink-2 mt-1">Motivo: {offering.rejectionReason}</p>
           )}
         </DetailSection>
       )}
@@ -199,7 +202,7 @@ export default async function GobServicioDetailPage({
 function DetailSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-[10px] uppercase tracking-[0.18em] text-ln-op-mute">{title}</h2>
+      <h2 className="text-xs uppercase tracking-[0.18em] text-ln-op-mute">{title}</h2>
       <OpCard>
         <OpCardBody className="space-y-1">{children}</OpCardBody>
       </OpCard>

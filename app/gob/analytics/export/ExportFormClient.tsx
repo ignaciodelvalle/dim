@@ -17,6 +17,7 @@ import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox } from "@/components/ui/Field";
 import { type GenerateExportResult, generateExportAction } from "./actions";
+import { EXPORT_DEFAULT_PRESET } from "./export-period";
 
 type ExportState =
   | { status: "idle" }
@@ -39,45 +40,59 @@ export function ExportFormClient({
   period: ssrPeriod,
   from: ssrFrom,
   to: ssrTo,
+  province: ssrProvince,
+  locality: ssrLocality,
 }: {
   allowedProvinces: Array<{ code: string; name: string }>;
   localities: Array<{ slug: string; name: string }>;
   period: string;
   from: string;
   to: string;
+  province: string;
+  locality: string;
 }) {
   const [state, dispatch, pending] = useActionState(submitAction, initialState);
   // Read live URL state so the hidden inputs always match the currently-selected
-  // period, even after the PeriodPicker updates the URL client-side.
+  // period AND jurisdiction, even after the PeriodPicker/JurisdictionSwitcher
+  // update the URL client-side (full document nav — see JurisdictionSwitcher's
+  // own design note). Previously only period/from/to were mirrored here, so
+  // narrowing the province/locality via the switcher visibly updated the form
+  // but silently had NO effect on the generated export (view↔export honesty
+  // gap, Fase C 2026-07-21 — fixed alongside the server action).
   const searchParams = useSearchParams();
   const period = searchParams.get("period") ?? ssrPeriod;
   const from = searchParams.get("from") ?? ssrFrom;
   const to = searchParams.get("to") ?? ssrTo;
+  const province = searchParams.get("province") ?? ssrProvince;
+  const locality = searchParams.get("locality") ?? ssrLocality;
 
   return (
     <form action={dispatch} className="space-y-6">
       {/* Hidden inputs carrying PeriodPicker + JurisdictionSwitcher state
           from the LIVE URL (useSearchParams). These update reactively when the
-          PeriodPicker changes the URL so the export matches the displayed charts. */}
+          PeriodPicker/JurisdictionSwitcher change the URL so the export
+          matches the displayed charts AND the selected jurisdiction. */}
       <input type="hidden" name="period" value={period} />
       {from && <input type="hidden" name="from" value={from} />}
       {to && <input type="hidden" name="to" value={to} />}
+      {province && <input type="hidden" name="province" value={province} />}
+      {locality && <input type="hidden" name="locality" value={locality} />}
 
       {/* Period selector */}
       <section className="space-y-2">
-        <h2 className="text-[13px] font-medium text-ln-op-ink">Periodo</h2>
-        <PeriodPicker defaultPreset="30d" />
+        <h2 className="text-md font-medium text-ln-op-ink">Periodo</h2>
+        <PeriodPicker defaultPreset={EXPORT_DEFAULT_PRESET} />
       </section>
 
       {/* Jurisdiction selector */}
       <section className="space-y-2">
-        <h2 className="text-[13px] font-medium text-ln-op-ink">Jurisdiccion</h2>
+        <h2 className="text-md font-medium text-ln-op-ink">Jurisdiccion</h2>
         <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
       </section>
 
       {/* Data slices */}
       <fieldset className="space-y-2">
-        <legend className="text-[13px] font-medium text-ln-op-ink">Datos a incluir</legend>
+        <legend className="text-md font-medium text-ln-op-ink">Datos a incluir</legend>
         <div className="space-y-2 pt-1">
           <LnCheckbox name="slice" value="pets" defaultChecked>
             Mascotas (anonimizado)
@@ -96,9 +111,9 @@ export function ExportFormClient({
 
       {/* Format */}
       <fieldset className="space-y-2">
-        <legend className="text-[13px] font-medium text-ln-op-ink">Formato</legend>
+        <legend className="text-md font-medium text-ln-op-ink">Formato</legend>
         <div className="flex flex-col gap-2 pt-1">
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer">
+          <label className="flex items-center gap-2 text-md cursor-pointer">
             <input
               type="radio"
               name="format"
@@ -108,24 +123,33 @@ export function ExportFormClient({
             />
             CSV
           </label>
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer">
+          <label className="flex items-center gap-2 text-md cursor-pointer">
             <input type="radio" name="format" value="json" className="accent-ln-op-azul" />
             JSON
           </label>
-          <label className="flex items-center gap-2 text-[13px] cursor-pointer opacity-50">
+          {/* Deshabilitado a propósito, no por olvido (decisión del PO
+              2026-08-04, principio P1): una opción deshabilitada está bien
+              cuando la cosa hace falta de verdad pero no la podemos hacer
+              ahora. Lo que se corrige es la PROMESA: "próximamente" anunciaba
+              una fecha que nadie fijó. "Todavía no disponible" dice lo mismo
+              sin comprometer un plazo. Mismo idioma que ADR-17c. */}
+          <label
+            className="flex items-center gap-2 text-md opacity-50"
+            title="Formato columnar para procesamiento analítico. Todavía no está construido."
+          >
             <input type="radio" name="format" value="parquet" disabled />
-            {"Parquet — proximamente"}
+            Parquet — todavía no disponible
           </label>
         </div>
       </fieldset>
 
       <LnButton type="submit" disabled={pending}>
-        {pending ? "Generando…" : "Generar export"}
+        {pending ? "Generando…" : "Generar exportación"}
       </LnButton>
 
       {/* Error state */}
       {state.status === "error" && (
-        <p className="text-[13px] font-medium text-ln-op-danger" role="alert">
+        <p className="text-md font-medium text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
@@ -133,15 +157,15 @@ export function ExportFormClient({
       {/* Success state: show download link */}
       {state.status === "ok" && (
         <div className="space-y-3 rounded-lg border border-ln-op-line bg-ln-op-card p-4">
-          <p className="text-[13px] font-medium text-ln-op-ink">Export listo</p>
+          <p className="text-md font-medium text-ln-op-ink">Exportación lista</p>
           <a
             href={state.signedUrl}
             download
-            className="inline-flex items-center gap-1 text-[13px] font-medium text-ln-op-azul underline underline-offset-2 hover:opacity-80"
+            className="inline-flex items-center gap-1 text-md font-medium text-ln-op-azul underline underline-offset-2 hover:opacity-80"
           >
-            Descargar export →
+            Descargar exportación →
           </a>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Este link vence en 24 horas (Ley 25.326 de Proteccion de Datos Personales).
             {state.emailSent
               ? " También te enviamos el link por email."

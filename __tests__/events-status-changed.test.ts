@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { eventPayloadSummary } from "@/lib/events";
+import { eventPayloadSummary } from "@/lib/events/events";
 
 describe("eventPayloadSummary — status_changed location key fallback", () => {
   it("reads the new `location_description` key", () => {

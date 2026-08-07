@@ -5,11 +5,11 @@
 // endFosterAction use them (open + close), plus the closed_reason
 // mapping for the end_foster_ui_reason → reason transition.
 
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, pets } from "@/db";
-import { closeCase, openCase } from "@/lib/case-helpers";
+import { db, pets } from "@/db";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const PET_TOKEN = "DIM-D5-PA1";
@@ -57,7 +57,11 @@ describe("D5: foster_placement opens on assign", () => {
       kind: "foster_placement",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Foster placement assigned by Test Refugio",
+      openedReason: {
+        code: "foster_placement_assigned",
+        actorOrgDisplayName: "Test Refugio",
+        expectedWeeks: null,
+      },
     });
     firstCaseId = caseRow.id;
     insertedCaseIds.push(caseRow.id);
@@ -78,7 +82,11 @@ describe("D5: endFosterAction reason → closed_reason mapping", () => {
       kind: "foster_placement",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Foster placement fixture for early-return reason",
+      openedReason: {
+        code: "foster_placement_assigned",
+        actorOrgDisplayName: "Test Refugio",
+        expectedWeeks: 4,
+      },
     });
     insertedCaseIds.push(caseRow.id);
     const result = await closeCase({ caseId: caseRow.id, reason: "cancelled" });

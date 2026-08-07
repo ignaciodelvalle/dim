@@ -9,14 +9,17 @@ This doc captures the contract for evolving an event payload safely.
 
 ## The pieces
 
-- **`lib/event-schemas.ts`** — Zod schemas for every event type. Each schema
+- **`lib/events/event-schemas.ts`** — Zod schemas for every event type. Each schema
   is `z.object(withVersion({...})).strict()` where `withVersion` injects
   `payload_version: z.literal(N).default(N)` for whatever the latest version
-  is for that schema. `validateEventPayload` is called from every writer
-  in `app/actions/*.ts` to validate the payload BEFORE insert — it returns
-  the parsed payload with `payload_version` filled in, which writers MUST
-  use (enforced by `__tests__/event-payload-validation-convention.test.ts`).
-- **`lib/event-upcasters.ts`** — upcasters that transform an older payload
+  is for that schema. `validateEventPayload` is called from every writer — the
+  use-cases under `src/modules/*/application/**` (and a few module repositories
+  such as `src/modules/events/infrastructure/events-repository.ts`), reached
+  through the server actions in `src/modules/*/actions.ts` — to validate the
+  payload BEFORE insert. It returns the parsed payload with `payload_version`
+  filled in, which writers MUST use (enforced by
+  `__tests__/event-payload-validation-convention.test.ts`).
+- **`lib/events/event-upcasters.ts`** — upcasters that transform an older payload
   into the latest shape. The registry is keyed by event type, with an array
   of upcasters indexed by `fromVersion - 1`. `upcastPayload(eventType, payload)`
   walks the chain from the payload's current version up to the latest.
@@ -29,7 +32,7 @@ This doc captures the contract for evolving an event payload safely.
 You want to change the shape of `weight_recorded` (say) to add a new field
 or rename an old one. The current schema is at `payload_version: 1`.
 
-1. **In `lib/event-schemas.ts`**, take the existing schema and convert it:
+1. **In `lib/events/event-schemas.ts`**, take the existing schema and convert it:
 
    ```ts
    // Before
@@ -50,7 +53,7 @@ or rename an old one. The current schema is at `payload_version: 1`.
    only accepts the LATEST shape. Old rows reach the read path via
    the upcaster.
 
-2. **In `lib/event-upcasters.ts`**, register a v1 → v2 upcaster for this
+2. **In `lib/events/event-upcasters.ts`**, register a v1 → v2 upcaster for this
    event type:
 
    ```ts
@@ -69,7 +72,8 @@ or rename an old one. The current schema is at `payload_version: 1`.
    same v2 output. If the migration is lossy, encode the loss explicitly
    (e.g. `legacy_kg: v1.kg`) rather than dropping data silently.
 
-3. **Update every writer in `app/actions/*.ts`** that calls
+3. **Update every writer under `src/modules/*/application/**`** (the use-cases,
+   plus any module repository) that calls
    `validateEventPayload("weight_recorded", ...)` to produce the new
    shape. The convention test catches any callsite that discards the
    return value.

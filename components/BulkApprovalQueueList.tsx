@@ -6,34 +6,112 @@
 // drive the corresponding bulk server action; results show per-item
 // success / failure inline so partial-failure (e.g. some items out of the
 // govt's scope) is legible.
+//
+// Dashboard-kit migration (2026-07-19): rows/actions were brought up to kit
+// STYLING (LnEmptyState, OpButton, OpCard-consistent row tokens) but rows
+// deliberately were NOT ported onto `components/ui/dashboard/CaseQueue.tsx`.
+// CaseQueue's bulk mode delegates to `OpBulkBar`, whose `OpBulkAction.onRun`
+// is a single `(reason: string) => void | Promise<void>` — it has no slot for
+// this screen's per-type approval breakdown, the RUPGA CUD warning, the
+// hasVetMatricula bulk-approve gate, or (the big one) the inline partial-
+// failure `ResultPanel` below (succeeded/failed counts + per-item reasons +
+// bulkActionId — see settleBulkResult/dismissResult). `CaseQueueRow` also
+// assumes case semantics (caseKind/CaseStatus/openedAt/closedAt) that don't
+// exist for an approval_requests row. Forcing either would mean rebuilding
+// half of OpBulkBar inside a CaseQueue wrapper or discarding the partial-
+// failure legibility that's this screen's whole point — so rows keep their
+// bespoke <ul>/<li> + bespoke bulk bar, now token-aligned with the kit.
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { type ReactNode, useState, useTransition } from "react";
 
 import {
   type BulkResult,
   bulkApproveRequestsAction,
   bulkRejectRequestsAction,
 } from "@/app/actions/bulk-actions";
-import { LnCheckbox } from "@/components/ui/Field";
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import { OpBulkResultPanel } from "@/components/ui/dashboard/OpBulkResultPanel";
+import { OpButton, type OpButtonVariant } from "@/components/ui/dashboard/OpButton";
+import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
+import { OpCheckbox, OpTextarea } from "@/components/ui/dashboard/OpField";
+import { OpPill } from "@/components/ui/dashboard/OpPill";
+import type { ApprovalRequestType } from "@/db";
+import {
+  RUPGA_APPROVAL_WARNING,
+  VET_MATRICULA_BULK_APPROVE_BLOCKED,
+  VET_MATRICULA_TYPE,
+  computeApprovalTypeBreakdown,
+  selectionHasRupga,
+  selectionHasVetMatricula,
+} from "@/lib/infra/approval-queue-breakdown";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+import { formatDate, pluralizeEs } from "@/lib/utils/format";
 
 export type QueueItem = {
   publicToken: string;
+  /** Raw request type — drives the per-type approval breakdown + RUPGA warning. */
+  type: ApprovalRequestType;
   typeLabel: string;
   applicantName: string;
   jurisdiction: string;
+  /**
+   * ISO-8601 timestamp of the request. RAW, not pre-formatted (queue-anatomy
+   * alignment, 2026-07-30): the row formats it itself with the shared
+   * `formatDate`, the same absolute vocabulary the dominant queue anatomy
+   * (components/ui/dashboard/CaseQueue.tsx) uses, so the queue can no longer
+   * drift to a per-caller date format. `formatDate` is AR-timezone-pinned, so
+   * formatting it client-side is hydration-safe.
+   */
   createdAt: string;
 };
+
+// ---------------------------------------------------------------------------
+// Row state indicator (queue-anatomy alignment, 2026-07-30)
+//
+// This was the only operator queue with NO state indicator at all. The obvious
+// fix — a literal "Pendiente" badge — would have been a constant, not
+// information: the queue fetches `status = 'pending'` exclusively
+// (fetchVisiblePendingRequests, lib/infra/approval-scope.ts), so every row would
+// carry the identical pill.
+//
+// The state that DOES vary per row is the DECISION PATH, and today the operator
+// discovers it only by selecting a row and finding "Aprobar" disabled: vet
+// matrículas are excluded from bulk approve (VET_MATRICULA_BULK_APPROVE_BLOCKED,
+// mirrored server-side by approveRequestForAuthority). The row now declares that
+// up front.
+//
+// Vocabulary is the approvals domain's own (pending + the bulk-approve gate) —
+// deliberately NOT mapped onto CaseStatus, which has no meaning here. Only the
+// PRIMITIVE is shared: OpPill → OpStatusPill, the same primitive every other
+// operator queue routes through.
+// ---------------------------------------------------------------------------
+
+function rowStateDisplay(type: ApprovalRequestType): {
+  tone: "open" | "triaged";
+  label: string;
+} {
+  return type === VET_MATRICULA_TYPE
+    ? { tone: "triaged", label: "Verificación individual" }
+    : { tone: "open", label: "Pendiente" };
+}
 
 export function BulkApprovalQueueList({
   items,
   detailUrlPrefix,
+  historyHref,
 }: {
   items: QueueItem[];
   detailUrlPrefix: string;
+  /**
+   * Link to the portal's decision history (e.g. `${base}/historial`). Shown
+   * as the empty-state CTA — there is nothing to "create" on a review queue,
+   * but an empty inbox still shouldn't be a dead end (copy audit 2026-08-04,
+   * S8). Optional so tests/callers without a history route keep today's
+   * action-less empty state.
+   */
+  historyHref?: string;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [mode, setMode] = useState<"none" | "approve" | "reject">("none");
@@ -60,6 +138,29 @@ export function BulkApprovalQueueList({
     setDecisionNotes("");
   }
 
+  // Post-bulk navigation (router.refresh() is banned — it rides the same
+  // client-router transition machinery as the silent-drop defect; see
+  // lib/ui/full-page-action-nav.ts). Clean success → immediate full reload
+  // so the SSR queue reflects the new state. Partial failure → keep the
+  // ResultPanel visible (its whole purpose is making partial failure
+  // legible) and do the full reload when the operator dismisses it.
+  function settleBulkResult(result: BulkResult) {
+    if (result.failed.length === 0) {
+      navigateAfterActionSuccess(window.location.href);
+      return;
+    }
+    setLastResult(result);
+  }
+
+  function dismissResult() {
+    if (lastResult && lastResult.succeeded.length > 0) {
+      // Some rows DID change server-side — the list is stale; reload it.
+      navigateAfterActionSuccess(window.location.href);
+      return;
+    }
+    setLastResult(null);
+  }
+
   function runApprove() {
     const tokens = Array.from(selected);
     setLastResult(null);
@@ -68,8 +169,7 @@ export function BulkApprovalQueueList({
         requestPublicTokens: tokens,
         decisionNotes: decisionNotes.trim() || null,
       });
-      setLastResult(result);
-      router.refresh();
+      settleBulkResult(result);
     });
   }
 
@@ -81,19 +181,38 @@ export function BulkApprovalQueueList({
         requestPublicTokens: tokens,
         reason: decisionNotes,
       });
-      setLastResult(result);
-      router.refresh();
+      settleBulkResult(result);
     });
   }
 
   if (items.length === 0) {
     return (
-      <p className="text-sm text-ln-op-mute">Cuando lleguen nuevas solicitudes vas a verlas acá.</p>
+      <LnEmptyState
+        icon="solicitud"
+        title="No hay solicitudes pendientes"
+        description="No hay solicitudes pendientes en tu jurisdicción. Cuando lleguen nuevas solicitudes las vas a ver acá."
+        action={
+          historyHref ? (
+            <Link href={historyHref} className="text-sm text-ln-op-azul hover:underline">
+              Ver historial de decisiones
+            </Link>
+          ) : undefined
+        }
+      />
     );
   }
 
   const allSelected = selected.size === items.length;
   const someSelected = selected.size > 0;
+
+  // C5: per-type breakdown of the SELECTED items, for the approve confirmation.
+  const selectedTypes = items.filter((i) => selected.has(i.publicToken)).map((i) => i.type);
+  const typeBreakdown = computeApprovalTypeBreakdown(selectedTypes);
+  const hasRupga = selectionHasRupga(selectedTypes);
+  // Vet matrículas are approved individually (verification flow) — a selection
+  // containing one blocks bulk APPROVE (reject stays available). Mirrors the
+  // server-side guard in approveRequestForAuthority.
+  const hasVetMatricula = selectionHasVetMatricula(selectedTypes);
 
   return (
     <div className="space-y-3 pb-32">
@@ -110,14 +229,28 @@ export function BulkApprovalQueueList({
       <ul className="space-y-2">
         {items.map((item) => {
           const isSelected = selected.has(item.publicToken);
+          const rowState = rowStateDisplay(item.type);
           return (
             <li
               key={item.publicToken}
-              className={`rounded-lg border px-4 py-3 flex items-start gap-3 ${
-                isSelected ? "border-ln-op-line bg-ln-op-stripe" : "border-ln-op-line"
+              // OpCard-consistent row treatment (rounded-[var(--radius-md)] +
+              // border-ln-op-line + bg-ln-op-card, matching components/ui/
+              // dashboard/OpCard.tsx) and the same selected/hover tokens
+              // CaseQueue uses for its rows (bg-ln-op-blue-bg when selected).
+              // Kept as a raw <li>, NOT CaseQueue itself — see the file-level
+              // note below the imports for why forcing CaseQueue here would
+              // regress the bulk-selection UX this screen depends on.
+              //
+              // CSS-8: capped at 200 rows (COLA_PAGE_LIMIT, also served on
+              // /admin/cola) with no virtualization — content-visibility
+              // skips off-screen rows.
+              className={`op-lazy-row rounded-[var(--radius-md)] border px-4 py-3 flex items-start gap-3 transition-colors ${
+                isSelected
+                  ? "border-ln-op-line bg-ln-op-blue-bg"
+                  : "border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe"
               }`}
             >
-              <LnCheckbox
+              <OpCheckbox
                 id={`row-${item.publicToken}`}
                 checked={isSelected}
                 onChange={() => toggle(item.publicToken)}
@@ -126,80 +259,113 @@ export function BulkApprovalQueueList({
               />
               <Link
                 href={`${detailUrlPrefix}/${item.publicToken}`}
-                className="flex-1 min-w-0 space-y-0.5"
+                className="flex-1 min-w-0 space-y-1 no-underline"
               >
-                <p className="text-sm font-medium text-ln-op-ink">{item.typeLabel}</p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <p className="text-sm font-medium text-ln-op-ink">{item.typeLabel}</p>
+                  <OpPill tone={rowState.tone}>{rowState.label}</OpPill>
+                </div>
                 <p className="text-xs text-ln-op-mute">
                   {item.applicantName} · {item.jurisdiction}
                 </p>
-                <p className="text-[10px] text-ln-op-mute font-mono">
-                  {item.publicToken} · {item.createdAt}
-                </p>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <OpCodeBadge tone="blue">{item.publicToken}</OpCodeBadge>
+                  <time dateTime={item.createdAt} className="text-xs text-ln-op-mute">
+                    {formatDate(item.createdAt)}
+                  </time>
+                </div>
               </Link>
             </li>
           );
         })}
       </ul>
 
-      {lastResult && <ResultPanel result={lastResult} onDismiss={() => setLastResult(null)} />}
+      {lastResult && <OpBulkResultPanel result={lastResult} onDismiss={dismissResult} />}
 
       {someSelected && (
         <div className="fixed bottom-0 left-0 right-0 border-t border-ln-op-line bg-ln-op-card z-50">
           <div className="max-w-5xl mx-auto px-6 py-3 space-y-3">
             {mode === "none" && (
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-sm">
-                  <span className="font-medium">{selected.size}</span> seleccionada
-                  {selected.size === 1 ? "" : "s"}
-                </p>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={clear}
-                    className="text-xs text-ln-op-mute hover:text-ln-op-ink"
-                  >
-                    Limpiar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("reject")}
-                    className="px-3 py-1.5 rounded text-sm border border-ln-op-danger text-ln-op-danger hover:bg-ln-op-danger-bg"
-                  >
-                    Rechazar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMode("approve")}
-                    className="px-3 py-1.5 rounded text-sm bg-ln-op-ok text-white hover:bg-ln-op-ok"
-                  >
-                    Aprobar
-                  </button>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm">
+                    <span className="font-medium">{selected.size}</span>{" "}
+                    {pluralizeEs(selected.size, "seleccionada")}
+                  </p>
+                  <div className="flex items-center gap-2">
+                    {/* "Limpiar" stays a plain text button — not an OpButton —
+                        matching OpBulkBar's OWN canonical "Limpiar" affordance
+                        (components/ui/dashboard/OpBulkBar.tsx:117-123), which
+                        is a bare button too. The shared kit doesn't promote
+                        the clear-selection action to a bordered button. */}
+                    <button
+                      type="button"
+                      onClick={clear}
+                      className="text-xs text-ln-op-mute hover:text-ln-op-ink"
+                    >
+                      Limpiar
+                    </button>
+                    <OpButton variant="danger" size="sm" onClick={() => setMode("reject")}>
+                      Rechazar
+                    </OpButton>
+                    <OpButton
+                      variant="ok"
+                      size="sm"
+                      onClick={() => setMode("approve")}
+                      disabled={hasVetMatricula}
+                    >
+                      Aprobar
+                    </OpButton>
+                  </div>
                 </div>
+                {hasVetMatricula && (
+                  <output className="block text-sm text-ln-op-mute">
+                    {VET_MATRICULA_BULK_APPROVE_BLOCKED}
+                  </output>
+                )}
               </div>
             )}
 
             {mode === "approve" && (
               <ConfirmRow
-                title={`Aprobar ${selected.size} solicitud${selected.size === 1 ? "" : "es"}`}
+                title={`Aprobar ${selected.size} ${pluralizeEs(selected.size, "solicitud")}`}
                 placeholder="Notas (opcional)"
                 value={decisionNotes}
                 onChange={setDecisionNotes}
                 confirmLabel="Confirmar aprobación"
-                confirmClass="bg-ln-op-ok text-white hover:bg-ln-op-ok"
+                confirmVariant="ok"
+                confirmDisabled={hasVetMatricula}
                 pending={pending}
                 onConfirm={runApprove}
                 onCancel={() => setMode("none")}
-              />
+              >
+                <ul className="space-y-0.5 text-xs text-ln-op-ink-2">
+                  {typeBreakdown.map((entry) => (
+                    <li key={entry.type} className="flex items-center justify-between gap-2">
+                      <span>{entry.label}</span>
+                      <span className="tabular-nums font-medium">{entry.count}</span>
+                    </li>
+                  ))}
+                </ul>
+                {hasRupga && (
+                  <p
+                    role="alert"
+                    className="rounded-md border border-ln-op-danger-bd bg-ln-op-danger-bg px-2 py-1.5 text-sm text-ln-op-danger"
+                  >
+                    {RUPGA_APPROVAL_WARNING}
+                  </p>
+                )}
+              </ConfirmRow>
             )}
 
             {mode === "reject" && (
               <ConfirmRow
-                title={`Rechazar ${selected.size} solicitud${selected.size === 1 ? "" : "es"}`}
+                title={`Rechazar ${selected.size} ${pluralizeEs(selected.size, "solicitud")}`}
                 placeholder="Motivo del rechazo (mínimo 5 caracteres) *"
                 value={decisionNotes}
                 onChange={setDecisionNotes}
                 confirmLabel="Confirmar rechazo"
-                confirmClass="bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                confirmVariant="primary"
                 confirmDisabled={decisionNotes.trim().length < 5}
                 pending={pending}
                 onConfirm={runReject}
@@ -219,80 +385,57 @@ function ConfirmRow({
   value,
   onChange,
   confirmLabel,
-  confirmClass,
+  confirmVariant,
   confirmDisabled,
   pending,
   onConfirm,
   onCancel,
+  children,
 }: {
   title: string;
   placeholder: string;
   value: string;
   onChange: (v: string) => void;
   confirmLabel: string;
-  confirmClass: string;
+  /**
+   * Approve = "ok" (bg-ln-op-ok, matches OpButton's "EXPLICIT positive
+   * confirmation" contract exactly). Reject = "primary" (bg-ln-op-azul) —
+   * this preserves the EXISTING bespoke `confirmClass` color, which was
+   * already blue, not red: rejecting a request is a normal decisive
+   * workflow action here, not styled as destructive-red (the outline-red
+   * "Rechazar" TRIGGER button above is the only red affordance in this flow).
+   */
+  confirmVariant: OpButtonVariant;
   confirmDisabled?: boolean;
   pending: boolean;
   onConfirm: () => void;
   onCancel: () => void;
+  children?: ReactNode;
 }) {
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium">{title}</p>
-      <textarea
+      {children}
+      <OpTextarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-ln-op-line bg-ln-op-card text-sm"
+        size="sm"
       />
       <div className="flex gap-2 justify-end">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="px-3 py-1.5 rounded text-sm border border-ln-op-line"
-        >
+        <OpButton variant="ghost" size="sm" onClick={onCancel} disabled={pending}>
           Cancelar
-        </button>
-        <button
-          type="button"
+        </OpButton>
+        <OpButton
+          variant={confirmVariant}
+          size="sm"
           onClick={onConfirm}
           disabled={pending || confirmDisabled}
-          className={`px-3 py-1.5 rounded text-sm font-medium disabled:opacity-50 ${confirmClass}`}
         >
           {pending ? "Procesando..." : confirmLabel}
-        </button>
+        </OpButton>
       </div>
-    </div>
-  );
-}
-
-function ResultPanel({ result, onDismiss }: { result: BulkResult; onDismiss: () => void }) {
-  return (
-    <div className="rounded-lg border border-ln-op-line p-3 space-y-2 text-sm">
-      <div className="flex items-baseline justify-between">
-        <p className="font-medium">
-          {result.succeeded.length} OK · {result.failed.length} fallaron
-        </p>
-        <button
-          type="button"
-          onClick={onDismiss}
-          className="text-xs text-ln-op-mute hover:text-ln-op-ink"
-        >
-          Cerrar
-        </button>
-      </div>
-      {result.failed.length > 0 && (
-        <ul className="text-xs text-ln-op-danger space-y-0.5">
-          {result.failed.map((f) => (
-            <li key={f.id}>
-              <span className="font-mono">{f.id}</span> — {f.reason}
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="text-[10px] text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
     </div>
   );
 }

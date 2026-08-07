@@ -1,160 +1,63 @@
 "use server";
 
-import { and, count, eq, isNull } from "drizzle-orm";
-import { sql } from "drizzle-orm";
+// libreta-share.ts — thin shim (strangler migration 32/61).
+//
+// Business logic moved to:
+//   src/modules/pets/application/libreta-share/
+//
+// This file provides the action wrappers used by UI components plus
+// logLibretaShareViewForToken (token-credentialed telemetry) and the public
+// types. The bare ForUser writers (createLibretaShareForUser,
+// revokeLibretaShareForUser) are NOT exported here (authz triage 2026-07-04):
+// every export of a "use server" file is an independently-addressable server
+// action, so a bare writer taking a caller-supplied userId would let any
+// client mint a Tier-2 MEDICAL share as the victim. Callers import the
+// writers from src/modules/pets/application/libreta-share/ directly.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
+
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 
-import { db, libretaShareTokens, ownerships, pets, profiles, shareTelemetry } from "@/db";
-import { generateLibretaShareToken } from "@/lib/publicToken";
+import type { LibretaShareToken } from "@/db";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
-import { generateUniqueToken } from "@/lib/unique-token";
-
-const MAX_ACTIVE_SHARES_PER_PET = 5;
-
-export type CreateShareInput = {
-  petPublicToken: string;
-  expiresInDays: number | null; // null = no expiration
-  label: string | null;
-};
-
-export type CreateShareResult = { error: string } | { shareToken: string };
-export type RevokeShareResult = { error: string } | { ok: true };
+import { createLibretaShareForUser as _createLibretaShareForUser } from "@/src/modules/pets/application/libreta-share/create-libreta-share";
+import { getActiveLibretaShares as _getActiveLibretaShares } from "@/src/modules/pets/application/libreta-share/get-active-libreta-shares";
+import { logLibretaShareViewForToken as _logLibretaShareViewForToken } from "@/src/modules/pets/application/libreta-share/log-libreta-share-view";
+import {
+  findPetPublicTokenForShare as _findPetPublicTokenForShare,
+  revokeLibretaShareForUser as _revokeLibretaShareForUser,
+} from "@/src/modules/pets/application/libreta-share/revoke-libreta-share";
+import type {
+  CreateShareInput,
+  CreateShareResult,
+  RevokeShareResult,
+} from "@/src/modules/pets/application/libreta-share/types";
 
 // ---------------------------------------------------------------------------
-// Pure inner writers — called directly from tests.
+// Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export async function createLibretaShareForUser(
-  userId: string,
-  input: CreateShareInput,
-): Promise<CreateShareResult> {
-  // Verify active ownership of the pet identified by publicToken.
-  const [petRow] = await db
-    .select({ id: pets.id })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(
-      and(
-        eq(pets.publicToken, input.petPublicToken),
-        eq(ownerships.ownerUserId, userId),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-  if (!petRow) return { error: "Mascota no encontrada o sin permisos." };
+export type {
+  CreateShareInput,
+  CreateShareResult,
+  RevokeShareResult,
+} from "@/src/modules/pets/application/libreta-share/types";
 
-  // Enforce hard cap of 5 active shares per pet.
-  const [{ activeCount }] = await db
-    .select({ activeCount: count() })
-    .from(libretaShareTokens)
-    .where(and(eq(libretaShareTokens.petId, petRow.id), isNull(libretaShareTokens.revokedAt)));
-  if (activeCount >= MAX_ACTIVE_SHARES_PER_PET) {
-    return {
-      error: `Ya tenés ${MAX_ACTIVE_SHARES_PER_PET} compartidos activos para esta mascota. Revocá uno antes de crear otro.`,
-    };
-  }
-
-  const shareToken = await generateUniqueToken(
-    libretaShareTokens,
-    libretaShareTokens.shareToken,
-    generateLibretaShareToken,
-  );
-  const expiresAt =
-    input.expiresInDays === null
-      ? null
-      : new Date(Date.now() + input.expiresInDays * 24 * 60 * 60 * 1000);
-
-  await db.insert(libretaShareTokens).values({
-    shareToken,
-    petId: petRow.id,
-    createdByUserId: userId,
-    label: input.label,
-    expiresAt,
-  });
-
-  return { shareToken };
-}
-
-export async function revokeLibretaShareForUser(
-  userId: string,
-  shareTokenRowId: string,
-): Promise<RevokeShareResult> {
-  const [row] = await db
-    .select({
-      petId: libretaShareTokens.petId,
-      createdByUserId: libretaShareTokens.createdByUserId,
-    })
-    .from(libretaShareTokens)
-    .where(eq(libretaShareTokens.id, shareTokenRowId))
-    .limit(1);
-  if (!row) return { error: "Compartido no encontrado." };
-
-  // Authorization policy (review 2026-05-19 §2.2): creator can always revoke;
-  // app admins can revoke for moderation / compliance. Other current owners
-  // of the pet (including fosters and post-transfer owners) CANNOT revoke
-  // someone else's share — that protects the medical-history continuity that
-  // libreta shares depend on. A new owner who wants to clean up old shares
-  // contacts support, or the share simply expires on schedule.
-  if (row.createdByUserId !== userId) {
-    const [callerProfile] = await db
-      .select({ role: profiles.role })
-      .from(profiles)
-      .where(eq(profiles.id, userId))
-      .limit(1);
-    if (callerProfile?.role !== "admin") {
-      return { error: "Sin permisos para revocar este compartido." };
-    }
-  }
-
-  await db
-    .update(libretaShareTokens)
-    .set({ revokedAt: new Date(), revokedByUserId: userId })
-    .where(eq(libretaShareTokens.id, shareTokenRowId));
-
-  return { ok: true };
-}
+// ---------------------------------------------------------------------------
+// Token-credentialed view-counter writer — the share token itself is the
+// credential (validated inside the module writer before any DB write).
+// Since migration 0167 (TEL-1) this bumps the token's cached counters and
+// records nothing about the viewer.
+// ---------------------------------------------------------------------------
 
 export async function logLibretaShareViewForToken(input: {
   shareToken: string;
-  userAgent: string | null;
 }): Promise<void> {
-  const [row] = await db
-    .select({
-      id: libretaShareTokens.id,
-      petId: libretaShareTokens.petId,
-      revokedAt: libretaShareTokens.revokedAt,
-      expiresAt: libretaShareTokens.expiresAt,
-    })
-    .from(libretaShareTokens)
-    .where(eq(libretaShareTokens.shareToken, input.shareToken))
-    .limit(1);
-  if (!row) return;
-  if (row.revokedAt !== null) return;
-  if (row.expiresAt !== null && row.expiresAt < new Date()) return;
-
-  const now = new Date();
-
-  await db.transaction(async (tx) => {
-    // Tier-2 share view telemetry lives in its own table (not pet_events)
-    // since the 2026-05-19 catalog cleanup. The cached counters on
-    // libreta_share_tokens are still maintained for the owner's quick
-    // glance at view count without scanning telemetry.
-    await tx.insert(shareTelemetry).values({
-      petId: row.petId,
-      shareTokenId: row.id,
-      viewedAt: now,
-      viewerIpHash: null,
-      userAgent: input.userAgent,
-    });
-
-    await tx
-      .update(libretaShareTokens)
-      .set({
-        viewCountCached: sql`${libretaShareTokens.viewCountCached} + 1`,
-        lastViewedAtCached: now,
-      })
-      .where(eq(libretaShareTokens.id, row.id));
-  });
+  return _logLibretaShareViewForToken(input);
 }
 
 // ---------------------------------------------------------------------------
@@ -170,7 +73,7 @@ export async function createLibretaShareAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sesión expirada." };
 
-  const result = await createLibretaShareForUser(user.id, input);
+  const result = await _createLibretaShareForUser(user.id, input);
   if ("shareToken" in result) {
     revalidatePath(`/mis-mascotas/${input.petPublicToken}`);
   }
@@ -186,32 +89,64 @@ export async function revokeLibretaShareAction(
   } = await supabase.auth.getUser();
   if (!user) return { error: "Sesión expirada." };
 
-  const result = await revokeLibretaShareForUser(user.id, shareTokenRowId);
+  const result = await _revokeLibretaShareForUser(user.id, shareTokenRowId);
   if ("ok" in result) {
-    // Find the pet publicToken to revalidate the page.
-    const [shareRow] = await db
-      .select({ petId: libretaShareTokens.petId })
-      .from(libretaShareTokens)
-      .where(eq(libretaShareTokens.id, shareTokenRowId))
-      .limit(1);
-    if (shareRow) {
-      const [pet] = await db
-        .select({ publicToken: pets.publicToken })
-        .from(pets)
-        .where(eq(pets.id, shareRow.petId))
-        .limit(1);
-      if (pet) revalidatePath(`/mis-mascotas/${pet.publicToken}`);
-    }
+    const petPublicToken = await _findPetPublicTokenForShare(shareTokenRowId);
+    if (petPublicToken) revalidatePath(`/mis-mascotas/${petPublicToken}`);
   }
   return result;
 }
 
-// @no-auth-required: viewer telemetry from a public share link. The token
-// itself is the credential; auth lives in `logLibretaShareViewForToken`,
-// which validates the token before writing.
+// @no-auth-required: view count from a public share link. The token itself is
+// the credential; auth lives in `logLibretaShareViewForToken`, which validates
+// the token before writing.
 export async function logLibretaShareViewAction(input: {
   shareToken: string;
-  userAgent: string | null;
 }): Promise<void> {
-  await logLibretaShareViewForToken(input);
+  // Per-(shareToken, IP) rate limit BEFORE the delegated write. This action is
+  // independently invocable — an attacker can POST it directly (bypassing the
+  // page's own `libreta_share_page` guard) to hammer the view-counter update.
+  // Cap it at the same generous rate
+  // as the page render so a legitimate viewer refreshing is never affected, then
+  // silently drop on breach (telemetry is best-effort; ViewLogger swallows the
+  // outcome regardless).
+  let ip = "unknown";
+  try {
+    ip = callerIp(await headers());
+  } catch {
+    // Non-request context (e.g. direct test invocation) — fall back to "unknown".
+  }
+  try {
+    await enforceRateLimit(`libreta_share_view:${input.shareToken}`, ip, {
+      maxPerMinute: 30,
+      maxPerHour: 200,
+    });
+  } catch (err) {
+    if (err instanceof RateLimitError) return;
+    throw err;
+  }
+
+  await _logLibretaShareViewForToken(input);
+}
+
+// ---------------------------------------------------------------------------
+// getActiveLibretaSharesAction — narrow read for MergedShareSheet (ADR-14).
+//
+// SharesManager moved out of LibretaFace into the `?sheet=compartir` sheet
+// (SheetMounter is a sibling of PetDetailTabsPanel, so it can't read the
+// Libreta face's deferred client-fetched data). This action reuses the SAME
+// owner-only active-shares query get-libreta-face-data.ts runs, scoped down
+// to just that slice, so MergedShareSheet can self-fetch on mount instead of
+// forking SharesManager's data contract.
+// ---------------------------------------------------------------------------
+
+export async function getActiveLibretaSharesAction(
+  petPublicToken: string,
+): Promise<{ ok: true; shares: LibretaShareToken[] } | { ok: false; error: string }> {
+  const access = await requirePetAccess(petPublicToken);
+  if (!access.ok) return { ok: false, error: "Acceso denegado" };
+  if (access.accessPath !== "owner") return { ok: true, shares: [] };
+
+  const shares = await _getActiveLibretaShares(access.pet.id);
+  return { ok: true, shares };
 }

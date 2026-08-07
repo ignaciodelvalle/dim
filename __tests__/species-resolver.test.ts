@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { speciesLabel } from "@/lib/format";
+import { speciesLabel } from "@/lib/utils/format";
 
 // Mirrors the resolver embedded in PetForm: the persisted value is the
 // sub-select value when the group is "other", except for the explicit

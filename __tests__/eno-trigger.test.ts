@@ -13,7 +13,6 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  auditLog,
   db,
   enoProcessingQueue,
   govtAssignments,
@@ -23,8 +22,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { processEnoQueueBatch } from "@/lib/eno-queue-processor";
-import { processEnoEventTrigger } from "@/lib/eno-trigger";
+import { processEnoQueueBatch } from "@/lib/infra/eno-queue-processor";
+import { processEnoEventTrigger } from "@/lib/infra/eno-trigger";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -43,8 +42,21 @@ const GOVT_PROVINCE_EMAIL = "eno-govt-prov@dim-test.local";
 const GOVT_LOCALITY_EMAIL = "eno-govt-local@dim-test.local";
 const PASS = "EnoFlow_2026!";
 
-const TEST_PROVINCE = "Buenos Aires";
-const TEST_LOCALITY = "Mar del Plata";
+// Test-isolation fix (2026-07-14): a suite-UNIQUE jurisdiction.
+// The old real names ("Buenos Aires"/"Mar del Plata") COLLIDED with
+// admin-institutional.test.ts, whose fase5 govt fixtures live in the same real
+// jurisdiction while both suites run in PARALLEL vitest forks — its
+// not-yet-deactivated govt intermittently caught this suite's fanout and broke
+// the exact-count asserts (2 govts expected, 3 notified). Fanout matching is
+// string-based, so a synthetic jurisdiction exercises the same code paths with
+// zero cross-suite interference (same idiom as the no-govt test below).
+// The PROVINCE must stay CANONICAL — govt_assignments + pets carry a
+// *_jurisdiction_province_canonical CHECK (the first synthetic attempt violated
+// it; the full-suite gate caught it) — so the suite claims CATAMARCA, which no
+// other fixture or seed assigns govts in, and keeps the LOCALITY synthetic
+// (localities are free-form).
+const TEST_PROVINCE = "Catamarca";
+const TEST_LOCALITY = "Localidad ENO Sintetica";
 
 let ownerUserId: string;
 let vetUserId: string;

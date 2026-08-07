@@ -12,13 +12,6 @@ import type { CaseLifecycle } from "./types";
 export const adoptionApplicationLifecycle: CaseLifecycle = {
   kind: "adoption_application",
   statusValues: ["open", "closed"],
-  phases: [
-    "submitted_pending_review",
-    "approved_pending_finalization",
-    "closed_won",
-    "closed_rejected",
-    "closed_cascade_other_finalized",
-  ],
   opensEvents: [
     {
       eventType: "adoption_application_submitted",

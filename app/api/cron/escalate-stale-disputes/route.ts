@@ -7,7 +7,7 @@ import {
   escalateStaleDispute,
   findStaleDisputes,
 } from "@/lib/case-closers/escalate-stale-disputes";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +21,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const result = await runCaseCron<StaleDisputeCandidate>({
     name: CRON_NAME,
-    scan: () => findStaleDisputes(),
+    scan: (cursor) => findStaleDisputes({ afterId: cursor?.afterId, limit: cursor?.limit }),
     processOne: (candidate) => escalateStaleDispute(candidate),
+    batchSize: 200,
   });
 
-  return NextResponse.json({
-    status: result.status,
-    itemsProcessed: result.itemsProcessed,
-    runId: result.runId,
-  });
+  return NextResponse.json(
+    {
+      status: result.status,
+      itemsProcessed: result.itemsProcessed,
+      runId: result.runId,
+    },
+    { status: result.status === "ok" ? 200 : 500 },
+  );
 }

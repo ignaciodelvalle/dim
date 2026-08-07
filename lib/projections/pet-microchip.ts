@@ -1,9 +1,23 @@
 // Projection: derive the 5-field microchip block on `pets` from the event log.
 //
-// EARLIEST microchip_implanted event wins. This matches the AGENTS.md rule
-// "never overwrite existing chip data" — once a chip is recorded, that is
-// the binding fact. If a future correction event ships, it will be a NEW
-// event type (e.g. `microchip_corrected`) handled here in a new branch.
+// The canonical microchip state is the ACTIVE `pet_identifications` row. This
+// projection reconstructs that same state PURELY from events so the drift
+// harness compares one model against itself (stored canonical row vs derived
+// replay):
+//
+//   - microchip_implanted binds the chip. EARLIEST wins while a chip is active
+//     ("a chip is a permanent implant — never overwrite existing chip data").
+//     A second implant while one is already active is ignored; an implant AFTER
+//     a revocation re-binds (active === null → free to bind again).
+//   - microchip_replaced folds the lifecycle the replace writer applies to
+//     pet_identifications (src/modules/pets/application/microchip/replace-microchip.ts):
+//       * replacement (new_chip_number set) → the new chip becomes the active
+//         canonical row. Fields mirror what the writer inserts: iso_country_code
+//         = new_chip.slice(0,3); recorded_at = the replace date (event.occurredAt,
+//         same instant the writer stamps); recorded_by_label = replaced_by;
+//         implantation_site is not set (null).
+//       * pure revocation (new_chip_number = null) → the active row is flipped to
+//         'replaced' with no successor, so no chip remains active.
 
 import type { ProjectionEvent } from "./types";
 
@@ -24,27 +38,53 @@ const EMPTY: PetMicrochipProjection = {
 };
 
 export function replayPetMicrochip(events: ProjectionEvent[]): PetMicrochipProjection {
-  // Iterate from the start so the first match is the earliest event.
+  // Fold implant + replace/revoke chronologically. `active` mirrors the single
+  // active canonical row (null when no chip is active).
+  let active: PetMicrochipProjection | null = null;
+
   for (const e of events) {
-    if (e.eventType !== "microchip_implanted") continue;
-    const payload = (e.payload ?? {}) as Record<string, unknown>;
-    const chipNumber = strOrNull(payload.chip_number);
-    if (!chipNumber) continue; // a chip event with no number is malformed; skip
-    // implant_date_known is the flag the writers (createPetAction +
-    // createMicrochipAction) use to mark whether the user actually knew
-    // the implant date. When false, occurredAt defaulted to `now` (the
-    // recordedAt) and is NOT a real implant date. Surface null in that
-    // case to match what createPetAction stored on the pets row.
-    const dateKnown = payload.implant_date_known === true;
-    return {
-      microchipId: chipNumber,
-      microchipCountryCode: strOrNull(payload.country_code),
-      microchipImplantedAt: dateKnown ? formatDate(e.occurredAt) : null,
-      microchipImplantedBy: strOrNull(payload.implanted_by),
-      microchipLocation: strOrNull(payload.location_on_body),
-    };
+    if (e.eventType === "microchip_implanted") {
+      // Earliest-wins: never overwrite a chip that is already active.
+      if (active !== null) continue;
+      const payload = (e.payload ?? {}) as Record<string, unknown>;
+      const chipNumber = strOrNull(payload.chip_number);
+      if (!chipNumber) continue; // a chip event with no number is malformed; skip
+      // implant_date_known is the flag the writers (createPetAction +
+      // createMicrochipAction) use to mark whether the user actually knew the
+      // implant date. When false, occurredAt defaulted to `now` (the recordedAt)
+      // and is NOT a real implant date — surface null to match the canonical row.
+      const dateKnown = payload.implant_date_known === true;
+      active = {
+        microchipId: chipNumber,
+        microchipCountryCode: strOrNull(payload.country_code),
+        microchipImplantedAt: dateKnown ? formatDate(e.occurredAt) : null,
+        microchipImplantedBy: strOrNull(payload.implanted_by),
+        microchipLocation: strOrNull(payload.location_on_body),
+      };
+      continue;
+    }
+
+    if (e.eventType === "microchip_replaced") {
+      const payload = (e.payload ?? {}) as Record<string, unknown>;
+      const newChip = strOrNull(payload.new_chip_number);
+      if (!newChip) {
+        // Pure revocation — old active row flipped to 'replaced', no successor.
+        active = null;
+        continue;
+      }
+      // Replacement — the new chip becomes active. Mirror the canonical row the
+      // replace writer inserts so stored and derived speak one model.
+      active = {
+        microchipId: newChip,
+        microchipCountryCode: newChip.slice(0, 3),
+        microchipImplantedAt: formatDate(e.occurredAt),
+        microchipImplantedBy: strOrNull(payload.replaced_by),
+        microchipLocation: null,
+      };
+    }
   }
-  return EMPTY;
+
+  return active ?? EMPTY;
 }
 
 function strOrNull(v: unknown): string | null {

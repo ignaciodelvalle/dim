@@ -12,7 +12,7 @@ import {
   type UniqueTokenOptions,
   generateUniqueToken,
   isUniqueViolation,
-} from "@/lib/unique-token";
+} from "@/lib/infra/unique-token";
 
 type MockExecutor = {
   select: ReturnType<typeof vi.fn>;

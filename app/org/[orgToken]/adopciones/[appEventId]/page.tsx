@@ -9,16 +9,41 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
 import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { upcastPayload } from "@/lib/event-upcasters";
+import { upcastPayload } from "@/lib/events/event-upcasters";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { formatDateTime } from "@/lib/utils/format";
+import { isUuid } from "@/lib/utils/uuid";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ReviewButtons } from "./ReviewButtons";
 
 export const dynamic = "force-dynamic";
+
+/**
+ * The applicant's email, read from `auth.users` at render time.
+ *
+ * Not mirrored anywhere on purpose: `profiles` deliberately has no email column
+ * (no PII duplication, and subject erasure has ONE place to happen), and the
+ * append-only event payload is the last place it should live — an immutable
+ * spine outlives the right to be forgotten.
+ *
+ * Best-effort by design: an auth hiccup degrades to "sin email registrado", it
+ * never breaks a shelter's review screen.
+ */
+async function resolveApplicantEmail(applicantUserId: string | null): Promise<string | null> {
+  if (!applicantUserId) return null;
+  try {
+    const { data } = await createAdminClient().auth.admin.getUserById(applicantUserId);
+    return data?.user?.email ?? null;
+  } catch {
+    return null;
+  }
+}
 
 export default async function AdoptionReviewDetailPage({
   params,
@@ -31,9 +56,9 @@ export default async function AdoptionReviewDetailPage({
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
-        <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-md text-ln-op-ink-2">{auth.error}</p>
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </div>
@@ -78,19 +103,43 @@ export default async function AdoptionReviewDetailPage({
 
   // Applicant identity. profiles.id may not be FK-backed via auth.users
   // (stub profiles exist) but for an actual application the submitter is
-  // always a real auth user.
-  const [applicant] = await db
-    .select({
-      id: profiles.id,
-      displayName: profiles.displayName,
-      phone: profiles.phone,
-    })
-    .from(profiles)
-    .where(eq(profiles.id, payload.applicant_user_id))
-    .limit(1);
+  // always a real auth user. Historic/seeded payloads can carry a non-uuid
+  // applicant_user_id (e.g. external_user_404) — comparing that against the
+  // uuid column aborts the query (22P02) and crashes the page, so guard the
+  // lookup and fall back to the "(perfil no encontrado)" rendering.
+  const applicantUserId = isUuid(payload.applicant_user_id) ? payload.applicant_user_id : null;
+  const [applicant] = applicantUserId
+    ? await db
+        .select({
+          id: profiles.id,
+          displayName: profiles.displayName,
+          phone: profiles.phone,
+        })
+        .from(profiles)
+        .where(eq(profiles.id, applicantUserId))
+        .limit(1)
+    : [undefined];
+
+  // The applicant's EMAIL (copy audit 2026-08-04, PO decision). Five strings
+  // across the adoption flow tell the applicant the shelter will get in touch,
+  // and this screen — the shelter's only view of them — showed Nombre and
+  // Teléfono and nothing else. A phone-only channel does not honour "te
+  // contactamos por email", so the promise was unkeepable from here.
+  //
+  // Read from `auth.users` at render time rather than mirrored anywhere: the
+  // profiles table deliberately has no email column (no PII duplication, and
+  // subject erasure has ONE place to happen), and the append-only event payload
+  // is the last place it should live — an immutable spine outlives the right to
+  // be forgotten. Same targeted `getUserById` pattern as
+  // app/admin/admins/[userId]/page.tsx; one call per page load (ADR-8).
+  //
+  // Best-effort: an auth hiccup must degrade to "sin email registrado", never
+  // break a shelter's review screen.
+  const applicantEmail = await resolveApplicantEmail(applicantUserId);
 
   // PII access trail (V1-9). The org reviewer is now reading the applicant's
-  // full identity (name, phone, housing). Record one audit row per page view.
+  // full identity (name, phone, EMAIL, housing). Record one audit row per page
+  // view.
   // This is a server-component fetch, so it fires once per load — not on every
   // client re-render. Best-effort: a failed audit write must NOT block the
   // render (same posture as the best-effort notification inserts elsewhere).
@@ -135,18 +184,21 @@ export default async function AdoptionReviewDetailPage({
     <div className="max-w-3xl mx-auto space-y-6">
       <Link
         href={`/org/${orgToken}/adopciones`}
-        className="text-[12px] text-ln-op-azul hover:underline"
+        className="text-sm text-ln-op-azul hover:underline"
       >
         ← Volver a postulaciones
       </Link>
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulación para {pet.name}</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Recibida el {new Date(application.recordedAt).toLocaleString("es-AR")}
+        <h1 className="text-title font-semibold text-ln-op-ink">Postulación para {pet.name}</h1>
+        <p className="text-md text-ln-op-mute">
+          {/* AR-pinned via formatDateTime (bug 4): the bare toLocaleString
+              rendered the server's UTC clock ("Recibida 07:59:41") with no
+              timezone cue for a ~17:00 ART submission. */}
+          Recibida el {formatDateTime(application.recordedAt)}
         </p>
       </header>
 
@@ -155,6 +207,25 @@ export default async function AdoptionReviewDetailPage({
         <OpCardBody>
           <dl className="space-y-2">
             <Row label="Nombre" value={applicant?.displayName ?? "(perfil no encontrado)"} />
+            {/* Email always rendered, even when absent: its absence is
+                information the reviewer needs — it tells them the only channel
+                left is the phone. A row that silently disappears reads as "no
+                email column here", not as "this person has none". */}
+            <Row
+              label="Email"
+              value={
+                applicantEmail ? (
+                  <a
+                    href={`mailto:${applicantEmail}`}
+                    className="text-ln-op-azul underline underline-offset-2"
+                  >
+                    {applicantEmail}
+                  </a>
+                ) : (
+                  "Sin email registrado"
+                )
+              }
+            />
             {applicant?.phone && <Row label="Teléfono" value={applicant.phone} />}
             <Row label="Tipo de vivienda" value={housingTypeLabel(payload.housing_type)} />
           </dl>
@@ -187,7 +258,7 @@ export default async function AdoptionReviewDetailPage({
       {alreadyResolved ? (
         <OpCard>
           <OpCardBody>
-            <p className="text-[13px] font-medium text-ln-op-ink">
+            <p className="text-md font-medium text-ln-op-ink">
               Esta postulación ya fue resuelta:{" "}
               {decision[0].outcome === "approved"
                 ? "aprobada"
@@ -196,8 +267,8 @@ export default async function AdoptionReviewDetailPage({
                   : "rechazada"}
               .
             </p>
-            <p className="text-[12px] text-ln-op-mute mt-1">
-              {new Date(decision[0].decided_at).toLocaleString("es-AR")}
+            <p className="text-sm text-ln-op-mute mt-1">
+              {formatDateTime(decision[0].decided_at)}
               {decision[0].notes && ` · ${decision[0].notes}`}
             </p>
           </OpCardBody>
@@ -215,7 +286,7 @@ export default async function AdoptionReviewDetailPage({
         />
       )}
 
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         <Link
           href={`/org/${orgToken}/mascotas/${pet.publicToken}`}
           className="text-ln-op-azul hover:underline"
@@ -242,7 +313,9 @@ async function recordAdopterPiiView(args: {
     await db.insert(auditLog).values({
       actorUserId: args.actorUserId,
       action: "adopter_pii_viewed",
-      targetUserId: args.applicantUserId,
+      // Historic payloads may carry a non-uuid applicant id; the uuid FK
+      // column gets NULL then, and the raw value survives in the payload.
+      targetUserId: isUuid(args.applicantUserId) ? args.applicantUserId : null,
       targetOrganizationId: args.organizationId,
       payload: {
         org_id: args.organizationId,
@@ -256,11 +329,11 @@ async function recordAdopterPiiView(args: {
   }
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline gap-2">
-      <dt className="text-[12px] text-ln-op-mute w-32">{label}</dt>
-      <dd className="text-[13px] text-ln-op-ink">{value}</dd>
+      <dt className="text-sm text-ln-op-mute w-32">{label}</dt>
+      <dd className="text-md text-ln-op-ink">{value}</dd>
     </div>
   );
 }
@@ -268,8 +341,8 @@ function Row({ label, value }: { label: string; value: string }) {
 function Block({ label, body }: { label: string; body: string }) {
   return (
     <div className="space-y-1">
-      <p className="text-[12px] text-ln-op-mute">{label}</p>
-      <p className="text-[13px] text-ln-op-ink-2 whitespace-pre-wrap">{body}</p>
+      <p className="text-sm text-ln-op-mute">{label}</p>
+      <p className="text-md text-ln-op-ink-2 whitespace-pre-wrap">{body}</p>
     </div>
   );
 }

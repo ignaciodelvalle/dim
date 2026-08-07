@@ -4,9 +4,9 @@
 //   1. Happy path: notification row inserted for active owner.
 //   2. Rate limit exceeded (enforceRateLimit throws RateLimitError) → ok:false.
 //   3. enforceRateLimit is called with the correct endpoint + IP key.
-//   4. Pet not found → ok:false.
-//   5. Missing finderName → ok:false.
-//   6. Missing finderContact → ok:false.
+//   4. Pet not found → ok:false (and does not consume the rate limit).
+//   5. Missing finderName → still accepted (anonymous, PO 2026-07-24).
+//   6. Missing finderContact → still accepted; owner is told no contact was left.
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,8 +51,8 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
     enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
@@ -204,7 +204,7 @@ describe("notifyOwnerOfFoundPetAction — persistent rate-limit migration", () =
     expect(result.error).toContain("no encontrada");
   });
 
-  it("returns ok:false when finderName is missing", async () => {
+  it("accepts a report without finderName (anonymous, PO 2026-07-24) — body falls back to 'Alguien'", async () => {
     vi.resetModules();
     buildMockDb(true);
 
@@ -213,11 +213,27 @@ describe("notifyOwnerOfFoundPetAction — persistent rate-limit migration", () =
 
     const result = await notifyOwnerOfFoundPetAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain("nombre");
+    expect(result.ok).toBe(true);
+    expect(capturedNotificationInsert).not.toBeNull();
+    expect(capturedNotificationInsert?.body as string).toContain("Alguien");
+    expect(capturedNotificationInsert?.body as string).toContain("1111");
   });
 
-  it("returns ok:false when finderContact is missing", async () => {
+  it("a rejected submission (pet not found) does NOT consume the rate-limit budget (tester fix #6)", async () => {
+    vi.resetModules();
+    buildMockDb(false); // pet lookup returns nothing → rejected pre-limit
+    mockEnforceRateLimit.mockClear();
+
+    const { notifyOwnerOfFoundPetAction } = await import("@/app/actions/public");
+    const fd = makeFormData(BASE_FIELDS);
+
+    const result = await notifyOwnerOfFoundPetAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(false);
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("accepts a report without finderContact — owner is told no contact was left", async () => {
     vi.resetModules();
     buildMockDb(true);
 
@@ -226,7 +242,9 @@ describe("notifyOwnerOfFoundPetAction — persistent rate-limit migration", () =
 
     const result = await notifyOwnerOfFoundPetAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
 
-    expect(result.ok).toBe(false);
-    expect(result.error).toContain("contacto");
+    expect(result.ok).toBe(true);
+    expect(capturedNotificationInsert).not.toBeNull();
+    expect(capturedNotificationInsert?.body as string).toContain("Ana");
+    expect(capturedNotificationInsert?.body as string).toContain("No dejó datos de contacto");
   });
 });

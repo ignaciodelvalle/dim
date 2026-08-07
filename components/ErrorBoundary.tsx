@@ -11,9 +11,11 @@
 // leaking stack traces.
 
 import Link from "next/link";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
+import { reportError } from "@/lib/observability/report-error";
 
 type Props = {
   error: Error & { digest?: string };
@@ -22,38 +24,61 @@ type Props = {
   homeLabel?: string;
 };
 
+// PO quick win B4 (2026-07-24): "sin código" fallback — an operator/citizen
+// reading this over the phone to support needs a stable string either way,
+// never a blank line.
+const NO_CODE_LABEL = "sin código";
+
 export function ErrorBoundary({
   error,
   reset,
   homeHref = "/",
   homeLabel = "Volver al inicio",
 }: Props) {
-  // Log the error so it lands in the browser console + telemetry hooks. The
-  // server side already logged it as part of the boundary trip — this is
-  // purely for in-tab debugging.
+  // Report the error through the shared observability seam. The server side
+  // already logged it as part of the boundary trip — this is purely for
+  // in-tab debugging until a real sink is wired (see lib/observability/report-error.ts).
   useEffect(() => {
-    console.error("[ErrorBoundary]", error);
-  }, [error]);
+    reportError(error, { route: "ErrorBoundary", homeHref });
+  }, [error, homeHref]);
 
   const isProd = process.env.NODE_ENV === "production";
+  const code = error.digest ?? NO_CODE_LABEL;
+  const [copied, setCopied] = useState(false);
+
+  const copyCode = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API unavailable (permissions/older browser) — the code is
+      // already visible on-screen for a manual copy, so this is a silent no-op.
+    }
+  };
 
   return (
     <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-ln-card)]">
       <div className="max-w-md w-full text-center space-y-4">
         <div
-          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-ln-warn)]/15 text-[var(--color-ln-warn)] text-3xl"
+          className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-ln-warn)]/15 text-[var(--color-ln-warn)]"
           aria-hidden="true"
         >
-          ⚠
+          <Icon name="alerta" size={28} decorative />
         </div>
         <h1 className="text-2xl font-semibold text-[var(--color-ln-ink)]">Algo salió mal</h1>
         <p className="text-sm text-[var(--color-ln-mute)]">
           Probá de nuevo o volvé al inicio. Si el problema persiste, este es el código que el equipo
           necesita ver:
         </p>
-        <p className="font-mono text-xs text-[var(--color-ln-mute)] break-all">
-          {error.digest ?? (isProd ? "sin-digest" : error.message)}
-        </p>
+        <div className="flex items-center justify-center gap-2">
+          <p className="font-mono text-xs text-[var(--color-ln-mute)] break-all">
+            Código de error: {code}
+          </p>
+          <LnButton variant="ghost" size="sm" onClick={copyCode} className="shrink-0 text-xs">
+            {copied ? "Copiado" : "Copiar código"}
+          </LnButton>
+        </div>
         <div className="flex flex-col sm:flex-row gap-3 pt-2">
           <LnButton variant="primary" onClick={reset} className="flex-1">
             Reintentar
@@ -68,7 +93,9 @@ export function ErrorBoundary({
         {!isProd && (
           <details className="text-left text-xs text-[var(--color-ln-mute)] mt-4 pt-4 border-t border-[var(--color-ln-line)]">
             <summary className="cursor-pointer font-medium">Stack trace (solo dev)</summary>
-            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-[10px]">
+            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs">
+              {error.message}
+              {"\n\n"}
               {error.stack ?? "(sin stack)"}
             </pre>
           </details>

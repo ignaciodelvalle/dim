@@ -11,6 +11,8 @@
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { hashDni } from "@/lib/utils/dni-hash";
+
 import {
   db,
   fosterProposals,
@@ -50,7 +52,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: proposerUserId,
     displayName: "FosterRepo Proposer",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: false,
     role: "owner",
   });
@@ -88,7 +90,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: volunteerUserId,
     displayName: "Test Volunteer",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: true,
     role: "owner",
     phone: "1112345678",
@@ -575,5 +577,73 @@ describe("FosterRepository.findVolunteerByUserId", () => {
       "00000000-0000-0000-0000-000000000099",
     );
     expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AF-C1 (CRITICAL): convertFosterToOwner must close the org's shelter_custody.
+// A foster always coexists with an active shelter_custody row (the org holds
+// custody, the volunteer holds foster). If convert only ends the foster + owner
+// rows, the org keeps an ACTIVE shelter_custody → permanent double custody (the
+// org can still re-foster / list / finalize the pet elsewhere; metrics double
+// count). This mirrors insertAdoptionFinalized, which closes BOTH rows.
+// ---------------------------------------------------------------------------
+
+describe("AF-C1 — insertConvertFosterToOwner: closes the org's shelter_custody", () => {
+  it("leaves exactly ONE active ownership (the new owner) and NO active shelter_custody", async () => {
+    // Precondition: the pet has an active shelter_custody row (from beforeAll).
+    // Add the coexisting active foster row for the volunteer.
+    const [fosterOwnership] = await db
+      .insert(ownerships)
+      .values({ petId, ownerUserId: volunteerUserId, role: "foster" })
+      .returning();
+
+    // Sanity: two active ownerships before convert (shelter_custody + foster).
+    const activeBefore = await db
+      .select({ role: ownerships.role })
+      .from(ownerships)
+      .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+    expect(activeBefore.map((r) => r.role).sort()).toEqual(["foster", "shelter_custody"]);
+
+    try {
+      await db.transaction(async (tx) => {
+        await FosterRepository.insertConvertFosterToOwner(
+          {
+            petId,
+            petName: "FosterRepoTestPet",
+            fosterOwnershipId: fosterOwnership.id,
+            fosterUserId: volunteerUserId,
+            fosterEndedEventId: crypto.randomUUID(),
+            actorUserId: volunteerUserId,
+            now: new Date(),
+          },
+          tx,
+        );
+      });
+
+      const activeAfter = await db
+        .select({ role: ownerships.role, ownerUserId: ownerships.ownerUserId })
+        .from(ownerships)
+        .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+
+      // Exactly one active ownership: the new owner (the ex-foster user).
+      expect(activeAfter).toHaveLength(1);
+      expect(activeAfter[0].role).toBe("owner");
+      expect(activeAfter[0].ownerUserId).toBe(volunteerUserId);
+      // No active shelter_custody remains.
+      expect(activeAfter.some((r) => r.role === "shelter_custody")).toBe(false);
+    } finally {
+      // Cleanup: drop all ownerships + emitted events for this pet, then
+      // restore the shelter_custody row so later runs start clean.
+      await withMutationOverride(async (tx) => {
+        await tx.delete(petEvents).where(eq(petEvents.petId, petId));
+        await tx.delete(ownerships).where(eq(ownerships.petId, petId));
+        const [custody] = await tx
+          .insert(ownerships)
+          .values({ petId, ownerOrganizationId: orgId, role: "shelter_custody" })
+          .returning();
+        custodyOwnershipId = custody.id;
+      });
+    }
   });
 });

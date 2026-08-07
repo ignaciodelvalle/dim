@@ -1,5 +1,5 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { createDeathRecordAction } from "@/src/modules/events/actions";
 import { redirect } from "next/navigation";
 import { DeathRecordForm } from "./DeathRecordForm";
@@ -30,7 +30,15 @@ export default async function NewDeathRecordPage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <DeathRecordForm action={boundAction} species={pet.species} defaults={defaults} />
+        <DeathRecordForm
+          action={boundAction}
+          species={pet.species}
+          defaults={defaults}
+          // Rabies-aware disposal advice: while the pet is under an active
+          // observation, a non-recommended disposal choice gets a specific
+          // danger callout (the server cascade already notifies the authority).
+          inRabiesObservation={pet.rabiesObservationStatus === "in_progress"}
+        />
       </LnSheetCard>
     </LnSheetWrap>
   );

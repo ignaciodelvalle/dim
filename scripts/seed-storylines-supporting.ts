@@ -22,7 +22,7 @@
  *     - adoption_application_submitted (pending)                     (Negro)
  *     - adoption_application_rejected                                (Pelusa, prior applicant)
  *     - adoption_withdrawn                                           (Coco, prior applicant)
- *     - adoption_eligibility_set                                     (Lola)
+ *     - adoption_eligibility_set                                     (Lola, Bichita)
  *     - microchip_revoked                                            (Coco — duplicate fraud)
  *     - sterilization_performed (multiple)
  *
@@ -924,7 +924,7 @@ const lola: Storyline = {
       event_type: "adoption_eligibility_set",
       author_role: "shelter",
       payload: {
-        adoption_eligible: true,
+        eligible: true,
         set_by_user_id: "alejo",
         reason: "evaluación temperamento completa — apta",
       },
@@ -1233,7 +1233,7 @@ const negro: Storyline = {
       date: "2025-10-22",
       event_type: "adoption_eligibility_set",
       author_role: "shelter",
-      payload: { adoption_eligible: true, set_by_user_id: "alejo" },
+      payload: { eligible: true, set_by_user_id: "alejo" },
     },
     {
       date: "2026-05-10",
@@ -1284,7 +1284,8 @@ const bichita: Storyline = {
     acquisition_method: "rescued",
     status: "active",
     owner: "org:patitas-del-norte",
-    notes: "Shelter custody. Foster proposal cancelled.",
+    notes:
+      "Shelter custody. Foster proposal cancelled. adoption_eligibility_set TRUE — listed on /adoptar.",
   },
   events: [
     {
@@ -1319,6 +1320,17 @@ const bichita: Storyline = {
         proposal_public_token: "prop-bichita-2025-09-22",
         outcome: "cancelled",
         cancellation_reason: "Refugio cancela — voluntaria asignada a urgencia previa",
+      },
+      uncommon: true,
+    },
+    {
+      date: "2025-10-05",
+      event_type: "adoption_eligibility_set",
+      author_role: "shelter",
+      payload: {
+        eligible: true,
+        set_by_user_id: "alejo",
+        reason: "evaluación completa — apta para adopción",
       },
       uncommon: true,
     },

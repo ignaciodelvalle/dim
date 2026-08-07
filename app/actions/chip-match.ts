@@ -1,56 +1,57 @@
 "use server";
 
-// confirmChipMatchAction — Lost & Found Fase 2.
+// chip-match.ts — thin shim (strangler migration 21/61).
 //
-// Called from the match confirmation pages (refugio: /org/[orgToken]/intake/match/[token]
-// and vecino: /mis-mascotas/nueva/match/[token]) after the actor sees the matched
-// pet card and decides.
+// Business logic moved to:
+//   src/modules/pets/application/chip-match/
 //
-// decision='same':
-//   - Validates the actor has access (org member with intake.create for refugio,
-//     authenticated user for vecino).
-//   - Looks up the matched pet; it must still be status='lost'.
-//   - In a single transaction:
-//       1. Inserts Ownership(role='shelter_custody') for the actor (parallel to
-//          the original owner's Ownership — both remain active).
-//       2. Emits shelter_intake_recorded event on the matched pet.
-//       3. Notifies the original owner: type='chip_match_notification_owner'.
+// confirmChipMatchAction (the auth dispatcher / controller) is kept inline here
+// because it IS the controller layer — it owns auth guards and routes to the
+// appropriate writer based on actorMode.
 //
-// decision='not_same':
-//   - Emits a note_added event on the matched pet marking the dismissal.
-//   - No state change; no ownership created.
+// Both writers and the result type are re-exported with identical signatures so
+// the 2 UI importers and the integration test keep working unchanged.
 //
-// Returns { ok: true } on success or { error: string } on failure.
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import {
-  db,
-  notifications,
-  organizationMemberships,
-  organizations,
-  ownerships,
-  petEvents,
-  pets,
-} from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { requireOrgAccessByToken, requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, eq, isNull } from "drizzle-orm";
+import { confirmChipMatchAsRefugioWriter as _confirmChipMatchAsRefugioWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-refugio";
+import { confirmChipMatchAsVecinoWriter as _confirmChipMatchAsVecinoWriter } from "@/src/modules/pets/application/chip-match/confirm-chip-match-vecino";
 
-export type ConfirmChipMatchResult = { ok: true; custodyEventId?: string } | { error: string };
+// ---------------------------------------------------------------------------
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
+
+export type { ConfirmChipMatchResult } from "@/src/modules/pets/application/chip-match/types";
+
+// ---------------------------------------------------------------------------
+// Action — thin controller: auth + routing only, no business logic
+// ---------------------------------------------------------------------------
 
 export async function confirmChipMatchAction({
   matchedPetToken,
   actorMode,
   orgToken,
+  claim,
+  attemptedMicrochipId,
   decision,
   notes,
 }: {
   matchedPetToken: string;
   actorMode: "refugio" | "vecino";
   orgToken?: string;
+  claim?: string;
+  /**
+   * Vecino mode only: the code the actor typed into the alta. It is that
+   * mode's actor↔pet binding — the counterpart of `claim` in refugio mode,
+   * which has an org identity to sign against and a vecino does not.
+   */
+  attemptedMicrochipId?: string;
   decision: "same" | "not_same";
   notes?: string;
-}): Promise<ConfirmChipMatchResult> {
+}) {
   // ---------------------------------------------------------------------------
   // Auth validation
   // ---------------------------------------------------------------------------
@@ -59,16 +60,34 @@ export async function confirmChipMatchAction({
     if (!orgToken) {
       return { error: "orgToken requerido para actorMode='refugio'." };
     }
-    const auth = await requireCapability("intake.create");
+    // Resolve the org from the URL token FIRST (review 24 HIGH #7 / MED #11):
+    // requireCapability("intake.create") alone resolves the session's default
+    // (last-joined) membership, so a multi-org user could confirm a match as
+    // the wrong org. Pin the capability check to the org named in the URL.
+    const orgAccess = await requireOrgAccessByToken(orgToken);
+    const auth = await requireCapability("intake.create", orgAccess.organization.id);
     if (auth.error !== null) return { error: auth.error };
-    return confirmChipMatchAsRefugioWriter({ auth, orgToken, matchedPetToken, decision, notes });
+    return _confirmChipMatchAsRefugioWriter({
+      auth,
+      orgToken,
+      claim,
+      matchedPetToken,
+      decision,
+      notes,
+    });
   }
 
   if (actorMode === "vecino") {
+    // A live session is ALL this branch used to require, and self-signup is
+    // free — see the authorization note in confirm-chip-match-vecino.ts. The
+    // writer refuses without a matching attemptedMicrochipId; passing it
+    // through unvalidated is deliberate, the comparison belongs next to the
+    // canonical row.
     const session = await requireUserOrRedirect();
-    return confirmChipMatchAsVecinoWriter({
+    return _confirmChipMatchAsVecinoWriter({
       userId: session.user.id,
       matchedPetToken,
+      attemptedMicrochipId: attemptedMicrochipId ?? "",
       decision,
       notes,
     });
@@ -77,262 +96,10 @@ export async function confirmChipMatchAction({
   return { error: "actorMode inválido. Debe ser 'refugio' o 'vecino'." };
 }
 
-// ---------------------------------------------------------------------------
-// Refugio path — exported for direct test access (no session required).
-// Mirrors the writer/wrapper pattern from app/actions/upgrade.ts.
-// ---------------------------------------------------------------------------
-
-export async function confirmChipMatchAsRefugioWriter({
-  auth,
-  orgToken,
-  matchedPetToken,
-  decision,
-  notes,
-}: {
-  auth: {
-    user: { id: string };
-    organization: { id: string; displayName: string; verified: boolean };
-  };
-  orgToken: string;
-  matchedPetToken: string;
-  decision: "same" | "not_same";
-  notes?: string;
-}): Promise<ConfirmChipMatchResult> {
-  const { user, organization } = auth;
-  const now = new Date();
-
-  // Look up matched pet and its active owner.
-  const [petRow] = await db
-    .select({ pet: pets })
-    .from(pets)
-    .where(eq(pets.publicToken, matchedPetToken))
-    .limit(1);
-
-  if (!petRow) return { error: "Mascota no encontrada." };
-  const matchedPet = petRow.pet;
-
-  if (decision === "not_same") {
-    // Emit a dismissal note on the matched pet — no state change.
-    const notePayload = validateEventPayload("note_added", {
-      category: null,
-      text: `Refugio ${organization.displayName} descartó posible coincidencia de chip en intake. Sin cambios de estado.`,
-    });
-    await db.insert(petEvents).values({
-      petId: matchedPet.id,
-      eventType: "note_added",
-      occurredAt: now,
-      recordedAt: now,
-      recordedByUserId: user.id,
-      authorRole: "shelter",
-      authorOrganizationId: organization.id,
-      authorVerified: organization.verified,
-      payload: notePayload,
-    });
-    return { ok: true };
-  }
-
-  // decision === 'same'
-  if (matchedPet.status !== "lost") {
-    return {
-      error: `La mascota ya no está en estado 'perdida' (estado actual: ${matchedPet.status}). No se puede crear la custodia.`,
-    };
-  }
-
-  // Find the active owner ownership to notify them.
-  const [ownerOwnership] = await db
-    .select({ ownerUserId: ownerships.ownerUserId })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.petId, matchedPet.id),
-        eq(ownerships.role, "owner"),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-
-  let custodyEventId: string | undefined;
-
-  type PendingNotification = typeof notifications.$inferInsert;
-  const pendingNotifications: PendingNotification[] = [];
-
-  await db.transaction(async (tx) => {
-    // 1. Insert shelter_custody ownership for the refugio (parallel to owner's).
-    await tx.insert(ownerships).values({
-      petId: matchedPet.id,
-      ownerOrganizationId: organization.id,
-      role: "shelter_custody",
-      startedAt: now,
-    });
-
-    // 2. Emit shelter_intake_recorded event with match context.
-    const intakePayload = validateEventPayload("shelter_intake_recorded", {
-      intake_reason: "stray_found",
-      intake_condition: notes ?? null,
-      rescue_jurisdiction: null,
-    });
-    const [intakeEvent] = await tx
-      .insert(petEvents)
-      .values({
-        petId: matchedPet.id,
-        eventType: "shelter_intake_recorded",
-        occurredAt: now,
-        recordedAt: now,
-        recordedByUserId: user.id,
-        authorRole: "shelter",
-        authorOrganizationId: organization.id,
-        authorVerified: organization.verified,
-        payload: intakePayload,
-      })
-      .returning({ id: petEvents.id });
-    custodyEventId = intakeEvent.id;
-
-    // 3. Notify the original owner if we have a userId.
-    if (ownerOwnership?.ownerUserId) {
-      pendingNotifications.push({
-        userId: ownerOwnership.ownerUserId,
-        notificationType: "chip_match_notification_owner",
-        severity: "urgent",
-        title: `Encontraron a ${matchedPet.name}`,
-        body: `${organization.displayName} detectó a ${matchedPet.name} por su microchip. Coordiná la devolución.`,
-        ctaLabel: "Coordinar devolución",
-        ctaUrl: `/mis-mascotas/${matchedPetToken}/devolucion`,
-        relatedPetId: matchedPet.id,
-        relatedEventId: intakeEvent.id,
-      });
-    }
-  });
-
-  if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (action did succeed)", e);
-    }
-  }
-
-  return { ok: true, custodyEventId };
-}
-
-// ---------------------------------------------------------------------------
-// Vecino path — exported for direct test access (no session required).
-// ---------------------------------------------------------------------------
-
-export async function confirmChipMatchAsVecinoWriter({
-  userId,
-  matchedPetToken,
-  decision,
-  notes,
-}: {
-  userId: string;
-  matchedPetToken: string;
-  decision: "same" | "not_same";
-  notes?: string;
-}): Promise<ConfirmChipMatchResult> {
-  const now = new Date();
-
-  const [petRow] = await db
-    .select({ pet: pets })
-    .from(pets)
-    .where(eq(pets.publicToken, matchedPetToken))
-    .limit(1);
-
-  if (!petRow) return { error: "Mascota no encontrada." };
-  const matchedPet = petRow.pet;
-
-  if (decision === "not_same") {
-    const notePayload = validateEventPayload("note_added", {
-      category: null,
-      text: "Un vecino descartó posible coincidencia de chip al registrar una mascota encontrada. Sin cambios de estado.",
-    });
-    await db.insert(petEvents).values({
-      petId: matchedPet.id,
-      eventType: "note_added",
-      occurredAt: now,
-      recordedAt: now,
-      recordedByUserId: userId,
-      authorRole: "owner",
-      payload: notePayload,
-    });
-    return { ok: true };
-  }
-
-  // decision === 'same'
-  if (matchedPet.status !== "lost") {
-    return {
-      error: `La mascota ya no está en estado 'perdida' (estado actual: ${matchedPet.status}). No se puede crear la custodia.`,
-    };
-  }
-
-  const [ownerOwnership] = await db
-    .select({ ownerUserId: ownerships.ownerUserId })
-    .from(ownerships)
-    .where(
-      and(
-        eq(ownerships.petId, matchedPet.id),
-        eq(ownerships.role, "owner"),
-        isNull(ownerships.endedAt),
-      ),
-    )
-    .limit(1);
-
-  let custodyEventId: string | undefined;
-
-  type PendingNotification = typeof notifications.$inferInsert;
-  const pendingNotifications: PendingNotification[] = [];
-
-  await db.transaction(async (tx) => {
-    // 1. Insert shelter_custody for the vecino.
-    await tx.insert(ownerships).values({
-      petId: matchedPet.id,
-      ownerUserId: userId,
-      role: "shelter_custody",
-      startedAt: now,
-    });
-
-    // 2. Emit shelter_intake_recorded event.
-    const intakePayload = validateEventPayload("shelter_intake_recorded", {
-      intake_reason: "stray_found",
-      intake_condition: notes ?? null,
-      rescue_jurisdiction: null,
-    });
-    const [intakeEvent] = await tx
-      .insert(petEvents)
-      .values({
-        petId: matchedPet.id,
-        eventType: "shelter_intake_recorded",
-        occurredAt: now,
-        recordedAt: now,
-        recordedByUserId: userId,
-        authorRole: "owner",
-        payload: intakePayload,
-      })
-      .returning({ id: petEvents.id });
-    custodyEventId = intakeEvent.id;
-
-    // 3. Notify the original owner.
-    if (ownerOwnership?.ownerUserId) {
-      pendingNotifications.push({
-        userId: ownerOwnership.ownerUserId,
-        notificationType: "chip_match_notification_owner",
-        severity: "urgent",
-        title: `Encontraron a ${matchedPet.name}`,
-        body: `Un vecino detectó a ${matchedPet.name} por su microchip. Coordiná la devolución.`,
-        ctaLabel: "Coordinar devolución",
-        ctaUrl: `/mis-mascotas/${matchedPetToken}/devolucion`,
-        relatedPetId: matchedPet.id,
-        relatedEventId: intakeEvent.id,
-      });
-    }
-  });
-
-  if (pendingNotifications.length > 0) {
-    try {
-      await db.insert(notifications).values(pendingNotifications);
-    } catch (e) {
-      console.error("notifications insert failed (action did succeed)", e);
-    }
-  }
-
-  return { ok: true, custodyEventId };
-}
+// Bare writers are NOT re-exported here (impersonation triage, review 07).
+// confirmChipMatchAsRefugioWriter takes a caller-supplied `auth`, and
+// confirmChipMatchAsVecinoWriter a caller-supplied `userId`; exporting them
+// from a "use server" file would let any client confirm matches as any
+// org/user. They live on in src/modules/pets/application/chip-match/*;
+// integration tests import them from there, and the guarded
+// confirmChipMatchAction above derives identity from the session/capability.

@@ -3,10 +3,10 @@
 // Management controls (role change, event-write toggle, remove) are shown
 // when the viewer holds member.invite AND the rank rule permits managing that target.
 
-import { and, count, eq, gt, isNull } from "drizzle-orm";
+import { and, count, desc, eq, gt, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import {
   db,
   organizationCapabilityGrants,
@@ -15,7 +15,11 @@ import {
   profiles,
 } from "@/db";
 import type { OrganizationMembership } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
+import { formatDate } from "@/lib/utils/format";
+// Aliased — this file already has a local `capRows` (capability grant rows).
+import { capRows as capListRows } from "@/lib/utils/list-pagination";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ChangeRoleSelect } from "./ChangeRoleSelect";
@@ -50,7 +54,14 @@ export default async function MiembrosPage({
   const canInvite = granted.has("member.invite");
 
   // Active members joined with their profiles.
-  const members = await db
+  //
+  // #815 audit finding #5: previously had no .limit()/.offset() at all — a
+  // large network or rescue coalition could return a genuinely unbounded
+  // list. Fetch one extra row past the cap (same fetch-N+1 pattern as
+  // adopciones/page.tsx) so a truncated notice appears instead of silently
+  // rendering everything.
+  const MEMBERS_PAGE_SIZE = 200;
+  const memberRows = await db
     .select({
       membership: organizationMemberships,
       profile: profiles,
@@ -62,7 +73,11 @@ export default async function MiembrosPage({
         eq(organizationMemberships.organizationId, organization.id),
         isNull(organizationMemberships.leftAt),
       ),
-    );
+    )
+    .orderBy(desc(organizationMemberships.joinedAt))
+    .limit(MEMBERS_PAGE_SIZE + 1);
+
+  const { rows: members, truncated: membersTruncated } = capListRows(memberRows, MEMBERS_PAGE_SIZE);
 
   // Resolve which memberships have an active `event.write` capability grant.
   // This is the authoritative enforcement state — the legacy canWritePetEvents
@@ -104,6 +119,19 @@ export default async function MiembrosPage({
   const activeAdminCount = Number(adminCountRow?.n ?? 0);
   const viewerIsLastAdmin = membership.role === "admin" && activeAdminCount <= 1;
 
+  // True total (unaffected by the MEMBERS_PAGE_SIZE cap above) — used for the
+  // section heading so it doesn't silently read "200" for a 300-member org.
+  const [totalMembersRow] = await db
+    .select({ n: count() })
+    .from(organizationMemberships)
+    .where(
+      and(
+        eq(organizationMemberships.organizationId, organization.id),
+        isNull(organizationMemberships.leftAt),
+      ),
+    );
+  const totalMembersCount = Number(totalMembersRow?.n ?? members.length);
+
   // Settable roles for the viewer (rank-bounded).
   const settableRoles = canInvite ? getSettableRoles(membership.role) : [];
 
@@ -125,23 +153,24 @@ export default async function MiembrosPage({
         )
     : [];
 
-  const appBase = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
+  const appBase = resolveSiteUrl();
 
   return (
     <div className="space-y-6">
       <header className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-            Equipo
+          {/* Identity marker standardized to the org-name eyebrow (audit #13),
+              so every Administración page marks tenancy the same way. H1 matches
+              the nav label "Miembros" (audit #17 — nav↔H1 parity). */}
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+            {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
-            Miembros activos e invitaciones pendientes de {organization.displayName}
-          </h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">Miembros</h1>
         </div>
         {canInvite && (
           <Link
             href={`/org/${orgToken}/miembros/invitar`}
-            className="inline-flex shrink-0 items-center gap-2 rounded-[6px] bg-ln-op-azul px-4 py-[7px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700 no-underline"
+            className="inline-flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-[7px] text-sm font-semibold text-white transition-colors hover:bg-ln-op-azul-700 no-underline"
           >
             Invitar miembro
           </Link>
@@ -152,14 +181,19 @@ export default async function MiembrosPage({
       <section aria-labelledby="members-heading">
         <h2
           id="members-heading"
-          className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+          className="mb-3 text-md font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
         >
-          Miembros activos ({members.length})
+          Miembros activos ({totalMembersCount})
         </h2>
+        {membersTruncated && (
+          <p className="mb-3 text-sm text-ln-op-mute">
+            Mostrando los primeros {MEMBERS_PAGE_SIZE} de {totalMembersCount}.
+          </p>
+        )}
         {members.length === 0 ? (
           <OpCard>
             <OpCardBody>
-              <p className="py-6 text-center text-[13px] text-ln-op-mute">
+              <p className="py-6 text-center text-md text-ln-op-mute">
                 Aún no hay miembros registrados en esta organización.
               </p>
             </OpCardBody>
@@ -177,15 +211,13 @@ export default async function MiembrosPage({
                 return (
                   <li key={m.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-medium text-ln-op-ink">
+                      <p className="truncate text-md font-medium text-ln-op-ink">
                         {profile.displayName}
                         {isSelf && (
-                          <span className="ml-2 text-[12px] font-normal text-ln-op-mute">
-                            (vos)
-                          </span>
+                          <span className="ml-2 text-sm font-normal text-ln-op-mute">(vos)</span>
                         )}
                       </p>
-                      {m.title && <p className="truncate text-[12px] text-ln-op-mute">{m.title}</p>}
+                      {m.title && <p className="truncate text-sm text-ln-op-mute">{m.title}</p>}
                     </div>
 
                     {/* Role pill — replaced by selector when actor can manage (never for foster) */}
@@ -200,9 +232,7 @@ export default async function MiembrosPage({
                       <div className="flex flex-col items-end gap-0.5">
                         <OpPill tone={ROLE_PILL_TONE[m.role]}>{ROLE_LABEL[m.role]}</OpPill>
                         {isFoster && canInvite && (
-                          <span className="text-[11px] text-ln-op-mute">
-                            Gestionado vía tránsito
-                          </span>
+                          <span className="text-sm text-ln-op-mute">Gestionado vía tránsito</span>
                         )}
                       </div>
                     )}
@@ -243,14 +273,14 @@ export default async function MiembrosPage({
         <section aria-labelledby="invitations-heading">
           <h2
             id="invitations-heading"
-            className="mb-3 text-[13px] font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
+            className="mb-3 text-md font-semibold uppercase tracking-[0.08em] text-ln-op-mute"
           >
             Invitaciones pendientes ({pendingInvitations.length})
           </h2>
           {pendingInvitations.length === 0 ? (
             <OpCard>
               <OpCardBody>
-                <p className="py-6 text-center text-[13px] text-ln-op-mute">
+                <p className="py-6 text-center text-md text-ln-op-mute">
                   Invitá a alguien con el botón de arriba.
                 </p>
               </OpCardBody>
@@ -263,17 +293,8 @@ export default async function MiembrosPage({
                   return (
                     <li key={inv.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-medium text-ln-op-ink">
-                          {inv.email}
-                        </p>
-                        <p className="text-[12px] text-ln-op-mute">
-                          Vence{" "}
-                          {inv.expiresAt.toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "long",
-                            year: "numeric",
-                          })}
-                        </p>
+                        <p className="truncate text-md font-medium text-ln-op-ink">{inv.email}</p>
+                        <p className="text-sm text-ln-op-mute">Vence {formatDate(inv.expiresAt)}</p>
                       </div>
                       <OpPill tone={ROLE_PILL_TONE[inv.invitedRole]}>
                         {ROLE_LABEL[inv.invitedRole]}

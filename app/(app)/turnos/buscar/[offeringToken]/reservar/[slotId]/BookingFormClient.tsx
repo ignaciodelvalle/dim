@@ -2,28 +2,29 @@
 
 // Client wrapper for the slot booking form.
 // Surfaces server-action errors (e.g. race-condition "Sin cupo disponible.")
-// using useActionState. On success, bookSlotAction redirects server-side.
+// using useActionState. On success the action RETURNS its destination and this
+// form navigates (nav contract N3) — it used to redirect() server-side, which
+// the App Router drops in production: the slot was booked and the user was left
+// looking at the form.
 
 import { useActionState } from "react";
 
 import { type BookSlotResult, bookSlotAction } from "@/app/actions/booking";
 import { LnButton } from "@/components/ui/Button";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
-type BookingState = { error: string | null };
+type BookingState = { error: string | null; redirectTo?: string | null };
 
 const initialState: BookingState = { error: null };
 
 // Adapter: useActionState requires (prevState, formData) => state.
-// bookSlotAction redirects on success (throws NEXT_REDIRECT) so we only
-// reach the return path when there is an error.
 function makeFormAction(slotId: string) {
   return async (_prev: BookingState, formData: FormData): Promise<BookingState> => {
     const petId = String(formData.get("petId") ?? "").trim();
     if (!petId) return { error: "Seleccioná una mascota." };
     const result: BookSlotResult = await bookSlotAction(slotId, petId);
     if ("error" in result) return { error: result.error };
-    // On success bookSlotAction calls redirect() which throws; we never reach here.
-    return { error: null };
+    return { error: null, redirectTo: result.redirectTo ?? null };
   };
 }
 
@@ -36,13 +37,14 @@ export function BookingFormClient({
 }) {
   const formAction = makeFormAction(slotId);
   const [state, dispatch, pending] = useActionState(formAction, initialState);
+  useActionRedirect(state.redirectTo, state);
 
   return (
-    <form action={dispatch} className="flex flex-col gap-[16px]">
+    <form action={dispatch} className="flex flex-col gap-4">
       <div>
         <label
           htmlFor="pet_select"
-          className="mb-[6px] block font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 block font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           ¿Para qué mascota?
         </label>
@@ -50,7 +52,7 @@ export function BookingFormClient({
           id="pet_select"
           name="petId"
           required
-          className="w-full appearance-none rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[12px] py-[10px] font-[var(--font-ln-sans)] text-[13.5px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full appearance-none rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2.5 font-ln-sans text-md text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         >
           <option value="">Elegí una mascota…</option>
           {userPets.map((pet) => (
@@ -62,7 +64,7 @@ export function BookingFormClient({
       </div>
 
       {state.error && (
-        <p className="text-[12px] font-medium text-[var(--color-ln-err)]" role="alert">
+        <p className="text-sm font-medium text-[var(--color-ln-err)]" role="alert">
           {state.error}
         </p>
       )}

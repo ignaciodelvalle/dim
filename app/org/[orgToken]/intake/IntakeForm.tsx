@@ -25,6 +25,9 @@ import { type IntakeFormState, createIntakeAction } from "@/app/actions/intake";
 import { LnRadio } from "@/components/ui/Field";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton } from "@/components/ui/dashboard";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { formatDate, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 
 // "seizure" is intentionally absent: a decomiso is a State act (DC1),
 // not something a refugio self-records through this form. Seizures go
@@ -40,7 +43,62 @@ const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Identificación", "Identidad", "Estado", "Confirmar"];
 
 const inputCls =
-  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+
+/** Fields the action reads. Always sent, even when empty. */
+const REQUIRED_KEYS = [
+  "name",
+  "species",
+  "sex",
+  "intakeReason",
+  "custodyRole",
+  "occurredAt",
+] as const;
+
+/** Fields the action treats as absent when empty — omitted rather than blanked. */
+const OPTIONAL_KEYS = [
+  "ageYears",
+  "ageMonths",
+  "breed",
+  "estimatedWeightKg",
+  "color",
+  "distinguishingFeatures",
+  "microchipId",
+  "microchipCountryCode",
+  "tattooCode",
+  "intakeCondition",
+  "rescueJurisdiction",
+  "tattooAckToken",
+] as const;
+
+type IntakeFields = Record<
+  (typeof REQUIRED_KEYS)[number] | (typeof OPTIONAL_KEYS)[number],
+  string | undefined
+> & { idempotencyKey: string };
+
+/**
+ * Translate the wizard's controlled state into the FormData shape
+ * createIntakeAction expects. Extracted from submit() so the handler stays
+ * under the cognitive-complexity fence once its step guard was added — the
+ * twenty field-presence branches were all this function, none of them logic
+ * the submit path needs to reason about.
+ *
+ * `tattooAckToken` rides along as an ordinary optional field: it threads the
+ * ack from a previous server response so a re-submit skips the already
+ * acknowledged advisory. (There is no chip-force token — an active-chip match
+ * is a hard block, not a "continue anyway" warning.)
+ */
+function buildIntakeFormData(fields: IntakeFields): FormData {
+  const fd = new FormData();
+  for (const key of REQUIRED_KEYS) fd.set(key, fields[key] ?? "");
+  for (const key of OPTIONAL_KEYS) {
+    const value = fields[key];
+    if (value) fd.set(key, value);
+  }
+  fd.set("noRedirect", "1");
+  fd.set("clientIdempotencyKey", fields.idempotencyKey);
+  return fd;
+}
 
 export function IntakeForm({ orgToken }: { orgToken: string }) {
   const action = createIntakeAction.bind(null, orgToken);
@@ -48,19 +106,28 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const [pending, startTransition] = useTransition();
   const [state, setState] = useState<IntakeFormState>({ error: null });
 
+  // Stable per-animal idempotency key: a double-tap on "Crear ingreso" (or a
+  // retry after a network hiccup) re-sends the same key, so the server returns
+  // the already-created pet instead of registering a duplicate. Reset when the
+  // operator starts loading another animal.
+  const { key: idempotencyKey, reset: resetIdempotencyKey } = useIdempotencyKey();
+
   // Controlled state for every field. Strings throughout; the action
   // does its own parsing and coercion.
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
   const [name, setName] = useState("");
   const [species, setSpecies] = useState("");
   const [sex, setSex] = useState<"unknown" | "male" | "female">("unknown");
   const [ageYears, setAgeYears] = useState("");
   const [ageMonths, setAgeMonths] = useState("");
   const [breed, setBreed] = useState("");
+  const [estimatedWeightKg, setEstimatedWeightKg] = useState("");
   const [color, setColor] = useState("");
   const [distinguishingFeatures, setDistinguishingFeatures] = useState("");
   const [microchipId, setMicrochipId] = useState("");
-  const [microchipCountryCode, setMicrochipCountryCode] = useState("858");
+  // 032 = ISO 3166 numeric code for Argentina. 858 (previously used here)
+  // is Uruguay's code — a mislabel fixed in the QA nits sweep 2026-07.
+  const [microchipCountryCode, setMicrochipCountryCode] = useState("032");
   const [tattooCode, setTattooCode] = useState("");
   const [intakeReason, setIntakeReason] = useState("");
   const [custodyRole, setCustodyRole] = useState<"shelter_custody" | "owner">("shelter_custody");
@@ -69,33 +136,62 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
   const [rescueJurisdiction, setRescueJurisdiction] = useState("");
 
   function submit() {
+    // Step gate in the HANDLER, not only on the button. Inactive steps are
+    // hidden with `inert`, which does block clicks — but it is one a11y
+    // attribute standing alone: add a step and forget it, or run where `inert`
+    // is unsupported, and the summary CTA becomes reachable from step 1, firing
+    // an intake built from half-empty state. The commit that introduced `inert`
+    // (c5994e62) was fixing WCAG 4.1.2, not defending this submit.
+    if (step !== TOTAL_STEPS) return;
     setState({ error: null });
-    const fd = new FormData();
-    fd.set("name", name);
-    fd.set("species", species);
-    fd.set("sex", sex);
-    if (ageYears) fd.set("ageYears", ageYears);
-    if (ageMonths) fd.set("ageMonths", ageMonths);
-    if (breed) fd.set("breed", breed);
-    if (color) fd.set("color", color);
-    if (distinguishingFeatures) fd.set("distinguishingFeatures", distinguishingFeatures);
-    if (microchipId) fd.set("microchipId", microchipId);
-    if (microchipCountryCode) fd.set("microchipCountryCode", microchipCountryCode);
-    if (tattooCode) fd.set("tattooCode", tattooCode);
-    fd.set("intakeReason", intakeReason);
-    fd.set("custodyRole", custodyRole);
-    fd.set("occurredAt", occurredAt);
-    if (intakeCondition) fd.set("intakeCondition", intakeCondition);
-    if (rescueJurisdiction) fd.set("rescueJurisdiction", rescueJurisdiction);
-    fd.set("noRedirect", "1");
-    // Thread bypass tokens from previous server responses so re-submits skip
-    // already-acknowledged warnings (chip force, tattoo ack).
-    if (state.forceToken) fd.set("forceToken", state.forceToken);
-    if (state.tattooAckToken) fd.set("tattooAckToken", state.tattooAckToken);
+    const fd = buildIntakeFormData({
+      name,
+      species,
+      sex,
+      ageYears,
+      ageMonths,
+      breed,
+      estimatedWeightKg,
+      color,
+      distinguishingFeatures,
+      microchipId,
+      microchipCountryCode,
+      tattooCode,
+      intakeReason,
+      custodyRole,
+      occurredAt,
+      intakeCondition,
+      rescueJurisdiction,
+      idempotencyKey,
+      tattooAckToken: state.tattooAckToken,
+    });
     startTransition(async () => {
       const result = await action({ error: null }, fd);
       setState(result);
     });
+  }
+
+  function loadAnother() {
+    // UX 3.6 (e): "Guardar y cargar otro" — preserve the batch-shared fields
+    // (intake reason, custody role, date, jurisdiction, chip country) and clear
+    // the per-animal fields, then return to step 1 for the next animal of the
+    // same intake (e.g. a litter or a multi-animal rescue).
+    setName("");
+    setSpecies("");
+    setSex("unknown");
+    setAgeYears("");
+    setAgeMonths("");
+    setBreed("");
+    setEstimatedWeightKg("");
+    setColor("");
+    setDistinguishingFeatures("");
+    setMicrochipId("");
+    setTattooCode("");
+    setIntakeCondition("");
+    setState({ error: null });
+    // Next animal = a distinct intake — it must get its own idempotency key.
+    resetIdempotencyKey();
+    setStep(1);
   }
 
   if (state.ok && state.createdPetToken && state.createdPetName) {
@@ -103,6 +199,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     return (
       <LnSuccessScreen
         title={`Mascota ingresada: ${state.createdPetName}`}
+        code={state.createdPetToken}
+        codeLabel="Credencial de la mascota"
+        official
         description="Quedó registrada bajo custodia del refugio. Podés continuar el flujo desde acá."
         next={[
           {
@@ -111,6 +210,12 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             // row's "Proponer tránsito" sends the proposal (proposeFosterAction).
             label: "Asignar tránsito",
             href: `${orgRoot}/voluntarios?pet=${state.createdPetToken}`,
+          },
+          {
+            // Batch intake: clears per-animal fields, keeps the shared ones.
+            label: "Guardar y cargar otro",
+            onClick: loadAnother,
+            variant: "secondary",
           },
           {
             label: "Publicar adopción",
@@ -127,6 +232,11 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
     );
   }
 
+  // Field-completeness only — step gating lives in `submit()`. A `step ===
+  // TOTAL_STEPS` term here would be invisible in a browser (the CTA is inside
+  // an `inert` section until step 4 anyway) while masking the handler guard
+  // from tests: a disabled button never dispatches a click, so the assertion
+  // "a premature click submits nothing" would pass with the guard deleted.
   const canSubmit = !!name && !!species && !!intakeReason && !!occurredAt && !pending;
 
   return (
@@ -137,14 +247,18 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
       {/* Step 1 — Identificación */}
-      <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
-        <p className="text-[13px] text-ln-op-ink-2">
+      <section
+        className={step === 1 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 1}
+        inert={step !== 1 ? true : undefined}
+      >
+        <p className="text-md text-ln-op-ink-2">
           Si la mascota tiene microchip o tatuaje, ingrésalos. Si el chip coincide con una mascota
-          perdida en MiMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
+          perdida en miMAR, vamos a redirigirte al flujo de match para confirmar la identidad.
         </p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Número de microchip</span>
+            <span className="text-md text-ln-op-ink">Número de microchip</span>
             <input
               type="text"
               value={microchipId}
@@ -155,7 +269,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">País del chip</span>
+            <span className="text-md text-ln-op-ink">País del chip</span>
             <input
               type="text"
               value={microchipCountryCode}
@@ -166,7 +280,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </label>
         </div>
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Código de tatuaje</span>
+          <span className="text-md text-ln-op-ink">Código de tatuaje</span>
           <input
             type="text"
             value={tattooCode}
@@ -175,24 +289,24 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             placeholder="Ej: K9-2014, A1B2"
             className={inputCls}
           />
-          <span className="text-[12px] text-ln-op-mute">
+          <span className="text-sm text-ln-op-mute">
             Opcional. Se verificará contra registros existentes antes de guardar.
           </span>
         </label>
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-        >
+        <OpButton type="button" onClick={() => setStep(2)} block>
           {microchipId ? "Continuar (chequearemos el chip al confirmar)" : "Continuar sin chip"}
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 2 — Identidad */}
-      <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+      <section
+        className={step === 2 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 2}
+        inert={step !== 2 ? true : undefined}
+      >
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Nombre o alias temporal *</span>
+            <span className="text-md text-ln-op-ink">Nombre o alias temporal *</span>
             <input
               type="text"
               value={name}
@@ -204,7 +318,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Especie *</span>
+            <span className="text-md text-ln-op-ink">Especie *</span>
             <select
               value={species}
               onChange={(e) => setSpecies(e.target.value)}
@@ -222,8 +336,8 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </div>
 
         <fieldset className="space-y-1">
-          <legend className="text-[13px] text-ln-op-ink">Sexo</legend>
-          <div className="flex flex-wrap gap-3 text-[13px]">
+          <legend className="text-md text-ln-op-ink">Sexo</legend>
+          <div className="flex flex-wrap gap-3 text-md">
             {(["unknown", "male", "female"] as const).map((v) => (
               <label key={v} className="flex items-center gap-1 text-ln-op-ink">
                 <input
@@ -239,9 +353,9 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </div>
         </fieldset>
 
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Edad — años</span>
+            <span className="text-md text-ln-op-ink">Edad — años</span>
             <input
               type="number"
               min={0}
@@ -252,7 +366,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Edad — meses</span>
+            <span className="text-md text-ln-op-ink">Edad — meses</span>
             <input
               type="number"
               min={0}
@@ -266,7 +380,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Raza</span>
+            <span className="text-md text-ln-op-ink">Raza</span>
             <input
               type="text"
               value={breed}
@@ -276,7 +390,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             />
           </label>
           <label className="space-y-1">
-            <span className="text-[13px] text-ln-op-ink">Color / pelaje</span>
+            <span className="text-md text-ln-op-ink">Color / pelaje</span>
             <input
               type="text"
               value={color}
@@ -287,8 +401,24 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           </label>
         </div>
 
+        <label className="block space-y-1 sm:w-1/2">
+          <span className="text-md text-ln-op-ink">Peso estimado (kg)</span>
+          <input
+            type="number"
+            step="0.1"
+            min="0"
+            value={estimatedWeightKg}
+            onChange={(e) => setEstimatedWeightKg(e.target.value)}
+            placeholder="Ej: 24.5"
+            className={inputCls}
+          />
+          <span className="text-sm text-ln-op-mute">
+            Ayuda a evaluar razas potencialmente peligrosas (PPP) por peso.
+          </span>
+        </label>
+
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Señas particulares</span>
+          <span className="text-md text-ln-op-ink">Señas particulares</span>
           <textarea
             value={distinguishingFeatures}
             onChange={(e) => setDistinguishingFeatures(e.target.value)}
@@ -299,21 +429,20 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           />
         </label>
 
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          disabled={!name || !species}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={() => setStep(3)} disabled={!name || !species} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 3 — Estado */}
-      <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
+      <section
+        className={step === 3 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 3}
+        inert={step !== 3 ? true : undefined}
+      >
         <fieldset className="space-y-1">
-          <legend className="text-[13px] text-ln-op-ink">Motivo del ingreso *</legend>
-          <div className="flex flex-col gap-1 text-[13px]">
+          <legend className="text-md text-ln-op-ink">Motivo del ingreso *</legend>
+          <div className="flex flex-col gap-1 text-md">
             {INTAKE_REASONS.map((r) => (
               <label key={r.value} className="flex items-center gap-2 text-ln-op-ink">
                 <input
@@ -330,7 +459,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </fieldset>
 
         <fieldset className="space-y-1">
-          <legend className="text-[13px] text-ln-op-ink">Rol de la organización</legend>
+          <legend className="text-md text-ln-op-ink">Rol de la organización</legend>
           <div className="flex flex-col gap-2">
             <LnRadio
               name="custodyRole"
@@ -340,7 +469,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             >
               <span className="space-y-0.5">
                 <span className="block font-medium">Custodia temporal</span>
-                <span className="block text-[12px]! text-ln-op-mute!">
+                <span className="block text-sm! text-ln-op-mute!">
                   El animal queda bajo cuidado del refugio hasta que se concrete una adopción.
                 </span>
               </span>
@@ -353,7 +482,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
             >
               <span className="space-y-0.5">
                 <span className="block font-medium">Dueño/a permanente</span>
-                <span className="block text-[12px]! text-ln-op-mute!">
+                <span className="block text-sm! text-ln-op-mute!">
                   El animal queda registrado a nombre de la organización (santuario, adopción
                   institucional).
                 </span>
@@ -363,7 +492,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </fieldset>
 
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Fecha del ingreso</span>
+          <span className="text-md text-ln-op-ink">Fecha del ingreso</span>
           <input
             type="date"
             value={occurredAt}
@@ -373,7 +502,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </label>
 
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Condición al ingreso</span>
+          <span className="text-md text-ln-op-ink">Condición al ingreso</span>
           <textarea
             value={intakeCondition}
             onChange={(e) => setIntakeCondition(e.target.value)}
@@ -385,7 +514,7 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         </label>
 
         <label className="block space-y-1">
-          <span className="text-[13px] text-ln-op-ink">Jurisdicción / lugar de rescate</span>
+          <span className="text-md text-ln-op-ink">Jurisdicción / lugar de rescate</span>
           <input
             type="text"
             value={rescueJurisdiction}
@@ -396,25 +525,28 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           />
         </label>
 
-        <button
-          type="button"
-          onClick={() => setStep(4)}
-          disabled={!intakeReason}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={() => setStep(4)} disabled={!intakeReason} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 4 — Confirmar */}
-      <section className={step === 4 ? "space-y-5" : "sr-only"} aria-hidden={step !== 4}>
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
-          <p className="text-[13px] font-semibold text-ln-op-ink">Resumen del ingreso</p>
-          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-[12px]">
+      <section
+        className={step === 4 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 4}
+        inert={step !== 4 ? true : undefined}
+      >
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4 space-y-2">
+          <p className="text-md font-semibold text-ln-op-ink">Resumen del ingreso</p>
+          <dl className="grid grid-cols-3 gap-x-3 gap-y-1 text-sm">
             <dt className="text-ln-op-mute">Nombre</dt>
             <dd className="col-span-2 text-ln-op-ink">{name || "—"}</dd>
             <dt className="text-ln-op-mute">Especie</dt>
-            <dd className="col-span-2 text-ln-op-ink">{species || "—"}</dd>
+            <dd className="col-span-2 text-ln-op-ink">{species ? speciesLabel(species) : "—"}</dd>
+            <dt className="text-ln-op-mute">Peso</dt>
+            <dd className="col-span-2 text-ln-op-ink">
+              {estimatedWeightKg ? `${estimatedWeightKg} kg` : "—"}
+            </dd>
             <dt className="text-ln-op-mute">Microchip</dt>
             <dd className="col-span-2 font-mono text-ln-op-ink">{microchipId || "(sin chip)"}</dd>
             <dt className="text-ln-op-mute">Tatuaje</dt>
@@ -428,22 +560,19 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               {custodyRole === "shelter_custody" ? "Custodia temporal" : "Dueño/a permanente"}
             </dd>
             <dt className="text-ln-op-mute">Fecha</dt>
-            <dd className="col-span-2 text-ln-op-ink">{occurredAt}</dd>
+            {/* Anchor the bare YYYY-MM-DD at local noon before formatting so the
+                AR-timezone formatter renders the picked day, not the day before. */}
+            <dd className="col-span-2 text-ln-op-ink">
+              {occurredAt ? formatDate(`${occurredAt}T12:00:00`) : "—"}
+            </dd>
           </dl>
         </div>
 
-        {state.warning === "CHIP_MATCH_ACTIVE" && (
-          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2">
-            El chip que ingresaste coincide con una mascota activa en otro registro. Revisá con un
-            admin antes de continuar.
-          </div>
-        )}
-
         {state.warning === "TATTOO_MATCH_POSSIBLE" && state.matchedPetToken && (
-          <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2 space-y-2">
+          <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2 space-y-2">
             <p>
               <strong>Posible coincidencia por tatuaje.</strong> El código que ingresaste coincide
-              con una mascota ya registrada en MiMAR. Verificá con la foto antes de continuar.
+              con una mascota ya registrada en miMAR. Verificá con la foto antes de continuar.
             </p>
             <p>
               <a
@@ -463,19 +592,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         )}
 
         {state.error && (
-          <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-[13px] text-ln-op-danger">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 px-3 py-2 text-md text-ln-op-danger">
             {state.error}
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} block>
           {pending ? "Registrando…" : "Crear ingreso"}
-        </button>
+        </OpButton>
       </section>
     </LnWizardShell>
   );

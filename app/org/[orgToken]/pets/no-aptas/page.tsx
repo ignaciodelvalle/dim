@@ -2,8 +2,16 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { and, eq, isNull } from "drizzle-orm";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDateShort, speciesLabel } from "@/lib/utils/format";
+import { and, desc, eq, isNull } from "drizzle-orm";
+
+// This list was previously unbounded. Cap it and signal truncation (mirrors
+// the intake queue cap — app/org/[orgToken]/intake/page.tsx) so a shelter
+// with a large ineligible roster isn't silently shown a partial list with no
+// notice. Ordered by most recently updated so the cap surfaces the freshest
+// eligibility calls first.
+const NO_APTAS_CAP = 100;
 
 const REASON_LABELS: Record<string, string> = {
   medical_treatment: "Tratamiento médico en curso",
@@ -24,7 +32,7 @@ export default async function PetsNoAptasPage({
   const { orgToken } = await params;
   const { organization } = await requireOrgAccessByToken(orgToken);
 
-  const rows = await db
+  const rawRows = await db
     .select({ pet: pets })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
@@ -35,7 +43,12 @@ export default async function PetsNoAptasPage({
         isNull(ownerships.endedAt),
         eq(pets.adoptionEligible, false),
       ),
-    );
+    )
+    .orderBy(desc(pets.updatedAt))
+    .limit(NO_APTAS_CAP + 1);
+
+  const truncated = rawRows.length > NO_APTAS_CAP;
+  const rows = truncated ? rawRows.slice(0, NO_APTAS_CAP) : rawRows;
 
   // Group by reason.
   const byReason = new Map<string, typeof rows>();
@@ -59,17 +72,24 @@ export default async function PetsNoAptasPage({
               { label: "No aptas" },
             ]}
           />
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             Mascotas no aptas para adopción
           </h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Animales en custodia marcados explícitamente como NO aptos para adopción. Resolvé el
             motivo desde el perfil del pet para volver a marcarlos como aptos.
           </p>
         </header>
 
+        {truncated && (
+          <p className="text-sm text-ln-op-mute">
+            Mostrando las {NO_APTAS_CAP} mascotas actualizadas más recientemente. Hay más en el
+            listado de mascotas de la organización.
+          </p>
+        )}
+
         {rows.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute py-6 text-center">
+          <p className="text-md text-ln-op-mute py-6 text-center">
             No hay mascotas marcadas como no aptas.
           </p>
         ) : (
@@ -86,32 +106,25 @@ export default async function PetsNoAptasPage({
                     return (
                       <li
                         key={pet.id}
-                        className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe p-3 space-y-1"
+                        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe p-3 space-y-1"
                       >
                         <div className="flex items-baseline justify-between gap-3">
                           <Link
                             href={`/org/${orgToken}/mascotas/${pet.publicToken}/eligibility`}
-                            className="text-[13px] font-medium text-ln-op-ink hover:underline"
+                            className="text-md font-medium text-ln-op-ink hover:underline"
                           >
                             {pet.name}
                           </Link>
                           {reEvalDue && <OpPill tone="open">Re-evaluación vencida</OpPill>}
                         </div>
-                        <p className="text-[12px] text-ln-op-mute">
-                          {pet.species}
+                        <p className="text-sm text-ln-op-mute">
+                          {speciesLabel(pet.species)}
                           {pet.adoptionIneligibleReasonNotes &&
                             ` · ${pet.adoptionIneligibleReasonNotes}`}
                           {until && (
                             <>
                               {" · "}
-                              <span>
-                                vence{" "}
-                                {until.toLocaleDateString("es-AR", {
-                                  day: "numeric",
-                                  month: "short",
-                                  year: "numeric",
-                                })}
-                              </span>
+                              <span>vence {formatDateShort(until)}</span>
                             </>
                           )}
                         </p>
@@ -127,7 +140,7 @@ export default async function PetsNoAptasPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

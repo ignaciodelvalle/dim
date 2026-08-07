@@ -1,151 +1,23 @@
-// /gob/servicios — govt-facing queue of pending service offerings within coverage (Fase 9).
+// /gob/servicios — ABSORBED into the Directorio hub as the "servicios"
+// register (F3+F7 fusion, 2026-07-22: PO-approved route unification —
+// registry-entity management, identical roster grammar). This route now
+// only redirects, preserving every query param (status), into
+// /gob/directorio?registro=servicios.
 //
-// Shows service_offerings with status='pending_approval' in localities the
-// current govt user covers (via govt_assignments). Admins see all pending
-// offerings (no jurisdiction filter — universal scope).
+// The actual roster lives in ./ServiciosScreen.tsx (byte-identical body of
+// the former page), imported and rendered by app/gob/directorio/page.tsx
+// under the "servicios" tab. /gob/servicios/[offeringToken] is UNCHANGED —
+// nested detail routes don't move.
 
-import { eq } from "drizzle-orm";
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
-import { db, organizations, profiles, serviceOfferings } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { buildDirectorioHubRedirectUrl } from "@/lib/ui/directorio-hub-redirect";
 
-export default async function GobServiciosPage() {
-  const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
-
-  // Build the filter: govt sees only their localities; admin sees all pending.
-  const baseCondition = eq(serviceOfferings.status, "pending_approval");
-
-  // biome-ignore lint/suspicious/noImplicitAnyLet: both branches assign the same drizzle query result shape.
-  let pendingOfferings;
-
-  if (profile.role === "admin") {
-    pendingOfferings = await db
-      .select({
-        offering: serviceOfferings,
-        org: { displayName: organizations.displayName, publicToken: organizations.publicToken },
-        provider: { displayName: profiles.displayName, matriculaNumber: profiles.matriculaNumber },
-      })
-      .from(serviceOfferings)
-      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
-      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
-      .where(baseCondition)
-      .orderBy(serviceOfferings.submittedAt);
-  } else {
-    // Govt: scope to assigned localities (requireAdminOrGovtOrRedirect already
-    // filters to non-revoked assignments, so jurisdictions is already active).
-    if (jurisdictions.length === 0) {
-      return (
-        <div className="space-y-4">
-          <header className="space-y-1">
-            <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-              MiMAR Gobierno · Servicios
-            </p>
-            <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
-          </header>
-          <p className="text-[13px] text-ln-op-mute">
-            No tenes localidades asignadas. Contacta a un administrador para recibir cobertura
-            jurisdiccional.
-          </p>
-        </div>
-      );
-    }
-
-    // Fetch offerings where locality+province match any of the govt's assignments.
-    // Done in JS after a broader query to avoid complex OR conditions.
-    const localityPairs = jurisdictions.map((j) => ({
-      province: j.province,
-      locality: j.locality,
-    }));
-
-    const candidates = await db
-      .select({
-        offering: serviceOfferings,
-        org: { displayName: organizations.displayName, publicToken: organizations.publicToken },
-        provider: { displayName: profiles.displayName, matriculaNumber: profiles.matriculaNumber },
-      })
-      .from(serviceOfferings)
-      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
-      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
-      .where(baseCondition)
-      .orderBy(serviceOfferings.submittedAt);
-
-    pendingOfferings = candidates.filter((r) =>
-      localityPairs.some(
-        (lp) =>
-          lp.province === r.offering.jurisdictionProvince &&
-          lp.locality === r.offering.jurisdictionLocality,
-      ),
-    );
-  }
-
-  const subtitle =
-    pendingOfferings.length === 0
-      ? "No hay servicios pendientes de revision en tu cobertura."
-      : `${pendingOfferings.length} servicio${pendingOfferings.length === 1 ? "" : "s"} pendiente${pendingOfferings.length === 1 ? "" : "s"} de revision.`;
-
-  return (
-    <div className="space-y-6">
-      <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · Servicios
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Servicios pendientes</h1>
-        <p className="text-[13px] text-ln-op-ink-2">{subtitle}</p>
-      </header>
-
-      {pendingOfferings.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">
-          Cuando lleguen nuevas solicitudes vas a verlas aca.
-        </p>
-      ) : (
-        <ul className="space-y-2">
-          {pendingOfferings.map(({ offering, org, provider }) => {
-            const providerLabel =
-              offering.organizationId && org
-                ? org.displayName
-                : provider
-                  ? `Dr/a. ${provider.displayName}${provider.matriculaNumber ? ` · Mat. ${provider.matriculaNumber}` : ""}`
-                  : "Profesional independiente";
-
-            const kindLabel = findServiceKind(offering.serviceKind)?.label ?? offering.serviceKind;
-            const location = [offering.jurisdictionLocality, offering.jurisdictionProvince]
-              .filter(Boolean)
-              .join(", ");
-
-            return (
-              <li key={offering.id}>
-                <OpCard>
-                  <OpCardBody>
-                    <Link
-                      href={`/gob/servicios/${offering.publicToken}`}
-                      className="flex items-start justify-between gap-3 group no-underline"
-                    >
-                      <div className="min-w-0 space-y-0.5">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
-                          {offering.displayName}
-                        </p>
-                        <p className="text-[12px] text-ln-op-mute">
-                          {providerLabel} · {kindLabel}
-                          {location ? ` · ${location}` : ""}
-                          {` · Capacidad: ${offering.slotCapacity}`}
-                        </p>
-                        <p className="text-[10px] text-ln-op-mute font-mono">
-                          {offering.publicToken} ·{" "}
-                          {new Date(offering.submittedAt).toLocaleDateString("es-AR")}
-                        </p>
-                      </div>
-                      <OpPill tone="open">Pendiente</OpPill>
-                    </Link>
-                  </OpCardBody>
-                </OpCard>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </div>
-  );
+export default async function GobServiciosRedirectPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const sp = await searchParams;
+  redirect(buildDirectorioHubRedirectUrl(sp, "servicios", "/gob"));
 }

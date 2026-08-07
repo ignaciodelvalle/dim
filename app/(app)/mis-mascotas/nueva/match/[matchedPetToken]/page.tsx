@@ -6,17 +6,27 @@ import { notFound } from "next/navigation";
 
 import { LnButton } from "@/components/ui/Button";
 import { attachments, db, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { petPhotoUrl } from "@/lib/storage";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { attemptedChipMatchesPet } from "@/lib/infra/chip-lookup";
+import { petPhotoUrl } from "@/lib/infra/storage";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { MatchConfirmationCardVecino } from "./MatchConfirmationCardVecino";
 
 export default async function VecinoMatchPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ matchedPetToken: string }>;
+  // `string | string[]`, not `string`: Next passes an ARRAY when the key
+  // repeats (`?chip=a&chip=b`), and the old `chip?.trim()` below threw
+  // "chip.trim is not a function" — a raw 500 screen on a link anyone can
+  // produce by copy-pasting. firstSearchParam collapses it.
+  searchParams: Promise<{ chip?: string | string[] }>;
 }) {
   const { matchedPetToken } = await params;
+  const { chip } = await searchParams;
+  const attemptedMicrochipId = trimmedSearchParam(chip) ?? "";
 
   await requireUserOrRedirect();
 
@@ -30,16 +40,26 @@ export default async function VecinoMatchPage({
   if (!petResult) notFound();
   const { pet, photo } = petResult;
 
+  // Same gate as the confirm action, applied before a single field is read.
+  // This page renders the owner's first name and the last-seen location the
+  // /perdidas board withholds when the owner opted out of disclosure — and a
+  // live session was its only requirement, for ANY lost pet's public token.
+  // The refugio twin gates on an HMAC intake claim (review 24 HIGH #6/#7); the
+  // vecino equivalent is knowing the code that produced the collision. Note
+  // this is defence in depth, not the authorization: the action is callable
+  // directly, so it re-checks.
+  if (!(await attemptedChipMatchesPet(pet.id, attemptedMicrochipId))) notFound();
+
   if (pet.status !== "lost") {
     return (
-      <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px] text-center">
-        <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
+      <div className="mx-auto max-w-md px-8 py-7 pb-12 text-center">
+        <p className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
           Mascota ya no está perdida
         </p>
-        <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
+        <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">
           {pet.name} ya fue encontrada o su estado cambió. Podés continuar registrando la mascota.
         </p>
-        <div className="mt-[20px] flex justify-center">
+        <div className="mt-5 flex justify-center">
           <Link href="/mis-mascotas/nueva">
             <LnButton variant="primary" size="md">
               Volver al registro
@@ -83,19 +103,20 @@ export default async function VecinoMatchPage({
   const ownerFirstName = ownerRow?.displayName?.split(" ")[0] ?? null;
 
   return (
-    <div className="mx-auto max-w-xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-xl px-8 py-7 pb-12">
       {/* Header */}
-      <div className="mb-[24px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-6">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Coincidencia de microchip
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
-          El chip que ingresaste ya está registrado en MiMAR. Confirmá si es el mismo animal.
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
+          El chip que ingresaste ya está registrado en miMAR. Confirmá si es el mismo animal.
         </p>
       </div>
 
       <MatchConfirmationCardVecino
         matchedPetToken={matchedPetToken}
+        attemptedMicrochipId={attemptedMicrochipId}
         petName={pet.name}
         petSpecies={pet.species}
         petBreed={pet.breed}
@@ -107,10 +128,10 @@ export default async function VecinoMatchPage({
         lastLocationDate={lastLocationDate}
       />
 
-      <div className="mt-[24px] border-t border-[var(--color-ln-line-2)] pt-[16px]">
+      <div className="mt-6 border-t border-[var(--color-ln-line-2)] pt-4">
         <Link
           href="/mis-mascotas/nueva"
-          className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Cancelar y volver al registro
         </Link>

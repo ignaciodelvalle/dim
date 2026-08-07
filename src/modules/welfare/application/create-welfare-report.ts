@@ -24,7 +24,8 @@
 // Spec R1 audit_log contract: public create writes NO audit_log row.
 // (Verified against original — no insertAudit call here.)
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import type { OpenedReason, OpenedReasonParams } from "@/src/modules/cases/domain/opened-reason";
 import {
   MALTREATMENT_KINDS,
   deriveAuthorRole,
@@ -48,12 +49,12 @@ type OpenCaseInput = {
   kind: string;
   primarySubjectKind: string;
   primaryPetId: string | null;
-  primaryLocationLat: string | null;
-  primaryLocationLng: string | null;
+  locationLat: string | null;
+  locationLng: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedByUserId: string | null;
-  openedReason: string;
+  openedReason: OpenedReason;
   welfareReportId: string;
 };
 
@@ -97,10 +98,15 @@ export type CreateWelfareReportInput = {
   reporterUserId: string | null;
   dwellTimeMs: number | undefined;
   honeypotValue: string;
+  /** Client-generated UUID for idempotency on the pet-event bridge inserts. */
+  clientIdempotencyKey: string | null;
 };
 
 type Deps = {
-  repo: Pick<WelfareRepository, "insertAttachments" | "linkCase" | "insertPetEvent" | "setFlagged">;
+  repo: Pick<
+    WelfareRepository,
+    "insertAttachments" | "linkCase" | "insertPetEvent" | "insertPetEventIdempotent" | "setFlagged"
+  >;
   openCase: (input: OpenCaseInput) => Promise<{ id: string; publicCode: string }>;
   computeFlagReasons: (input: ComputeFlagReasonsInput) => Promise<string[]>;
   signal: (input: {
@@ -148,6 +154,7 @@ export async function createWelfareReport(
     reporterUserId,
     dwellTimeMs,
     honeypotValue,
+    clientIdempotencyKey,
   } = input;
 
   // Derive roles from pre-resolved ownership
@@ -183,12 +190,22 @@ export async function createWelfareReport(
         kind: "welfare_denuncia",
         primarySubjectKind,
         primaryPetId: primarySubjectKind === "registered_pet" ? subjectPetId : null,
-        primaryLocationLat: primarySubjectKind === "location" ? locationLat : null,
-        primaryLocationLng: primarySubjectKind === "location" ? locationLng : null,
+        locationLat: primarySubjectKind === "location" ? locationLat : null,
+        locationLng: primarySubjectKind === "location" ? locationLng : null,
         jurisdictionProvince,
         jurisdictionLocality,
         openedByUserId: reporterUserId ?? null,
-        openedReason: `Welfare denuncia ${referenceCode} — kind=${kind}, severity=${severity}`,
+        openedReason: {
+          code: "welfare_report_citizen",
+          referenceCode,
+          // `kind`/`severity` arrive as bare `string` on this use-case's input;
+          // welfare/actions.ts validates both against WELFARE_KINDS /
+          // WELFARE_SEVERITIES before calling. Narrowing the port itself is a
+          // separate change. A value that somehow escaped validation fails the
+          // read-side parse and renders from prose, so it degrades, not breaks.
+          kind: kind as OpenedReasonParams<"welfare_report_citizen">["kind"],
+          severity: severity as OpenedReasonParams<"welfare_report_citizen">["severity"],
+        },
         welfareReportId: reportId,
       });
 
@@ -212,7 +229,7 @@ export async function createWelfareReport(
             reporter_role: reporterRole,
             description,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "abandonment_reported",
@@ -224,8 +241,11 @@ export async function createWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              // The unique index is on (pet_id, event_type, client_idempotency_key),
+              // so the same key on different event_type values occupies distinct slots.
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         } else if (bridgeKind === "maltreatment") {
           const payload = validateEventPayload("maltreatment_reported", {
@@ -235,7 +255,7 @@ export async function createWelfareReport(
             severity,
             kind,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "maltreatment_reported",
@@ -247,8 +267,9 @@ export async function createWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         }
 
@@ -263,7 +284,7 @@ export async function createWelfareReport(
             severity_self_assessed: null,
             onset_at: null,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "symptom_observed",
@@ -275,8 +296,9 @@ export async function createWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         }
       }

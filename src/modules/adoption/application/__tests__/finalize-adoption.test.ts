@@ -43,23 +43,49 @@ function makeAdopterProfile(overrides: Record<string, unknown> = {}) {
 
 type Tx = unknown;
 
+type DniAccount = {
+  id: string;
+  displayName: string;
+  dniVerified: boolean;
+  hasAuthAccount: boolean;
+};
+
+/** A registered account (auth.users row exists). dniVerified=true by default. */
+function makeDniAccount(overrides: Partial<DniAccount> = {}): DniAccount {
+  return {
+    id: "existing-user-id",
+    displayName: "Juan Pérez",
+    dniVerified: true,
+    hasAuthAccount: true,
+    ...overrides,
+  };
+}
+
 // Full fake repo with all methods needed by finalizeAdoption.
 function makeFakeRepo(
   options: {
     pet?: Record<string, unknown> | null;
     foster?: Record<string, unknown> | null;
-    dniProfile?: { id: string } | null;
+    /** Registered-account lookup result. Default: a registered account. */
+    dniAccount?: DniAccount | null;
     adopterProfile?: Record<string, unknown> | null;
+    approvedApplication?: { applicantUserId: string } | { error: string };
   } = {},
 ): typeof AdoptionRepository {
   const pet = options.pet !== undefined ? options.pet : makeEligiblePet();
   const foster = options.foster !== undefined ? options.foster : null;
+  const dniAccount = options.dniAccount !== undefined ? options.dniAccount : makeDniAccount();
 
   return {
     findShelterPet: vi.fn().mockResolvedValue(pet),
     findActiveFoster: vi.fn().mockResolvedValue(foster),
-    findStubAdopterByDni: vi.fn().mockResolvedValue(options.dniProfile ?? null),
+    findAdopterAccountByDni: vi.fn().mockResolvedValue(dniAccount),
     findApplicantProfile: vi.fn().mockResolvedValue(options.adopterProfile ?? null),
+    findApprovedApplicationForFinalize: vi
+      .fn()
+      .mockResolvedValue(
+        options.approvedApplication ?? { error: "no approved application configured" },
+      ),
     setEligibility: vi.fn().mockResolvedValue(undefined),
     setListingStatus: vi.fn().mockResolvedValue(undefined),
     updateListingContent: vi.fn().mockResolvedValue(undefined),
@@ -91,6 +117,7 @@ const actor = {
 
 const baseInput = {
   petPublicToken: "tok-1",
+  applicationEventId: null,
   adopterUserId: null,
   adopterDni: "12345678",
   adopterDisplayName: "Juan Pérez",
@@ -219,24 +246,51 @@ describe("finalizeAdoption", () => {
     );
   });
 
-  it("uses existing profile instead of stub when DNI matches", async () => {
-    const repo = makeFakeRepo({ dniProfile: { id: "existing-user-id" } });
+  it("uses the registered account's real userId when DNI matches", async () => {
+    const repo = makeFakeRepo({ dniAccount: makeDniAccount({ id: "existing-user-id" }) });
     await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         adopterUserId: "existing-user-id",
-        isStubAdopter: false,
       }),
       "fake-tx",
     );
   });
 
-  it("creates stub profile when no existing DNI profile found", async () => {
-    const repo = makeFakeRepo({ dniProfile: null });
-    await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+  // ---- Registered-adopter refusal branches (org-pilot-pack) --------------
+  // Reconciliation contract: match = dniHash match + auth.users row EXISTS.
+  // No dniVerified requirement. Legacy stubs (no auth row) refuse.
+
+  it("refuses when no profiles row matches the DNI (no stub is ever created)", async () => {
+    const repo = makeFakeRepo({ dniAccount: null });
+    const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/cuenta miMAR/i);
+    expect(repo.insertAdoptionFinalized).not.toHaveBeenCalled();
+    expect(fakeTransaction).not.toHaveBeenCalled();
+  });
+
+  it("refuses a legacy stub profile (matching hash but NO auth.users row)", async () => {
+    const repo = makeFakeRepo({
+      dniAccount: makeDniAccount({ id: "stub-user-id", hasAuthAccount: false }),
+    });
+    const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/cuenta miMAR/i);
+    expect(repo.insertAdoptionFinalized).not.toHaveBeenCalled();
+  });
+
+  it("proceeds for a registered account even when dniVerified=false (reconciliation contract)", async () => {
+    // A walk-in adopter who registered on the spot: auth account exists,
+    // DNI captured at signup but not yet verified. MUST match.
+    const repo = makeFakeRepo({
+      dniAccount: makeDniAccount({ id: "fresh-signup-id", dniVerified: false }),
+    });
+    const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
+    expect(result).toMatchObject({ ok: true });
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
-        isStubAdopter: true,
+        adopterUserId: "fresh-signup-id",
       }),
       "fake-tx",
     );
@@ -257,10 +311,67 @@ describe("finalizeAdoption", () => {
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         adopterUserId: "foster-user-1",
-        isStubAdopter: false,
       }),
       "fake-tx",
     );
+  });
+
+  // ---- Approved-application path ---------------------------------------
+
+  it("transfers ownership to the applicant's account when finalizing from an approved application", async () => {
+    const repo = makeFakeRepo({
+      approvedApplication: { applicantUserId: "applicant-user-1" },
+    });
+    const result = await finalizeAdoption(
+      { ...baseInput, applicationEventId: "app-evt-1", adopterDni: null, adopterDisplayName: "" },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    expect(result).toMatchObject({ ok: true });
+    // Ownership lands on the applicant's REAL account, not a stub.
+    expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
+      expect.objectContaining({
+        adopterUserId: "applicant-user-1",
+        adoptedFromApplicationId: "app-evt-1",
+      }),
+      "fake-tx",
+    );
+    // The approved application was resolved against the event log, org-scoped.
+    expect(repo.findApprovedApplicationForFinalize).toHaveBeenCalledWith(
+      "app-evt-1",
+      "org-1",
+      "pet-1",
+    );
+  });
+
+  it("emits an adoption_finalized notification to the applicant on the application path", async () => {
+    const repo = makeFakeRepo({
+      approvedApplication: { applicantUserId: "applicant-user-1" },
+    });
+    const result = await finalizeAdoption(
+      { ...baseInput, applicationEventId: "app-evt-1", adopterDni: null, adopterDisplayName: "" },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    const r = result as {
+      ok: true;
+      notifications: { notificationType: string; userId: string; ctaUrl?: string | null }[];
+    };
+    const finalized = r.notifications.find((n) => n.notificationType === "adoption_finalized");
+    expect(finalized).toBeDefined();
+    expect(finalized?.userId).toBe("applicant-user-1");
+    expect(finalized?.ctaUrl).toBe("/mis-mascotas");
+  });
+
+  it("returns the repository error when the selected application is not approved", async () => {
+    const repo = makeFakeRepo({
+      approvedApplication: { error: "La postulación seleccionada no está aprobada." },
+    });
+    const result = await finalizeAdoption(
+      { ...baseInput, applicationEventId: "app-evt-1", adopterDni: null, adopterDisplayName: "" },
+      { repo, actor, transaction: fakeTransaction },
+    );
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { ok: false; error: string }).error).toMatch(/no está aprobada/i);
+    expect(repo.insertAdoptionFinalized).not.toHaveBeenCalled();
   });
 
   // ---- Notifications best-effort (returned, not flushed) ---------------
@@ -268,17 +379,13 @@ describe("finalizeAdoption", () => {
   it("returns notifications in result array (not flushed inside use-case)", async () => {
     const repo = makeFakeRepo();
     const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
-    // Use-case returns notifications — action flushes post-tx best-effort.
-    // Stub adopter => no adopter notification, so notifications array may be empty or
-    // contain auto-rejection notifications. Main check: tx not rolled back.
     expect(result).toMatchObject({ ok: true });
     const r = result as { ok: true; notifications: unknown[] };
     expect(Array.isArray(r.notifications)).toBe(true);
   });
 
-  it("returns adoption_finalized notification for non-stub adopter", async () => {
-    // Non-stub: existing DNI profile found
-    const repo = makeFakeRepo({ dniProfile: { id: "existing-user-id" } });
+  it("returns adoption_finalized notification for the registered adopter", async () => {
+    const repo = makeFakeRepo({ dniAccount: makeDniAccount({ id: "existing-user-id" }) });
     const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
     const r = result as { ok: true; notifications: { notificationType: string }[] };
     expect(r.notifications.some((n) => n.notificationType === "adoption_finalized")).toBe(true);
@@ -288,7 +395,7 @@ describe("finalizeAdoption", () => {
     // Foster path produces the broadest set: adoption_finalized + foster_ended_by_adoption.
     const repo = makeFakeRepo({
       foster: makeFosterRow({ ownerUserId: "foster-user-1" }),
-      dniProfile: { id: "different-user-id" },
+      dniAccount: makeDniAccount({ id: "different-user-id" }),
     });
     const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
     const r = result as { ok: true; notifications: { category?: string | null }[] };
@@ -296,18 +403,17 @@ describe("finalizeAdoption", () => {
     expect(r.notifications.every((n) => n.category === "adoption")).toBe(true);
   });
 
-  it("does NOT return adoption_finalized notification for stub adopter", async () => {
-    // Stub: no existing DNI profile
-    const repo = makeFakeRepo({ dniProfile: null });
+  it("returns NO notifications on the refusal branch (nothing happened)", async () => {
+    const repo = makeFakeRepo({ dniAccount: null });
     const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
-    const r = result as { ok: true; notifications: { notificationType: string }[] };
-    expect(r.notifications.some((n) => n.notificationType === "adoption_finalized")).toBe(false);
+    expect(result).toMatchObject({ ok: false });
+    expect((result as { notifications?: unknown[] }).notifications ?? []).toHaveLength(0);
   });
 
   it("returns foster_ended_by_adoption notification when foster is different from adopter", async () => {
     const repo = makeFakeRepo({
       foster: makeFosterRow({ ownerUserId: "foster-user-1" }),
-      dniProfile: { id: "different-user-id" },
+      dniAccount: makeDniAccount({ id: "different-user-id" }),
     });
     const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
     const r = result as { ok: true; notifications: { notificationType: string; userId: string }[] };
@@ -319,10 +425,10 @@ describe("finalizeAdoption", () => {
   });
 
   it("does NOT return foster notification when foster IS the adopter", async () => {
-    // Foster adopts via DNI path (foster-user-id matches existing profile)
+    // Foster adopts via DNI path (foster-user-id matches a registered account)
     const repo = makeFakeRepo({
       foster: makeFosterRow({ ownerUserId: "foster-user-1" }),
-      dniProfile: { id: "foster-user-1" },
+      dniAccount: makeDniAccount({ id: "foster-user-1" }),
     });
     const result = await finalizeAdoption(baseInput, { repo, actor, transaction: fakeTransaction });
     const r = result as { ok: true; notifications: { notificationType: string }[] };
@@ -347,23 +453,17 @@ describe("finalizeAdoption", () => {
     expect((result as { ok: false; error: string }).error).toMatch(/finalizar/i);
   });
 
-  // ---- No reminders for stub adopter -----------------------------------
+  // ---- Follow-up reminders pass through for registered adopters ---------
 
-  it("does not include reminder-scheduling args when adopter is stub", async () => {
-    const repo = makeFakeRepo({ dniProfile: null });
+  it("passes followupMonths through for a registered adopter (reminders enabled)", async () => {
+    const repo = makeFakeRepo({ dniAccount: makeDniAccount({ id: "existing-user-id" }) });
     await finalizeAdoption(
       { ...baseInput, followupMonths: 6 },
       { repo, actor, transaction: fakeTransaction },
     );
-    // Stub adopter: reminders NOT passed to insertAdoptionFinalized
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
-      expect.objectContaining({ isStubAdopter: true }),
+      expect.objectContaining({ adopterUserId: "existing-user-id", followupMonths: 6 }),
       "fake-tx",
     );
-    // The use-case delegates reminder insertion to insertAdoptionFinalized
-    // with followupMonths=null when stub. Check what was actually passed:
-    const callArgs = (repo.insertAdoptionFinalized as ReturnType<typeof vi.fn>).mock.calls[0][0];
-    // isStubAdopter=true means reminders should be skipped inside insertAdoptionFinalized
-    expect(callArgs.isStubAdopter).toBe(true);
   });
 });

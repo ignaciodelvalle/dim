@@ -6,8 +6,8 @@ import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { verifyDniForUser } from "@/app/actions/dni-verification";
 import { auditLog, db, notifications, profiles } from "@/db";
+import { verifyDniForUser } from "@/src/modules/auth/application/dni-verification/verify-dni";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -77,7 +77,7 @@ afterAll(async () => {
 });
 
 describe("verifyDniForUser", () => {
-  it("happy path: sets dni_number + dni_verified, inserts audit + notification", async () => {
+  it("happy path: sets dni_hash + dni_last4 + dni_verified (no plaintext), inserts audit + notification", async () => {
     // Derive a per-user DNI from userId slice to avoid collisions across test runs.
     const dni = userIdA.replace(/\D/g, "").slice(0, 8).padEnd(8, "1");
 
@@ -85,12 +85,19 @@ describe("verifyDniForUser", () => {
     expect(result.ok).toBe(true);
 
     const [profile] = await db
-      .select({ dniVerified: profiles.dniVerified, dniNumber: profiles.dniNumber })
+      .select({
+        dniVerified: profiles.dniVerified,
+        dniHash: profiles.dniHash,
+        dniLast4: profiles.dniLast4,
+      })
       .from(profiles)
       .where(eq(profiles.id, userIdA))
       .limit(1);
     expect(profile.dniVerified).toBe(true);
-    expect(profile.dniNumber).toBe(dni);
+    // Wave 5 Item 25a: hash matches, plaintext is never stored.
+    const { hashDni, dniLast4 } = await import("@/lib/utils/dni-hash");
+    expect(profile.dniHash).toBe(hashDni(dni));
+    expect(profile.dniLast4).toBe(dniLast4(dni));
 
     // Audit log row
     const auditRows = await db
@@ -148,7 +155,7 @@ describe("verifyDniForUser", () => {
     expect(result.ok).toBe(true);
   });
 
-  it("unique collision: returns friendly error when DNI belongs to another account", async () => {
+  it("unique collision (AU-1 oracle defense): returns the GENERIC message, never a DNI-confirming one", async () => {
     // userIdB already has dni7; try to set the same value on a new user.
     const EMAIL_C = "dni-verify-c@dim-test.local";
     await deleteTestUser(EMAIL_C);
@@ -164,7 +171,15 @@ describe("verifyDniForUser", () => {
       const dni7 = userIdB.replace(/\D/g, "").slice(0, 7).padEnd(7, "2");
       const result = await verifyDniForUser(userIdC, dni7);
       expect(result.ok).toBe(false);
-      if (!result.ok) expect(result.error).toMatch(/ya está registrado/i);
+      if (!result.ok) {
+        // The collision MUST surface the generic, non-confirming copy — a
+        // distinct "ya está registrado" message would confirm the DNI exists.
+        expect(result.error).toBe(
+          "No pudimos guardar tus datos. Revisá la información e intentá de nuevo.",
+        );
+        expect(result.error).not.toMatch(/ya está registrado/i);
+        expect(result.error).not.toMatch(/DNI/);
+      }
     } finally {
       await deleteTestUser(EMAIL_C);
     }

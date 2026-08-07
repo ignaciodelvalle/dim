@@ -1,6 +1,7 @@
 "use client";
 
 import { Icon } from "@/components/Icon";
+import { BRANDING } from "@/lib/ui/branding";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useId, useState } from "react";
@@ -9,8 +10,23 @@ export type NavItem = {
   href: string;
   label: string;
   matchPrefix?: string;
+  /**
+   * Additional active-state prefixes. When set, the item is active if the path
+   * equals or is under ANY of these (e.g. "Mis mascotas" → /inicio stays active
+   * while viewing a pet at /mis-mascotas/[token]). Takes precedence over
+   * matchPrefix for the active check.
+   */
+  matchPrefixes?: string[];
   /** Optional numeric badge overlaid on the nav item (e.g. breach count). */
   badge?: number;
+  /**
+   * Deferred (not-yet-built) destination. Rendered as a non-interactive, muted
+   * "Próximamente" affordance — visible in the IA so the population/custody
+   * roadmap gap (vNext §1) is legible, but carries NO live route: no <Link>, no
+   * middleware entry, no breadcrumb/omnibox resolution, never "active".
+   * See plan 2026-06-23-population-cycle-deferred-nav-handoff.md.
+   */
+  deferred?: boolean;
 };
 
 type Props = {
@@ -20,29 +36,11 @@ type Props = {
 
 function isActive(item: NavItem, currentPath: string | null): boolean {
   if (!currentPath) return false;
+  if (item.matchPrefixes?.some((p) => currentPath === p || currentPath.startsWith(`${p}/`))) {
+    return true;
+  }
   if (item.matchPrefix) return currentPath.startsWith(item.matchPrefix);
   return currentPath === item.href;
-}
-
-/** SVGs inline para hamburguesa y cerrar — icono-arg no los incluye. */
-function HamburgerIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path
-        d="M3 6h18M3 12h18M3 18h18"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}
-function CloseIcon({ size = 22 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
 }
 
 /**
@@ -98,7 +96,7 @@ export function HeaderNav({ nav, user }: Props) {
             >
               {item.label}
               {item.badge != null && item.badge > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
                   {item.badge}
                 </span>
               )}
@@ -119,7 +117,7 @@ export function HeaderNav({ nav, user }: Props) {
           </Link>
         ) : (
           <Link
-            href="/auth/login"
+            href="/login"
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline hover:bg-ln-azul-700"
           >
             Iniciar sesión
@@ -137,7 +135,11 @@ export function HeaderNav({ nav, user }: Props) {
           onClick={() => setOpen((v) => !v)}
           className="inline-flex h-11 w-11 items-center justify-center rounded-md border border-ln-line text-ln-azul hover:border-ln-line-strong"
         >
-          {open ? <CloseIcon /> : <HamburgerIcon />}
+          {open ? (
+            <Icon name="close" size="lg" decorative />
+          ) : (
+            <Icon name="menu" size="lg" decorative />
+          )}
         </button>
       </div>
 
@@ -161,14 +163,14 @@ export function HeaderNav({ nav, user }: Props) {
           />
           <div className="absolute right-0 top-0 h-full w-[85%] max-w-sm bg-white shadow-xl">
             <div className="flex items-center justify-between border-b border-ln-line px-4 py-3">
-              <span className="text-lg font-bold text-ln-azul">MiMAR</span>
+              <span className="text-lg font-bold text-ln-azul">{BRANDING.appName}</span>
               <button
                 type="button"
                 onClick={() => setOpen(false)}
                 aria-label="Cerrar menú"
                 className="inline-flex h-10 w-10 items-center justify-center rounded-md text-ln-ink-2 hover:bg-ln-stripe"
               >
-                <CloseIcon size={20} />
+                <Icon name="close" size="md" decorative />
               </button>
             </div>
 
@@ -186,7 +188,7 @@ export function HeaderNav({ nav, user }: Props) {
                   >
                     {item.label}
                     {item.badge != null && item.badge > 0 && (
-                      <span className="inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white">
+                      <span className="inline-flex items-center justify-center rounded-full bg-ln-seal px-1.5 py-0.5 text-xs font-semibold leading-none text-white">
                         {item.badge}
                       </span>
                     )}
@@ -206,7 +208,7 @@ export function HeaderNav({ nav, user }: Props) {
                 </Link>
               ) : (
                 <Link
-                  href="/auth/login"
+                  href="/login"
                   className="inline-flex min-h-12 w-full items-center justify-center rounded-full bg-ln-azul px-6 text-sm font-semibold text-white no-underline"
                 >
                   Iniciar sesión

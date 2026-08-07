@@ -7,9 +7,11 @@ import { notFound } from "next/navigation";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterProposals, organizations, pets, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { formatDate, pluralizeEs, sexLabel, speciesLabel } from "@/lib/utils/format";
 import { eq } from "drizzle-orm";
 
+import { STATUS_LABELS } from "../status-labels";
 import { ProposalActions } from "./ProposalActions";
 
 export default async function ProposalDetailPage({
@@ -37,48 +39,42 @@ export default async function ProposalDetailPage({
   const warnings = (proposal.matchWarnings ?? []) as string[];
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta/transitos/propuestas"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Propuestas
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
-        <p className="mb-[4px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <div className="mb-6">
+        <p className="mb-1 font-ln-mono text-sm uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
           {org.displayName} te propone cuidar a
         </p>
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           {pet.name}
         </h1>
-        <p className="mt-[4px] text-[13px] text-[var(--color-ln-mute)]">
-          {pet.species}
+        <p className="mt-1 text-md text-[var(--color-ln-mute)]">
+          {speciesLabel(pet.species)}
           {pet.breed && ` · ${pet.breed}`}
-          {pet.sex && ` · ${pet.sex}`}
+          {pet.sex && ` · ${sexLabel(pet.sex)}`}
         </p>
       </div>
 
       {/* Details card */}
-      <LnCard className="mb-[20px]">
+      <LnCard className="mb-5">
         <LnCardHead title="Detalles de la propuesta" />
         <LnCardBody>
-          <dl className="flex flex-col gap-[10px]">
+          <dl className="flex flex-col gap-2.5">
             <DetailRow label="Propuesto por">{proposer.displayName}</DetailRow>
             <DetailRow label="Duración estimada">
               {proposal.proposedDurationWeeks
-                ? `${proposal.proposedDurationWeeks} semanas`
+                ? `${proposal.proposedDurationWeeks} ${pluralizeEs(proposal.proposedDurationWeeks, "semana")}`
                 : "Sin definir"}
             </DetailRow>
-            <DetailRow label="Expira">
-              {expires.toLocaleDateString("es-AR", {
-                day: "numeric",
-                month: "long",
-                year: "numeric",
-              })}
-            </DetailRow>
+            <DetailRow label="Expira">{formatDate(expires)}</DetailRow>
             {proposal.proposedNotes && (
               <DetailRow label="Notas del refugio">
                 <span className="whitespace-pre-wrap">{proposal.proposedNotes}</span>
@@ -90,11 +86,11 @@ export default async function ProposalDetailPage({
 
       {/* Warnings */}
       {warnings.length > 0 && (
-        <div className="mb-[20px]">
+        <div className="mb-5">
           <LnCallout tone="warn" title="Avisos del matching">
-            <ul className="mt-[6px] flex flex-col gap-[4px]">
+            <ul className="mt-1.5 flex flex-col gap-1">
               {warnings.map((w) => (
-                <li key={w} className="text-[12px]">
+                <li key={w} className="text-sm">
                   · {w}
                 </li>
               ))}
@@ -111,8 +107,12 @@ export default async function ProposalDetailPage({
           orgName={org.displayName}
         />
       ) : (
-        <p className="text-[13px] text-[var(--color-ln-mute)]">
-          Esta propuesta está en estado <strong>{proposal.status}</strong>.
+        <p className="text-md text-[var(--color-ln-mute)]">
+          Esta propuesta está en estado{" "}
+          <strong>
+            {STATUS_LABELS[proposal.status as keyof typeof STATUS_LABELS] ?? proposal.status}
+          </strong>
+          .
         </p>
       )}
     </div>
@@ -128,10 +128,10 @@ function DetailRow({
 }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }

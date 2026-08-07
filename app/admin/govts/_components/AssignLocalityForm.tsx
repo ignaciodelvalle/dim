@@ -10,6 +10,10 @@ import { useState, useTransition } from "react";
 
 import { assignGovtLocalityAction } from "@/app/actions/admin-institutional";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
+import { OpButton, OpSelect } from "@/components/ui/dashboard";
+import { WHOLE_PROVINCE_SENTINEL } from "@/lib/domain/jurisdiction-canonical";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Mode = "idle" | "confirming" | "done";
 
@@ -27,18 +31,25 @@ export function AssignLocalityForm({
   // by LocalityPickerAcross when the user picks a result.
   const [provinceName, setProvinceName] = useState("");
   const [locality, setLocality] = useState("");
+  // D3 (PO 2026-08-04): any province can be assigned as a whole, not just CABA.
+  // Kept as an explicit choice rather than an empty locality box, so nobody
+  // grants a province-wide mandate by leaving a field blank.
+  const [wholeProvince, setWholeProvince] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastAssigned, setLastAssigned] = useState<AssignedLocality | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const localityTrimmed = locality.trim();
-  const canSubmit = provinceName.length > 0 && localityTrimmed.length > 0 && !pending;
+  const localityTrimmed = wholeProvince ? WHOLE_PROVINCE_SENTINEL : locality.trim();
+  const canSubmit =
+    provinceName.length > 0 && (wholeProvince || localityTrimmed.length > 0) && !pending;
 
   if (mode === "done" && lastAssigned) {
     return (
       <div className="space-y-2">
-        <p className="text-[12px] text-ln-op-ok font-medium">
-          Localidad asignada: {lastAssigned.locality}, {lastAssigned.province}
+        <p className="text-sm text-ln-op-ok font-medium">
+          {lastAssigned.locality === WHOLE_PROVINCE_SENTINEL
+            ? `Provincia asignada: toda ${lastAssigned.province}`
+            : `Localidad asignada: ${lastAssigned.locality}, ${lastAssigned.province}`}
         </p>
         <button
           type="button"
@@ -46,9 +57,10 @@ export function AssignLocalityForm({
             setMode("idle");
             setProvinceName("");
             setLocality("");
+            setWholeProvince(false);
             setLastAssigned(null);
           }}
-          className="text-[10px] underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink-2"
+          className="text-xs underline underline-offset-2 text-ln-op-mute hover:text-ln-op-ink-2"
         >
           Asignar otra
         </button>
@@ -58,63 +70,105 @@ export function AssignLocalityForm({
 
   if (mode === "confirming") {
     return (
-      <div className="rounded-[6px] border border-ln-op-blue-bd bg-ln-op-blue-bg p-3 space-y-3">
-        <p className="text-[10px] uppercase tracking-wider font-bold text-ln-op-azul">
+      <div className="rounded-[var(--radius-md)] border border-ln-op-blue-bd bg-ln-op-blue-bg p-3 space-y-3">
+        <p className="text-xs uppercase tracking-wider font-bold text-ln-op-azul">
           Asignar nueva localidad
         </p>
 
         <div className="space-y-1">
-          <label
-            htmlFor="assign-locality-locality"
-            className="block text-[10px] uppercase tracking-wider text-ln-op-mute"
-          >
-            Localidad
+          <label className="flex items-center gap-2 text-sm text-ln-op-ink-2">
+            <input
+              type="checkbox"
+              checked={wholeProvince}
+              onChange={(e) => {
+                setWholeProvince(e.target.checked);
+                setProvinceName("");
+                setLocality("");
+              }}
+              className="h-4 w-4"
+            />
+            Toda la provincia
           </label>
-          <LocalityPickerAcross
-            id="assign-locality-locality"
-            onSelect={(r) => {
-              setProvinceName(r?.provinceName ?? "");
-              setLocality(r?.localityName ?? "");
-            }}
-          />
-          {provinceName && <p className="text-[10px] text-ln-op-mute">Provincia: {provinceName}</p>}
+          <p className="text-xs text-ln-op-mute">
+            El operador ve todas las localidades de la provincia, incluidas las que se agreguen
+            después.
+          </p>
         </div>
 
-        {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+        {wholeProvince ? (
+          <div className="space-y-1">
+            <label
+              htmlFor="assign-locality-province"
+              className="block text-xs uppercase tracking-wider text-ln-op-mute"
+            >
+              Provincia
+            </label>
+            <OpSelect
+              id="assign-locality-province"
+              value={provinceName}
+              onChange={(e) => setProvinceName(e.target.value)}
+              className="min-h-11 text-ln-op-ink"
+            >
+              <option value="">Elegí una provincia</option>
+              {PROVINCES.map((p) => (
+                <option key={p.code} value={p.name}>
+                  {p.name}
+                </option>
+              ))}
+            </OpSelect>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            <label
+              htmlFor="assign-locality-locality"
+              className="block text-xs uppercase tracking-wider text-ln-op-mute"
+            >
+              Localidad
+            </label>
+            <LocalityPickerAcross
+              id="assign-locality-locality"
+              onSelect={(r) => {
+                setProvinceName(r?.provinceName ?? "");
+                setLocality(r?.localityName ?? "");
+              }}
+            />
+            {provinceName && <p className="text-xs text-ln-op-mute">Provincia: {provinceName}</p>}
+          </div>
+        )}
+
+        {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 
         <div className="flex items-center gap-2">
-          <button
+          <OpButton
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 disabled:opacity-50"
+            variant="primary"
+            size="sm"
           >
-            {pending ? "Asignando..." : "Confirmar asignacion"}
-          </button>
-          <button
+            {pending ? "Asignando..." : "Confirmar asignación"}
+          </OpButton>
+          <OpButton
             type="button"
             onClick={() => {
               setMode("idle");
               setError(null);
             }}
             disabled={pending}
-            className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
+            variant="ghost"
+            size="sm"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       </div>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setMode("confirming")}
-      className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-blue-bd text-ln-op-azul hover:bg-ln-op-blue-bg transition-colors"
-    >
+    <OpButton type="button" onClick={() => setMode("confirming")} variant="primary" size="sm">
       Asignar nueva localidad
-    </button>
+    </OpButton>
   );
 
   function handleSubmit() {
@@ -133,6 +187,10 @@ export function AssignLocalityForm({
 
       const assigned = { province: provinceName, locality: localityTrimmed };
       setLastAssigned(assigned);
+      // Full document reload so the SSR institutional list reflects the
+      // change immediately (router.refresh() is banned - see
+      // lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
       setMode("done");
       onAssigned?.(assigned);
     });

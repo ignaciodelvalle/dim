@@ -280,7 +280,7 @@ async function main() {
   await check("anon", "/privacidad", {
     expectedStatus: 200,
     mustContain: ["/cuenta/privacidad"],
-    mustNotContain: ["registrada ante la DNPDP"],
+    mustNotContain: ["registrada ante la DNPDP", "cumple las obligaciones de registro"],
   });
 
   // /terminos

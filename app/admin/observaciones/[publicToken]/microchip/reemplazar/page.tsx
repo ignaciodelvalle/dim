@@ -1,6 +1,6 @@
 import { db, pets } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
 import { eq } from "drizzle-orm";
 import { notFound } from "next/navigation";
 
@@ -38,10 +38,10 @@ export default async function ReplaceMicrochipAdminPage({
           ]}
         />
         <header className="space-y-1">
-          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
             {"Admin · Microchip"}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             {"Reemplazar microchip — "}
             {pet.name}
           </h1>
@@ -65,14 +65,14 @@ export default async function ReplaceMicrochipAdminPage({
       />
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Microchip"}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           {"Reemplazar microchip — "}
           {pet.name}
         </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           {
             "Acción administrativa. Todas las razones están disponibles, incluidas fraude y duplicado. Quedará registrado en el log de auditoría."
           }

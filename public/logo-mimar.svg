@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 60" width="200" height="60" role="img" aria-label="miMAR">
+  <title>miMAR — Mi Mascota Argentina</title>
+  <text x="4" y="44"
+        font-family="'Segoe UI', Roboto, Helvetica, Arial, sans-serif"
+        font-size="44" letter-spacing="-1.5">
+    <tspan font-weight="500" fill="#5AA0D6">mi</tspan><tspan font-weight="800" fill="#11538F">MAR</tspan>
+  </text>
+</svg>

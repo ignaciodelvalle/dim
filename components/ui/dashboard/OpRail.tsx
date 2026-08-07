@@ -1,4 +1,5 @@
 import type { NavItem } from "@/components/layout/HeaderNav";
+import { BRANDING } from "@/lib/ui/branding";
 import { type NavSection, OpRailNav } from "./OpRailNav";
 
 type Props = {
@@ -36,7 +37,7 @@ export function OpRail({
   brandSubtitle = "Operador",
   user,
 }: Props) {
-  const railBg = variant === "org" ? "bg-[#0B3B42]" : "bg-ln-op-navy";
+  const railBg = variant === "org" ? "bg-[var(--color-ln-tl-rail)]" : "bg-ln-op-navy";
   const initials = user?.initials ?? (user?.name ? toInitials(user.name) : "");
 
   return (
@@ -50,16 +51,16 @@ export function OpRail({
       aria-label="Barra de navegación"
     >
       {/* Brand */}
-      <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-[16px] pb-[13px]">
+      <div className="flex items-center gap-2.5 border-b border-[rgba(255,255,255,0.10)] px-4 py-4 pb-[13px]">
         {/* Monogram */}
-        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[5px] bg-ln-op-card font-ln-mono text-[13px] font-bold text-ln-op-navy">
+        <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-card font-ln-mono text-md font-bold text-ln-op-navy">
           m·
         </div>
         <div className="flex flex-col leading-tight">
-          <span className="font-ln-serif text-[15px] font-semibold tracking-[-0.005em] text-white">
-            MiMAR
+          <span className="font-ln-serif text-base font-semibold tracking-[-0.005em] text-white">
+            {BRANDING.appName}
           </span>
-          <span className="text-[9px] font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
+          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ln-op-rail-mute">
             {brandSubtitle}
           </span>
         </div>
@@ -71,13 +72,13 @@ export function OpRail({
       {/* Footer user strip */}
       {user && (
         <div className="flex items-center gap-2.5 border-t border-[rgba(255,255,255,0.10)] px-[13px] py-[11px]">
-          <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3a6cb3] to-[#6a4c93] text-[11px] font-bold text-white">
+          <div className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#3a6cb3] to-[#6a4c93] text-sm font-bold text-white">
             {initials || "?"}
           </div>
           <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-[12px] font-semibold text-white">{user.name}</span>
+            <span className="truncate text-sm font-semibold text-white">{user.name}</span>
             {user.role && (
-              <span className="font-ln-mono text-[10px] text-ln-op-rail-mute">{user.role}</span>
+              <span className="font-ln-mono text-xs text-ln-op-rail-mute">{user.role}</span>
             )}
           </div>
         </div>

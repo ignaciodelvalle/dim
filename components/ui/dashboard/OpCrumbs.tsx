@@ -38,8 +38,11 @@ const ChevronRight = () => (
  */
 export function OpCrumbs({ items }: Props) {
   return (
-    <nav aria-label="Ruta de navegación">
-      <ol className="flex items-center gap-1.5 text-[12px] text-ln-op-mute">
+    // min-w-0 + overflow-hidden + flex-nowrap keep the strip on ONE line inside
+    // the topbar (D1): the current-page crumb truncates with an ellipsis instead
+    // of wrapping the topbar onto a second row at ≥1280px.
+    <nav aria-label="Ruta de navegación" className="min-w-0">
+      <ol className="flex min-w-0 flex-nowrap items-center gap-1.5 overflow-hidden text-sm text-ln-op-mute">
         {items.map((item, i) => {
           const isLast = i === items.length - 1;
           const textClass = isLast
@@ -49,12 +52,25 @@ export function OpCrumbs({ items }: Props) {
             : "text-ln-op-mute";
 
           return (
-            <li key={`${item.label}-${i}`} className="flex items-center gap-1.5">
+            <li
+              key={`${item.label}-${i}`}
+              className={[
+                "flex items-center gap-1.5",
+                // Intermediate crumbs hold their width; the last (current page)
+                // crumb is the one allowed to shrink + truncate.
+                isLast ? "min-w-0" : "flex-shrink-0",
+              ].join(" ")}
+            >
               {i > 0 && <ChevronRight />}
               {isLast || !item.href ? (
-                <span className={textClass}>{item.label}</span>
+                <span className={`${textClass} ${isLast ? "truncate" : "whitespace-nowrap"}`}>
+                  {item.label}
+                </span>
               ) : (
-                <Link href={item.href} className={`no-underline hover:text-ln-op-ink ${textClass}`}>
+                <Link
+                  href={item.href}
+                  className={`whitespace-nowrap no-underline hover:text-ln-op-ink ${textClass}`}
+                >
                   {item.label}
                 </Link>
               )}

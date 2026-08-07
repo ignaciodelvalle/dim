@@ -73,7 +73,10 @@
  * CLI
  * ---
  *   tsx scripts/migrate.ts                 apply all pending migrations
- *   tsx scripts/migrate.ts --status        print applied vs pending, then exit
+ *   tsx scripts/migrate.ts --status        print applied vs pending, then exit 0
+ *   tsx scripts/migrate.ts --check         like --status, but EXIT 6 if anything
+ *                                          is pending (a deploy gate: fail the
+ *                                          build before code ships ahead of DB)
  *   tsx scripts/migrate.ts --dry-run       print what WOULD apply, apply nothing
  *   tsx scripts/migrate.ts --baseline      mark ALL files applied, run no SQL
  *   tsx scripts/migrate.ts --baseline 0042_foo.sql
@@ -92,6 +95,7 @@
  *   3  checksum drift detected under --strict
  *   4  bad CLI usage (e.g. --baseline target not found)
  *   5  schema-populated guard tripped (unbaselined existing DB detected)
+ *   6  --check found pending migrations (DB is behind the committed tree)
  */
 
 import { createHash } from "node:crypto";
@@ -190,6 +194,7 @@ export function detectDrift(
 
 interface Cli {
   status: boolean;
+  check: boolean;
   dryRun: boolean;
   baseline: boolean;
   baselineUpTo?: string;
@@ -199,6 +204,7 @@ interface Cli {
 export function parseArgs(argv: string[]): Cli {
   const cli: Cli = {
     status: false,
+    check: false,
     dryRun: false,
     baseline: false,
     strict: false,
@@ -208,6 +214,9 @@ export function parseArgs(argv: string[]): Cli {
     switch (arg) {
       case "--status":
         cli.status = true;
+        break;
+      case "--check":
+        cli.check = true;
         break;
       case "--dry-run":
         cli.dryRun = true;
@@ -246,6 +255,14 @@ async function ensureTrackingTable(sql: Sql): Promise<void> {
       applied_at timestamptz not null default now()
     );
   `);
+  // Secure the tracking table with RLS deny-all (Supabase advisor
+  // rls_disabled_in_public, migration 0113). The runner owns this table's
+  // creation, so enabling RLS here closes the finding in EVERY path: db:migrate
+  // creates _dim_migrations before applying 0113, and db:bootstrap creates it in
+  // its baseline step — which runs AFTER the best-effort migration replay, so
+  // 0113's own ALTER cannot reach it. Idempotent: no-op if already enabled. The
+  // runner connects as postgres (BYPASSRLS), so deny-all never blocks it.
+  await sql.unsafe(`alter table public.${TRACKING_TABLE} enable row level security;`);
 }
 
 /** Read the recorded migrations as filename → checksum. */
@@ -355,10 +372,14 @@ async function main(): Promise<void> {
       }
     }
 
-    // ---- --status -------------------------------------------------------
-    if (cli.status) {
+    // ---- --status / --check ---------------------------------------------
+    // Both print the same applied-vs-pending report. The only difference is the
+    // exit code: --status always exits 0 (informational), while --check exits 6
+    // when anything is pending so it can gate a deploy — code must never ship
+    // ahead of the database it queries.
+    if (cli.status || cli.check) {
       const pending = computePending(allFiles, appliedSet);
-      header("Migration status");
+      header(cli.check ? "Migration check" : "Migration status");
       console.log(`Tracking table : public.${TRACKING_TABLE}`);
       console.log(`Total files    : ${allFiles.length}`);
       console.log(`Applied        : ${appliedSet.size}`);
@@ -370,6 +391,15 @@ async function main(): Promise<void> {
       if (drifted.length > 0) {
         console.log(`\nDrifted (applied but file changed): ${drifted.length}`);
         for (const f of drifted) console.log(`  ! ${f}`);
+      }
+      if (cli.check && pending.length > 0) {
+        console.error(
+          `\nFATAL: ${pending.length} migration(s) pending against this database.
+Apply them with \`pnpm db:migrate\` BEFORE deploying code that depends on
+them — otherwise the deployed app will query columns/tables that do not
+exist yet (errorMissingColumn at runtime).`,
+        );
+        process.exit(6);
       }
       return;
     }

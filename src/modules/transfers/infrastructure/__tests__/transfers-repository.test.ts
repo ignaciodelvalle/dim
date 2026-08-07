@@ -12,16 +12,9 @@ import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  db,
-  notifications,
-  organizations,
-  ownerships,
-  petEvents,
-  petTransfers,
-  pets,
-  profiles,
-} from "@/db";
+import { hashDni } from "@/lib/utils/dni-hash";
+
+import { db, organizations, ownerships, petEvents, petTransfers, pets, profiles } from "@/db";
 import { withMutationOverride } from "../../../../../__tests__/_helpers/db-overrides";
 
 // Module under test — created in GREEN phase.
@@ -99,7 +92,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: senderUserId,
     displayName: "Test Sender",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: true,
     role: "owner",
     phone: "1112340001",
@@ -109,7 +102,7 @@ beforeAll(async () => {
   await db.insert(profiles).values({
     id: recipientUserId,
     displayName: "Test Recipient",
-    dniNumber: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
     dniVerified: true,
     role: "owner",
     phone: "1112340002",

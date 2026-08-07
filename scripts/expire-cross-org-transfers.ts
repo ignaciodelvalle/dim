@@ -5,7 +5,7 @@
  * Idempotent (already-closed cases are excluded by the scan).
  */
 
-import { runCaseCron } from "@/lib/case-cron";
+import { runCaseCron } from "@/lib/infra/case-cron";
 import { TransfersRepository } from "@/src/modules/transfers/infrastructure/transfers-repository";
 
 async function main() {

@@ -1,6 +1,5 @@
-import Link from "next/link";
-
-import { LOST_SCAN_FEED_CAP } from "@/lib/lost-mode";
+import { Icon } from "@/components/Icon";
+import { LOST_SCAN_FEED_CAP } from "@/lib/infra/lost-mode";
 
 // LostScanFeed — unified feed of QR scans and finder messages for an
 // active lost_pet_episode case.
@@ -75,17 +74,17 @@ interface Props {
   totalScans: number;
   /** Total sightings count (since case opened). */
   totalSightings: number;
-  /** Link to the case audit. */
-  caseHref: string;
 }
 
-export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Props) {
+// Chrome-less by design (QA 2026-08-03 redesign): the caller owns the section
+// header ("Avistamientos y escaneos" + "Ver caso" link in LostCaseBlock's
+// ScanFeedSection) — this component renders only the feed body. The old
+// bordered card + "Actividad" heading stacked a second box and a second
+// title inside the parent section.
+export function LostScanFeed({ items, totalScans, totalSightings }: Props) {
   const possessionCount = items.filter((it) => it.kind === "finder").length;
   return (
-    <section
-      aria-labelledby="lp-feed-h"
-      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
-    >
+    <div>
       {/* Possession callout — the most important signal in the feed: someone
           reported they physically HAVE the pet. Surfaced above everything. */}
       {possessionCount > 0 && (
@@ -93,7 +92,7 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
           role="alert"
           className="mb-3 rounded-xl border border-ln-ok bg-[var(--color-ln-ok-050)] px-4 py-2.5"
         >
-          <p className="text-sm font-bold text-ln-ok">🏠 ¡Alguien tiene a tu mascota!</p>
+          <p className="text-sm font-bold text-ln-ok">Alguien tiene a tu mascota</p>
           <p className="mt-0.5 text-xs text-ln-ink-2">
             {possessionCount === 1
               ? "Una persona reportó que la tiene con ella. Contactala para coordinar el reencuentro."
@@ -102,18 +101,9 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
         </div>
       )}
 
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-feed-h" className="text-base font-semibold text-ln-ink ">
-          Actividad
-        </h2>
-        <Link href={caseHref} className="text-xs font-medium text-ln-azul hover:underline">
-          Ver caso →
-        </Link>
-      </div>
-
       <div className="mb-3 grid grid-cols-2 gap-2">
-        <CountBox value={totalScans} label="escaneos" />
-        <CountBox value={totalSightings} label="avistajes" />
+        <CountBox value={totalScans} label={totalScans === 1 ? "escaneo" : "escaneos"} />
+        <CountBox value={totalSightings} label={totalSightings === 1 ? "avistaje" : "avistajes"} />
       </div>
 
       {items.length === 0 ? (
@@ -136,7 +126,7 @@ export function LostScanFeed({ items, totalScans, totalSightings, caseHref }: Pr
           )}
         </>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -165,11 +155,11 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
       >
         <span
           aria-hidden
-          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg ${
+          className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg ${
             urgent ? "bg-ln-err text-white" : "bg-ln-ok text-white"
           }`}
         >
-          🏠
+          <Icon name="casa" size="md" decorative />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold text-ln-ink">{item.finderName} tiene a tu mascota</p>
@@ -183,15 +173,15 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             <p className="mt-0.5 text-xs text-ln-mute">{item.localityLabel}</p>
           )}
           {item.finderContact && (
-            <p className="mt-1 text-sm font-semibold text-ln-azul">
-              📞{" "}
+            <p className="mt-1 flex items-center gap-1 text-sm font-semibold text-ln-azul">
+              <Icon name="telefono" size="sm" decorative />
               <a href={`tel:${item.finderContact}`} className="hover:underline">
                 {item.finderContact}
               </a>
             </p>
           )}
           {item.availabilityLabel && (
-            <p className="mt-0.5 text-[11px] text-ln-mute">
+            <p className="mt-0.5 text-sm text-ln-mute">
               {item.availabilityLabel === "indefinido"
                 ? "Puede cuidarla indefinidamente"
                 : `Puede cuidarla hasta ${item.availabilityLabel}`}
@@ -212,7 +202,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             </div>
           )}
         </div>
-        <p className="shrink-0 text-[11px] text-ln-mute">{relativeShort(item.at)}</p>
+        <p className="shrink-0 text-sm text-ln-mute">{relativeShort(item.at)}</p>
       </div>
     );
   }
@@ -228,7 +218,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
           aria-hidden
           className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[var(--color-ln-ok-050)] text-ln-ok  "
         >
-          👀
+          <Icon name="ojo" size="sm" decorative />
         </span>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-ln-ink ">Avistaje reportado</p>
@@ -260,16 +250,20 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
             </div>
           ) : item.photoStoragePath ? (
             <p className="mt-1 text-xs text-ln-mute">
-              <span>📷 foto adjunta</span>
+              <span className="inline-flex items-center gap-1">
+                <Icon name="camara" size="sm" decorative /> foto adjunta
+              </span>
             </p>
           ) : null}
           {item.finderContact && (
             <p className="mt-1 text-xs text-ln-mute">
-              <span>📞 {item.finderContact}</span>
+              <span className="inline-flex items-center gap-1">
+                <Icon name="telefono" size="sm" decorative /> {item.finderContact}
+              </span>
             </p>
           )}
         </div>
-        <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
+        <p className="shrink-0 text-sm text-ln-mute ">{relativeShort(item.at)}</p>
       </div>
     );
   }
@@ -280,7 +274,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
         aria-hidden
         className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-ln-celeste/10 text-ln-azul  "
       >
-        📱
+        <Icon name="celular" size="sm" decorative />
       </span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-ln-ink ">
@@ -290,7 +284,7 @@ function FeedRow({ item }: { item: ScanFeedItem }) {
           {item.localityLabel ?? "Ubicación desconocida"}
         </p>
       </div>
-      <p className="shrink-0 text-[11px] text-ln-mute ">{relativeShort(item.at)}</p>
+      <p className="shrink-0 text-sm text-ln-mute ">{relativeShort(item.at)}</p>
     </div>
   );
 }
@@ -299,13 +293,17 @@ function CountBox({ value, label }: { value: number; label: string }) {
   return (
     <div className="rounded-lg bg-ln-stripe px-3 py-2 text-center ">
       <p className="text-xl font-semibold text-ln-ink ">{value}</p>
-      <p className="text-[11px] text-ln-mute ">{label}</p>
+      <p className="text-sm text-ln-mute ">{label}</p>
     </div>
   );
 }
 
-function relativeShort(d: Date): string {
-  const ms = Date.now() - d.getTime();
+// `now` is a parameter (default = call time) so the label is a pure function
+// of (d, now) and unit-testable for determinism. Renders inside a Server
+// Component today (single server evaluation, no hydration re-run); the explicit
+// `now` keeps the relative-`now` class deterministic and testable regardless.
+export function relativeShort(d: Date, now: number = Date.now()): string {
+  const ms = now - d.getTime();
   const m = Math.floor(ms / 60000);
   if (m < 1) return "ahora";
   if (m < 60) return `hace ${m} min`;

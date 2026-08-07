@@ -10,11 +10,9 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  govtSelfDeactivateForUser,
-  vetSelfResignForUser,
-} from "@/app/actions/profile-self-service";
 import { auditLog, db, govtAssignments, notifications, profiles } from "@/db";
+import { govtSelfDeactivateForUser } from "@/src/modules/pets/application/profile/govt-self-deactivate";
+import { vetSelfResignForUser } from "@/src/modules/pets/application/profile/vet-self-resign";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

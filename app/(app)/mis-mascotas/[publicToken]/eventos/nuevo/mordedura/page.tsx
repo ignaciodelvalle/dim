@@ -1,18 +1,25 @@
 import Link from "next/link";
 
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
 import { reportBiteAction } from "@/src/modules/surveillance/actions";
 
 import { BiteForm } from "./BiteForm";
 
 export default async function NewBitePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
   const { pet } = await requireOwnedPetByToken(publicToken);
+  // Captura-rápida URL-prefill slots (event-capture-registry).
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+  };
 
   const isInObservation = pet.rabiesObservationStatus === "in_progress";
   const boundAction = reportBiteAction.bind(null, publicToken);
@@ -21,17 +28,17 @@ export default async function NewBitePage({
     return (
       <LnSheetWrap>
         <LnSheetCard>
-          <div className="px-[18px] py-[24px] space-y-[10px]">
-            <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-warn)]">
+          <div className="px-[18px] py-6 space-y-[10px]">
+            <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-warn)]">
               Ya hay una observación en curso
             </p>
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               {pet.name} está en observación antirrábica por otra mordedura. Esperá a que termine
               antes de reportar una nueva.
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}`}
-              className="inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
+              className="inline-block font-ln-mono text-sm text-[var(--color-ln-azul)] underline underline-offset-2"
             >
               Volver al perfil →
             </Link>
@@ -44,7 +51,7 @@ export default async function NewBitePage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <BiteForm action={boundAction} petName={pet.name} />
+        <BiteForm action={boundAction} petName={pet.name} defaults={defaults} />
       </LnSheetCard>
     </LnSheetWrap>
   );

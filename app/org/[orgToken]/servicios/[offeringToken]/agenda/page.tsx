@@ -8,13 +8,15 @@ import { notFound, redirect } from "next/navigation";
 
 import { createScheduleRuleAction, deleteScheduleRuleAction } from "@/app/actions/schedule-rules";
 import { materializeOfferingNowAction } from "@/app/actions/slot-materialization";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody } from "@/components/ui/dashboard";
 import { db, serviceOfferings, serviceScheduleRules } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatDateShort } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { AgendaRuleForm } from "./AgendaRuleForm";
+import { DeleteRuleButton } from "./DeleteRuleButton";
 import { MaterializeNowButton } from "./MaterializeNowButton";
 
 const WEEKDAY_LABELS: Record<number, string> = {
@@ -35,9 +37,12 @@ function formatDays(days: number[]): string {
     .join(", ");
 }
 
+// effectiveFrom/effectiveUntil are `date()` columns — they arrive as bare
+// "YYYY-MM-DD" strings. The canonical formatter anchors those at noon UTC;
+// parsing them with `new Date(...)` here (UTC midnight) rendered the rule
+// "desde 6/8" as "5 ago" (Cowork QA v3, M2a).
 function formatDate(d: string | Date | null): string {
-  if (!d) return "—";
-  return new Date(d).toLocaleDateString("es-AR", { dateStyle: "medium" });
+  return formatDateShort(d);
 }
 
 export default async function AgendaPage({
@@ -89,11 +94,11 @@ export default async function AgendaPage({
     <div className="max-w-3xl mx-auto space-y-8">
       {/* Header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName} · {kind?.label ?? offering.serviceKind}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Agenda</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Agenda</h1>
+        <p className="text-md text-ln-op-mute">
           Reglas de disponibilidad recurrente para{" "}
           <strong className="text-ln-op-ink-2">{offering.displayName}</strong>.
         </p>
@@ -101,9 +106,9 @@ export default async function AgendaPage({
 
       {/* Existing rules */}
       <section className="space-y-4">
-        <h2 className="text-[14px] font-semibold text-ln-op-ink">Reglas activas</h2>
+        <h2 className="text-md font-semibold text-ln-op-ink">Reglas activas</h2>
         {rules.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Todavía no hay reglas de agenda. Agregá una abajo para que se materialicen turnos.
           </p>
         ) : (
@@ -111,22 +116,40 @@ export default async function AgendaPage({
             <OpCardBody className="p-0">
               <div className="overflow-x-auto">
                 <table className="w-full">
+                  <caption className="sr-only">
+                    Reglas de agenda: días, horario y período de vigencia
+                  </caption>
                   <thead className="bg-ln-op-stripe border-b border-ln-op-line">
                     <tr>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Días
                       </th>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Horario
                       </th>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Desde
                       </th>
-                      <th className="px-4 py-2 text-left text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                      <th
+                        scope="col"
+                        className="px-4 py-2 text-left text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                      >
                         Hasta
                       </th>
                       {canManage && (
-                        <th className="px-4 py-2 text-right text-[11px] font-semibold text-ln-op-mute uppercase tracking-[0.08em]">
+                        <th
+                          scope="col"
+                          className="px-4 py-2 text-right text-sm font-semibold text-ln-op-mute uppercase tracking-[0.08em]"
+                        >
                           Acción
                         </th>
                       )}
@@ -135,33 +158,26 @@ export default async function AgendaPage({
                   <tbody className="divide-y divide-ln-op-line">
                     {rules.map((rule) => (
                       <tr key={rule.id} className="hover:bg-ln-op-stripe transition-colors">
-                        <td className="px-4 py-3 text-[13px] text-ln-op-ink">
+                        <td className="px-4 py-3 text-md text-ln-op-ink">
                           {formatDays(rule.daysOfWeek as number[])}
                         </td>
-                        <td className="px-4 py-3 font-mono text-[12px] text-ln-op-ink-2">
+                        <td className="px-4 py-3 font-mono text-sm text-ln-op-ink-2">
                           {rule.startTimeLocal} – {rule.endTimeLocal}
                         </td>
-                        <td className="px-4 py-3 text-[13px] text-ln-op-mute">
+                        <td className="px-4 py-3 text-md text-ln-op-mute">
                           {formatDate(rule.effectiveFrom)}
                         </td>
-                        <td className="px-4 py-3 text-[13px] text-ln-op-mute">
+                        <td className="px-4 py-3 text-md text-ln-op-mute">
                           {rule.effectiveUntil ? formatDate(rule.effectiveUntil) : "Abierto"}
                         </td>
                         {canManage && (
                           <td className="px-4 py-3 text-right">
-                            <form
-                              action={async () => {
-                                "use server";
-                                await deleteScheduleRuleAction(rule.id, orgToken, offeringToken);
-                              }}
-                            >
-                              <button
-                                type="submit"
-                                className="text-[12px] text-ln-op-danger hover:underline"
-                              >
-                                Eliminar
-                              </button>
-                            </form>
+                            <DeleteRuleButton
+                              ruleId={rule.id}
+                              orgToken={orgToken}
+                              offeringToken={offeringToken}
+                              deleteAction={deleteScheduleRuleAction}
+                            />
                           </td>
                         )}
                       </tr>
@@ -177,7 +193,7 @@ export default async function AgendaPage({
       {/* Add rule form */}
       {canManage && (
         <section className="space-y-4">
-          <h2 className="text-[14px] font-semibold text-ln-op-ink">Agregar regla</h2>
+          <h2 className="text-md font-semibold text-ln-op-ink">Agregar regla</h2>
           <OpCard>
             <OpCardBody>
               <AgendaRuleForm
@@ -194,8 +210,8 @@ export default async function AgendaPage({
       {/* Materialization — immediate preview */}
       {canManage && rules.length > 0 && (
         <section className="space-y-2">
-          <h2 className="text-[14px] font-semibold text-ln-op-ink">Materializar turnos</h2>
-          <p className="text-[13px] text-ln-op-mute">
+          <h2 className="text-md font-semibold text-ln-op-ink">Materializar turnos</h2>
+          <p className="text-md text-ln-op-mute">
             Genera los turnos de los próximos 60 días a partir de las reglas activas. El cron lo
             hace automáticamente; este botón es para preview inmediato.
           </p>
@@ -209,7 +225,7 @@ export default async function AgendaPage({
       <footer className="pt-4 border-t border-ln-op-line">
         <Link
           href={`/org/${orgToken}/servicios/${offeringToken}`}
-          className="text-[12px] text-ln-op-azul hover:underline"
+          className="text-sm text-ln-op-azul hover:underline"
         >
           ← Volver al servicio
         </Link>

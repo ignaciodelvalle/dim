@@ -10,8 +10,10 @@
 //   - Authority fan-out is post-tx best-effort — callers must handle.
 //   - AUDIT_LOG: NONE (bite actions never wrote audit_log — preserve absence).
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import { computeObservationUntil, isRabiesVaccineValid } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification, UseCaseResult } from "./types";
@@ -48,6 +50,14 @@ export type ReportBiteInput = {
   clientIdempotencyKey: string | null;
   eventJurisdictionProvince: string | null;
   eventJurisdictionLocality: string | null;
+  // panorama-event-points Slice 2: the incident coordinate (optional) captured by
+  // the bite form's map pin, persisted COLUMNAR on the event so the mordeduras
+  // near-zoom dot loader (loadBiteEvents) can plot it. Null when the reporter
+  // dropped no pin → the bite is counted into the "sin ubicación exacta" residual,
+  // never a faked centroid dot.
+  locationLat: number | null;
+  locationLng: number | null;
+  locationSource: "gps" | "pin_manual" | "geocodificada" | null;
 };
 
 type Deps = {
@@ -68,10 +78,10 @@ type Deps = {
       jurisdictionProvince: string | null;
       jurisdictionLocality: string | null;
       openedByUserId: string;
-      openedReason: string;
+      openedReason: OpenedReason;
     },
     tx: unknown,
-  ) => Promise<{ id: string }>;
+  ) => Promise<{ id: string; publicCode: string }>;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
   findAuthoritiesForJurisdiction: (jurisdiction: {
     province: string;
@@ -79,7 +89,7 @@ type Deps = {
   }) => Promise<string[]>;
 };
 
-export type ReportBiteResult = UseCaseResult<{ petToken: string }>;
+export type ReportBiteResult = UseCaseResult<{ petToken: string; casePublicCode: string }>;
 
 // ---------------------------------------------------------------------------
 // Use-case
@@ -96,22 +106,39 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   const now = new Date();
   const observationUntil = computeObservationUntil(occurredAt);
   const pendingNotifications: NewNotification[] = [];
+  // Case public code (CAS-XXXX-XXXX) — surfaced on the bite receipt so the
+  // reporter can quote the incident later. Captured inside the tx.
+  let casePublicCode = "";
+  // LEGAL-ROUTING fix: a bite must route to the INCIDENT jurisdiction (where
+  // it happened), not the pet's home jurisdiction — a mordedura in Córdoba by
+  // a pet registered in CABA is Córdoba's sanitary authority's problem, not
+  // CABA's. LocationFields (l2, in BiteForm) captures the incident location
+  // via map pin + reverse-geocoding into eventJurisdictionProvince/Locality;
+  // fall back to the pet's home jurisdiction only when the reporter dropped
+  // no pin. Mirrors reportBiteFromOrg's caseProvince/caseLocality pattern.
+  const caseProvince = input.eventJurisdictionProvince ?? pet.jurisdictionProvince;
+  const caseLocality = input.eventJurisdictionLocality ?? pet.jurisdictionLocality;
 
   try {
     await transaction(async (tx) => {
-      // 2. Open bite_incident case (pet jurisdiction).
+      // 2. Open bite_incident case (incident jurisdiction overrides pet jurisdiction).
       const caseRow = await openCase(
         {
           kind: "bite_incident",
           primarySubjectKind: "registered_pet",
           primaryPetId: pet.id,
-          jurisdictionProvince: pet.jurisdictionProvince,
-          jurisdictionLocality: pet.jurisdictionLocality,
+          jurisdictionProvince: caseProvince,
+          jurisdictionLocality: caseLocality,
           openedByUserId: user.id,
-          openedReason: `Bite incident reported by owner — victim=${input.victimKind}, severity=${input.severity}`,
+          openedReason: {
+            code: "bite_reported_owner",
+            victimKind: input.victimKind,
+            severity: input.severity,
+          },
         },
         tx,
       );
+      casePublicCode = caseRow.publicCode;
 
       // 3. Insert incident_reported with idempotency key (owner path only).
       const incidentPayload = validateEventPayload("incident_reported", {
@@ -130,6 +157,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         reporter_role: "owner",
         jurisdiction_province: input.eventJurisdictionProvince,
         jurisdiction_locality: input.eventJurisdictionLocality,
+        location_source: input.locationSource,
       });
 
       const { event: biteEvent, wasNoop: biteNoop } = await repo.insertIncidentEventIdempotent(
@@ -143,6 +171,10 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
           payload: incidentPayload,
           caseId: caseRow.id,
           clientIdempotencyKey: input.clientIdempotencyKey,
+          // panorama-event-points Slice 2: persist the incident point COLUMNAR (numeric
+          // string), mirroring the sighting writer. Null-coord bites fall into the residual.
+          locationLat: input.locationLat != null ? String(input.locationLat) : null,
+          locationLng: input.locationLng != null ? String(input.locationLng) : null,
         } as Parameters<typeof repo.insertIncidentEventIdempotent>[0],
         tx as Parameters<typeof repo.insertIncidentEventIdempotent>[1],
       );
@@ -185,7 +217,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
         notificationType: "rabies_observation_started_owner",
         severity: "warning",
         title: `Observación antirrábica iniciada — ${pet.name}`,
-        body: `Por la mordedura del ${occurredAt.toLocaleDateString("es-AR")}, ${pet.name} entra en observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR")}. Si notás síntomas raros (salivación excesiva, agresividad inusual, parálisis), consultá al veterinario de inmediato.`,
+        body: `Por la mordedura del ${occurredAt.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}, ${pet.name} entra en observación antirrábica de 10 días. Cierre estimado: ${observationUntil.toLocaleDateString("es-AR", { timeZone: AR_TIME_ZONE })}. Si notás síntomas raros (salivación excesiva, agresividad inusual, parálisis), consultá al veterinario de inmediato.`,
         relatedPetId: pet.id,
         relatedCaseId: caseRow.id,
         ctaLabel: "Ver mascota",
@@ -203,18 +235,20 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
   }
 
   // 8. Authority fan-out (best-effort — post-tx). Add to pendingNotifications.
-  if (pet.jurisdictionProvince && pet.jurisdictionLocality) {
+  // Routes to the INCIDENT jurisdiction (caseProvince/caseLocality), not the
+  // pet's home — see LEGAL-ROUTING fix note above.
+  if (caseProvince && caseLocality) {
     try {
       const authorityIds = await findAuthoritiesForJurisdiction({
-        province: pet.jurisdictionProvince,
-        locality: pet.jurisdictionLocality,
+        province: caseProvince,
+        locality: caseLocality,
       });
       for (const authorityId of authorityIds) {
         pendingNotifications.push({
           userId: authorityId,
           notificationType: "bite_reported_authority",
           severity: input.severity === "severe" ? "urgent" : "warning",
-          title: `Mordedura reportada — ${pet.name} (${pet.species})`,
+          title: `Mordedura reportada — ${pet.name} (${speciesLabel(pet.species)})`,
           body: `Reportada por el dueño. Víctima: ${input.victimKind}. Severidad: ${input.severity}. Antirrábica vigente al momento: ${rabiesVaccineValid ? "sí" : "NO"}. Observación 10 días iniciada.`,
           relatedPetId: pet.id,
           // Authority recipient: surveillance hub (cannot open /mis-mascotas).
@@ -229,7 +263,7 @@ export async function reportBite(input: ReportBiteInput, deps: Deps): Promise<Re
 
   return {
     ok: true,
-    value: { petToken: pet.publicToken },
+    value: { petToken: pet.publicToken, casePublicCode },
     notifications: pendingNotifications,
   };
 }

@@ -21,7 +21,7 @@ import {
   petsExportSchema,
   rowsToCsv,
   rowsToJson,
-} from "@/lib/govt-exports";
+} from "@/lib/analytics/govt-exports";
 
 // ---------------------------------------------------------------------------
 // petsExportSchema

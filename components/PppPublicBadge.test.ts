@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildPppDisclaimerLine, buildPppHeadline } from "@/lib/ppp-public-badge";
+import { buildPppDisclaimerLine, buildPppHeadline } from "@/lib/domain/ppp-public-badge";
 
 describe("buildPppDisclaimerLine", () => {
   it("interpolates petName and breed into the disclaimer copy", () => {

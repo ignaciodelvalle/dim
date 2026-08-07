@@ -24,16 +24,21 @@
 // AUDIT_LOG: NONE on bite/rabies. Outbreak: all 4 write audit_log inside tx (use-case handles it).
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { db, notifications } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { notifyOutbreakInvestigationOpened } from "@/lib/authority";
-import { closeCase, escalateCase, openCase } from "@/lib/case-helpers";
-import { requireAlivePetAccess } from "@/lib/pet-access";
+import { notifyOutbreakInvestigationOpened } from "@/lib/domain/authority";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { assertOccurredAtPlausible } from "@/lib/events/plausibility";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { closeCase, escalateCase, openCase } from "@/lib/infra/case-helpers";
+import { requireAlivePetAccess } from "@/lib/infra/pet-access";
+import { checkboxOn } from "@/lib/ui/form-checkbox";
+import { parseDateInput } from "@/lib/utils/format";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import {
   type InvestigationNoteEntryType,
   addInvestigationNote,
@@ -54,6 +59,17 @@ import { SurveillanceRepository } from "./infrastructure/surveillance-repository
 
 const repo = new SurveillanceRepository();
 
+/**
+ * panorama-event-points Slice 2: read the coordinate-capture origin from the bite
+ * form (`locationSource` hidden field emitted by LocationFields l2 / the org map
+ * picker). Only the three known enum values are honored; anything else (absent /
+ * legacy form) → null so the schema's nullable-optional passes.
+ */
+function parseLocationSource(fd: FormData): "gps" | "pin_manual" | "geocodificada" | null {
+  const raw = String(fd.get("locationSource") ?? "").trim();
+  return raw === "gps" || raw === "pin_manual" || raw === "geocodificada" ? raw : null;
+}
+
 /** Flush notifications post-tx, best-effort. Never throws. */
 async function flushNotifications(
   pending: Array<typeof notifications.$inferInsert>,
@@ -70,13 +86,24 @@ async function flushNotifications(
 // Re-exported types (matches original app/actions/bite.ts public surface)
 // ---------------------------------------------------------------------------
 
-export type BiteFormState = { error: string | null };
+export type BiteFormState = {
+  error: string | null;
+  /** N3 post-action destination — see the note on ProfessionalCloseResult below. */
+  redirectTo?: string;
+};
 export type ReportBiteFromOrgFormState = {
   error: string | null;
   ok?: boolean;
   petToken?: string;
+  /** N3 post-action destination — see the note on ProfessionalCloseResult below. */
+  redirectTo?: string;
+  /** CAS-XXXX-XXXX code of the opened bite-incident case (receipt reference). */
+  casePublicCode?: string;
 };
-export type ProfessionalCloseResult = { error: string | null };
+// `redirectTo` carries the post-success destination back to the client instead
+// of the action calling redirect() itself — the App Router drops a server
+// action's own redirect in production (see lib/ui/full-page-action-nav.ts).
+export type ProfessionalCloseResult = { error: string | null; redirectTo?: string };
 
 // ---------------------------------------------------------------------------
 // reportBiteAction — owner path (spec §A)
@@ -102,11 +129,20 @@ export async function reportBiteAction(
   // 3. Parse + validate form input.
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   if (!occurredAtRaw) return { error: "Indicá la fecha del incidente." };
-  const occurredAt = new Date(occurredAtRaw);
-  if (!Number.isFinite(occurredAt.getTime())) {
+  // Anchor the bare YYYY-MM-DD at NOON UTC (parseDateInput) so the bite is
+  // recorded on the reporter's AR calendar day — NOT midnight UTC, which is the
+  // previous AR day (UTC−3) and would shift the legal 10-day rabies-observation
+  // anchor one day early (RO-HIGH, tier-3 event-sourcing critique).
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt || !Number.isFinite(occurredAt.getTime())) {
     return { error: "Fecha del incidente inválida." };
   }
-  if (occurredAt > new Date()) return { error: "La fecha no puede ser futura." };
+  // Date-only guard (shared with the events edge): compare AR calendar days,
+  // not the noon-UTC anchor against the wall clock — the previous instant
+  // compare rejected a same-day bite reported before 09:00 AR.
+  if (!assertOccurredAtPlausible({ occurredAt, isDateOnly: true }).ok) {
+    return { error: "La fecha no puede ser futura." };
+  }
 
   const victimKindRaw = String(formData.get("victimKind") ?? "");
   if (!["human", "animal", "unknown"].includes(victimKindRaw)) {
@@ -120,7 +156,7 @@ export async function reportBiteAction(
   }
   const severity = severityRaw as "minor" | "moderate" | "severe";
 
-  const confirmed = formData.get("confirmObservation") === "on";
+  const confirmed = checkboxOn(formData, "confirmObservation");
   if (!confirmed) {
     return {
       error:
@@ -134,8 +170,20 @@ export async function reportBiteAction(
   const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  // locality:"none" — canonicalize province only (bite report behavior unchanged).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+  const eventJurisdictionProvince = normalizedLoc.province;
+  const eventJurisdictionLocality = normalizedLoc.locality;
+  const locationSource = parseLocationSource(formData);
 
   // 4. Call use-case.
   const result = await reportBite(
@@ -158,6 +206,10 @@ export async function reportBiteAction(
       clientIdempotencyKey,
       eventJurisdictionProvince,
       eventJurisdictionLocality,
+      // panorama-event-points Slice 2: the map-pin coordinate (may be null).
+      locationLat: normalizedLoc.lat,
+      locationLng: normalizedLoc.lng,
+      locationSource,
     },
     {
       repo,
@@ -174,7 +226,17 @@ export async function reportBiteAction(
   await flushNotifications(result.notifications as (typeof notifications.$inferInsert)[]);
 
   revalidatePath(`/mis-mascotas/${publicToken}`);
-  redirect(`/mis-mascotas/${publicToken}?evento=mordedura_reportada`);
+  // Wave 2 Item 9: trámite-style flows MUST end on SuccessScreen (Rule 4).
+  // Redirect to the dedicated success page so the owner sees the observation-
+  // period details and next steps, not a silent pet-profile redirect.
+  // Carry the opened bite-incident case code so the receipt can quote it.
+  // N3, like professionalCloseAction below: hand the destination back. This
+  // file already carried that contract — and this call, on the OWNER's bite
+  // report, never adopted it.
+  return {
+    error: null,
+    redirectTo: `/mis-mascotas/${publicToken}/eventos/nuevo/mordedura/exito?caso=${encodeURIComponent(result.value.casePublicCode)}`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -247,11 +309,18 @@ export async function reportBiteFromOrgAction(
   // 3. Parse bite-specific fields.
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   if (!occurredAtRaw) return { error: "Indicá la fecha del incidente." };
-  const occurredAt = new Date(occurredAtRaw);
-  if (!Number.isFinite(occurredAt.getTime())) {
+  // Anchor at NOON UTC (parseDateInput) so the bite lands on the reporter's AR
+  // calendar day, not the previous one — see the owner path above (RO-HIGH).
+  const occurredAt = parseDateInput(occurredAtRaw);
+  if (!occurredAt || !Number.isFinite(occurredAt.getTime())) {
     return { error: "Fecha del incidente inválida." };
   }
-  if (occurredAt > new Date()) return { error: "La fecha no puede ser futura." };
+  // Date-only guard (shared with the events edge): compare AR calendar days,
+  // not the noon-UTC anchor against the wall clock — the previous instant
+  // compare rejected a same-day bite reported before 09:00 AR.
+  if (!assertOccurredAtPlausible({ occurredAt, isDateOnly: true }).ok) {
+    return { error: "La fecha no puede ser futura." };
+  }
 
   const victimKindRaw = String(formData.get("victimKind") ?? "");
   if (!["human", "animal", "unknown"].includes(victimKindRaw)) {
@@ -265,7 +334,7 @@ export async function reportBiteFromOrgAction(
   }
   const severity = severityRaw as "minor" | "moderate" | "severe";
 
-  if (formData.get("confirmObservation") !== "on") {
+  if (!checkboxOn(formData, "confirmObservation")) {
     return {
       error:
         "Tenés que confirmar que entendés que esto inicia una observación obligatoria de 10 días.",
@@ -278,9 +347,22 @@ export async function reportBiteFromOrgAction(
   const victimContactPhone = String(formData.get("victimContactPhone") ?? "").trim() || null;
   const victimAgeEstimate = String(formData.get("victimAgeEstimate") ?? "").trim() || null;
   const injuriesSummary = String(formData.get("injuriesSummary") ?? "").trim() || null;
-  const vetInvolved = formData.get("vetInvolved") === "on";
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const vetInvolved = checkboxOn(formData, "vetInvolved");
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  // locality:"none" — canonicalize province only (org bite report behavior unchanged).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+  const eventJurisdictionProvince = normalizedLoc.province;
+  const eventJurisdictionLocality = normalizedLoc.locality;
+  const locationSource = parseLocationSource(formData);
   const noRedirect = String(formData.get("noRedirect") ?? "") === "1";
 
   // 4. Call use-case.
@@ -304,8 +386,13 @@ export async function reportBiteFromOrgAction(
       victimAgeEstimate,
       injuriesSummary,
       vetInvolved,
+      clientIdempotencyKey,
       eventJurisdictionProvince,
       eventJurisdictionLocality,
+      // panorama-event-points Slice 2: the map-pin coordinate (may be null).
+      locationLat: normalizedLoc.lat,
+      locationLng: normalizedLoc.lng,
+      locationSource,
       noRedirect,
       orgToken,
     },
@@ -328,9 +415,14 @@ export async function reportBiteFromOrgAction(
       error: null,
       ok: true,
       petToken: String(formData.get("petPublicToken") ?? "").trim(),
+      casePublicCode: result.value.casePublicCode,
     };
   }
-  redirect(`/org/${orgToken}?evento=mordedura_reportada`);
+  // No `ok` here on purpose: `ok` is what makes the form render its inline
+  // SuccessScreen (the noRedirect branch above). This branch NAVIGATES, so it
+  // reports only where to go — setting both would ask the form to do two
+  // different things with one state.
+  return { error: null, redirectTo: `/org/${orgToken}?evento=mordedura_reportada` };
 }
 
 // ---------------------------------------------------------------------------
@@ -369,6 +461,7 @@ export async function professionalCloseRabiesObservationAction(
         await closeCase(args, tx as Parameters<typeof closeCase>[1]);
       },
       transaction: db.transaction.bind(db),
+      findAuthoritiesForJurisdiction,
     },
   );
 
@@ -376,7 +469,16 @@ export async function professionalCloseRabiesObservationAction(
 
   await flushNotifications(result.notifications as (typeof notifications.$inferInsert)[]);
 
-  redirect("/admin/observaciones");
+  // Mark the list stale, then hand the destination back to the client instead
+  // of calling redirect() here. The action's own redirect() rides the App
+  // Router transition machinery that Next 15.5.x silently drops in production:
+  // the close COMMITS but the operator stays on the form, so it reads as a
+  // no-op. QA ronda 5 (2026-07-16) hit exactly this — closed an observation,
+  // saw the form still sitting there, and only found "CERRADA NEGATIVA" after
+  // a manual reload. See lib/ui/full-page-action-nav.ts.
+  revalidatePath("/admin/observaciones");
+  revalidatePath(`/admin/observaciones/${petPublicToken}`);
+  return { error: null, redirectTo: "/admin/observaciones" };
 }
 
 // ---------------------------------------------------------------------------
@@ -413,7 +515,7 @@ function makeOutbreakDeps(revalidateFn: (path: string) => void) {
         jurisdictionProvince: string | null;
         jurisdictionLocality: string | null;
         openedByUserId: string;
-        openedReason: string;
+        openedReason: OpenedReason;
       },
       tx: unknown,
     ) => openCase(input as Parameters<typeof openCase>[0], tx as Parameters<typeof openCase>[1]),

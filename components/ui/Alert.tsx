@@ -68,7 +68,11 @@ export function LnAlert({
   return (
     <div
       role="alert"
-      className={["flex gap-3 rounded-[4px] border p-4", containerVariants[variant], className]
+      className={[
+        "flex gap-3 rounded-[var(--radius-sm)] border p-4",
+        containerVariants[variant],
+        className,
+      ]
         .filter(Boolean)
         .join(" ")}
     >

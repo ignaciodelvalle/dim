@@ -4,11 +4,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { eq, like, or, sql } from "drizzle-orm";
+import { eq, like, or } from "drizzle-orm";
 import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { arLocalities, arLocalitiesImportRuns, db } from "@/db";
 import { runImport } from "@/scripts/import-indec-localities";
+
+import { restoreIndecCatalog } from "./_helpers/restore-indec-catalog";
 
 const FIXTURE_PATH = join(
   __dirname,
@@ -49,13 +51,10 @@ async function cleanupFixtureRows() {
   // Un-soft-delete real catalog rows the soft-delete subtest may have stamped.
   // The script's soft-delete pass marks any indec_cppdyl row that isn't in the
   // current CSV as removed; running with a fixture CSV obliterates the live
-  // catalog unless we restore it here.
-  await db
-    .update(arLocalities)
-    .set({ removedAt: null })
-    .where(
-      sql`${arLocalities.source} = 'indec_cppdyl' AND ${arLocalities.removedAt} IS NOT NULL AND ${arLocalities.indecId} IS NOT NULL`,
-    );
+  // catalog unless we restore it here. The shared helper also re-drops the
+  // whole-province aggregate rows a blanket restore would resurrect (they fail
+  // the lint:locality gate) — see _helpers/restore-indec-catalog.ts.
+  await restoreIndecCatalog();
   // Remove the test-only import runs (those point at the fixture URL, not the
   // real datos.gob.ar URL).
   await db
@@ -181,4 +180,32 @@ describe("import-indec-localities", () => {
       .where(eq(arLocalities.indecId, "02014010"));
     expect(fixtureRowsCount).toHaveLength(0);
   });
+
+  // Graceful fallback: when the live fetch fails, the script loads the bundled
+  // sample fixture instead of throwing. Bootstrap / CI stay green.
+  it("falls back to the bundled fixture when the live fetch fails", async () => {
+    global.fetch = vi.fn(async () => {
+      throw new Error("Network unreachable (simulated)");
+    });
+    const stats = await runImport({ sourceUrl: "https://test.example/fixture.csv" });
+
+    expect(stats.usedFallback).toBe(true);
+    // Fixture has 5 valid rows.
+    expect(stats.inserted).toBe(5);
+    expect(stats.errors.length).toBeGreaterThanOrEqual(2);
+  }, 60_000);
+
+  // Local file path override: when localCsvPath is provided, no fetch is made.
+  it("loads from a local CSV file when localCsvPath is provided (no fetch)", async () => {
+    const fetchSpy = vi.fn();
+    global.fetch = fetchSpy;
+    const stats = await runImport({
+      localCsvPath: FIXTURE_PATH,
+      sourceUrl: "https://test.example/fixture.csv",
+    });
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(stats.usedFallback).toBe(false);
+    expect(stats.inserted).toBe(5);
+  }, 60_000);
 });

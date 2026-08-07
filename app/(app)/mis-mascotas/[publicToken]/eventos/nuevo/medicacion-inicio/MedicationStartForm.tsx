@@ -4,12 +4,16 @@
 // Presentation ONLY: action, useActionState wiring, field names, and submit
 // logic are untouched.
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnRow, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/drugs";
-import { FREQUENCY_LABELS } from "@/lib/medication-schedule";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { type DrugDef, drugsForSpecies, findDrugByLabel } from "@/lib/reference/drugs";
+import { FREQUENCY_LABELS } from "@/lib/reference/medication-schedule";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { nowLocalDatetimeInAr, todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -32,20 +36,35 @@ export function MedicationStartForm({
   defaultOccurredAt?: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3 redirect contract: the action returns `redirectTo` on success and the
+  // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
+  useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
 
-  const now = new Date();
-  const localDatetime = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  const today = now.toISOString().slice(0, 10);
+  // AR wall clock, like every other datetime-local default in the app — the
+  // hand-rolled getters read the BROWSER's ambient zone, which is only correct
+  // for a viewer physically in AR and diverges for everyone else (and from the
+  // server's parse, which reads the submitted string as AR wall clock).
+  const localDatetime = nowLocalDatetimeInAr();
+  const today = todayIsoInAr();
 
   const catalogDrugs = drugsForSpecies(species);
   const [matchedDrug, setMatchedDrug] = useState<DrugDef | null>(null);
+  const [drugName, setDrugName] = useState("");
   const [doseValue, setDoseValue] = useState("");
   const [frequency, setFrequency] = useState<string>(matchedDrug?.typicalFrequency ?? "");
   const [showCustomHours, setShowCustomHours] = useState(false);
+  const [customHours, setCustomHours] = useState("");
+  const [firstDoseAt, setFirstDoseAt] = useState(localDatetime);
+  const [durationDays, setDurationDays] = useState("");
+  const [prescribedBy, setPrescribedBy] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaultOccurredAt ?? today);
+  const [notes, setNotes] = useState(defaultNotes ?? "");
 
   function handleDrugNameChange(e: React.ChangeEvent<HTMLInputElement>) {
     const val = e.target.value;
+    setDrugName(val);
     const found = findDrugByLabel(val);
     setMatchedDrug(found);
     if (found) {
@@ -65,7 +84,7 @@ export function MedicationStartForm({
     <>
       <LnSheetHeader
         tone="violeta"
-        icon="💊"
+        icon={<Icon name="medicacion" decorative />}
         title="Inicio de medicación"
         subtitle="Libreta sanitaria oficial"
       />
@@ -95,6 +114,7 @@ export function MedicationStartForm({
                 list="drug-options"
                 required
                 placeholder="Amoxicilina, Metronidazol..."
+                value={drugName}
                 onChange={handleDrugNameChange}
                 autoComplete="off"
                 aria-describedby={describedBy}
@@ -120,11 +140,14 @@ export function MedicationStartForm({
               }
             >
               {({ id, describedBy, invalid }) => (
+                // Wave 2 Item 9: inputMode="decimal" for numeric dose values on mobile
                 <LnInput
                   id={id}
                   name="dose"
                   type="text"
                   required
+                  inputMode="decimal"
+                  enterKeyHint="next"
                   value={doseValue}
                   onChange={(e) => setDoseValue(e.target.value)}
                   placeholder="10 mg/kg, 1 comp..."
@@ -167,6 +190,7 @@ export function MedicationStartForm({
               hint="Ingresá un valor entre 1 y 24 horas."
             >
               {({ id, describedBy, invalid }) => (
+                // Wave 2 Item 9: inputMode="numeric" for whole-number hours
                 <LnInput
                   id={id}
                   name="customHours"
@@ -174,7 +198,11 @@ export function MedicationStartForm({
                   min="1"
                   max="24"
                   required
+                  inputMode="numeric"
+                  enterKeyHint="next"
                   placeholder="Ej. 8"
+                  value={customHours}
+                  onChange={(e) => setCustomHours(e.target.value)}
                   aria-describedby={describedBy}
                   invalid={invalid}
                 />
@@ -195,7 +223,8 @@ export function MedicationStartForm({
                 type="datetime-local"
                 required
                 mono
-                defaultValue={localDatetime}
+                value={firstDoseAt}
+                onChange={(e) => setFirstDoseAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -206,13 +235,18 @@ export function MedicationStartForm({
             {/* Duration */}
             <LnField label="Duración (días)" hint="Sin duración: 14 días de recordatorios.">
               {({ id, describedBy }) => (
+                // Wave 2 Item 9: inputMode="numeric" for whole-number day count
                 <LnInput
                   id={id}
                   name="durationDays"
                   type="number"
                   min="1"
                   max="90"
+                  inputMode="numeric"
+                  enterKeyHint="next"
                   placeholder="Ej. 7"
+                  value={durationDays}
+                  onChange={(e) => setDurationDays(e.target.value)}
                   aria-describedby={describedBy}
                 />
               )}
@@ -226,6 +260,8 @@ export function MedicationStartForm({
                   name="prescribedBy"
                   type="text"
                   placeholder="Nombre del veterinario/a"
+                  value={prescribedBy}
+                  onChange={(e) => setPrescribedBy(e.target.value)}
                   aria-describedby={describedBy}
                 />
               )}
@@ -245,7 +281,8 @@ export function MedicationStartForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaultOccurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -263,7 +300,8 @@ export function MedicationStartForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaultNotes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
@@ -273,17 +311,20 @@ export function MedicationStartForm({
 
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>
           )}
         </form>
       </LnSheetBody>
+      {/* Wave 2 Item 9: verb fix — Rule 2 requires object after verb */}
       <LnSheetFooter
         tone="violeta"
-        ctaLabel="Registrar inicio"
+        ctaLabel="Registrar inicio de medicación"
         formId={FORM_ID}
         isPending={isPending}
       />

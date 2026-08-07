@@ -3,13 +3,38 @@
 // RED → GREEN TDD. Tests cover:
 //   - Happy path: idempotent insert + canonical insertIdentification when pet has no chip.
 //   - Replay / noop: wasNoop=true → insertIdentification NOT called, attachment skipped.
-//   - Canonical skip: petHasCanonicalChip=true → insertIdentification NOT called.
+//   - Same chip re-submitted: event appended, canonical NOT rewritten (re-sync).
+//   - Different chip: REJECTED before the event is appended.
 //   - Attachment: uploaded path triggers insertAttachment.
 //   - Auth parity: requireAlivePetAccess is the guard (tested in actions layer;
 //     use-case itself is auth-agnostic by design).
 //   - ARCH-R: updateMicrochipBackfill removed; legacy pets.microchipId no longer written.
-//   - ARCH-S: pet.microchipId field replaced by petHasCanonicalChip: boolean.
+//   - ARCH-S: pet.microchipId field replaced by pet.canonicalChipNumber: string | null.
+//
+// WHAT THE OLD "canonical skip" TEST ASSERTED, AND WHY IT WAS A LIE
+// ---------------------------------------------------------------------------
+// One test used to stand here named "skips canonical write when pet already has
+// a canonical chip (petHasCanonicalChip=true)". It fed the pet a boolean, fed
+// the use-case chip 985121025800001, and asserted:
+//
+//     expect(repo.insertEventIdempotent).toHaveBeenCalledOnce();
+//     expect(repo.insertIdentification).not.toHaveBeenCalled();
+//
+// Read against the boolean, that looks like prudence: don't overwrite a chip
+// that is already there. But a boolean cannot tell "the same chip, submitted
+// twice" from "a DIFFERENT chip". The test only ever exercised the first
+// reading while the production callers hit both — so what it actually froze as
+// contract was: a verified vet may append `microchip_implanted { chip B }` to
+// the append-only spine of a pet whose credential says chip A, and the write
+// succeeds with nothing written, nothing flagged, nobody told. The credential
+// asserts an identity its own log contradicts, which is the one thing the pet-
+// is-the-credential invariant exists to prevent.
+//
+// It is replaced by the two tests the boolean was hiding: same chip → re-sync
+// (the behaviour that test believed it was protecting), different chip →
+// rejected before anything reaches the spine.
 
+import { CHIP_CONFLICTS_WITH_CANONICAL_ERROR } from "@/lib/domain/microchip-validation";
 import { describe, expect, it, vi } from "vitest";
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import { createMicrochip } from "./microchip-use-case";
@@ -36,12 +61,16 @@ function makeTx() {
   return <T>(cb: (tx: unknown) => Promise<T>) => cb({} as unknown);
 }
 
+const CHIP_ON_RECORD = "985121025800001";
+const A_DIFFERENT_CHIP = "985121025809999";
+
 const BASE_INPUT = {
-  // ARCH-S: microchipId replaced by petHasCanonicalChip (pre-resolved from pet_identifications).
-  pet: { id: "pet-1", petHasCanonicalChip: false },
+  // ARCH-S: microchipId replaced by the canonical chip code (pre-resolved from
+  // pet_identifications by the caller). null = the pet carries no chip yet.
+  pet: { id: "pet-1", canonicalChipNumber: null as string | null },
   user: { id: "user-1" },
   eventAuthorship: { authorRole: "owner", authorOrganizationId: null, authorVerified: false },
-  chipNumber: "985121025800001",
+  chipNumber: CHIP_ON_RECORD,
   countryCode: "AR",
   implantedBy: "Dr. García",
   locationOnBody: "interscapular",
@@ -72,28 +101,93 @@ describe("createMicrochip", () => {
     expect(insertArg.petId).toBe("pet-1");
     expect(insertArg.clientIdempotencyKey).toBe("key-1");
 
-    // Canonical row inserted because petHasCanonicalChip=false (ARCH-S).
+    // Canonical row inserted because canonicalChipNumber=null (ARCH-S).
     expect(repo.insertIdentification).toHaveBeenCalledOnce();
     const [identArg] = (repo.insertIdentification as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(identArg.petId).toBe("pet-1");
     expect(identArg.kind).toBe("microchip_iso");
-    expect(identArg.code).toBe("985121025800001");
+    expect(identArg.code).toBe(CHIP_ON_RECORD);
     expect(identArg.isoCompliant).toBe(true);
   });
 
-  it("skips canonical write when pet already has a canonical chip (petHasCanonicalChip=true)", async () => {
+  it("re-submitting the chip already on record appends the event and rewrites nothing", async () => {
     const repo = makeRepo();
     const result = await createMicrochip(
-      // ARCH-S: petHasCanonicalChip=true signals the pet already has an active chip row.
-      { ...BASE_INPUT, pet: { id: "pet-1", petHasCanonicalChip: true } },
+      { ...BASE_INPUT, pet: { id: "pet-1", canonicalChipNumber: CHIP_ON_RECORD } },
       { repo, transaction: makeTx() },
     );
 
     expect(result.ok).toBe(true);
-    // Event still inserted (idempotent insert)
+    // The event still lands: a second attestation of the SAME chip is real
+    // provenance (a vet confirming what the owner declared), and the spine is
+    // append-only.
     expect(repo.insertEventIdempotent).toHaveBeenCalledOnce();
-    // Canonical write MUST NOT be called (pet already has a chip)
+    // Nothing to write canonically — the row already says exactly this.
     expect(repo.insertIdentification).not.toHaveBeenCalled();
+  });
+
+  it("compares chips by digits, so separators alone are not a conflict", async () => {
+    const repo = makeRepo();
+    const result = await createMicrochip(
+      {
+        ...BASE_INPUT,
+        pet: { id: "pet-1", canonicalChipNumber: CHIP_ON_RECORD },
+        chipNumber: "985 121-025 800 001",
+      },
+      { repo, transaction: makeTx() },
+    );
+
+    // Same implant, typed with the separators people actually use. Rejecting
+    // this would be a false accusation in front of whoever holds the animal.
+    expect(result.ok).toBe(true);
+    expect(repo.insertIdentification).not.toHaveBeenCalled();
+  });
+
+  it("rejects a chip that disagrees with the canonical one, writing NOTHING", async () => {
+    const repo = makeRepo();
+    const result = await createMicrochip(
+      {
+        ...BASE_INPUT,
+        pet: { id: "pet-1", canonicalChipNumber: CHIP_ON_RECORD },
+        chipNumber: A_DIFFERENT_CHIP,
+      },
+      { repo, transaction: makeTx() },
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("unreachable");
+    // Pinned to the exact copy, not just "some error": the message is what
+    // routes a genuine chip change to microchip_replaced instead of leaving
+    // the person guessing, and a generic assertion would survive it degrading
+    // into any other failure string.
+    expect(result.error).toBe(CHIP_CONFLICTS_WITH_CANONICAL_ERROR);
+
+    // The whole point. Nothing may reach the append-only spine: an event
+    // claiming chip B on a pet whose credential says chip A cannot be retracted
+    // once written, and it is exactly what made the divergence silent.
+    expect(repo.insertEventIdempotent).not.toHaveBeenCalled();
+    expect(repo.insertIdentification).not.toHaveBeenCalled();
+    expect(repo.insertAttachment).not.toHaveBeenCalled();
+  });
+
+  it("rejects the conflicting chip even when an attachment was uploaded", async () => {
+    const repo = makeRepo();
+    const result = await createMicrochip(
+      {
+        ...BASE_INPUT,
+        pet: { id: "pet-1", canonicalChipNumber: CHIP_ON_RECORD },
+        chipNumber: A_DIFFERENT_CHIP,
+        uploadedPath: "path/to/scan.jpg",
+        uploadedMimeType: "image/jpeg",
+        uploadedSize: 1024,
+      },
+      { repo, transaction: makeTx() },
+    );
+
+    expect(result.ok).toBe(false);
+    // The caller cleans the orphaned upload on !ok; the use-case must not
+    // attach it to an event it refused to write.
+    expect(repo.insertAttachment).not.toHaveBeenCalled();
   });
 
   it("skips all side-effects on noop replay (wasNoop=true)", async () => {

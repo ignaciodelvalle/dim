@@ -1,0 +1,595 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>miMAR · Perfil de Mascota — Una sola libreta</title>
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Serif:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Caveat:wght@600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css" />
+<script src="image-slot.js"></script>
+<style>
+  :root{
+    --azul:#0E5A99; --azul-700:#0A4576; --azul-900:#0A3556;
+    --celeste:#4E97D1; --celeste-100:#DCEBF7; --celeste-050:#EFF6FC;
+    --ink:#1B2A33; --ink-2:#3C4B55; --mute:#6E7B84; --faint:#9AA4AB;
+    --paper:#FBFAF5; --card:#FFFFFF; --stripe:#F6F4ED;
+    --line:#E4DFD3; --line-2:#EEEAE0; --line-strong:#CFC8B8;
+    --seal:#A23A2C; --ok:#2E7D4F; --warn:#B0771A; --err:#C0392B;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+    --serif:'IBM Plex Serif', Georgia, serif;
+    --mono:'IBM Plex Mono', 'Menlo', monospace;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { margin:0; padding:0; }
+  body{
+    font-family: var(--sans); color: var(--ink);
+    background:#ECEAE3;
+    background-image: radial-gradient(circle at 1px 1px, rgba(0,0,0,.045) 1px, transparent 0);
+    background-size: 26px 26px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- Government top nav ---------- */
+  .gnav{
+    position: sticky; top:0; z-index: 30;
+    background: var(--azul-900); color:#fff;
+    display:flex; align-items:center; gap:28px;
+    padding: 0 26px; height:58px;
+    box-shadow: 0 1px 0 rgba(0,0,0,.25);
+  }
+  .gnav::before{ /* guilloché hairline */
+    content:''; position:absolute; left:0; right:0; top:0; height:3px;
+    background: repeating-linear-gradient(90deg, var(--celeste) 0 2px, transparent 2px 4px);
+    opacity:.7;
+  }
+  .gnav-brand{ display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.02em; }
+  .gnav-logo{ width:30px; height:30px; border-radius:8px; background:linear-gradient(150deg,var(--celeste),var(--azul)); display:grid; place-items:center; font-family:var(--serif); font-weight:700; color:#fff; box-shadow: inset 0 0 0 1px rgba(255,255,255,.25); }
+  .gnav-links{ display:flex; align-items:center; gap:4px; }
+  .gnav-link{ color:#cfe0ef; text-decoration:none; font-size:13.5px; font-weight:500; padding:8px 14px; border-radius:8px; }
+  .gnav-link:hover{ color:#fff; background:rgba(255,255,255,.08); }
+  .gnav-link.is-active{ color:#fff; background:rgba(255,255,255,.14); font-weight:600; }
+  .gnav-spacer{ flex:1; }
+  .gnav-user{ width:34px; height:34px; border-radius:50%; background:var(--celeste); color:#06304f; display:grid; place-items:center; font-weight:700; font-size:12.5px; letter-spacing:.03em; box-shadow: inset 0 0 0 1px rgba(255,255,255,.35); }
+
+  /* ---------- Page frame ---------- */
+  .page{ max-width: 908px; margin: 0 auto; padding: 26px 24px 90px; }
+  .crumb{ display:inline-flex; align-items:center; gap:8px; font-family:var(--mono); font-size:11px; letter-spacing:.16em; text-transform:uppercase; color:var(--mute); text-decoration:none; margin-bottom:20px; }
+  .crumb:hover{ color:var(--azul); }
+
+  /* ---------- Recto/verso segmented control ---------- */
+  .faces{ display:flex; justify-content:center; margin-bottom:18px; }
+  .faces-inner{ display:flex; gap:4px; padding:5px; background:#fff; border:1px solid var(--line); border-radius:14px; box-shadow:0 1px 2px rgba(0,0,0,.05); }
+  .facetab{ display:flex; align-items:center; gap:11px; border:0; background:transparent; cursor:pointer; font-family:var(--sans); color:var(--mute); padding:9px 18px 9px 14px; border-radius:10px; text-align:left; }
+  .facetab .fi{ width:30px; height:30px; border-radius:8px; display:grid; place-items:center; font-size:14px; background:var(--stripe); color:var(--ink-2); flex-shrink:0; }
+  .facetab .ft{ line-height:1.1; }
+  .facetab .ft b{ font-weight:600; font-size:13.5px; display:block; }
+  .facetab .ft span{ font-family:var(--mono); font-size:8.5px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); }
+  .facetab.is-active{ background:var(--azul); color:#fff; }
+  .facetab.is-active .fi{ background:rgba(255,255,255,.16); color:#fff; }
+  .facetab.is-active .ft span{ color:rgba(255,255,255,.72); }
+
+  /* ---------- The document (one two-sided sheet) ---------- */
+  .stage{ perspective: 1700px; }
+  .doc-wrap{ position:relative; }
+  /* back pages peeking → obviously a two-sided, multi-page object */
+  .doc-wrap::before,
+  .doc-wrap::after{
+    content:''; position:absolute; inset:0; z-index:0;
+    background:#fff; border:1px solid var(--line); border-radius:14px;
+  }
+  .doc-wrap::before{ transform: translate(7px, 9px); background:#F3EEE3; border-color:var(--line-strong); box-shadow:0 12px 26px -18px rgba(20,16,10,.5); }
+  .doc-wrap::after{ transform: translate(3px, 4px); background:#FBF7EE; }
+
+  .doc{
+    position: relative; z-index:1;
+    transform-style: preserve-3d;
+    transform-origin: center center;
+    will-change: transform;
+  }
+  .face{
+    position:relative; width:100%;
+    background: var(--card);
+    border:1px solid var(--line); border-radius:14px;
+    box-shadow: 0 22px 50px -26px rgba(20,16,10,.5);
+    display:none;
+  }
+  .face.is-shown{ display:block; }
+  /* certificate inner hairline — ties the whole sheet together as one document */
+  .face .frame{ position:absolute; inset:7px; border:1px solid var(--line-2); border-radius:9px; pointer-events:none; z-index:5; }
+
+  /* ---------- Band ---------- */
+  .band{ position:relative; height:120px; border-radius:13px 13px 0 0; overflow:hidden; background:
+      repeating-linear-gradient(135deg, rgba(255,255,255,.5) 0 1px, transparent 1px 11px),
+      linear-gradient(118deg, var(--azul-900), var(--azul) 58%, var(--celeste)); }
+  .band-gov{ position:absolute; left:22px; top:16px; font-family:var(--mono); font-size:8.5px; letter-spacing:.2em; text-transform:uppercase; color:rgba(255,255,255,.68); }
+  .band-title{ position:absolute; right:22px; bottom:13px; text-align:right; font-family:var(--mono); font-size:10px; letter-spacing:.24em; text-transform:uppercase; color:rgba(255,255,255,.9); font-weight:500; }
+  .band-title small{ display:block; font-size:8px; letter-spacing:.16em; color:rgba(255,255,255,.6); margin-top:3px; }
+  /* turn control on the band */
+  .turn{ position:absolute; right:18px; top:16px; display:flex; align-items:center; gap:9px; cursor:pointer; background:rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.34); color:#fff; padding:8px 14px 8px 11px; border-radius:999px; font-family:var(--sans); font-weight:600; font-size:12.5px; -webkit-backdrop-filter:blur(3px); backdrop-filter:blur(3px); }
+  .turn:hover{ background:rgba(255,255,255,.24); }
+  .turn i{ font-size:13px; transition: transform .5s ease; }
+  .turn:hover i{ transform: rotate(180deg); }
+  .turn-cap{ position:absolute; right:20px; top:52px; font-family:var(--mono); font-size:8px; letter-spacing:.12em; text-transform:uppercase; color:rgba(255,255,255,.7); text-align:right; }
+
+  /* ---------- Body / sections ---------- */
+  .body{ position:relative; z-index:2; }
+  .sec{ padding: 22px 28px; }
+  .divider{ position:relative; border-top:1px solid var(--line-2); margin:0 16px; }
+  .divider .dlabel{ position:absolute; top:-8px; left:12px; background:var(--card); padding:0 10px; font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; color:var(--mute); display:flex; align-items:center; gap:7px; }
+  .divider .dlabel i{ font-size:10px; color:var(--faint); }
+
+  /* Identity row */
+  .idrow{ display:flex; gap:20px; align-items:flex-start; }
+  .photo{ width:132px; height:132px; margin-top:-64px; border-radius:12px; overflow:hidden; box-shadow:0 0 0 4px #fff, 0 10px 24px -12px rgba(20,16,10,.5); flex-shrink:0; background:var(--stripe); }
+  .photo image-slot{ width:100%; height:100%; display:block; }
+  .idmeta{ flex:1; min-width:0; padding-top:6px; }
+  .idname{ font-family:var(--serif); font-weight:600; font-size:32px; letter-spacing:-.02em; margin:0; display:flex; align-items:center; gap:12px; flex-wrap:wrap; line-height:1.02; }
+  .badge-reg{ font-family:var(--mono); font-size:9.5px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--azul); background:var(--celeste-050); border:1px solid var(--celeste-100); padding:5px 10px; border-radius:5px; display:inline-flex; align-items:center; gap:6px; }
+  .idsub{ color:var(--mute); font-size:14px; margin-top:7px; }
+  .chips{ display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+  .chip{ display:inline-flex; align-items:center; gap:7px; font-size:12.5px; font-weight:500; color:var(--ink-2); background:var(--stripe); border:1px solid var(--line); padding:6px 12px; border-radius:999px; }
+  .chip i{ font-size:11px; color:var(--mute); }
+
+  /* QR block */
+  .qr{ flex-shrink:0; text-align:center; width:118px; }
+  .qr canvas{ width:104px; height:104px; border-radius:8px; border:1px solid var(--line); padding:6px; background:#fff; box-shadow:0 4px 12px -8px rgba(20,16,10,.4); }
+  .qr .qcap{ font-family:var(--mono); font-size:8px; letter-spacing:.1em; text-transform:uppercase; color:var(--mute); margin-top:8px; line-height:1.5; }
+  .qr .qcap b{ color:var(--azul); font-weight:600; }
+
+  /* Compliance */
+  .comply-head{ display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:16px; }
+  .comply-head h3{ font-family:var(--serif); font-weight:600; font-size:19px; letter-spacing:-.01em; margin:0; }
+  .comply-head h3 .sub{ display:block; font-family:var(--mono); font-size:9px; font-weight:600; letter-spacing:.16em; text-transform:uppercase; color:var(--mute); margin-bottom:3px; }
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start; }
+  .obl{ border:1px solid var(--line); border-radius:11px; padding:14px 15px; display:flex; flex-direction:column; gap:8px; background:var(--card); }
+  .obl-top{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+  .obl-id{ display:flex; align-items:center; gap:11px; min-width:0; }
+  .obl-ic{ width:34px; height:34px; border-radius:9px; flex-shrink:0; display:grid; place-items:center; font-size:15px; background:var(--celeste-050); color:var(--azul); border:1px solid var(--celeste-100); }
+  .obl-label{ font-weight:600; font-size:14.5px; color:var(--ink); line-height:1.2; }
+  .obl-detail{ font-family:var(--mono); font-size:11px; color:var(--mute); letter-spacing:.01em; }
+  .obl-law{ font-size:11px; color:var(--faint); line-height:1.45; }
+  .obl-hint{ font-size:11.5px; color:var(--warn); line-height:1.45; display:flex; gap:8px; align-items:flex-start; background:#fdf6ea; border:1px solid #f0dcb4; border-radius:8px; padding:9px 11px; }
+  .obl-hint i{ margin-top:1px; }
+  .obl-add{ border:1px dashed var(--line-strong); border-radius:11px; padding:14px 15px; display:flex; align-items:center; gap:11px; color:var(--mute); font-size:13px; background:transparent; cursor:pointer; font-family:var(--sans); text-align:left; }
+  .obl-add:hover{ border-color:var(--azul); color:var(--azul); background:var(--celeste-050); }
+  .obl-add .obl-ic{ background:transparent; border-style:dashed; }
+
+  .stamp{ font-family:var(--mono); font-size:9.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase; padding:5px 9px; border-radius:4px; border:1px solid; display:inline-flex; align-items:center; gap:5px; white-space:nowrap; flex-shrink:0; }
+  .stamp[data-tone="ok"]{ background:#e8f3ec; color:var(--ok); border-color:#c8e2d2; }
+  .stamp[data-tone="warn"]{ background:#fdf3e3; color:var(--warn); border-color:#f0dcb4; }
+  .stamp[data-tone="err"]{ background:#fbe9e6; color:var(--err); border-color:#f1c6bf; }
+  .stamp[data-tone="neutral"]{ background:var(--stripe); color:var(--ink-2); border-color:var(--line-strong); }
+
+  /* Anotar */
+  .anotar-lbl{ font-size:13px; color:var(--mute); margin-bottom:10px; }
+  .anotar-lbl b{ color:var(--ink); font-weight:600; }
+  .anotar-row{ display:flex; gap:12px; align-items:stretch; }
+  .anotar-row textarea{ flex:1; resize:none; min-height:56px; font-family:var(--sans); font-size:14px; color:var(--ink); padding:13px 15px; border:1px solid var(--line-strong); border-radius:11px; background:var(--paper); }
+  .anotar-row textarea::placeholder{ color:var(--faint); }
+  .anotar-row textarea:focus{ outline:none; border-color:var(--azul); box-shadow:0 0 0 3px var(--celeste-050); }
+  .btn-anotar{ flex-shrink:0; align-self:stretch; display:inline-flex; align-items:center; gap:9px; padding:0 22px; border-radius:11px; background:var(--azul); color:#fff; border:0; font-family:var(--sans); font-weight:600; font-size:14px; cursor:pointer; }
+  .btn-anotar:hover{ background:var(--azul-700); }
+  .atajos{ display:flex; align-items:center; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .atajos .lbl{ font-family:var(--mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--faint); }
+  .atajo{ font-size:12px; color:var(--ink-2); background:#fff; border:1px solid var(--line); padding:5px 11px; border-radius:999px; cursor:pointer; font-family:var(--sans); display:inline-flex; align-items:center; gap:6px; }
+  .atajo:hover{ border-color:var(--azul); color:var(--azul); }
+  .atajo i{ font-size:10px; color:var(--mute); }
+  .atajo:hover i{ color:var(--azul); }
+
+  /* Action bar — labeled */
+  .actionbar{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .act{ display:inline-flex; align-items:center; gap:9px; padding:10px 16px; border-radius:10px; border:1px solid var(--line-strong); background:var(--card); color:var(--ink-2); font-family:var(--sans); font-weight:600; font-size:13px; cursor:pointer; }
+  .act i{ font-size:13px; color:var(--mute); }
+  .act:hover{ border-color:var(--azul); color:var(--azul); background:var(--celeste-050); }
+  .act:hover i{ color:var(--azul); }
+  .act--danger{ color:var(--seal); border-color:#e6c3bc; }
+  .act--danger i{ color:var(--seal); }
+  .act--danger:hover{ border-color:var(--seal); color:var(--seal); background:#fbeeeb; }
+  .act--danger:hover i{ color:var(--seal); }
+  .act--icon{ padding:10px 13px; }
+  .act-spacer{ flex:1; }
+
+  /* ---------- Back face · Libreta ---------- */
+  .lib-head{ display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; }
+  .lib-head h2{ font-family:var(--serif); font-weight:600; font-size:22px; letter-spacing:-.01em; margin:0; }
+  .lib-head .code{ font-family:var(--mono); font-size:11px; color:var(--mute); letter-spacing:.03em; }
+  .lib-head .titular{ font-size:12px; color:var(--faint); margin-left:auto; }
+  .lenses{ display:flex; gap:8px; margin-top:16px; }
+  .lens{ padding:7px 16px; border-radius:999px; font-family:var(--sans); font-size:12.5px; font-weight:600; cursor:pointer; border:1px solid var(--line); background:var(--card); color:var(--ink-2); }
+  .lens.is-active{ background:var(--azul); color:#fff; border-color:var(--azul); }
+  .ledlbl{ font-family:var(--mono); font-size:9.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--mute); margin:20px 0 10px; }
+  .ledger{ display:flex; flex-direction:column; gap:9px; }
+  .lrow{ display:flex; align-items:center; gap:13px; border:1px solid var(--line); border-radius:10px; padding:12px 14px; background:var(--card); }
+  .lrow-ic{ width:34px; height:34px; border-radius:9px; flex-shrink:0; display:grid; place-items:center; font-size:14px; }
+  .ic-warn{ background:#fdf3e3; color:var(--warn); } .ic-azul{ background:var(--celeste-050); color:var(--azul); }
+  .ic-verde{ background:#e8f3ec; color:var(--ok); } .ic-rosa{ background:#fbeef4; color:#B5497E; } .ic-gris{ background:var(--stripe); color:var(--ink-2); }
+  .lrow-body{ flex:1; min-width:0; }
+  .lrow-title{ font-weight:600; font-size:13.5px; color:var(--ink); }
+  .lrow-meta{ font-size:12px; color:var(--mute); margin-top:2px; }
+  .lrow-when{ font-family:var(--mono); font-size:10px; color:var(--faint); white-space:nowrap; text-align:right; }
+  .lrow-act{ font-family:var(--sans); font-weight:600; font-size:11.5px; color:#fff; background:var(--azul); border:0; border-radius:999px; padding:7px 13px; cursor:pointer; white-space:nowrap; }
+  .prov{ display:inline-flex; align-items:center; gap:5px; font-family:var(--mono); font-size:8.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; padding:4px 9px; border-radius:999px; border:1px solid; }
+  .prov[data-k="verified"]{ background:#e8f3ec; color:var(--ok); border-color:#c8e2d2; }
+  .prov[data-k="self"]{ background:var(--stripe); color:var(--ink-2); border-color:var(--line-strong); }
+
+  /* Rich asiento records — same document language as the credencial */
+  .asiento{ border:1px solid var(--line); border-radius:11px; background:var(--card); overflow:hidden; }
+  .asiento-head{ display:flex; align-items:center; gap:12px; padding:13px 15px 12px; }
+  .asiento-ic{ width:36px; height:36px; border-radius:9px; flex-shrink:0; display:grid; place-items:center; font-size:15px; }
+  .asiento-h{ flex:1; min-width:0; }
+  .asiento-kind{ font-family:var(--mono); font-size:8.5px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); }
+  .asiento-title{ font-family:var(--serif); font-weight:600; font-size:16px; letter-spacing:-.01em; color:var(--ink); margin-top:2px; line-height:1.15; }
+  .asiento-when{ font-family:var(--mono); font-size:9.5px; color:var(--faint); white-space:nowrap; text-align:right; line-height:1.55; }
+  .asiento-facts{ padding:13px 15px; border-top:1px solid var(--line-2); display:grid; grid-template-columns:1fr 1fr; gap:13px 22px; }
+  .fact{ min-width:0; }
+  .fact .k{ font-family:var(--mono); font-size:8.5px; font-weight:600; letter-spacing:.1em; text-transform:uppercase; color:var(--mute); }
+  .fact .v{ font-size:13px; color:var(--ink); font-weight:500; margin-top:4px; line-height:1.4; }
+  .fact .v.mono{ font-family:var(--mono); font-size:12.5px; letter-spacing:.02em; }
+  .fact .v.miss{ color:var(--faint); font-weight:400; }
+  .fact--full{ grid-column:1 / -1; }
+  .note-hand{ font-family:'Caveat', cursive; font-size:21px; color:#5a4a1f; line-height:1.35; }
+  .spark{ display:flex; align-items:center; gap:12px; }
+  .spark svg{ width:130px; height:34px; display:block; flex-shrink:0; }
+  .spark .trend{ font-size:12px; color:var(--mute); } .spark .trend b{ color:var(--ink); font-family:var(--serif); font-weight:600; font-size:15px; }
+  .asiento-foot{ display:flex; align-items:center; gap:8px 12px; padding:11px 15px; border-top:1px dashed var(--line); flex-wrap:wrap; }
+  .asiento-foot .warnnote{ font-size:11.5px; color:var(--warn); display:inline-flex; align-items:center; gap:6px; }
+  .asiento-foot .fspace{ flex:1; }
+  .btnlink.sm{ font-size:11.5px; }
+  .ic-amarillo{ background:#fbf3dc; color:#9a7b12; }
+  .hoy{ display:flex; align-items:center; gap:12px; font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase; color:var(--faint); margin:16px 0; }
+  .hoy::before, .hoy::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .immut{ font-size:11.5px; color:var(--mute); display:flex; gap:8px; align-items:flex-start; line-height:1.5; margin-top:20px; }
+  .immut i{ margin-top:2px; color:var(--faint); }
+  .libfoot{ display:flex; align-items:center; gap:14px; margin-top:16px; padding-top:16px; border-top:1px solid var(--line-2); }
+  .libfoot .fnote{ font-family:var(--mono); font-size:9px; letter-spacing:.06em; text-transform:uppercase; color:var(--faint); }
+  .libfoot .fspace{ flex:1; }
+  .btnlink{ color:var(--azul); text-decoration:none; cursor:pointer; border:0; background:transparent; font-family:var(--sans); font-size:12.5px; font-weight:600; display:inline-flex; align-items:center; gap:7px; padding:0; }
+  .btnlink:hover{ text-decoration:underline; }
+
+  /* seal */
+  .sealrow{ display:flex; align-items:center; gap:14px; }
+  .seal{ width:62px; height:62px; border-radius:50%; border:2px solid var(--line-strong); color:var(--seal); font-family:var(--mono); font-size:8px; font-weight:600; letter-spacing:.06em; text-transform:uppercase; display:grid; place-items:center; text-align:center; line-height:1.35; transform:rotate(-8deg); flex-shrink:0; }
+  .sealrow .st b{ font-family:var(--serif); font-weight:600; font-size:14px; color:var(--ink); }
+  .sealrow .st span{ display:block; font-size:11.5px; color:var(--mute); margin-top:2px; }
+
+  .foothint{ text-align:center; margin-top:20px; font-size:12px; color:var(--mute); }
+  .foothint b{ color:var(--ink-2); font-weight:600; }
+
+  @keyframes docIn{ from{ opacity:0; transform: translateY(14px); } to{ opacity:1; transform:none; } }
+  @media (prefers-reduced-motion: no-preference){ .doc-wrap{ animation: docIn .6s cubic-bezier(.2,.7,.2,1) both; } }
+
+  @media (max-width: 720px){
+    .grid2{ grid-template-columns:1fr; }
+    .idrow{ flex-wrap:wrap; }
+    .qr{ order:3; }
+  }
+</style>
+</head>
+<body>
+
+  <nav class="gnav">
+    <div class="gnav-brand"><span class="gnav-logo">m</span> miMAR</div>
+    <div class="gnav-links">
+      <a class="gnav-link" href="#">Inicio</a>
+      <a class="gnav-link is-active" href="#">Mis mascotas</a>
+      <a class="gnav-link" href="#">Denuncias</a>
+    </div>
+    <div class="gnav-spacer"></div>
+    <div class="gnav-user" title="Martín Quiroga">MQ</div>
+  </nav>
+
+  <div class="page">
+    <!-- Recto / verso — explicit two-sided control -->
+    <div class="faces">
+      <div class="faces-inner" role="tablist" aria-label="Cara del documento">
+        <button class="facetab is-active" id="tab-front" role="tab" aria-selected="true" onclick="flip('front')">
+          <span class="fi"><i class="fa fa-id-card-o"></i></span>
+          <span class="ft"><b>Credencial</b><span>Frente</span></span>
+        </button>
+        <button class="facetab" id="tab-back" role="tab" aria-selected="false" onclick="flip('back')">
+          <span class="fi"><i class="fa fa-book"></i></span>
+          <span class="ft"><b>Libreta</b><span>Dorso</span></span>
+        </button>
+      </div>
+    </div>
+
+    <div class="stage">
+      <div class="doc-wrap">
+        <div class="doc" id="doc">
+
+          <!-- ============ FRENTE · CREDENCIAL ============ -->
+          <section class="face face--front is-shown" id="face-front" aria-label="Credencial (frente)">
+            <div class="frame"></div>
+            <div class="band">
+              <div class="band-title">Libreta Sanitaria Nacional<small>Credencial · frente</small></div>
+              <button class="turn" onclick="flip('back')"><i class="fa fa-refresh"></i> Dar vuelta</button>
+            </div>
+
+            <div class="body">
+              <!-- Identity -->
+              <div class="sec">
+                <div class="idrow">
+                  <div class="photo">
+                    <image-slot id="chichila-foto" shape="rounded" radius="12" placeholder="Foto de Chichila"></image-slot>
+                  </div>
+                  <div class="idmeta">
+                    <h1 class="idname">Chichila <span class="badge-reg"><i class="fa fa-check"></i> Registrada</span></h1>
+                    <div class="idsub">Macho · Perro</div>
+                    <div class="chips">
+                      <span class="chip"><i class="fa fa-map-marker"></i> Palermo, CABA</span>
+                    </div>
+                  </div>
+                  <div class="qr">
+                    <canvas id="qr" width="104" height="104"></canvas>
+                    <div class="qcap"><b>Credencial pública</b><br>mimar.gob.ar/p/chichila</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Compliance -->
+              <div class="divider"><span class="dlabel"><i class="fa fa-shield"></i> Cumplimiento</span></div>
+              <div class="sec">
+                <div class="comply-head">
+                  <h3><span class="sub">Estado</span>Estado de cumplimiento</h3>
+                  <span class="stamp" data-tone="warn"><i class="fa fa-exclamation-circle"></i> 0 de 3 al día</span>
+                </div>
+                <div class="grid2">
+                  <div class="obl">
+                    <div class="obl-top">
+                      <div class="obl-id"><span class="obl-ic"><i class="fa fa-microchip"></i></span><span class="obl-label">Microchip</span></div>
+                      <span class="stamp" data-tone="neutral"><i class="fa fa-minus-circle"></i> Sin registro</span>
+                    </div>
+                    <div class="obl-law">Identificación · Ord. CABA 41.831 art. 4°</div>
+                  </div>
+                  <div class="obl">
+                    <div class="obl-top">
+                      <div class="obl-id"><span class="obl-ic"><i class="fa fa-scissors"></i></span><span class="obl-label">Esterilización</span></div>
+                      <span class="stamp" data-tone="neutral"><i class="fa fa-minus-circle"></i> Sin registro</span>
+                    </div>
+                    <div class="obl-law">Evento verificado en la libreta.</div>
+                  </div>
+                  <div class="obl">
+                    <div class="obl-top">
+                      <div class="obl-id"><span class="obl-ic"><i class="fa fa-medkit"></i></span><span class="obl-label">Vacuna antirrábica</span></div>
+                      <span class="stamp" data-tone="warn"><i class="fa fa-clock-o"></i> Declarada · sin verificar</span>
+                    </div>
+                    <div class="obl-detail">Próxima 4/7</div>
+                    <div class="obl-law">Obligación del propietario · Ord. CABA 41.831 · Ley 22.953</div>
+                    <div class="obl-hint"><i class="fa fa-info-circle"></i><span>La cargaste vos; pedí que un veterinario la registre para que cuente como al día.</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Anotar + actions (footer of the same sheet) -->
+              <div class="divider"><span class="dlabel"><i class="fa fa-pencil-square-o"></i> Anotar</span></div>
+              <div class="sec">
+                <div class="anotar-row">
+                  <textarea placeholder="Chichila — ¿qué pasó? Ej.: «Le pusieron la antirrábica hoy en la Vet. Palermo»"></textarea>
+                  <button class="btn-anotar"><i class="fa fa-arrow-right"></i> Anotar</button>
+                </div>
+              </div>
+
+              <div class="divider"></div>
+              <div class="sec">
+                <div class="actionbar">
+                  <button class="act"><i class="fa fa-qrcode"></i> Compartir</button>
+                  <button class="act"><i class="fa fa-pencil"></i> Editar datos</button>
+                  <button class="act act--danger"><i class="fa fa-exclamation-triangle"></i> Marcar como perdida</button>
+                  <span class="act-spacer"></span>
+                  <button class="act act--icon" title="Más acciones"><i class="fa fa-ellipsis-h"></i> Más</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ============ DORSO · LIBRETA ============ -->
+          <section class="face face--back" id="face-back" aria-label="Libreta (dorso)">
+            <div class="frame"></div>
+            <div class="band">
+              <div class="band-title">Libreta Sanitaria Nacional<small>Libreta · dorso</small></div>
+              <button class="turn" onclick="flip('front')"><i class="fa fa-refresh"></i> Ver credencial</button>
+            </div>
+
+            <div class="body">
+              <div class="sec">
+                <div class="lib-head">
+                  <h2>Chichila</h2>
+                  <span class="code">LIB-AR-2026-1180</span>
+                  <span class="titular">Titular · Martín Quiroga</span>
+                </div>
+
+                <div class="ledlbl">Próximo</div>
+                <div class="ledger" id="ledger-future">
+                  <div class="lrow" data-lens="todo vacunas oficial">
+                    <div class="lrow-ic ic-warn"><i class="fa fa-medkit"></i></div>
+                    <div class="lrow-body"><div class="lrow-title">Vacuna antirrábica · refuerzo</div><div class="lrow-meta">Declarada · pedí verificación · vence 4 jul 2026</div></div>
+                    <button class="lrow-act">Programar</button>
+                  </div>
+                  <div class="lrow" data-lens="todo vacunas">
+                    <div class="lrow-ic ic-verde"><i class="fa fa-bug"></i></div>
+                    <div class="lrow-body"><div class="lrow-title">Antiparasitario · próxima dosis</div><div class="lrow-meta">Endogard · en ~3 meses · 2 oct 2026</div></div>
+                    <button class="lrow-act">Recordar</button>
+                  </div>
+                  <div class="lrow" data-lens="todo">
+                    <div class="lrow-ic ic-azul"><i class="fa fa-stethoscope"></i></div>
+                    <div class="lrow-body"><div class="lrow-title">Primer control veterinario</div><div class="lrow-meta">Sugerido para registrar chip y esterilización</div></div>
+                    <button class="lrow-act">Buscar turno</button>
+                  </div>
+                </div>
+
+                <div class="hoy">hoy</div>
+
+                <div class="ledlbl">Asientos · 5 registros</div>
+                <div class="ledger" id="ledger-past">
+
+                  <div class="asiento" data-lens="todo">
+                    <div class="asiento-head">
+                      <div class="asiento-ic ic-azul"><i class="fa fa-balance-scale"></i></div>
+                      <div class="asiento-h"><div class="asiento-kind">Peso</div><div class="asiento-title">9,4 kg</div></div>
+                      <div class="asiento-when">hace 2 días<br>2 jul 2026</div>
+                    </div>
+                    <div class="asiento-facts">
+                      <div class="fact"><div class="k">Método</div><div class="v">Balanza de casa</div></div>
+                      <div class="fact"><div class="k">Contexto</div><div class="v">Control de rutina</div></div>
+                      <div class="fact fact--full"><div class="k">Tendencia · 4 registros</div>
+                        <div class="v spark">
+                          <svg viewBox="0 0 130 34" preserveAspectRatio="none"><polyline points="4,26 46,20 88,13 126,8" fill="none" stroke="var(--ok)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline><circle cx="126" cy="8" r="3" fill="var(--ok)"></circle></svg>
+                          <span class="trend"><b>9,4 kg</b> · +0,6 kg en 2 meses</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="asiento-foot"><span class="prov" data-k="self"><i class="fa fa-user-o"></i> Cargado por vos</span><span class="fspace"></span><button class="btnlink sm">Ver detalle</button></div>
+                  </div>
+
+                  <div class="asiento" data-lens="todo vacunas">
+                    <div class="asiento-head">
+                      <div class="asiento-ic ic-verde"><i class="fa fa-bug"></i></div>
+                      <div class="asiento-h"><div class="asiento-kind">Antiparasitario · interno</div><div class="asiento-title">Endogard</div></div>
+                      <div class="asiento-when">hace 1 semana<br>27 jun 2026</div>
+                    </div>
+                    <div class="asiento-facts">
+                      <div class="fact"><div class="k">Vía</div><div class="v">Oral · comprimido</div></div>
+                      <div class="fact"><div class="k">Dosis</div><div class="v">1 comp. (según 9 kg)</div></div>
+                      <div class="fact"><div class="k">Aplicada</div><div class="v">27 jun 2026</div></div>
+                      <div class="fact"><div class="k">Próxima dosis</div><div class="v">2 oct 2026 · en ~3 meses</div></div>
+                    </div>
+                    <div class="asiento-foot"><span class="prov" data-k="self"><i class="fa fa-user-o"></i> Cargado por vos</span><span class="fspace"></span><button class="btnlink sm">Ver detalle</button></div>
+                  </div>
+
+                  <div class="asiento" data-lens="todo vacunas oficial">
+                    <div class="asiento-head">
+                      <div class="asiento-ic ic-warn"><i class="fa fa-medkit"></i></div>
+                      <div class="asiento-h"><div class="asiento-kind">Vacuna · obligatoria</div><div class="asiento-title">Antirrábica</div></div>
+                      <div class="asiento-when">hace 2 sem.<br>14 may 2026</div>
+                    </div>
+                    <div class="asiento-facts">
+                      <div class="fact"><div class="k">Aplicada</div><div class="v">14 may 2026</div></div>
+                      <div class="fact"><div class="k">Vence</div><div class="v">4 jul 2026</div></div>
+                      <div class="fact"><div class="k">Vía</div><div class="v">Subcutánea</div></div>
+                      <div class="fact"><div class="k">Aplicó</div><div class="v">Declarado por el titular</div></div>
+                      <div class="fact"><div class="k">Laboratorio</div><div class="v miss">Sin dato</div></div>
+                      <div class="fact"><div class="k">Lote</div><div class="v miss">No adjunto</div></div>
+                    </div>
+                    <div class="asiento-foot"><span class="prov" data-k="self"><i class="fa fa-user-o"></i> Cargado por vos</span><span class="warnnote"><i class="fa fa-info-circle"></i> Falta verificación profesional</span><span class="fspace"></span><button class="btnlink sm">Pedir verificación</button></div>
+                  </div>
+
+                  <div class="asiento" data-lens="todo">
+                    <div class="asiento-head">
+                      <div class="asiento-ic ic-amarillo"><i class="fa fa-sticky-note-o"></i></div>
+                      <div class="asiento-h"><div class="asiento-kind">Nota</div><div class="asiento-title">Primeras semanas en casa</div></div>
+                      <div class="asiento-when">hace 3 sem.<br>10 may 2026</div>
+                    </div>
+                    <div class="asiento-facts">
+                      <div class="fact fact--full"><div class="k">Anotación</div><div class="v"><span class="note-hand">Se adaptó rapidísimo. Ya reconoce su nombre y ama la plaza de la esquina.</span></div></div>
+                    </div>
+                    <div class="asiento-foot"><span class="prov" data-k="self"><i class="fa fa-user-o"></i> Cargado por vos</span></div>
+                  </div>
+
+                  <div class="asiento" data-lens="todo oficial">
+                    <div class="asiento-head">
+                      <div class="asiento-ic ic-azul"><i class="fa fa-certificate"></i></div>
+                      <div class="asiento-h"><div class="asiento-kind">Inscripción · alta de libreta</div><div class="asiento-title">Alta en miMAR</div></div>
+                      <div class="asiento-when">2 may 2026</div>
+                    </div>
+                    <div class="asiento-facts">
+                      <div class="fact"><div class="k">Libreta</div><div class="v mono">LIB-AR-2026-1180</div></div>
+                      <div class="fact"><div class="k">Titular</div><div class="v">Martín Quiroga</div></div>
+                      <div class="fact"><div class="k">Especie</div><div class="v">Canino · macho</div></div>
+                      <div class="fact"><div class="k">Estado</div><div class="v">Vigente</div></div>
+                    </div>
+                    <div class="asiento-foot"><span class="prov" data-k="verified"><i class="fa fa-check-circle"></i> Verificado · Registro miMAR</span></div>
+                  </div>
+
+                </div>
+
+                <div class="immut"><i class="fa fa-lock"></i><span>Los asientos no se editan ni se borran. Una corrección es un asiento nuevo.</span></div>
+
+                <div class="libfoot">
+                  <button class="btnlink"><i class="fa fa-download"></i> Exportar (PDF)</button>
+                  <button class="btnlink"><i class="fa fa-share-alt"></i> Compartir libreta</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+  var doc = document.getElementById('doc');
+  var front = document.getElementById('face-front');
+  var back = document.getElementById('face-back');
+  var tabFront = document.getElementById('tab-front');
+  var tabBack = document.getElementById('tab-back');
+  var showing = 'front';
+  var turning = false;
+
+  function faceEl(k){ return k === 'back' ? back : front; }
+
+  function flip(to){
+    var goBack = (to === 'toggle') ? (showing !== 'back') : (to === 'back');
+    var target = goBack ? 'back' : 'front';
+    if (turning || target === showing) return;
+    turning = true;
+
+    tabFront.classList.toggle('is-active', !goBack);
+    tabBack.classList.toggle('is-active', goBack);
+    tabFront.setAttribute('aria-selected', String(!goBack));
+    tabBack.setAttribute('aria-selected', String(goBack));
+
+    var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce){
+      faceEl(showing).classList.remove('is-shown');
+      faceEl(target).classList.add('is-shown');
+      showing = target; turning = false; return;
+    }
+
+    // turn out (edge-on), swap the visible face, then turn back in
+    doc.style.transition = 'transform .2s ease-in';
+    doc.style.transform = 'rotateY(87deg)';
+    setTimeout(function(){
+      faceEl(showing).classList.remove('is-shown');
+      faceEl(target).classList.add('is-shown');
+      showing = target;
+      doc.style.transition = 'none';
+      doc.style.transform = 'rotateY(-87deg)';
+      doc.offsetWidth; // force reflow
+      doc.style.transition = 'transform .26s ease-out';
+      doc.style.transform = 'rotateY(0deg)';
+      setTimeout(function(){ turning = false; }, 280);
+    }, 205);
+  }
+
+  function setLens(lens){
+    /* lens filter removed per design — kept as a no-op so any stray handler is safe */
+  }
+
+  // ---- Faux QR (decorative, deterministic) ----
+  (function(){
+    var c = document.getElementById('qr'); if(!c) return;
+    var ctx = c.getContext('2d');
+    var N = 21, m = Math.floor(c.width / N), off = Math.floor((c.width - m*N)/2);
+    ctx.fillStyle = '#fff'; ctx.fillRect(0,0,c.width,c.height);
+    var seed = 20261180; function rnd(){ seed = (seed*1664525 + 1013904223) & 0x7fffffff; return seed/0x7fffffff; }
+    ctx.fillStyle = '#111';
+    function finder(fx, fy){
+      for(var y=0;y<7;y++) for(var x=0;x<7;x++){
+        var edge = (x===0||x===6||y===0||y===6);
+        var core = (x>=2&&x<=4&&y>=2&&y<=4);
+        if(edge||core) ctx.fillRect(off+(fx+x)*m, off+(fy+y)*m, m, m);
+      }
+    }
+    for(var y=0;y<N;y++) for(var x=0;x<N;x++){
+      var inFinder = (x<8&&y<8)||(x>N-9&&y<8)||(x<8&&y>N-9);
+      if(inFinder) continue;
+      if(rnd()>0.55) ctx.fillRect(off+x*m, off+y*m, m, m);
+    }
+    finder(0,0); finder(N-7,0); finder(0,N-7);
+  })();
+</script>
+</body>
+</html>

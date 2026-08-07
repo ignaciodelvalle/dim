@@ -1,41 +1,49 @@
-// Org-scope case index. Lists every case where the org is the opener
-// OR holds an active ownership row on the subject pet.
+// Org-scope case index — migrated to CaseQueue (UX audit 1.3b casos).
 //
-// Filters via searchParams: ?kind=<caseKind> and ?status=open|closed
-// Each row links to /casos/[publicCode]. The "Ver mascota" link is
-// independent of the row link — separate tap target per Fase E spec.
-
-// ---------------------------------------------------------------------------
-// WIRED (sprint 5 PR-047 — 2026-05-27)
+// Renders the full CaseQueue with:
+//   - Status filter chips (Todos / Abiertos / Cerrados) — URL-driven via
+//     CaseQueue's built-in STATUS_OPTIONS.
+//   - Kind filter chips above the queue (only shown when the org has multiple
+//     case kinds, same as the previous list surface).
+//   - Per-row SLA/age badge (escalated tone past CASE_SLA_WARNING_DAYS) via
+//     the ageCaseDays helper baked into CaseQueue.
+//   - No bulk actions: org cases have no simple approve/reject operation
+//     analogous to adoptions. Bulk is omitted intentionally.
 //
-// Reachable from the org dashboard "Casos abiertos" count card. The previous
-// DEFERRED-BY-DESIGN audit comment is retired; nav presets remain a future
-// improvement (the link from the dashboard is the canonical entry today).
-// ---------------------------------------------------------------------------
+// Data: listCasesForOrg (org as opener OR active ownership holder). Filters
+// are pushed into SQL — no in-memory filtering.
 
 import Link from "next/link";
+import { Suspense } from "react";
 
-import { CaseBadge } from "@/components/CaseBadge";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/case-queries";
-import { formatDate } from "@/lib/format";
+import { OpCrumbs } from "@/components/ui/dashboard";
+import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { listCaseKindDistributionForOrg, listCasesForOrg } from "@/lib/infra/case-queries";
 import { type CaseKind, caseKindLabel, isCaseKind } from "@/src/modules/cases/domain/case-kinds";
 
-const STATUS_OPTIONS = [
-  { value: "", label: "Todos" },
-  { value: "open", label: "Abiertos" },
-  { value: "closed", label: "Cerrados" },
-] as const;
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function parseStatus(raw: string | undefined): "open" | "closed" | null {
+  if (raw === "open") return "open";
+  if (raw === "closed") return "closed";
+  return null;
+}
 
 function filterChipCls(active: boolean) {
   return [
-    "rounded-full border px-3 py-[5px] text-[12px] no-underline transition-colors",
+    "rounded-full border px-3 py-[5px] text-sm no-underline transition-colors",
     active
       ? "border-ln-op-azul bg-ln-op-azul text-white"
       : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe",
   ].join(" ");
 }
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 interface PageProps {
   params: Promise<{ orgToken: string }>;
@@ -49,17 +57,21 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
   const { organization } = await requireOrgAccessByToken(orgToken);
 
   const activeKind: CaseKind | null = isCaseKind(kindParam ?? "") ? (kindParam as CaseKind) : null;
-  const activeStatus: "open" | "closed" | null =
-    statusParam === "open" || statusParam === "closed" ? statusParam : null;
+  const activeStatus = parseStatus(statusParam);
 
-  // Filters are pushed into SQL — no in-memory filtering.
   const [{ items, truncated }, presentKinds] = await Promise.all([
     listCasesForOrg(organization.id, { kind: activeKind, status: activeStatus }),
     listCaseKindDistributionForOrg(organization.id),
   ]);
 
-  // Build filter href helper — preserves the other filter.
-  function kindHref(k: CaseKind | null) {
+  // Base URL for CaseQueue's status filter chips (preserves ?kind= when set).
+  function statusBase(): string {
+    if (!activeKind) return `/org/${orgToken}/casos`;
+    return `/org/${orgToken}/casos?kind=${activeKind}`;
+  }
+
+  // Kind filter href (preserves ?status= when set).
+  function kindHref(k: CaseKind | null): string {
     const p = new URLSearchParams();
     if (k) p.set("kind", k);
     if (activeStatus) p.set("status", activeStatus);
@@ -67,40 +79,46 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
     return `/org/${orgToken}/casos${qs ? `?${qs}` : ""}`;
   }
 
-  function statusHref(s: "open" | "closed" | null) {
-    const p = new URLSearchParams();
-    if (activeKind) p.set("kind", activeKind);
-    if (s) p.set("status", s);
-    const qs = p.toString();
-    return `/org/${orgToken}/casos${qs ? `?${qs}` : ""}`;
-  }
+  // Map CaseListItem → CaseQueueRow (shapes are identical except detailHref).
+  const queueRows: CaseQueueRow[] = items.map((c) => ({
+    id: c.id,
+    publicCode: c.publicCode,
+    caseKind: c.caseKind,
+    status: c.status,
+    primarySubjectKind: c.primarySubjectKind,
+    primaryPetName: c.primaryPetName,
+    primaryPetPublicToken: c.primaryPetPublicToken,
+    jurisdictionProvince: c.jurisdictionProvince,
+    jurisdictionLocality: c.jurisdictionLocality,
+    openedAt: c.openedAt,
+    closedAt: c.closedAt,
+    // Detail route uses publicCode (not orgToken-scoped — cases are cross-org
+    // public records accessible via the canonical /casos/[publicCode] route).
+    detailHref: `/casos/${c.publicCode}`,
+  }));
+
+  const emptyMessage =
+    activeStatus === "open"
+      ? "No hay casos abiertos."
+      : activeStatus === "closed"
+        ? "No hay casos cerrados."
+        : "No hay casos en esta cola.";
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs (audit #18 — casos had only an H1, no breadcrumb). */}
+      <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Casos" }]} />
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Casos</h1>
+        <p className="text-md text-ln-op-mute">
           Expedientes donde {organization.displayName} es la organización que abrió el caso o
           actualmente tiene custodia activa.
         </p>
       </header>
 
-      {/* Status filter chips */}
-      <div className="flex flex-wrap gap-2">
-        {STATUS_OPTIONS.map(({ value, label }) => {
-          const s = value === "" ? null : (value as "open" | "closed");
-          const active = activeStatus === s;
-          return (
-            <Link key={value} href={statusHref(s)} className={filterChipCls(active)}>
-              {label}
-            </Link>
-          );
-        })}
-      </div>
-
-      {/* Kind filter chips — only show kinds present in the full list */}
+      {/* Kind filter chips — only rendered when the org has more than one kind */}
       {presentKinds.length > 1 && (
-        <div className="flex flex-wrap gap-2">
+        <nav aria-label="Filtros por tipo de caso" className="flex flex-wrap gap-2">
           <Link href={kindHref(null)} className={filterChipCls(activeKind === null)}>
             Todos los tipos
           </Link>
@@ -109,62 +127,21 @@ export default async function OrgCasosPage({ params, searchParams }: PageProps) 
               {caseKindLabel(k)}
             </Link>
           ))}
-        </div>
+        </nav>
       )}
 
-      {items.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          {presentKinds.length === 0 && !activeKind && !activeStatus
-            ? "Sin casos abiertos ni cerrados por ahora."
-            : "Ningún caso coincide con los filtros seleccionados."}
-        </p>
-      ) : (
-        <OpCard>
-          <OpCardHead
-            title="Expedientes"
-            actions={`${items.length} caso${items.length !== 1 ? "s" : ""}${truncated ? "+" : ""}`}
-          />
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line">
-              {items.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex flex-col gap-3 px-4 py-3 md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex flex-col gap-1">
-                    <CaseBadge
-                      publicCode={c.publicCode}
-                      caseKind={c.caseKind}
-                      status={c.status}
-                      size="sm"
-                    />
-                    <span className="text-[12px] text-ln-op-mute">
-                      Abierto el {formatDate(c.openedAt)}
-                      {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
-                    </span>
-                  </div>
-                  {c.primaryPetPublicToken && c.primaryPetName ? (
-                    <Link
-                      href={`/org/${orgToken}/mascotas/${c.primaryPetPublicToken}`}
-                      className="inline-flex items-center rounded-full bg-ln-op-stripe px-3 py-1.5 text-[12px] text-ln-op-ink transition hover:bg-ln-op-line no-underline"
-                    >
-                      🐾 {c.primaryPetName}
-                    </Link>
-                  ) : (
-                    <span className="text-[12px] text-ln-op-mute">Caso sin mascota registrada</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-            {truncated && (
-              <p className="border-t border-ln-op-line px-4 py-3 text-[12px] text-ln-op-mute">
-                Mostrando los primeros {items.length} resultados. Usá los filtros para acotar la
-                búsqueda.
-              </p>
-            )}
-          </OpCardBody>
-        </OpCard>
-      )}
+      <Suspense>
+        <CaseQueue
+          rows={queueRows}
+          filters={{ kind: activeKind, status: activeStatus }}
+          filterBase={statusBase()}
+          caption="Cola de casos de la organización"
+          truncated={truncated}
+          emptyMessage={emptyMessage}
+        />
+      </Suspense>
     </div>
   );
 }
+
+export const dynamic = "force-dynamic";

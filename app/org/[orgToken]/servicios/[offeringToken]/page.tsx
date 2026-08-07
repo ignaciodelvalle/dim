@@ -8,8 +8,9 @@ import { notFound } from "next/navigation";
 
 import { OpCard, OpCardBody, OpCardHead, OpKpiSm, OpPill } from "@/components/ui/dashboard";
 import { appointments, db, organizations, serviceOfferings, timeSlots } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { CapacityEditor } from "./CapacityEditor";
@@ -26,7 +27,13 @@ const STATUS_CONFIG: Record<string, { label: string; tone: StatusTone }> = {
 
 function formatDate(d: Date | string | null): string {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("es-AR", { dateStyle: "medium" });
+  // Pin the AR timezone: without it the server (UTC) formats a late-evening ART
+  // timestamp as the following calendar day. Mirrors the AR_TIME_ZONE convention
+  // in lib/utils/format.ts.
+  return new Date(d).toLocaleDateString("es-AR", {
+    dateStyle: "medium",
+    timeZone: AR_TIME_ZONE,
+  });
 }
 
 export default async function OfferingDetailPage({
@@ -97,7 +104,11 @@ export default async function OfferingDetailPage({
         and(
           eq(timeSlots.serviceOfferingId, offering.id),
           gt(timeSlots.startsAt, now),
-          sql`${timeSlots.startsAt} <= ${next7d}`,
+          // Serialize the Date before interpolating into a raw sql`` template:
+          // a bare JS Date param makes the pg driver throw "Received an instance
+          // of Date", 500ing every approved/paused offering (digest 3955119939;
+          // same class as the /turnos search-page fix e1ed4559).
+          sql`${timeSlots.startsAt} <= ${next7d.toISOString()}`,
         ),
       );
 
@@ -114,11 +125,11 @@ export default async function OfferingDetailPage({
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName} · Servicios
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">{offering.displayName}</h1>
+        <p className="text-md text-ln-op-mute">
           {kind?.label ?? offering.serviceKind} · Enviado el {formatDate(offering.submittedAt)}
         </p>
       </header>
@@ -127,12 +138,12 @@ export default async function OfferingDetailPage({
       <div className="flex items-center gap-3">
         <OpPill tone={statusConfig.tone}>{statusConfig.label}</OpPill>
         {offering.status === "pending_approval" && (
-          <span className="text-[12px] text-ln-op-mute">
+          <span className="text-sm text-ln-op-mute">
             La autoridad revisará tu solicitud y te notificaremos por email y en el panel.
           </span>
         )}
         {offering.status === "approved" && (
-          <span className="text-[12px] text-ln-op-mute">
+          <span className="text-sm text-ln-op-mute">
             Ya podés{" "}
             <Link
               href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
@@ -144,7 +155,7 @@ export default async function OfferingDetailPage({
           </span>
         )}
         {offering.status === "rejected" && offering.rejectionReason && (
-          <span className="text-[12px] text-ln-op-danger">Motivo: {offering.rejectionReason}</span>
+          <span className="text-sm text-ln-op-danger">Motivo: {offering.rejectionReason}</span>
         )}
       </div>
 
@@ -163,11 +174,14 @@ export default async function OfferingDetailPage({
                   : "Campaña gratuita"
               }
             />
-            <Row label="Duración" value={`${offering.durationMinutes} minutos`} />
+            <Row
+              label="Duración"
+              value={`${offering.durationMinutes} ${pluralizeEs(offering.durationMinutes, "minuto")}`}
+            />
             {canCreate && offering.status !== "archived" ? (
               <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
-                <dt className="text-[12px] text-ln-op-mute shrink-0 w-36">Capacidad por turno</dt>
-                <dd className="text-[13px] text-ln-op-ink flex-1">
+                <dt className="text-sm text-ln-op-mute shrink-0 w-36">Capacidad por turno</dt>
+                <dd className="text-md text-ln-op-ink flex-1">
                   <CapacityEditor
                     orgToken={orgToken}
                     offeringToken={offeringToken}
@@ -178,7 +192,7 @@ export default async function OfferingDetailPage({
             ) : (
               <Row
                 label="Capacidad por turno"
-                value={`${offering.slotCapacity} lugar${offering.slotCapacity === 1 ? "" : "es"}`}
+                value={`${offering.slotCapacity} ${pluralizeEs(offering.slotCapacity, "lugar")}`}
               />
             )}
             {offering.description && <Row label="Descripción" value={offering.description} />}
@@ -196,10 +210,10 @@ export default async function OfferingDetailPage({
                 label="Rango de edad"
                 value={[
                   offering.eligibilityAgeMinMonths !== null
-                    ? `desde ${offering.eligibilityAgeMinMonths} meses`
+                    ? `desde ${offering.eligibilityAgeMinMonths} ${pluralizeEs(offering.eligibilityAgeMinMonths, "mes")}`
                     : null,
                   offering.eligibilityAgeMaxMonths !== null
-                    ? `hasta ${offering.eligibilityAgeMaxMonths} meses`
+                    ? `hasta ${offering.eligibilityAgeMaxMonths} ${pluralizeEs(offering.eligibilityAgeMaxMonths, "mes")}`
                     : null,
                 ]
                   .filter(Boolean)
@@ -238,7 +252,7 @@ export default async function OfferingDetailPage({
         <div>
           <Link
             href={`/org/${orgToken}/servicios/${offeringToken}/agenda`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:opacity-90 transition-opacity"
           >
             Configurar agenda →
           </Link>
@@ -259,7 +273,7 @@ export default async function OfferingDetailPage({
       <footer className="pt-4 border-t border-ln-op-line">
         <Link
           href={`/org/${orgToken}/servicios`}
-          className="text-[12px] text-ln-op-azul hover:underline"
+          className="text-sm text-ln-op-azul hover:underline"
         >
           ← Volver a mis servicios
         </Link>
@@ -279,8 +293,8 @@ function Row({
 }) {
   return (
     <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
-      <dt className="text-[12px] text-ln-op-mute shrink-0 w-36">{label}</dt>
-      <dd className={`text-[13px] text-ln-op-ink flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
+      <dt className="text-sm text-ln-op-mute shrink-0 w-36">{label}</dt>
+      <dd className={`text-md text-ln-op-ink flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
     </div>
   );
 }

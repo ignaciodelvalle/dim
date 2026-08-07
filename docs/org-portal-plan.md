@@ -1,5 +1,24 @@
 # DIM — Organization Portal Implementation Plan
 
+> **IMPLEMENTED / shipped.** Core org portal flows are live at `app/org/[orgToken]/*`.
+> This plan is archived for historical reference. Do NOT follow its task instructions — read
+> the live code instead. Significant implementation deviations are noted below.
+>
+> **Known deviations from plan (2026-06-24 audit):**
+> - Portal routes are `/org/[orgToken]/*` (plan said `/refugio/[orgToken]`).
+> - Permission system is grant-based via `authz-resolver.requireCapability(cap, orgId?) → {error}`
+>   in `src/modules/organizations/infrastructure/authz-resolver.ts` — **not** a `lib/org-permissions.ts`
+>   module (which does not exist).
+> - Capabilities: 16 coarse capabilities in `ORGANIZATION_CAPABILITIES` (db/schema.ts) — not 37
+>   fine-grained capabilities listed in §T-0.2 below.
+> - Cross-org transfer expiry: **30 days** (not 7 days); state tracked via case handshake
+>   (`custody_transfer_handshake` case kind, `lib/case-attachment.ts`), not via `note_added` events.
+> - `adoption_application_reviewed` event type removed (catalog cleanup 2026-05-18).
+>   `adoption_revoked` renamed to `adoption_reversed` (umbrella; catalog cleanup 2026-05-19).
+> - Cron `post-adoption-checkin` (singular), not `post-adoption-checkins`.
+> - `lib/custody-transfers.ts` does not exist; custody transfer logic lives in
+>   `src/modules/cases/` and `src/modules/transfers/`.
+>
 > **Estado (2026-06-04):** 🟡 PARCIAL — flujos core de custodia/adopción/intake/foster/transferencia enviados (`app/org/[orgToken]/*`). PENDIENTE (no construido como se especificó): T-1.2 invitaciones de miembros (sin tabla organization_invitations), T-1.1 UI de auto-registro de org + edición de config, T-1.3 editor de zonas de cobertura, T-4.3 branding origin-org (columna tier_0_show_origin_org ausente), T-0.3 contexto org por cookie (resuelto por ruta, no cookie).
 
 **Version:** 1.0
@@ -94,10 +113,10 @@ State these in PR descriptions if anyone asks. They are deferred to future strea
 - **16 tasks** across 4 groups.
 - **12 new event types** added to `EVENT_TYPES`. No migration (column is `text`).
 - **6 new schema items** across 3 migrations: 1 new table, 5 new columns.
-- **~12 new routes** under `/refugio`, `/o`, `/adoptar`.
+- **~12 new routes** under `/org`, `/adoptar`.
 - **~20 new server actions** under `app/actions/`.
-- **2 new TypeScript modules** (`lib/org-permissions.ts`, `lib/event-authorship.ts`) plus 2 helpers (`lib/current-org.ts`, `lib/adoption-applications.ts`).
-- **1 new cron route** (`/api/cron/post-adoption-checkins`).
+- **2 new TypeScript modules** (`authz-resolver` in `src/modules/organizations/infrastructure/`, `lib/event-authorship.ts`) plus helpers.
+- **1 new cron route** (`/api/cron/post-adoption-checkin`).
 
 ---
 
@@ -155,22 +174,26 @@ Append to `EVENT_TYPES` in `db/schema.ts` (Task T-0.1). One-line edit per type. 
 // Custody — transfers between users and orgs (two-event handshake)
 "custody_transfer_proposed",
 "custody_transferred",
+"custody_transfer_cancelled",  // structured cancellation (replaces note_added approach)
 // Custody — shelter intake
 "shelter_intake_recorded",
-// Custody — foster
+// Foster
 "foster_assigned",
 "foster_ended",
 // Adoption pipeline
 "adoption_application_submitted",
-"adoption_application_reviewed",
-"adoption_application_approved",
-"adoption_application_rejected",
+// NOTE: adoption_application_reviewed REMOVED (catalog cleanup 2026-05-18)
+// NOTE: adoption_application_approved/rejected collapsed into adoption_application_resolved
+"adoption_application_resolved",  // outcome: approved|rejected
 "adoption_finalized",
 "post_adoption_checkin",
-"adoption_revoked",
+// NOTE: adoption_revoked RENAMED to adoption_reversed (umbrella; catalog cleanup 2026-05-19)
+"adoption_reversed",  // actor: shelter|adopter|court
 ```
 
-`note_added` is reused (with `category='custody_transfer_rejected'` / `'custody_transfer_cancelled'`) for the two reject/cancel branches of Flow 3 — no new event type needed for those.
+> **Deviation from original plan:** `custody_transfer_cancelled` is a dedicated event type
+> (not a `note_added` with category). Cross-org transfer proposals expire after **30 days**
+> (not 7); state is tracked via the `custody_transfer_handshake` case kind in `lib/case-attachment.ts`.
 
 ---
 

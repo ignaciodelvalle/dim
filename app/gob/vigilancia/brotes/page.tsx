@@ -1,33 +1,31 @@
-import { JurisdictionSwitcher } from "@/components/gob/JurisdictionSwitcher";
-import { PeriodPicker } from "@/components/gob/PeriodPicker";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { LnCheckbox } from "@/components/ui/Field";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { listLocalitiesByProvince, localityByName } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { computeConfidence, isAtLeast } from "@/lib/event-confidence";
 import {
-  type DashboardJurisdiction,
-  PROVINCE_ISO_MAP,
-  fetchSurveillanceSignals,
-} from "@/lib/govt-dashboards";
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  type OpFilterAxis,
+  OpFilterBar,
+  ViewScopeCaption,
+} from "@/components/ui/dashboard";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { DISEASES } from "@/lib/reference/diseases";
+import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
+import { pluralizeEs } from "@/lib/utils/format";
 import { OutbreakSignalRow } from "../_components/OutbreakSignalRow";
+import { ScrollToSignal } from "../_components/ScrollToSignal";
+import { VerifiedFilterCheckbox } from "../_components/VerifiedFilterCheckbox";
 
-// All provinces in the GeoJSON placeholder (same list as the parent page).
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Córdoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucumán" },
-  { code: "AR-E", name: "Entre Ríos" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
+// Disease/zoonosis axis — the page already reads the disease_code from each
+// signal's payload, and fetchSurveillanceSignals applies `disease_code = X`
+// when filters.diseaseCode is set (previously wired but never surfaced — the
+// TODO this axis replaces). Options come from the SAME curated catalog
+// (lib/reference/diseases.ts) the disease-diagnosis form and mortality
+// disposition screens use — never an invented list.
+const DISEASE_OPTIONS = DISEASES.map((d) => ({ value: d.code, label: d.label }));
 
 export default async function GobVigilanciaBrotesPage({
   searchParams,
@@ -40,6 +38,7 @@ export default async function GobVigilanciaBrotesPage({
     soloVerificados?: string;
     province?: string;
     locality?: string;
+    diseaseCode?: string;
   }>;
 }) {
   const { profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
@@ -49,41 +48,39 @@ export default async function GobVigilanciaBrotesPage({
   const days = sp.period === "7d" ? 7 : sp.period === "90d" ? 90 : 30;
   const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
 
-  // Resolve selected province ISO code → ProvinceCode + canonical name.
-  const selectedProvinceIso = sp.province ?? null;
-  const selectedLocalitySlug = sp.locality ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
+  const {
+    filteredJurisdictions,
+    localities,
+    allowedProvinces,
+    adminSelectedProvince,
+    adminSelectedLocality,
+  } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: sp.province, locality: sp.locality },
+  });
+  const adminProvince = adminSelectedProvince ?? undefined;
+  const adminLocality = adminSelectedLocality ?? undefined;
 
-  // Fetch localities for the selected province to populate <JurisdictionSwitcher>.
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
+  // C3 disclosure: caption when this page's filters narrow below the mandate.
+  const narrowedView = describeNarrowedView({
+    role: profile.role,
+    mandateJurisdictions: jurisdictions,
+    effectiveJurisdictions: filteredJurisdictions,
+    adminProvince,
+    adminLocality,
+  });
 
-  // Resolve locality slug → canonical name for data-fetcher narrowing.
-  const selectedLocalityRow =
-    selectedProvinceObj && selectedLocalitySlug
-      ? await localityByName(selectedProvinceObj.code as ProvinceCode, selectedLocalitySlug)
-      : null;
+  // Validate against the real catalog — an unrecognized/stale code in the URL
+  // is dropped rather than silently sent to the DB as a narrowing predicate
+  // that would (dishonestly) return zero rows.
+  const diseaseCode =
+    sp.diseaseCode && DISEASES.some((d) => d.code === sp.diseaseCode) ? sp.diseaseCode : undefined;
 
-  // Narrow jurisdictions when a province/locality filter is active.
-  let filteredJurisdictions: DashboardJurisdiction[] = jurisdictions;
-  if (selectedProvinceObj && profile.role !== "admin") {
-    const provinceName = selectedProvinceObj.name;
-    if (selectedLocalityRow) {
-      // Province + locality: intersect with the user's actual assignments so a
-      // govt user cannot widen scope by crafting arbitrary ?province=&locality= params.
-      // govtAssignments.jurisdictionLocality is NOT NULL (schema-enforced), so exact
-      // match is correct — no null-locality province-level rows exist.
-      filteredJurisdictions = jurisdictions.filter(
-        (j) => j.province === provinceName && j.locality === selectedLocalityRow.localityName,
-      );
-    } else {
-      filteredJurisdictions = jurisdictions.filter((j) => j.province === provinceName);
-    }
-  }
-
-  const allSignals = await fetchSurveillanceSignals(actor, filteredJurisdictions, { since });
+  const allSignals = await fetchSurveillanceSignals(actor, filteredJurisdictions, {
+    since,
+    diseaseCode,
+  });
 
   // A.5: tier-based filter — "Solo verificados institucionalmente"
   // When the checkbox is active, filter to signals where tier >= professional_verified.
@@ -102,90 +99,101 @@ export default async function GobVigilanciaBrotesPage({
       )
     : allSignals;
 
-  const allowedProvinces =
-    profile.role === "admin"
-      ? ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
+  // Deep-link target (?signalId=): highlight + scroll the matching row into
+  // view. Only activates when the requested signal is actually present in the
+  // current (filtered) result set — a stale or out-of-window id is a no-op.
+  const targetSignalId = sp.signalId ?? null;
+  const hasSignalTarget =
+    targetSignalId != null && signals.some((s) => s.signalEventId === targetSignalId);
 
   const panelId = "panel-brotes-titulo";
 
   return (
     <div className="space-y-6">
-      <header className="space-y-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Vigilancia · Brotes
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
-          Brotes y signals epidemiológicos
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Lista completa de outbreak signals en tu cobertura.
-        </p>
-      </header>
+      <ScreenHeader
+        className="space-y-2"
+        eyebrow="Vigilancia · Brotes"
+        title="Brotes y señales epidemiológicas"
+        subtitle={
+          <>
+            {/* The universal claim yields to the narrowed-view caption (never both). */}
+            {profile.role === "admin" ? (
+              narrowedView ? null : (
+                <p className="text-md text-ln-op-mute">
+                  Vista universal — todas las jurisdicciones.
+                </p>
+              )
+            ) : (
+              <p className="text-md text-ln-op-mute">
+                Lista completa de señales de brote en tu cobertura.
+              </p>
+            )}
+            <ViewScopeCaption scope={narrowedView} />
+          </>
+        }
+      />
 
-      {/* Filters row */}
-      <div className="grid md:grid-cols-2 gap-3">
-        {/* TODO(future): filter by disease_code + confirmation_strength chips */}
-        <JurisdictionSwitcher allowedProvinces={allowedProvinces} localities={localities} />
-        <PeriodPicker defaultPreset="30d" />
-      </div>
-
-      {/* A.5: confidence tier filter */}
-      <div className="flex items-center gap-2">
-        <form method="GET" className="flex items-center gap-2">
-          {/* Preserve existing params */}
-          {sp.period && <input type="hidden" name="period" value={sp.period} />}
-          {sp.signalId && <input type="hidden" name="signalId" value={sp.signalId} />}
-          <LnCheckbox
-            name="soloVerificados"
-            value="1"
-            defaultChecked={soloVerificados}
-            onChange={(e) => {
-              // Progressive enhancement: submit form on change
-              e.currentTarget.form?.submit();
-            }}
-          >
-            Solo verificados institucionalmente
-          </LnCheckbox>
-          {soloVerificados && (
-            <a
-              href={`/gob/vigilancia/brotes${sp.period ? `?period=${sp.period}` : ""}`}
-              className="text-[12px] text-ln-op-mute underline"
-            >
-              Quitar filtro
-            </a>
-          )}
-        </form>
-      </div>
+      {/* Unified filter bar — period + jurisdiction + disease axis, same rail as
+          vigilancia's own /gob/vigilancia. A.5's confidence-tier toggle ("solo
+          verificados institucionalmente") is a per-screen boolean, not a
+          select-driven axis, so it lives in the free-form `children` slot —
+          the OpCheckbox itself commits via the SAME serverNavCommit path as
+          the bar's own controls (see VerifiedFilterCheckbox), so toggling it
+          never drops the active period/jurisdiction/disease the way the old
+          hidden-input <form> did. */}
+      <OpFilterBar
+        period={{ defaultPreset: "30d" }}
+        jurisdiction={{ allowedProvinces, localities }}
+        axes={
+          [
+            {
+              id: "diseaseCode",
+              label: "Enfermedad",
+              paramKey: "diseaseCode",
+              options: DISEASE_OPTIONS,
+              current: diseaseCode ?? null,
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      >
+        <VerifiedFilterCheckbox defaultChecked={soloVerificados} />
+      </OpFilterBar>
 
       <OpCard aria-labelledby={panelId}>
         <OpCardHead
           title={
             <span id={panelId}>
-              {signals.length} signal{signals.length !== 1 ? "s" : ""}
+              {signals.length} {pluralizeEs(signals.length, "señal")}
             </span>
           }
         />
         <OpCardBody className="p-0">
           {signals.length === 0 ? (
             <div className="px-4 py-3">
+              {/* C4 (2026-07-22, §S4): same reasoning as /gob/vigilancia's
+                  "Señales recientes" panel — no-signal, not "all clear". */}
               <LnEmptyState
-                icon="shield-check"
-                title="Sin signals activos en este período"
-                description="No se detectaron señales de zoonosis en el rango seleccionado."
+                icon="eye-off"
+                nature="no-signal"
+                title="Sin señales registradas en miMAR"
+                description="La ausencia de señales no implica ausencia de enfermedad — nadie reportó un caso en este período."
               />
             </div>
           ) : (
             <ul className="px-3">
               {signals.map((s) => (
-                <OutbreakSignalRow key={s.signalEventId} signal={s} />
+                <OutbreakSignalRow
+                  key={s.signalEventId}
+                  signal={s}
+                  highlighted={s.signalEventId === targetSignalId}
+                />
               ))}
             </ul>
           )}
         </OpCardBody>
       </OpCard>
+
+      {hasSignalTarget && targetSignalId != null && <ScrollToSignal signalId={targetSignalId} />}
     </div>
   );
 }

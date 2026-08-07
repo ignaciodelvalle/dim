@@ -16,7 +16,7 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { approvalRequests, auditLog, db, ownerships, pets, profiles } from "@/db";
-import { generateApprovalRequestToken } from "@/lib/publicToken";
+import { generateApprovalRequestToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 

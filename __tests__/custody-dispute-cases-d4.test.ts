@@ -7,9 +7,9 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, custodyDisputes, db, petEvents, pets } from "@/db";
-import { closeCase, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { cases, db, petEvents, pets } from "@/db";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 
@@ -88,7 +88,7 @@ describe("D4: custody_dispute case opens with the dispute flow", () => {
       primaryPetId: petId,
       jurisdictionProvince: "Buenos Aires",
       jurisdictionLocality: "La Plata",
-      openedReason: "Custody dispute raised on pet — fixture",
+      openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
     });
     caseId = caseRow.id;
     expect(caseRow.status).toBe("open");
@@ -110,7 +110,7 @@ describe("D4: custody_dispute case opens with the dispute flow", () => {
       primaryPetId: petId,
       jurisdictionProvince: "Buenos Aires",
       jurisdictionLocality: "La Plata",
-      openedReason: "Second custody dispute fixture for withdraw test",
+      openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
     });
     const closed = await closeCase({ caseId: second.id, reason: "cancelled" });
     expect(closed?.status).toBe("closed");
@@ -137,7 +137,7 @@ describe("ARCH-E: custody_dispute_raised event carries case_id", () => {
           primaryPetId: petIdE,
           jurisdictionProvince: "Buenos Aires",
           jurisdictionLocality: "La Plata",
-          openedReason: "ARCH-E sequencing fixture — case before event",
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );

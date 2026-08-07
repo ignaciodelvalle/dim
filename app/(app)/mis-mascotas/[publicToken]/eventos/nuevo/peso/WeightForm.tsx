@@ -5,9 +5,12 @@
  * Action, useActionState wiring, field names, and submit logic: untouched.
  */
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRow, LnSuffixWrap, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 import { AttachmentField } from "../AttachmentField";
@@ -30,14 +33,17 @@ export function WeightForm({
   defaults?: WeightFormDefaults;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3 redirect contract: the action returns `redirectTo` on success and the
+  // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
+  useActionRedirect(state.redirectTo, state);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   return (
     <>
       <LnSheetHeader
         tone="azul"
-        icon="⚖️"
+        icon={<Icon name="peso" decorative />}
         title="Registrar peso"
         subtitle="Libreta sanitaria oficial"
       />
@@ -47,6 +53,7 @@ export function WeightForm({
           <LnField label="Peso" required error={state.error ?? undefined}>
             {({ id, describedBy, invalid }) => (
               <LnSuffixWrap suffix="kg">
+                {/* Wave 2 Item 9: inputMode="decimal" + enterKeyHint="done" for mobile number pad */}
                 <LnInput
                   id={id}
                   name="kg"
@@ -54,6 +61,8 @@ export function WeightForm({
                   step="0.1"
                   min="0"
                   required
+                  inputMode="decimal"
+                  enterKeyHint="done"
                   defaultValue={defaults?.kg ?? undefined}
                   placeholder="Ej: 12.5"
                   aria-describedby={describedBy}

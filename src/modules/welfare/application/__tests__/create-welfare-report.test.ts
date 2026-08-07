@@ -5,8 +5,9 @@
 // All DB/repo/library calls are mocked. No Postgres required.
 // Rate-limit path is exercised via the action tests (actions-create-parity.test.ts).
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import type { WelfareRepository } from "../../infrastructure/welfare-repository";
 import { createWelfareReport } from "../create-welfare-report";
 
@@ -18,12 +19,12 @@ type OpenCaseFn = (input: {
   kind: string;
   primarySubjectKind: string;
   primaryPetId: string | null;
-  primaryLocationLat: string | null;
-  primaryLocationLng: string | null;
+  locationLat: string | null;
+  locationLng: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedByUserId: string | null;
-  openedReason: string;
+  openedReason: OpenedReason;
   welfareReportId: string;
 }) => Promise<{ id: string; publicCode: string }>;
 
@@ -54,18 +55,29 @@ function makeRepo(
   overrides: Partial<WelfareRepository> = {},
 ): Pick<
   WelfareRepository,
-  "insertAttachments" | "linkCase" | "insertPetEvent" | "setFlagged" | "insertAudit"
+  | "insertAttachments"
+  | "linkCase"
+  | "insertPetEvent"
+  | "insertPetEventIdempotent"
+  | "setFlagged"
+  | "insertAudit"
 > {
   return {
     insertAttachments: vi.fn().mockResolvedValue(undefined),
     linkCase: vi.fn().mockResolvedValue(undefined),
     insertPetEvent: vi.fn().mockResolvedValue(undefined),
+    insertPetEventIdempotent: vi.fn().mockResolvedValue({ wasNoop: false }),
     setFlagged: vi.fn().mockResolvedValue(undefined),
     insertAudit: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as Pick<
     WelfareRepository,
-    "insertAttachments" | "linkCase" | "insertPetEvent" | "setFlagged" | "insertAudit"
+    | "insertAttachments"
+    | "linkCase"
+    | "insertPetEvent"
+    | "insertPetEventIdempotent"
+    | "setFlagged"
+    | "insertAudit"
   >;
 }
 
@@ -110,6 +122,7 @@ const BASE_INPUT = {
   reporterUserId: null as string | null,
   dwellTimeMs: undefined as number | undefined,
   honeypotValue: "" as string,
+  clientIdempotencyKey: null as string | null,
 };
 
 // ---------------------------------------------------------------------------
@@ -305,8 +318,8 @@ describe("createWelfareReport — pet-event bridge (registered_pet)", () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(repo.insertPetEvent).toHaveBeenCalledOnce();
-    const call = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(repo.insertPetEventIdempotent).toHaveBeenCalledOnce();
+    const call = (repo.insertPetEventIdempotent as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call[0]).toMatchObject({ eventType: "abandonment_reported", petId: PET_ID });
   });
 
@@ -326,8 +339,8 @@ describe("createWelfareReport — pet-event bridge (registered_pet)", () => {
     );
 
     expect(result.ok).toBe(true);
-    expect(repo.insertPetEvent).toHaveBeenCalledOnce();
-    const call = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(repo.insertPetEventIdempotent).toHaveBeenCalledOnce();
+    const call = (repo.insertPetEventIdempotent as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call[0]).toMatchObject({ eventType: "maltreatment_reported" });
   });
 
@@ -348,8 +361,8 @@ describe("createWelfareReport — pet-event bridge (registered_pet)", () => {
     );
 
     // 2 events: maltreatment_reported + symptom_observed
-    expect(repo.insertPetEvent).toHaveBeenCalledTimes(2);
-    const symptomCall = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls.find(
+    expect(repo.insertPetEventIdempotent).toHaveBeenCalledTimes(2);
+    const symptomCall = (repo.insertPetEventIdempotent as ReturnType<typeof vi.fn>).mock.calls.find(
       (call: unknown[]) => (call[0] as { eventType: string }).eventType === "symptom_observed",
     );
     expect(symptomCall).toBeDefined();
@@ -372,7 +385,7 @@ describe("createWelfareReport — pet-event bridge (registered_pet)", () => {
       { repo, openCase, computeFlagReasons, signal, transaction },
     );
 
-    expect(repo.insertPetEvent).not.toHaveBeenCalled();
+    expect(repo.insertPetEventIdempotent).not.toHaveBeenCalled();
   });
 
   it("owner reporter: authorRole=owner in event payload", async () => {
@@ -391,7 +404,7 @@ describe("createWelfareReport — pet-event bridge (registered_pet)", () => {
       { repo, openCase, computeFlagReasons, signal, transaction },
     );
 
-    const call = (repo.insertPetEvent as ReturnType<typeof vi.fn>).mock.calls[0];
+    const call = (repo.insertPetEventIdempotent as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(call[0]).toMatchObject({ authorRole: "owner" });
   });
 });

@@ -2,12 +2,10 @@
 //
 // Verifies that the lifecycle object satisfies the structural invariants
 // expected by the case system — matching the style of case-lifecycles.test.ts:
-//   - kind + statusValues + phases are declared correctly.
+//   - kind + statusValues are declared correctly.
 //   - opensEvents points to the right event_type.
 //   - terminalEvents closes the case.
 //   - cronCloseRoute wired to /api/cron/expire-foster-proposals (migration 0068).
-//   - phases contains only genuine open-state subdivisions (lifecycles spec L1).
-//     accepted / rejected / cancelled / expired are closed outcomes, not phases.
 //   - manualOpenAllowed=false (proposal must come through foster_proposed event).
 //   - reopenAllowed=false (declined proposals open new cases, never reopen old).
 //   - No escalated status (proposals are either pending or resolved).
@@ -29,19 +27,6 @@ describe("foster_proposal lifecycle — declaration", () => {
     expect(lifecycle?.statusValues).toContain("closed");
     expect(lifecycle?.statusValues).not.toContain("escalated");
     expect(lifecycle?.statusValues).not.toContain("merged");
-  });
-
-  it("declares pending_response as the only open phase (lifecycles spec L1)", () => {
-    const phases = lifecycle?.phases ?? [];
-    // pending_response is the sole subdivision of status='open'.
-    expect(phases).toContain("pending_response");
-    // Closed outcomes must NOT appear as phases (they are discriminated by
-    // closed_reason / payload.outcome, not by the phases array).
-    expect(phases).not.toContain("accepted");
-    expect(phases).not.toContain("rejected");
-    expect(phases).not.toContain("cancelled");
-    expect(phases).not.toContain("expired");
-    expect(phases).toHaveLength(1);
   });
 
   it("opens on foster_proposed event", () => {

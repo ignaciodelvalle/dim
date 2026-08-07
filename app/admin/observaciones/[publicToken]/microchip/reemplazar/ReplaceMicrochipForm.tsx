@@ -1,6 +1,10 @@
 "use client";
 
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState, useState } from "react";
 
@@ -40,19 +44,24 @@ export function ReplaceMicrochipForm({
   currentChip: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go instead of redirect()-ing, because the
+  // App Router drops a Server Action's own redirect in production.
+  const navigating = useActionRedirect(state.redirectTo, state);
   const [selectedReason, setSelectedReason] = useState<string>("");
-  const today = new Date().toISOString().slice(0, 10);
+  const { key: idempotencyKey } = useIdempotencyKey();
+  const today = todayIsoInAr();
   const isFraud = selectedReason === "fraud_detected";
 
   return (
     <form action={formAction} className="space-y-5">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       {/* Current chip info row */}
-      <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[12px] text-ln-op-ink-2">
+      <div className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-sm text-ln-op-ink-2">
         Chip actual: <span className="font-mono font-semibold text-ln-op-ink">{currentChip}</span>
       </div>
 
       <div className="space-y-1.5">
-        <p className="text-[12px] font-semibold text-ln-op-ink-2">
+        <p className="text-sm font-semibold text-ln-op-ink-2">
           Motivo del reemplazo
           <span className="ml-0.5 text-ln-op-danger">*</span>
         </p>
@@ -67,7 +76,7 @@ export function ReplaceMicrochipForm({
             >
               <span className="space-y-0.5">
                 <span>{r.label}</span>
-                {r.hint && <span className="block text-[11px] text-ln-op-mute">{r.hint}</span>}
+                {r.hint && <span className="block text-sm text-ln-op-mute">{r.hint}</span>}
               </span>
             </LnRadio>
           ))}
@@ -140,7 +149,7 @@ export function ReplaceMicrochipForm({
 
       {isFraud && (
         <div
-          className="rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-[12px] text-ln-op-danger"
+          className="rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-4 py-3 text-sm text-ln-op-danger"
           role="alert"
         >
           Esta acción notifica a todos los administradores activos y abre un caso de investigación
@@ -149,18 +158,20 @@ export function ReplaceMicrochipForm({
       )}
 
       {state.error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
 
-      <button
+      <OpButton
         type="submit"
-        disabled={isPending}
-        className="w-full rounded-[6px] bg-ln-op-navy px-4 py-3 text-[13px] font-semibold text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={isPending || navigating}
+        loading={isPending || navigating}
+        variant="primary"
+        block
       >
-        {isPending ? "Guardando..." : "Registrar reemplazo de chip"}
-      </button>
+        {isPending || navigating ? "Guardando..." : "Registrar reemplazo de chip"}
+      </OpButton>
     </form>
   );
 }

@@ -15,7 +15,7 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
-import { runVaccineDueScan } from "@/lib/notifications";
+import { runVaccineDueScan } from "@/lib/infra/notifications";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -774,8 +774,11 @@ describe("runVaccineDueScan — notification metadata", () => {
     expect(n.category).toBe("health");
     expect(n.relatedReminderId).toBe(reminderId);
     expect(n.severity).toBe("info"); // upcoming → info
-    expect(n.ctaLabel).toBe("Ver mascota");
-    expect(n.ctaUrl).toContain("/mis-mascotas/");
+    expect(n.ctaLabel).toBe("Registrar vacuna"); // 14.2: deep-link to vaccination form
+    // Canonical reminder-linked target (flow audit 2026-07-03): the full
+    // vaccine form with reminderId so the name pre-fills and the reminder
+    // closes on submit.
+    expect(n.ctaUrl).toContain(`/eventos/nuevo/vacuna?reminderId=${reminderId}`);
   });
 });
 

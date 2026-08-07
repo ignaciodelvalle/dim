@@ -3,7 +3,7 @@
 // of the org as the foster.
 
 import { db, organizationMemberships, ownerships, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
@@ -25,14 +25,14 @@ export default async function AssignFosterPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-md text-ln-op-ink-2">
             Para asignar tránsitos necesitás el permiso{" "}
-            <code className="text-[11px]">foster.assign</code>.
+            <code className="text-sm">foster.assign</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -58,13 +58,13 @@ export default async function AssignFosterPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Animal no disponible</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Animal no disponible</h1>
+          <p className="text-md text-ln-op-ink-2">
             Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -74,10 +74,15 @@ export default async function AssignFosterPage({
   }
   const pet = petRow.pet;
 
-  // Candidate fosters: every active member of the org except the actor.
-  // We don't filter by role — any active member can take a foster role per
-  // AGENTS.md → "A foster requires an active organization_membership". The
-  // <select> sorts foster-role first so coordinators see them at the top.
+  // Candidate fosters: every active member of the org except the actor and
+  // `vet_individual` members. AGENTS.md → "A foster requires an active
+  // organization_membership" doesn't name a specific membership role, so
+  // admin/coordinator/member/volunteer/foster all remain eligible — but
+  // `vet_individual` links a veterinarian to the org for clinical purposes,
+  // not physical caretaking, so listing them as foster candidates was a bug
+  // (2026-07 persona validation). The <select> sorts foster-role first so
+  // coordinators see them at the top; the empty-state hint in
+  // AssignFosterForm already covers orgs left with zero candidates.
   const candidateRows = await db
     .select({
       userId: organizationMemberships.userId,
@@ -91,6 +96,7 @@ export default async function AssignFosterPage({
         eq(organizationMemberships.organizationId, organization.id),
         isNull(organizationMemberships.leftAt),
         ne(organizationMemberships.userId, user.id),
+        ne(organizationMemberships.role, "vet_individual"),
       ),
     )
     .orderBy(asc(organizationMemberships.role), asc(profiles.displayName));
@@ -112,11 +118,11 @@ export default async function AssignFosterPage({
               { label: "Asignar tránsito" },
             ]}
           />
-          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Asignar tránsito: {pet.name}</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Asignar tránsito: {pet.name}</h1>
+          <p className="text-md text-ln-op-ink-2">
             La custodia del refugio sigue activa mientras el tránsito cuida físicamente al animal.
           </p>
         </header>
@@ -135,7 +141,7 @@ export default async function AssignFosterPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

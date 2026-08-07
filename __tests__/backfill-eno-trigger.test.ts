@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { isEnoEligible, parseFlags } from "@/lib/backfill-eno-trigger-helpers";
+import { isEnoEligible, parseFlags } from "@/lib/infra/backfill-eno-trigger-helpers";
 
 // ---------------------------------------------------------------------------
 // isEnoEligible

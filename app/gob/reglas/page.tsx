@@ -1,43 +1,63 @@
-// /gob/reglas — govt read-only view of the business rules that apply to them.
-// Spec 2026-05-19-govt-business-rules-poc-design §6.4.
+// /gob/reglas — THE single rules console (design ADR-1). Server-side
+// capability branch on profile.role:
+//   - admin lens: inline CRUD at universal scope + jurisdiction picker
+//     (folded in verbatim from the old /admin/jurisdicciones surface).
+//   - govt lens: read-only resolved-cascade view, pre-scoped to the user's
+//     own institutional assignments (unchanged behavior, BR6 preserved).
 //
-// Resolves each ruleType for the govt's assigned jurisdictions and shows
-// where in the cascade the value came from (default vs country vs
-// province vs locality). No edit buttons (BR6).
-
-import Link from "next/link";
+// Mirrors app/gob/servicios/page.tsx — one page, two presentational lenses,
+// not parallel routes (AC3 pattern).
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
-import { GOVT_BUSINESS_RULE_TYPES, type GovtBusinessRuleType } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { resolveBusinessRule } from "@/lib/business-rules-resolver";
+import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
+import {
+  RULE_TYPE_REGISTRY,
+  RULE_SOURCE_LABEL as SOURCE_LABEL,
+  summarizeRulePayload,
+} from "@/lib/domain/rule-types-registry";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { portalBase } from "@/lib/ui/portal-base";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
+
+import { AdminReglasLens } from "./AdminReglasLens";
 
 export const dynamic = "force-dynamic";
 
-const RULE_TYPE_LABEL: Record<GovtBusinessRuleType, string> = {
-  ppp_breed_list: "Lista de razas PPP",
-  ppp_weight_threshold: "Umbral de peso PPP",
-  ppp_attestation_required_registries: "Registros de atestacion requeridos",
-};
-
-const SOURCE_LABEL: Record<string, string> = {
-  default: "Default nacional",
-  country: "Override pais (AR)",
-  province: "Override provincia",
-  locality: "Override localidad",
-};
-
-export default async function GobReglasPage() {
+export default async function ReglasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ kind?: string }>;
+}) {
   const { jurisdictions, profile } = await requireAdminOrGovtOrRedirect();
+  const base = await portalBase();
 
-  // Admin reads every rule across the country; govt reads only its assigned
-  // jurisdictions. For simplicity we group rule reads by jurisdiction here.
+  if (profile.role === "admin") {
+    // Rule-kind filter (PO redesign 2026-07-23) only applies to the admin
+    // lens — it's now a short list of ONLY the jurisdictions that have custom
+    // rules, so a "which jurisdictions touched this rule kind?" dropdown is
+    // useful. The govt read-only cascade view below is pre-scoped to the
+    // viewer's own few assigned localities — always a short, already-filtered
+    // list — so a filter there would narrow almost nothing.
+    const { kind } = await searchParams;
+    // Q1: a repeated ?kind= hands Next a string[] — raw `.trim()` on that
+    // throws (500).
+    return <AdminReglasLens base={base} kind={trimmedSearchParam(kind) ?? ""} />;
+  }
+
+  return <GovtReglasReadOnlyView jurisdictions={jurisdictions} />;
+}
+
+async function GovtReglasReadOnlyView({
+  jurisdictions,
+}: {
+  jurisdictions: { province: string | null; locality: string | null }[];
+}) {
   const scopes =
-    profile.role === "admin"
+    jurisdictions.length === 0
       ? [{ province: null as string | null, locality: null as string | null }]
-      : jurisdictions.length === 0
-        ? [{ province: null as string | null, locality: null as string | null }]
-        : jurisdictions;
+      : jurisdictions;
 
   const groups = await Promise.all(
     scopes.map(async (scope) => {
@@ -57,43 +77,57 @@ export default async function GobReglasPage() {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          MiMAR Gobierno · Reglas
-        </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
-          Reglas que aplican a tu jurisdiccion
-        </h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Vista de solo lectura. La administracion de reglas la hace el admin nacional desde{" "}
-          <Link
-            href="/admin/jurisdicciones"
-            className="underline underline-offset-4 text-ln-op-azul"
-          >
-            /admin/jurisdicciones
-          </Link>
-          .
-        </p>
-      </header>
+      <ScreenHeader
+        eyebrow="miMAR Gobierno · Reglas"
+        title="Reglas que aplican a tu jurisdicción"
+        subtitle={
+          <p className="text-md text-ln-op-ink-2">
+            Vista de solo lectura, pre-filtrada a tus localidades asignadas. La administración de
+            reglas la hace el admin nacional.
+          </p>
+        }
+      />
 
       {groups.map((g, idx) => (
         <OpCard key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}>
           <OpCardHead
-            title={`AR · ${g.scope.province ?? "(nivel pais)"} · ${g.scope.locality ?? "(toda la provincia)"}`}
+            title={
+              g.scope.province == null
+                ? "AR · (nivel país)"
+                : g.scope.locality == null
+                  ? `AR · ${g.scope.province}`
+                  : `AR · ${g.scope.province} · ${g.scope.locality}`
+            }
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line-2">
               {g.resolved.map(({ ruleType, payload, source }) => (
                 <li key={ruleType} className="px-4 py-3 space-y-2">
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
-                      {RULE_TYPE_LABEL[ruleType]}
+                    <p className="text-md font-medium text-ln-op-ink">
+                      {RULE_TYPE_REGISTRY[ruleType].label}
                     </p>
-                    <span className="text-[12px] text-ln-op-mute">{SOURCE_LABEL[source]}</span>
+                    <span className="text-sm text-ln-op-mute">{SOURCE_LABEL[source]}</span>
                   </div>
-                  <pre className="text-[11px] bg-ln-op-stripe rounded-[4px] p-3 overflow-x-auto text-ln-op-ink-2 font-mono">
-                    {JSON.stringify(payload, null, 2)}
-                  </pre>
+                  {ruleType === "ppp_breed_list" &&
+                  payload != null &&
+                  typeof payload === "object" &&
+                  "breeds" in payload &&
+                  Array.isArray((payload as { breeds: unknown }).breeds) ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {(payload as { breeds: string[] }).breeds.map((breed) => (
+                        <OpCodeBadge key={breed} tone="neutral">
+                          {breed}
+                        </OpCodeBadge>
+                      ))}
+                    </div>
+                  ) : (
+                    // es-AR summary instead of raw JSON — operators read the
+                    // console, they don't parse payloads (QA round 2 #7).
+                    <p className="text-md text-ln-op-ink-2">
+                      {summarizeRulePayload(ruleType, payload)}
+                    </p>
+                  )}
                 </li>
               ))}
             </ul>

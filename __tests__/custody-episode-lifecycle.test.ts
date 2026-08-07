@@ -2,7 +2,7 @@
 //
 // Verifies that the lifecycle object satisfies the structural invariants
 // expected by the case system:
-//   - kind + statusValues + phases are declared correctly.
+//   - kind + statusValues are declared correctly.
 //   - opensEvents points to shelter_intake_recorded.
 //   - terminalEvents covers the three ways a custody ends:
 //       custody_transferred (handoff/return), adoption_finalized,
@@ -31,16 +31,6 @@ describe("custody_episode lifecycle — declaration", () => {
     expect(lifecycle?.statusValues).toContain("closed");
     expect(lifecycle?.statusValues).not.toContain("escalated");
     expect(lifecycle?.statusValues).not.toContain("merged");
-  });
-
-  it("declares all expected phases", () => {
-    const phases = lifecycle?.phases ?? [];
-    expect(phases).toContain("intake_pending_acceptance");
-    expect(phases).toContain("active_in_custody");
-    expect(phases).toContain("closed_handoff_completed");
-    expect(phases).toContain("closed_to_adoption");
-    expect(phases).toContain("closed_to_owner_return");
-    expect(phases).toContain("closed_pet_died");
   });
 
   it("opens on shelter_intake_recorded event", () => {

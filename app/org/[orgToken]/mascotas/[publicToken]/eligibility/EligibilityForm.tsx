@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { setAdoptionEligibilityAction } from "@/src/modules/adoption/actions";
 
 const REASONS = [
@@ -32,6 +34,8 @@ export function EligibilityForm({
     until: string | null;
   };
 }) {
+  // Router kept ONLY for the Cancelar button's plain (pre-mutation)
+  // navigation; post-success navigation uses navigateAfterActionSuccess.
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [decision, setDecision] = useState<"eligible" | "not_eligible">(
@@ -55,6 +59,10 @@ export function EligibilityForm({
     const eligible = decision === "eligible";
     startTransition(async () => {
       const result = await setAdoptionEligibilityAction({
+        // Pin the action to the org in the URL. Without this the action falls
+        // back to the session-default membership and, for a multi-org member,
+        // writes against the wrong org — see setAdoptionEligibilityAction.
+        orgToken,
         petPublicToken,
         eligible,
         ineligibleReason: eligible ? null : reason,
@@ -70,13 +78,15 @@ export function EligibilityForm({
           ? "Marcada como apta para adopción."
           : "Marcada como NO apta. Resolvé el motivo cuando corresponda.",
       );
-      router.refresh();
+      // Full document reload so the SSR "Estado actual" block matches the DB
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
   return (
     <div className="space-y-4">
-      <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-3 text-[13px]">
+      <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-3 text-md">
         <p className="text-ln-op-ink-2">
           Estado actual:{" "}
           <strong className="text-ln-op-ink">
@@ -90,112 +100,90 @@ export function EligibilityForm({
       </div>
 
       <div className="space-y-2">
-        <p className="text-[12px] font-medium text-ln-op-ink">Decisión</p>
+        <p className="text-sm font-medium text-ln-op-ink">Decisión</p>
         <div className="flex gap-2">
-          <button
+          <OpButton
             type="button"
+            size="sm"
+            variant={decision === "eligible" ? "ok" : "ghost"}
             onClick={() => setDecision("eligible")}
-            className={`px-3 py-1.5 rounded-[6px] border text-[12px] ${
-              decision === "eligible"
-                ? "bg-ln-op-ok text-white border-ln-op-ok"
-                : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
-            }`}
           >
             Apta para adopción
-          </button>
-          <button
+          </OpButton>
+          <OpButton
             type="button"
+            size="sm"
+            variant={decision === "not_eligible" ? "primary" : "ghost"}
             onClick={() => setDecision("not_eligible")}
-            className={`px-3 py-1.5 rounded-[6px] border text-[12px] ${
-              decision === "not_eligible"
-                ? "bg-ln-op-azul text-white border-ln-op-azul"
-                : "border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe"
-            }`}
           >
             NO apta
-          </button>
+          </OpButton>
         </div>
       </div>
 
       {decision === "not_eligible" && (
         <div className="space-y-3">
           <div>
-            <label
-              htmlFor="elig-reason"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="elig-reason" className="block text-sm font-medium text-ln-op-ink mb-1">
               Motivo
             </label>
-            <select
+            <OpSelect
               id="elig-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as Reason)}
-              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             >
               {REASONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
               ))}
-            </select>
+            </OpSelect>
           </div>
           <div>
-            <label
-              htmlFor="elig-notes"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="elig-notes" className="block text-sm font-medium text-ln-op-ink mb-1">
               Notas {reason === "other" && <span className="text-ln-op-danger">*</span>}
             </label>
-            <textarea
+            <OpTextarea
               id="elig-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder={reason === "other" ? "Describí el motivo" : "Notas (opcional)"}
-              className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
           </div>
           <div>
-            <label
-              htmlFor="elig-until"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="elig-until" className="block text-sm font-medium text-ln-op-ink mb-1">
               Hasta (opcional)
             </label>
-            <input
+            <OpInput
               id="elig-until"
               type="date"
               value={until}
               onChange={(e) => setUntil(e.target.value)}
-              className="px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              block={false}
             />
-            <p className="text-[11px] text-ln-op-mute mt-1">
+            <p className="text-sm text-ln-op-mute mt-1">
               Si lo dejás vacío, queda no-apta hasta que la marques manualmente otra vez.
             </p>
           </div>
         </div>
       )}
 
-      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
-      {okMessage && <output className="block text-[12px] text-ln-op-ok">{okMessage}</output>}
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
+      {okMessage && <output className="block text-sm text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={pending}>
           {pending ? "Guardando..." : "Confirmar elegibilidad"}
-        </button>
-        <button
+        </OpButton>
+        <OpButton
           type="button"
+          variant="ghost"
           onClick={() => router.push(`/org/${orgToken}/mascotas`)}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );

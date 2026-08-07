@@ -8,6 +8,7 @@
 import { useState, useTransition } from "react";
 
 import type { MaterializeNowResult } from "@/app/actions/slot-materialization";
+import { OpButton } from "@/components/ui/dashboard";
 
 type Props = {
   offeringToken: string;
@@ -36,16 +37,11 @@ export function MaterializeNowButton({ offeringToken, materializeAction }: Props
 
   return (
     <div className="flex flex-col gap-2">
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={isPending}
-        className="inline-flex items-center gap-2 rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe disabled:cursor-not-allowed disabled:opacity-60 transition-colors"
-      >
+      <OpButton variant="primary" size="sm" onClick={handleClick} disabled={isPending}>
         {isPending ? "Materializando…" : "Materializar ahora"}
-      </button>
+      </OpButton>
       {message && (
-        <p className={`text-[12px] ${message.ok ? "text-ln-op-ok" : "text-ln-op-danger"}`}>
+        <p className={`text-sm ${message.ok ? "text-ln-op-ok" : "text-ln-op-danger"}`}>
           {message.text}
         </p>
       )}

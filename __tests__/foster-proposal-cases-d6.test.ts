@@ -15,8 +15,10 @@
 // revalidatePath so the actions can resolve "the current user".
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
 
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
@@ -39,7 +41,7 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { generatePrefixedToken, generatePublicToken } from "@/lib/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 import { createClient } from "@/lib/supabase/server";
 import {
   acceptFosterProposalAction,
@@ -171,7 +173,8 @@ beforeAll(async () => {
     .set({
       displayName: "D6 Volunteer",
       phone: "+541100000099",
-      dniNumber: "20000099",
+      dniHash: hashDni("20000099"),
+      dniLast4: dniLast4("20000099"),
       dniVerified: true,
       role: "owner",
       accountType: "personal",
@@ -451,12 +454,12 @@ describe("D6.6: fallback path — pre-migration proposal (caseId=null) still clo
     await cleanPetState();
 
     // Open a case manually (simulating what proposeFosterAction would have done).
-    const { openCase } = await import("@/lib/case-helpers");
+    const { openCase } = await import("@/lib/infra/case-helpers");
     const caseRow = await openCase({
       kind: "foster_proposal",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "D6.6 fallback test — manual case open",
+      openedReason: { code: "foster_proposal_sent" },
       openedByOrganizationId: orgId,
     });
 

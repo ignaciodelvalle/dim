@@ -50,8 +50,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { closeCase, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -279,7 +279,7 @@ async function buildDecomisoState(opts?: { receiverOrgId?: string; openerOrgId?:
         openedByUserId: govtUserId,
         openedByOrganizationId: opener,
         receiverOrganizationId: receiver,
-        openedReason: "auto: decomiso motivo=maltrato_fisico judicial_ref=sin_ref",
+        openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
       },
       tx,
     );
@@ -419,7 +419,7 @@ describe("acceptDecomisoHandoffAction — happy path", () => {
           jurisdictionLocality: "Buenos Aires",
           openedByUserId: receiverUserId,
           openedByOrganizationId: receiverOrgId,
-          openedReason: `auto: decomiso handoff aceptado desde caso ${casePublicCode}`,
+          openedReason: { code: "decomiso_handoff_accepted", sourceCasePublicCode: casePublicCode },
         },
         tx,
       );

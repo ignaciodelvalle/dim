@@ -1,4 +1,5 @@
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
@@ -10,7 +11,7 @@ import {
   OpCrumbs,
   OpPill,
 } from "@/components/ui/dashboard";
-import { db, welfareReportAttachments, welfareReports } from "@/db";
+import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 
 // Admin moderation projection — all PII fields included (admin role).
 // Performance projection only: drops reporter contact fields, workflow/triage
@@ -36,12 +37,12 @@ const ADMIN_WELFARE_MODERATION_SELECT = {
   flagReasons: welfareReports.flagReasons,
   moderationResolvedAt: welfareReports.moderationResolvedAt,
 } as const;
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { formatDate, formatDateTime } from "@/lib/format";
-import { readPoint } from "@/lib/location";
-import { welfareAttachmentSignedUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
-import { type FlagReason, reasonLabel } from "@/lib/welfare-moderation";
+import { readPoint } from "@/lib/domain/location";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
+import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
+import { formatDate, formatDateTime } from "@/lib/utils/format";
 import {
   welfareReportKindLabel,
   welfareReportSeverityLabel,
@@ -62,7 +63,7 @@ const SEVERITY_PILL: Record<string, SeverityTone> = {
 
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="h-64 w-full animate-pulse rounded-[6px] border border-ln-op-line bg-ln-op-stripe" />
+    <div className="h-64 w-full animate-pulse rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe" />
   ),
 });
 
@@ -72,7 +73,7 @@ export default async function ModeracionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireAdminOrRedirect();
+  const { user } = await requireAdminOrRedirect();
 
   const [report] = await db
     .select(ADMIN_WELFARE_MODERATION_SELECT)
@@ -83,17 +84,36 @@ export default async function ModeracionDetailPage({
   if (!report.flaggedAt) notFound();
 
   const locationPoint = readPoint(report);
+
+  // Audience-precision plan (2026-06-19): admin moderation sees the EXACT
+  // coordinate (Ley 14.346); log every such view for accountability (Ley
+  // 25.326). Only when there's a point to view. See the gob detail page for the
+  // awaited/prefetch rationale.
+  if (locationPoint) {
+    await logWelfareLocationViewed(user.id, report.id, report.referenceCode);
+  }
+
   const reasons = (report.flagReasons as string[]) ?? [];
+
+  // Resolve subjectPetId → publicToken for an operator-safe link to /p/{token}.
+  let subjectPetPublicToken: string | null = null;
+  if (report.subjectKind === "registered_pet" && report.subjectPetId) {
+    const [petRow] = await db
+      .select({ publicToken: pets.publicToken })
+      .from(pets)
+      .where(eq(pets.id, report.subjectPetId))
+      .limit(1);
+    subjectPetPublicToken = petRow?.publicToken ?? null;
+  }
 
   const attachmentRows = await db
     .select()
     .from(welfareReportAttachments)
     .where(eq(welfareReportAttachments.welfareReportId, report.id));
-  const supabase = await createClient();
   const attachments = await Promise.all(
     attachmentRows.map(async (a) => ({
       ...a,
-      signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath),
+      signedUrl: await welfareAttachmentSignedUrl(a.storagePath),
     })),
   );
 
@@ -104,22 +124,25 @@ export default async function ModeracionDetailPage({
     <div className="space-y-6">
       <OpCrumbs
         items={[
-          { label: "Moderación", href: "/admin/moderacion" },
-          { label: report.referenceCode ?? id, mono: true },
+          // Fix (adversarial-admin 2026-07-23, mirrors the gob twin): /admin/
+          // moderacion is now a redirect into the Denuncias hub — the crumb
+          // links straight there instead of through that redirect hop.
+          { label: "Moderación", href: "/gob/denuncias?etapa=moderacion" },
+          { label: report.referenceCode ?? "Sin código", mono: true },
         ]}
       />
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {"Admin · Moderación"}
         </p>
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             {welfareReportKindLabel(report.kind)}
           </h1>
           <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
         </div>
-        <p className="font-mono text-[10px] text-ln-op-faint">
+        <p className="font-mono text-xs text-ln-op-faint">
           {report.referenceCode}
           {" · creada "}
           {formatDateTime(report.createdAt)}
@@ -144,9 +167,9 @@ export default async function ModeracionDetailPage({
       <OpCard>
         <OpCardHead title="¿Qué pasó?" />
         <OpCardBody>
-          <p className="whitespace-pre-wrap text-[13px] text-ln-op-ink">{report.description}</p>
+          <p className="whitespace-pre-wrap text-md text-ln-op-ink">{report.description}</p>
           {report.occurredAt && (
-            <p className="mt-2 text-[11px] text-ln-op-mute">
+            <p className="mt-2 text-sm text-ln-op-mute">
               {"Ocurrió el "}
               {formatDate(report.occurredAt)}
             </p>
@@ -158,16 +181,19 @@ export default async function ModeracionDetailPage({
       <OpCard>
         <OpCardHead title="Sujeto" />
         <OpCardBody>
-          <p className="text-[13px] text-ln-op-ink">
+          <p className="text-md text-ln-op-ink">
             {welfareReportSubjectKindLabel(report.subjectKind)}
-            {report.subjectPetId && (
-              <span className="ml-2 font-mono text-[11px] text-ln-op-mute">
-                {report.subjectPetId}
-              </span>
+            {report.subjectPetId && subjectPetPublicToken && (
+              <Link
+                href={`/p/${subjectPetPublicToken}`}
+                className="ml-2 font-mono text-sm text-ln-op-azul underline underline-offset-4 hover:opacity-80"
+              >
+                {subjectPetPublicToken}
+              </Link>
             )}
           </p>
           {report.subjectDescription && (
-            <p className="mt-1 whitespace-pre-wrap text-[12px] text-ln-op-ink-2">
+            <p className="mt-1 whitespace-pre-wrap text-sm text-ln-op-ink-2">
               {report.subjectDescription}
             </p>
           )}
@@ -179,7 +205,7 @@ export default async function ModeracionDetailPage({
         <OpCard>
           <OpCardHead title="Lugar" />
           <OpCardBody className="space-y-3">
-            <div className="space-y-1 text-[12px] text-ln-op-ink-2">
+            <div className="space-y-1 text-sm text-ln-op-ink-2">
               {report.locationAddress && <p>{report.locationAddress}</p>}
               {(report.jurisdictionLocality || report.jurisdictionProvince) && (
                 <p>
@@ -189,7 +215,14 @@ export default async function ModeracionDetailPage({
                 </p>
               )}
             </div>
-            {locationPoint && <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />}
+            {locationPoint && (
+              <>
+                <p className="text-xs uppercase tracking-wider text-ln-op-mute">
+                  Ubicación exacta — uso oficial (Ley 14.346)
+                </p>
+                <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
+              </>
+            )}
           </OpCardBody>
         </OpCard>
       )}
@@ -202,7 +235,7 @@ export default async function ModeracionDetailPage({
             <ul className="space-y-1.5">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate font-mono text-[11px] text-ln-op-mute">
+                  <span className="truncate font-mono text-sm text-ln-op-mute">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (
@@ -210,12 +243,18 @@ export default async function ModeracionDetailPage({
                       href={a.signedUrl}
                       target="_blank"
                       rel="noreferrer"
-                      className="text-[12px] font-semibold text-ln-op-azul underline underline-offset-4"
+                      className="text-sm font-semibold text-ln-op-azul underline underline-offset-4"
                     >
                       {"Abrir ->"}
                     </a>
                   ) : (
-                    <span className="text-[11px] text-ln-op-faint">(no disponible)</span>
+                    // Honest empty state (Cowork M3): the signed URL is null when
+                    // the object isn't in the welfare-evidence bucket. Say so —
+                    // "(no disponible)" left an operator unsure if it was a
+                    // permission wall or a missing file.
+                    <span className="shrink-0 text-right text-sm text-ln-op-faint">
+                      No disponible — el archivo no se encontró en el almacenamiento
+                    </span>
                   )}
                 </li>
               ))}

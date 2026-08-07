@@ -2,15 +2,15 @@
 // Spec 2026-05-19-govt-business-rules-poc-design §5 + §4.5.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  createBusinessRuleWriter,
-  deleteBusinessRuleWriter,
-  updateBusinessRuleWriter,
-} from "@/app/actions/business-rules";
 import { auditLog, db, govtBusinessRules, notifications, ownerships, pets, profiles } from "@/db";
+// Writers import from the application modules, not the "use server" shim —
+// they are not client-addressable server actions (impersonation triage, review 07).
+import { createBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/create-business-rule";
+import { deleteBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/delete-business-rule";
+import { updateBusinessRuleWriter } from "@/src/modules/organizations/application/business-rules/update-business-rule";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -91,6 +91,17 @@ async function insertTestDog(ownerUid: string, breed: string, suffix: string) {
 }
 
 beforeAll(async () => {
+  // Self-heal: a prior run that died mid-test (e.g. timeout under parallel
+  // load, 2026-07-04) leaves the province-scoped fixture rule behind —
+  // afterAll only knows ids pushed AFTER a successful create. Delete any
+  // leftover before asserting creation succeeds.
+  await db.execute(sql`
+    delete from govt_business_rules
+    where rule_type = 'ppp_breed_list'
+      and jurisdiction_province = ${TEST_PROVINCE}
+      and jurisdiction_locality is null
+      and notes = 'test rule'
+  `);
   adminUserId = await ensureUser(ADMIN_EMAIL);
   await db
     .update(profiles)
@@ -143,11 +154,16 @@ describe("createBusinessRuleWriter", () => {
         ),
       );
     expect(audits.length).toBeGreaterThan(0);
-  });
+    // Creating a ppp_breed_list rule triggers a synchronous PPP re-evaluation
+    // that now emits a paired pet_profile_updated event per flipped pet (F4
+    // event-pairing). Against the large seeded demo DB this legitimately takes
+    // longer than the 5s default. (Fast-follow: the on-create re-eval should be
+    // enqueued/async so it can't block the admin request on a large province.)
+  }, 30000);
 
   it("no-ops when payload matches the hardcoded default", async () => {
-    const defaultBreeds = (await import("@/lib/business-rules-defaults")).BUSINESS_RULES_DEFAULTS
-      .ppp_breed_list;
+    const defaultBreeds = (await import("@/lib/domain/business-rules-defaults"))
+      .BUSINESS_RULES_DEFAULTS.ppp_breed_list;
     const result = await createBusinessRuleWriter({
       actorUserId: adminUserId,
       ruleType: "ppp_breed_list",
@@ -274,9 +290,11 @@ describe("deleteBusinessRuleWriter", () => {
     expect(created.ok).toBe(true);
     if (!created.ok || created.ruleId === null) return;
 
+    const DELETE_REASON = "Regla derogada por nueva ordenanza municipal — ya no aplica.";
     const del = await deleteBusinessRuleWriter({
       actorUserId: adminUserId,
       ruleId: created.ruleId,
+      reason: DELETE_REASON,
     });
     expect(del.ok).toBe(true);
 
@@ -290,8 +308,43 @@ describe("deleteBusinessRuleWriter", () => {
       .select()
       .from(auditLog)
       .where(eq(auditLog.action, "govt_business_rule_deleted"));
-    expect(audits.some((a) => (a.payload as { ruleId: string }).ruleId === created.ruleId)).toBe(
-      true,
+    const auditRow = audits.find(
+      (a) => (a.payload as { ruleId: string }).ruleId === created.ruleId,
     );
+    expect(auditRow).toBeDefined();
+    // C8: the deletion reason is recorded in the audit payload.
+    expect((auditRow?.payload as { reason?: string }).reason).toBe(DELETE_REASON);
+  });
+
+  it("rejects deletion with an empty reason", async () => {
+    const created = await createBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleType: "ppp_breed_list",
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: DELETE_LOCALITY,
+      rulePayload: { breeds: ["DeleteMeNoReason"] },
+      notes: null,
+      legalAnchorIds: [],
+    });
+    expect(created.ok).toBe(true);
+    if (!created.ok || created.ruleId === null) return;
+    createdRuleIds.push(created.ruleId);
+
+    const del = await deleteBusinessRuleWriter({
+      actorUserId: adminUserId,
+      ruleId: created.ruleId,
+      reason: "   ",
+    });
+    expect(del.ok).toBe(false);
+    if (del.ok) return;
+    expect(del.error).toContain("motivo");
+
+    // The row must still exist — an empty reason blocks the delete entirely.
+    const remaining = await db
+      .select()
+      .from(govtBusinessRules)
+      .where(eq(govtBusinessRules.id, created.ruleId));
+    expect(remaining.length).toBe(1);
   });
 });

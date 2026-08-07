@@ -20,7 +20,7 @@
 // reads the mocked user. Ownership and pet updates use the real DB.
 
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/supabase/server", () => ({

@@ -22,7 +22,7 @@ import { and, eq, isNull, or } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petTransfers, pets, profiles } from "@/db";
-import { countPendingTransfers } from "@/lib/owner-dashboard";
+import { countPendingTransfers } from "@/lib/analytics/owner-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------

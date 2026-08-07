@@ -1,7 +1,18 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+
+import { useCommittedPeriod } from "@/components/panorama/committed-period-context";
+import {
+  PRESET_3Y,
+  PRESET_5Y,
+  PRESET_30D,
+  PRESET_90D,
+  PRESET_YTD,
+  type PeriodPresetId,
+} from "@/lib/metrics/period-presets";
+import { serverNavCommit } from "@/lib/ui/filter-commit";
 
 import { DateRangePicker } from "./DateRangePicker";
 import type { DateRange } from "./DateRangePicker";
@@ -11,7 +22,9 @@ import type { DateRange } from "./DateRangePicker";
  *
  * Chips de presets (7d / 30d / 90d / ytd) + toggle "Personalizado" que despliega
  * el `<DateRangePicker>` inline. Cada selección actualiza los searchParams vía
- * `router.replace` con `scroll: false`.
+ * una navegación de documento completa (`window.location.assign`) — NO usa
+ * `router.replace`/`router.refresh` (ver nota de diseño más abajo, misma
+ * razón que JurisdictionSwitcher.tsx).
  *
  * Comportamiento:
  *  - Seleccionar un preset → setea `?period=<preset>` y limpia `?from` y `?to`.
@@ -30,7 +43,11 @@ import type { DateRange } from "./DateRangePicker";
  * ```
  */
 
-export type PeriodPreset = "7d" | "30d" | "90d" | "ytd" | "custom";
+// Alias kept for existing consumers (PeriodPanel.tsx and friends import
+// `PeriodPreset` from here). The canonical id union now lives in
+// lib/metrics/period-presets.ts, shared with PeriodPanel.tsx — see that
+// module for why the (id, label) pairs are only partially centralized.
+export type PeriodPreset = PeriodPresetId;
 
 export type PeriodPickerProps = {
   /** Preset por defecto cuando no hay searchParam. Default "30d". */
@@ -39,6 +56,12 @@ export type PeriodPickerProps = {
   presetParamKey?: string;
   /** Claves de searchParam para el rango personalizado. Default { from: "from", to: "to" }. */
   customParamKeys?: { from: string; to: string };
+  /**
+   * Mostrar los chips multi-año ("3 años" / "5 años"). Solo lo usa el Panorama,
+   * cuya reproducción temporal abarca la historia sembrada (varios años). Los
+   * dashboards de detalle NO los muestran (mantienen su ventana corta). Default false.
+   */
+  multiYear?: boolean;
   className?: string;
 };
 
@@ -47,32 +70,51 @@ type PresetConfig = {
   label: string;
 };
 
+// 30d/90d/ytd are single-sourced from lib/metrics/period-presets (identical
+// label in PeriodPanel.tsx); 7d/trailing12m keep their PeriodPicker-specific
+// copy locally — see the module doc comment there for why.
 const PRESETS: PresetConfig[] = [
   { value: "7d", label: "Últimos 7 días" },
-  { value: "30d", label: "30 días" },
-  { value: "90d", label: "90 días" },
-  { value: "ytd", label: "Año en curso" },
+  PRESET_30D,
+  PRESET_90D,
+  { value: "trailing12m", label: "Últimos 12 meses" },
+  PRESET_YTD,
 ];
 
+/** Multi-year chips appended only when `multiYear` is set (Panorama-only). */
+const MULTI_YEAR_PRESETS: PresetConfig[] = [PRESET_3Y, PRESET_5Y];
+
+// Operator-only component (rendered exclusively on /gob, /admin dashboards,
+// OpFilterBar and Panorama) — uses ln-op-* tokens, not the citizen ln-*
+// palette (audit 2026-07-19, consistency/skin-validation).
 const chipBase =
   "inline-flex items-center px-3.5 py-1.5 rounded-full text-sm font-medium border " +
-  "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-1 " +
-  "min-h-9 cursor-pointer";
+  "transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul focus-visible:ring-offset-1 " +
+  "min-h-11 cursor-pointer";
 
-const chipActive = "bg-ln-azul text-white border-ln-azul";
+const chipActive = "bg-ln-op-azul text-white border-ln-op-azul";
 const chipInactive =
-  "bg-ln-card text-ln-ink-2 border-ln-line hover:border-ln-line-strong hover:text-ln-ink";
+  "bg-ln-op-card text-ln-op-ink-2 border-ln-op-line hover:border-ln-op-line-2 hover:text-ln-op-ink";
 
 export function PeriodPicker({
   defaultPreset = "30d",
   presetParamKey = "period",
   customParamKeys = { from: "from", to: "to" },
+  multiYear = false,
   className = "",
 }: PeriodPickerProps) {
-  const router = useRouter();
   const searchParams = useSearchParams();
+  // W2 fix: a shallow client-side period commit (Panorama presets) isn't visible
+  // to useSearchParams(); prefer the console's committed period so the active chip
+  // matches the loaded data. null (no provider / nothing committed) → searchParams.
+  const committedPeriod = useCommittedPeriod();
 
-  const activePreset = (searchParams.get(presetParamKey) as PeriodPreset | null) ?? defaultPreset;
+  const presets = multiYear ? [...PRESETS, ...MULTI_YEAR_PRESETS] : PRESETS;
+
+  const activePreset =
+    (committedPeriod as PeriodPreset | null) ??
+    (searchParams.get(presetParamKey) as PeriodPreset | null) ??
+    defaultPreset;
 
   const fromValue = searchParams.get(customParamKeys.from) ?? null;
   const toValue = searchParams.get(customParamKeys.to) ?? null;
@@ -83,16 +125,18 @@ export function PeriodPicker({
     to: toValue,
   });
 
+  // Design note (router-drop defect, engram #621/#622 — same reasoning as
+  // JurisdictionSwitcher.tsx / components/gob/JurisdictionSwitcher.tsx and
+  // fixed here for the identical reason, noted as adjacent debt in
+  // b0a5c7af): dashboards on this surface (Panorama, vigilancia, etc.) are
+  // SERVER-rendered from `searchParams` on every request, so a
+  // client-router transition (router.replace/router.refresh) is exposed to
+  // Next 15.5.18's App Router silently dropping its own RSC fetch in
+  // production. A full document navigation is the one mechanism proven
+  // immune — the browser's native GET cannot be silently dropped, and it
+  // always re-runs the server component with the new searchParams.
   function updateParams(updates: Record<string, string | null>) {
-    const params = new URLSearchParams(searchParams.toString());
-    for (const [key, value] of Object.entries(updates)) {
-      if (value === null || value === "") {
-        params.delete(key);
-      } else {
-        params.set(key, value);
-      }
-    }
-    router.replace(`?${params.toString()}`, { scroll: false });
+    serverNavCommit(searchParams.toString())(updates);
   }
 
   function handlePresetClick(preset: PeriodPreset) {
@@ -121,7 +165,7 @@ export function PeriodPicker({
       {/* Fila de chips */}
       <fieldset className="flex flex-wrap gap-2 border-none p-0 m-0">
         <legend className="sr-only">Seleccionar período</legend>
-        {PRESETS.map(({ value, label }) => {
+        {presets.map(({ value, label }) => {
           const isActive = activePreset === value;
           return (
             <button

@@ -10,8 +10,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, pets, physicalTagInterest } from "@/db";
-import { getPhysicalTagInterest } from "@/lib/physical-tag-interest";
-import { generatePublicToken } from "@/lib/publicToken";
+import { getPhysicalTagInterest } from "@/lib/infra/physical-tag-interest";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { expectDbError } from "./_helpers/expect-db-error";
 
 let petId: string;

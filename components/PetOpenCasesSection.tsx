@@ -5,7 +5,7 @@
 // each row links to /casos/[publicCode] via CaseBadge.
 
 import { CaseBadge } from "@/components/CaseBadge";
-import { findOpenCasesForPetWithCodes } from "@/lib/case-queries";
+import { findOpenCasesForPetWithCodes } from "@/lib/infra/case-queries";
 
 interface Props {
   petId: string;
@@ -22,7 +22,7 @@ export async function PetOpenCasesSection({ petId }: Props) {
           Casos abiertos {openCases.length > 1 ? `(${openCases.length})` : ""}
         </h2>
         <span className="text-xs text-ln-mute ">
-          Procedimientos activos que esta mascota tiene abiertos en MiMAR
+          Procedimientos activos que esta mascota tiene abiertos en miMAR
         </span>
       </header>
       <ul className="flex flex-wrap gap-2">

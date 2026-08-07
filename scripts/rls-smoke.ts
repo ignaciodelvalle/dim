@@ -197,6 +197,23 @@ async function main() {
     );
   }
 
+  // Wave 5 Item 26 — cross-tenant isolation checks for newly-polic'd tables.
+  // 11. B cannot read pet_identifications for A's pet (RLS: owner-scoped).
+  {
+    const { data } = await b.client.from("pet_identifications").select("id").eq("pet_id", aPetId);
+    record("B cannot read pet_identifications for A's pet", (data ?? []).length === 0);
+  }
+
+  // 12. B cannot read pet_transfers scoped to A (neither as sender nor receiver).
+  {
+    const { data } = await b.client
+      .from("pet_transfers")
+      .select("id")
+      .or(`from_owner_id.eq.${a.userId},to_owner_id.eq.${a.userId}`)
+      .limit(1);
+    record("B cannot read pet_transfers belonging to A", (data ?? []).length === 0);
+  }
+
   // 10. B cannot create an ownership row claiming A's pet. Catches the
   // worst-case regression: an over-broad anon/authenticated INSERT policy on
   // ownerships would let any logged-in user seize any pet.
@@ -238,6 +255,9 @@ async function main() {
     { table: "libreta_share_tokens" },
     { table: "approval_requests" },
     { table: "audit_log" },
+    // Wave 5 Item 26 — new tables with policies from migration 0105.
+    { table: "pet_identifications", filter: { column: "pet_id", value: aPetId } },
+    { table: "pet_transfers", filter: { column: "from_owner_id", value: a.userId } },
   ];
 
   for (const t of anonReadTargets) {

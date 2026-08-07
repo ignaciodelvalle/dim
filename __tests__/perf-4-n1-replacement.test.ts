@@ -31,8 +31,8 @@ vi.mock("@/db", async (importOriginal) => {
   };
 });
 
-import type { WorkflowItem } from "@/lib/owner-dashboard";
-import { fetchOpenWorkflows } from "@/lib/owner-dashboard";
+import type { WorkflowItem } from "@/lib/analytics/owner-dashboard";
+import { fetchOpenWorkflows } from "@/lib/analytics/owner-dashboard";
 
 // ---------------------------------------------------------------------------
 // Helper: make a chainable Drizzle-style builder that resolves to `rows`
@@ -77,6 +77,7 @@ describe("fetchOpenWorkflows — consolidated sub-fetchers produce correct shape
           kind: "pet_lost",
           pet_id: "pet-1",
           pet_name: "Luna",
+          pet_sex: "female",
           pet_public_token: "TKN-LUNA",
           since_ts: new Date("2024-06-01").toISOString(),
         },
@@ -89,7 +90,8 @@ describe("fetchOpenWorkflows — consolidated sub-fetchers produce correct shape
     const result = await fetchOpenWorkflows(USER_ID);
     const lostItem = result.find((r) => r.kind === "pet_lost");
     expect(lostItem).toBeDefined();
-    expect(lostItem?.title).toContain("Luna");
+    // Sex-flexed title (ciclo-perdido sweep): agrees with the pet's sex.
+    expect(lostItem?.title).toBe("Luna está reportada como perdida");
     expect(lostItem?.severity).toBe("urgent");
     expect(lostItem?.ctaUrl).toContain("TKN-LUNA");
   });

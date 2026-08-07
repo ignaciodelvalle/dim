@@ -1,3 +1,5 @@
+"use client";
+
 // LostDisclosureCard — the owner-facing surface for the 5 disclosure
 // toggles that already exist on `pets`:
 //   - disclose_first_name_when_lost
@@ -13,8 +15,26 @@
 // This intentionally duplicates the disclosure list from the existing
 // MarkLostForm — once both surfaces live, that form's toggles can be
 // replaced by importing this component.
+//
+// wave-3 D2 (design-system audit finding 2): the 5 rows used to hand-roll
+// their own toggle switch (px values copied from Toggle.tsx internals),
+// duplicating LnToggle's amber variant, which was purpose-built for
+// disclosure/lost-mode settings per its own docblock. Now a "use client"
+// component using LnToggleGroup directly — this DROPS the previous
+// no-JS-required <form action={...}> submit-per-row model in favor of a
+// client onChange calling `toggleAction` directly. This is safe: the LostCaseBlock
+// doc comment (this component's only caller) already anticipated exactly
+// this alternative ("or the action must be pre-bound and passed down as a
+// prop") — `toggleAction` IS a pre-bound Server Action
+// (setPetDisclosurePrefsAction.bind(null, publicToken)), fully callable
+// from a client event handler. LostCaseBlock itself stays a Server
+// Component (for LostScanFeed's server-only db import, unrelated to this).
 
 import Link from "next/link";
+
+import { Icon } from "@/components/Icon";
+import { LnToggleGroup } from "@/components/ui/Toggle";
+import { notifyActionError, notifySaved } from "@/lib/ui/action-feedback";
 
 export type DisclosurePrefs = {
   discloseFirstNameWhenLost: boolean;
@@ -32,8 +52,24 @@ interface Props {
   publicHref: string;
   /** Owner first name as it'd show on the public page. */
   ownerFirstName: string;
+  /**
+   * A5 (PO decision 2026-08-04) — this pet came out of a shelter, so a
+   * found-pet report ALSO alerts that shelter.
+   *
+   * The alert is not a preference and has no toggle: the PO chose "always",
+   * knowing the cost. Disclosure is the mitigation, which is why this is a
+   * STATEMENT under the toggles rather than a sixth row — a row would promise a
+   * choice the titular does not have. Resolved with the same predicate the
+   * notifier uses (lib/infra/origin-shelter-alert.ts), so it never claims an
+   * alert that will not fire.
+   */
+  alertsOriginShelter: boolean;
 }
 
+// Row descriptions double as the concrete preview of what the public sees
+// (QA 2026-08-03: the old standalone `Hoy verán "Lo busca X"` footer line
+// was easy to misread out of context — the preview now lives on the option
+// it belongs to; the name row interpolates the real first name at render).
 const ROWS: Array<{
   key: keyof DisclosurePrefs;
   label: string;
@@ -66,81 +102,70 @@ const ROWS: Array<{
   },
 ];
 
-export function LostDisclosureCard({ prefs, toggleAction, publicHref, ownerFirstName }: Props) {
+export function LostDisclosureCard({
+  prefs,
+  toggleAction,
+  publicHref,
+  ownerFirstName,
+  alertsOriginShelter,
+}: Props) {
   return (
     <section aria-labelledby="lp-discl-h">
-      <div className="mb-[12px] flex items-baseline justify-between">
+      <div className="mb-3 flex items-baseline justify-between">
         <h3
           id="lp-discl-h"
-          className="m-0 font-[var(--font-ln-serif)] text-[14px] font-semibold"
+          className="m-0 flex items-center gap-1.5 font-ln-serif text-md font-semibold"
           style={{ color: "var(--color-ln-ink)" }}
         >
+          <span className="text-[var(--color-ln-mute)]">
+            <Icon name="shield" size="sm" decorative />
+          </span>
           Qué se muestra al público
         </h3>
         <Link
           href={publicHref}
           target="_blank"
           rel="noreferrer"
-          className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] no-underline hover:underline"
+          className="font-ln-mono text-xs tracking-[.04em] no-underline hover:underline"
           style={{ color: "var(--color-ln-azul)" }}
         >
           Ver como público →
         </Link>
       </div>
 
-      <ul className="flex flex-col gap-[7px]">
-        {ROWS.map((row) => (
-          <li key={row.key}>
-            <form
-              action={async () => {
-                "use server";
-                await toggleAction(row.key, !prefs[row.key]);
-              }}
-              className="flex items-center gap-[10px] rounded-[4px] border border-[var(--color-ln-line-2)] bg-[var(--color-ln-stripe)] px-[12px] py-[9px]"
-            >
-              <div className="min-w-0 flex-1">
-                <p
-                  className="text-[12.5px] font-semibold leading-tight"
-                  style={{ color: "var(--color-ln-ink)" }}
-                >
-                  {row.label}
-                </p>
-                <p className="text-[11px]" style={{ color: "var(--color-ln-mute)" }}>
-                  {row.description}
-                </p>
-              </div>
-              {/* Amber toggle knob — server-rendered, submit on click */}
-              <button
-                type="submit"
-                role="switch"
-                aria-checked={prefs[row.key]}
-                aria-label={`Mostrar ${row.label.toLowerCase()}`}
-                className="relative mt-[1px] h-[21px] w-[38px] flex-shrink-0 cursor-pointer rounded-full transition-colors duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)]"
-                style={{
-                  background: prefs[row.key]
-                    ? "var(--color-ln-warn)"
-                    : "var(--color-ln-line-strong)",
-                }}
-              >
-                <span
-                  aria-hidden
-                  className="absolute top-[2px] h-[17px] w-[17px] rounded-full bg-white shadow-[0_1px_3px_rgba(0,0,0,.2)] transition-[left] duration-150"
-                  style={{ left: prefs[row.key] ? 19 : 2 }}
-                />
-              </button>
-            </form>
-          </li>
-        ))}
-      </ul>
+      <LnToggleGroup
+        items={ROWS.map((row) => ({
+          key: row.key,
+          label: row.label,
+          description:
+            row.key === "discloseFirstNameWhenLost" && prefs.discloseFirstNameWhenLost
+              ? `El público ve "Lo busca ${ownerFirstName}".`
+              : row.description,
+          checked: prefs[row.key],
+          variant: "amber",
+        }))}
+        onChange={(key, next) => {
+          // No local optimistic state here (checked mirrors the `prefs` prop
+          // directly) and toggleAction has no error surface of its own — the
+          // toast is the ONLY feedback the owner gets that a toggle landed
+          // (mutation-feedback convention, lib/ui/action-feedback.ts).
+          toggleAction(key as keyof DisclosurePrefs, next)
+            .then(() => notifySaved("Preferencia actualizada"))
+            .catch(() => notifyActionError("No se pudo guardar. Probá de nuevo."));
+        }}
+      />
 
-      <p
-        className="mt-[10px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em]"
-        style={{ color: "var(--color-ln-mute)" }}
-      >
-        {prefs.discloseFirstNameWhenLost
-          ? `Hoy verán "Lo busca ${ownerFirstName}".`
-          : "Hoy no se muestra tu nombre."}
-      </p>
+      {/* A5 disclosure. Sober and specific: WHAT the shelter learns, and the
+          limit — the finder's contact stays with the titular. Only rendered for
+          pets that actually have an origin shelter, so it is never an abstract
+          warning about something that cannot happen here. */}
+      {alertsOriginShelter && (
+        <p className="mt-3 text-xs leading-snug" style={{ color: "var(--color-ln-mute)" }}>
+          Esta mascota salió de un refugio. Si alguien reporta haberla encontrado, ese refugio
+          también recibe el aviso, con la zona del hallazgo. No se le comparte el contacto de quien
+          la encontró: esos datos son solo para vos.
+        </p>
+      )}
     </section>
   );
 }

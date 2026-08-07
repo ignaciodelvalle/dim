@@ -7,7 +7,7 @@ import {
   escalateStaleWelfareCase,
   findStaleWelfareCases,
 } from "@/lib/case-closers/escalate-stale-welfare-cases";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 
@@ -21,13 +21,21 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const result = await runCaseCron<StaleWelfareCandidate>({
     name: CRON_NAME,
-    scan: () => findStaleWelfareCases(),
+    // Keyset-batched: bounds a nationwide stale-case scan to BATCH_SIZE rows
+    // per page and drains the backlog across runs (review 23 item 13).
+    scan: (cursor) => findStaleWelfareCases({ afterId: cursor?.afterId, limit: cursor?.limit }),
     processOne: (candidate) => escalateStaleWelfareCase(candidate),
+    batchSize: 200,
   });
 
-  return NextResponse.json({
-    status: result.status,
-    itemsProcessed: result.itemsProcessed,
-    runId: result.runId,
-  });
+  // HTTP 500 on failure so Vercel treats the run as failed (does not swallow a
+  // failed legal-escalation as success) — review 23 item 5.
+  return NextResponse.json(
+    {
+      status: result.status,
+      itemsProcessed: result.itemsProcessed,
+      runId: result.runId,
+    },
+    { status: result.status === "ok" ? 200 : 500 },
+  );
 }

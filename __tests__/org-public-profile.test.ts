@@ -7,13 +7,21 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizations } from "@/db";
-import { queryOrgPublicProfile } from "@/lib/org-public-profile";
+import { queryOrgPublicProfile } from "@/lib/infra/org-public-profile";
 
 const TOKEN_VERIFIED_SHELTER = "DIM-PUB-VFD1";
 const TOKEN_VERIFIED_RESCUE = "DIM-PUB-VFD2";
 const TOKEN_UNVERIFIED = "DIM-PUB-UNVF";
 const TOKEN_CLINIC = "DIM-PUB-CLIN";
-const ALL_TOKENS = [TOKEN_VERIFIED_SHELTER, TOKEN_VERIFIED_RESCUE, TOKEN_UNVERIFIED, TOKEN_CLINIC];
+// P3 Phase B — canonical columns only
+const TOKEN_NEW_COLS = "DIM-PUB-NCL1"; // location_lat/location_lng set (canonical)
+const ALL_TOKENS = [
+  TOKEN_VERIFIED_SHELTER,
+  TOKEN_VERIFIED_RESCUE,
+  TOKEN_UNVERIFIED,
+  TOKEN_CLINIC,
+  TOKEN_NEW_COLS,
+];
 
 beforeAll(async () => {
   // Clean up any leftovers.
@@ -31,8 +39,9 @@ beforeAll(async () => {
       verified: true,
       description: "Cuidamos animales rescatados desde 2018.",
       discloseAddress: true,
-      latitude: "-34.603722",
-      longitude: "-58.381592",
+      // Canonical columns (Phase B reads from location_lat/lng; legacy stay until Phase C).
+      locationLat: "-34.603722",
+      locationLng: "-58.381592",
       jurisdictionProvince: "CABA",
       jurisdictionLocality: "Palermo",
     },
@@ -44,8 +53,8 @@ beforeAll(async () => {
       email: "vfd2@dim-test.local",
       verified: true,
       discloseAddress: false,
-      latitude: "-34.6",
-      longitude: "-58.4",
+      locationLat: "-34.6",
+      locationLng: "-58.4",
     },
     {
       publicToken: TOKEN_UNVERIFIED,
@@ -62,6 +71,18 @@ beforeAll(async () => {
       orgType: "clinic",
       email: "clin@dim-test.local",
       verified: true,
+    },
+    // P3 Phase B fixture: canonical columns only (post-backfill state).
+    {
+      publicToken: TOKEN_NEW_COLS,
+      legalName: "Refugio Solo Canonico SRL",
+      displayName: "Solo Canonico",
+      orgType: "shelter",
+      email: "ncl1@dim-test.local",
+      verified: true,
+      discloseAddress: true,
+      locationLat: "-34.7000000",
+      locationLng: "-58.5000000",
     },
   ]);
 });
@@ -126,5 +147,14 @@ describe("queryOrgPublicProfile — projection shape", () => {
   it("verifiedBy is null when verified_by_user_id is null (default)", async () => {
     const profile = await queryOrgPublicProfile(TOKEN_VERIFIED_SHELTER);
     expect(profile?.verifiedBy).toBeNull();
+  });
+});
+
+describe("queryOrgPublicProfile — P3 Phase B canonical read (migration 0101 backfill complete)", () => {
+  it("projects lat/lng from canonical location_lat/location_lng columns", async () => {
+    const profile = await queryOrgPublicProfile(TOKEN_NEW_COLS);
+    expect(profile).not.toBeNull();
+    expect(profile?.latitude).toBeCloseTo(-34.7, 5);
+    expect(profile?.longitude).toBeCloseTo(-58.5, 5);
   });
 });

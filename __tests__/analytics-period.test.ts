@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { resolveAnalyticsPeriod } from "@/lib/analytics-period";
+import { resolveAnalyticsPeriod } from "@/lib/analytics/analytics-period";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -33,6 +33,24 @@ describe("resolveAnalyticsPeriod", () => {
       const { since, until } = resolveAnalyticsPeriod({ period: "ytd" }, NOW);
       expect(until.getTime()).toBe(NOW);
       expect(since.toISOString().startsWith("2026-01-01")).toBe(true);
+    });
+
+    it("trailing12m → 365-day window ending now", () => {
+      const { since, until } = resolveAnalyticsPeriod({ period: "trailing12m" }, NOW);
+      expect(until.getTime()).toBe(NOW);
+      expect(since.getTime()).toBe(NOW - 365 * DAY_MS);
+    });
+
+    it("3y → 3-year window ending now (Panorama multi-year default)", () => {
+      const { since, until } = resolveAnalyticsPeriod({ period: "3y" }, NOW);
+      expect(until.getTime()).toBe(NOW);
+      expect(since.getTime()).toBe(NOW - 3 * 365 * DAY_MS);
+    });
+
+    it("5y → 5-year window ending now", () => {
+      const { since, until } = resolveAnalyticsPeriod({ period: "5y" }, NOW);
+      expect(until.getTime()).toBe(NOW);
+      expect(since.getTime()).toBe(NOW - 5 * 365 * DAY_MS);
     });
   });
 

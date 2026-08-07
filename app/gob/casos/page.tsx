@@ -1,130 +1,98 @@
-// Govt-scope case index. Lists every case whose jurisdiction matches
-// the govt's active assignments (province + locality). Admins see the
-// same view but redirected via /admin/casos.
+// /gob/casos — the Casos hub.
+//
+// F6 fusion (2026-07-22, PO-approved route unification: the "expediente"
+// family — same legal-administrative operator works both, identical
+// case-file grammar of open/parties/resolve): the hub ABSORBS Disputas as a
+// TABBED EXPEDIENTE (`?expediente=casos|disputas`) of one screen. A
+// regulatory case and a custody dispute are different legal instruments, but
+// the SAME operator triages both with the SAME open→act→resolve rhythm —
+// unlike Denuncias' daily triage queue, this is the formal-follow-up family.
+//
+// /gob/disputas now permanently redirects here (query params preserved —
+// see lib/ui/casos-hub-redirect.ts); its [disputeToken] detail route is
+// UNCHANGED. Admin has no /admin/disputas twin (disputes are a /gob-only
+// surface — govt jurisdiction custody disputes), so /admin/casos is
+// untouched: it keeps its own single-purpose page, no tabs.
+//
+// Default expediente = "casos" — the higher-volume, higher-generality
+// queue (spans every case kind, incl. maltrato/decomiso escalations);
+// disputas is the narrower custody-specific instrument.
+//
+// The two expediente screens are IMPORTED, not rewritten — this is a
+// relocation, not a redesign. Each keeps its own searchParams contract, its
+// own auth guard, its own query logic, byte-identical to the former
+// standalone pages (see CasosScreen / DisputasScreen).
 
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { Suspense } from "react";
 
-import { CaseBadge } from "@/components/CaseBadge";
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { listCasesForGovt } from "@/lib/case-queries";
-import { formatDate } from "@/lib/format";
-import { newerHref, olderHref } from "@/lib/keyset-pagination";
+import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
 
-const GOVT_CASOS_PAGE_LIMIT = 300;
+import { DisputasScreen } from "@/app/gob/disputas/DisputasScreen";
+import { CasosScreen } from "./CasosScreen";
 
-export default async function GovtCasosPage({
+export const dynamic = "force-dynamic";
+
+type Expediente = "casos" | "disputas";
+const DEFAULT_EXPEDIENTE: Expediente = "casos";
+
+function parseExpediente(raw: string | undefined): Expediente {
+  return raw === "disputas" ? "disputas" : DEFAULT_EXPEDIENTE;
+}
+
+const EXPEDIENTE_TABS: UrlTabItem[] = [
+  { value: "casos", label: "Casos" },
+  { value: "disputas", label: "Disputas" },
+];
+
+// A tab switch invalidates state that only makes sense under the PREVIOUS
+// expediente — casos' kind/province filters and keyset cursor have no
+// meaning for the disputas queue (which has neither a kind/province axis nor
+// pagination). `status` is intentionally NOT reset: both queues share the
+// exact same open|closed|all vocabulary (disputas' parseStatus already
+// treats "all" as "no filter", same as casos), so staying on e.g. "closed"
+// while switching tabs is a feature, not a bug.
+const EXPEDIENTE_RESET_PARAMS = ["cursor", "kind", "province"] as const;
+
+export default async function GobCasosPage({
   searchParams,
 }: {
-  searchParams: Promise<{ cursor?: string }>;
+  searchParams: Promise<Record<string, string | undefined>>;
 }) {
-  const session = await requireAdminOrGovtOrRedirect();
-  if (session.profile.role === "admin") redirect("/admin/casos");
-
-  const { cursor: rawCursor } = await searchParams;
-
-  // Fetch limit+1 to detect hasMore.
-  const rawItems = await listCasesForGovt(session.jurisdictions, {
-    limit: GOVT_CASOS_PAGE_LIMIT + 1,
-    cursor: rawCursor,
-  });
-  const hasMore = rawItems.length > GOVT_CASOS_PAGE_LIMIT;
-  const items = hasMore ? rawItems.slice(0, GOVT_CASOS_PAGE_LIMIT) : rawItems;
-
-  const lastItem = items.at(-1);
-  const olderLink =
-    hasMore && lastItem
-      ? olderHref("/gob/casos", {}, { ts: lastItem.openedAt, id: lastItem.id })
-      : null;
-  const newerLink = rawCursor ? newerHref("/gob/casos", {}) : null;
+  const sp = await searchParams;
+  const expediente = parseExpediente(sp.expediente);
 
   return (
-    <main className="mx-auto max-w-5xl px-4 py-8">
-      <header className="mb-6 space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Casos regulatorios
+    <div className="space-y-6">
+      <header className="space-y-1">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Casos</p>
+        <h1 className="text-title font-semibold text-ln-op-ink">
+          ¿Qué expediente necesita mi próxima acción?
+        </h1>
+        {/* max-w-prose removed (hub-header wrap fix, validacion-A 2026-07-23):
+            see app/gob/padron/page.tsx for the full rationale. */}
+        <p className="text-md text-ln-op-ink-2">
+          Casos regulatorios y disputas de custodia comparten la misma gramática de expediente —
+          abrir, sumar partes, resolver. Elegí el expediente en el que querés trabajar ahora.
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Casos</h1>
-        <p className="text-[13px] text-ln-op-mute">Expedientes en tu jurisdicción asignada.</p>
       </header>
 
-      {session.jurisdictions.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          No tenés jurisdicciones asignadas todavía.
-        </p>
-      ) : items.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Sin casos en tu jurisdicción por ahora.
-        </p>
-      ) : (
-        <OpCard>
-          <OpCardHead title={`${items.length} caso${items.length === 1 ? "" : "s"}`} />
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line-2">
-              {items.map((c) => (
-                <li
-                  key={c.id}
-                  className="flex flex-col gap-3 px-4 py-3 odd:bg-ln-op-stripe md:flex-row md:items-center md:justify-between"
-                >
-                  <div className="flex flex-col gap-1">
-                    <CaseBadge
-                      publicCode={c.publicCode}
-                      caseKind={c.caseKind}
-                      status={c.status}
-                      size="sm"
-                    />
-                    <span className="text-[12px] text-ln-op-mute">
-                      {c.jurisdictionLocality}, {c.jurisdictionProvince} · Abierto el{" "}
-                      {formatDate(c.openedAt)}
-                      {c.closedAt ? ` · Cerrado el ${formatDate(c.closedAt)}` : ""}
-                    </span>
-                  </div>
-                  {c.primaryPetPublicToken && c.primaryPetName ? (
-                    <Link
-                      href={`/mis-mascotas/${c.primaryPetPublicToken}`}
-                      className="inline-flex items-center rounded-full bg-ln-op-stripe border border-ln-op-line px-3 py-1.5 text-[13px] text-ln-op-ink transition hover:bg-ln-op-line no-underline"
-                    >
-                      🐾 {c.primaryPetName}
-                    </Link>
-                  ) : (
-                    <span className="text-[13px] text-ln-op-mute">Caso sin mascota registrada</span>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </OpCardBody>
-        </OpCard>
-      )}
-
-      {/* Pagination footer */}
-      {(newerLink || olderLink) && (
-        <nav
-          aria-label="Paginación de casos"
-          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
+      <Suspense>
+        <UrlTabs
+          paramKey="expediente"
+          defaultValue={DEFAULT_EXPEDIENTE}
+          tabs={EXPEDIENTE_TABS}
+          resetParamsOnChange={EXPEDIENTE_RESET_PARAMS}
+          aria-label="Expediente de Casos"
         >
-          <div>
-            {newerLink && (
-              <Link
-                href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
-              >
-                ← Más recientes
-              </Link>
+          <UrlTabsContent value={expediente}>
+            {expediente === "disputas" ? (
+              <DisputasScreen searchParams={sp} underHub />
+            ) : (
+              <CasosScreen searchParams={sp} underHub />
             )}
-          </div>
-          <div>
-            {olderLink && (
-              <Link
-                href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
-              >
-                Ver más antiguos →
-              </Link>
-            )}
-          </div>
-        </nav>
-      )}
-    </main>
+          </UrlTabsContent>
+        </UrlTabs>
+      </Suspense>
+    </div>
   );
 }

@@ -11,8 +11,9 @@
 //   - Per-pet try/catch isolates failures (one failure doesn't stop the batch).
 //   - AUDIT_LOG: NONE.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
+import { resolveObservationDeadline } from "../domain/rabies-observation";
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import type { NewNotification } from "./types";
 
@@ -26,10 +27,22 @@ export type CloseRabiesObservationsStats = {
   flaggedForReview: number;
   skippedNotYetDue: number;
   errors: { petId: string; reason: string }[];
+  /**
+   * Keyset resume point (review 23 fleet extension): the last pet id on this
+   * page when a FULL page was returned (more may remain), else null when the
+   * in_progress set was drained. The cron route persists this in
+   * cron_runs.details and passes it back as `afterId` next run, so a registry
+   * with more concurrent observations than one page is swept fairly across runs.
+   */
+  nextCursor: string | null;
 };
 
 export type CloseEligibleObservationsOptions = {
   now?: Date;
+  /** Keyset cursor: process in_progress pets whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max pets to scan this run. Defaults to the repo's page size (500). */
+  limit?: number;
 };
 
 type Deps = {
@@ -69,10 +82,20 @@ export async function closeEligibleObservations(
     flaggedForReview: 0,
     skippedNotYetDue: 0,
     errors: [],
+    nextCursor: null,
   };
 
-  const eligible = await repo.findPetsInProgress();
+  const PAGE_LIMIT = options.limit ?? 500;
+  const eligible = await repo.findPetsInProgress({
+    afterId: options.afterId ?? null,
+    limit: PAGE_LIMIT,
+  });
   stats.scanned = eligible.length;
+  // A full page means more in_progress pets may remain past this cursor — the
+  // route resumes AFTER the last id next run. A partial page means drained →
+  // null wraps the sweep back to the top.
+  stats.nextCursor =
+    eligible.length >= PAGE_LIMIT ? (eligible[eligible.length - 1]?.id ?? null) : null;
 
   for (const pet of eligible) {
     try {
@@ -87,15 +110,16 @@ export async function closeEligibleObservations(
       }
 
       const startedPayload = startedEvent.payload as Record<string, unknown>;
-      const observationUntilRaw = startedPayload.observation_until as string | undefined;
-      const observationUntil = observationUntilRaw ? new Date(observationUntilRaw) : null;
-      if (!observationUntil || !Number.isFinite(observationUntil.getTime())) {
-        stats.errors.push({
-          petId: pet.id,
-          reason: "observation_until missing or invalid in started payload",
-        });
-        continue;
-      }
+      // Fallback deadline (T4.13 extracted this into the shared domain
+      // helper, 2026-08-01): when the started payload has no (or an invalid)
+      // observation_until, derive it from when the observation started + the
+      // legal 10-day window. Older/seed observations without the field would
+      // otherwise stay EN CURSO forever — the deadline is always computable.
+      // Reused verbatim by /admin/observaciones's "Cierre estimado" fallback.
+      const observationUntil = resolveObservationDeadline(
+        startedPayload.observation_until,
+        startedEvent.occurredAt,
+      );
 
       // 2. Not yet due — skip.
       if (observationUntil > now) {
@@ -143,7 +167,10 @@ export async function closeEligibleObservations(
       }
 
       // 4. Happy path: auto-close as negative.
-      const biteEventId = startedPayload.bite_event_id as string;
+      // Coalesce to null (schema now accepts it) so a seed/older observation
+      // without a linked bite event still auto-closes instead of throwing a
+      // zod error that would leave it EN CURSO indefinitely.
+      const biteEventId = (startedPayload.bite_event_id as string | undefined) ?? null;
       const biteCase = await repo.findOpenBiteCase(pet.id);
 
       await transaction(async (tx) => {

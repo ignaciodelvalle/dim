@@ -1,8 +1,9 @@
 import Link from "next/link";
 
-import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/adoption-listing";
-import { PROVINCES } from "@/lib/ar-provincias";
-import { petPhotoUrl } from "@/lib/storage";
+import { ageBucketLabel, energyLabel, sizeLabel } from "@/lib/infra/adoption-listing";
+import { petPhotoUrl } from "@/lib/infra/storage";
+import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { sterilizedLabel } from "@/lib/utils/format";
 import type { queryAdoptionListing } from "@/src/modules/adoption/infrastructure/adoption-listing-read";
 
 // Single source of truth for the adoption-listing pet card. Consumed by:
@@ -43,20 +44,31 @@ export function AdoptionListingCard({
   const facts: string[] = [];
   if (item.adoptionAgeBucket) facts.push(ageBucketLabel(item.adoptionAgeBucket, item.sex));
   if (item.adoptionSizeEstimate) facts.push(sizeLabel(item.adoptionSizeEstimate));
-  if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel));
+  if (item.adoptionEnergyLevel) facts.push(energyLabel(item.adoptionEnergyLevel, item.sex));
 
-  const sterilizedLabel = item.sex === "female" ? "Castrada" : "Castrado";
+  // Shared so all four surfaces agree, and so an unknown-sex pet reads
+  // "Castrado/a" instead of being silently called male.
+  const sterilizedText = sterilizedLabel(item.sex);
   const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
   const isNew = Date.now() - new Date(item.adoptionListedAt).getTime() < SEVEN_DAYS_MS;
 
+  const petHref = `/adoptar/${item.petPublicToken}`;
+
   return (
-    <li className="rounded-xl border border-ln-line overflow-hidden bg-ln-card hover:shadow-lg transition-shadow">
-      <Link href={`/adoptar/${item.petPublicToken}`} className="block">
+    <li className="rounded-xl border border-ln-line overflow-hidden bg-ln-card hover:shadow-lg transition-shadow relative">
+      {/* Single anchor covering the image + name area — no nested anchors.
+          The org publisher link below is positioned above this via z-index. */}
+      <Link
+        href={petHref}
+        className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul"
+      >
         <div className="aspect-square bg-ln-stripe relative">
           {photoUrl ? (
             <img
               src={photoUrl}
-              alt={item.name}
+              // Decorative inside the card link: the heading below already
+              // names the pet, so a non-empty alt reads the name twice.
+              alt=""
               className="absolute inset-0 w-full h-full object-cover"
             />
           ) : (
@@ -65,15 +77,15 @@ export function AdoptionListingCard({
             </div>
           )}
           {/* Top-left: sterilized / chip health chips */}
-          {(item.isSterilized || item.microchipId) && (
+          {(item.isSterilized || item.hasMicrochip) && (
             <div className="absolute top-2 left-2 flex flex-wrap gap-1">
               {item.isSterilized && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-ln-ok text-white">
-                  {sterilizedLabel}
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-ok text-white">
+                  {sterilizedText}
                 </span>
               )}
-              {item.microchipId && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-ln-celeste text-white">
+              {item.hasMicrochip && (
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-celeste text-white">
                   Con chip
                 </span>
               )}
@@ -82,7 +94,7 @@ export function AdoptionListingCard({
           {/* Top-right: "Nuevo" badge for recently listed pets (≤7 days) */}
           {isNew && (
             <span
-              className="absolute top-2 right-2 text-[10px] font-semibold px-2 py-0.5 rounded-full border"
+              className="absolute top-2 right-2 text-xs font-semibold px-2 py-0.5 rounded-full border"
               style={{
                 background: "var(--color-ln-ok-050)",
                 color: "var(--color-ln-ok)",
@@ -108,19 +120,21 @@ export function AdoptionListingCard({
           {variant === "default" && item.adoptionStory && (
             <p className="text-xs text-ln-ink-2 line-clamp-3">{item.adoptionStory}</p>
           )}
-          {showPublisher && (
-            <p className="text-[11px] text-ln-mute pt-1 border-t border-ln-stripe">
-              Publica:{" "}
-              <Link
-                href={`/refugios/${item.orgPublicToken}`}
-                className="underline hover:text-ln-ink"
-              >
-                {item.orgDisplayName}
-              </Link>
-            </p>
-          )}
+          {/* Publisher slot: empty placeholder keeps card height consistent when
+              showPublisher is false and prevents layout shift. */}
+          {showPublisher && <div className="pt-1 border-t border-ln-stripe" />}
         </div>
       </Link>
+      {/* Publisher link — rendered outside the card anchor so it is never
+          nested inside another <a>. Positioned at the bottom of the card. */}
+      {showPublisher && (
+        <p className="text-sm text-ln-mute px-4 pb-4 -mt-2 relative z-10">
+          Publica:{" "}
+          <Link href={`/refugios/${item.orgPublicToken}`} className="underline hover:text-ln-ink">
+            {item.orgDisplayName}
+          </Link>
+        </p>
+      )}
     </li>
   );
 }

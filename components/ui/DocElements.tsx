@@ -39,7 +39,7 @@ export function LnDocCode({ children, className = "" }: LnDocCodeProps) {
   return (
     <span
       className={[
-        "ml-auto font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-faint)]",
+        "ml-auto font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-faint)]",
         className,
       ]
         .filter(Boolean)
@@ -72,7 +72,7 @@ export function LnSeal({
       style={{ width: size, height: size }}
       className={[
         "grid flex-shrink-0 place-items-center rounded-full border-2 border-[var(--color-ln-azul)] text-center",
-        "font-[var(--font-ln-mono)] text-[7px] uppercase leading-[1.25] tracking-[.06em] text-[var(--color-ln-azul)]",
+        "font-ln-mono text-[7px] uppercase leading-[1.25] tracking-[.06em] text-[var(--color-ln-azul)]",
         "-rotate-9 opacity-82",
         className,
       ]
@@ -98,7 +98,7 @@ export function LnLabel({ children, className = "" }: { children: ReactNode; cla
   return (
     <span
       className={[
-        "font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]",
+        "font-ln-mono text-xs font-semibold uppercase tracking-[.14em] text-[var(--color-ln-mute)]",
         className,
       ]
         .filter(Boolean)
@@ -122,22 +122,22 @@ export function LnSectionHead({ num, title, meta, className = "" }: LnSectionHea
   return (
     <div
       className={[
-        "mb-[16px] flex items-baseline gap-[14px] border-b-2 border-[var(--color-ln-ink)] pb-[10px]",
+        "mb-4 flex items-baseline gap-3.5 border-b-2 border-[var(--color-ln-ink)] pb-2.5",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
       {num && (
-        <span className="font-[var(--font-ln-mono)] text-[12px] font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
+        <span className="font-ln-mono text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
           {num}
         </span>
       )}
-      <h2 className="m-0 font-[var(--font-ln-serif)] text-[21px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
+      <h2 className="m-0 font-ln-serif text-title font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
         {title}
       </h2>
       {meta && (
-        <span className="ml-auto self-center font-[var(--font-ln-mono)] text-[11px] tracking-[.02em] text-[var(--color-ln-mute)]">
+        <span className="ml-auto self-center font-ln-mono text-sm tracking-[.02em] text-[var(--color-ln-mute)]">
           {meta}
         </span>
       )}
@@ -147,7 +147,7 @@ export function LnSectionHead({ num, title, meta, className = "" }: LnSectionHea
 
 // ---------- Callout banner ------------------------------------------------
 
-export type LnCalloutTone = "azul" | "warn";
+export type LnCalloutTone = "azul" | "warn" | "danger";
 
 export type LnCalloutProps = {
   tone?: LnCalloutTone;
@@ -158,22 +158,24 @@ export type LnCalloutProps = {
 
 export function LnCallout({ tone = "azul", title, children, className = "" }: LnCalloutProps) {
   const colors =
-    tone === "warn"
-      ? "bg-[var(--color-ln-warn-025)] border-[var(--color-ln-warn-100)] [border-left-color:var(--color-ln-warn)]"
-      : "bg-[var(--color-ln-celeste-050)] border-[var(--color-ln-celeste-100)] [border-left-color:var(--color-ln-azul)]";
+    tone === "danger"
+      ? "bg-[var(--color-ln-err-050)] border-[var(--color-ln-err-100)] [border-left-color:var(--color-ln-err)]"
+      : tone === "warn"
+        ? "bg-[var(--color-ln-warn-025)] border-[var(--color-ln-warn-100)] [border-left-color:var(--color-ln-warn)]"
+        : "bg-[var(--color-ln-celeste-050)] border-[var(--color-ln-celeste-100)] [border-left-color:var(--color-ln-azul)]";
 
   return (
     <div
-      className={["rounded-[4px] border border-l-[3px] px-[14px] py-[12px]", colors, className]
+      className={["rounded-[var(--radius-sm)] border border-l-[3px] px-3.5 py-3", colors, className]
         .filter(Boolean)
         .join(" ")}
     >
       {title && (
-        <p className="mb-[4px] flex items-center gap-[7px] text-[12.5px] font-semibold text-[var(--color-ln-ink)]">
+        <p className="mb-1 flex items-center gap-[7px] text-md font-semibold text-[var(--color-ln-ink)]">
           {title}
         </p>
       )}
-      <p className="text-[11.5px] leading-[1.5] text-[var(--color-ln-ink-2)]">{children}</p>
+      <p className="text-sm leading-[1.5] text-[var(--color-ln-ink-2)]">{children}</p>
     </div>
   );
 }

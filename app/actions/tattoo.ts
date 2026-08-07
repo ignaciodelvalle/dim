@@ -1,128 +1,29 @@
 "use server";
 
-import { redirect } from "next/navigation";
-
-import { attachments, db, petEvents, petIdentifications } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
-import { parseDateInput } from "@/lib/format";
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
+import { type SupabaseServerClient, requireAlivePetAccess } from "@/lib/infra/pet-access";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
+import { parseDateInput } from "@/lib/utils/format";
 import {
-  type PetEventAuthorship,
-  type SupabaseServerClient,
-  requireAlivePetAccess,
-} from "@/lib/pet-access";
-import { normalizeTattooCode } from "@/lib/tattoo-lookup";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
+  VALID_LOCATIONS,
+  createTattooForUser as _createTattooForUser,
+} from "@/src/modules/pets/application/tattoo/create-tattoo";
+import type { EventFormState, TattooLocation } from "@/src/modules/pets/application/tattoo/types";
 
-export type EventFormState = { error: string | null };
+// ---------------------------------------------------------------------------
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
 
-export type TattooLocation =
-  | "inner_ear_left"
-  | "inner_ear_right"
-  | "inner_thigh"
-  | "belly"
-  | "other";
+export type {
+  CreateTattooResult,
+  EventFormState,
+  TattooInput,
+  TattooLocation,
+} from "@/src/modules/pets/application/tattoo/types";
 
-const VALID_LOCATIONS: readonly TattooLocation[] = [
-  "inner_ear_left",
-  "inner_ear_right",
-  "inner_thigh",
-  "belly",
-  "other",
-];
-
-export type TattooInput = {
-  code: string;
-  location: TattooLocation | null;
-  description: string | null;
-  recordedAt: Date | null;
-  recordedBy: string | null;
-  uploadedAttachment: { path: string; mimeType: string; size: number };
-};
-
-export type CreateTattooResult = { ok: true; eventId: string } | { error: string };
-
-// Inner writer — testable without Next.js request context. The outer action
-// resolves access + uploads the photo + delegates here. Photo upload happens
-// outside the transaction so a failed insert doesn't leak orphan bytes; the
-// outer action cleans up on failure.
-export async function createTattooForUser(
-  petId: string,
-  userId: string,
-  eventAuthorship: PetEventAuthorship,
-  input: TattooInput,
-): Promise<CreateTattooResult> {
-  const normalizedCode = normalizeTattooCode(input.code);
-  if (!normalizedCode) return { error: "Falta el código del tatuaje." };
-
-  if (input.location !== null && !VALID_LOCATIONS.includes(input.location)) {
-    return { error: "Ubicación del tatuaje inválida." };
-  }
-
-  const now = new Date();
-  const recordedAtIso = input.recordedAt ? input.recordedAt.toISOString().slice(0, 10) : null;
-
-  try {
-    const result = await db.transaction(async (tx) => {
-      const eventPayload = validateEventPayload("tattoo_recorded", {
-        tattoo_code: normalizedCode,
-        location_on_body: input.location,
-        description: input.description,
-        recorded_by: input.recordedBy,
-        recorded_at: recordedAtIso,
-        tattoo_date_known: input.recordedAt !== null,
-      });
-
-      const [event] = await tx
-        .insert(petEvents)
-        .values({
-          petId,
-          eventType: "tattoo_recorded",
-          occurredAt: input.recordedAt ?? now,
-          recordedAt: now,
-          recordedByUserId: userId,
-          ...eventAuthorship,
-          payload: eventPayload,
-        })
-        .returning();
-
-      const [attachment] = await tx
-        .insert(attachments)
-        .values({
-          petId,
-          eventId: event.id,
-          uploadedByUserId: userId,
-          storagePath: input.uploadedAttachment.path,
-          mimeType: input.uploadedAttachment.mimeType,
-          fileSize: input.uploadedAttachment.size,
-        })
-        .returning();
-
-      // Canonical write to pet_identifications (legacy pets.* tattoo columns
-      // removed — ARCH-R. Migration 0084 drops the columns next PR).
-      await tx.insert(petIdentifications).values({
-        petId,
-        kind: "tattoo",
-        code: normalizedCode,
-        recordedAt: recordedAtIso ?? now.toISOString().slice(0, 10),
-        recordedByUserId: userId,
-        recordedByLabel: input.recordedBy,
-        photoId: attachment.id,
-        tattooLocation: input.location,
-        tattooDescription: input.description,
-      });
-
-      return { ok: true as const, eventId: event.id };
-    });
-
-    return result;
-  } catch (err) {
-    return {
-      error: `No se pudo registrar el tatuaje: ${
-        err instanceof Error ? err.message : "error desconocido"
-      }`,
-    };
-  }
-}
+// ---------------------------------------------------------------------------
+// Private helper — cleanup on failed insert (stays in shim: uses SupabaseServerClient).
+// ---------------------------------------------------------------------------
 
 async function cleanupAttachment(
   supabase: SupabaseServerClient,
@@ -135,6 +36,27 @@ async function cleanupAttachment(
     // Orphan file at worst — the row was never inserted.
   }
 }
+
+// ---------------------------------------------------------------------------
+// Private helper — optional recordedAt: parse + date-only plausibility guard
+// (PO decision 2026-07-16 — same family as P4 item 1 on the events edge).
+// ---------------------------------------------------------------------------
+
+function parseRecordedAt(
+  raw: string,
+  petDateOfBirth: string | null,
+): { ok: true; recordedAt: Date | null } | { ok: false; error: string } {
+  if (!raw) return { ok: true, recordedAt: null };
+  const recordedAt = parseDateInput(raw);
+  if (!recordedAt) return { ok: false, error: "Fecha del tatuaje inválida." };
+  const plausibility = checkOccurredAtPlausible(recordedAt, petDateOfBirth);
+  if (plausibility) return { ok: false, error: plausibility.error };
+  return { ok: true, recordedAt };
+}
+
+// ---------------------------------------------------------------------------
+// Outer server action — gates via requireAlivePetAccess, then delegates to writer.
+// ---------------------------------------------------------------------------
 
 export async function createTattooAction(
   publicToken: string,
@@ -150,6 +72,7 @@ export async function createTattooAction(
   const description = String(formData.get("description") ?? "").trim() || null;
   const recordedBy = String(formData.get("recordedBy") ?? "").trim() || null;
   const recordedAtRaw = String(formData.get("recordedAt") ?? "").trim();
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   if (!code) return { error: "Falta el código del tatuaje." };
 
@@ -157,10 +80,9 @@ export async function createTattooAction(
     ? (locationRaw as TattooLocation)
     : null;
 
-  const recordedAt = recordedAtRaw ? parseDateInput(recordedAtRaw) : null;
-  if (recordedAtRaw && !recordedAt) {
-    return { error: "Fecha del tatuaje inválida." };
-  }
+  const recordedAtParsed = parseRecordedAt(recordedAtRaw, pet.dateOfBirth);
+  if (!recordedAtParsed.ok) return { error: recordedAtParsed.error };
+  const { recordedAt } = recordedAtParsed;
 
   const attachmentFile = formData.get("attachment") as File | null;
   if (!attachmentFile || attachmentFile.size === 0) {
@@ -176,7 +98,7 @@ export async function createTattooAction(
     return { error: "No se pudo subir la foto del tatuaje." };
   }
 
-  const result = await createTattooForUser(pet.id, user.id, eventAuthorship, {
+  const result = await _createTattooForUser(pet.id, user.id, eventAuthorship, {
     code,
     location,
     description,
@@ -187,6 +109,7 @@ export async function createTattooAction(
       mimeType: upload.mimeType ?? "image/jpeg",
       size: upload.size ?? 0,
     },
+    clientIdempotencyKey,
   });
 
   if ("error" in result) {
@@ -194,5 +117,12 @@ export async function createTattooAction(
     return { error: result.error };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  // Duplicate submit deduped by idempotency key — the original attachment is
+  // already linked to the event; remove the redundant upload.
+  if (result.wasNoop) {
+    await cleanupAttachment(supabase, upload.uploadedPath);
+  }
+
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/mis-mascotas/${publicToken}` };
 }

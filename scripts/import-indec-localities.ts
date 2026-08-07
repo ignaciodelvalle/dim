@@ -20,28 +20,52 @@
  *       * "Componente de localidad compuesta" → mapped to category='componente'
  *         (CABA barrios, since CABA is one composite locality in INDEC's model)
  *
+ * Data source resolution (checked in order):
+ *   1. `INDEC_LOCALITIES_CSV` env var — absolute or repo-relative path to a
+ *      local CSV file (vendored dataset). Fastest, no network dependency.
+ *      Example: INDEC_LOCALITIES_CSV=scripts/__fixtures__/indec-localidades-sample.csv
+ *   2. `--source-url=<url>` CLI flag — fetch from an explicit URL.
+ *   3. Default live URL (datos.gob.ar). If the fetch fails, the script
+ *      falls back to the bundled sample fixture with a warning so that
+ *      `db:bootstrap` / CI never hard-fail due to a network hiccup.
+ *
  * Run:
  *   pnpm tsx scripts/import-indec-localities.ts            # apply (writes to DB)
  *   pnpm tsx scripts/import-indec-localities.ts --dry-run  # parse + count only
  *   pnpm tsx scripts/import-indec-localities.ts --source-url=<override>
+ *   INDEC_LOCALITIES_CSV=/path/to/full.csv pnpm tsx scripts/import-indec-localities.ts
  *
  * Idempotent: re-running a second time produces no changes when the CSV is
  * unchanged. Soft-deletes rows that disappear from the source between runs.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { parse } from "csv-parse/sync";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 import {
   type ArgentineLocalityCategory,
   type ArgentineLocalitySource,
+  type NewArgentineLocality,
   arLocalities,
   arLocalitiesImportRuns,
   db,
 } from "@/db";
-import type { ProvinceCode } from "@/lib/ar-provincias";
+import type { ProvinceCode } from "@/lib/reference/ar-provincias";
+import { isWholeProvinceAggregate } from "@/lib/reference/locality-integrity";
 
 const DEFAULT_SOURCE_URL = "https://infra.datos.gob.ar/georef/localidades_censales.csv";
+
+// Bundled sample fixture used as a last-resort fallback when the live source is
+// unreachable and no vendored CSV has been configured. Keeps bootstrap/CI green
+// even when datos.gob.ar is down — at the cost of only loading a small subset.
+const FALLBACK_FIXTURE_PATH = join(
+  import.meta.dirname ?? __dirname,
+  "__fixtures__",
+  "indec-localidades-sample.csv",
+);
 
 // INDEC 2-digit provincia codes → ISO 3166-2:AR codes used by lib/ar-provincias.
 // Verified against the live dataset (provincia_id + provincia_nombre pairs)
@@ -85,8 +109,42 @@ function normalizeCategory(raw: string): ArgentineLocalityCategory | null {
   return null;
 }
 
+// Boundary guard: keep encoding filth out of the catalog at ingest time.
+//
+// The INDEC feed (and any vendored CSV that passed through a mis-encoded editor)
+// can carry (a) a U+00AD SOFT HYPHEN colada mid-word - invisible, but it corrupts
+// equality + search on the name ("Agustin Roca" with a hidden soft hyphen, cowork
+// demo 2026-07-18); and (b) the classic UTF-8-read-as-CP1252 double-encoding
+// artifacts (two-byte sequences that render as A-tilde + a symbol). We REPAIR the
+// known double-encodings back to the real accented letter, STRIP the stray soft
+// hyphen and any U+FFFD replacement char, then NFC-normalize - so the persisted
+// name is what a Spanish reader expects and the encoding-fitness test never has to
+// catch it downstream. Order matters: repair the two-byte sequences (some contain
+// a U+00AD byte) BEFORE stripping soft hyphens. All non-ASCII targets are written
+// as \u escapes so THIS file stays clean under the soft-hyphen scan (scripts/ is scanned).
+const MOJIBAKE_REPAIRS: Array<[RegExp, string]> = [
+  [/\u00C3\u00A1/g, "\u00E1"],
+  [/\u00C3\u00A9/g, "\u00E9"],
+  [/\u00C3\u00AD/g, "\u00ED"],
+  [/\u00C3\u00B3/g, "\u00F3"],
+  [/\u00C3\u00BA/g, "\u00FA"],
+  [/\u00C3\u00B1/g, "\u00F1"],
+  [/\u00C3\u00A0/g, "\u00E0"],
+  [/\u00C3\u00BC/g, "\u00FC"],
+  [/\u00C2\u00BF/g, "\u00BF"],
+  [/\u00C2\u00B0/g, "\u00B0"],
+];
+
+export function sanitizeLocalityText(raw: string): string {
+  let s = raw;
+  for (const [bad, good] of MOJIBAKE_REPAIRS) s = s.replace(bad, good);
+  // Strip stray U+00AD soft hyphens and any U+FFFD replacement chars.
+  s = s.replace(/[\u00AD\uFFFD]/g, "");
+  return s.normalize("NFC").trim();
+}
+
 function slugify(s: string): string {
-  return s
+  return sanitizeLocalityText(s)
     .normalize("NFD")
     .replace(/\p{M}/gu, "")
     .toLowerCase()
@@ -114,14 +172,25 @@ export type ImportStats = {
   removed: number;
   skipped: number;
   errors: { row: number; reason: string }[];
+  /** True when the live fetch failed and the bundled sample fixture was used instead. */
+  usedFallback?: boolean;
 };
 
 export async function runImport(options?: {
   dryRun?: boolean;
+  /** Explicit URL to fetch the CSV from. Takes precedence over INDEC_LOCALITIES_CSV. */
   sourceUrl?: string;
+  /**
+   * Absolute or repo-relative path to a local CSV file. When set, no network
+   * request is made. Defaults to the INDEC_LOCALITIES_CSV env var if present.
+   */
+  localCsvPath?: string;
 }): Promise<ImportStats> {
   const dryRun = options?.dryRun ?? false;
-  const sourceUrl = options?.sourceUrl ?? DEFAULT_SOURCE_URL;
+  const localCsvPath = options?.localCsvPath ?? process.env.INDEC_LOCALITIES_CSV;
+  const sourceUrl = localCsvPath
+    ? `file://${localCsvPath}`
+    : (options?.sourceUrl ?? DEFAULT_SOURCE_URL);
   const source: ArgentineLocalitySource = "indec_cppdyl";
 
   // 1. Open the import run row first so partial / failed runs are still traced.
@@ -139,16 +208,56 @@ export async function runImport(options?: {
     removed: 0,
     skipped: 0,
     errors: [],
+    usedFallback: false,
   };
 
+  // Track whether we fell back to the bundled fixture so the caller (and logs)
+  // can distinguish a degraded-mode run from a full-catalog run.
+  let usedFallback = false;
+
   try {
-    // 2. Download the CSV.
-    const res = await fetch(sourceUrl);
-    if (!res.ok) {
-      throw new Error(`Failed to fetch CSV: ${res.status} ${res.statusText}`);
+    // 2. Load the CSV — from a local file, a URL, or the fallback fixture.
+    let csvText: string;
+    let sourceVersion: string;
+
+    if (localCsvPath) {
+      // Vendored local file: no network dependency.
+      console.log(`Loading CSV from local file: ${localCsvPath}`);
+      csvText = readFileSync(localCsvPath, "utf-8");
+      sourceVersion = new Date().toISOString().slice(0, 10);
+    } else {
+      // Remote fetch — attempt live source, fall back to fixture on failure.
+      let fetchOk = false;
+      try {
+        const res = await fetch(sourceUrl);
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} ${res.statusText}`);
+        }
+        csvText = await res.text();
+        sourceVersion = res.headers.get("last-modified") ?? new Date().toISOString().slice(0, 10);
+        fetchOk = true;
+      } catch (fetchErr) {
+        console.warn(
+          `[import-indec-localities] WARNING: live fetch failed (${fetchErr instanceof Error ? fetchErr.message : String(fetchErr)}).`,
+        );
+        console.warn(
+          `[import-indec-localities] Falling back to bundled sample fixture (${FALLBACK_FIXTURE_PATH}).`,
+        );
+        console.warn(
+          "[import-indec-localities] The catalog will be INCOMPLETE. Run the import again once the source is reachable,",
+        );
+        console.warn(
+          "[import-indec-localities] or set INDEC_LOCALITIES_CSV to a vendored full CSV before bootstrapping.",
+        );
+        csvText = readFileSync(FALLBACK_FIXTURE_PATH, "utf-8");
+        sourceVersion = "fallback-fixture";
+        usedFallback = true;
+      }
+      if (!fetchOk && !usedFallback) {
+        // Should not reach here, but keeps TS happy.
+        throw new Error("CSV loading failed unexpectedly.");
+      }
     }
-    const csvText = await res.text();
-    const sourceVersion = res.headers.get("last-modified") ?? new Date().toISOString().slice(0, 10);
 
     // 3. Parse.
     const records: Record<string, string>[] = parse(csvText, {
@@ -159,12 +268,45 @@ export async function runImport(options?: {
     });
     console.log(`Parsed ${records.length} CSV rows`);
 
-    // 4. Upsert each row.
+    // 4. Categorize + upsert.
+    //
+    // Remote latency makes per-row round-trips brutally slow (INDEC ships ~4027
+    // localities → ~4k SELECTs + ~4k INSERTs when seeding a fresh DB, which took
+    // minutes over the pooler and got killed mid-run). Instead we:
+    //   (a) pre-fetch the whole catalog ONCE and index it by indec_id, so the
+    //       existence check is an in-memory Map lookup (no per-row SELECT);
+    //   (b) collect fresh rows and flush them in chunked multi-row INSERTs.
+    // Updates stay per-row: on a fresh seed there are none (all inserts), and on
+    // a re-run against an unchanged CSV every row is a no-op, so the hot paths
+    // never issue a per-row write. Only a genuinely changed CSV drives updates,
+    // and those are few.
+    const existingCatalog = await db.select().from(arLocalities);
+    const existingByIndecId = new Map<string, (typeof existingCatalog)[number]>();
+    for (const r of existingCatalog) {
+      if (r.indecId) existingByIndecId.set(r.indecId, r);
+    }
+
+    // Rows to insert this run, plus the indec_ids already queued — guards against
+    // a (pathological) duplicate id in the CSV double-counting / double-inserting.
+    const toInsert: NewArgentineLocality[] = [];
+    const queuedInsertIds = new Set<string>();
+
+    // Whole-province aggregate rows we deliberately drop (see the skip below).
+    // Their indec_ids are excluded from `importedIndecIds` further down so that
+    // an aggregate row left over from an older import gets soft-deleted on the
+    // next run — the importer self-heals the province-as-locality overlap.
+    const skippedAggregateIds = new Set<string>();
+
     for (const [idx, row] of records.entries()) {
       const indecId = row.id;
-      const localityName = row.nombre;
+      // Sanitize the human-readable names at the ingest boundary: repair mojibake
+      // + strip stray soft hyphens (U+00AD) so no encoding filth is ever persisted.
+      const localityName = row.nombre ? sanitizeLocalityText(row.nombre) : row.nombre;
       const codProv = row.provincia_id;
-      const departamentoNombre = row.departamento_nombre || null;
+      const rawDepartamentoNombre = row.departamento_nombre || null;
+      const departamentoNombre = rawDepartamentoNombre
+        ? sanitizeLocalityText(rawDepartamentoNombre)
+        : null;
       const departamentoCode = row.departamento_id || null;
       const rawCategory = row.categoria ?? "Localidad simple";
 
@@ -188,15 +330,26 @@ export async function runImport(options?: {
         continue;
       }
 
+      // Drop the whole-province aggregate (INDEC ships CABA as a single
+      // city-wide 'componente', indec_id 02000010, that double-counts the 48
+      // barrios tiling it). isWholeProvinceAggregate isolates exactly that row:
+      // name resolves to its own province AND no departamento. Real capital
+      // cities that share their province name always carry a departamento, so
+      // they are imported normally. Excluding it here (and from
+      // importedIndecIds below) keeps a re-import from reintroducing the row.
+      if (
+        isWholeProvinceAggregate({ provinceCode, localityName, departmentCode: departamentoCode })
+      ) {
+        skippedAggregateIds.add(indecId);
+        stats.skipped += 1;
+        continue;
+      }
+
       const slug = slugify(localityName);
       const latitude = parseCoordinate(row.centroide_lat);
       const longitude = parseCoordinate(row.centroide_lon);
 
-      const existingRows = await db
-        .select()
-        .from(arLocalities)
-        .where(eq(arLocalities.indecId, indecId));
-      const existing = existingRows[0];
+      const existing = existingByIndecId.get(indecId);
 
       if (existing) {
         const isDifferent =
@@ -232,50 +385,75 @@ export async function runImport(options?: {
         } else {
           stats.noop += 1;
         }
+      } else if (queuedInsertIds.has(indecId)) {
+        // Same indec_id appeared twice in this CSV — the first occurrence is
+        // already queued; treat the repeat as a no-op rather than double-insert.
+        stats.noop += 1;
       } else {
-        if (!dryRun) {
-          await db.insert(arLocalities).values({
-            provinceCode,
-            departmentName: departamentoNombre,
-            departmentCode: departamentoCode,
-            localityName,
-            localitySlug: slug,
-            indecId,
-            category,
-            latitude,
-            longitude,
-            source,
-            sourceVersion,
-          });
-        }
+        queuedInsertIds.add(indecId);
+        toInsert.push({
+          provinceCode,
+          departmentName: departamentoNombre,
+          departmentCode: departamentoCode,
+          localityName,
+          localitySlug: slug,
+          indecId,
+          category,
+          latitude,
+          longitude,
+          source,
+          sourceVersion,
+        });
         stats.inserted += 1;
+      }
+    }
+
+    // 4b. Flush inserts in chunked multi-row INSERTs. onConflictDoNothing on the
+    // unique indec_id keeps this idempotent even under a concurrent re-run.
+    if (!dryRun && toInsert.length > 0) {
+      const INSERT_CHUNK = 500;
+      for (let i = 0; i < toInsert.length; i += INSERT_CHUNK) {
+        const chunk = toInsert.slice(i, i + INSERT_CHUNK);
+        await db.insert(arLocalities).values(chunk).onConflictDoNothing({
+          target: arLocalities.indecId,
+        });
       }
     }
 
     // 5. Soft-delete rows tagged with THIS run's source that no longer appear
     // in the CSV. Scoping by source keeps tests with a custom source from
     // mutating the live indec_cppdyl catalog, and manually-curated rows
-    // (source='manual') are never touched.
+    // (source='manual') are never touched. We reuse the pre-fetched catalog
+    // snapshot (rows inserted this run are all present in the CSV, so they are
+    // never removal candidates) and flush the removals in one chunked UPDATE.
     const importedIndecIds = new Set(records.map((r) => r.id).filter(Boolean));
-    const fromIndec = await db
-      .select({
-        id: arLocalities.id,
-        indecId: arLocalities.indecId,
-        removedAt: arLocalities.removedAt,
-      })
-      .from(arLocalities)
-      .where(eq(arLocalities.source, source));
-    for (const e of fromIndec) {
-      if (e.indecId && !importedIndecIds.has(e.indecId) && e.removedAt === null) {
-        if (!dryRun) {
-          await db
-            .update(arLocalities)
-            .set({ removedAt: new Date() })
-            .where(eq(arLocalities.id, e.id));
-        }
-        stats.removed += 1;
+    // A whole-province aggregate row present in the CSV is intentionally NOT
+    // imported; drop its id from the "seen" set so an aggregate left over from
+    // an older import is treated as gone and soft-deleted below (self-healing).
+    for (const id of skippedAggregateIds) importedIndecIds.delete(id);
+    const toRemoveIds: string[] = [];
+    for (const e of existingCatalog) {
+      if (
+        e.source === source &&
+        e.indecId &&
+        !importedIndecIds.has(e.indecId) &&
+        e.removedAt === null
+      ) {
+        toRemoveIds.push(e.id);
       }
     }
+    stats.removed = toRemoveIds.length;
+    if (!dryRun && toRemoveIds.length > 0) {
+      const REMOVE_CHUNK = 500;
+      const removedAt = new Date();
+      for (let i = 0; i < toRemoveIds.length; i += REMOVE_CHUNK) {
+        const chunk = toRemoveIds.slice(i, i + REMOVE_CHUNK);
+        await db.update(arLocalities).set({ removedAt }).where(inArray(arLocalities.id, chunk));
+      }
+    }
+
+    // Propagate fallback flag to stats before finalizing.
+    stats.usedFallback = usedFallback;
 
     // 6. Finalize the import run row.
     if (!dryRun) {
@@ -289,13 +467,20 @@ export async function runImport(options?: {
           updatedCount: stats.updated,
           noopCount: stats.noop,
           removedCount: stats.removed,
-          details: { errors: stats.errors.slice(0, 50), skippedNonRelevant: stats.skipped },
+          details: {
+            errors: stats.errors.slice(0, 50),
+            skippedNonRelevant: stats.skipped,
+            ...(usedFallback ? { usedFallback: true } : {}),
+          },
         })
         .where(eq(arLocalitiesImportRuns.id, run.id));
     }
 
+    const fallbackSuffix = usedFallback
+      ? " [DEGRADED — used sample fixture, catalog incomplete]"
+      : "";
     console.log(
-      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} removed=${stats.removed} skipped=${stats.skipped} errors=${stats.errors.length}`,
+      `Done. inserted=${stats.inserted} updated=${stats.updated} noop=${stats.noop} removed=${stats.removed} skipped=${stats.skipped} errors=${stats.errors.length}${fallbackSuffix}`,
     );
     if (stats.errors.length > 0) {
       console.warn("First few errors:", stats.errors.slice(0, 5));
@@ -320,8 +505,15 @@ export async function runImport(options?: {
 async function cli(): Promise<void> {
   const dryRun = process.argv.includes("--dry-run");
   const urlOverride = process.argv.find((a) => a.startsWith("--source-url="))?.split("=")[1];
+  // INDEC_LOCALITIES_CSV env var is read inside runImport automatically.
   try {
-    await runImport({ dryRun, sourceUrl: urlOverride });
+    const stats = await runImport({ dryRun, sourceUrl: urlOverride });
+    if (stats.usedFallback) {
+      console.warn(
+        "[import-indec-localities] DEGRADED MODE: catalog has only the sample fixture rows.",
+        "Re-run when datos.gob.ar is reachable, or set INDEC_LOCALITIES_CSV to a vendored full CSV.",
+      );
+    }
     process.exit(0);
   } catch (err) {
     console.error("Import failed:", err);

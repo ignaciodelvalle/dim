@@ -13,45 +13,40 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpCallout, OpCard, OpCardBody, OpCrumbs } from "@/components/ui/dashboard";
-import { db, organizationMemberships, organizations, ownerships, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { OpBreach, OpCard, OpCardBody, OpCrumbs } from "@/components/ui/dashboard";
+import { db, organizations, ownerships, pets } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { speciesLabel } from "@/lib/utils/format";
+import { firstSearchParam } from "@/lib/utils/search-params";
+import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ProposeTransferForm } from "./ProposeTransferForm";
-
-const ALLOWED_PROPOSE_ROLES = new Set(["admin", "coordinator"]);
 
 export default async function OrgTransferenciaNuevaPage({
   params,
   searchParams,
 }: {
   params: Promise<{ orgToken: string }>;
-  searchParams: Promise<{ petToken?: string }>;
+  searchParams: Promise<{ petToken?: string | string[] }>;
 }) {
   const { orgToken } = await params;
   const sp = await searchParams;
-  const petToken = sp.petToken?.trim() ?? "";
-  const { user, organization } = await requireOrgAccessByToken(orgToken);
+  const petToken = firstSearchParam(sp.petToken)?.trim() ?? "";
+  const { organization } = await requireOrgAccessByToken(orgToken);
 
-  // Role gate (CT9): admin / coordinator only. The full capability
-  // check happens server-side in the action; this is a UX pre-check so
-  // unauthorized members see a friendly message instead of submitting
-  // and getting rejected.
-  const [membership] = await db
-    .select({ role: organizationMemberships.role })
-    .from(organizationMemberships)
-    .where(
-      and(
-        eq(organizationMemberships.organizationId, organization.id),
-        eq(organizationMemberships.userId, user.id),
-        isNull(organizationMemberships.leftAt),
-      ),
-    )
-    .limit(1);
-  const hasPermission =
-    !!membership && (ALLOWED_PROPOSE_ROLES.has(membership.role) || membership.role === "admin");
+  // Capability gate — the SAME predicate the action enforces
+  // (requireCapabilityForOrgToken('org.transfer.propose') in
+  // src/modules/transfers/actions.ts). This used to be a membership-ROLE check
+  // against {admin, coordinator}, which made an explicitly granted
+  // `org.transfer.propose` inert: nav-presets.ts already shows Transferencias
+  // to anyone holding the capability, so a `member` with the grant could reach
+  // this page, be told "solo roles admin o coordinator", and never discover
+  // that the action would in fact have accepted them. admin/coordinator still
+  // pass — the capability is implicit for both (COORDINATOR_IMPLICIT_CAPS /
+  // the admin universal grant), so this gate is a superset of the old one.
+  const auth = await requireCapability("org.transfer.propose", organization.id);
 
-  if (!hasPermission) {
+  if (auth.error !== null) {
     return (
       <div className="max-w-2xl space-y-6">
         <OpCrumbs
@@ -61,13 +56,28 @@ export default async function OrgTransferenciaNuevaPage({
             { label: "Nueva propuesta" },
           ]}
         />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Nueva propuesta de transferencia
         </h1>
         <OpBreach
-          title="Sin permiso"
-          detail={`Solo roles admin o coordinator pueden iniciar transferencias. Tu rol actual es ${membership?.role ?? "—"}.`}
+          title="Te falta el permiso «Proponer transferencias entre orgs»"
+          detail={`Tu membresía en ${organization.displayName} no tiene esa capacidad concedida, así que no podés abrir una propuesta de transferencia. Un admin de la organización puede otorgártela desde Permisos — no hace falta cambiarte el rol.`}
         />
+        <p className="text-md text-ln-op-mute">{auth.error}</p>
+        <div className="flex gap-4">
+          <Link
+            href={`/org/${orgToken}/admin/permisos`}
+            className="text-md text-ln-op-azul hover:underline no-underline"
+          >
+            Ver mis permisos
+          </Link>
+          <Link
+            href={`/org/${orgToken}/transferencias`}
+            className="text-md text-ln-op-azul hover:underline no-underline"
+          >
+            ← Volver a transferencias
+          </Link>
+        </div>
       </div>
     );
   }
@@ -103,22 +113,22 @@ export default async function OrgTransferenciaNuevaPage({
           ]}
         />
         <header className="space-y-1">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             Nueva propuesta de transferencia
           </h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Elegí la mascota en custodia que querés transferir.
           </p>
         </header>
 
         {custodyPets.length === 0 ? (
           <div className="space-y-3">
-            <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
+            <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-md text-ln-op-mute">
               No tenés mascotas en custodia para transferir.
             </p>
             <Link
               href={`/org/${orgToken}/mascotas`}
-              className="inline-block text-[13px] text-ln-op-azul hover:underline no-underline"
+              className="inline-block text-md text-ln-op-azul hover:underline no-underline"
             >
               → Ir a Mascotas
             </Link>
@@ -134,10 +144,10 @@ export default async function OrgTransferenciaNuevaPage({
                       className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-ln-op-stripe transition-colors no-underline"
                     >
                       <div className="min-w-0 space-y-0.5">
-                        <p className="text-[13px] font-medium text-ln-op-ink">{p.name}</p>
-                        <p className="text-[12px] text-ln-op-mute capitalize">{p.species}</p>
+                        <p className="text-md font-medium text-ln-op-ink">{p.name}</p>
+                        <p className="text-sm text-ln-op-mute">{speciesLabel(p.species)}</p>
                       </div>
-                      <span className="text-[12px] text-ln-op-azul shrink-0">Seleccionar →</span>
+                      <span className="text-sm text-ln-op-azul shrink-0">Seleccionar →</span>
                     </Link>
                   </li>
                 ))}
@@ -174,7 +184,7 @@ export default async function OrgTransferenciaNuevaPage({
             { label: "Nueva propuesta" },
           ]}
         />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Nueva propuesta de transferencia
         </h1>
         <OpBreach
@@ -183,7 +193,7 @@ export default async function OrgTransferenciaNuevaPage({
         />
         <Link
           href={`/org/${orgToken}/transferencias`}
-          className="text-[13px] text-ln-op-azul hover:underline no-underline"
+          className="text-md text-ln-op-azul hover:underline no-underline"
         >
           ← Volver a transferencias
         </Link>
@@ -234,8 +244,8 @@ export default async function OrgTransferenciaNuevaPage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferir {pet.name}</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Transferir {pet.name}</h1>
+        <p className="text-md text-ln-op-mute">
           Proponer la transferencia de custodia desde {organization.displayName} a otra organización
           verificada.
         </p>

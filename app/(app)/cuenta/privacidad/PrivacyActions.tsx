@@ -1,12 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { eraseMySubjectDataAction, exportMySubjectDataAction } from "@/app/actions/subject-rights";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function PrivacyActions() {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [exported, setExported] = useState(false);
@@ -45,8 +44,12 @@ export function PrivacyActions() {
         setError(result.error);
         return;
       }
-      router.push("/");
-      router.refresh();
+      // Post-erase the session is dead: a soft push("/") + router.refresh()
+      // races the auth teardown (and router.refresh() is banned anyway — it
+      // rides the same client-router transition machinery as the silent-drop
+      // defect; see lib/ui/full-page-action-nav.ts). One full document
+      // navigation lands on "/" with a fresh, unauthenticated SSR pass.
+      navigateAfterActionSuccess("/");
     });
   }
 
@@ -54,14 +57,14 @@ export function PrivacyActions() {
     <div className="space-y-6">
       {error && (
         <p
-          className="rounded-[4px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)] px-4 py-3 text-sm text-[var(--color-ln-seal)]"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)] px-4 py-3 text-sm text-[var(--color-ln-seal)]"
           role="alert"
         >
           {error}
         </p>
       )}
 
-      <section className="rounded-[4px] border border-[var(--color-ln-line)] p-5 space-y-3">
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] p-5 space-y-3">
         <div>
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">
             Descargar mis datos
@@ -75,7 +78,7 @@ export function PrivacyActions() {
           type="button"
           onClick={handleExport}
           disabled={pending}
-          className="rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
+          className="rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 transition-colors"
         >
           {pending ? "Generando…" : "Descargar JSON"}
         </button>
@@ -86,7 +89,7 @@ export function PrivacyActions() {
         )}
       </section>
 
-      <section className="rounded-[4px] border border-[var(--color-ln-seal)]/30 bg-[var(--color-ln-err-050)]/30 p-5 space-y-3">
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)]/30 bg-[var(--color-ln-err-050)]/30 p-5 space-y-3">
         <div>
           <h2 className="text-base font-semibold text-[var(--color-ln-ink)]">Eliminar mi cuenta</h2>
           <p className="text-sm text-[var(--color-ln-ink-2)] mt-1">
@@ -109,14 +112,14 @@ export function PrivacyActions() {
               maxLength={500}
               value={eraseReason}
               onChange={(e) => setEraseReason(e.target.value)}
-              className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-              placeholder="Ya no uso MiMAR / migración a otra plataforma / ..."
+              className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              placeholder="Ya no uso miMAR / migración a otra plataforma / ..."
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => setShowErase(false)}
-                className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 Cancelar
               </button>
@@ -124,7 +127,7 @@ export function PrivacyActions() {
                 type="button"
                 onClick={handleErase}
                 disabled={pending || eraseReason.trim().length < 5}
-                className="flex-1 rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-colors"
+                className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50 transition-colors"
               >
                 {pending ? "Procesando…" : "Confirmar borrado"}
               </button>
@@ -134,7 +137,7 @@ export function PrivacyActions() {
           <button
             type="button"
             onClick={() => setShowErase(true)}
-            className="rounded-[3px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-card)] px-4 py-2.5 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)]/50 transition-colors"
+            className="rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-card)] px-4 py-2.5 text-sm font-medium text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)]/50 transition-colors"
           >
             Quiero eliminar mi cuenta
           </button>

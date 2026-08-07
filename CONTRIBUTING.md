@@ -22,7 +22,7 @@ If any of these fail, fix that first — they're the floor everything else build
 
 There is a lot of context in this repo. Read in this order:
 
-1. **[AGENTS.md](./AGENTS.md)** — the single source of truth for domain language, event-sourcing rules, RLS conventions, and "things every change must respect."
+1. **[AGENTS.md](./AGENTS.md)** — lectura obligatoria. Load the slim index at the top first (always-load, ~1.5k tokens), then follow the anchor links to the deep sections relevant to your task. Before touching a public route, a token, or a PII field, load the [§ Privacidad y manejo de datos](./AGENTS.md#privacidad-y-manejo-de-datos) section — it is the per-task privacy gate.
 2. **[docs/superpowers/README.md](./docs/superpowers/README.md)** — index of feature specs and plans. Browse the existing ones before designing anything new — the patterns you need have probably been argued through already.
 3. **The spec for the area you're working in** — anything under `docs/superpowers/specs/`. Each spec maps to a code area.
 
@@ -64,11 +64,20 @@ Don't add `Co-Authored-By` trailers. Don't include AI attribution.
 Run these locally before pushing. Don't outsource this to CI:
 
 ```bash
-pnpm verify            # one shot: typecheck + lint + lint:tokens + build
-pnpm test              # Vitest (needs db:start running) — run separately
+pnpm verify            # one shot: typecheck + ~30 fitness fences + build
+pnpm test              # Vitest, both projects (db project needs db:start)
+pnpm test:unit         # parallel no-DB project only (~30s, no Docker needed)
+pnpm test:e2e:smoke    # Playwright smoke (public routes + owner lost-mode flow)
 ```
 
-`pnpm verify` is the static gate (tsc + Biome + design tokens + `next build`). **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test` (needs the local Supabase stack via `pnpm db:start`).
+`pnpm test:e2e:smoke` runs only `e2e/public-smoke.spec.ts` and
+`e2e/crisis-owner-lost-flow.spec.ts` (builds + serves on :3333; needs the
+local Supabase stack + `pnpm db:bootstrap`, like any e2e run). It is expected
+before pushing feature ranges that touch **public or lost-mode surfaces**
+(`/p/[token]`, `/encontre`, `/perdidas`, mark-lost, landing). The full suite
+also runs nightly against staging (`.github/workflows/e2e-nightly.yml`).
+
+`pnpm verify` is the static gate: tsc + Biome + the full fitness-fence chain (design tokens, UI invariants, authz guards, dep-direction, RLS coverage, file-size/uuid/plural/eyebrow ratchets, jscpd duplication ceiling, and the rest of the `lint:*` scripts in package.json — that list is the source of truth) + `next build`. **`next build` is non-negotiable** — it catches `"use server"` export, `server-only`, and module-level-evaluation errors that `tsc` and Vitest do *not*. Then run `pnpm test`: the `unit` project runs in parallel with no database; the serial `db` project needs the local Supabase stack via `pnpm db:start`.
 
 If a step fails on your branch but passes on `develop`, your branch is the source. Fix it before opening the PR.
 
@@ -90,4 +99,4 @@ This is not bureaucracy; the patterns in this codebase are dense enough that fre
 
 - Open a draft PR early and `@`-mention a maintainer with a question.
 - For domain-language questions, search `AGENTS.md` before asking.
-- For event-sourcing questions, look at how the closest existing event handles it — see `src/modules/events/actions.ts` (thin actions) and `src/modules/events/application/` (use-cases) for the canonical patterns. (`app/actions/events.ts` is now just a re-export shim.)
+- For event-sourcing questions, look at how the closest existing event handles it — see `src/modules/events/actions.ts` (thin actions) and `src/modules/events/application/` (use-cases) for the canonical patterns. This is the one fully-migrated action file; the remaining ~61 files in `app/actions/` are fat actions pending the strangler migration (see [`docs/architecture/hexagonal-lite.md`](./docs/architecture/hexagonal-lite.md#strangler-migration-status--appactions-as-of-2026-06-26)).

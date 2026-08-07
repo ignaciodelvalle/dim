@@ -12,7 +12,7 @@ import { IconSearch } from "./IconSearch";
  */
 
 export const metadata = {
-  title: "Sistema de diseño · MiMAR",
+  title: "Sistema de diseño · miMAR",
   robots: { index: false, follow: false },
 };
 
@@ -94,7 +94,7 @@ const warmSwatches: Swatch[] = [
     name: "ln-mute",
     varName: "--color-ln-mute",
     tailwindClass: "bg-ln-mute",
-    hex: "#6e7b84",
+    hex: "#616e77",
     onColor: "light",
     note: "Muted text",
   },
@@ -148,7 +148,7 @@ export default function DesignPage() {
     <main className="mx-auto max-w-5xl px-6 py-12">
       {/* Header */}
       <header className="mb-12 border-b border-ln-line pb-6">
-        <p className="text-sm uppercase tracking-wide text-ln-mute">MiMAR · Sistema de diseño</p>
+        <p className="text-sm uppercase tracking-wide text-ln-mute">miMAR · Sistema de diseño</p>
         <h1 className="mt-1 text-4xl font-bold font-ln-serif">Tokens Libreta Nacional</h1>
         <p className="lead mt-2 text-ln-ink-2">
           Paleta, tipografía e íconos del sistema Libreta Nacional portados a Next.js + Tailwind v4.

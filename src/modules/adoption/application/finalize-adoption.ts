@@ -7,10 +7,10 @@
 //   1. Input validation (domain rules: DNI path or foster-shortcut path)
 //   2. Pet lookup + eligibility gate
 //   3. Active foster lookup
-//   4. Adopter resolution (foster-shortcut or DNI lookup/stub-create)
+//   4. Adopter resolution (approved application, foster-shortcut, or DNI
+//      lookup against REGISTERED accounts — stub creation removed, org-pilot-pack)
 //   5. Pre-tx: find open custody case
 //   6. Atomic transaction (via repo.insertAdoptionFinalized):
-//      - Stub profile insert (if needed)
 //      - Close shelter_custody
 //      - Close foster + foster_placement case (if any)
 //      - Insert owner row
@@ -72,6 +72,13 @@ function normalizeDni(raw: string): string {
   return raw.replace(/\D/g, "");
 }
 
+// Server backstop for the registered-adopter requirement (org-pilot-pack).
+// The pre-submit check in FinalizeAdoptionForm surfaces the full refusal panel
+// (QR + guidance); this string is the honest fallback rendered in the existing
+// error box if the form is bypassed. It must never promise stub creation.
+const ADOPTER_ACCOUNT_REQUIRED_MSG =
+  "No encontramos una cuenta miMAR registrada con ese DNI. La persona adoptante tiene que registrarse en miMAR con su DNI antes de finalizar la adopción.";
+
 // ---------------------------------------------------------------------------
 // Use-case
 // ---------------------------------------------------------------------------
@@ -112,8 +119,9 @@ export async function finalizeAdoption(
   const fosterRow = await repo.findActiveFoster(petRow.id);
   const fosterUserId = fosterRow?.ownerUserId ?? null;
 
-  // 4. Input validation (domain rules: DNI path vs. foster-shortcut path).
+  // 4. Input validation (domain rules: application / DNI / foster-shortcut path).
   const domainInput: FinalizationInput = {
+    applicationEventId: input.applicationEventId,
     adopterUserId: input.adopterUserId,
     adopterDni: input.adopterDni,
     adopterDisplayName: input.adopterDisplayName,
@@ -124,12 +132,28 @@ export async function finalizeAdoption(
   const validation = validateFinalizationInput(domainInput, fosterRow);
   if (!validation.ok) return { ok: false, error: validation.error };
 
-  // 5. Resolve adopter identity.
+  // 5. Resolve adopter identity. EVERY branch below lands on a REAL registered
+  // account — stub creation is gone (see the manual-DNI branch), so there is no
+  // longer a "stub adopter" mode for downstream writes to special-case.
   let adopterUserId: string;
-  let isStubAdopter: boolean;
-  let dni: string | null = null;
+  // Set only on the approved-application path — links the finalization back to
+  // the online application in the event log.
+  let adoptedFromApplicationId: string | null = null;
 
-  if (input.adopterUserId) {
+  if (input.applicationEventId) {
+    // Approved-application path: transfer ownership to the applicant's real
+    // account (they applied logged-in — we already have their user id). This
+    // is what closes the 100%-digital adoption loop: the pet lands in the
+    // adopter's /mis-mascotas, not on a typed-DNI stub profile.
+    const approved = await repo.findApprovedApplicationForFinalize(
+      input.applicationEventId,
+      organization.id,
+      petRow.id,
+    );
+    if ("error" in approved) return { ok: false, error: approved.error };
+    adopterUserId = approved.applicantUserId;
+    adoptedFromApplicationId = input.applicationEventId;
+  } else if (input.adopterUserId) {
     // Foster-shortcut: adopterUserId is the foster's profile id.
     // validateFinalizationInput already confirmed the foster match; now validate profile.
     const adopterProfile = await repo.findApplicantProfile(input.adopterUserId);
@@ -148,21 +172,24 @@ export async function finalizeAdoption(
       };
     }
     adopterUserId = adopterProfile.id;
-    isStubAdopter = false;
   } else {
-    // Manual DNI path.
+    // Manual DNI path — REGISTERED accounts only (org-pilot-pack).
+    //
+    // Match contract (spec-reconciliation ruling): dniHash equality AND a
+    // corresponding auth.users row EXISTS. dniVerified is NOT required — a
+    // walk-in adopter who registered on the spot has dniVerified=false and
+    // must still match. A legacy stub profile (matching hash, no auth row)
+    // REFUSES: adopting onto an unclaimable profile is the dead-end this
+    // change removes. Stub creation (randomUUID + a stub-profile insert) is
+    // gone for good — the branch is removed, not feature-flagged.
     const rawDni = input.adopterDni ?? "";
-    dni = normalizeDni(rawDni);
+    const dni = normalizeDni(rawDni);
 
-    const existingProfile = await repo.findStubAdopterByDni(dni);
-    if (existingProfile) {
-      adopterUserId = existingProfile.id;
-      isStubAdopter = false;
-    } else {
-      const { randomUUID } = await import("node:crypto");
-      adopterUserId = randomUUID();
-      isStubAdopter = true;
+    const account = await repo.findAdopterAccountByDni(dni);
+    if (!account || !account.hasAuthAccount) {
+      return { ok: false, error: ADOPTER_ACCOUNT_REQUIRED_MSG };
     }
+    adopterUserId = account.id;
   }
 
   // 6. Pre-tx: find open custody_episode case (null if never intaked).
@@ -187,19 +214,16 @@ export async function finalizeAdoption(
           orgVerified: organization.verified,
           custodyOwnershipId: petRow.custodyOwnershipId,
           adopterUserId,
-          isStubAdopter,
           fosterRow,
           fosterUserId,
           custodyCaseId,
-          displayName: input.adopterDisplayName,
-          phone: input.adopterPhone,
-          dni,
           contractAttachmentId: input.contractAttachmentId,
           contractStoragePath: input.contractStoragePath,
           contractMimeType: input.contractMimeType,
           contractFileSize: input.contractFileSize,
-          followupMonths: isStubAdopter ? null : followupMonths,
+          followupMonths,
           notes: input.notes,
+          adoptedFromApplicationId,
           orgDisplayName: organization.displayName,
           petName: petRow.name,
           now,
@@ -254,19 +278,19 @@ export async function finalizeAdoption(
   }
 
   // 8. Post-tx: collect additional notifications (not flushed here — action does it).
-  if (!isStubAdopter) {
-    pendingNotifications.push({
-      userId: adopterUserId,
-      notificationType: "adoption_finalized",
-      category: "adoption",
-      title: `Adoptaste a ${petRow.name}`,
-      body: `${organization.displayName} te registró como dueño/a de ${petRow.name}. Bienvenida a la familia.`,
-      severity: "success",
-      ctaLabel: "Ver mascota",
-      ctaUrl: "/mis-mascotas",
-      relatedPetId: petRow.id,
-    });
-  }
+  // The adopter always has a real account, so this notification always has a
+  // reachable inbox (it used to be skipped for stub adopters).
+  pendingNotifications.push({
+    userId: adopterUserId,
+    notificationType: "adoption_finalized",
+    category: "adoption",
+    title: `Adoptaste a ${petRow.name}`,
+    body: `${organization.displayName} te registró como dueño/a de ${petRow.name}. Bienvenida a la familia.`,
+    severity: "success",
+    ctaLabel: "Ver mascota",
+    ctaUrl: "/mis-mascotas",
+    relatedPetId: petRow.id,
+  });
 
   if (fosterUserId && fosterUserId !== adopterUserId) {
     pendingNotifications.push({

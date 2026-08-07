@@ -16,6 +16,7 @@ import { useState, useTransition } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { proposeCrossOrgTransferAction } from "@/src/modules/transfers/actions";
 
 interface ReceiverOption {
@@ -52,7 +53,7 @@ const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Mascota", "Destino", "Razón y notas"];
 
 const selectCls =
-  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, receivers }: Props) {
   const [pending, startTransition] = useTransition();
@@ -115,34 +116,35 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
       onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
     >
       {/* Step 1 — Mascota recap */}
-      <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-4">
-          <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
-          <p className="mt-1 text-[16px] font-semibold text-ln-op-ink">{petName}</p>
-          <p className="mt-2 text-[12px] text-ln-op-mute">
+      <section
+        className={step === 1 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 1}
+        inert={step !== 1 ? true : undefined}
+      >
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-4">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
+          <p className="mt-1 text-base font-semibold text-ln-op-ink">{petName}</p>
+          <p className="mt-2 text-sm text-ln-op-mute">
             Token: <span className="font-mono">{petPublicToken}</span>
           </p>
         </div>
-        <p className="text-[13px] text-ln-op-ink-2">
+        <p className="text-md text-ln-op-ink-2">
           Esta propuesta crea un handshake con otra organización. La transferencia se concreta solo
           si el destinatario acepta.
         </p>
-        <button
-          type="button"
-          onClick={() => setStep(2)}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90"
-        >
+        <OpButton type="button" onClick={() => setStep(2)} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 2 — Destino */}
-      <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+      <section
+        className={step === 2 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 2}
+        inert={step !== 2 ? true : undefined}
+      >
         <div>
-          <label
-            htmlFor="receiverOrgId"
-            className="mb-1 block text-[13px] font-medium text-ln-op-ink"
-          >
+          <label htmlFor="receiverOrgId" className="mb-1 block text-md font-medium text-ln-op-ink">
             Organización destinataria
           </label>
           <select
@@ -160,24 +162,23 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
               </option>
             ))}
           </select>
-          <p className="mt-1 text-[12px] text-ln-op-mute">
+          <p className="mt-1 text-sm text-ln-op-mute">
             Solo aparecen orgs verificadas activas. Sin auto-selección por proximidad.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => setStep(3)}
-          disabled={!receiverOrgId}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={() => setStep(3)} disabled={!receiverOrgId} block>
           Continuar
-        </button>
+        </OpButton>
       </section>
 
       {/* Step 3 — Razón + notas */}
-      <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
+      <section
+        className={step === 3 ? "space-y-5" : "sr-only"}
+        aria-hidden={step !== 3}
+        inert={step !== 3 ? true : undefined}
+      >
         <div>
-          <label htmlFor="reason" className="mb-1 block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="reason" className="mb-1 block text-md font-medium text-ln-op-ink">
             Motivo de la transferencia
           </label>
           <select
@@ -197,21 +198,20 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         <div>
-          <label htmlFor="notes" className="mb-1 block text-[13px] font-medium text-ln-op-ink">
+          <label htmlFor="notes" className="mb-1 block text-md font-medium text-ln-op-ink">
             Notas{reasonRequiresNotes ? " (obligatorias)" : " (opcional)"}
           </label>
-          <textarea
+          <OpTextarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             required={reasonRequiresNotes}
             placeholder="Contexto para que el destinatario evalúe — visible al receiver."
-            className="w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
           />
         </div>
 
-        <div className="rounded-[6px] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-[12px] text-ln-op-ink-2">
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn bg-ln-op-warn/10 p-3 text-sm text-ln-op-ink-2">
           <p>
             La propuesta expira en <strong>30 días</strong> si no recibe respuesta del destinatario.{" "}
             {petName} sigue bajo tu custodia hasta que la organización destinataria acepte.
@@ -219,19 +219,14 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
         </div>
 
         {error && (
-          <p className="rounded-[6px] border border-ln-op-danger bg-ln-op-danger/10 p-3 text-[13px] text-ln-op-danger">
+          <p className="rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger/10 p-3 text-md text-ln-op-danger">
             {error}
           </p>
         )}
 
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="w-full rounded-[6px] bg-ln-op-azul px-4 py-3 text-[13px] font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} block>
           {pending ? "Enviando…" : "Confirmar transferencia"}
-        </button>
+        </OpButton>
       </section>
     </LnWizardShell>
   );

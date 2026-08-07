@@ -3,9 +3,10 @@
 
 import Link from "next/link";
 
+import { Icon } from "@/components/Icon";
 import { LnCallout } from "@/components/ui/DocElements";
 import { db, fosterVolunteers, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { eq } from "drizzle-orm";
 
 import { FosterVolunteerWizard } from "./FosterVolunteerWizard";
@@ -26,8 +27,8 @@ export default async function OfrecermeComoTransitoPage() {
     .limit(1);
   if (!profile) {
     return (
-      <div className="mx-auto max-w-2xl px-[32px] py-[28px]">
-        <p className="text-[13px] text-[var(--color-ln-err)]">No se encontró tu perfil.</p>
+      <div className="mx-auto max-w-2xl px-8 py-7">
+        <p className="text-md text-[var(--color-ln-err)]">No se encontró tu perfil.</p>
       </div>
     );
   }
@@ -45,21 +46,21 @@ export default async function OfrecermeComoTransitoPage() {
     : [];
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
-      <div className="mb-[28px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-7">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Ofrecerme como hogar de tránsito
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Inscribite en el pool de voluntarios. Los refugios cerca tuyo te van a poder proponer
           tránsitos según tus preferencias.
         </p>
@@ -128,30 +129,32 @@ function PreCheckChecklist({
     {
       ok: checks.hasDisplayName,
       label: "Nombre cargado",
-      cta: checks.hasDisplayName ? null : { href: "/cuenta/editar", text: "Editar perfil" },
+      cta: checks.hasDisplayName
+        ? null
+        : { href: "/cuenta?sheet=editar-perfil", text: "Editar perfil" },
     },
     {
       ok: checks.hasPhone,
       label: "Teléfono cargado",
-      cta: checks.hasPhone ? null : { href: "/cuenta/editar", text: "Editar perfil" },
+      cta: checks.hasPhone ? null : { href: "/cuenta?sheet=editar-perfil", text: "Editar perfil" },
     },
   ];
 
   return (
     <LnCallout tone="warn" title="Antes de inscribirte necesitamos lo siguiente:">
-      <ul className="mt-[8px] flex flex-col gap-[8px]">
+      <ul className="mt-2 flex flex-col gap-2">
         {items.map((item) => (
-          <li key={item.label} className="flex items-center gap-[8px]">
+          <li key={item.label} className="flex items-center gap-2">
             <span
-              className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[12px] ${item.ok ? "text-[var(--color-ln-ok)]" : "text-[var(--color-ln-warn)]"}`}
+              className={`inline-flex flex-shrink-0 items-center ${item.ok ? "text-[var(--color-ln-ok)]" : "text-[var(--color-ln-warn)]"}`}
             >
-              {item.ok ? "✓" : "○"}
+              <Icon name={item.ok ? "check" : "circle"} size={14} decorative />
             </span>
-            <span className="flex-1 text-[12.5px] text-[var(--color-ln-ink-2)]">{item.label}</span>
+            <span className="flex-1 text-md text-[var(--color-ln-ink-2)]">{item.label}</span>
             {item.cta && (
               <Link
                 href={item.cta.href}
-                className="flex-shrink-0 text-[11.5px] text-[var(--color-ln-azul)] no-underline hover:underline"
+                className="flex-shrink-0 text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 {item.cta.text}
               </Link>

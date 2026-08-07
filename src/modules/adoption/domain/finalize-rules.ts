@@ -24,6 +24,13 @@ export function validateFinalizationInput(
   input: FinalizationInput,
   fosterRow: FosterRow | null,
 ): FinalizationValidationResult {
+  // Approved-application path: the adopter identity comes from an approved
+  // online application (resolved by the use-case against the event log), so
+  // there is no typed DNI / display name to validate here.
+  if (input.applicationEventId) {
+    return { ok: true };
+  }
+
   // Foster-shortcut path: adopterUserId supplied.
   if (input.adopterUserId) {
     if (!fosterRow || fosterRow.ownerUserId !== input.adopterUserId) {

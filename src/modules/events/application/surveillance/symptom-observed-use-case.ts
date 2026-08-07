@@ -23,8 +23,9 @@
 
 import "server-only";
 
-import { validateEventPayload } from "@/lib/event-schemas";
-import { maybeNotifyOwnersOfPublicAlert } from "@/lib/owner-disease-alerts";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { maybeNotifyOwnersOfPublicAlert } from "@/lib/infra/owner-disease-alerts";
+import { parseDateInput } from "@/lib/utils/format";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import { routeOutbreakSignalNotifications } from "../clinical/route-outbreak-signal-notifications";
@@ -104,10 +105,10 @@ export async function createSymptomObservedWriter(
   } = params;
 
   // Run matcher (defensive — failure must never block the insert).
-  let alertableDiseases: import("@/lib/symptom-matcher").DiseaseMatch[] = [];
+  let alertableDiseases: import("@/lib/domain/symptom-matcher").DiseaseMatch[] = [];
   let matchedSymptomCodes: string[] = [];
   try {
-    const { matchSymptoms, aggregateDiseaseMatches } = await import("@/lib/symptom-matcher");
+    const { matchSymptoms, aggregateDiseaseMatches } = await import("@/lib/domain/symptom-matcher");
     const matched = matchSymptoms(freeText, petSpecies);
     matchedSymptomCodes = matched.map((m) => m.symptom_code);
     const aggregated = aggregateDiseaseMatches(matched);
@@ -138,7 +139,10 @@ export async function createSymptomObservedWriter(
       const symptomEventBase = {
         petId,
         eventType: "symptom_observed",
-        occurredAt: onsetAt ? new Date(onsetAt) : now,
+        // onsetAt is a date-only "YYYY-MM-DD" from <input type="date"> — parse
+        // via the noon-UTC anchor. Bare new Date("YYYY-MM-DD") is MIDNIGHT UTC
+        // = 21:00 of the PREVIOUS day in AR, shifting the symptom one day back.
+        occurredAt: (onsetAt ? parseDateInput(onsetAt) : null) ?? now,
         recordedAt: now,
         recordedByUserId,
         ...eventAuthorship,

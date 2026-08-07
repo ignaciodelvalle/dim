@@ -5,11 +5,11 @@
 // tears it down at the end so the file is safe to re-run.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, reminders } from "@/db";
-import { runVaccineDueScan } from "@/lib/notifications";
+import { type VaccineDueScanResult, runVaccineDueScan } from "@/lib/infra/notifications";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -104,6 +104,26 @@ async function teardownFixture() {
   await admin.auth.admin.deleteUser(userId);
 }
 
+// The scan is GLOBAL — it sweeps every vaccine reminder in the shared local
+// DB, including QA seed data (e.g. seed pets with live reminders whose
+// cadence windows open/close relative to the wall clock). Asserting the raw
+// global insertedCount made this file flake whenever a seed reminder crossed
+// into a daily-cadence variant at the shifted scan time (2026-07-04 gate
+// failure #1). Scope every insertion assertion to THIS fixture's user.
+async function insertedForFixtureUser(result: VaccineDueScanResult): Promise<number> {
+  if (result.insertedNotificationIds.length === 0) return 0;
+  const rows = await db
+    .select({ id: notifications.id })
+    .from(notifications)
+    .where(
+      and(
+        eq(notifications.userId, userId),
+        inArray(notifications.id, result.insertedNotificationIds),
+      ),
+    );
+  return rows.length;
+}
+
 beforeAll(async () => {
   await provisionFixture();
 });
@@ -115,7 +135,7 @@ afterAll(async () => {
 describe("runVaccineDueScan", () => {
   it("inserts exactly one notification on the first tick for a reminder due in 3 days", async () => {
     const first = await runVaccineDueScan();
-    expect(first.insertedCount).toBe(1);
+    expect(await insertedForFixtureUser(first)).toBe(1);
 
     const rows = await db
       .select()
@@ -127,10 +147,19 @@ describe("runVaccineDueScan", () => {
     const n = rows[0];
     expect(n.notificationType).toBe("vaccine_due");
     expect(n.severity).toBe("warning");
-    expect(n.relatedEventId).toBe(eventId);
+    // relatedEventId must be NULL on cron-emitted notifications: migration
+    // 0088's unique index (user_id, related_event_id, notification_type)
+    // exempts NULL rows so the escalating cadence can re-emit for the same
+    // source event. Setting it made the 2nd scan crash with 23505
+    // (projection-cron audit 2026-07-03 C1).
+    expect(n.relatedEventId).toBeNull();
+    expect(n.relatedReminderId).toBe(reminderId);
     expect(n.relatedPetId).toBe(petId);
-    expect(n.ctaLabel).toBe("Ver mascota");
-    expect(n.ctaUrl).toContain("/mis-mascotas/");
+    expect(n.ctaLabel).toBe("Registrar vacuna"); // 14.2: deep-link to vaccination form
+    // Canonical reminder-linked target (flow audit 2026-07-03): the full
+    // vaccine form with reminderId so the name pre-fills and the reminder
+    // closes on submit.
+    expect(n.ctaUrl).toContain("/eventos/nuevo/vacuna?reminderId=");
     // Body should be the time-aware computed message ("Lila tiene una vacuna
     // programada en 3 días."), NOT the generic reminder description. The
     // computed message reflects the scan moment; the description is
@@ -141,7 +170,7 @@ describe("runVaccineDueScan", () => {
 
   it("does NOT duplicate when the cron runs again", async () => {
     const second = await runVaccineDueScan();
-    expect(second.insertedCount).toBe(0);
+    expect(await insertedForFixtureUser(second)).toBe(0);
 
     const rows = await db
       .select()
@@ -152,11 +181,15 @@ describe("runVaccineDueScan", () => {
     expect(rows.length).toBe(1);
   });
 
-  it("stops emitting once the reminder is marked completed_at", async () => {
-    await db.update(reminders).set({ completedAt: new Date() }).where(eq(reminders.id, reminderId));
-
-    const third = await runVaccineDueScan();
-    expect(third.insertedCount).toBe(0);
+  it("emits AGAIN when the cadence window reopens (2nd scan, same source event)", async () => {
+    // The regression test migration 0088 demanded and nobody wrote: due_soon
+    // throttles daily for the first 3 days, so a scan one day later MUST
+    // insert a second notification for the SAME reminder + source event.
+    // Before the C1 fix this insert violated the (user_id, related_event_id,
+    // notification_type) unique index and 23505'd the whole run.
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000 + 60 * 1000);
+    const reEmit = await runVaccineDueScan(db, { now: tomorrow });
+    expect(await insertedForFixtureUser(reEmit)).toBe(1);
 
     const rows = await db
       .select()
@@ -164,6 +197,43 @@ describe("runVaccineDueScan", () => {
       .where(
         and(eq(notifications.userId, userId), eq(notifications.notificationType, "vaccine_due")),
       );
-    expect(rows.length).toBe(1);
+    expect(rows.length).toBe(2);
+    // Every cron emission stays exempt from the 0088 natural key.
+    for (const n of rows) {
+      expect(n.relatedEventId).toBeNull();
+    }
+  });
+
+  it("archiving a notification does NOT reset the throttle cadence", async () => {
+    // Archive everything emitted so far, then scan at (real) NOW — moments
+    // after the last emission, inside the throttle window. Archiving
+    // dismisses from the inbox; it is not consent to full-frequency
+    // re-notification (projection-cron audit 2026-07-03 C2). Under the old
+    // `archived_at IS NULL` history filter this scan saw notif_count=0 and
+    // emitted immediately.
+    await db
+      .update(notifications)
+      .set({ archivedAt: new Date() })
+      .where(
+        and(eq(notifications.userId, userId), eq(notifications.notificationType, "vaccine_due")),
+      );
+
+    const afterArchive = await runVaccineDueScan();
+    expect(await insertedForFixtureUser(afterArchive)).toBe(0);
+  });
+
+  it("stops emitting once the reminder is marked completed_at", async () => {
+    await db.update(reminders).set({ completedAt: new Date() }).where(eq(reminders.id, reminderId));
+
+    const third = await runVaccineDueScan();
+    expect(await insertedForFixtureUser(third)).toBe(0);
+
+    const rows = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(eq(notifications.userId, userId), eq(notifications.notificationType, "vaccine_due")),
+      );
+    expect(rows.length).toBe(2);
   });
 });

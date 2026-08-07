@@ -1,15 +1,19 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 import { LnAlert } from "@/components/ui/Alert";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox, LnField, LnInput } from "@/components/ui/Field";
+import { OpTextarea } from "@/components/ui/dashboard/OpField";
 import type { Organization } from "@/db";
 import {
   type UpdateOrgFormState,
   updateOrganizationAction,
 } from "@/src/modules/organizations/actions";
+
+// Shelter and rescue_network org types show the capacity section (Item 16 D1).
+const SHELTER_TYPES = new Set<string>(["shelter", "rescue_network"]);
 
 type Props = {
   organization: Pick<
@@ -23,27 +27,57 @@ type Props = {
     | "description"
     | "personeriaJuridicaNumber"
     | "tier0ShowOriginOrg"
+    | "orgType"
+    // Capacity columns (Item 16 D1, migration 0102).
+    | "capacityDogs"
+    | "capacityCats"
+    | "capacityOther"
+    | "capacityTotal"
   >;
 };
 
 const initialState: UpdateOrgFormState = { error: null };
 
+function capacityStr(val: number | string | null | undefined): string {
+  if (val === null || val === undefined) return "";
+  return String(val);
+}
+
 export function EditOrgForm({ organization }: Props) {
   const [state, formAction, isPending] = useActionState(updateOrganizationAction, initialState);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [displayName, setDisplayName] = useState(organization.displayName);
+  const [legalName, setLegalName] = useState(organization.legalName ?? "");
+  const [email, setEmail] = useState(organization.email ?? "");
+  const [phone, setPhone] = useState(organization.phone ?? "");
+  const [website, setWebsite] = useState(organization.website ?? "");
+  const [description, setDescription] = useState(organization.description ?? "");
+  const [personeriaJuridicaNumber, setPersoneriaJuridicaNumber] = useState(
+    organization.personeriaJuridicaNumber ?? "",
+  );
+
+  // Capacity fields (shelters only).
+  const isShelter = SHELTER_TYPES.has(organization.orgType);
+  const [capacityDogs, setCapacityDogs] = useState(capacityStr(organization.capacityDogs));
+  const [capacityCats, setCapacityCats] = useState(capacityStr(organization.capacityCats));
+  const [capacityOther, setCapacityOther] = useState(capacityStr(organization.capacityOther));
+  const [capacityTotal, setCapacityTotal] = useState(capacityStr(organization.capacityTotal));
 
   return (
     <form action={formAction} className="space-y-5 max-w-xl">
       {/* Hidden field so the action knows which org to update */}
       <input type="hidden" name="orgToken" value={organization.publicToken} />
 
-      <LnField label="Nombre público" required hint="Nombre que verán los demás usuarios de MiMAR.">
+      <LnField label="Nombre público" required hint="Nombre que verán los demás usuarios de miMAR.">
         {({ id, describedBy, invalid }) => (
           <LnInput
             id={id}
             name="displayName"
             type="text"
             required
-            defaultValue={organization.displayName}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -59,7 +93,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="legalName"
             type="text"
-            defaultValue={organization.legalName ?? ""}
+            value={legalName}
+            onChange={(e) => setLegalName(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -72,7 +107,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="email"
             type="email"
-            defaultValue={organization.email ?? ""}
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -85,7 +121,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="phone"
             type="tel"
-            defaultValue={organization.phone ?? ""}
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -98,7 +135,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="website"
             type="url"
-            defaultValue={organization.website ?? ""}
+            value={website}
+            onChange={(e) => setWebsite(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -107,13 +145,14 @@ export function EditOrgForm({ organization }: Props) {
 
       <LnField label="Descripción pública" hint="Máximo 2000 caracteres.">
         {({ id, describedBy }) => (
-          <textarea
+          <OpTextarea
             id={id}
             name="description"
             rows={4}
-            defaultValue={organization.description ?? ""}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             aria-describedby={describedBy}
-            className="w-full rounded-[6px] border border-ln-op-line px-3 py-2 text-[13px] text-ln-op-ink bg-ln-op-card focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
+            className="resize-y"
           />
         )}
       </LnField>
@@ -124,7 +163,8 @@ export function EditOrgForm({ organization }: Props) {
             id={id}
             name="personeriaJuridicaNumber"
             type="text"
-            defaultValue={organization.personeriaJuridicaNumber ?? ""}
+            value={personeriaJuridicaNumber}
+            onChange={(e) => setPersoneriaJuridicaNumber(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -139,11 +179,97 @@ export function EditOrgForm({ organization }: Props) {
         >
           Mostrar a mi organización como refugio de origen en la credencial pública de las mascotas
         </LnCheckbox>
-        <p className="text-[12px] text-ln-op-mute pl-6">
+        <p className="text-sm text-ln-op-mute pl-6">
           Cuando está activo, la credencial pública muestra el nombre de tu organización como
           refugio de origen de la mascota.
         </p>
       </div>
+
+      {/* Shelter capacity section (Item 16 D1) — only for shelter / rescue_network orgs */}
+      {isShelter && (
+        <fieldset className="space-y-4 rounded-[var(--radius-md)] border border-ln-op-line p-4">
+          <legend className="px-1 text-md font-semibold text-ln-op-ink">Capacidad</legend>
+          <p className="text-sm text-ln-op-mute -mt-2">
+            Declarar la capacidad te permite calcular tu ocupación y recibir alertas cuando estés
+            llegando al límite. Los campos son opcionales — podés completar solo los que
+            correspondan.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <LnField label="Perros" hint="Capacidad máxima de perros.">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityDogs"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityDogs}
+                  onChange={(e) => setCapacityDogs(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+
+            <LnField label="Gatos" hint="Capacidad máxima de gatos.">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityCats"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityCats}
+                  onChange={(e) => setCapacityCats(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+
+            <LnField label="Otros" hint="Capacidad máxima de otras especies.">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityOther"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityOther}
+                  onChange={(e) => setCapacityOther(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+
+            <LnField label="Total" hint="Capacidad máxima total (todas las especies).">
+              {({ id, describedBy, invalid }) => (
+                <LnInput
+                  id={id}
+                  name="capacityTotal"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={99999}
+                  value={capacityTotal}
+                  onChange={(e) => setCapacityTotal(e.target.value)}
+                  aria-describedby={describedBy}
+                  invalid={invalid}
+                  placeholder="—"
+                />
+              )}
+            </LnField>
+          </div>
+        </fieldset>
+      )}
 
       {state.error && <LnAlert variant="danger">{state.error}</LnAlert>}
       {state.ok && <LnAlert variant="success">Cambios guardados correctamente.</LnAlert>}

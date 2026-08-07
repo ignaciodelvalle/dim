@@ -22,13 +22,13 @@
 import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, notifications, organizations, petEvents, pets } from "@/db";
+import { db, notifications, organizations, petEvents, pets } from "@/db";
 import {
   escalateStaleDecomiso,
   findStaleDecomisoCandidates,
 } from "@/lib/case-closers/escalate-stale-decomiso-handoffs";
-import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -237,7 +237,7 @@ describe("decomiso handoff cron — stale handoff is found", () => {
       primaryPetId: petStaleId,
       openedByOrganizationId: sanitaryOrgId,
       receiverOrganizationId: shelterOrgId,
-      openedReason: "auto: decomiso motivo=maltrato_fisico judicial_ref=sin_ref",
+      openedReason: { code: "decomiso_executed", motive: "maltrato_fisico", judicialRef: null },
     });
     staleCaseId = c.id;
     await db.execute(
@@ -320,7 +320,7 @@ describe("decomiso handoff cron — reassigned case excluded (clock on latest pr
       primaryPetId: petReassignedId,
       openedByOrganizationId: sanitaryOrgId,
       receiverOrganizationId: shelterOrgId,
-      openedReason: "auto: decomiso motivo=abandono_extremo judicial_ref=sin_ref",
+      openedReason: { code: "decomiso_executed", motive: "abandono_extremo", judicialRef: null },
     });
     reassignedCaseId = c.id;
 
@@ -355,7 +355,7 @@ describe("decomiso handoff cron — non-sanitary-authority org excluded", () => 
       primaryPetId: petNonSanitaryId,
       openedByOrganizationId: nonSanitaryOrgId, // clinic, NOT sanitary_authority
       receiverOrganizationId: shelterOrgId,
-      openedReason: "auto: non-decomiso custody episode for exclusion test",
+      openedReason: { code: "org_intake", intakeReason: "rescue" },
     });
     nonDecomisoCaseId = c.id;
 

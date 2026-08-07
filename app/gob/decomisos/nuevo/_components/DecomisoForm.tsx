@@ -31,6 +31,9 @@
 //   - intakeCondition:              optional text
 //   - attachmentFiles:              >= 2 mandatory files (photo + acta)
 
+import { Icon } from "@/components/Icon";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
@@ -45,6 +48,7 @@ import {
   type GovtPetLookupResult,
   lookupPetForDecomisoAction,
 } from "@/app/actions/decomiso-pet-lookup";
+import { formatRate, sexLabel, speciesLabel, statusLabel } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,6 +74,8 @@ type SubjectMode = "registered_pet" | "unowned_animal";
 type DecomisoFormProps = {
   receiverOrgs: ReceiverOrg[];
   prefillWelfareReportId: string | null;
+  /** Public DEN-XXXX-XXXX code of the linked denuncia, shown instead of the raw id. */
+  prefillWelfareReportRef: string | null;
   prefillPetToken: string | null;
 };
 
@@ -78,11 +84,11 @@ type DecomisoFormProps = {
 // ---------------------------------------------------------------------------
 
 const SEIZURE_MOTIVE_LABELS: Record<SeizureMotive, string> = {
-  maltrato_fisico: "Maltrato fisico",
+  maltrato_fisico: "Maltrato físico",
   abandono_extremo: "Abandono extremo",
-  acumulacion: "Acumulacion / hoarding",
-  trafico: "Trafico / comercio ilegal",
-  sin_refugio_critico: "Sin resguardo adecuado (situacion critica)",
+  acumulacion: "Acumulación / hoarding",
+  trafico: "Tráfico / comercio ilegal",
+  sin_refugio_critico: "Sin resguardo adecuado (situación crítica)",
   pelea_de_perros: "Pelea de perros",
   otro: "Otro",
 };
@@ -109,10 +115,13 @@ const ALLOWED_MIME = new Set([
 export function DecomisoForm({
   receiverOrgs,
   prefillWelfareReportId,
+  prefillWelfareReportRef,
   prefillPetToken,
 }: DecomisoFormProps) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // RA-9 BR-1: focus returns here when the DC2 confirm modal closes.
+  const submitRef = useRef<HTMLButtonElement>(null);
 
   // --- Subject mode toggle (DC3) ---
   const [subjectMode, setSubjectMode] = useState<SubjectMode>("registered_pet");
@@ -135,7 +144,9 @@ export function DecomisoForm({
   const [seizureMotive, setSeizureMotive] = useState<SeizureMotive | "">("");
   const [seizureMotiveOtherDetail, setSeizureMotiveOtherDetail] = useState("");
   const [judicialRef, setJudicialRef] = useState("");
-  const [welfareReportId, setWelfareReportId] = useState(prefillWelfareReportId ?? "");
+  // Linkage is prefill-only (resolved server-side); the operator never types the
+  // raw id, so this is a plain value, not editable state.
+  const welfareReportId = prefillWelfareReportId ?? "";
   const [intakeCondition, setIntakeCondition] = useState("");
   const [receiverOrgId, setReceiverOrgId] = useState("");
   const [receiverSearch, setReceiverSearch] = useState("");
@@ -212,17 +223,17 @@ export function DecomisoForm({
   // --- Validation ---
   function validate(): string | null {
     if (subjectMode === "registered_pet") {
-      if (!petPreview) return "Busca y confirma la mascota antes de continuar.";
+      if (!petPreview) return "Buscá y confirmá la mascota antes de continuar.";
     } else {
-      if (!unownedSpecies.trim()) return "Indica la especie del animal sin registrar.";
+      if (!unownedSpecies.trim()) return "Indicá la especie del animal sin registrar.";
     }
-    if (!seizureMotive) return "Selecciona el motivo del decomiso.";
+    if (!seizureMotive) return "Seleccioná el motivo del decomiso.";
     if (seizureMotive === "otro" && !seizureMotiveOtherDetail.trim()) {
-      return "Especifica el detalle cuando el motivo es 'Otro'.";
+      return "Especificá el detalle cuando el motivo es 'Otro'.";
     }
-    if (!receiverOrgId) return "Selecciona el refugio o red de rescate destinataria.";
+    if (!receiverOrgId) return "Seleccioná el refugio o red de rescate destinataria.";
     if (attachments.length < 2) {
-      return "Adjunta al menos 2 archivos: una foto del animal y el acta administrativa.";
+      return "Adjuntá al menos 2 archivos: una foto del animal y el acta administrativa.";
     }
     return null;
   }
@@ -313,8 +324,8 @@ export function DecomisoForm({
     <>
       <div className="space-y-6">
         {/* --- Sujeto del decomiso (mode toggle + conditional fields) --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
-          <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             1. Sujeto del decomiso
           </h2>
 
@@ -323,7 +334,7 @@ export function DecomisoForm({
             <button
               type="button"
               onClick={() => setSubjectMode("registered_pet")}
-              className={`flex-1 py-2.5 px-4 rounded-[6px] border text-[13px] font-medium transition-colors ${
+              className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] border text-md font-medium transition-colors ${
                 subjectMode === "registered_pet"
                   ? "border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul"
                   : "border-ln-op-line bg-ln-op-card text-ln-op-mute hover:bg-ln-op-stripe"
@@ -334,7 +345,7 @@ export function DecomisoForm({
             <button
               type="button"
               onClick={() => setSubjectMode("unowned_animal")}
-              className={`flex-1 py-2.5 px-4 rounded-[6px] border text-[13px] font-medium transition-colors ${
+              className={`flex-1 py-2.5 px-4 rounded-[var(--radius-md)] border text-md font-medium transition-colors ${
                 subjectMode === "unowned_animal"
                   ? "border-ln-op-azul bg-ln-op-blue-bg text-ln-op-azul"
                   : "border-ln-op-line bg-ln-op-card text-ln-op-mute hover:bg-ln-op-stripe"
@@ -347,18 +358,18 @@ export function DecomisoForm({
           {/* Registered pet fields */}
           {subjectMode === "registered_pet" && (
             <div className="space-y-3">
-              <p className="text-[12px] text-ln-op-mute">
-                Ingresa el token DIM-XXXX-XXXX de la mascota registrada.
+              <p className="text-sm text-ln-op-mute">
+                Ingresá el token DIM-XXXX-XXXX de la mascota registrada.
               </p>
               <div className="flex gap-2">
                 <div className="flex-1">
                   <label
                     htmlFor="petToken"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Token de la mascota
                   </label>
-                  <input
+                  <OpInput
                     id="petToken"
                     type="text"
                     value={petToken}
@@ -374,59 +385,60 @@ export function DecomisoForm({
                       }
                     }}
                     placeholder="DIM-XXXX-XXXX"
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink placeholder-ln-op-faint focus:outline-none focus:border-ln-op-azul"
+                    className="font-mono"
                   />
                 </div>
-                <button
+                <OpButton
                   type="button"
                   onClick={lookupPet}
                   disabled={petLookupPending || !petToken.trim()}
-                  className="self-end px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
+                  variant="primary"
+                  className="self-end"
                 >
                   {petLookupPending ? "Buscando..." : "Buscar"}
-                </button>
+                </OpButton>
               </div>
 
               {petLookupError && (
-                <p className="text-[13px] text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
+                <p className="text-md text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-3 py-2">
                   {petLookupError}
                 </p>
               )}
 
               {petPreview && (
                 <div
-                  className={`rounded-[6px] border p-4 space-y-1 ${
+                  className={`rounded-[var(--radius-md)] border p-4 space-y-1 ${
                     petPreview.hasOwner
                       ? "border-ln-op-warn-bd bg-ln-op-warn-bg"
                       : "border-ln-op-line bg-ln-op-stripe"
                   }`}
                 >
                   <div className="flex items-center justify-between">
-                    <p className="text-[13px] font-semibold text-ln-op-ink">
+                    <p className="text-md font-semibold text-ln-op-ink">
                       {petPreview.name}{" "}
                       <span className="font-normal text-ln-op-mute">
-                        ({petPreview.species}, {petPreview.sex})
+                        ({speciesLabel(petPreview.species)}, {sexLabel(petPreview.sex)})
                       </span>
                     </p>
                     <span
-                      className={`text-[11px] px-2 py-0.5 rounded-full ${
+                      className={`text-sm px-2 py-0.5 rounded-full ${
                         petPreview.status === "active"
                           ? "bg-ln-op-ok-bg text-ln-op-ok"
                           : "bg-ln-op-stripe text-ln-op-mute"
                       }`}
                     >
-                      {petPreview.status}
+                      {statusLabel(petPreview.status)}
                     </span>
                   </div>
-                  <p className="text-[11px] font-mono text-ln-op-mute">{petPreview.publicToken}</p>
+                  <p className="text-sm font-mono text-ln-op-mute">{petPreview.publicToken}</p>
                   {petPreview.hasOwner ? (
-                    <p className="text-[12px] text-ln-op-warn mt-1">
+                    <p className="text-sm text-ln-op-warn mt-1">
                       Esta mascota tiene un dueño registrado
                       {petPreview.ownerDisplayName ? ` (${petPreview.ownerDisplayName})` : ""}. Al
                       continuar, se le quitara la custodia legal.
                     </p>
                   ) : (
-                    <p className="text-[12px] text-ln-op-mute mt-1">
+                    <p className="text-sm text-ln-op-mute mt-1">
                       Sin dueño registrado actualmente.
                     </p>
                   )}
@@ -438,49 +450,47 @@ export function DecomisoForm({
           {/* Unowned animal fields */}
           {subjectMode === "unowned_animal" && (
             <div className="space-y-3">
-              <p className="text-[12px] text-ln-op-mute">
-                Describe el animal. Se creara un registro en el sistema para este decomiso. La
-                jurisdiccion se asignara desde tu organizacion sanitaria.
+              <p className="text-sm text-ln-op-mute">
+                Describí el animal. Se creará un registro en el sistema para este decomiso. La
+                jurisdicción se asignará desde tu organización sanitaria.
               </p>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label
                     htmlFor="unownedSpecies"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Especie <span className="text-ln-op-danger">*</span>
                   </label>
-                  <select
+                  <OpSelect
                     id="unownedSpecies"
                     value={unownedSpecies}
                     onChange={(e) => setUnownedSpecies(e.target.value)}
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
                   >
-                    <option value="">{"— Selecciona —"}</option>
+                    <option value="">{"— Seleccioná —"}</option>
                     <option value="dog">Perro</option>
                     <option value="cat">Gato</option>
                     <option value="other">Otro</option>
-                  </select>
+                  </OpSelect>
                 </div>
 
                 <div>
                   <label
                     htmlFor="unownedSex"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Sexo
                   </label>
-                  <select
+                  <OpSelect
                     id="unownedSex"
                     value={unownedSex}
                     onChange={(e) => setUnownedSex(e.target.value as "male" | "female" | "unknown")}
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
                   >
                     <option value="unknown">Desconocido</option>
                     <option value="male">Macho</option>
                     <option value="female">Hembra</option>
-                  </select>
+                  </OpSelect>
                 </div>
               </div>
 
@@ -488,34 +498,32 @@ export function DecomisoForm({
                 <div>
                   <label
                     htmlFor="unownedBreed"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Raza (opcional)
                   </label>
-                  <input
+                  <OpInput
                     id="unownedBreed"
                     type="text"
                     value={unownedBreed}
                     onChange={(e) => setUnownedBreed(e.target.value)}
                     placeholder="Mestizo, labrador, etc."
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
 
                 <div>
                   <label
                     htmlFor="unownedColor"
-                    className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                    className="block text-sm font-medium text-ln-op-ink mb-1"
                   >
                     Color (opcional)
                   </label>
-                  <input
+                  <OpInput
                     id="unownedColor"
                     type="text"
                     value={unownedColor}
                     onChange={(e) => setUnownedColor(e.target.value)}
                     placeholder="Negro, blanco y marron, etc."
-                    className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
               </div>
@@ -523,28 +531,27 @@ export function DecomisoForm({
               <div>
                 <label
                   htmlFor="unownedFeatures"
-                  className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                  className="block text-sm font-medium text-ln-op-ink mb-1"
                 >
                   Marcas distintivas (opcional)
                 </label>
-                <input
+                <OpInput
                   id="unownedFeatures"
                   type="text"
                   value={unownedFeatures}
                   onChange={(e) => setUnownedFeatures(e.target.value)}
                   placeholder="Cicatriz en lomo, mancha en ojo derecho, etc."
-                  className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                 />
               </div>
 
               <div>
                 <label
                   htmlFor="unownedAgeMonths"
-                  className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                  className="block text-sm font-medium text-ln-op-ink mb-1"
                 >
                   Edad aproximada en meses (opcional)
                 </label>
-                <input
+                <OpInput
                   id="unownedAgeMonths"
                   type="number"
                   min="0"
@@ -553,7 +560,6 @@ export function DecomisoForm({
                   value={unownedAgeMonths}
                   onChange={(e) => setUnownedAgeMonths(e.target.value)}
                   placeholder="Ej: 24 (2 anios)"
-                  className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                 />
               </div>
             </div>
@@ -561,24 +567,23 @@ export function DecomisoForm({
         </section>
 
         {/* --- Motivo --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
-          <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             2. Motivo del decomiso
           </h2>
           <div>
             <label
               htmlFor="seizureMotive"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+              className="block text-sm font-medium text-ln-op-ink mb-1"
             >
               Motivo <span className="text-ln-op-danger">*</span>
             </label>
-            <select
+            <OpSelect
               id="seizureMotive"
               value={seizureMotive}
               onChange={(e) => setSeizureMotive(e.target.value as SeizureMotive | "")}
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
             >
-              <option value="">{"— Selecciona un motivo —"}</option>
+              <option value="">{"— Seleccioná un motivo —"}</option>
               {(Object.entries(SEIZURE_MOTIVE_LABELS) as [SeizureMotive, string][]).map(
                 ([value, label]) => (
                   <option key={value} value={value}>
@@ -586,63 +591,56 @@ export function DecomisoForm({
                   </option>
                 ),
               )}
-            </select>
+            </OpSelect>
           </div>
 
           {seizureMotive === "otro" && (
             <div>
               <label
                 htmlFor="seizureMotiveOtherDetail"
-                className="block text-[12px] font-medium text-ln-op-ink mb-1"
+                className="block text-sm font-medium text-ln-op-ink mb-1"
               >
                 Detalle del motivo <span className="text-ln-op-danger">*</span>
               </label>
-              <textarea
+              <OpTextarea
                 id="seizureMotiveOtherDetail"
                 value={seizureMotiveOtherDetail}
                 onChange={(e) => setSeizureMotiveOtherDetail(e.target.value)}
                 rows={3}
-                placeholder="Describe el motivo especifico del decomiso"
-                className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+                placeholder="Describí el motivo específico del decomiso"
+                className="resize-none"
               />
             </div>
           )}
 
           <div>
-            <label
-              htmlFor="judicialRef"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
+            <label htmlFor="judicialRef" className="block text-sm font-medium text-ln-op-ink mb-1">
               Expediente judicial (opcional)
             </label>
-            <input
+            <OpInput
               id="judicialRef"
               type="text"
               value={judicialRef}
               onChange={(e) => setJudicialRef(e.target.value)}
               placeholder="Ej: EXP-2025-123456"
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
             />
           </div>
 
           <div>
-            <label
-              htmlFor="welfareReportId"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
-            >
-              ID de denuncia de maltrato vinculada (opcional)
-            </label>
-            <input
-              id="welfareReportId"
-              type="text"
-              value={welfareReportId}
-              onChange={(e) => setWelfareReportId(e.target.value)}
-              placeholder="UUID de la denuncia que origino este decomiso"
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
-            />
-            {prefillWelfareReportId && (
-              <p className="text-[12px] text-ln-op-mute mt-1">
-                Prefilled desde la denuncia de maltrato.
+            <span className="block text-sm font-medium text-ln-op-ink mb-1">
+              Denuncia de maltrato vinculada
+            </span>
+            {prefillWelfareReportRef ? (
+              <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe/40 px-3 py-2">
+                <p className="text-md font-mono text-ln-op-ink">{prefillWelfareReportRef}</p>
+                <p className="text-sm text-ln-op-mute mt-1">
+                  Vinculada desde la denuncia de maltrato.
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-ln-op-mute">
+                Para vincular una denuncia, iniciá el decomiso desde la denuncia de maltrato con el
+                botón “Ejecutar decomiso”.
               </p>
             )}
           </div>
@@ -650,36 +648,36 @@ export function DecomisoForm({
           <div>
             <label
               htmlFor="intakeCondition"
-              className="block text-[12px] font-medium text-ln-op-ink mb-1"
+              className="block text-sm font-medium text-ln-op-ink mb-1"
             >
               Estado del animal al momento del decomiso (opcional)
             </label>
-            <textarea
+            <OpTextarea
               id="intakeCondition"
               value={intakeCondition}
               onChange={(e) => setIntakeCondition(e.target.value)}
               rows={2}
               placeholder="Descripcion de la condicion fisica / comportamental del animal"
-              className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+              className="resize-none"
             />
           </div>
         </section>
 
         {/* --- Refugio destinatario --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
-          <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
             3. Refugio destinatario
           </h2>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Solo refugios y redes de rescate verificados. El refugio tiene 7 dias para aceptar o
             rechazar el handoff.
           </p>
 
           {selectedOrg ? (
-            <div className="flex items-center justify-between rounded-[6px] border border-ln-op-blue-bd bg-ln-op-blue-bg px-4 py-3">
+            <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-ln-op-blue-bd bg-ln-op-blue-bg px-4 py-3">
               <div>
-                <p className="text-[13px] font-medium text-ln-op-ink">{selectedOrg.displayName}</p>
-                <p className="text-[12px] text-ln-op-mute capitalize">
+                <p className="text-md font-medium text-ln-op-ink">{selectedOrg.displayName}</p>
+                <p className="text-sm text-ln-op-mute capitalize">
                   {selectedOrg.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {selectedOrg.jurisdictionLocality
                     ? ` · ${selectedOrg.jurisdictionLocality}, ${selectedOrg.jurisdictionProvince ?? ""}`
@@ -689,33 +687,29 @@ export function DecomisoForm({
               <button
                 type="button"
                 onClick={() => setReceiverOrgId("")}
-                className="text-[12px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+                className="text-sm text-ln-op-mute hover:text-ln-op-ink transition-colors"
               >
                 Cambiar
               </button>
             </div>
           ) : (
             <div className="space-y-2">
-              <label
-                htmlFor="receiverSearch"
-                className="block text-[12px] font-medium text-ln-op-ink"
-              >
+              <label htmlFor="receiverSearch" className="block text-sm font-medium text-ln-op-ink">
                 Buscar por nombre <span className="text-ln-op-danger">*</span>
               </label>
-              <input
+              <OpInput
                 id="receiverSearch"
                 type="text"
                 value={receiverSearch}
                 onChange={(e) => setReceiverSearch(e.target.value)}
-                placeholder="Escribe para filtrar..."
-                className="block w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                placeholder="Escribí para filtrar..."
               />
               {receiverOrgs.length === 0 ? (
-                <p className="text-[12px] text-ln-op-mute py-2">
-                  No hay refugios verificados disponibles. Contacta al administrador.
+                <p className="text-sm text-ln-op-mute py-2">
+                  No hay refugios verificados disponibles. Contactá al administrador.
                 </p>
               ) : (
-                <ul className="max-h-48 overflow-y-auto divide-y divide-ln-op-line-2 rounded-[6px] border border-ln-op-line">
+                <ul className="max-h-48 overflow-y-auto divide-y divide-ln-op-line-2 rounded-[var(--radius-md)] border border-ln-op-line">
                   {filteredOrgs.slice(0, 50).map((org) => (
                     <li key={org.id}>
                       <button
@@ -726,8 +720,8 @@ export function DecomisoForm({
                         }}
                         className="w-full text-left px-4 py-2.5 hover:bg-ln-op-stripe transition-colors"
                       >
-                        <p className="text-[13px] text-ln-op-ink">{org.displayName}</p>
-                        <p className="text-[12px] text-ln-op-mute capitalize">
+                        <p className="text-md text-ln-op-ink">{org.displayName}</p>
+                        <p className="text-sm text-ln-op-mute capitalize">
                           {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                           {org.jurisdictionLocality
                             ? ` · ${org.jurisdictionLocality}, ${org.jurisdictionProvince ?? ""}`
@@ -737,7 +731,7 @@ export function DecomisoForm({
                     </li>
                   ))}
                   {filteredOrgs.length === 0 && (
-                    <li className="px-4 py-3 text-[13px] text-ln-op-mute">
+                    <li className="px-4 py-3 text-md text-ln-op-mute">
                       Sin resultados para &ldquo;{receiverSearch}&rdquo;.
                     </li>
                   )}
@@ -748,13 +742,13 @@ export function DecomisoForm({
         </section>
 
         {/* --- Adjuntos --- */}
-        <section className="rounded-[6px] border border-ln-op-line p-5 space-y-4">
+        <section className="rounded-[var(--radius-md)] border border-ln-op-line p-5 space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-[12px] font-semibold text-ln-op-ink uppercase tracking-wider">
+            <h2 className="text-sm font-semibold text-ln-op-ink uppercase tracking-wider">
               4. Adjuntos
             </h2>
             <span
-              className={`text-[11px] px-2 py-0.5 rounded-full ${
+              className={`text-sm px-2 py-0.5 rounded-full ${
                 attachments.length >= 2
                   ? "bg-ln-op-ok-bg text-ln-op-ok"
                   : "bg-ln-op-warn-bg text-ln-op-warn"
@@ -763,7 +757,7 @@ export function DecomisoForm({
               {attachments.length} / min. 2
             </span>
           </div>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Obligatorio: al menos 1 foto del animal y 1 acta administrativa (o screenshot del oficio
             judicial). Hasta {MAX_ATTACHMENTS} archivos, 25 MB cada uno.
           </p>
@@ -774,11 +768,11 @@ export function DecomisoForm({
             multiple
             accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif,application/pdf"
             onChange={(e) => handleFilesSelected(e.target.files)}
-            className="block w-full text-[12px] text-ln-op-mute file:mr-3 file:px-3 file:py-1.5 file:rounded-[6px] file:border-0 file:bg-ln-op-stripe file:text-ln-op-ink file:cursor-pointer"
+            className="block w-full text-sm text-ln-op-mute file:mr-3 file:px-3 file:py-1.5 file:rounded-[var(--radius-md)] file:border-0 file:bg-ln-op-stripe file:text-ln-op-ink file:cursor-pointer"
           />
 
           {attachmentError && (
-            <p className="text-[12px] text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg px-3 py-2">
+            <p className="text-sm text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg px-3 py-2">
               {attachmentError}
             </p>
           )}
@@ -789,32 +783,34 @@ export function DecomisoForm({
                 <li
                   // name+size+index is a stable-enough composite key for this append-only list.
                   key={`${entry.file.name}-${entry.file.size}-${i}`}
-                  className="flex items-center gap-3 rounded-[6px] border border-ln-op-line px-3 py-2"
+                  className="flex items-center gap-3 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2"
                 >
                   {entry.objectUrl ? (
                     <img
                       src={entry.objectUrl}
                       alt={entry.file.name}
-                      className="w-10 h-10 object-cover rounded-[4px] flex-shrink-0 border border-ln-op-line"
+                      className="w-10 h-10 object-cover rounded-[var(--radius-sm)] flex-shrink-0 border border-ln-op-line"
                     />
                   ) : (
-                    <div className="w-10 h-10 rounded-[4px] bg-ln-op-stripe flex items-center justify-center flex-shrink-0 text-lg">
-                      {entry.file.type === "application/pdf" ? "📄" : "▶"}
+                    <div className="w-10 h-10 rounded-[var(--radius-sm)] bg-ln-op-stripe flex items-center justify-center flex-shrink-0 text-ln-op-mute">
+                      {entry.file.type === "application/pdf" ? (
+                        <Icon name="nota" size={20} decorative />
+                      ) : (
+                        <Icon name="reproducir" size={20} decorative />
+                      )}
                     </div>
                   )}
-                  <span className="text-[12px] text-ln-op-ink truncate flex-1">
-                    {entry.file.name}
-                  </span>
-                  <span className="text-[12px] text-ln-op-mute flex-shrink-0">
-                    {(entry.file.size / 1024 / 1024).toFixed(1)} MB
+                  <span className="text-sm text-ln-op-ink truncate flex-1">{entry.file.name}</span>
+                  <span className="text-sm text-ln-op-mute flex-shrink-0">
+                    {formatRate(entry.file.size / 1024 / 1024)} MB
                   </span>
                   <button
                     type="button"
                     onClick={() => removeAttachment(i)}
                     aria-label={`Quitar ${entry.file.name}`}
-                    className="flex-shrink-0 w-5 h-5 rounded-full bg-ln-op-stripe text-ln-op-mute text-[12px] hover:bg-ln-op-line hover:text-ln-op-ink transition-colors"
+                    className="flex-shrink-0 w-5 h-5 rounded-full bg-ln-op-stripe text-ln-op-mute hover:bg-ln-op-line hover:text-ln-op-ink transition-colors inline-flex items-center justify-center"
                   >
-                    {"×"}
+                    <Icon name="close" size={14} decorative />
                   </button>
                 </li>
               ))}
@@ -825,7 +821,7 @@ export function DecomisoForm({
         {/* --- Error global --- */}
         {formError && (
           <p
-            className="text-[13px] text-ln-op-danger rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3"
+            className="text-md text-ln-op-danger rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3"
             role="alert"
           >
             {formError}
@@ -833,85 +829,56 @@ export function DecomisoForm({
         )}
 
         {/* --- Submit --- */}
-        <button
+        <OpButton
+          ref={submitRef}
           type="button"
           onClick={handleSubmit}
           disabled={isPending}
-          className="w-full py-4 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-semibold hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          loading={isPending}
+          variant="primary"
+          block
+          className="py-4"
         >
           {isPending ? "Ejecutando decomiso..." : "Ejecutar decomiso"}
-        </button>
+        </OpButton>
 
-        <p className="text-[12px] text-ln-op-mute text-center">
-          Esta accion es irreversible — el decomiso quedara registrado en el sistema de casos bajo
-          Ley 14.346. El refugio destinatario recibira una notificacion de handoff.
+        <p className="text-sm text-ln-op-mute text-center">
+          Esta acción es irreversible — el decomiso quedará registrado en el sistema de casos bajo
+          Ley 14.346. El refugio destinatario recibirá una notificación de handoff.
         </p>
       </div>
 
-      {/* DC2 -- double-confirm modal for pets with an owner */}
-      {showConfirmModal && petPreview && (
-        <dialog
-          open
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 m-0 w-full h-full max-w-none max-h-none bg-transparent border-none"
-          aria-labelledby="confirm-modal-title"
+      {/* DC2 -- double-confirm modal for pets with an owner.
+          RA-9 BR-1: this used to be a hand-rolled `<dialog open>` — the ATTRIBUTE,
+          not showModal(). Non-modal by definition: no top layer, no inertness, no
+          native `cancel`/Escape, and focus stayed on the submit button behind the
+          overlay, so the funcionario could re-submit from behind the panel. Now it
+          rides the vetted ConfirmDialog primitive (showModal focus trap + Escape +
+          focus restore to the trigger + aria-describedby consequence). */}
+      {petPreview && (
+        <ConfirmDialog
+          open={showConfirmModal}
+          onClose={() => setShowConfirmModal(false)}
+          onConfirm={executeDecomiso}
+          title="Ejecutar decomiso"
+          description={`Esta mascota tiene un dueño registrado. Vas a quitarle la custodia legal de ${petPreview.name}${
+            petPreview.ownerDisplayName ? ` a ${petPreview.ownerDisplayName}` : " al dueño actual"
+          }. El sistema le notificará que el animal fue decomisado. Esta acción está amparada en Ley 14.346, queda auditada y no se puede deshacer.`}
+          confirmLabel="Ejecutar decomiso"
+          tone="danger"
+          pending={isPending}
+          triggerRef={submitRef}
         >
-          {/* Backdrop */}
-          <div
-            className="absolute inset-0 bg-ln-op-ink/40"
-            onClick={() => setShowConfirmModal(false)}
-            onKeyDown={(e) => e.key === "Escape" && setShowConfirmModal(false)}
-          />
-          {/* Modal */}
-          <div className="relative z-10 w-full max-w-md rounded-[8px] bg-ln-op-card border border-ln-op-line shadow-xl p-6 space-y-4">
-            <h3 id="confirm-modal-title" className="text-[16px] font-semibold text-ln-op-ink">
-              Confirmar decomiso
-            </h3>
-            <div className="rounded-[6px] bg-ln-op-warn-bg border border-ln-op-warn-bd px-4 py-3 space-y-1">
-              <p className="text-[13px] font-medium text-ln-op-warn">
-                Esta mascota tiene un dueño registrado.
-              </p>
-              <p className="text-[13px] text-ln-op-ink">
-                Vas a quitarle la custodia legal de{" "}
-                <span className="font-semibold">{petPreview.name}</span>
-                {petPreview.ownerDisplayName
-                  ? ` a ${petPreview.ownerDisplayName}`
-                  : " al dueño actual"}
-                .
-              </p>
-              <p className="text-[13px] text-ln-op-ink">
-                El sistema notificara al dueño que el animal fue decomisado. Esta accion esta
-                amparada en Ley 14.346 y quedara auditada.
-              </p>
-            </div>
-            <p className="text-[13px] text-ln-op-mute">
-              Motivo:{" "}
-              <span className="font-medium text-ln-op-ink">
-                {SEIZURE_MOTIVE_LABELS[seizureMotive as SeizureMotive]}
-              </span>
-              {seizureMotive === "otro" && seizureMotiveOtherDetail
-                ? ` — ${seizureMotiveOtherDetail}`
-                : ""}
-            </p>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="button"
-                onClick={executeDecomiso}
-                disabled={isPending}
-                className="flex-1 py-3 rounded-[6px] bg-ln-op-danger text-white text-[13px] font-semibold hover:opacity-90 disabled:opacity-50 transition-opacity"
-              >
-                {isPending ? "Ejecutando..." : "Si, ejecutar decomiso"}
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowConfirmModal(false)}
-                disabled={isPending}
-                className="flex-1 py-3 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </dialog>
+          <p className="px-5 pb-1 text-md text-[var(--color-ln-ink-2)]">
+            Motivo:{" "}
+            <span className="font-medium text-[var(--color-ln-ink)]">
+              {SEIZURE_MOTIVE_LABELS[seizureMotive as SeizureMotive]}
+            </span>
+            {seizureMotive === "otro" && seizureMotiveOtherDetail
+              ? ` — ${seizureMotiveOtherDetail}`
+              : ""}
+          </p>
+        </ConfirmDialog>
       )}
     </>
   );

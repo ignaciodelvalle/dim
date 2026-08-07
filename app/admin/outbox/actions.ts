@@ -14,14 +14,16 @@ import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { db, eventNotificationOutbox } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { buildRetryPayload } from "@/lib/outbox-list";
+import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
+import { buildRetryPayload } from "@/lib/infra/outbox-list";
 
 // ---------------------------------------------------------------------------
 // Server action
 // ---------------------------------------------------------------------------
 
-export async function retryOutboxRowAction(rowId: string): Promise<{ error?: string }> {
+export async function retryOutboxRowAction(
+  rowId: string,
+): Promise<{ error?: string; scheduledAt?: string }> {
   await requireAdminOrRedirect();
 
   const [row] = await db
@@ -34,13 +36,17 @@ export async function retryOutboxRowAction(rowId: string): Promise<{ error?: str
     return { error: "Fila de outbox no encontrada." };
   }
 
+  const payload = buildRetryPayload();
   await db
     .update(eventNotificationOutbox)
-    .set(buildRetryPayload())
+    .set(payload)
     .where(eq(eventNotificationOutbox.id, rowId));
 
   revalidatePath(`/admin/outbox/${rowId}`);
   revalidatePath("/admin/outbox");
 
-  return {};
+  // Return the scheduled next_retry_at (ISO) so the caller can confirm inline
+  // exactly when the drainer will pick the row up — the action gave zero
+  // feedback before, so an operator clicked again thinking it failed (Cowork A1).
+  return { scheduledAt: payload.nextRetryAt.toISOString() };
 }

@@ -1,78 +1,89 @@
 "use client";
 
 // MarkLostWizard — Libreta Nacional redesign (seal/red tone, §10 handoff).
-// Presentation ONLY: 3-step wizard structure, formRef pattern, step logic,
-// action call, field names, and submit logic are untouched.
+//
+// Collects location + reconocimiento detail, then a MANDATORY affirmative
+// disclosure step (privacy hardening 2026-07-04, Ley 25.326 consent gap):
+// the DB defaults for disclose_*_when_lost are permissive (first name,
+// phone, last location = true), so relying on them meant owner PII went
+// public without an explicit consent moment. The wizard now presents the 5
+// disclosure choices with PII toggles OFF by default — the owner actively
+// picks what to share — and always submits explicit true/false values via
+// hidden inputs, so setPetLostAction writes exactly what the owner chose
+// instead of falling back to petDefaults. LostDisclosureCard (rendered in
+// the lost block post-mark) remains the place to tune prefs afterwards.
 
 import { useRef, useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnCallout } from "@/components/ui/DocElements";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
-import {
-  LnGroupLabel,
-  LnSheetAccordion,
-  LnSheetBody,
-  LnSheetFooter,
-  LnSheetHeader,
-  LnSubCard,
-} from "@/components/ui/Sheet";
+import { LnGroupLabel, LnSheetBody, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
-import { LnToggle } from "@/components/ui/Toggle";
-import { TATTOO_LOCATIONS } from "@/lib/lookups";
-import type { DisclosurePrefsInput, EventFormState } from "@/src/modules/events/actions";
+import { LnToggleGroup } from "@/components/ui/Toggle";
+import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
+import { useStepFocus } from "@/lib/ui/use-step-focus";
+import { markLostActionLabel } from "@/lib/utils/format";
+import type { EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
 
-const DISCLOSURE_TOGGLES: Array<{
-  name: keyof DisclosurePrefsInput;
-  formName: string;
+// Affirmative-consent defaults: every owner-PII toggle starts OFF — the owner
+// must actively opt in. The finder form starts ON because it exposes no owner
+// data (it lets a finder send a message without seeing any contact info).
+const DISCLOSURE_DEFAULTS = {
+  disclose_first_name_when_lost: false,
+  disclose_phone_when_lost: false,
+  disclose_email_when_lost: false,
+  disclose_last_location_when_lost: false,
+  allow_finder_form_when_lost: true,
+} as const;
+
+type DisclosureFieldName = keyof typeof DISCLOSURE_DEFAULTS;
+
+const DISCLOSURE_ROWS: Array<{
+  key: DisclosureFieldName;
   label: string;
   description: string;
-  defaultOn: boolean;
 }> = [
   {
-    name: "discloseFirstNameWhenLost",
-    formName: "disclose_first_name_when_lost",
+    key: "disclose_first_name_when_lost",
     label: "Tu nombre",
-    description: "Quienes encuentren a tu mascota verán tu nombre de pila.",
-    defaultOn: true,
+    description: "El público ve quién busca a la mascota.",
   },
   {
-    name: "disclosePhoneWhenLost",
-    formName: "disclose_phone_when_lost",
+    key: "disclose_phone_when_lost",
     label: "Tu teléfono",
-    description: "La credencial pública mostrará un botón directo para llamarte.",
-    defaultOn: true,
+    description: "Aparece un botón directo de llamada.",
   },
   {
-    name: "discloseEmailWhenLost",
-    formName: "disclose_email_when_lost",
+    key: "disclose_email_when_lost",
     label: "Tu email",
-    description: "Se mostrará un enlace de contacto por correo electrónico.",
-    defaultOn: false,
+    description: "Link de email en la credencial pública.",
   },
   {
-    name: "discloseLastLocationWhenLost",
-    formName: "disclose_last_location_when_lost",
-    label: "Última ubicación conocida",
-    description: "Ayuda a orientar la búsqueda en el barrio correcto.",
-    defaultOn: true,
+    key: "disclose_last_location_when_lost",
+    label: "Última ubicación",
+    description: "Muestra el mapa con el pin donde se perdió.",
   },
   {
-    name: "allowFinderFormWhenLost",
-    formName: "allow_finder_form_when_lost",
-    label: "Formulario de quien la encontró",
-    description:
-      "Permite que alguien te avise a través de la credencial sin necesitar tu contacto.",
-    defaultOn: true,
+    key: "allow_finder_form_when_lost",
+    label: "Formulario para avisarte",
+    description: "Quien la encuentre puede avisarte sin ver tus datos.",
   },
 ];
 
+// The location-disclosure row also renders inline in the location step (R5.2)
+// — same key, label and description, so the two views can never drift.
+const LOCATION_DISCLOSURE_ROW = DISCLOSURE_ROWS.find(
+  (r) => r.key === "disclose_last_location_when_lost",
+) as (typeof DISCLOSURE_ROWS)[number];
+
 export function MarkLostWizard({
   action,
-  disclosureDefaults,
   petName,
+  petSex = null,
   petPublicToken,
   petHasMicrochip,
   petHasTattoo,
@@ -80,10 +91,14 @@ export function MarkLostWizard({
   petDistinguishingFeatures,
   petJurisdictionProvince,
   petJurisdictionLocality,
+  priorAccessoriesWhenLost = null,
+  priorBehaviorNotes = null,
+  priorLastSeenContext = null,
 }: {
   action: FormAction;
-  disclosureDefaults: DisclosurePrefsInput;
   petName: string;
+  /** Pet sex ('male' | 'female' | 'unknown') — flexes the submit label. */
+  petSex?: string | null;
   petPublicToken: string;
   petHasMicrochip: boolean;
   petHasTattoo: boolean;
@@ -91,28 +106,44 @@ export function MarkLostWizard({
   petDistinguishingFeatures: string | null;
   petJurisdictionProvince: string | null;
   petJurisdictionLocality: string | null;
+  /**
+   * "Accesorios que llevaba" / "Comportamiento" / "Contexto del último
+   * avistaje" from the pet's most recent PRIOR pet_marked_lost episode
+   * (fetchLatestLostDescription — events are the source of truth, unlike
+   * petColor/petDistinguishingFeatures above which persist on the pet row).
+   * Null on a pet's first-ever lost episode. The owner can still edit —
+   * these are only DEFAULT values (medianos-sesión-2 finding #3: a second
+   * "Marcar como perdida" started these fields blank despite them being
+   * entered before).
+   */
+  priorAccessoriesWhenLost?: string | null;
+  priorBehaviorNotes?: string | null;
+  priorLastSeenContext?: string | null;
 }) {
-  // Detail step is conditional — pets with chip or tattoo skip it.
+  // Detail step is conditional — pets with chip or tattoo skip it. The
+  // disclosure (affirmative consent) step is ALWAYS the final step.
   const showDetailsStep = !petHasMicrochip && !petHasTattoo;
   const totalSteps = showDetailsStep ? 3 : 2;
   const stepLabels = showDetailsStep
-    ? ["¿Dónde la viste?", "Datos para reconocerla", "Qué querés que vean"]
-    : ["¿Dónde la viste?", "Qué querés que vean"];
+    ? ["¿Dónde la viste?", "Datos para reconocerla", "Qué se muestra al público"]
+    : ["¿Dónde la viste?", "Qué se muestra al público"];
+  const disclosureStep = totalSteps;
 
   const [step, setStep] = useState(1);
+  const [disclosurePrefs, setDisclosurePrefs] = useState<Record<DisclosureFieldName, boolean>>({
+    ...DISCLOSURE_DEFAULTS,
+  });
   const [isPending, startTransition] = useTransition();
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const formRef = useRef<HTMLFormElement>(null);
-
-  // Disclosure toggles state (LnToggle is controlled)
-  const [disclosure, setDisclosure] = useState<Record<string, boolean>>({
-    disclose_first_name_when_lost: disclosureDefaults.discloseFirstNameWhenLost,
-    disclose_phone_when_lost: disclosureDefaults.disclosePhoneWhenLost,
-    disclose_email_when_lost: disclosureDefaults.discloseEmailWhenLost,
-    disclose_last_location_when_lost: disclosureDefaults.discloseLastLocationWhenLost,
-    allow_finder_form_when_lost: disclosureDefaults.allowFinderFormWhenLost,
-  });
+  // A11y fix (2026-07 audit): this wizard hand-rolls its own step state (all
+  // steps stay mounted, hidden via sr-only/inert) instead of using
+  // <LnWizardShell>, so it needs its own focus target. Wraps LnSheetHeader
+  // (whose subtitle already reads "Paso X de Y · <label>") — see
+  // lib/ui/use-step-focus.ts.
+  const stepFocusRef = useRef<HTMLDivElement>(null);
+  useStepFocus(step, stepFocusRef);
 
   function goBack() {
     setErrorMessage(null);
@@ -127,12 +158,9 @@ export function MarkLostWizard({
   function handleSubmit() {
     setErrorMessage(null);
     const formData = formRef.current ? new FormData(formRef.current) : new FormData();
-    // Sync controlled toggle state into formData before submit.
-    // (Hidden inputs in the form only capture the initial defaultChecked;
-    // LnToggle is controlled so we write the current values here.)
-    for (const [k, v] of Object.entries(disclosure)) {
-      formData.set(k, v ? "on" : "");
-    }
+    // Disclosure fields are ALWAYS submitted (hidden inputs carry explicit
+    // "true"/"false") so setPetLostAction persists the owner's affirmative
+    // choices instead of falling back to the permissive petDefaults.
     // Signal to setPetLostAction to skip the redirect.
     formData.set("noRedirect", "1");
     startTransition(async () => {
@@ -157,7 +185,7 @@ export function MarkLostWizard({
     return (
       <LnSuccessScreen
         title={`Activamos la búsqueda de ${petName}`}
-        description="Su perfil público ya muestra el aviso. Más gente va a poder ayudarte a encontrarla."
+        description="Su perfil público ya muestra el aviso con la información que elegiste compartir. Podés ajustar qué se ve (teléfono, ubicación, email) desde su perfil cuando quieras."
         next={[
           { label: "Compartir por WhatsApp", href: shareUrl },
           { label: "Imprimir cartel A4", href: printHref, variant: "secondary" },
@@ -171,15 +199,17 @@ export function MarkLostWizard({
 
   return (
     <>
-      <LnSheetHeader
-        tone="seal"
-        icon="🔍"
-        title={`Marcar ${petName} como perdida`}
-        subtitle={`Paso ${step} de ${totalSteps} · ${stepLabels[step - 1]}`}
-      />
+      <div ref={stepFocusRef} tabIndex={-1} className="focus:outline-none">
+        <LnSheetHeader
+          tone="seal"
+          icon={<Icon name="lupa" decorative />}
+          title={`Marcar ${petName} como perdida`}
+          subtitle={`Paso ${step} de ${totalSteps} · ${stepLabels[step - 1]}`}
+        />
+      </div>
       <LnSheetBody>
         {/* Step progress bar */}
-        <div className="flex gap-[6px]">
+        <div className="flex gap-1.5">
           {Array.from({ length: totalSteps }, (_, i) => i + 1).map((n) => (
             <div
               key={`step-${n}`}
@@ -198,12 +228,19 @@ export function MarkLostWizard({
               uncontrolled field values across step transitions. */}
           <section
             data-section="step-location"
-            className={step === 1 ? "flex flex-col gap-[14px]" : "sr-only"}
+            className={step === 1 ? "flex flex-col gap-3.5" : "sr-only"}
             aria-hidden={step !== 1}
+            inert={step !== 1 ? true : undefined}
           >
-            <p className="text-[12.5px] text-[var(--color-ln-mute)]">
-              Marcá el lugar y la hora aproximada del último avistaje. La ubicación se vuelve parte
-              de la credencial pública para orientar la búsqueda.
+            {/* R5.1 (pet-state-header): this copy used to promise the location
+                "se vuelve parte de la credencial pública" — contradicting the
+                affirmative-consent model where disclose_last_location_when_lost
+                defaults OFF. It now states the truth: nothing shows publicly
+                unless the owner enables the disclosure below. */}
+            <p className="text-md text-[var(--color-ln-mute)]">
+              Marcá el lugar y la hora aproximada del último avistaje. La ubicación no se muestra en
+              la credencial pública salvo que actives compartirla — podés elegirlo acá abajo o en el
+              último paso.
             </p>
 
             <LocationFields
@@ -211,6 +248,26 @@ export function MarkLostWizard({
               biasProvince={petJurisdictionProvince}
               biasLocality={petJurisdictionLocality}
               useMyLocationVariant="primary"
+            />
+
+            {/* R5.2: the "Última ubicación" disclosure toggle, surfaced where
+                the owner is entering that very location. Bound to the SAME
+                disclosurePrefs state as the final consent step — one state,
+                two views, no divergence (the hidden mirrors below submit it
+                exactly once). */}
+            <LnToggleGroup
+              items={[
+                {
+                  key: "disclose_last_location_when_lost",
+                  label: LOCATION_DISCLOSURE_ROW.label,
+                  description: LOCATION_DISCLOSURE_ROW.description,
+                  checked: disclosurePrefs.disclose_last_location_when_lost,
+                  variant: "amber" as const,
+                },
+              ]}
+              onChange={(key, next) => {
+                setDisclosurePrefs((prev) => ({ ...prev, [key]: next }));
+              }}
             />
 
             <LnField label="Detalles">
@@ -230,8 +287,9 @@ export function MarkLostWizard({
           {showDetailsStep && (
             <section
               data-section="step-details"
-              className={step === 2 ? "flex flex-col gap-[14px]" : "sr-only"}
+              className={step === 2 ? "flex flex-col gap-3.5" : "sr-only"}
               aria-hidden={step !== 2}
+              inert={step !== 2 ? true : undefined}
             >
               <LnCallout tone="azul" title="Sin chip ni tatuaje, estos detalles son clave">
                 Cualquiera que la encuentre sin documentación va a depender de cómo se ve.
@@ -272,6 +330,7 @@ export function MarkLostWizard({
                       id={id}
                       name="enriched_accessories_when_lost"
                       type="text"
+                      defaultValue={priorAccessoriesWhenLost ?? ""}
                       placeholder="Ej: collar rojo con placa, campera azul"
                       aria-describedby={describedBy}
                     />
@@ -283,6 +342,7 @@ export function MarkLostWizard({
                       id={id}
                       name="enriched_behavior_notes"
                       rows={2}
+                      defaultValue={priorBehaviorNotes ?? ""}
                       placeholder="Ej: se asusta de los autos, responde a su nombre"
                       aria-describedby={describedBy}
                     />
@@ -294,6 +354,7 @@ export function MarkLostWizard({
                       id={id}
                       name="enriched_last_seen_context"
                       rows={2}
+                      defaultValue={priorLastSeenContext ?? ""}
                       placeholder="Ej: salió por la puerta cuando abrimos el portón"
                       aria-describedby={describedBy}
                     />
@@ -365,46 +426,59 @@ export function MarkLostWizard({
             </section>
           )}
 
-          {/* Final step — disclosure toggles. */}
+          {/* Final step — affirmative disclosure consent. The owner actively
+              picks what personal data the public credential shows while the
+              pet is lost. PII toggles start OFF (opt-in, not opt-out). */}
           <section
             data-section="step-disclosure"
-            className={step === totalSteps ? "flex flex-col gap-[12px]" : "sr-only"}
-            aria-hidden={step !== totalSteps}
+            className={step === disclosureStep ? "flex flex-col gap-3.5" : "sr-only"}
+            aria-hidden={step !== disclosureStep}
+            inert={step !== disclosureStep ? true : undefined}
           >
-            <LnSubCard heading="Preferencias de divulgación">
-              <p className="text-[12px] text-[var(--color-ln-mute)]">
-                ¿Qué información mostramos en tu credencial pública mientras esté perdida? Podés
-                cambiar esto en cualquier momento.
-              </p>
-              <div className="flex flex-col gap-[8px]">
-                {DISCLOSURE_TOGGLES.map((toggle) => (
-                  <LnToggle
-                    key={toggle.formName}
-                    variant="amber"
-                    checked={disclosure[toggle.formName] ?? toggle.defaultOn}
-                    onChange={(v) => setDisclosure((prev) => ({ ...prev, [toggle.formName]: v }))}
-                    label={toggle.label}
-                    description={toggle.description}
-                  />
-                ))}
-              </div>
-              {/* Hidden inputs so formData picks up toggle state when JS reads FormData */}
-              {DISCLOSURE_TOGGLES.map((toggle) => (
-                <input
-                  key={toggle.formName}
-                  type="hidden"
-                  name={toggle.formName}
-                  value={(disclosure[toggle.formName] ?? toggle.defaultOn) ? "on" : ""}
-                />
-              ))}
-            </LnSubCard>
+            <p className="text-sm text-[var(--color-ln-mute)]">
+              Elegí qué información tuya se muestra en la credencial pública mientras {petName} esté
+              perdida. No se comparte nada que no actives acá, y podés cambiarlo desde su perfil en
+              cualquier momento.
+            </p>
+
+            <LnToggleGroup
+              items={DISCLOSURE_ROWS.map((row) => ({
+                key: row.key,
+                label: row.label,
+                description: row.description,
+                checked: disclosurePrefs[row.key],
+                variant: "amber" as const,
+              }))}
+              onChange={(key, next) => {
+                setDisclosurePrefs((prev) => ({ ...prev, [key]: next }));
+              }}
+            />
+
+            {!disclosurePrefs.disclose_phone_when_lost &&
+              !disclosurePrefs.disclose_email_when_lost &&
+              !disclosurePrefs.allow_finder_form_when_lost && (
+                <LnCallout tone="warn" title="Nadie va a poder contactarte">
+                  Sin teléfono, email ni formulario habilitados, quien encuentre a {petName} no
+                  tiene forma de avisarte. Te recomendamos habilitar al menos el formulario: no
+                  muestra ninguno de tus datos.
+                </LnCallout>
+              )}
           </section>
 
+          {/* Hidden mirrors of the disclosure toggles. Always present so
+              parseDisclosurePrefsFromForm detects the section and persists the
+              explicit choices ("true"/"false" both parse via checkboxOn). */}
+          {DISCLOSURE_ROWS.map((row) => (
+            <input
+              key={row.key}
+              type="hidden"
+              name={row.key}
+              value={disclosurePrefs[row.key] ? "true" : "false"}
+            />
+          ))}
+
           {errorMessage && (
-            <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
-              role="alert"
-            >
+            <p className="font-ln-mono text-sm text-[var(--color-ln-err)]" role="alert">
               {errorMessage}
             </p>
           )}
@@ -412,12 +486,12 @@ export function MarkLostWizard({
       </LnSheetBody>
 
       {/* Footer — step navigation */}
-      <div className="flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+      <div className="flex items-center gap-2.5 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
         {step > 1 && (
           <button
             type="button"
             onClick={goBack}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[14px] py-[8px] text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-md font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)]"
           >
             ← Atrás
           </button>
@@ -427,7 +501,7 @@ export function MarkLostWizard({
           <button
             type="button"
             onClick={goNext}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-[16px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn)] px-4 py-[9px] text-md font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Continuar →
           </button>
@@ -437,7 +511,7 @@ export function MarkLostWizard({
             onClick={handleSubmit}
             disabled={isPending}
             aria-busy={isPending || undefined}
-            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-[16px] py-[9px] text-[13px] font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-seal)] px-4 py-[9px] text-md font-semibold text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending ? (
               <>
@@ -448,7 +522,7 @@ export function MarkLostWizard({
                 Marcando...
               </>
             ) : (
-              "Marcar como perdida"
+              markLostActionLabel(petSex)
             )}
           </button>
         )}

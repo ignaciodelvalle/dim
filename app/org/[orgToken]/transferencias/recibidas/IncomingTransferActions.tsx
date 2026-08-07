@@ -1,7 +1,20 @@
 "use client";
 
-import { useState, useTransition } from "react";
+// IncomingTransferActions — accept/reject an incoming cross-org custody
+// transfer. Both actions gate behind ConfirmDialog with matching friction
+// (audit-3-feedback §C2 asymmetry #3, 2026-07-21): this file previously used
+// an inline mode-switch panel for BOTH actions — internally symmetric, so
+// not a safety bug, but lighter confirmation weight than the citizen-facing
+// equivalent (AcceptTransferActions.tsx's ConfirmDialog) for a custody
+// change that is at least as consequential. Reject keeps its optional
+// reason/message fields, rendered inside the dialog via ConfirmDialog's
+// `children` slot.
 
+import { useRef, useState, useTransition } from "react";
+
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpTextarea } from "@/components/ui/dashboard/OpField";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   acceptCrossOrgTransferAction,
   rejectCrossOrgTransferAction,
@@ -18,8 +31,15 @@ export function IncomingTransferActions({
 }) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
-  const [mode, setMode] = useState<"accept" | "reject" | null>(null);
+  const [done, setDone] = useState<"accept" | "reject" | null>(null);
+  // Which ConfirmDialog is open, or null when neither is. OpButton forwards
+  // no ref (see scripts/check-raw-buttons.mjs baseline note), so the two
+  // trigger buttons below are plain HTML buttons styled to match OpButton —
+  // same workaround already used by ReasignarButton/DevolverAlDuenoButton/
+  // RemoveMemberButton to give ConfirmDialog a focus-restore target.
+  const [confirming, setConfirming] = useState<"accept" | "reject" | null>(null);
+  const acceptTriggerRef = useRef<HTMLButtonElement>(null);
+  const rejectTriggerRef = useRef<HTMLButtonElement>(null);
 
   // Reject-only fields (action supports reason + message)
   const [rejectReason, setRejectReason] = useState("");
@@ -34,10 +54,15 @@ export function IncomingTransferActions({
       });
       if ("error" in result) {
         setError(result.error);
+        setConfirming(null);
         return;
       }
       // revalidatePath fires server-side — the list re-renders automatically.
-      setDone(true);
+      // No page reload here, so the toast (not a reload) is the confirmation
+      // — mutation-feedback convention, lib/ui/action-feedback.ts.
+      setConfirming(null);
+      setDone("accept");
+      notifySaved("Transferencia aceptada");
     });
   }
 
@@ -52,119 +77,86 @@ export function IncomingTransferActions({
       });
       if ("error" in result) {
         setError(result.error);
+        setConfirming(null);
         return;
       }
-      setDone(true);
+      setConfirming(null);
+      setDone("reject");
+      notifySaved("Transferencia rechazada");
     });
   }
 
   if (done) {
     return (
-      <p className="text-[12px] text-ln-op-ok font-medium">
-        {mode === "accept" ? "Transferencia aceptada." : "Transferencia rechazada."}
+      <p className="text-sm text-ln-op-ok font-medium">
+        {done === "accept" ? "Transferencia aceptada." : "Transferencia rechazada."}
       </p>
-    );
-  }
-
-  if (mode === "accept") {
-    return (
-      <div className="space-y-3 rounded-[6px] border border-ln-op-line bg-ln-op-card p-4">
-        <p className="text-[13px] font-medium text-ln-op-ink">
-          Aceptar la transferencia de {petName}.
-        </p>
-        <p className="text-[12px] text-ln-op-mute">
-          La custodia pasa a tu organización. Esta acción no se puede deshacer.
-        </p>
-        {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleAccept}
-            disabled={pending}
-            className="px-4 py-2 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium hover:opacity-90 disabled:opacity-60 transition-opacity"
-          >
-            {pending ? "Procesando..." : "Confirmar aceptación"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode(null);
-              setError(null);
-            }}
-            disabled={pending}
-            className="px-4 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
-          >
-            Cancelar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  if (mode === "reject") {
-    return (
-      <div className="space-y-3 rounded-[6px] border border-ln-op-line bg-ln-op-card p-4">
-        <p className="text-[13px] font-medium text-ln-op-ink">
-          Rechazar la transferencia de {petName}.
-        </p>
-        <textarea
-          value={rejectReason}
-          onChange={(e) => setRejectReason(e.target.value)}
-          rows={2}
-          placeholder="Motivo del rechazo (opcional)"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
-        />
-        <textarea
-          value={rejectMessage}
-          onChange={(e) => setRejectMessage(e.target.value)}
-          rows={2}
-          placeholder="Mensaje para la organización remitente (opcional)"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
-        />
-        {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleReject}
-            disabled={pending}
-            className="px-4 py-2 rounded-[6px] border border-ln-op-danger text-ln-op-danger bg-ln-op-card text-[13px] font-medium hover:bg-ln-op-stripe disabled:opacity-60 transition-colors"
-          >
-            {pending ? "Procesando..." : "Confirmar rechazo"}
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setMode(null);
-              setError(null);
-              setRejectReason("");
-              setRejectMessage("");
-            }}
-            disabled={pending}
-            className="px-4 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
-          >
-            Cancelar
-          </button>
-        </div>
-      </div>
     );
   }
 
   return (
     <div className="flex flex-wrap gap-2 pt-1">
+      {error && <output className="block w-full text-sm text-ln-op-danger">{error}</output>}
       <button
+        ref={acceptTriggerRef}
         type="button"
-        onClick={() => setMode("accept")}
-        className="px-3 py-1.5 rounded-[6px] bg-ln-op-ok text-white text-[12px] font-medium hover:opacity-90 transition-opacity"
+        onClick={() => setConfirming("accept")}
+        className="rounded-[var(--radius-op-btn,6px)] border border-ln-op-ok bg-ln-op-ok px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-op-celeste-050)]"
       >
         Aceptar
       </button>
       <button
+        ref={rejectTriggerRef}
         type="button"
-        onClick={() => setMode("reject")}
-        className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[12px] font-medium text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+        onClick={() => setConfirming("reject")}
+        className="rounded-[var(--radius-op-btn,6px)] border border-ln-op-danger bg-ln-op-danger px-3 py-1.5 text-sm font-semibold text-white transition-colors hover:opacity-90 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-op-celeste-050)]"
       >
         Rechazar
       </button>
+
+      <ConfirmDialog
+        open={confirming === "accept"}
+        onClose={() => !pending && setConfirming(null)}
+        onConfirm={handleAccept}
+        title="Aceptar transferencia entre organizaciones"
+        description={`Esto transfiere la custodia de ${petName} a tu organización. Esta acción no se puede deshacer.`}
+        confirmLabel="Aceptar transferencia"
+        tone="warn"
+        pending={pending}
+        triggerRef={acceptTriggerRef}
+      />
+
+      <ConfirmDialog
+        open={confirming === "reject"}
+        onClose={() => {
+          if (pending) return;
+          setConfirming(null);
+          setRejectReason("");
+          setRejectMessage("");
+        }}
+        onConfirm={handleReject}
+        title="Rechazar transferencia entre organizaciones"
+        description={`Esto rechaza la transferencia de ${petName} y notifica a la organización remitente.`}
+        confirmLabel="Rechazar transferencia"
+        tone="danger"
+        pending={pending}
+        triggerRef={rejectTriggerRef}
+      >
+        <div className="space-y-2 px-5 pb-1">
+          <OpTextarea
+            value={rejectReason}
+            onChange={(e) => setRejectReason(e.target.value)}
+            rows={2}
+            placeholder="Motivo del rechazo (opcional)"
+          />
+          <OpTextarea
+            value={rejectMessage}
+            onChange={(e) => setRejectMessage(e.target.value)}
+            rows={2}
+            placeholder="Mensaje para la organización remitente (opcional)"
+          />
+        </div>
+      </ConfirmDialog>
     </div>
   );
 }

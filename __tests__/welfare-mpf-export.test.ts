@@ -7,20 +7,26 @@
 // `welfare-exports` bucket is owner-created ops and not auto-provisioned in CI.
 // The audit_log insert is real (hit the DB).
 
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db";
-import { auditLog, db, pets, profiles, welfareReports } from "@/db";
-import * as authGuards from "@/lib/auth-guards";
+import { db, pets, profiles, welfareReports } from "@/db";
+import {
+  COORDINATE_DECIMALS,
+  MPF_EXPORT_SCHEMA_VERSION,
+  formatCoordinate,
+  knowledgeGapLabel,
+  welfareReportToMpfDto,
+} from "@/lib/analytics/welfare-exports";
+import * as authGuards from "@/lib/infra/auth-guards";
 import * as supabaseServer from "@/lib/supabase/server";
-import { MPF_EXPORT_SCHEMA_VERSION, welfareReportToMpfDto } from "@/lib/welfare-exports";
 import { generateMpfExportAction } from "@/src/modules/welfare/actions";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // Hoist vi.mock calls so they apply before any imports are resolved.
 vi.mock("@/lib/supabase/server", () => ({ createClient: vi.fn() }));
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
   requireUserOrRedirect: vi.fn(),
 }));
@@ -70,7 +76,7 @@ describe("welfareReportToMpfDto — anonymous redaction", () => {
     const report = makeReport({ reporterUserId: null, reporterOrganizationId: null });
     const dto = welfareReportToMpfDto(report, {
       reporterDisplayName: null,
-      exportedByDisplayName: "Agente DIM",
+      exportedByDisplayName: "Agente Fiscalía",
       subjectPet: null,
       attachments: [],
       exportGeneratedAt: new Date(),
@@ -88,7 +94,7 @@ describe("welfareReportToMpfDto — anonymous redaction", () => {
     });
     const dto = welfareReportToMpfDto(report, {
       reporterDisplayName: "Juan Pérez",
-      exportedByDisplayName: "Agente DIM",
+      exportedByDisplayName: "Agente Fiscalía",
       subjectPet: null,
       attachments: [],
       exportGeneratedAt: new Date(),
@@ -144,10 +150,265 @@ describe("welfareReportToMpfDto — occurredAt", () => {
   });
 });
 
+describe("welfareReportToMpfDto — knowledge chronology (task #77 bitemporal)", () => {
+  it("computes the knowledge gap between occurrence (valid time) and intake (transaction time)", () => {
+    // occurred 2026-05-15 10:00Z, recorded 2026-05-21 08:00Z → ~6 days later.
+    const report = makeReport({
+      occurredAt: new Date("2026-05-15T10:00:00Z"),
+      createdAt: new Date("2026-05-21T08:00:00Z"),
+    });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.knowledgeGapLabel).not.toBeNull();
+    expect(dto.knowledgeGapLabel).toContain("6 días");
+    expect(dto.knowledgeGapLabel).toContain("conocimiento");
+  });
+
+  it("returns a null gap when the denunciante declared no occurrence date", () => {
+    const report = makeReport({ occurredAt: null });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.knowledgeGapLabel).toBeNull();
+  });
+
+  it("uses the singular form for a one-day gap", () => {
+    const report = makeReport({
+      occurredAt: new Date("2026-05-20T09:00:00Z"),
+      createdAt: new Date("2026-05-21T09:00:00Z"),
+    });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.knowledgeGapLabel).toContain("1 día después");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// knowledgeGapLabel — the paragraph that must not hedge
+//
+// This block's stated purpose is "evaluar la diligencia y los plazos de
+// actuación", and it used to hedge on its own headline number: `days <= 0`
+// collapsed "the same day" and "before the declared date" into one sentence
+// ending "(o antes de la fecha declarada por el denunciante)".
+//
+// It is a CODE defect, not a data one. Verified against the database on
+// 2026-07-30: 2.837 welfare reports, 2.740 with occurrence EXACTLY equal to
+// intake, and ZERO with occurrence after intake. The parenthetical was false
+// for every row that has ever existed.
+// ---------------------------------------------------------------------------
+
+describe("knowledgeGapLabel — a same-day gap says same day, full stop", () => {
+  const AT_21 = new Date("2026-06-20T00:00:00Z"); // 2026-06-19 21:00 in AR (UTC-3)
+
+  it("states the same day without hedging when occurrence and intake are the same instant", () => {
+    // The overwhelmingly common shape in the data: occurred_at = created_at.
+    const label = knowledgeGapLabel(AT_21, AT_21);
+    expect(label).toBe("La autoridad tomó conocimiento el mismo día del hecho denunciado.");
+  });
+
+  it("never offers 'o antes' as a possibility on a same-day gap", () => {
+    // The exact ambiguity that ruined the diligence paragraph.
+    expect(knowledgeGapLabel(AT_21, AT_21)).not.toContain("o antes");
+  });
+
+  it("counts the same Argentine calendar day as zero even across the UTC midnight boundary", () => {
+    // 2026-06-19 21:00 AR is already 2026-06-20 in UTC. A UTC-based day
+    // boundary would call this a one-day gap and contradict the two dates
+    // printed above it, both of which are AR-pinned.
+    const occurred = new Date("2026-06-20T00:00:00Z"); // 19 Jun 21:00 AR
+    const intake = new Date("2026-06-20T02:00:00Z"); // 19 Jun 23:00 AR
+    expect(knowledgeGapLabel(occurred, intake)).toContain("el mismo día");
+  });
+
+  it("uses the ARGENTINE calendar day, not the UTC one, when the two disagree", () => {
+    // 19 Jun 17:00 AR and 19 Jun 22:00 AR — the same Argentine day, and the
+    // same date printed in both fields above this sentence. In UTC they fall
+    // on 19 and 20 June, so a UTC-based day boundary would announce a one-day
+    // gap under two identical printed dates.
+    const occurred = new Date("2026-06-19T20:00:00Z"); // 19 Jun 17:00 AR
+    const intake = new Date("2026-06-20T01:00:00Z"); // 19 Jun 22:00 AR
+    expect(knowledgeGapLabel(occurred, intake)).toContain("el mismo día");
+    expect(knowledgeGapLabel(occurred, intake)).not.toContain("1 día después");
+  });
+
+  it("counts the NEXT Argentine calendar day as one day, however few hours elapsed", () => {
+    // 6 hours apart, but two different printed dates. Elapsed-time rounding
+    // called this "el mismo día" directly under 19 de junio / 20 de junio.
+    const occurred = new Date("2026-06-20T00:00:00Z"); // 19 Jun 21:00 AR
+    const intake = new Date("2026-06-20T06:00:00Z"); // 20 Jun 03:00 AR
+    expect(knowledgeGapLabel(occurred, intake)).toContain("1 día después");
+    expect(knowledgeGapLabel(occurred, intake)).not.toContain("mismo día");
+  });
+
+  it("counts plural days off the calendar dates, not elapsed hours", () => {
+    const occurred = new Date("2026-06-20T00:00:00Z"); // 19 Jun 21:00 AR
+    const intake = new Date("2026-06-22T02:00:00Z"); // 21 Jun 23:00 AR (~2.1 días)
+    expect(knowledgeGapLabel(occurred, intake)).toContain("2 días después");
+  });
+
+  it("reports an intake recorded BEFORE the declared occurrence instead of hiding it", () => {
+    // A distinct finding from a same-day intake: this record cannot be right,
+    // and the fiscal is told there is something to verify.
+    const occurred = new Date("2026-06-25T12:00:00Z");
+    const intake = new Date("2026-06-19T12:00:00Z");
+    const label = knowledgeGapLabel(occurred, intake);
+    expect(label).toContain("registrada antes de la fecha del hecho");
+    expect(label).not.toContain("mismo día");
+  });
+
+  it("says the inconsistency is reported, not corrected — the export never edits the record", () => {
+    const label = knowledgeGapLabel(
+      new Date("2026-06-25T12:00:00Z"),
+      new Date("2026-06-19T12:00:00Z"),
+    );
+    expect(label).toContain("sin corregir");
+  });
+
+  it("returns null when no occurrence date was declared — there is no gap to compute", () => {
+    expect(knowledgeGapLabel(null, new Date("2026-06-19T12:00:00Z"))).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// GPS coordinate precision (2026-07-30)
+//
+// The denuncia printed "Lat: -34.6307660 · Lng: -58.3826932" — seven decimals,
+// about one centimetre. The number comes from a browser geolocation fix or a
+// pin the denunciante drops on a map; neither is accurate to a centimetre, and
+// on an instrument filed with a fiscal every printed figure reads as evidence.
+// ---------------------------------------------------------------------------
+
+describe("formatCoordinate — precision the source can actually support", () => {
+  it("prints five decimals — about a metre", () => {
+    expect(formatCoordinate("-34.6307660")).toBe("-34.63077");
+  });
+
+  it("drops the centimetre digits that were only float noise", () => {
+    expect(formatCoordinate("-58.3826932")).toBe("-58.38269");
+  });
+
+  it("rounds rather than truncates, so the point does not drift toward zero", () => {
+    // Truncation would give -34.63076; the nearest 5-decimal point is ...77.
+    expect(formatCoordinate("-34.6307660")).toBe("-34.63077");
+    expect(formatCoordinate("58.1234567")).toBe("58.12346");
+  });
+
+  it("pads a short value so every coordinate on the page has the same shape", () => {
+    expect(formatCoordinate("-34.6")).toBe("-34.60000");
+  });
+
+  it("keeps enough precision to distinguish adjacent properties on a street", () => {
+    // ~11 m apart: two neighbouring front doors. Four decimals would collapse
+    // these into one point and send an inspector to the wrong house.
+    expect(formatCoordinate("-34.60370")).not.toBe(formatCoordinate("-34.60380"));
+  });
+
+  it("does not claim centimetre accuracy — two points 1 cm apart print the same", () => {
+    expect(formatCoordinate("-34.6037000")).toBe(formatCoordinate("-34.6037001"));
+  });
+
+  it("prints the stored value verbatim when it does not parse — never 'NaN' in a legal document", () => {
+    expect(formatCoordinate("no disponible")).toBe("no disponible");
+  });
+
+  it("never turns a blank coordinate into a plausible location", () => {
+    // Number("") is 0 and 0 is finite, so the naive version printed "0.00000"
+    // — a real point in the Gulf of Guinea, printed exactly like a measured
+    // one. Found by this test, not by a mutant.
+    expect(formatCoordinate("")).toBe("");
+    expect(formatCoordinate("   ")).toBe("   ");
+  });
+
+  it("keeps the exact location: this is the official-use block, not the public view", () => {
+    // Regression guard against a reflexive privacy blur. Ley 14.346 official
+    // use is exactly why this block prints coordinates at all.
+    expect(COORDINATE_DECIMALS).toBeGreaterThanOrEqual(5);
+  });
+
+  it("does not print more precision than the source can support", () => {
+    expect(COORDINATE_DECIMALS).toBeLessThanOrEqual(5);
+  });
+});
+
 describe("MPF_EXPORT_SCHEMA_VERSION", () => {
   it("is a non-empty string", () => {
     expect(typeof MPF_EXPORT_SCHEMA_VERSION).toBe("string");
     expect(MPF_EXPORT_SCHEMA_VERSION.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// MPF export format cascade (jurisdiction-compliance, 2026-07-22) — the
+// mapper now stamps the resolved format + its provenance onto the DTO, and
+// the fiscal unit label is jurisdiction-aware instead of a hardcoded
+// "MPF CABA" string.
+// ---------------------------------------------------------------------------
+
+describe("welfareReportToMpfDto — MPF export format cascade", () => {
+  it("defaults to the national format + 'default' source when no resolution is passed", () => {
+    const report = makeReport({ jurisdictionProvince: "Chaco" });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.mpfFormatLabel).toContain("Estándar nacional");
+    expect(dto.mpfFormatProvenanceLabel).toBe("Default nacional");
+  });
+
+  it("reflects a resolved format + its cascade source (e.g. province override)", () => {
+    const report = makeReport({ jurisdictionProvince: "Chaco" });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+      mpfFormat: "estandar_nacional",
+      mpfFormatSource: "province",
+    });
+    expect(dto.mpfFormatProvenanceLabel).toBe("Override provincia");
+  });
+
+  it("builds a jurisdiction-aware fiscal unit label — no hardcoded 'MPF CABA' regardless of province", () => {
+    const chacoReport = makeReport({ jurisdictionProvince: "Chaco" });
+    const dto = welfareReportToMpfDto(chacoReport, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.fiscalUnitLabel).toContain("Chaco");
+    expect(dto.fiscalUnitLabel).not.toContain("CABA");
+  });
+
+  it("falls back to a generic fiscal unit label when jurisdiction is unknown", () => {
+    const report = makeReport({ jurisdictionProvince: null });
+    const dto = welfareReportToMpfDto(report, {
+      reporterDisplayName: null,
+      exportedByDisplayName: "Agente",
+      subjectPet: null,
+      attachments: [],
+      exportGeneratedAt: new Date(),
+    });
+    expect(dto.fiscalUnitLabel).toContain("a confirmar");
   });
 });
 
@@ -322,6 +583,67 @@ describe("generateMpfExportAction — mocked storage", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error).toBe("not_found");
+  });
+
+  it("MPF export format cascade (jurisdiction-compliance, 2026-07-22): a non-CABA jurisdiction can now export — was blocked by the CABA-only gate", async () => {
+    // Distinct fixture row in a province that used to be OUTSIDE
+    // MPF_CONFIGURED_PROVINCES (removed) — the old gate blocked this before
+    // any storage/PDF work happened. Now every jurisdiction resolves the
+    // national default format (source: "default", zero override rows) and
+    // exports successfully.
+    const NON_CABA_REF = "DEN-MPF-TEST02";
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM welfare_reports WHERE reference_code = ${NON_CABA_REF}`);
+    });
+    const [nonCabaReport] = await db
+      .insert(welfareReports)
+      .values({
+        referenceCode: NON_CABA_REF,
+        kind: "neglect",
+        severity: "medium",
+        description: "Integration test welfare report outside the old MPF-configured jurisdiction.",
+        subjectKind: "unowned_animal",
+        subjectDescription: "Perro sin dueño",
+        status: "open",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "Buenos Aires",
+      })
+      .returning();
+
+    const supabaseMock = buildSupabaseMock();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockCreateClient.mockResolvedValue(supabaseMock as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockRequireAdminOrGovt.mockResolvedValue({
+      profile: { id: govtUserId, role: "admin" },
+      jurisdictions: [],
+      user: { id: govtUserId },
+      supabase: supabaseMock,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const result = await generateMpfExportAction(nonCabaReport.id);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.signedUrl).toBe(MOCK_SIGNED_URL);
+    expect(supabaseMock.storage.from).toHaveBeenCalled();
+
+    // Audit payload carries the resolved format + its provenance (traceability
+    // twin of the "Formato del export" line printed on the PDF itself).
+    const [logRow] = (await db.execute(
+      sql`SELECT payload FROM audit_log
+          WHERE action = 'welfare_mpf_export_generated'
+            AND payload->>'welfareReportId' = ${nonCabaReport.id}
+          ORDER BY performed_at DESC
+          LIMIT 1`,
+    )) as Array<{ payload: Record<string, unknown> }>;
+    expect(logRow).toBeDefined();
+    expect(logRow.payload.mpfExportFormat).toBe("estandar_nacional");
+    expect(logRow.payload.mpfExportFormatSource).toBe("default");
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM welfare_reports WHERE reference_code = ${NON_CABA_REF}`);
+    });
   });
 
   it("audit_log payload storagePath has format {welfareReportId}/{timestamp}.pdf", async () => {

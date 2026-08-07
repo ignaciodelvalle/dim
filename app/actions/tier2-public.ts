@@ -1,57 +1,28 @@
 "use server";
 
-// Tier 2 público temporal — owner-initiated opt-in window for the public
-// credential at /p/[publicToken]. While the window is open, the public
-// page renders a curated medical summary (vacunas vigentes,
-// esterilización, medicación activa, condiciones permanentes) on top of
-// the Tier 0 identity rollups it normally shows.
+// tier2-public.ts — thin shim (strangler migration 50/61).
 //
-// v1 hardcodes the duration to 24 hours. The mockup proposes a 4-card
-// picker (24h / 7d / 30d / siempre); the longer durations render as
-// disabled cards in the UI so users see the roadmap without picking
-// something we haven't validated yet.
+// Business logic moved to:
+//   src/modules/pets/application/tier2-public/
+//
+// This file re-exports thin delegating wrappers with identical signatures so
+// all UI importers and the parity test keep working unchanged.
 
-import { db, pets } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
-import { eq } from "drizzle-orm";
-import { revalidatePath } from "next/cache";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { enableTier2Public } from "@/src/modules/pets/application/tier2-public/enable-tier2-public";
+import { revokeTier2Public } from "@/src/modules/pets/application/tier2-public/revoke-tier2-public";
 
-const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
-
-export async function enableTier2PublicAction(publicToken: string): Promise<void> {
+export async function enableTier2PublicAction(
+  publicToken: string,
+  formData?: FormData,
+): Promise<void> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) throw new Error(access.error);
-  const { pet } = access;
-
-  if (pet.status === "deceased") {
-    // The public credential of a deceased pet is the in-memoriam page;
-    // surfacing medical detail there has no purpose.
-    throw new Error("No se puede habilitar Tier 2 en una mascota fallecida.");
-  }
-
-  const until = new Date(Date.now() + TWENTY_FOUR_HOURS_MS);
-
-  await db
-    .update(pets)
-    .set({ tier2PublicEnabledUntil: until, updatedAt: new Date() })
-    .where(eq(pets.id, pet.id));
-
-  revalidatePath(`/mis-mascotas/${publicToken}`);
-  revalidatePath(`/mis-mascotas/${publicToken}/mostrar-libreta`);
-  revalidatePath(`/p/${publicToken}`);
+  return enableTier2Public(access.pet, publicToken, formData);
 }
 
 export async function revokeTier2PublicAction(publicToken: string): Promise<void> {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) throw new Error(access.error);
-  const { pet } = access;
-
-  await db
-    .update(pets)
-    .set({ tier2PublicEnabledUntil: null, updatedAt: new Date() })
-    .where(eq(pets.id, pet.id));
-
-  revalidatePath(`/mis-mascotas/${publicToken}`);
-  revalidatePath(`/mis-mascotas/${publicToken}/mostrar-libreta`);
-  revalidatePath(`/p/${publicToken}`);
+  return revokeTier2Public(access.pet, publicToken);
 }

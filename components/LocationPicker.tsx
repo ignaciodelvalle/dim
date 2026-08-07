@@ -23,9 +23,20 @@ const PINNED_ZOOM = 14;
 type Props = {
   value: { lat: number; lng: number } | null;
   onChange: (point: { lat: number; lng: number }) => void;
+  /**
+   * Where to center the EMPTY map (no marker is placed). Used by the public
+   * sighting form to open on the pet's disclosed last-known location instead
+   * of the Buenos Aires default. Ignored once `value` is set.
+   */
+  defaultCenter?: { lat: number; lng: number } | null;
 };
 
-export default function LocationPicker({ value, onChange }: Props) {
+// Zoom for a context-biased empty map (defaultCenter): closer than the
+// city-wide DEFAULT_ZOOM but wider than a pinned point, so the finder sees
+// the neighborhood around the last-known location.
+const BIASED_ZOOM = 13;
+
+export default function LocationPicker({ value, onChange, defaultCenter = null }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const markerRef = useRef<MapLibreMarker | null>(null);
@@ -41,6 +52,10 @@ export default function LocationPicker({ value, onChange }: Props) {
   // would fire early, and `[value]` wouldn't change again afterwards).
   const latestValueRef = useRef(value);
   latestValueRef.current = value;
+  // Same pattern for defaultCenter: read at async-init time without making it
+  // an effect dependency (the map is built exactly once).
+  const defaultCenterRef = useRef(defaultCenter);
+  defaultCenterRef.current = defaultCenter;
 
   // Init: build the map once, dispose on unmount.
   useEffect(() => {
@@ -53,7 +68,7 @@ export default function LocationPicker({ value, onChange }: Props) {
       // setPoint while the import was resolving (e.g. via "Usar mi ubicación"
       // resolving faster than the maplibre chunk fetch).
       const initial = latestValueRef.current;
-      const center = initial ?? DEFAULT_CENTER;
+      const center = initial ?? defaultCenterRef.current ?? DEFAULT_CENTER;
       mapInstance = new maplibregl.Map({
         container: containerRef.current,
         style: {
@@ -69,7 +84,7 @@ export default function LocationPicker({ value, onChange }: Props) {
           layers: [{ id: "osm", type: "raster", source: "osm" }],
         },
         center: [center.lng, center.lat],
-        zoom: initial ? PINNED_ZOOM : DEFAULT_ZOOM,
+        zoom: initial ? PINNED_ZOOM : defaultCenterRef.current ? BIASED_ZOOM : DEFAULT_ZOOM,
         attributionControl: { compact: true },
       });
       mapRef.current = mapInstance;

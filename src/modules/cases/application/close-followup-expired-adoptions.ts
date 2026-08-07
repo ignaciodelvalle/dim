@@ -4,20 +4,31 @@
 // The lib file becomes a thin re-export shim (strangler pattern).
 //
 // Scan: adoption_listing cases with status='open' that have an
-// `adoption_finalized` pet_event whose payload.followup_until is in the past.
+// `adoption_finalized` pet_event whose post-adoption follow-up window has
+// elapsed. The adoptionFinalized schema writes `post_adoption_followup_months`
+// (a duration), NOT a `followup_until` timestamp — the deadline is computed at
+// read time as occurred_at + post_adoption_followup_months months, matching the
+// month-based check-in windows finalizeAdoption schedules (setMonth offsets in
+// insertAdoptionFinalized). Reading the never-written `followup_until` key made
+// this scan match nothing, so the cron never closed a case (lint:events
+// ghost-key finding). Read-side computation only — events stay append-only.
 // Process: in ONE tx — UPDATE status='closed', closed_reason='resolved'
 // (guarded AND status='open'); if 0 rows → return (anti-race); if
 // primaryPetId then insert note_added(category=system, Spanish copy).
 //
 // Auth: none (system-initiated cron). No user authz inside.
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, gt, sql } from "drizzle-orm";
 
 import { cases, db, petEvents } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 export interface CloseFollowupExpiredAdoptionsOptions {
   now?: Date;
+  /** Keyset cursor: only return cases whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max rows to return (keyset page size). Omit for no limit. */
+  limit?: number;
 }
 
 export interface FollowupExpiredCandidate {
@@ -32,7 +43,7 @@ export async function findFollowupExpiredAdoptions(
   const now = options?.now ?? new Date();
   const nowIso = now.toISOString();
 
-  const rows = await db
+  const base = db
     .select({
       id: cases.id,
       primaryPetId: cases.primaryPetId,
@@ -43,15 +54,22 @@ export async function findFollowupExpiredAdoptions(
       and(
         eq(cases.caseKind, "adoption_listing"),
         eq(cases.status, "open"),
+        ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
         sql`EXISTS (
           SELECT 1 FROM ${petEvents}
           WHERE ${petEvents.caseId} = ${cases.id}
             AND ${petEvents.eventType} = 'adoption_finalized'
-            AND (${petEvents.payload}->>'followup_until') IS NOT NULL
-            AND (${petEvents.payload}->>'followup_until')::timestamptz < ${nowIso}::timestamptz
+            AND (${petEvents.payload}->>'post_adoption_followup_months') IS NOT NULL
+            AND (
+              ${petEvents.occurredAt}
+                + ((${petEvents.payload}->>'post_adoption_followup_months')::int * interval '1 month')
+            ) < ${nowIso}::timestamptz
         )`,
       ),
-    );
+    )
+    .orderBy(asc(cases.id));
+
+  const rows = options?.limit ? await base.limit(options.limit) : await base;
 
   return rows;
 }

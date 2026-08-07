@@ -121,8 +121,8 @@ async function insertCase(values: {
   caseKind: string;
   primarySubjectKind?: string;
   primaryPetId?: string | null;
-  primaryLocationLat?: string | null;
-  primaryLocationLng?: string | null;
+  locationLat?: string | null;
+  locationLng?: string | null;
   applicantUserId?: string | null;
   openedByOrganizationId?: string | null;
   status?: string;
@@ -147,8 +147,8 @@ async function insertCase(values: {
           | "location"
           | "general") ?? "registered_pet",
       primaryPetId,
-      primaryLocationLat: values.primaryLocationLat ?? null,
-      primaryLocationLng: values.primaryLocationLng ?? null,
+      locationLat: values.locationLat ?? null,
+      locationLng: values.locationLng ?? null,
       applicantUserId: values.applicantUserId ?? null,
       openedByOrganizationId: values.openedByOrganizationId ?? null,
       status: (values.status as "open" | "escalated" | "closed" | "merged") ?? "open",
@@ -196,8 +196,8 @@ describe("cases schema — CHECK constraints", () => {
         caseKind: "welfare_denuncia",
         primarySubjectKind: "location",
         primaryPetId: null,
-        primaryLocationLat: null,
-        primaryLocationLng: null,
+        locationLat: null,
+        locationLng: null,
       }),
       { constraint: /cases_subject_location_consistency/ },
     );
@@ -255,8 +255,8 @@ describe("cases schema — CHECK constraints", () => {
       caseKind: "welfare_denuncia",
       primarySubjectKind: "location",
       primaryPetId: null,
-      primaryLocationLat: "-34.6037",
-      primaryLocationLng: "-58.3816",
+      locationLat: "-34.6037",
+      locationLng: "-58.3816",
     });
     expect(row.id).toBeTruthy();
   });

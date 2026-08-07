@@ -1,9 +1,11 @@
+import { Icon } from "@/components/Icon";
 import { PetForm } from "@/components/PetForm";
 import { LnSheetCard, LnSheetHeader, LnSheetWrap } from "@/components/ui/Sheet";
 import { attachments, db } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { petPhotoUrl } from "@/lib/storage";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { petPhotoUrl } from "@/lib/infra/storage";
 import { updatePetAction } from "@/src/modules/pets/actions";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
@@ -28,6 +30,15 @@ export default async function EditPetPage({
   // ARCH-S: fetch canonical chip for pre-filling the form (pets.microchipId* dropped).
   const canonicalIds = await fetchActiveIdentifications(pet.id);
 
+  // Jurisdiction-resolved PPP breed list so the inline "raza peligrosa" warning
+  // flags breeds a locality ADDED via the admin console, not just the static
+  // country-wide set (2026-07-04). Display-only; submit-time classification is
+  // authoritative regardless.
+  const pppBreedRule = await resolveBusinessRule("ppp_breed_list", {
+    province: pet.jurisdictionProvince,
+    locality: pet.jurisdictionLocality,
+  });
+
   const boundAction = updatePetAction.bind(null, publicToken);
 
   return (
@@ -35,14 +46,14 @@ export default async function EditPetPage({
       <LnSheetCard wide>
         <LnSheetHeader
           tone="azul"
-          icon="✏️"
+          icon={<Icon name="editar" decorative />}
           title={`Editar ${pet.name}`}
           subtitle="Cualquier cambio queda registrado en la libreta"
         />
-        <div className="flex flex-col gap-[14px] px-[18px] py-[18px]">
+        <div className="flex flex-col gap-3.5 px-[18px] py-[18px]">
           <Link
             href={`/mis-mascotas/${pet.publicToken}`}
-            className="font-[var(--font-ln-mono)] text-[11px] tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
+            className="font-ln-mono text-sm tracking-[.04em] text-[var(--color-ln-azul)] underline underline-offset-2"
           >
             ← Volver al perfil
           </Link>
@@ -61,6 +72,7 @@ export default async function EditPetPage({
                   }
                 : null
             }
+            pppBreedList={pppBreedRule.payload.breeds}
           />
         </div>
       </LnSheetCard>

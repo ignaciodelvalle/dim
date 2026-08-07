@@ -10,12 +10,6 @@ import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  approveRequestForAuthority,
-  logRequestViewedForAuthority,
-  rejectRequestForAuthority,
-} from "@/app/actions/admin-decisions";
-import { createOrganizationForUser, requestVetUpgradeForUser } from "@/app/actions/upgrade";
-import {
   approvalRequests,
   auditLog,
   db,
@@ -27,7 +21,12 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { generateApprovalRequestToken } from "@/lib/publicToken";
+import { approveRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/approve-request";
+import { logRequestViewedForAuthority } from "@/src/modules/organizations/application/admin-decisions/log-request-viewed";
+import { rejectRequestForAuthority } from "@/src/modules/organizations/application/admin-decisions/reject-request";
+import { requestInfoForAuthority } from "@/src/modules/organizations/application/admin-decisions/request-info";
+import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
+import { requestVetUpgradeForUser } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
 import { withMutationOverride } from "./_helpers/db-overrides";
 import { expectDbError } from "./_helpers/expect-db-error";
 
@@ -38,15 +37,23 @@ const admin = createClient(SUPABASE_URL, SECRET, {
 });
 
 const VET_EMAIL = "admin-dec-vet@dim-test.local";
+const VET2_EMAIL = "admin-dec-vet2@dim-test.local";
 const ORG_EMAIL = "admin-dec-org@dim-test.local";
 const GOVT_EMAIL = "admin-dec-govt@dim-test.local";
 const ADMIN_EMAIL = "admin-dec-admin@dim-test.local";
+// Dedicated applicant for the scope-enforcement block. It MUST NOT be shared
+// with the approval blocks above: those promote their applicant to role='vet',
+// and a user who is already a vet cannot submit a new vet-upgrade petition — so
+// a shared applicant silently leaves the scope test with nothing to decide.
+const SCOPE_EMAIL = "admin-dec-scope@dim-test.local";
 const PASS = "AdminDec_2026!";
 
 let vetApplicantId: string;
+let vet2ApplicantId: string;
 let orgApplicantId: string;
 let govtUserId: string;
 let adminUserId: string;
+let scopeApplicantId: string;
 
 async function deleteTestUser(email: string) {
   const { data: list } = await admin.auth.admin.listUsers();
@@ -102,14 +109,16 @@ async function deleteTestUser(email: string) {
 }
 
 beforeAll(async () => {
-  for (const email of [VET_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL, SCOPE_EMAIL]) {
     await deleteTestUser(email);
   }
 
   vetApplicantId = await createTestUser(VET_EMAIL);
+  vet2ApplicantId = await createTestUser(VET2_EMAIL);
   orgApplicantId = await createTestUser(ORG_EMAIL);
   govtUserId = await createTestUser(GOVT_EMAIL);
   adminUserId = await createTestUser(ADMIN_EMAIL);
+  scopeApplicantId = await createTestUser(SCOPE_EMAIL);
 
   await db
     .update(profiles)
@@ -120,7 +129,14 @@ beforeAll(async () => {
   await db
     .update(profiles)
     .set({ dniVerified: true })
-    .where(or(eq(profiles.id, vetApplicantId), eq(profiles.id, orgApplicantId)));
+    .where(
+      or(
+        eq(profiles.id, vetApplicantId),
+        eq(profiles.id, vet2ApplicantId),
+        eq(profiles.id, orgApplicantId),
+        eq(profiles.id, scopeApplicantId),
+      ),
+    );
 });
 
 async function createTestUser(email: string): Promise<string> {
@@ -134,7 +150,7 @@ async function createTestUser(email: string): Promise<string> {
 }
 
 afterAll(async () => {
-  for (const email of [VET_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL]) {
+  for (const email of [VET_EMAIL, VET2_EMAIL, ORG_EMAIL, GOVT_EMAIL, ADMIN_EMAIL, SCOPE_EMAIL]) {
     await deleteTestUser(email);
   }
 });
@@ -217,6 +233,116 @@ describe("approveRequestForAuthority — role_upgrade_vet", () => {
       .limit(1);
     const result = await approveRequestForAuthority(adminUserId, req.publicToken, null);
     expect("error" in result && result.error).toMatch(/aprobada|estado/i);
+  });
+});
+
+describe("matrícula verification flow (UI/UX audit 2026-07)", () => {
+  let vet2Token: string;
+  let vet2RequestId: string;
+
+  beforeAll(async () => {
+    const submit = await requestVetUpgradeForUser(vet2ApplicantId, {
+      matriculaNumber: "MN-B2000",
+      matriculaJurisdiccion: "Buenos Aires",
+      operationalProvince: "Buenos Aires",
+      operationalLocality: "La Plata",
+    });
+    expect(submit.ok).toBe(true);
+    const [req] = await db
+      .select({ publicToken: approvalRequests.publicToken, id: approvalRequests.id })
+      .from(approvalRequests)
+      .where(
+        and(
+          eq(approvalRequests.applicantUserId, vet2ApplicantId),
+          eq(approvalRequests.type, "role_upgrade_vet"),
+          eq(approvalRequests.status, "pending"),
+        ),
+      )
+      .limit(1);
+    vet2Token = req.publicToken;
+    vet2RequestId = req.id;
+  });
+
+  it("bulk approve is refused for role_upgrade_vet (bulk reject unaffected)", async () => {
+    // bulkActionId != null marks the bulk path (bulk-approve-requests.ts).
+    const result = await approveRequestForAuthority(
+      adminUserId,
+      vet2Token,
+      null,
+      "test-bulk-action-id",
+    );
+    expect("error" in result && result.error).toMatch(/lote|individual/i);
+
+    // The request must remain pending and decidable.
+    const [row] = await db
+      .select({ status: approvalRequests.status })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, vet2RequestId))
+      .limit(1);
+    expect(row.status).toBe("pending");
+  });
+
+  it("requestInfoForAuthority: validates the message length", async () => {
+    const result = await requestInfoForAuthority(adminUserId, vet2Token, "abc");
+    expect("error" in result && result.error).toMatch(/5 y 1000/);
+  });
+
+  it("requestInfoForAuthority: logs the event + notifies, keeps the request pending", async () => {
+    const message = "Adjuntá una foto del carnet de matrícula, por favor.";
+    const result = await requestInfoForAuthority(adminUserId, vet2Token, message);
+    expect(result).toEqual({ ok: true });
+
+    // Notes-only event: audit row with the message…
+    const [logEntry] = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.approvalRequestId, vet2RequestId),
+          eq(auditLog.action, "request_info_requested"),
+        ),
+      )
+      .limit(1);
+    expect(logEntry).toBeDefined();
+    expect((logEntry.payload as { message?: string }).message).toBe(message);
+
+    // …an applicant notification…
+    const [notif] = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.userId, vet2ApplicantId),
+          eq(notifications.notificationType, "approval_request_info_requested"),
+        ),
+      )
+      .limit(1);
+    expect(notif).toBeDefined();
+    expect(notif.body).toContain(message);
+
+    // …and the request row is UNTOUCHED: still pending, no decision fields.
+    const [row] = await db
+      .select()
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, vet2RequestId))
+      .limit(1);
+    expect(row.status).toBe("pending");
+    expect(row.decidedAt).toBeNull();
+    expect(row.decidedByUserId).toBeNull();
+
+    // Non-terminal: an individual approve afterwards still works, with the
+    // structured verification notes persisted in decision_notes.
+    const structuredNotes =
+      "[Verificación de matrícula] Formato verificado; registro oficial consultado; identidad consistente.";
+    const approve = await approveRequestForAuthority(adminUserId, vet2Token, structuredNotes);
+    expect(approve).toEqual({ ok: true });
+    const [decided] = await db
+      .select({ status: approvalRequests.status, decisionNotes: approvalRequests.decisionNotes })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, vet2RequestId))
+      .limit(1);
+    expect(decided.status).toBe("approved");
+    expect(decided.decisionNotes).toBe(structuredNotes);
   });
 });
 
@@ -347,30 +473,48 @@ describe("scope enforcement — govt cannot decide out-of-scope requests", () =>
       grantedByUserId: adminUserId,
     });
 
-    // Create a fresh request in CABA.
-    const submit = await requestVetUpgradeForUser(vetApplicantId, {
+    // Create a fresh request in CABA — from an applicant NOBODY promoted.
+    // This used to reuse vetApplicantId, whom the first describe block turns
+    // into role='vet'; the submit then failed, an `if (!submit.ok) return`
+    // swallowed it, and the only assertion in this file's scope coverage never
+    // ran. A failed submit is now a FAILURE: without a pending request there is
+    // no out-of-scope decision to reject and the test proves nothing.
+    const submit = await requestVetUpgradeForUser(scopeApplicantId, {
       matriculaNumber: "MN-OUT1000",
       matriculaJurisdiccion: "CABA",
       operationalProvince: "CABA",
       operationalLocality: "Colegiales",
     });
-    // vetApplicantId already has role='vet' from earlier test — that
-    // blocks the new submission. Skip if so.
-    if (!submit.ok) return;
+    expect(submit.ok, "the scope test needs a real pending request to decide").toBe(true);
 
     const [req] = await db
-      .select({ publicToken: approvalRequests.publicToken })
+      .select({ publicToken: approvalRequests.publicToken, id: approvalRequests.id })
       .from(approvalRequests)
       .where(
         and(
-          eq(approvalRequests.applicantUserId, vetApplicantId),
+          eq(approvalRequests.applicantUserId, scopeApplicantId),
           eq(approvalRequests.jurisdictionLocality, "Colegiales"),
         ),
       )
       .limit(1);
+    expect(req, "the CABA/Colegiales request must exist before it can be denied").toBeDefined();
 
     const result = await approveRequestForAuthority(govtUserId, req.publicToken, null);
     expect("error" in result && result.error).toMatch(/permiso|jurisdicc/i);
+
+    // The denial is not just a message: the request must be UNTOUCHED — an
+    // out-of-scope authority that returns an error while still flipping the row
+    // would pass the assertion above.
+    const [row] = await db
+      .select({
+        status: approvalRequests.status,
+        decidedByUserId: approvalRequests.decidedByUserId,
+      })
+      .from(approvalRequests)
+      .where(eq(approvalRequests.id, req.id))
+      .limit(1);
+    expect(row.status).toBe("pending");
+    expect(row.decidedByUserId).toBeNull();
   });
 });
 

@@ -8,7 +8,27 @@
 // because the DNI format check runs before the session lookup. Tests that
 // require an authenticated user are skipped with a note.
 
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// signupAction now derives callerIp from request headers for its per-IP
+// rate-limit budget. Mock next/headers so the header read succeeds. Note the
+// mock intentionally omits `cookies`, so a validation-passing test still throws
+// downstream at createClient()'s cookies() call — preserving the original
+// "reaches Supabase" assertion.
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
+  })),
+}));
+
+// Rate limiter: allow by default so validation-gate tests reach (or clear) it.
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import { completeIdentityAction, signupAction } from "@/app/actions/auth";
 
@@ -81,10 +101,35 @@ describe("signupAction — validation gates", () => {
 });
 
 describe("completeIdentityAction — pre-session validation gates", () => {
-  // These tests exercise guards that run before requireUserOrRedirect /
-  // supabase.auth.getUser. The action will redirect to /signup (NEXT_REDIRECT)
-  // when it reaches the session check and no session exists — that's expected
-  // for the "valid input" cases below. We only assert on validation errors here.
+  // These tests exercise guards that run before supabase.auth.getUser.
+  //
+  // CORRECTED 2026-08-01. The comment that used to sit here said:
+  //
+  //   "The action will redirect to /signup (NEXT_REDIRECT) when it reaches the
+  //    session check and no session exists"
+  //
+  // That was false twice over. completeIdentityAction has not redirected since
+  // the anti-loop fix — on a missing session it RETURNS an honest error, and
+  // __tests__/signup-no-session-guard.test.ts fails loudly if redirect() is
+  // ever called from it. So the comment documented, as expected behaviour, the
+  // exact bug a sibling test file exists to prevent.
+  //
+  // What actually throws in these "valid input" cases is:
+  //
+  //   Error: `cookies` was called outside a request scope.
+  //
+  // — createClient() reaching for Next's request context, which unit tests do
+  // not have. The old assertions were a bare `rejects.toThrow()`, which cannot
+  // tell that throw apart from any other. Measured: with the DNI format check
+  // replaced by `if (false)`, all three "accepts a valid DNI" tests still
+  // passed. They asserted nothing about DNI acceptance.
+  //
+  // The matcher below fixes that. It still cannot reach the profile write, but
+  // it is no longer vacuous: a REJECTED DNI would return a validation error
+  // instead of throwing, so `rejects` fails — which is precisely the claim
+  // "this DNI is accepted". The specific pattern additionally pins WHERE
+  // execution got to, so an unrelated throw can never be mistaken for success.
+  const REACHED_REQUEST_BOUNDARY = /request scope|cookies/i;
 
   it("rejects when firstName is empty", async () => {
     const fd = buildIdentityForm({ firstName: "" });
@@ -116,26 +161,35 @@ describe("completeIdentityAction — pre-session validation gates", () => {
     expect(result.error).toMatch(/7 u 8 dígitos/);
   });
 
-  it("accepts a valid 7-digit DNI and proceeds to session check", async () => {
+  it("accepts a valid 7-digit DNI: no validation error, execution reaches the session boundary", async () => {
     const fd = buildIdentityForm({ dni: "1234567" });
-    // Reaches the session check → redirect("/signup") thrown as NEXT_REDIRECT.
-    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow();
+    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
+      REACHED_REQUEST_BOUNDARY,
+    );
   });
 
-  it("accepts a valid 8-digit DNI and proceeds to session check", async () => {
+  it("accepts a valid 8-digit DNI: no validation error, execution reaches the session boundary", async () => {
     const fd = buildIdentityForm({ dni: "34567890" });
-    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow();
+    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
+      REACHED_REQUEST_BOUNDARY,
+    );
   });
 
-  it("accepts missing DNI (field is optional) and proceeds to session check", async () => {
+  it("accepts a missing DNI — the field is optional", async () => {
     const fd = buildIdentityForm();
     // No dni set — optional field omitted entirely.
-    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow();
+    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
+      REACHED_REQUEST_BOUNDARY,
+    );
   });
 
-  it("strips dots and spaces from DNI before validation", async () => {
+  it("strips dots and spaces from DNI before validating the format", async () => {
+    // "34.567.890" → "34567890": 8 digits, valid. If the stripping were removed
+    // the raw value would fail DNI_RE and the action would RETURN an error
+    // instead of throwing, so this assertion genuinely covers the stripping.
     const fd = buildIdentityForm({ dni: "34.567.890" });
-    // After stripping: "34567890" — 8 digits — valid → proceeds to session check.
-    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow();
+    await expect(completeIdentityAction({ error: null }, fd)).rejects.toThrow(
+      REACHED_REQUEST_BOUNDARY,
+    );
   });
 });

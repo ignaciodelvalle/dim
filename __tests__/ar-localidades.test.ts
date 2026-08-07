@@ -2,7 +2,7 @@
 // by scripts/import-indec-localities.ts. If the catalog is empty (the import
 // hasn't run yet), the tests skip with a clear message instead of failing.
 
-import { count as countFn, inArray, isNull, sql } from "drizzle-orm";
+import { count as countFn, inArray, isNull } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 
 import { arLocalities, db } from "@/db";
@@ -12,7 +12,9 @@ import {
   localityByIndecId,
   localityByName,
   searchLocalities,
-} from "@/lib/ar-localidades";
+} from "@/lib/infra/ar-localidades";
+
+import { restoreIndecCatalog } from "./_helpers/restore-indec-catalog";
 
 // INDEC IDs from the import-indec-localities fixture CSV. If a prior test run
 // timed out before afterAll cleanup, these rows may still be present and will
@@ -31,13 +33,10 @@ beforeAll(async () => {
   // queries reflect only real catalog data.
   await db.delete(arLocalities).where(inArray(arLocalities.indecId, [...INDEC_FIXTURE_IDS]));
   // Restore any soft-deleted indec_cppdyl rows the import fixture may have
-  // stamped so the live catalog count is accurate.
-  await db
-    .update(arLocalities)
-    .set({ removedAt: null })
-    .where(
-      sql`${arLocalities.source} = 'indec_cppdyl' AND ${arLocalities.removedAt} IS NOT NULL AND ${arLocalities.indecId} IS NOT NULL`,
-    );
+  // stamped so the live catalog count is accurate. The shared helper also
+  // re-drops whole-province aggregate rows a blanket restore would resurrect
+  // (they fail the lint:locality gate) — see _helpers/restore-indec-catalog.ts.
+  await restoreIndecCatalog();
 });
 
 let catalogPopulated = false;
@@ -195,6 +194,21 @@ describe("ar-localidades — search", () => {
     // "Córdoba" capital should show up in AR-X
     const r = await searchLocalities({ provinceCode: "AR-X", query: "cordoba" });
     expect(r.length).toBeGreaterThan(0);
+  });
+
+  it("returns identical results whether the query carries accents or not", async () => {
+    if (!catalogPopulated) return;
+    // Accent parity across the WHOLE scoring (including the substring branch):
+    // the accented and unaccented spellings must resolve to the same rows.
+    // Before the fix the "contains" branch did a raw ILIKE on the display name
+    // (accent-sensitive), so a mid-string match like "Nueva Córdoba" surfaced for
+    // "córdoba" but not "cordoba". Matching the normalized slug folds accents.
+    const ids = (rs: Awaited<ReturnType<typeof searchLocalities>>) =>
+      rs.map((r) => r.indecId).sort();
+    const withAccent = await searchLocalities({ query: "córdoba" });
+    const without = await searchLocalities({ query: "cordoba" });
+    expect(without.length).toBeGreaterThan(0);
+    expect(ids(without)).toEqual(ids(withAccent));
   });
 
   it("respects the limit parameter (capped at 50)", async () => {

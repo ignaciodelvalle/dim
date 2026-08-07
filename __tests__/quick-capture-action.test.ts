@@ -13,8 +13,8 @@
 // regardless of how the registry routes the event type.
 
 import { quickCaptureAction } from "@/app/actions/quick-capture";
-import { matchCaptureIntent } from "@/lib/event-capture-matcher";
-import { buildCaptureDeeplink } from "@/lib/event-capture-registry";
+import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
+import { buildCaptureDeeplink } from "@/lib/events/event-capture-registry";
 import { describe, expect, it } from "vitest";
 
 const TOKEN = "DIM-TEST-9X2F";

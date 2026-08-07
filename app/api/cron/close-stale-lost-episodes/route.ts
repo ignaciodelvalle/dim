@@ -11,7 +11,7 @@ import {
   closeStaleLostEpisode,
   findStaleLostEpisodes,
 } from "@/lib/case-closers/close-stale-lost-episodes";
-import { checkCronSecret, runCaseCron } from "@/lib/case-cron";
+import { checkCronSecret, runCaseCron } from "@/lib/infra/case-cron";
 
 export const dynamic = "force-dynamic";
 
@@ -25,13 +25,17 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const result = await runCaseCron<CloseStaleLostEpisodesCandidate>({
     name: CRON_NAME,
-    scan: () => findStaleLostEpisodes(),
+    scan: (cursor) => findStaleLostEpisodes({ afterId: cursor?.afterId, limit: cursor?.limit }),
     processOne: (candidate) => closeStaleLostEpisode(candidate),
+    batchSize: 200,
   });
 
-  return NextResponse.json({
-    status: result.status,
-    itemsProcessed: result.itemsProcessed,
-    runId: result.runId,
-  });
+  return NextResponse.json(
+    {
+      status: result.status,
+      itemsProcessed: result.itemsProcessed,
+      runId: result.runId,
+    },
+    { status: result.status === "ok" ? 200 : 500 },
+  );
 }

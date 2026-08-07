@@ -33,11 +33,11 @@ Only required for `*_started` / `*_ended` pairs and time-bounded handshakes. Spe
 - **Idempotency guard** — what stops the cron from emitting a second `*_ended` if one already exists for this window? Usually: query the events log for the latest `*_started` for this pet without a matching `*_ended` since.
 - **Notification on auto-close** — does the cron-emitted `*_ended` notify the owner / org / authority differently from a manually-emitted one? If yes, include the discriminator in the payload (`auto_closed: true`, or distinct `notification_type`).
 
-## 4. Payload Zod schema, with `schemaVersion`
+## 4. Payload Zod schema, with `payload_version`
 
 Every payload lives in `lib/event-schemas.ts` as a Zod `.strict()` schema. Required fields:
 
-- **`schemaVersion: z.literal(N)`** — start at `1`. When the payload shape needs to change, bump this and write a transformer (v1 → v2), not a rewrite. See `docs/action-plan-2026-05-20.md` Phase 4.4 for the upgrade convention.
+- **`payload_version: z.literal(N).default(N)`** — start at `1`. When the payload shape needs to change, bump this and write an upcaster (`lib/event-upcasters.ts`), not a rewrite. See `docs/superpowers/event-versioning.md` for the full upgrade convention.
 - **Use `.strict()`, not `.passthrough()`** — drift between writer and schema must throw at insert, not silently round-trip. Existing `pet_event` rows from before strict was enforced keep their old shape; validation runs only at insert time.
 
 Test the schema with both a happy-path payload and at least one drift-catch case (an unexpected key, a missing required field). Mirror the pattern in `__tests__/event-schemas.test.ts`.
@@ -75,8 +75,10 @@ Integration tests sit under `__tests__/` and require a local Supabase + Postgres
 
 ## Quick reference
 
-- Patterns and existing event catalog: `AGENTS.md` → "Event sourcing"
-- Schema registry: `lib/event-schemas.ts`
+- Patterns and existing event catalog: `AGENTS.md` → "Event catalog — 50 types"
+- Schema registry: `lib/events/event-schemas.ts` (uses `payload_version`, not `schemaVersion`)
+- Payload versioning convention: `docs/superpowers/event-versioning.md`
+- Upcasters: `lib/event-upcasters.ts`
 - Projections: `lib/projections/`
 - Rebuild script: `scripts/rebuild-projections.ts`
 - Test patterns: `__tests__/admin-decisions.test.ts`, `__tests__/cross-org-transfer.test.ts`, `__tests__/libreta-share.test.ts`

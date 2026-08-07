@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 
 import { OpCrumbs } from "@/components/ui/dashboard";
 import { db, organizationCoverage } from "@/db";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { PROVINCES, type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { PROVINCES, type ProvinceCode, provinceByCode } from "@/lib/reference/ar-provincias";
 
 import { CoverageEditor } from "./CoverageEditor";
 
@@ -37,8 +37,10 @@ export default async function CoberturaPage({
     <div className="space-y-6">
       <div className="space-y-1">
         <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Cobertura" }]} />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Zonas de cobertura</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        {/* H1 matches the nav label "Cobertura" (audit #17 — nav↔H1 parity);
+            the subtitle carries the "zonas / jurisdicciones" explanation. */}
+        <h1 className="text-title font-semibold text-ln-op-ink">Cobertura</h1>
+        <p className="text-md text-ln-op-mute">
           Configurá las jurisdicciones donde{" "}
           <strong className="text-ln-op-ink-2">{organization.displayName}</strong> recibe alertas de
           mascotas perdidas.

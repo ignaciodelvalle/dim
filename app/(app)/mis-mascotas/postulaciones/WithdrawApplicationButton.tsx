@@ -2,11 +2,11 @@
 
 // WithdrawApplicationButton — applicant retracts a still-pending adoption
 // application. Inline 2-step confirm (same pattern as LeaveMembershipButton);
-// router.refresh() on success so the row re-derives out of "pending".
+// full page reload on success so the row re-derives out of "pending".
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { withdrawAdoptionApplicationAction } from "@/src/modules/adoption/actions";
 
 type Props = {
@@ -14,7 +14,6 @@ type Props = {
 };
 
 export function WithdrawApplicationButton({ applicationEventId }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -28,7 +27,9 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR list re-derives the row's status
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
@@ -37,7 +38,7 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+        className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-[5px] font-ln-sans text-sm font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
       >
         Retirar postulación
       </button>
@@ -45,21 +46,21 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-start gap-[6px]">
-      <p className="m-0 text-[11.5px] text-[var(--color-ln-mute)]">
+    <div className="flex flex-col items-start gap-1.5">
+      <p className="m-0 text-sm text-[var(--color-ln-mute)]">
         ¿Confirmás que querés retirar esta postulación? No se puede deshacer.
       </p>
       {error && (
-        <p className="m-0 text-[11.5px] text-[var(--color-ln-err)]" role="alert">
+        <p className="m-0 text-sm text-[var(--color-ln-err)]" role="alert">
           {error}
         </p>
       )}
-      <div className="flex gap-[6px]">
+      <div className="flex gap-1.5">
         <button
           type="button"
           onClick={handleWithdraw}
           disabled={pending}
-          className="rounded-[3px] bg-[var(--color-ln-err)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-semibold text-white transition-colors disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] bg-[var(--color-ln-err)] px-2.5 py-[5px] font-ln-sans text-sm font-semibold text-white transition-colors disabled:opacity-60"
         >
           {pending ? "Retirando..." : "Sí, retirar"}
         </button>
@@ -70,7 +71,7 @@ export function WithdrawApplicationButton({ applicationEventId }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[3px] border border-[var(--color-ln-line-strong)] px-[10px] py-[5px] font-[var(--font-ln-sans)] text-[11.5px] font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-2.5 py-[5px] font-ln-sans text-sm font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
         >
           Cancelar
         </button>

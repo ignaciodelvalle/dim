@@ -1,9 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { withdrawApprovalRequestAction } from "@/app/actions/approval-requests";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
   requestId: string;
@@ -11,7 +11,6 @@ type Props = {
 
 export function WithdrawButton({ requestId }: Props) {
   const [pending, startTransition] = useTransition();
-  const router = useRouter();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +23,9 @@ export function WithdrawButton({ requestId }: Props) {
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR request list drops the withdrawn row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
@@ -33,7 +34,7 @@ export function WithdrawButton({ requestId }: Props) {
       <button
         type="button"
         onClick={() => setConfirming(true)}
-        className="inline-flex items-center px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line-strong)] text-xs font-medium text-[var(--color-ln-ink-2)] bg-[var(--color-ln-card)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+        className="inline-flex items-center px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] text-xs font-medium text-[var(--color-ln-ink-2)] bg-[var(--color-ln-card)] hover:bg-[var(--color-ln-stripe)] transition-colors"
       >
         Retirar solicitud
       </button>
@@ -41,7 +42,7 @@ export function WithdrawButton({ requestId }: Props) {
   }
 
   return (
-    <div className="flex flex-col items-end gap-[6px]">
+    <div className="flex flex-col items-end gap-1.5">
       <p className="m-0 text-right text-xs text-[var(--color-ln-mute)]">
         ¿Seguro que querés retirar esta solicitud?
       </p>
@@ -50,14 +51,14 @@ export function WithdrawButton({ requestId }: Props) {
           {error}
         </p>
       )}
-      <div className="flex gap-[6px]">
+      <div className="flex gap-1.5">
         <button
           type="button"
           onClick={handleConfirm}
           disabled={pending}
-          className="rounded-[3px] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-3 py-1.5 text-xs font-semibold text-white transition-colors disabled:opacity-60"
         >
-          {pending ? "Retirando…" : "Confirmar"}
+          {pending ? "Retirando…" : "Retirar solicitud"}
         </button>
         <button
           type="button"
@@ -66,7 +67,7 @@ export function WithdrawButton({ requestId }: Props) {
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[3px] border border-[var(--color-ln-line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-3 py-1.5 text-xs font-medium text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:opacity-60"
         >
           Cancelar
         </button>

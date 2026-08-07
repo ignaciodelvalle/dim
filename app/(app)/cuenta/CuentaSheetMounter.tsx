@@ -4,7 +4,8 @@
  * CuentaSheetMounter — deep-link driven sheets for the cuenta dashboard.
  *
  * Opens the appropriate form Sheet based on `?sheet=<id>` URL state.
- * Closing removes the `sheet` param from the URL via router.replace.
+ * Closing removes the `sheet` param from the URL via closeSheetNav (native
+ * History API — router-hot-path fix, see lib/ui/sheet-nav.ts).
  *
  * Supported sheet IDs:
  *   editar-perfil | renunciar-rol | solicitar-upgrade-vet | verificar-dni
@@ -17,8 +18,9 @@
  */
 
 import { Sheet } from "@/components/ui/VaulSheet";
-import { buildCloseSheetUrl } from "@/lib/sheet-helpers";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { buildCloseSheetUrl } from "@/lib/ui/sheet-helpers";
+import { closeSheetNav } from "@/lib/ui/sheet-nav";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback } from "react";
 
 import { EditProfileForm } from "./editar/EditProfileForm";
@@ -46,19 +48,25 @@ type Props = {
 };
 
 export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const sheet = searchParams.get("sheet");
 
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
-    router.replace(buildCloseSheetUrl(pathname, params));
-  }, [router, pathname, searchParams]);
+    closeSheetNav(buildCloseSheetUrl(pathname, params));
+  }, [pathname, searchParams]);
 
   if (sheet === "editar-perfil") {
     return (
-      <Sheet id="editar-perfil" title="Editar mi información" open onClose={close} size="lg">
+      <Sheet
+        id="editar-perfil"
+        title="Editar mi información"
+        description="Actualizá tu nombre, teléfono y foto de perfil."
+        open
+        onClose={close}
+        size="lg"
+      >
         <EditProfileForm initialProfile={initialProfile} />
       </Sheet>
     );
@@ -67,7 +75,13 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
   if (sheet === "renunciar-rol") {
     if (role !== "vet") return null;
     return (
-      <Sheet id="renunciar-rol" title="Renunciar a rol veterinario/a" open onClose={close}>
+      <Sheet
+        id="renunciar-rol"
+        title="Renunciar a rol veterinario/a"
+        description="Al renunciar volvés a tener rol de dueño/a."
+        open
+        onClose={close}
+      >
         <VetSelfResignForm />
       </Sheet>
     );
@@ -82,11 +96,12 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
       <Sheet
         id="solicitar-upgrade-vet"
         title="Convertirme en profesional"
+        description="Registrá tu matrícula veterinaria o creá una organización."
         open
         onClose={close}
         size="lg"
       >
-        <VetUpgradeForm />
+        <VetUpgradeForm dniVerified={dniVerified} />
       </Sheet>
     );
   }
@@ -94,7 +109,13 @@ export function CuentaSheetMounter({ initialProfile, role, dniVerified }: Props)
   if (sheet === "verificar-dni") {
     if (dniVerified) return null; // already verified — no-op
     return (
-      <Sheet id="verificar-dni" title="Declarar DNI" open onClose={close}>
+      <Sheet
+        id="verificar-dni"
+        title="Declarar DNI"
+        description="Declará tu número de documento para verificar tu identidad."
+        open
+        onClose={close}
+      >
         <DniVerifyForm next="/cuenta" />
       </Sheet>
     );

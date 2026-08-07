@@ -1,5 +1,6 @@
-import { getSizePx, getStatusBadgeProps, getStatusRingClass } from "@/lib/photo-helpers";
-import type { PhotoSize, PhotoStatus } from "@/lib/photo-helpers";
+import { getSizePx, getStatusBadgeProps, getStatusRingClass } from "@/lib/infra/photo-helpers";
+import type { PhotoSize, PhotoStatus } from "@/lib/infra/photo-helpers";
+import Image from "next/image";
 
 export type { PhotoSize, PhotoStatus };
 
@@ -49,7 +50,13 @@ export function LnPhoto({ status, size = "md", src, alt, className = "" }: LnPho
         aria-hidden={src ? "true" : undefined}
       >
         {src ? (
-          <img src={src} alt={alt} width={px} height={px} className="w-full h-full object-cover" />
+          <Image
+            src={src}
+            alt={alt}
+            width={px}
+            height={px}
+            className="w-full h-full object-cover"
+          />
         ) : (
           <span
             className="font-semibold text-[var(--color-ln-ink-2)] select-none"
@@ -67,7 +74,7 @@ export function LnPhoto({ status, size = "md", src, alt, className = "" }: LnPho
           className={`
             absolute bottom-0 right-0 translate-x-1/4 translate-y-1/4
             inline-flex items-center rounded-full px-1.5 py-px
-            text-[10px] font-semibold leading-none whitespace-nowrap
+            text-xs font-semibold leading-none whitespace-nowrap
             ${toneBadgeClasses[badge.tone]}
           `}
         >

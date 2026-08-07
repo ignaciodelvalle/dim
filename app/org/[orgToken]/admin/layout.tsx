@@ -3,7 +3,8 @@
 // Any page under /org/[orgToken]/admin can assume the visitor can decide
 // capability requests.
 
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { OpBreach } from "@/components/ui/dashboard/OpBreach";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import Link from "next/link";
 
@@ -19,24 +20,23 @@ export default async function OrgAdminLayout({
   const granted = await getGrantedCapabilities(membership);
   if (!granted.has("capability.grant")) {
     return (
-      <main className="min-h-screen bg-ln-op-page flex items-center justify-center p-6">
-        <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Acceso restringido</h1>
-          <p className="text-[13px] text-ln-op-mute">
-            Esta sección es para administradores. Necesitás el permiso{" "}
-            <code className="text-[11px] font-bold text-ln-op-ink-2 bg-ln-op-stripe px-1 rounded">
-              capability.grant
-            </code>{" "}
-            para revisar solicitudes.
-          </p>
-          <Link
-            href={`/org/${orgToken}`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium no-underline"
-          >
-            Volver al panel
-          </Link>
-        </div>
-      </main>
+      <div className="p-6">
+        <OpBreach
+          title="Acceso restringido"
+          detail={
+            <>
+              Esta sección es para administradores. Necesitás el permiso{" "}
+              <code className="text-sm font-bold text-ln-op-ink-2 bg-ln-op-stripe px-1 rounded">
+                capability.grant
+              </code>{" "}
+              para revisar solicitudes.{" "}
+              <Link href={`/org/${orgToken}`} className="underline font-medium">
+                Volver al panel
+              </Link>
+            </>
+          }
+        />
+      </div>
     );
   }
 

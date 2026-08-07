@@ -14,6 +14,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
@@ -148,7 +150,8 @@ beforeAll(async () => {
     .set({
       displayName: "Applicant One",
       phone: "+541111111111",
-      dniNumber: "30000001",
+      dniHash: hashDni("30000001"),
+      dniLast4: dniLast4("30000001"),
       dniVerified: true,
       role: "owner",
       accountType: "personal",
@@ -277,18 +280,13 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
     formData.set("adopterPhone", "+541111111111");
     formData.set("followupMonths", "0");
     formData.set("notes", "Cascade test finalize");
-    let redirectErr: unknown = null;
-    let returnValue: unknown = null;
-    try {
-      returnValue = await finalizeAdoptionAction(orgToken, petToken, { error: null }, formData);
-    } catch (e) {
-      redirectErr = e;
-    }
-    if (!redirectErr) {
+    const result = await finalizeAdoptionAction(orgToken, petToken, { error: null }, formData);
+    if (result.error !== null || !result.redirectTo) {
       throw new Error(
-        `finalizeAdoptionAction returned instead of redirecting: ${JSON.stringify(returnValue)}`,
+        `finalizeAdoptionAction did not succeed with a redirect target: ${JSON.stringify(result)}`,
       );
     }
+    expect(result.redirectTo).toContain(`/org/${orgToken}/mascotas?adopcion=`);
 
     // 1 adoption_finalized event with adopter=applicant1.
     const finalizedEvents = await db

@@ -20,11 +20,7 @@
 //   - Flushing pendingNotifications (post-tx, best-effort)
 //   - redirect("/mis-mascotas")
 
-import type {
-  NewNotification,
-  UseCaseResult,
-} from "@/src/modules/adoption/application/set-adoption-eligibility";
-import type { RegisterPetInput } from "../domain/types";
+import type { NewNotification, RegisterPetInput, UseCaseResult } from "../domain/types";
 import type { PetsRepository } from "../infrastructure/pets-repository";
 
 // ---------------------------------------------------------------------------
@@ -39,6 +35,23 @@ type Deps = {
   repo: typeof PetsRepository;
   actor: Actor;
   transaction: <T>(cb: (tx: unknown) => Promise<T>) => Promise<T>;
+  /**
+   * Clock. Supplies the instant stamped on the pet_registered event
+   * (occurredAt/recordedAt) and on the ownership row's startedAt.
+   *
+   * Defaults to `new Date()`, which is what every production caller wants and
+   * gets by omitting it. It is injectable for the same reason `repo` and
+   * `transaction` are: a caller that must register a pet AT A PAST INSTANT has
+   * no other honest way to do it. The demo seed (scripts/seed-panorama.ts)
+   * needs exactly that — its whole value is a realistic temporal distribution
+   * of registrations across a multi-month window, and a hardcoded `new Date()`
+   * would collapse every synthetic registration onto one instant and flatten
+   * every trend chart in the national console.
+   *
+   * This is clock injection, not a seed hook: the use-case stays deterministic
+   * and testable, and no seed-specific branch enters the production path.
+   */
+  now?: () => Date;
 };
 
 // ---------------------------------------------------------------------------
@@ -48,12 +61,27 @@ type Deps = {
 export async function registerPet(
   input: RegisterPetInput,
   deps: Deps,
-): Promise<UseCaseResult<{ petId: string; eventId: string; publicToken: string }>> {
-  const { repo, actor, transaction } = deps;
+): Promise<
+  UseCaseResult<{
+    petId: string;
+    eventId: string;
+    publicToken: string;
+    /** True when a double-submit was detected — the pet was NOT created again. */
+    wasDuplicate: boolean;
+  }>
+> {
+  const { repo, actor, transaction, now: clock } = deps;
   const { user } = actor;
-  const { parsed, potentiallyDangerousBreed, uploadedPath, uploadMimeType, uploadSize } = input;
+  const {
+    parsed,
+    potentiallyDangerousBreed,
+    uploadedPath,
+    uploadMimeType,
+    uploadSize,
+    clientIdempotencyKey,
+  } = input;
 
-  const now = new Date();
+  const now = clock ? clock() : new Date();
 
   // 1. Generate unique public token (pre-tx, advisory-check + retry loop inside repo).
   const publicToken = await repo.generatePublicToken();
@@ -61,10 +89,29 @@ export async function registerPet(
   const pendingNotifications: NewNotification[] = [];
   let petId = "";
   let eventId = "";
+  // Resolves to the existing pet's token when a double-submit is detected.
+  let resolvedPublicToken = publicToken;
+  let wasDuplicate = false;
 
   // 2. Atomic transaction.
   try {
     await transaction(async (tx) => {
+      // Double-submit idempotency guard (audit §6): the wizard posts a stable
+      // clientIdempotencyKey per form session. An advisory lock + lookup inside
+      // the tx makes a second same-key submit see the first one's committed pet
+      // instead of creating a duplicate. Mirrors create-intake.ts.
+      if (clientIdempotencyKey) {
+        const existing = await repo.findDuplicateRegistration(
+          clientIdempotencyKey,
+          tx as Parameters<typeof repo.findDuplicateRegistration>[1],
+        );
+        if (existing) {
+          wasDuplicate = true;
+          resolvedPublicToken = existing.publicToken;
+          return;
+        }
+      }
+
       const result = await repo.insertPetRegistered(
         {
           publicToken,
@@ -75,6 +122,7 @@ export async function registerPet(
           uploadSize,
           userId: user.id,
           now,
+          clientIdempotencyKey,
         },
         tx as Parameters<typeof repo.insertPetRegistered>[1],
       );
@@ -88,7 +136,7 @@ export async function registerPet(
           userId: user.id,
           notificationType: "ppp_registration_reminder",
           title: `${parsed.name}: registrá tu PPP en el provincial`,
-          body: `Tu mascota está marcada como raza potencialmente peligrosa por ${parsed.breed ?? "su raza"}. La Ley CABA 4078 / Ley Provincial 14.107 requiere que la inscribas en el registro provincial correspondiente. MiMAR la marcó automáticamente con la flag oficial.`,
+          body: `Tu mascota está marcada como raza potencialmente peligrosa por ${parsed.breed ?? "su raza"}. La Ley CABA 4078 / Ley Provincial 14.107 requiere que la inscribas en el registro provincial correspondiente. miMAR la marcó automáticamente con la flag oficial.`,
           severity: "warning",
           ctaLabel: "Más info sobre PPP",
           ctaUrl: "https://www.argentina.gob.ar/justicia/derechofacil/leysimple/maltrato-animales",
@@ -104,5 +152,9 @@ export async function registerPet(
     };
   }
 
-  return { ok: true, value: { petId, eventId, publicToken }, notifications: pendingNotifications };
+  return {
+    ok: true,
+    value: { petId, eventId, publicToken: resolvedPublicToken, wasDuplicate },
+    notifications: pendingNotifications,
+  };
 }

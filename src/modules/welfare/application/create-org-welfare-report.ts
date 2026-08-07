@@ -30,7 +30,8 @@
 //   5. signal.
 //   6. Return redirect target.
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 import { MALTREATMENT_KINDS, derivePrimarySubjectKind } from "../domain/report-classification";
 import type { WelfareRepository } from "../infrastructure/welfare-repository";
 import type { NewNotification } from "./types";
@@ -58,13 +59,13 @@ type OpenCaseInput = {
   kind: string;
   primarySubjectKind: string;
   primaryPetId: string | null;
-  primaryLocationLat: string | null;
-  primaryLocationLng: string | null;
+  locationLat: string | null;
+  locationLng: string | null;
   jurisdictionProvince: string | null;
   jurisdictionLocality: string | null;
   openedByUserId: string;
   openedByOrganizationId: string;
-  openedReason: string;
+  openedReason: OpenedReason;
   welfareReportId: string;
 };
 
@@ -93,6 +94,8 @@ export type CreateOrgWelfareReportInput = {
   uploadedPaths: string[];
   orgMember: OrgMember;
   orgToken?: string;
+  /** Client-generated UUID for idempotency on the pet-event bridge inserts. */
+  clientIdempotencyKey: string | null;
 };
 
 type Deps = {
@@ -101,6 +104,7 @@ type Deps = {
     | "insertAttachments"
     | "linkCase"
     | "insertPetEvent"
+    | "insertPetEventIdempotent"
     | "insertAudit"
     | "insertNotifications"
     | "findOpenOtherWelfareCasesForPet"
@@ -151,6 +155,7 @@ export async function createOrgWelfareReport(
     attachments,
     orgMember,
     orgToken,
+    clientIdempotencyKey,
   } = input;
 
   // OA2: severity ALWAYS forced to 'critical' (server authoritative).
@@ -186,13 +191,17 @@ export async function createOrgWelfareReport(
         kind: "welfare_denuncia",
         primarySubjectKind,
         primaryPetId: primarySubjectKind === "registered_pet" ? subjectPetId : null,
-        primaryLocationLat: primarySubjectKind === "location" ? locationLat : null,
-        primaryLocationLng: primarySubjectKind === "location" ? locationLng : null,
+        locationLat: primarySubjectKind === "location" ? locationLat : null,
+        locationLng: primarySubjectKind === "location" ? locationLng : null,
         jurisdictionProvince,
         jurisdictionLocality,
         openedByUserId: orgMember.userId,
         openedByOrganizationId: orgMember.orgId,
-        openedReason: `auto: org-side welfare report by ${orgMember.orgDisplayName} (${referenceCode})`,
+        openedReason: {
+          code: "welfare_report_org",
+          referenceCode,
+          orgDisplayName: orgMember.orgDisplayName,
+        },
         welfareReportId: reportId,
       });
 
@@ -217,7 +226,7 @@ export async function createOrgWelfareReport(
             reporter_role: "witness",
             description,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "abandonment_reported",
@@ -230,8 +239,9 @@ export async function createOrgWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         } else if (bridgeKind === "maltreatment") {
           const payload = validateEventPayload("maltreatment_reported", {
@@ -241,7 +251,7 @@ export async function createOrgWelfareReport(
             severity,
             kind,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "maltreatment_reported",
@@ -254,8 +264,9 @@ export async function createOrgWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         }
 
@@ -270,7 +281,7 @@ export async function createOrgWelfareReport(
             severity_self_assessed: null,
             onset_at: null,
           });
-          await repo.insertPetEvent(
+          await repo.insertPetEventIdempotent(
             {
               petId: subjectPetId,
               eventType: "symptom_observed",
@@ -283,8 +294,9 @@ export async function createOrgWelfareReport(
               locationLat,
               locationLng,
               caseId: caseRow.id,
+              clientIdempotencyKey,
             },
-            tx as Parameters<typeof repo.insertPetEvent>[1],
+            tx as Parameters<typeof repo.insertPetEventIdempotent>[1],
           );
         }
 
@@ -381,6 +393,11 @@ export async function createOrgWelfareReport(
       await repo.insertNotifications(
         pendingNotifications as Parameters<typeof repo.insertNotifications>[0],
       );
+      // Web Push leg — urgent-only filtering happens inside the seam (the
+      // critical-report fan-out above is severity "urgent"); best-effort,
+      // never throws into the action path. Runs AFTER the tx committed.
+      const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+      await sendPushForNotifications(pendingNotifications);
     } catch (e) {
       console.error("[welfare] notifications insert failed (action did succeed)", e);
     }

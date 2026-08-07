@@ -16,6 +16,7 @@ import {
   submitFreeClaimAction,
 } from "@/app/actions/pet-claim";
 import { LnRadio } from "@/components/ui/Field";
+import { useStepFocus } from "@/lib/ui/use-step-focus";
 
 type IdKind = "microchip" | "tattoo";
 
@@ -23,12 +24,22 @@ type Step1State = { phase: "idle"; kind: IdKind; value: string; error: string | 
 type Step2State = {
   phase: "result";
   kind: IdKind;
+  // The raw identifier value entered in step 1. Carried forward so the free-claim
+  // submit can re-prove knowledge of the private identifier server-side (the
+  // public pet token is NOT evidence — see submit-free-claim.ts).
+  value: string;
   lookup: Extract<ClaimLookupResult, { variant: string }>;
   error: string | null;
 };
 type Step3State = {
   phase: "dispute";
-  petToken: string;
+  // Carried forward for the SAME reason the free-claim branch above carries it:
+  // the dispute submit re-proves knowledge of the private identifier
+  // server-side. The public pet token is NOT evidence — /perdidas hands those
+  // out without a login, so a token-authorized dispute let anyone flip
+  // in_custody_dispute on any animal (see submit-claim-dispute.ts).
+  kind: IdKind;
+  value: string;
   petName: string;
   reason: string;
   error: string | null;
@@ -49,11 +60,22 @@ export function ClaimWizard() {
   const [state, setState] = useState<WizardState>(INITIAL);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
+  // A11y fix (2026-07 audit): each phase below is a full early-return (its own
+  // JSX tree, not a shared shell), so only one of the phase headlines is ever
+  // mounted at a time — the same ref object attaches to whichever one is
+  // currently rendered (including the ResultStep variants, via prop). See
+  // lib/ui/use-step-focus.ts.
+  const stepFocusRef = useRef<HTMLParagraphElement>(null);
+  useStepFocus(state.phase, stepFocusRef);
 
   if (state.phase === "claimed") {
     return (
-      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
-        <p className="text-base font-semibold text-[var(--color-ln-ok)]">
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-[var(--color-ln-ok)] focus:outline-none"
+        >
           {state.petName} ahora está a tu nombre
         </p>
         <p className="mt-1 text-[var(--color-ln-ok)]">
@@ -72,8 +94,14 @@ export function ClaimWizard() {
 
   if (state.phase === "submitted") {
     return (
-      <section className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
-        <p className="text-base font-semibold text-[var(--color-ln-ok)]">Reclamo enviado</p>
+      <section className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-6 text-sm">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-[var(--color-ln-ok)] focus:outline-none"
+        >
+          Reclamo enviado
+        </p>
         <p className="mt-1 text-[var(--color-ln-ok)]">
           Una autoridad local va a revisar tu reclamo por {state.petName}. Te avisaremos cuando haya
           una resolución.
@@ -102,14 +130,29 @@ export function ClaimWizard() {
               setState({ ...state, error: result.error });
               return;
             }
-            setState({ phase: "result", kind: state.kind, lookup: result, error: null });
+            setState({
+              phase: "result",
+              kind: state.kind,
+              value: state.value,
+              lookup: result,
+              error: null,
+            });
           });
         }}
-        className="space-y-4 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5"
+        className="space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] p-5"
       >
         <fieldset className="space-y-2">
+          {/* ref goes on an inner <span>, not <legend> itself: HTMLLegendElement
+              has a `form` property HTMLParagraphElement lacks, so the single
+              shared stepFocusRef (typed HTMLParagraphElement, reused across
+              every other step's <p> heading) isn't structurally assignable to
+              it. legend stays the direct child of fieldset (required for the
+              accessible-name association) — only the text wraps in the
+              focusable span. */}
           <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
-            ¿Cómo identificás a la mascota?
+            <span ref={stepFocusRef} tabIndex={-1} className="focus:outline-none">
+              ¿Cómo identificás a la mascota?
+            </span>
           </legend>
           <LnRadio
             name="kind"
@@ -145,7 +188,7 @@ export function ClaimWizard() {
             onChange={(e) => setState({ ...state, value: e.target.value, error: null })}
             placeholder={state.kind === "microchip" ? "123456789012345" : "ABC-1234"}
             required
-            className="w-full rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           />
         </div>
 
@@ -158,7 +201,7 @@ export function ClaimWizard() {
         <button
           type="submit"
           disabled={pending || state.value.trim().length === 0}
-          className="w-full rounded-[3px] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+          className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-4 py-2.5 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
         >
           {pending ? "Buscando…" : "Buscar"}
         </button>
@@ -172,15 +215,23 @@ export function ClaimWizard() {
         lookup={state.lookup}
         pending={pending}
         error={state.error}
+        stepFocusRef={stepFocusRef}
         onBack={() => setState(INITIAL)}
-        onClaim={(t, n) =>
-          setState({ phase: "dispute", petToken: t, petName: n, reason: "", error: null })
+        onClaim={(_t, n) =>
+          setState({
+            phase: "dispute",
+            kind: state.kind,
+            value: state.value,
+            petName: n,
+            reason: "",
+            error: null,
+          })
         }
-        onFreeClaim={(petToken) => {
+        onFreeClaim={() => {
           startTransition(async () => {
             const result = await submitFreeClaimAction({
-              petToken,
               identifierKind: state.kind,
+              identifierValue: state.value,
             });
             if ("error" in result) {
               setState({ ...state, error: result.error });
@@ -206,7 +257,7 @@ export function ClaimWizard() {
         startTransition(async () => {
           const reason = String(fd.get("reason") ?? "");
           const result = await submitClaimDisputeAction(
-            { petToken: state.petToken, reason },
+            { identifierKind: state.kind, identifierValue: state.value, reason },
             files,
           );
           if ("error" in result) {
@@ -220,16 +271,20 @@ export function ClaimWizard() {
           });
         });
       }}
-      className="space-y-4 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm"
+      className="space-y-4 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm"
     >
       <div className="space-y-1">
-        <p className="text-base font-semibold text-[var(--color-ln-warn)]">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="text-base font-semibold text-[var(--color-ln-warn)] focus:outline-none"
+        >
           Iniciar disputa por {state.petName}
         </p>
         <p className="text-[var(--color-ln-warn)]">
-          Tu reclamo se envía a la autoridad local para revisión. Subí evidencia (foto del chip
-          escaneado, libreta sanitaria si la tenés, etc.) y contanos por qué creés que es tu
-          mascota.
+          Tu reclamo se envía a la autoridad local para revisión y le avisa a la persona registrada
+          como dueña. Contanos por qué creés que es tu mascota y adjuntá al menos una prueba (foto
+          del chip escaneado, libreta sanitaria, fotos tuyas con el animal).
         </p>
       </div>
 
@@ -249,7 +304,7 @@ export function ClaimWizard() {
           required
           value={state.reason}
           onChange={(e) => setState({ ...state, reason: e.target.value, error: null })}
-          className="w-full rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
         <p className="text-xs text-[var(--color-ln-warn)]">Mínimo 20, máximo 2000.</p>
       </div>
@@ -259,17 +314,27 @@ export function ClaimWizard() {
           htmlFor="claim-evidence"
           className="block text-sm font-medium text-[var(--color-ln-warn)]"
         >
-          Evidencia (opcional, máx. 5 archivos)
+          Evidencia (al menos 1 archivo, máx. 5)
         </label>
+        {/* `required` is a courtesy that fails fast in the browser. The rule
+            itself lives in submit-claim-dispute.ts — this action is an
+            independently-addressable server action, so a client-only check
+            would be worth nothing. */}
         <input
           id="claim-evidence"
           name="evidence"
           type="file"
+          required
           multiple
           accept="image/*,video/*"
           capture="environment"
+          aria-describedby="claim-evidence-hint"
           className="block w-full text-xs text-[var(--color-ln-warn)]"
         />
+        <p id="claim-evidence-hint" className="text-xs text-[var(--color-ln-warn)]">
+          Sin evidencia no podemos abrir el reclamo: la autoridad necesita algo concreto para
+          revisarlo.
+        </p>
       </div>
 
       {state.error && (
@@ -282,14 +347,14 @@ export function ClaimWizard() {
         <button
           type="button"
           onClick={() => setState(INITIAL)}
-          className="flex-1 rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
+          className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
         >
           Cancelar
         </button>
         <button
           type="submit"
           disabled={pending || state.reason.trim().length < 20}
-          className="flex-1 rounded-[3px] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
+          className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90 disabled:opacity-50"
         >
           {pending ? "Enviando…" : "Enviar reclamo"}
         </button>
@@ -302,6 +367,7 @@ function ResultStep({
   lookup,
   pending,
   error,
+  stepFocusRef,
   onBack,
   onClaim,
   onFreeClaim,
@@ -309,15 +375,20 @@ function ResultStep({
   lookup: Extract<ClaimLookupResult, { variant: string }>;
   pending: boolean;
   error: string | null;
+  stepFocusRef: React.RefObject<HTMLParagraphElement | null>;
   onBack: () => void;
   onClaim: (petToken: string, petName: string) => void;
-  onFreeClaim: (petToken: string) => void;
+  onFreeClaim: () => void;
 }) {
   // Variant D — free pet (no active custody) → direct claim
   if (lookup.variant === "free") {
     return (
-      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-ok)]">
+      <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 text-sm">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-ok)] focus:outline-none"
+        >
           Encontramos a {lookup.petName} y no tiene dueño/a registrado/a.
         </p>
         <p className="text-[var(--color-ln-ok)]">
@@ -333,15 +404,15 @@ function ResultStep({
             type="button"
             onClick={onBack}
             disabled={pending}
-            className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] disabled:opacity-50"
+            className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)] disabled:opacity-50"
           >
             Volver
           </button>
           <button
             type="button"
-            onClick={() => onFreeClaim(lookup.petToken)}
+            onClick={() => onFreeClaim()}
             disabled={pending}
-            className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+            className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3 py-2 text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
           >
             {pending ? "Reclamando…" : "Reclamarla"}
           </button>
@@ -352,8 +423,12 @@ function ResultStep({
   // Variant A — not found → invite to register
   if (lookup.variant === "not_found") {
     return (
-      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-ink)]">
+      <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] p-5 text-sm">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-ink)] focus:outline-none"
+        >
           No encontramos una mascota con ese identificador.
         </p>
         <p className="text-[var(--color-ln-ink-2)]">
@@ -363,13 +438,13 @@ function ResultStep({
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)]"
+            className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-ink)]"
           >
             Buscar otro identificador
           </button>
           <Link
             href="/mis-mascotas/nueva"
-            className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
+            className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
           >
             Registrar mascota
           </Link>
@@ -381,15 +456,19 @@ function ResultStep({
   // Deceased gate
   if (lookup.variant === "deceased") {
     return (
-      <section className="space-y-2 rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-seal)]">
-          Esta mascota figura como fallecida en MiMAR.
+      <section className="space-y-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] p-5 text-sm">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-seal)] focus:outline-none"
+        >
+          Esta mascota figura como fallecida en miMAR.
         </p>
         <p className="text-[var(--color-ln-seal)]">Si creés que es un error, contactá a soporte.</p>
         <button
           type="button"
           onClick={onBack}
-          className="mt-2 rounded-[3px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)]"
+          className="mt-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-seal)]"
         >
           Volver
         </button>
@@ -400,8 +479,12 @@ function ResultStep({
   // Variant C — pet is marked lost → encourage sighting
   if (lookup.variant === "lost") {
     return (
-      <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-5 text-sm">
-        <p className="font-medium text-[var(--color-ln-azul)]">
+      <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] p-5 text-sm">
+        <p
+          ref={stepFocusRef}
+          tabIndex={-1}
+          className="font-medium text-[var(--color-ln-azul)] focus:outline-none"
+        >
           {lookup.petName} está reportada como perdida.
         </p>
         <p className="text-[var(--color-ln-azul)]">
@@ -412,13 +495,13 @@ function ResultStep({
           <button
             type="button"
             onClick={onBack}
-            className="flex-1 rounded-[3px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-azul)]"
+            className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-azul)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-azul)]"
           >
             Volver
           </button>
           <Link
             href={`/p/${lookup.petToken}/sighting`}
-            className="flex-1 rounded-[3px] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
+            className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3 py-2 text-center text-sm font-medium text-white hover:bg-[var(--color-ln-azul-700)]"
           >
             Reportar avistaje →
           </Link>
@@ -429,8 +512,12 @@ function ResultStep({
 
   // Variant B — active owner → offer dispute
   return (
-    <section className="space-y-3 rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm">
-      <p className="font-medium text-[var(--color-ln-warn)]">
+    <section className="space-y-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 text-sm">
+      <p
+        ref={stepFocusRef}
+        tabIndex={-1}
+        className="font-medium text-[var(--color-ln-warn)] focus:outline-none"
+      >
         {lookup.petName} ya tiene dueño/a registrado/a
         {lookup.ownerInitials ? ` (${lookup.ownerInitials})` : ""}.
       </p>
@@ -442,14 +529,14 @@ function ResultStep({
         <button
           type="button"
           onClick={onBack}
-          className="flex-1 rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
+          className="flex-1 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-card)] px-3 py-2 text-sm font-medium text-[var(--color-ln-warn)]"
         >
           Volver
         </button>
         <button
           type="button"
           onClick={() => onClaim(lookup.petToken, lookup.petName)}
-          className="flex-1 rounded-[3px] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+          className="flex-1 rounded-[var(--radius-pill)] bg-[var(--color-ln-warn)] px-3 py-2 text-sm font-medium text-white hover:opacity-90"
         >
           Iniciar disputa
         </button>

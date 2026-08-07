@@ -15,7 +15,6 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { revokeVetRoleForAuthority } from "@/app/actions/admin-revocations";
 import {
   approvalRequests,
   attachments,
@@ -26,7 +25,8 @@ import {
   organizations,
   profiles,
 } from "@/db";
-import { createOrganizationForUser } from "../app/actions/upgrade";
+import { revokeVetRoleForAuthority } from "@/src/modules/organizations/application/revocations/revoke-vet-role";
+import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

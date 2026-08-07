@@ -47,14 +47,18 @@ const GOB_WELFARE_DETAIL_SELECT = {
   reporterContactEmail: welfareReports.reporterContactEmail,
   reporterContactPhone: welfareReports.reporterContactPhone,
 } as const;
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { getNormativesForCase } from "@/lib/case-normatives";
-import { formatDate, formatDateTime } from "@/lib/format";
-import { fetchWelfareTimeline } from "@/lib/govt-dashboards";
-import { readPoint } from "@/lib/location";
-import { welfareAttachmentSignedUrl } from "@/lib/storage";
+import { fetchWelfareTimeline } from "@/lib/analytics/govt-dashboards";
+import { getNormativesForCase } from "@/lib/domain/case-normatives";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import { readPoint } from "@/lib/domain/location";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { welfareReportParamCondition } from "@/lib/infra/welfare-inspector-detail";
+import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
+import { calendarDaysAgoInAr, formatDate, formatDateTime } from "@/lib/utils/format";
 import {
+  welfareAssignmentLabel,
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
@@ -62,27 +66,47 @@ import {
 } from "@/src/modules/welfare/domain/types";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import {
+  CaseHeader,
+  OpCard,
+  OpCardBody,
+  OpCardHead,
+  OpKpiSm,
+  type StatusTone,
+} from "@/components/ui/dashboard";
 
 import { AssignmentActions } from "./AssignmentActions";
 import { DerivationPanel } from "./DerivationPanel";
 import { MpfExportButton } from "./MpfExportButton";
+import { PrintExpedienteButton } from "./PrintExpedienteButton";
 import { Timeline } from "./Timeline";
 import { TriageActions } from "./TriageActions";
 
+// Q6 (print) — route-scoped print sheet; see expediente-print.css.
+// operator-print-escape.css neutralises the /gob shell's four clipping boxes
+// under print media (PRN-3): without it this expediente prints as ONE page,
+// silently dropping its own timeline, normativa and attribution footer.
+import { documentAttributionLine } from "@/lib/analytics/export-attribution";
+import "@/components/layout/operator-print-escape.css";
+import "./expediente-print.css";
+
 const LocationMap = dynamic(() => import("@/components/LocationMap"), {
   loading: () => (
-    <div className="w-full h-64 rounded-[6px] border border-ln-op-line bg-ln-op-stripe animate-pulse" />
+    <div className="w-full h-64 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe animate-pulse" />
   ),
 });
 
-type StatusTone = "open" | "triaged" | "progress" | "closed" | "neutral";
-
-const STATUS_TONE: Record<string, StatusTone> = {
-  open: "open",
-  triaged: "triaged",
-  in_progress: "progress",
-  closed: "closed",
+// welfareReports status → canonical StatusTone. The welfare enum
+// (open/triaged/in_progress/closed/duplicate/invalid) does NOT match
+// CaseStatus, so this caller maps its own status to the shared vocabulary and
+// feeds CaseHeader an already-resolved chip (see CaseHeader's docblock).
+// triaged + in_progress both read as "in review" (st-info); their distinct
+// labels disambiguate.
+const WELFARE_STATUS_TONE: Record<string, StatusTone> = {
+  open: "st-warn",
+  triaged: "st-info",
+  in_progress: "st-info",
+  closed: "st-ok",
   invalid: "neutral",
   duplicate: "neutral",
 };
@@ -92,27 +116,49 @@ export default async function GobMaltratoDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  // `id` is the PUBLIC reference code (DEN-XXXX-XXXX) for new links; legacy uuid
+  // links still resolve (welfareReportParamCondition accepts both).
   const { id } = await params;
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
 
   const [report] = await db
     .select(GOB_WELFARE_DETAIL_SELECT)
     .from(welfareReports)
-    .where(eq(welfareReports.id, id))
+    .where(welfareReportParamCondition(id))
     .limit(1);
   if (!report) notFound();
 
   // Govt scope guard — return notFound rather than a permission error so
   // we don't leak "this denuncia exists somewhere else".
+  //
+  // MUST use the same subsumption-aware predicate as the triage queue list
+  // (jurisdictionPairClause via buildMaltratoListConditions). A whole-province
+  // assignment (e.g. whole-CABA / "Ciudad Autónoma de Buenos Aires") governs
+  // every barrio in that province, so a denuncia geocoded to a barrio (Almagro)
+  // is in scope. Hand-rolling an exact (province, locality) pair here — as this
+  // did — diverged from the list: the row appeared in the queue but the detail
+  // 404'd (list-vs-detail authorization inconsistency). See jurisdiction-canonical.
   if (profile.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) =>
-        j.province === report.jurisdictionProvince && j.locality === report.jurisdictionLocality,
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      report.jurisdictionProvince,
+      report.jurisdictionLocality,
     );
     if (!inScope) notFound();
   }
 
   const locationPoint = readPoint(report);
+
+  // Audience-precision plan (2026-06-19): the authority sees the EXACT
+  // coordinate (Ley 14.346 investigative need); log every such view for
+  // accountability (Ley 25.326). Only logs when there's a point to view.
+  // Awaited so the trail commits before the response returns (a fire-and-forget
+  // insert could be dropped on serverless freeze). A route prefetch may log a
+  // view without a human read — an accepted v1 tradeoff for a tamper-evident
+  // access trail.
+  if (locationPoint) {
+    await logWelfareLocationViewed(user.id, report.id, report.referenceCode);
+  }
 
   const attachmentRows = await db
     .select()
@@ -122,7 +168,7 @@ export default async function GobMaltratoDetailPage({
   const attachments = await Promise.all(
     attachmentRows.map(async (a) => ({
       ...a,
-      signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath),
+      signedUrl: await welfareAttachmentSignedUrl(a.storagePath),
     })),
   );
 
@@ -135,15 +181,8 @@ export default async function GobMaltratoDetailPage({
     const rows = await db
       .select({ id: profiles.id, displayName: profiles.displayName })
       .from(profiles)
-      .where(eq(profiles.id, actorIds[0]));
+      .where(inArray(profiles.id, actorIds));
     for (const r of rows) actorNames.set(r.id, r.displayName);
-    for (const actorId of actorIds.slice(1)) {
-      const more = await db
-        .select({ id: profiles.id, displayName: profiles.displayName })
-        .from(profiles)
-        .where(eq(profiles.id, actorId));
-      for (const r of more) actorNames.set(r.id, r.displayName);
-    }
   }
 
   // Resolve pet publicToken when the denuncia is about a registered pet,
@@ -158,10 +197,15 @@ export default async function GobMaltratoDetailPage({
     subjectPetToken = subjectPet?.publicToken ?? null;
   }
 
-  // Fetch verified shelters / rescue_networks for the derivation panel.
-  // Prefer same jurisdiction; fall back to all verified orgs if none found.
+  // Fetch verified shelters / rescue_networks for the derivation panel, scoped
+  // to the report's jurisdiction — which, for a govt viewer, is guaranteed to be
+  // inside their own assignments by the scope guard above (a govt only reaches
+  // this page for a report whose (province, locality) is in `jurisdictions`).
+  // The previous nationwide fallback leaked the full verified-org roster to a
+  // provincial agent whenever no in-jurisdiction org existed; it is removed. An
+  // empty list is the correct secure outcome (no in-scope org to derive to).
   const ORG_DERIVATION_TYPES = ["shelter", "rescue_network"] as const;
-  let derivableOrgs = await db
+  const derivableOrgs = await db
     .select({
       id: organizations.id,
       displayName: organizations.displayName,
@@ -179,25 +223,6 @@ export default async function GobMaltratoDetailPage({
       ),
     )
     .limit(50);
-
-  // If no in-jurisdiction orgs found, broaden to all verified orgs of those types.
-  if (derivableOrgs.length === 0) {
-    derivableOrgs = await db
-      .select({
-        id: organizations.id,
-        displayName: organizations.displayName,
-        publicToken: organizations.publicToken,
-        orgType: organizations.orgType,
-      })
-      .from(organizations)
-      .where(
-        and(
-          eq(organizations.verified, true),
-          inArray(organizations.orgType, [...ORG_DERIVATION_TYPES]),
-        ),
-      )
-      .limit(50);
-  }
 
   // Resolve current derivation target (if any).
   let derivedOrgInfo: { orgId: string; orgDisplayName: string; derivedAt: Date } | null = null;
@@ -238,10 +263,9 @@ export default async function GobMaltratoDetailPage({
   const isTerminal =
     report.status === "closed" || report.status === "invalid" || report.status === "duplicate";
 
-  // Case age in days.
-  const ageInDays = Math.floor(
-    (Date.now() - new Date(report.createdAt).getTime()) / (24 * 60 * 60 * 1000),
-  );
+  // Case age in AR-calendar days (a case opened yesterday evening is "1 día"
+  // this morning, never "Hoy" — calendarDaysAgoInAr rationale).
+  const ageInDays = calendarDaysAgoInAr(new Date(report.createdAt));
 
   // Timeline events.
   const timelineEvents = await fetchWelfareTimeline(report.id);
@@ -252,326 +276,360 @@ export default async function GobMaltratoDetailPage({
     ? (actorNames.get(report.assignedToUserId) ?? "un agente")
     : null;
 
-  const statusTone = STATUS_TONE[report.status] ?? "neutral";
+  const statusTone = WELFARE_STATUS_TONE[report.status] ?? "neutral";
 
   return (
-    <main className="px-6 py-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Breadcrumb */}
-        <Link href="/gob/maltrato" className="text-[12px] text-ln-op-mute hover:text-ln-op-ink-2">
+    // `data-print-root` is the e2e hook: print-surfaces.spec.ts walks this
+    // node's ancestors under `emulateMedia({ media: "print" })` and fails if any
+    // of them still clips to viewport height (the PRN-3 signature).
+    <div data-print-root className="expediente-print-root space-y-6">
+      {/* Q6 print-only header — the paper copy travels without the shell's
+          context, so it names the instrument up front: case code +
+          jurisdiction. Screen keeps CaseHeader below as before. */}
+      <div className="hidden border-b border-ln-op-line pb-2 print:block">
+        <p className="text-lg font-bold">
+          Expediente {report.referenceCode} — Denuncia de maltrato (Ley 14.346)
+        </p>
+        <p className="text-sm">
+          {[report.jurisdictionLocality, report.jurisdictionProvince].filter(Boolean).join(", ") ||
+            "Jurisdicción sin registrar"}
+        </p>
+      </div>
+
+      {/* Breadcrumb — F1 fusion (2026-07-22): Triage is now a stage of the
+          Denuncias hub; link straight there instead of through the old
+          /gob/maltrato redirect. "Imprimir" (Q6) sits opposite: the print
+          sheet hides every button/link, so this row is screen-only chrome. */}
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/gob/denuncias?etapa=triage"
+          className="text-sm text-ln-op-mute hover:text-ln-op-ink-2"
+        >
           ← Volver al listado
         </Link>
+        <PrintExpedienteButton />
+      </div>
 
-        <header className="space-y-2">
-          <div className="flex items-center gap-3 flex-wrap">
-            <h1 className="text-[22px] font-semibold text-ln-op-ink">
-              {welfareReportKindLabel(report.kind)}
-            </h1>
-            <OpPill tone={statusTone}>{welfareReportStatusLabel(report.status)}</OpPill>
-            <span className="text-[10px] uppercase tracking-wider text-ln-op-mute">
-              {welfareReportSeverityLabel(report.severity)}
-            </span>
-          </div>
-          <p className="text-[10px] font-mono text-ln-op-mute">
-            {report.referenceCode} · creada {formatDateTime(report.createdAt)}
+      <CaseHeader
+        title={welfareReportKindLabel(report.kind)}
+        status={{ label: welfareReportStatusLabel(report.status), tone: statusTone }}
+        aside={
+          <span className="text-xs uppercase tracking-wider text-ln-op-mute">
+            {welfareReportSeverityLabel(report.severity)}
+          </span>
+        }
+        meta={`${report.referenceCode} · creada ${formatDateTime(report.createdAt)}`}
+      />
+
+      {/* Summary chips row — case metadata at a glance. H2 fix
+          (adversarial-gob 2026-07-23): these were 4 hand-rolled chips;
+          OpKpiSm already exists and is used identically by /gob/mortalidad's
+          "Contexto del fallecimiento" panel — one primitive, not a per-screen
+          reinvention. */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <OpKpiSm
+          label="Edad del caso"
+          value={ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
+        />
+        <OpKpiSm label="Gravedad" value={welfareReportSeverityLabel(report.severity)} />
+        <OpKpiSm label="Estado" value={welfareReportStatusLabel(report.status)} />
+        <OpKpiSm
+          label="Asignado a"
+          value={welfareAssignmentLabel(assignedToName, derivedOrgInfo?.orgDisplayName)}
+        />
+      </div>
+
+      {/* Assignment actions */}
+      {!isTerminal && (
+        <AssignmentActions
+          reportId={report.id}
+          assignedToUserId={report.assignedToUserId}
+          currentUserId={user.id}
+          isAdmin={profile.role === "admin"}
+        />
+      )}
+
+      <OpCard>
+        <OpCardHead title="¿Qué pasó?" />
+        <OpCardBody className="space-y-2">
+          <p className="text-md text-ln-op-ink whitespace-pre-wrap">{report.description}</p>
+          {report.occurredAt && (
+            <p className="text-sm text-ln-op-mute">Ocurrió el {formatDate(report.occurredAt)}</p>
+          )}
+        </OpCardBody>
+      </OpCard>
+
+      <OpCard>
+        <OpCardHead title="Sujeto" />
+        <OpCardBody className="space-y-1">
+          <p className="text-md text-ln-op-ink">
+            {welfareReportSubjectKindLabel(report.subjectKind)}
           </p>
-        </header>
+          {report.subjectDescription && (
+            <p className="text-sm text-ln-op-ink-2 whitespace-pre-wrap">
+              {report.subjectDescription}
+            </p>
+          )}
+        </OpCardBody>
+      </OpCard>
 
-        {/* Summary chips row — case metadata at a glance */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Edad del caso</p>
-            <p className="text-[13px] font-semibold text-ln-op-ink">
-              {ageInDays === 0 ? "Hoy" : ageInDays === 1 ? "1 día" : `${ageInDays} días`}
-            </p>
-          </div>
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Gravedad</p>
-            <p className="text-[13px] font-semibold text-ln-op-ink">
-              {welfareReportSeverityLabel(report.severity)}
-            </p>
-          </div>
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Estado</p>
-            <p className="text-[13px] font-semibold text-ln-op-ink">
-              {welfareReportStatusLabel(report.status)}
-            </p>
-          </div>
-          <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 space-y-0.5">
-            <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">Asignado a</p>
-            <p className="text-[13px] font-semibold text-ln-op-ink truncate">
-              {assignedToName ?? "Sin asignar"}
-            </p>
-          </div>
-        </div>
-
-        {/* Assignment actions */}
-        {!isTerminal && (
-          <AssignmentActions
-            reportId={report.id}
-            assignedToUserId={report.assignedToUserId}
-            currentUserId={user.id}
-            isAdmin={profile.role === "admin"}
-          />
-        )}
-
-        <OpCard>
-          <OpCardHead title="¿Qué pasó?" />
-          <OpCardBody className="space-y-2">
-            <p className="text-[13px] text-ln-op-ink whitespace-pre-wrap">{report.description}</p>
-            {report.occurredAt && (
-              <p className="text-[11px] text-ln-op-mute">
-                Ocurrió el {formatDate(report.occurredAt)}
+      <OpCard>
+        <OpCardHead title="Lugar" />
+        <OpCardBody className="space-y-3">
+          <div className="text-sm text-ln-op-ink-2 space-y-1">
+            {report.locationAddress && <p>{report.locationAddress}</p>}
+            {(report.jurisdictionLocality || report.jurisdictionProvince) && (
+              <p>
+                {[report.jurisdictionLocality, report.jurisdictionProvince]
+                  .filter(Boolean)
+                  .join(", ")}
               </p>
             )}
-          </OpCardBody>
-        </OpCard>
-
-        <OpCard>
-          <OpCardHead title="Sujeto" />
-          <OpCardBody className="space-y-1">
-            <p className="text-[13px] text-ln-op-ink">
-              {welfareReportSubjectKindLabel(report.subjectKind)}
-            </p>
-            {report.subjectDescription && (
-              <p className="text-[12px] text-ln-op-ink-2 whitespace-pre-wrap">
-                {report.subjectDescription}
+          </div>
+          {locationPoint && (
+            <>
+              <p className="text-xs uppercase tracking-wider text-ln-op-mute">
+                Ubicación exacta — uso oficial (Ley 14.346)
               </p>
-            )}
-          </OpCardBody>
-        </OpCard>
-
-        <OpCard>
-          <OpCardHead title="Lugar" />
-          <OpCardBody className="space-y-3">
-            <div className="text-[12px] text-ln-op-ink-2 space-y-1">
-              {report.locationAddress && <p>{report.locationAddress}</p>}
-              {(report.jurisdictionLocality || report.jurisdictionProvince) && (
-                <p>
-                  {[report.jurisdictionLocality, report.jurisdictionProvince]
-                    .filter(Boolean)
-                    .join(", ")}
-                </p>
-              )}
-            </div>
-            {locationPoint && (
-              <>
+              {/* Q6: the map is a WebGL canvas — blank/garbage on paper. The
+                  printed copy keeps the address line + the exact coordinates
+                  below, which carry the same investigative fact. */}
+              <div className="print:hidden">
                 <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
-                <p className="text-[10px] text-ln-op-mute font-mono">
-                  {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
-                </p>
-              </>
-            )}
+              </div>
+              <p className="text-xs text-ln-op-mute font-mono">
+                {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
+              </p>
+            </>
+          )}
+        </OpCardBody>
+      </OpCard>
+
+      {attachments.length > 0 && (
+        <OpCard>
+          <OpCardHead title={`Evidencia (${attachments.length})`} />
+          <OpCardBody>
+            <ul className="space-y-1.5 text-md">
+              {attachments.map((a) => (
+                <li key={a.id} className="flex items-baseline justify-between gap-3">
+                  <span className="font-mono text-sm truncate text-ln-op-ink-2">
+                    {a.originalFilename ?? a.storagePath.split("/").pop()}
+                  </span>
+                  {a.signedUrl ? (
+                    <a
+                      href={a.signedUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-ln-op-azul underline hover:text-ln-op-azul-700"
+                    >
+                      Abrir →
+                    </a>
+                  ) : (
+                    <span className="text-sm text-ln-op-mute">(no disponible)</span>
+                  )}
+                </li>
+              ))}
+            </ul>
           </OpCardBody>
         </OpCard>
+      )}
 
-        {attachments.length > 0 && (
-          <OpCard>
-            <OpCardHead title={`Evidencia (${attachments.length})`} />
-            <OpCardBody>
-              <ul className="space-y-1.5 text-[13px]">
-                {attachments.map((a) => (
-                  <li key={a.id} className="flex items-baseline justify-between gap-3">
-                    <span className="font-mono text-[11px] truncate text-ln-op-ink-2">
-                      {a.originalFilename ?? a.storagePath.split("/").pop()}
-                    </span>
-                    {a.signedUrl ? (
-                      <a
-                        href={a.signedUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] text-ln-op-azul underline hover:text-ln-op-azul-700"
-                      >
-                        Abrir →
-                      </a>
-                    ) : (
-                      <span className="text-[11px] text-ln-op-mute">(no disponible)</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </OpCardBody>
-          </OpCard>
-        )}
+      <OpCard>
+        <OpCardHead title="Reportante" />
+        <OpCardBody>
+          {report.reporterUserId ? (
+            <p className="text-sm text-ln-op-ink-2">
+              {actorNames.get(report.reporterUserId) ?? "Usuario registrado"}
+              {report.reporterContactEmail && (
+                <span className="text-ln-op-mute"> · {report.reporterContactEmail}</span>
+              )}
+              {report.reporterContactPhone && (
+                <span className="text-ln-op-mute"> · {report.reporterContactPhone}</span>
+              )}
+            </p>
+          ) : (
+            <p className="text-sm text-ln-op-mute">
+              Denuncia anónima.
+              {(report.reporterContactEmail || report.reporterContactPhone) && (
+                <span>
+                  {" "}
+                  Contacto opcional dejado:{" "}
+                  {[report.reporterContactEmail, report.reporterContactPhone]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
+            </p>
+          )}
+        </OpCardBody>
+      </OpCard>
 
+      {(report.triagedAt || report.closedAt) && (
         <OpCard>
-          <OpCardHead title="Reportante" />
-          <OpCardBody>
-            {report.reporterUserId ? (
-              <p className="text-[12px] text-ln-op-ink-2">
-                {actorNames.get(report.reporterUserId) ?? "Usuario registrado"}
-                {report.reporterContactEmail && (
-                  <span className="text-ln-op-mute"> · {report.reporterContactEmail}</span>
-                )}
-                {report.reporterContactPhone && (
-                  <span className="text-ln-op-mute"> · {report.reporterContactPhone}</span>
-                )}
-              </p>
-            ) : (
-              <p className="text-[12px] text-ln-op-mute">
-                Denuncia anónima.
-                {(report.reporterContactEmail || report.reporterContactPhone) && (
-                  <span>
+          <OpCardHead title="Trayectoria" />
+          <OpCardBody className="space-y-2 text-md">
+            {report.triagedAt && (
+              <p className="text-ln-op-ink">
+                Revisada el {formatDateTime(report.triagedAt)}
+                {report.triagedByUserId && (
+                  <span className="text-ln-op-mute">
                     {" "}
-                    Contacto opcional dejado:{" "}
-                    {[report.reporterContactEmail, report.reporterContactPhone]
-                      .filter(Boolean)
-                      .join(" · ")}
+                    por {actorNames.get(report.triagedByUserId) ?? "una autoridad"}
                   </span>
                 )}
               </p>
             )}
+            {report.closedAt && (
+              <p className="text-ln-op-ink">Cerrada el {formatDateTime(report.closedAt)}</p>
+            )}
+            {report.resolutionNotes && (
+              <div className="rounded-[var(--radius-sm)] bg-ln-op-stripe p-3 text-sm text-ln-op-ink-2 whitespace-pre-wrap">
+                {report.resolutionNotes}
+              </div>
+            )}
           </OpCardBody>
         </OpCard>
+      )}
 
-        {(report.triagedAt || report.closedAt) && (
-          <OpCard>
-            <OpCardHead title="Trayectoria" />
-            <OpCardBody className="space-y-2 text-[13px]">
-              {report.triagedAt && (
-                <p className="text-ln-op-ink">
-                  Revisada el {formatDateTime(report.triagedAt)}
-                  {report.triagedByUserId && (
+      {!isTerminal && (
+        <section className="space-y-3 pt-2 border-t border-ln-op-line">
+          <h2 className="text-md font-semibold text-ln-op-ink">Acciones</h2>
+          <TriageActions welfareReportId={report.id} currentStatus={report.status} />
+        </section>
+      )}
+
+      {/* Derivation to org — forward report to a verified shelter / rescue network */}
+      {!isTerminal && (
+        <OpCard>
+          <OpCardHead title="Derivar a organización" />
+          <OpCardBody className="space-y-2">
+            <p className="text-sm text-ln-op-mute">
+              Derivá esta denuncia a un refugio o red de rescate verificada para seguimiento en
+              campo. La organización recibirá una notificación.
+            </p>
+            {/* Org intervention state (UI-7) */}
+            {report.orgInterventionStatus === "tomado" && (
+              <div className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-stripe px-3 py-2">
+                <p className="text-sm text-ln-op-ink">
+                  <span className="font-medium">En intervención</span> — la organización tomó la
+                  denuncia
+                  {report.orgInterventionAt && (
                     <span className="text-ln-op-mute">
                       {" "}
-                      por {actorNames.get(report.triagedByUserId) ?? "una autoridad"}
+                      el {formatDateTime(report.orgInterventionAt)}
                     </span>
                   )}
+                  .
                 </p>
-              )}
-              {report.closedAt && (
-                <p className="text-ln-op-ink">Cerrada el {formatDateTime(report.closedAt)}</p>
-              )}
-              {report.resolutionNotes && (
-                <div className="rounded-[4px] bg-ln-op-stripe p-3 text-[11px] text-ln-op-ink-2 whitespace-pre-wrap">
-                  {report.resolutionNotes}
-                </div>
-              )}
-            </OpCardBody>
-          </OpCard>
-        )}
-
-        {!isTerminal && (
-          <section className="space-y-3 pt-2 border-t border-ln-op-line">
-            <h2 className="text-[14px] font-semibold text-ln-op-ink">Acciones</h2>
-            <TriageActions welfareReportId={report.id} currentStatus={report.status} />
-          </section>
-        )}
-
-        {/* Derivation to org — forward report to a verified shelter / rescue network */}
-        {!isTerminal && (
-          <OpCard>
-            <OpCardHead title="Derivar a organización" />
-            <OpCardBody className="space-y-2">
-              <p className="text-[11px] text-ln-op-mute">
-                Derivá esta denuncia a un refugio o red de rescate verificada para seguimiento en
-                campo. La organización recibirá una notificación.
-              </p>
-              {/* Org intervention state (UI-7) */}
-              {report.orgInterventionStatus === "tomado" && (
-                <div className="rounded-[4px] border border-ln-op-line bg-ln-op-stripe px-3 py-2">
-                  <p className="text-[12px] text-ln-op-ink">
-                    <span className="font-medium">En intervención</span> — la organización tomó la
-                    denuncia
-                    {report.orgInterventionAt && (
-                      <span className="text-ln-op-mute">
-                        {" "}
-                        el {formatDateTime(report.orgInterventionAt)}
-                      </span>
-                    )}
-                    .
-                  </p>
-                </div>
-              )}
-              {report.orgInterventionStatus === "devuelto" && (
-                <div className="rounded-[4px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2">
-                  <p className="text-[12px] text-ln-op-warn">
-                    <span className="font-medium">Devuelta por la organización</span>
-                    {orgReturnReason ? `: ${orgReturnReason}` : "."} Volvé a derivarla a otra
-                    organización o gestionala directamente.
-                  </p>
-                </div>
-              )}
-              <DerivationPanel
-                welfareReportId={report.id}
-                availableOrgs={derivableOrgs}
-                alreadyDerivedTo={derivedOrgInfo}
-              />
-            </OpCardBody>
-          </OpCard>
-        )}
-
-        {/* Decomiso entry point — available for all non-terminal denuncias */}
-        {!isTerminal && (
-          <OpCard>
-            <OpCardHead title="Derivar a decomiso" />
-            <OpCardBody className="space-y-2">
-              <p className="text-[11px] text-ln-op-mute">
-                Si la denuncia amerita una incautación bajo Ley 14.346, iniciá el decomiso desde
-                acá. El ID de esta denuncia se pre-completará en el formulario.
-              </p>
-              <Link
-                href={`/gob/decomisos/nuevo?welfareReportId=${report.id}${subjectPetToken ? `&pet=${subjectPetToken}` : ""}`}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-              >
-                Iniciar decomiso →
-              </Link>
-              {report.subjectKind !== "registered_pet" && (
-                <p className="text-[11px] text-ln-op-warn">
-                  La denuncia no tiene una mascota registrada vinculada. El formulario de decomiso
-                  admite solo mascotas con token DIM-XXXX-XXXX — tendrás que ingresar el token
-                  manualmente si la mascota está registrada.
+              </div>
+            )}
+            {report.orgInterventionStatus === "devuelto" && (
+              <div className="rounded-[var(--radius-sm)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2">
+                <p className="text-sm text-ln-op-warn">
+                  <span className="font-medium">Devuelta por la organización</span>
+                  {orgReturnReason ? `: ${orgReturnReason}` : "."} Volvé a derivarla a otra
+                  organización o gestionala directamente.
                 </p>
-              )}
-            </OpCardBody>
-          </OpCard>
-        )}
-
-        {/* MPF export — available regardless of triage status */}
-        <OpCard>
-          <OpCardHead title="Export fiscal" />
-          <OpCardBody>
-            <MpfExportButton welfareReportId={report.id} />
+              </div>
+            )}
+            <DerivationPanel
+              welfareReportId={report.id}
+              availableOrgs={derivableOrgs}
+              alreadyDerivedTo={derivedOrgInfo}
+            />
           </OpCardBody>
         </OpCard>
+      )}
 
-        {/* Timeline — chronological event log */}
+      {/* Decomiso entry point — available for all non-terminal denuncias */}
+      {!isTerminal && (
         <OpCard>
-          <OpCardHead title="Línea de tiempo" />
-          <OpCardBody>
-            <Timeline events={timelineEvents} />
+          <OpCardHead title="Derivar a decomiso" />
+          <OpCardBody className="space-y-2">
+            <p className="text-sm text-ln-op-mute">
+              Si la denuncia amerita una incautación bajo Ley 14.346, iniciá el decomiso desde acá.
+              El ID de esta denuncia se pre-completará en el formulario.
+            </p>
+            <Link
+              href={`/gob/decomisos/nuevo?welfareReportId=${report.id}${subjectPetToken ? `&pet=${subjectPetToken}` : ""}`}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:opacity-90 transition-opacity"
+            >
+              Iniciar decomiso →
+            </Link>
+            {report.subjectKind !== "registered_pet" && (
+              <p className="text-sm text-ln-op-warn">
+                La denuncia no tiene una mascota registrada vinculada. El formulario de decomiso
+                admite solo mascotas con token DIM-XXXX-XXXX — tendrás que ingresar el token
+                manualmente si la mascota está registrada.
+              </p>
+            )}
           </OpCardBody>
         </OpCard>
+      )}
 
-        {/* Normativa aplicable — sourced from case-normatives catalog */}
-        <OpCard>
-          <OpCardHead title="Normativa aplicable" />
-          <OpCardBody>
-            {(() => {
-              const normativas = getNormativesForCase("welfare_denuncia", {
-                country: "AR",
-                province: report.jurisdictionProvince ?? undefined,
-              });
-              if (normativas.length === 0)
-                return (
-                  <p className="text-[12px] text-ln-op-mute">
-                    Sin normativa catalogada para esta jurisdicción.
-                  </p>
-                );
+      {/* MPF export — available regardless of triage status */}
+      <OpCard>
+        <OpCardHead title="Exportación fiscal" />
+        <OpCardBody>
+          <MpfExportButton
+            welfareReportId={report.id}
+            jurisdictionProvince={report.jurisdictionProvince}
+          />
+        </OpCardBody>
+      </OpCard>
+
+      {/* Timeline — chronological event log */}
+      <OpCard>
+        <OpCardHead title="Línea de tiempo" />
+        <OpCardBody>
+          <Timeline events={timelineEvents} />
+        </OpCardBody>
+      </OpCard>
+
+      {/* Normativa aplicable — sourced from case-normatives catalog */}
+      <OpCard>
+        <OpCardHead title="Normativa aplicable" />
+        <OpCardBody>
+          {(() => {
+            const normativas = getNormativesForCase("welfare_denuncia", {
+              country: "AR",
+              province: report.jurisdictionProvince ?? undefined,
+            });
+            if (normativas.length === 0)
               return (
-                <ul className="space-y-2 text-[12px] text-ln-op-ink-2">
-                  {normativas.map((law) => (
-                    <li key={law.id}>
-                      <span className="font-medium text-ln-op-ink">{law.label}</span>
-                      {` — ${law.scope}`}
-                    </li>
-                  ))}
-                </ul>
+                <p className="text-sm text-ln-op-mute">
+                  Sin normativa catalogada para esta jurisdicción.
+                </p>
               );
-            })()}
-          </OpCardBody>
-        </OpCard>
-      </div>
-    </main>
+            return (
+              <ul className="space-y-2 text-sm text-ln-op-ink-2">
+                {normativas.map((law) => (
+                  <li key={law.id}>
+                    <span className="font-medium text-ln-op-ink">{law.label}</span>
+                    {` — ${law.scope}`}
+                  </li>
+                ))}
+              </ul>
+            );
+          })()}
+        </OpCardBody>
+      </OpCard>
+
+      {/* Q6 print-only footer — generation stamp + the shared attribution
+          line (lib/analytics/export-attribution.ts: user-facing brand, never
+          the internal codename; traceable by this expediente's reference
+          code). The stamp is the render moment: this page is dynamic, so it
+          IS the retrieval time of everything printed above it. */}
+      {/* `data-print-footer`: the LAST node of the expediente, and the one the
+          audit named as the tell — under PRN-3 the printed page ended before
+          it. print-surfaces.spec.ts asserts it is laid out under print media. */}
+      <footer
+        data-print-footer
+        className="hidden border-t border-ln-op-line pt-2 text-xs print:block"
+      >
+        <p>Documento impreso el {formatDateTime(new Date())} (hora de Argentina)</p>
+        <p>{documentAttributionLine(report.referenceCode)}</p>
+      </footer>
+    </div>
   );
 }

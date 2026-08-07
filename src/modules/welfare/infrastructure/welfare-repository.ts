@@ -11,7 +11,7 @@
 //   - No auth logic — auth lives at the action / use-case edge.
 //   - Reads return Drizzle row shapes ($inferSelect) — callers expect them.
 
-import { and, desc, eq, gte, isNull, ne, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, ne } from "drizzle-orm";
 
 import {
   auditLog,
@@ -19,8 +19,6 @@ import {
   db,
   govtAssignments,
   notifications,
-  organizationMemberships,
-  organizations,
   ownerships,
   petEvents,
   petIdentifications,
@@ -35,7 +33,24 @@ import type {
   WelfareReport,
   WelfareReportAttachment,
 } from "@/db/schema";
-import { isUniqueViolation } from "@/lib/db-errors";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { validatedEventValues } from "@/lib/events/validated-event-values";
+import { isUniqueViolation } from "@/lib/infra/db-errors";
+
+/**
+ * Printed in the MPF denuncia's "GENERADO POR" field when the exporting
+ * account has no resolvable profile row.
+ *
+ * It used to read "Autoridad DIM" — the INTERNAL codename, signed onto a
+ * document filed with the Unidad Fiscal de Maltrato Animal. Two problems, not
+ * one: the codename leaked, AND the label asserted an identity the system did
+ * not actually have. The replacement names the role (which IS known: only an
+ * admin/govt account can reach this export) and admits the gap, matching the
+ * document's own "Sin firma PKI" candour. The exporter's user id is recorded
+ * in audit_log either way — the traceability is real, only the display name
+ * is missing.
+ */
+export const UNRESOLVED_EXPORTER_LABEL = "Autoridad interviniente (identidad no disponible)";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -59,6 +74,8 @@ type StatusPatch = {
   resolutionNotes?: string | null;
   moderationResolvedAt?: Date | null;
   moderationResolvedByUserId?: string | null;
+  moderationEscalatedAt?: Date | null;
+  moderationEscalatedByUserId?: string | null;
 };
 
 type FlaggedPatch = {
@@ -143,12 +160,38 @@ export class WelfareRepository {
   /**
    * Apply a status patch (status, triagedAt/By, closedAt, resolutionNotes,
    * moderationResolved) to a welfare report.
+   *
+   * Returns the number of rows actually updated, so a caller can COMPARE AND
+   * SWAP: pass `expectedStatus` and the UPDATE only lands while the report is
+   * still in the state the caller validated. Zero means someone else moved it
+   * first — the caller must abort rather than append an audit row for a
+   * transition that did not happen.
+   *
+   * Every welfare status transition is validated by a read
+   * (`findById` → `statusTransitionAllowed`) that happens BEFORE this write and
+   * outside its transaction. Without the guard that gap is a plain TOCTOU: two
+   * concurrent "Iniciar seguimiento" clicks both read `open`, both pass, and
+   * both commit — two `welfare_report_started` rows in the audit trail of a
+   * Ley 14.346 case, plus the reporter notified twice. audit_log has no unique
+   * index that would have caught it (and cannot easily have one: the report id
+   * lives in a JSONB payload, not a column).
    */
-  async updateStatus(reportId: string, patch: StatusPatch, executor: DbOrTx = db): Promise<void> {
-    await executor
+  async updateStatus(
+    reportId: string,
+    patch: StatusPatch,
+    executor: DbOrTx = db,
+    opts: { expectedStatus?: WelfareReport["status"] } = {},
+  ): Promise<number> {
+    const rows = await executor
       .update(welfareReports)
       .set(patch as Partial<typeof welfareReports.$inferInsert>)
-      .where(eq(welfareReports.id, reportId));
+      .where(
+        opts.expectedStatus === undefined
+          ? eq(welfareReports.id, reportId)
+          : and(eq(welfareReports.id, reportId), eq(welfareReports.status, opts.expectedStatus)),
+      )
+      .returning({ id: welfareReports.id });
+    return rows.length;
   }
 
   /**
@@ -364,7 +407,7 @@ export class WelfareRepository {
 
   /**
    * Return the exporter's display name for MPF export.
-   * Falls back to "Autoridad DIM" when the profile row is not found.
+   * Falls back to UNRESOLVED_EXPORTER_LABEL when the profile row is not found.
    */
   async findExporterName(exporterUserId: string): Promise<string> {
     const [row] = await db
@@ -372,7 +415,7 @@ export class WelfareRepository {
       .from(profiles)
       .where(eq(profiles.id, exporterUserId))
       .limit(1);
-    return row?.displayName ?? "Autoridad DIM";
+    return row?.displayName ?? UNRESOLVED_EXPORTER_LABEL;
   }
 
   /**
@@ -494,12 +537,37 @@ export class WelfareRepository {
    * Used by create-welfare-report and create-org-welfare-report for the
    * pet-event bridge (abandonment_reported, maltreatment_reported,
    * symptom_observed, note_added).
+   *
+   * The payload is validated against the per-type Zod schema at this boundary
+   * — an invalid payload throws EventPayloadValidationError before any row is
+   * written (event-sourcing integrity review 2026-07-04 item 2).
    */
   async insertPetEvent(
     values: typeof petEvents.$inferInsert,
     executor: DbOrTx = db,
   ): Promise<void> {
-    await executor.insert(petEvents).values(values);
+    const validated = validatedEventValues(values);
+    await executor.insert(petEvents).values(validated);
+  }
+
+  /**
+   * Insert a pet event with idempotency-key deduplication.
+   * Routes through insertEventIdempotent from lib/event-idempotency.
+   * When clientIdempotencyKey is null/undefined, falls back to a plain insert.
+   * Returns { wasNoop: true } when a conflict was detected (duplicate submission).
+   *
+   * The payload is validated at this boundary via validatedEventValues — same
+   * contract as insertPetEvent above.
+   */
+  async insertPetEventIdempotent(
+    values: typeof petEvents.$inferInsert,
+    executor: DbOrTx = db,
+  ): Promise<{ wasNoop: boolean }> {
+    const { wasNoop } = await insertEventIdempotent(
+      validatedEventValues(values),
+      executor as Parameters<typeof insertEventIdempotent>[1],
+    );
+    return { wasNoop };
   }
 
   /**

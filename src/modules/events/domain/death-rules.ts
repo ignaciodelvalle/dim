@@ -4,8 +4,8 @@
 // block. Zero runtime imports (pure domain logic). @/db/schema type-only is
 // allowed but not needed here.
 
-import { findDisease } from "@/lib/diseases";
-import { isReportable } from "@/lib/diseases";
+import { findDisease } from "@/lib/reference/diseases";
+import { isReportable } from "@/lib/reference/diseases";
 
 // ---------------------------------------------------------------------------
 // Constants

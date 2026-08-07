@@ -9,7 +9,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { NewPetEvent, PetEvent } from "@/db/schema";
-import { findExistingByKey, insertEventIdempotent } from "@/lib/event-idempotency";
+import { findExistingByKey, insertEventIdempotent } from "@/lib/events/event-idempotency";
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -98,7 +98,13 @@ function makeInsertExecutor(returnedRows: PetEvent[], existingRows: PetEvent[] =
     }),
   });
 
-  return { insert, select };
+  // P4 item 3 (2026-07-08): the keyed path now acquires a transaction-scoped
+  // advisory lock (`executor.execute(sql\`select pg_advisory_xact_lock(...)\`)`)
+  // before the insert. A no-op stub is enough — these tests assert on the
+  // insert/select outcome, not the lock statement itself.
+  const execute = vi.fn().mockResolvedValue(undefined);
+
+  return { insert, select, execute };
 }
 
 // ─── findExistingByKey ────────────────────────────────────────────────────────
@@ -198,5 +204,28 @@ describe("insertEventIdempotent", () => {
     const result = await insertEventIdempotent(valuesNoKey, executor as never);
     expect(result.wasNoop).toBe(false);
     expect(result.event).toEqual(newEvent);
+  });
+
+  // P4 item 3 (2026-07-08): advisory lock acquired before the insert on the
+  // keyed path, and never acquired on the no-key (plain insert) path.
+  describe("advisory lock", () => {
+    it("acquires the lock before inserting when a key is present", async () => {
+      const newEvent = makeEvent();
+      const executor = makeInsertExecutor([newEvent]);
+      await insertEventIdempotent(baseValues, executor as never);
+      expect(executor.execute).toHaveBeenCalledOnce();
+      expect(executor.insert).toHaveBeenCalledOnce();
+      // Order matters: lock acquired BEFORE the insert attempt.
+      const executeOrder = executor.execute.mock.invocationCallOrder[0];
+      const insertOrder = executor.insert.mock.invocationCallOrder[0];
+      expect(executeOrder).toBeLessThan(insertOrder);
+    });
+
+    it("does NOT acquire the lock on the no-key (plain insert) path", async () => {
+      const newEvent = makeEvent({ clientIdempotencyKey: null });
+      const executor = makeInsertExecutor([newEvent]);
+      await insertEventIdempotent({ ...baseValues, clientIdempotencyKey: null }, executor as never);
+      expect(executor.execute).not.toHaveBeenCalled();
+    });
   });
 });

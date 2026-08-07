@@ -4,7 +4,7 @@
 // transferCustodyAction.
 
 import { db, organizations, ownerships, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { and, asc, eq, isNull, ne } from "drizzle-orm";
 import Link from "next/link";
@@ -28,11 +28,11 @@ export default async function TransferCustodyPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
-          <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
+          <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
+          <p className="text-md text-ln-op-ink-2">{auth.error}</p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver a mascotas
           </Link>
@@ -62,14 +62,14 @@ export default async function TransferCustodyPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6">
         <div className="max-w-2xl mx-auto pt-8 space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">No se puede transferir</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">No se puede transferir</h1>
+          <p className="text-md text-ln-op-ink-2">
             {petRow.pet.name} no está en un rol transferible (custodia o dueño). Solo se pueden
             transferir esos dos roles.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver a mascotas
           </Link>
@@ -97,14 +97,14 @@ export default async function TransferCustodyPage({
               { label: "Transferir custodia" },
             ]}
           />
-          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferir {petRow.pet.name}</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Transferir {petRow.pet.name}</h1>
+          <p className="text-md text-ln-op-ink-2">
             Pasá la custodia a otra organización verificada. La acción es atómica: cierra el
             registro actual y abre uno nuevo en el destino con el evento{" "}
-            <code className="text-[11px] bg-ln-op-stripe px-1 rounded">custody_transferred</code>.
+            <code className="text-sm bg-ln-op-stripe px-1 rounded">custody_transferred</code>.
           </p>
         </header>
 
@@ -129,7 +129,7 @@ export default async function TransferCustodyPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver a mascotas
           </Link>

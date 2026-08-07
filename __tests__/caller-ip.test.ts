@@ -11,7 +11,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { callerIp } from "@/lib/rate-limit";
+import { callerIp } from "@/lib/infra/rate-limit";
 
 // ---------------------------------------------------------------------------
 // Minimal header-getter factory (matches the HeaderGetter interface)

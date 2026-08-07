@@ -4,8 +4,9 @@
 // Shows a confirm dialog before calling convertFosterToOwnerAction.
 // On success, hard-navigates to the pet profile (now owned).
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
+
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
   petPublicToken: string;
@@ -13,7 +14,6 @@ type Props = {
 };
 
 export function ConvertFosterButton({ petPublicToken, petName }: Props) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [confirming, setConfirming] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -27,8 +27,11 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
         setError(result.error);
         setConfirming(false);
       } else {
-        router.push(result.redirectPath);
-        router.refresh();
+        // Ownership just changed (custody event emitted) — the pet profile's
+        // SSR ownership badges and action availability must match the DB, so
+        // do one full document navigation instead of the soft push +
+        // router.refresh() pair (banned — see lib/ui/full-page-action-nav.ts).
+        navigateAfterActionSuccess(result.redirectPath);
       }
     });
   }
@@ -45,7 +48,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
             type="button"
             onClick={handleConfirm}
             disabled={isPending}
-            className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+            className="px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {isPending ? "Procesando…" : "Sí, adoptar"}
           </button>
@@ -53,7 +56,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
             type="button"
             onClick={() => setConfirming(false)}
             disabled={isPending}
-            className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors disabled:opacity-60"
+            className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors disabled:opacity-60"
           >
             Cancelar
           </button>
@@ -67,7 +70,7 @@ export function ConvertFosterButton({ petPublicToken, petName }: Props) {
     <button
       type="button"
       onClick={() => setConfirming(true)}
-      className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors"
+      className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] text-sm text-[var(--color-ln-warn)] hover:opacity-80 transition-colors"
     >
       Convertir en mi mascota
     </button>

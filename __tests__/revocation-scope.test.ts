@@ -3,8 +3,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { canRevoke } from "@/lib/revocation-scope";
-import type { RevocationTarget } from "@/lib/revocation-scope";
+import { canRevoke } from "@/lib/domain/revocation-scope";
+import type { RevocationTarget } from "@/lib/domain/revocation-scope";
 
 const adminProfile = { id: "admin-1", role: "admin" as const };
 const govtProfile = { id: "govt-1", role: "govt" as const };

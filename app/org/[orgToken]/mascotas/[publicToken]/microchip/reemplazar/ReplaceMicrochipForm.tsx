@@ -1,6 +1,10 @@
 "use client";
 
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { useActionState } from "react";
 
@@ -35,11 +39,18 @@ export function ReplaceMicrochipForm({
   currentChip: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
-  const today = new Date().toISOString().slice(0, 10);
+  // N3: the action used to redirect() server-side, a transition the App Router
+  // drops in production — the replacement committed and the screen never moved.
+  // `navigating` keeps the button busy while the full document load is in
+  // flight, so nobody re-submits a chip replacement over a page that is leaving.
+  const navigating = useActionRedirect(state.redirectTo, state);
+  const { key: idempotencyKey } = useIdempotencyKey();
+  const today = todayIsoInAr();
 
   return (
     <form action={formAction} className="space-y-5">
-      <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-[13px] text-ln-op-ink-2">
+      <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
+      <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-md text-ln-op-ink-2">
         Chip actual: <span className="font-mono font-medium text-ln-op-ink">{currentChip}</span>
       </div>
 
@@ -115,18 +126,14 @@ export function ReplaceMicrochipForm({
       </LnField>
 
       {state.error && (
-        <p className="text-[13px] text-ln-op-danger" role="alert">
+        <p className="text-md text-ln-op-danger" role="alert">
           {state.error}
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-[6px] bg-ln-op-azul text-white font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {isPending ? "Guardando..." : "Registrar reemplazo de chip"}
-      </button>
+      <OpButton type="submit" disabled={isPending || navigating} block>
+        {isPending || navigating ? "Guardando..." : "Registrar reemplazo de chip"}
+      </OpButton>
     </form>
   );
 }

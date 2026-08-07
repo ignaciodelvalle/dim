@@ -167,4 +167,83 @@ describe("setAdoptionEligibility", () => {
     );
     expect(result).toEqual({ ok: true, notifications: [] });
   });
+
+  // ---- Idempotency guard (projection-writes audit §6) ---------------------
+
+  it("double-submit no-op: pet already eligible=true → no tx, no event write", async () => {
+    repo = makeFakeRepo({
+      findShelterPet: vi.fn().mockResolvedValue({
+        id: "pet-1",
+        publicToken: "tok-1",
+        adoptionEligible: true,
+        adoptionIneligibleReason: null,
+        adoptionIneligibleReasonNotes: null,
+        adoptionIneligibleUntil: null,
+        custodyOwnershipId: "own-1",
+      }),
+    });
+
+    const result = await setAdoptionEligibility(
+      { petPublicToken: "tok-1", eligible: true },
+      { repo, actor, transaction: fakeTransaction },
+    );
+
+    expect(result).toEqual({ ok: true, notifications: [] });
+    expect(fakeTransaction).not.toHaveBeenCalled();
+    expect(repo.setEligibility).not.toHaveBeenCalled();
+  });
+
+  it("double-submit no-op: identical ineligible state (reason+notes) → no event write", async () => {
+    repo = makeFakeRepo({
+      findShelterPet: vi.fn().mockResolvedValue({
+        id: "pet-1",
+        publicToken: "tok-1",
+        adoptionEligible: false,
+        adoptionIneligibleReason: "other",
+        adoptionIneligibleReasonNotes: "en tratamiento",
+        adoptionIneligibleUntil: null,
+        custodyOwnershipId: "own-1",
+      }),
+    });
+
+    const result = await setAdoptionEligibility(
+      {
+        petPublicToken: "tok-1",
+        eligible: false,
+        ineligibleReason: "other",
+        ineligibleReasonNotes: "en tratamiento",
+      },
+      { repo, actor, transaction: fakeTransaction },
+    );
+
+    expect(result).toEqual({ ok: true, notifications: [] });
+    expect(repo.setEligibility).not.toHaveBeenCalled();
+  });
+
+  it("NOT a no-op: same eligible=false but different notes → event written", async () => {
+    repo = makeFakeRepo({
+      findShelterPet: vi.fn().mockResolvedValue({
+        id: "pet-1",
+        publicToken: "tok-1",
+        adoptionEligible: false,
+        adoptionIneligibleReason: "other",
+        adoptionIneligibleReasonNotes: "nota vieja",
+        adoptionIneligibleUntil: null,
+        custodyOwnershipId: "own-1",
+      }),
+    });
+
+    const result = await setAdoptionEligibility(
+      {
+        petPublicToken: "tok-1",
+        eligible: false,
+        ineligibleReason: "other",
+        ineligibleReasonNotes: "nota nueva",
+      },
+      { repo, actor, transaction: fakeTransaction },
+    );
+
+    expect(result).toMatchObject({ ok: true });
+    expect(repo.setEligibility).toHaveBeenCalledOnce();
+  });
 });

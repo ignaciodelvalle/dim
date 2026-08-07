@@ -11,7 +11,9 @@ import {
   generateApprovalRequestToken,
   generateLibretaShareToken,
   generatePublicToken,
-} from "@/lib/publicToken";
+  generateTagActivationCode,
+  generateTagSerial,
+} from "@/lib/infra/publicToken";
 
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 31 chars
 const EXCLUDED = ["0", "1", "I", "O", "L"]; // confusable chars deliberately removed
@@ -32,6 +34,16 @@ describe("publicToken — format and alphabet", () => {
     // Approval-request tokens follow the same shape; the exact prefix is
     // an implementation detail — match the alphabet on whatever body is present.
     expect(token).toMatch(/^[A-Z]{2,4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  });
+
+  it("generateTagSerial matches TAG-XXXX-XXXX", () => {
+    const token = generateTagSerial();
+    expect(token).toMatch(/^TAG-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+  });
+
+  it("generateTagActivationCode is UNPREFIXED XXXX-XXXX (wrapper code, not a serial)", () => {
+    const code = generateTagActivationCode();
+    expect(code).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}$/);
   });
 
   it("never emits excluded confusable chars (0, 1, I, O, L)", () => {

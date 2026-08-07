@@ -16,8 +16,9 @@ import {
   type OwnerProposeReturnToOrgFormState,
   ownerProposeReturnToOrgFormAction,
 } from "@/app/actions/return-to-owner-form";
+import { todayIsoInAr } from "@/lib/utils/format";
 import Link from "next/link";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const RETURN_REASONS: Array<{ value: string; label: string }> = [
   { value: "post_adoption_failed_return", label: "Cambio de circunstancias / no me pude adaptar" },
@@ -29,7 +30,7 @@ const RETURN_REASONS: Array<{ value: string; label: string }> = [
 const initialState: OwnerProposeReturnToOrgFormState = { error: null };
 
 function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
+  return todayIsoInAr();
 }
 
 export function OwnerInitiateReturnForm({
@@ -46,22 +47,26 @@ export function OwnerInitiateReturnForm({
   const bound = ownerProposeReturnToOrgFormAction.bind(null, petPublicToken);
   const [state, formAction, isPending] = useActionState(bound, initialState);
 
+  // Controlled field state — preserves typed input on validation error.
+  const [notes, setNotes] = useState("");
+  const [proposedAt, setProposedAt] = useState(todayIso());
+
   if (state.success) {
     return (
       <div
-        className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-[20px] space-y-[10px]"
+        className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-5 space-y-[10px]"
         role="alert"
       >
-        <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ok)]">
+        <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ok)]">
           Devolución iniciada
         </p>
-        <p className="text-[13px] text-[var(--color-ln-ink-2)]">
+        <p className="text-md text-[var(--color-ln-ink-2)]">
           Tu propuesta fue enviada a <strong>{orgDisplayName}</strong>. El refugio la va a revisar y
           se va a poner en contacto con vos para coordinar la entrega.
         </p>
         <Link
           href={backUrl}
-          className="inline-block text-[12px] text-[var(--color-ln-ok)] underline hover:opacity-80"
+          className="inline-block text-sm text-[var(--color-ln-ok)] underline hover:opacity-80"
         >
           Ir a mis mascotas
         </Link>
@@ -75,7 +80,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="reason"
-          className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Razón de la devolución <span className="text-[var(--color-ln-seal)]">*</span>
         </label>
@@ -84,7 +89,7 @@ export function OwnerInitiateReturnForm({
           name="reason"
           required
           defaultValue=""
-          className="rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[10px] py-[8px] font-[var(--font-ln-sans)] text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] appearance-none"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-md text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] appearance-none"
         >
           <option value="" disabled>
             Elegí un motivo…
@@ -101,7 +106,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="notes"
-          className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Notas{" "}
           <span className="font-normal lowercase tracking-[.04em] text-[var(--color-ln-faint)]">
@@ -113,8 +118,10 @@ export function OwnerInitiateReturnForm({
           name="notes"
           rows={4}
           maxLength={1000}
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
           placeholder="Contale al refugio detalles sobre la situación, el estado de la mascota, disponibilidad horaria…"
-          className="resize-y rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[10px] py-[8px] font-[var(--font-ln-sans)] text-[13px] text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="resize-y rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-sans text-md text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>
 
@@ -122,7 +129,7 @@ export function OwnerInitiateReturnForm({
       <div className="flex flex-col">
         <label
           htmlFor="proposedAt"
-          className="mb-[6px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
+          className="mb-1.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]"
         >
           Fecha sugerida para la entrega
         </label>
@@ -130,8 +137,9 @@ export function OwnerInitiateReturnForm({
           id="proposedAt"
           name="proposedAt"
           type="date"
-          defaultValue={todayIso()}
-          className="w-[200px] rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[10px] py-[8px] font-[var(--font-ln-mono)] text-[13px] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          value={proposedAt}
+          onChange={(e) => setProposedAt(e.target.value)}
+          className="w-[200px] rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-2.5 py-2 font-ln-mono text-md text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
         />
       </div>
 
@@ -139,7 +147,7 @@ export function OwnerInitiateReturnForm({
       {state.error && (
         <p
           role="alert"
-          className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-[12px] py-[8px] text-[13px] text-[var(--color-ln-seal)]"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-md text-[var(--color-ln-seal)]"
         >
           {state.error}
         </p>
@@ -149,12 +157,12 @@ export function OwnerInitiateReturnForm({
       <button
         type="submit"
         disabled={isPending}
-        className="w-full rounded-[3px] bg-[var(--color-ln-seal)] px-4 py-[10px] font-[var(--font-ln-sans)] text-[13px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
+        className="w-full rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] px-4 py-2.5 font-ln-sans text-md font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
       >
         {isPending ? "Enviando…" : `Confirmar devolución de ${petName}`}
       </button>
 
-      <p className="text-[11px] text-[var(--color-ln-faint)]">
+      <p className="text-sm text-[var(--color-ln-faint)]">
         El refugio recibe una notificación y coordina con vos la entrega. La custodia sigue en tus
         manos hasta que ellos acepten.
       </p>

@@ -90,7 +90,11 @@ describe("CasesRepository.openCase", () => {
       kind: "lost_pet_episode",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "auto: status_changed to lost",
+      openedReason: {
+        code: "pet_marked_lost",
+        petPublicToken: null,
+        ownerNote: "reportada como perdida",
+      },
     });
 
     expect(result.status).toBe("open");
@@ -115,7 +119,11 @@ describe("CasesRepository.openCase", () => {
             kind: "bite_incident",
             primarySubjectKind: "registered_pet",
             primaryPetId: petId,
-            openedReason: "auto: bite incident opened",
+            openedReason: {
+              code: "bite_reported_owner",
+              victimKind: "human",
+              severity: "moderate",
+            },
           },
           tx,
         );
@@ -140,7 +148,12 @@ describe("CasesRepository.openCase", () => {
       kind: "welfare_denuncia",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Manual welfare report opened by admin",
+      openedReason: {
+        code: "welfare_report_citizen",
+        referenceCode: "DEN-TEST-0001",
+        kind: "neglect",
+        severity: "medium",
+      },
     });
     expect(result.jurisdictionCountry).toBe("AR");
     await withMutationOverride(async (tx) => {
@@ -159,7 +172,7 @@ describe("CasesRepository.closeCase", () => {
       kind: "lost_pet_episode",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "auto: to test closeCase",
+      openedReason: { code: "pet_marked_lost", petPublicToken: null, ownerNote: "closeCase" },
     });
 
     const closed = await repo.closeCase({
@@ -183,7 +196,7 @@ describe("CasesRepository.closeCase", () => {
       kind: "lost_pet_episode",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "auto: idempotency test",
+      openedReason: { code: "pet_marked_lost", petPublicToken: null, ownerNote: "idempotency" },
     });
 
     const first = await repo.closeCase({ caseId: opened.id, reason: "cancelled" });
@@ -206,6 +219,58 @@ describe("CasesRepository.closeCase", () => {
     });
     expect(result).toBeNull();
   });
+
+  it("is atomic under concurrent closers: exactly one wins (WAVE D3-#2)", async () => {
+    const opened = await repo.openCase({
+      kind: "lost_pet_episode",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: petId,
+      openedReason: {
+        code: "pet_marked_lost",
+        petPublicToken: null,
+        ownerNote: "concurrent close race",
+      },
+    });
+
+    // Two closers hit the same OPEN case at once, each in its own transaction
+    // with a distinct reason. Each runs the full closeCase (pre-read sees
+    // "open", then the guarded UPDATE). With the status guard folded into the
+    // UPDATE, only the first committer's UPDATE matches a row; the loser's
+    // UPDATE matches zero rows and re-reads the winner's row. WITHOUT the guard
+    // both UPDATEs would fire, each returning ITS OWN reason — so the
+    // "exactly one call returns its own reason" invariant is what proves
+    // atomicity.
+    const [a, b] = await Promise.all([
+      db.transaction((tx) =>
+        repo.closeCase(
+          { caseId: opened.id, reason: "resolved", closedByUserId: null },
+          tx as Parameters<typeof repo.closeCase>[1],
+        ),
+      ),
+      db.transaction((tx) =>
+        repo.closeCase(
+          { caseId: opened.id, reason: "cancelled", closedByUserId: null },
+          tx as Parameters<typeof repo.closeCase>[1],
+        ),
+      ),
+    ]);
+
+    const selfReported = [a?.closedReason === "resolved", b?.closedReason === "cancelled"].filter(
+      Boolean,
+    ).length;
+    expect(selfReported).toBe(1);
+
+    // The persisted row reflects a single winner, and both calls agree on it.
+    const [persisted] = await db.select().from(cases).where(eq(cases.id, opened.id)).limit(1);
+    expect(persisted.status).toBe("closed");
+    expect(["resolved", "cancelled"]).toContain(persisted.closedReason);
+    expect(a?.closedReason).toBe(persisted.closedReason);
+    expect(b?.closedReason).toBe(persisted.closedReason);
+
+    await withMutationOverride(async (tx) => {
+      await tx.execute(sql`DELETE FROM cases WHERE id = ${opened.id}`);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -218,7 +283,12 @@ describe("CasesRepository.escalateCase", () => {
       kind: "welfare_denuncia",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Manual welfare report for escalation test",
+      openedReason: {
+        code: "welfare_report_citizen",
+        referenceCode: "DEN-TEST-ESC",
+        kind: "neglect",
+        severity: "medium",
+      },
     });
 
     const escalated = await repo.escalateCase(opened.id);
@@ -234,7 +304,12 @@ describe("CasesRepository.escalateCase", () => {
       kind: "welfare_denuncia",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Manual welfare for double-escalate test",
+      openedReason: {
+        code: "welfare_report_citizen",
+        referenceCode: "DEN-TEST-DBL",
+        kind: "neglect",
+        severity: "medium",
+      },
     });
 
     const first = await repo.escalateCase(opened.id);
@@ -263,7 +338,7 @@ describe("CasesRepository.reopenCase", () => {
       kind: "adoption_listing",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "auto: eligibility set to reopen test",
+      openedReason: { code: "adoption_listing_opened" },
     });
     await repo.closeCase({ caseId: opened.id, reason: "resolved" });
     const reopened = await repo.reopenCase(opened.id);
@@ -282,7 +357,7 @@ describe("CasesRepository.reopenCase", () => {
       kind: "adoption_listing",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "auto: already open reopen test",
+      openedReason: { code: "adoption_listing_opened" },
     });
     const result = await repo.reopenCase(opened.id);
     expect(result?.status).toBe("open");
@@ -309,7 +384,7 @@ describe("CasesRepository.findOpenCasesForPet", () => {
       kind: "lost_pet_episode",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId2,
-      openedReason: "auto: for findOpenCases test",
+      openedReason: { code: "pet_marked_lost", petPublicToken: null, ownerNote: "findOpenCases" },
     });
 
     const results = await repo.findOpenCasesForPet(petId2);
@@ -327,7 +402,7 @@ describe("CasesRepository.findOpenCasesForPet", () => {
       kind: "bite_incident",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId2,
-      openedReason: "auto: bite for find-closed test",
+      openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
     });
     await repo.closeCase({ caseId: opened.id, reason: "resolved" });
 
@@ -350,7 +425,12 @@ describe("CasesRepository.findOpenCaseForPetAndKind", () => {
       kind: "welfare_denuncia",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId2,
-      openedReason: "Manual welfare for findOpenCaseForPetAndKind test",
+      openedReason: {
+        code: "welfare_report_citizen",
+        referenceCode: "DEN-TEST-FIND",
+        kind: "neglect",
+        severity: "medium",
+      },
     });
 
     const found = await repo.findOpenCaseForPetAndKind(petId2, "welfare_denuncia");

@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 const baseStarted = {
   sub_kind: "pregnancy" as const,

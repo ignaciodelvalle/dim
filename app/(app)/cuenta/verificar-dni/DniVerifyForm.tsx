@@ -1,27 +1,20 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useActionState, useEffect } from "react";
+import { useActionState } from "react";
 
 import { type DniVerifyFormState, verifyDniAction } from "@/app/actions/dni-verification";
 import { LnField, LnInput } from "@/components/ui/Field";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
 const initialState: DniVerifyFormState = { error: null };
 
 export function DniVerifyForm({ next }: { next: string }) {
-  const router = useRouter();
   const [state, formAction, pending] = useActionState(verifyDniAction, initialState);
-
-  // Redirect on success: the server already revalidated /cuenta; client navigates.
-  useEffect(() => {
-    if (state.ok && state.next) {
-      router.push(state.next);
-    }
-  }, [state.ok, state.next, router]);
+  useActionRedirect(state.ok ? state.next : null, state);
 
   if (state.ok) {
     return (
-      <p className="text-sm rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-[var(--color-ln-ok)]">
+      <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-[var(--color-ln-ok)]">
         DNI declarado. Redirigiendo...
       </p>
     );
@@ -58,7 +51,7 @@ export function DniVerifyForm({ next }: { next: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {pending ? "Guardando..." : "Declarar DNI"}
       </button>

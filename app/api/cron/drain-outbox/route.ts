@@ -6,8 +6,9 @@
 // backoff schedule. After MAX_ATTEMPTS failures the row is marked 'failed'.
 //
 // GET /api/cron/drain-outbox
-// Auth: `x-cron-secret` header must match process.env.CRON_SECRET.
-// Schedule: every 5 minutes (vercel.json crons).
+// Auth: authorizeCronRequest() — Bearer <CRON_SECRET> or legacy x-cron-secret.
+// Schedule: runs DAILY, invoked in order by the single dispatcher
+// (/api/cron/daily, vercel.json "0 4 * * *") — see lib/infra/cron-dispatcher.ts.
 //
 // Returns: { ok: true, processed, delivered, failed, retried }
 //
@@ -18,13 +19,20 @@ import { type NextRequest, NextResponse } from "next/server";
 import { and, eq, lte } from "drizzle-orm";
 
 import { cronRuns, db, eventNotificationOutbox } from "@/db";
-import { authorizeCronRequest } from "@/lib/cron-auth";
-import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/outbox-drainer";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { MAX_ATTEMPTS, computeNextRetryAt, deliverOutboxRow } from "@/lib/infra/outbox-drainer";
 
 export const dynamic = "force-dynamic";
 
 const BATCH_SIZE = 50;
-const CRON_NAME = "drain-outbox";
+// Drain loop bounds (review 23 item 7): the route runs once daily (via the
+// dispatcher) AND drains repeatedly within that run until the queue is empty
+// or the budget is exhausted, so a backlog doesn't linger a batch-per-run.
+const MAX_DURATION_MS = 45_000;
+// Canonical name: snake_case of the route directory (cron-registry SSOT rule,
+// projection-cron audit 2026-07-03 B2) — was mismatched with the registry, so
+// cron-health reported this cron never_ran while telemetry accrued elsewhere.
+const CRON_NAME = "drain_outbox";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   // ---------------------------------------------------------------------------
@@ -43,7 +51,7 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     .values({ cronName: CRON_NAME, status: "running" })
     .returning();
 
-  const now = new Date();
+  const start = Date.now();
   let processed = 0;
   let delivered = 0;
   let failed = 0;
@@ -52,72 +60,86 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
   const errors: { id: string; reason: string }[] = [];
 
   try {
-    // -------------------------------------------------------------------------
-    // Fetch pending rows that are due
-    //
-    // FOR UPDATE SKIP LOCKED (P1-5 cron-overlap fix): two overlapping drain
-    // runs never grab the same outbox rows — the second run skips rows already
-    // locked by the first. Wrapped in a short transaction so the lock is held
-    // through the select; it releases on commit before per-row delivery runs.
-    // -------------------------------------------------------------------------
-    const pending = await db.transaction(async (tx) =>
-      tx
-        .select()
-        .from(eventNotificationOutbox)
-        .where(
-          and(
-            eq(eventNotificationOutbox.status, "pending"),
-            lte(eventNotificationOutbox.nextRetryAt, now),
-          ),
-        )
-        .orderBy(eventNotificationOutbox.nextRetryAt)
-        .limit(BATCH_SIZE)
-        .for("update", { skipLocked: true }),
-    );
+    // Drain loop: keep pulling due batches until the queue is empty or the
+    // budget is exhausted. Retried rows get a future nextRetryAt so they are
+    // not re-fetched within the run — no spin.
+    drain: for (;;) {
+      if (Date.now() - start >= MAX_DURATION_MS) break;
+      const now = new Date();
 
-    // -------------------------------------------------------------------------
-    // Process each row
-    // -------------------------------------------------------------------------
-    for (const row of pending) {
-      processed += 1;
+      // -----------------------------------------------------------------------
+      // Fetch pending rows that are due
+      //
+      // FOR UPDATE SKIP LOCKED (P1-5 cron-overlap fix): two overlapping drain
+      // runs never grab the same outbox rows — the second run skips rows already
+      // locked by the first. Wrapped in a short transaction so the lock is held
+      // through the select; it releases on commit before per-row delivery runs.
+      // -----------------------------------------------------------------------
+      const pending = await db.transaction(async (tx) =>
+        tx
+          .select()
+          .from(eventNotificationOutbox)
+          .where(
+            and(
+              eq(eventNotificationOutbox.status, "pending"),
+              lte(eventNotificationOutbox.nextRetryAt, now),
+            ),
+          )
+          .orderBy(eventNotificationOutbox.nextRetryAt)
+          .limit(BATCH_SIZE)
+          .for("update", { skipLocked: true }),
+      );
 
-      const result = await deliverOutboxRow(row);
+      if (pending.length === 0) break;
 
-      if (result.ok) {
-        await db
-          .update(eventNotificationOutbox)
-          .set({
-            status: "delivered",
-            deliveredAt: new Date(),
-            lastAttemptAt: new Date(),
-            attempts: row.attempts + 1,
-          })
-          .where(eq(eventNotificationOutbox.id, row.id));
-        delivered += 1;
-      } else {
-        const newAttempts = row.attempts + 1;
-        const isExhausted = newAttempts >= MAX_ATTEMPTS;
-        const nextRetryAt = computeNextRetryAt(newAttempts, new Date());
+      // -----------------------------------------------------------------------
+      // Process each row
+      // -----------------------------------------------------------------------
+      for (const row of pending) {
+        processed += 1;
 
-        await db
-          .update(eventNotificationOutbox)
-          .set({
-            status: isExhausted ? "failed" : "pending",
-            attempts: newAttempts,
-            lastAttemptAt: new Date(),
-            lastError: result.error,
-            nextRetryAt: isExhausted ? nextRetryAt : nextRetryAt,
-          })
-          .where(eq(eventNotificationOutbox.id, row.id));
+        const result = await deliverOutboxRow(row);
 
-        if (isExhausted) {
-          failed += 1;
-          errors.push({ id: row.id, reason: `max_attempts: ${result.error}` });
+        if (result.ok) {
+          await db
+            .update(eventNotificationOutbox)
+            .set({
+              status: "delivered",
+              deliveredAt: new Date(),
+              lastAttemptAt: new Date(),
+              attempts: row.attempts + 1,
+            })
+            .where(eq(eventNotificationOutbox.id, row.id));
+          delivered += 1;
         } else {
-          retried += 1;
-          errors.push({ id: row.id, reason: result.error });
+          const newAttempts = row.attempts + 1;
+          const isExhausted = newAttempts >= MAX_ATTEMPTS;
+          const nextRetryAt = computeNextRetryAt(newAttempts, new Date());
+
+          await db
+            .update(eventNotificationOutbox)
+            .set({
+              status: isExhausted ? "failed" : "pending",
+              attempts: newAttempts,
+              lastAttemptAt: new Date(),
+              lastError: result.error,
+              nextRetryAt: isExhausted ? nextRetryAt : nextRetryAt,
+            })
+            .where(eq(eventNotificationOutbox.id, row.id));
+
+          if (isExhausted) {
+            failed += 1;
+            errors.push({ id: row.id, reason: `max_attempts: ${result.error}` });
+          } else {
+            retried += 1;
+            errors.push({ id: row.id, reason: result.error });
+          }
         }
+
+        if (Date.now() - start >= MAX_DURATION_MS) break drain;
       }
+
+      if (pending.length < BATCH_SIZE) break; // queue drained this pass
     }
   } catch (err) {
     cronStatus = "failed";
@@ -137,5 +159,12 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     })
     .where(eq(cronRuns.id, run.id));
 
-  return NextResponse.json({ ok: true, processed, delivered, failed, retried });
+  // Report the RUN's health, not a hardcoded success: a global failure (the
+  // transaction/select threw) must surface as ok:false + HTTP 500 so Vercel's
+  // cron dashboard flags it. Per-row `failed` (exhausted retries) is a terminal
+  // row state, not a cron failure, so it does not flip cronStatus.
+  return NextResponse.json(
+    { ok: cronStatus === "ok", processed, delivered, failed, retried },
+    { status: cronStatus === "ok" ? 200 : 500 },
+  );
 }

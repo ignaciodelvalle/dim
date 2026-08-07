@@ -35,6 +35,7 @@ const ORG_TOKEN = "DIM-CC-ORG1";
 
 let petLost: string;
 let petAdoption: string;
+let petAdoptionInWindow: string;
 let petDispute: string;
 let orgId: string;
 let welfareReportId: string;
@@ -83,6 +84,18 @@ beforeAll(async () => {
     })
     .returning();
   petAdoption = petB.id;
+
+  const [petC] = await db
+    .insert(pets)
+    .values({
+      publicToken: "DIM-CC-PC1",
+      name: "Adoption In-Window Test",
+      species: "dog",
+      sex: "unknown",
+      potentiallyDangerousBreed: false,
+    })
+    .returning();
+  petAdoptionInWindow = petC.id;
 
   const [petD] = await db
     .insert(pets)
@@ -146,7 +159,10 @@ describe("close-stale-lost-episodes", () => {
   let caseId: string;
 
   beforeAll(async () => {
-    const openedAt = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    // ADR-18 (pet-document-redesign): threshold raised 180d -> 365d so a lost
+    // pet can never silently expire in under a year. 400d clears the new
+    // boundary with margin (matches the custody_dispute fixture below).
+    const openedAt = new Date(Date.now() - 400 * 24 * 60 * 60 * 1000);
     const [row] = await db
       .insert(cases)
       .values({
@@ -162,7 +178,7 @@ describe("close-stale-lost-episodes", () => {
     caseId = row.id;
   });
 
-  it("scan finds cases open >180d without recent events", async () => {
+  it("scan finds cases open >365d without recent events", async () => {
     const candidates = await findStaleLostEpisodes();
     expect(candidates.some((c) => c.id === caseId)).toBe(true);
   });
@@ -205,6 +221,29 @@ describe("close-stale-lost-episodes", () => {
     );
     expect(noteEvent).toBeDefined();
   });
+
+  // Runs LAST in this block: the >365d fixture case above is already closed
+  // by this point (previous two tests), so inserting a second open
+  // lost_pet_episode for the same pet doesn't collide with the DB's
+  // cases_open_per_pet_kind_idx unique constraint (one open case per
+  // pet+kind at a time).
+  it("scan does NOT find cases open >180d but <365d (ADR-18 boundary)", async () => {
+    const openedAt = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    const [row] = await db
+      .insert(cases)
+      .values({
+        publicCode: "CAS-CC-LOST-200D",
+        caseKind: "lost_pet_episode",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: petLost,
+        status: "open",
+        openedAt,
+        openedReason: "Test fixture for the 180d<x<365d ADR-18 boundary",
+      })
+      .returning();
+    const candidates = await findStaleLostEpisodes();
+    expect(candidates.some((c) => c.id === row.id)).toBe(false);
+  });
 });
 
 describe("close-followup-expired-adoptions", () => {
@@ -225,7 +264,10 @@ describe("close-followup-expired-adoptions", () => {
       .returning();
     caseId = row.id;
 
-    // Adoption finalized event with followup_until in the past.
+    // Adoption finalized ~13 months ago with a 6-month follow-up window: the
+    // deadline (occurred_at + 6 months) landed ~7 months ago → window elapsed.
+    // The window is computed at read time from post_adoption_followup_months
+    // (the real schema key); there is no followup_until timestamp.
     await db.insert(petEvents).values({
       petId: petAdoption,
       eventType: "adoption_finalized",
@@ -235,18 +277,51 @@ describe("close-followup-expired-adoptions", () => {
       authorVerified: true,
       payload: {
         adopter_user_id: "00000000-0000-0000-0000-000000000001",
-        adoption_application_id: "00000000-0000-0000-0000-000000000002",
-        followup_until: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-        finalized_by_user_id: "00000000-0000-0000-0000-000000000003",
+        post_adoption_followup_months: 6,
         contract_attachment_id: null,
       },
       caseId,
     });
   });
 
-  it("scan finds cases whose followup_until is in the past", async () => {
+  it("scan finds cases whose follow-up window (occurred_at + months) has elapsed", async () => {
     const candidates = await findFollowupExpiredAdoptions();
     expect(candidates.some((c) => c.id === caseId)).toBe(true);
+  });
+
+  it("scan does NOT find a case still inside its follow-up window", async () => {
+    // Finalized ~5 months ago with a 6-month window → deadline ~1 month in the
+    // future, so the case must stay open.
+    const [inWindowCase] = await db
+      .insert(cases)
+      .values({
+        publicCode: "CAS-CC-ADOPT-INWIN",
+        caseKind: "adoption_listing",
+        primarySubjectKind: "registered_pet",
+        primaryPetId: petAdoptionInWindow,
+        status: "open",
+        openedReason: "Test fixture for adoption listing still in follow-up window",
+        openedByOrganizationId: orgId,
+      })
+      .returning();
+
+    await db.insert(petEvents).values({
+      petId: petAdoptionInWindow,
+      eventType: "adoption_finalized",
+      occurredAt: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000),
+      recordedAt: new Date(Date.now() - 150 * 24 * 60 * 60 * 1000),
+      authorRole: "shelter",
+      authorVerified: true,
+      payload: {
+        adopter_user_id: "00000000-0000-0000-0000-000000000004",
+        post_adoption_followup_months: 6,
+        contract_attachment_id: null,
+      },
+      caseId: inWindowCase.id,
+    });
+
+    const candidates = await findFollowupExpiredAdoptions();
+    expect(candidates.some((c) => c.id === inWindowCase.id)).toBe(false);
   });
 
   it("processOne flips status to closed with closed_reason=resolved", async () => {

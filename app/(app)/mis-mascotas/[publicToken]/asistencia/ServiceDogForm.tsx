@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import {
@@ -10,6 +9,7 @@ import {
   upsertServiceDogAction,
 } from "@/app/actions/service-dog";
 import type { PetServiceDog, ServiceDogType } from "@/db";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const SERVICE_TYPE_OPTIONS: { value: ServiceDogType; label: string; bannerEligible: boolean }[] = [
   { value: "guia", label: "Guía (discapacidad visual)", bannerEligible: true },
@@ -31,10 +31,16 @@ export function ServiceDogForm({
   petPublicToken: string;
   initial: PetServiceDog | null;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
+
+  // Full document reload after every successful mutation: this form drives
+  // the Tier-0 public access banner on /p/{token} and the SSR credential
+  // status on this page — stale SSR shows/hides the wrong legal banner.
+  // router.refresh() is banned (silent-drop defect — see
+  // lib/ui/full-page-action-nav.ts).
+  const reloadCurrentPage = () => navigateAfterActionSuccess(window.location.href);
 
   const [confirmRetire, setConfirmRetire] = useState(false);
   const [serviceType, setServiceType] = useState<ServiceDogType>(initial?.serviceType ?? "guia");
@@ -75,7 +81,7 @@ export function ServiceDogForm({
         return;
       }
       setOkMessage("Datos guardados.");
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 
@@ -91,7 +97,7 @@ export function ServiceDogForm({
       setOkMessage(
         `Solicitud enviada (${result.approvalRequestPublicToken}). La autoridad va a revisarla.`,
       );
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 
@@ -107,7 +113,7 @@ export function ServiceDogForm({
         setError(result.error);
         return;
       }
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 
@@ -122,14 +128,14 @@ export function ServiceDogForm({
         return;
       }
       setConfirmRetire(false);
-      router.refresh();
+      reloadCurrentPage();
     });
   }
 
   return (
     <div className="space-y-4">
       {isVigente && initial?.inService && (
-        <div className="rounded-[4px] border border-[var(--color-ln-line-strong)] p-4 space-y-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] p-4 space-y-3">
           <p className="text-sm font-medium text-[var(--color-ln-ink)]">Banner público de acceso</p>
           <p className="text-xs text-[var(--color-ln-ink-2)]">
             Cuando lo activás, el banner aparece en{" "}
@@ -141,7 +147,7 @@ export function ServiceDogForm({
               type="button"
               onClick={() => toggleVisibility("full_banner")}
               disabled={pending || initial.publicVisibility === "full_banner"}
-              className={`px-3 py-1 rounded-[3px] text-sm ${
+              className={`px-3 py-1 rounded-[var(--radius-pill)] text-sm ${
                 initial.publicVisibility === "full_banner"
                   ? "bg-[var(--color-ln-ok)] text-white"
                   : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
@@ -153,7 +159,7 @@ export function ServiceDogForm({
               type="button"
               onClick={() => toggleVisibility("private_only")}
               disabled={pending || initial.publicVisibility === "private_only"}
-              className={`px-3 py-1 rounded-[3px] text-sm ${
+              className={`px-3 py-1 rounded-[var(--radius-pill)] text-sm ${
                 initial.publicVisibility === "private_only"
                   ? "bg-[var(--color-ln-azul)] text-white"
                   : "border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"
@@ -184,7 +190,7 @@ export function ServiceDogForm({
               id="service-type"
               value={serviceType}
               onChange={(e) => setServiceType(e.target.value as ServiceDogType)}
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             >
               {SERVICE_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
@@ -212,7 +218,7 @@ export function ServiceDogForm({
               value={trainingCenter}
               onChange={(e) => setTrainingCenter(e.target.value)}
               placeholder="Ej: Bocalan Argentina, IGDF/ADI miembro"
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
             <p className="text-xs text-[var(--color-ln-mute)] mt-1">
               ANDIS reconoce centros miembros de IGDF (International Guide Dog Federation) o ADI
@@ -233,7 +239,7 @@ export function ServiceDogForm({
                 type="date"
                 value={trainingCertDate}
                 onChange={(e) => setTrainingCertDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
             <div>
@@ -249,7 +255,7 @@ export function ServiceDogForm({
                 value={rupgaCredential}
                 onChange={(e) => setRupgaCredential(e.target.value)}
                 placeholder="Si ya tenés"
-                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm font-mono outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm font-mono outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
           </div>
@@ -267,7 +273,7 @@ export function ServiceDogForm({
                 type="date"
                 value={credentialIssueDate}
                 onChange={(e) => setCredentialIssueDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
             <div>
@@ -282,7 +288,7 @@ export function ServiceDogForm({
                 type="date"
                 value={credentialExpiryDate}
                 onChange={(e) => setCredentialExpiryDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
           </div>
@@ -299,7 +305,7 @@ export function ServiceDogForm({
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={2}
-              className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>
         </fieldset>
@@ -313,7 +319,7 @@ export function ServiceDogForm({
           <button
             type="submit"
             disabled={pending || isRevoked}
-            className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
+            className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50"
           >
             {pending ? "Guardando..." : "Guardar datos"}
           </button>
@@ -322,7 +328,7 @@ export function ServiceDogForm({
               type="button"
               onClick={submitForVerification}
               disabled={pending}
-              className="px-4 py-2 rounded-[3px] bg-[var(--color-ln-ok)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
+              className="px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-50"
             >
               Solicitar verificación
             </button>
@@ -332,13 +338,13 @@ export function ServiceDogForm({
               type="button"
               onClick={() => setConfirmRetire(true)}
               disabled={pending}
-              className="px-4 py-2 rounded-[3px] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] text-sm hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
+              className="px-4 py-2 rounded-[var(--radius-pill)] border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] text-sm hover:bg-[var(--color-ln-err-050)] disabled:opacity-50"
             >
               Retirar del servicio
             </button>
           )}
           {initial?.inService && confirmRetire && (
-            <div className="w-full rounded-[4px] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)]/30 px-3 py-3 space-y-2">
+            <div className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)]/40 bg-[var(--color-ln-err-050)]/30 px-3 py-3 space-y-2">
               <p className="text-sm text-[var(--color-ln-ink-2)]">
                 ¿Retirar el perro del servicio? Va a perder los derechos de acceso bajo Ley 26.858.
                 El banner público deja de aparecer.
@@ -348,7 +354,7 @@ export function ServiceDogForm({
                   type="button"
                   onClick={retire}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-seal)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-seal)] text-white text-sm font-medium hover:opacity-90 disabled:opacity-60 transition-colors"
                 >
                   {pending ? "Retirando…" : "Confirmar retiro"}
                 </button>
@@ -356,7 +362,7 @@ export function ServiceDogForm({
                   type="button"
                   onClick={() => setConfirmRetire(false)}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
                 >
                   Cancelar
                 </button>

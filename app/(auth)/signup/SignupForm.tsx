@@ -6,10 +6,12 @@ import {
   completeIdentityAction,
   signupAction,
 } from "@/app/actions/auth";
-import { LnCheckbox, LnInput } from "@/components/ui/Field";
+import { LocationFields } from "@/components/LocationFields";
+import { LnCheckbox, LnField, LnInput, LnPasswordInput } from "@/components/ui/Field";
+import { useStepFocus } from "@/lib/ui/use-step-focus";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 
 const initialAuthState: AuthFormState = { error: null };
 const initialIdentityState: IdentityFormState = { error: null };
@@ -22,27 +24,48 @@ const initialIdentityState: IdentityFormState = { error: null };
 //
 // Step 2 (identity): nombre + apellido (required) + DNI (optional).
 //   completeIdentityAction updates profiles.display_name to the real name
-//   and stores dni_number unverified if provided.
+//   and stores dni_hash + dni_last4 (no plaintext DNI — Wave 5 Item 25a).
 //
 // returnTo / intent=apply branches: both used to skip the old pet step and
 // redirect after step 1. They now show step 2 (identity) first so that the
 // account never ends up with only a provisional display_name. Redirect happens
 // after step 2 completes.
+//
+// `initialStep` (2026-08-01): the page mounts this form at "identity" when the
+// visitor is ALREADY authenticated but still carries the trigger's provisional
+// display_name — i.e. they are resuming an abandoned signup, not starting one.
+// The step used to live only in this component's useState, so it died with the
+// browser tab and nothing could ever bring the user back. Now the entry step is
+// decided server-side from the database on every request; the useState below
+// only carries the step-1 → step-2 transition within a single visit.
 
 export function SignupForm({
   intent,
   returnTo,
+  initialStep = "account",
 }: {
   intent: "apply" | null;
   returnTo: string | null;
+  /** Server-decided entry point. "identity" means "resume an abandoned signup". */
+  initialStep?: "account" | "identity";
 }) {
   const router = useRouter();
-  const [step, setStep] = useState<"account" | "identity">("account");
+  const [step, setStep] = useState<"account" | "identity">(initialStep);
+  // Resuming is a property of how the page was ENTERED, not of the current
+  // step: a visitor who starts at step 1 and advances to step 2 is completing a
+  // fresh signup and must still read "Paso 2 de 2".
+  const resuming = initialStep === "identity";
   const [authState, authFormAction, authPending] = useActionState(signupAction, initialAuthState);
   const [identityState, identityFormAction, identityPending] = useActionState(
     completeIdentityAction,
     initialIdentityState,
   );
+  // A11y fix (2026-07 audit): each step below is a full early-return (its own
+  // JSX tree, not a shared shell), so only one of the two target elements is
+  // ever mounted at a time — the same ref object attaches to whichever one is
+  // currently rendered. See lib/ui/use-step-focus.ts.
+  const stepFocusRef = useRef<HTMLDivElement>(null);
+  useStepFocus(step, stepFocusRef);
 
   // Step 1 → step 2 transition.
   useEffect(() => {
@@ -63,46 +86,83 @@ export function SignupForm({
   if (step === "identity") {
     return (
       <div className="space-y-5">
-        <p className="text-center text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
-          Paso 2 de 2
+        <p className="text-center text-xs uppercase tracking-[0.3em] text-[var(--color-ln-mute)]">
+          {resuming ? "Último paso" : "Paso 2 de 2"}
         </p>
 
         <div className="space-y-2">
-          <h2 className="font-[var(--font-ln-serif)] text-[22px] font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h2
+            ref={stepFocusRef}
+            tabIndex={-1}
+            className="font-ln-serif text-title font-semibold tracking-[-0.01em] text-[var(--color-ln-ink)] focus:outline-none"
+          >
             Contanos quién sos
           </h2>
           <p className="text-sm text-[var(--color-ln-ink-2)]">
-            Tu nombre aparecerá en tu perfil y en las comunicaciones de MiMAR.
+            {resuming
+              ? "Ahora figurás con la primera parte de tu correo. Tu nombre real es lo que va a aparecer en la credencial de tu mascota."
+              : "Tu nombre aparecerá en tu perfil y en las comunicaciones de miMAR."}
           </p>
         </div>
 
         <form action={identityFormAction} className="space-y-4">
-          <Field
-            id="firstName"
-            name="firstName"
-            type="text"
-            label="Nombre"
-            autoComplete="given-name"
-            required
-          />
-          <Field
-            id="lastName"
-            name="lastName"
-            type="text"
-            label="Apellido"
-            autoComplete="family-name"
-            required
-          />
-          <Field
-            id="dni"
-            name="dni"
-            type="text"
-            inputMode="numeric"
-            label="DNI"
-            autoComplete="off"
-            hint="Podés agregarlo después desde tu cuenta."
-            placeholder="Ej: 34567890"
-          />
+          <LnField label="Nombre" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="firstName"
+                type="text"
+                autoComplete="given-name"
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+                // Uncontrolled (DOM-owned). React 19 auto-resets this form once
+                // completeIdentityAction resolves; on a validation error (no
+                // redirect) the reset would wipe the typed name. The action
+                // echoes it back in state so the reset lands on it instead
+                // (mirrors the login email fix, bug #46).
+                defaultValue={identityState.firstName ?? ""}
+              />
+            )}
+          </LnField>
+          <LnField label="Apellido" required>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="lastName"
+                type="text"
+                autoComplete="family-name"
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+                defaultValue={identityState.lastName ?? ""}
+              />
+            )}
+          </LnField>
+          <LnField label="DNI" hint="Podés agregarlo después desde tu cuenta.">
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="dni"
+                type="text"
+                inputMode="numeric"
+                autoComplete="off"
+                placeholder="Ej: 34567890"
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+
+          <div className="space-y-1.5">
+            {/* allowAnonymous: signup runs before a session exists, so the
+                locality autocomplete must use the no-auth public search action
+                (the default auth-gated one redirects to /login on first keystroke). */}
+            <LocationFields mode="l1" l1Label="Localidad (opcional)" allowAnonymous cascade />
+            <p className="text-xs text-[var(--color-ln-mute)]">
+              Ayuda a las campañas regionales de salud animal.
+            </p>
+          </div>
 
           {identityState.error && (
             <p className="text-sm text-[var(--color-ln-err)]" role="alert">
@@ -113,9 +173,15 @@ export function SignupForm({
           <button
             type="submit"
             disabled={identityPending}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
-            {identityPending ? "Creando cuenta..." : "Crear cuenta"}
+            {identityPending
+              ? resuming
+                ? "Guardando..."
+                : "Creando cuenta..."
+              : resuming
+                ? "Guardar mi nombre"
+                : "Crear cuenta"}
           </button>
         </form>
       </div>
@@ -124,7 +190,15 @@ export function SignupForm({
 
   return (
     <div className="space-y-5">
-      <p className="text-[10px] uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center">
+      {/* Step 1 is only ever reached on initial mount (no "back" from step 2),
+          so useStepFocus's mount-skip means this ref never actually fires
+          today — kept for symmetry with step 2 and in case a future "back"
+          affordance is added. */}
+      <p
+        ref={stepFocusRef}
+        tabIndex={-1}
+        className="text-xs uppercase tracking-[0.3em] text-[var(--color-ln-mute)] text-center focus:outline-none"
+      >
         Paso 1 de 2
       </p>
 
@@ -132,33 +206,51 @@ export function SignupForm({
           The Mi Argentina stub renders below (visually and in DOM). */}
       <div className="flex flex-col gap-5">
         <form action={authFormAction} className="space-y-4">
-          <Field
-            id="email"
-            name="email"
-            type="email"
-            label="Correo electrónico"
-            autoComplete="email"
-            required
-          />
-          <Field
-            id="password"
-            name="password"
-            type="password"
-            label="Contraseña"
-            autoComplete="new-password"
-            minLength={8}
-            required
-            hint="Mínimo 8 caracteres."
-          />
-          <Field
-            id="confirmPassword"
-            name="confirmPassword"
-            type="password"
-            label="Repetir contraseña"
-            autoComplete="new-password"
-            minLength={8}
-            required
-          />
+          <LnField label="Correo electrónico" required error={authState.error ?? undefined}>
+            {({ id, describedBy, invalid }) => (
+              <LnInput
+                id={id}
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+                // Uncontrolled (DOM-owned) — same fix as LoginForm (bug #46).
+                // React 19 auto-resets this form once signupAction resolves; a
+                // validation error (no redirect) would otherwise wipe the typed
+                // email. signupAction echoes it back in state so the reset
+                // lands on the typed value instead of clearing it.
+                defaultValue={authState.email ?? ""}
+              />
+            )}
+          </LnField>
+          <LnField label="Contraseña" required hint="Mínimo 8 caracteres.">
+            {({ id, describedBy, invalid }) => (
+              <LnPasswordInput
+                id={id}
+                name="password"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
+          <LnField label="Repetir contraseña" required>
+            {({ id, describedBy, invalid }) => (
+              <LnPasswordInput
+                id={id}
+                name="confirmPassword"
+                autoComplete="new-password"
+                minLength={8}
+                required
+                aria-describedby={describedBy}
+                invalid={invalid}
+              />
+            )}
+          </LnField>
 
           <LnCheckbox id="tosAccepted" name="tosAccepted" required>
             Leí y acepto los{" "}
@@ -180,16 +272,10 @@ export function SignupForm({
             .
           </LnCheckbox>
 
-          {authState.error && (
-            <p className="text-sm text-[var(--color-ln-err)]" role="alert">
-              {authState.error}
-            </p>
-          )}
-
           <button
             type="submit"
             disabled={authPending}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {authPending ? "Procesando..." : "Continuar"}
           </button>
@@ -205,56 +291,14 @@ export function SignupForm({
         <button
           type="button"
           disabled
+          aria-disabled="true"
           tabIndex={-1}
           title="Próximamente: integración con Mi Argentina"
-          className="w-full px-4 py-3 rounded-[3px] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
+          className="w-full px-4 py-3 rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] text-sm text-[var(--color-ln-mute)] cursor-not-allowed"
         >
           Conectar con Mi Argentina (próximamente)
         </button>
       </div>
-    </div>
-  );
-}
-
-function Field({
-  id,
-  name,
-  type,
-  label,
-  autoComplete,
-  required,
-  minLength,
-  hint,
-  inputMode,
-  placeholder,
-}: {
-  id: string;
-  name: string;
-  type: string;
-  label: string;
-  autoComplete?: string;
-  required?: boolean;
-  minLength?: number;
-  hint?: string;
-  inputMode?: React.InputHTMLAttributes<HTMLInputElement>["inputMode"];
-  placeholder?: string;
-}) {
-  return (
-    <div className="space-y-1.5">
-      <label htmlFor={id} className="block text-sm font-medium text-[var(--color-ln-ink)]">
-        {label}
-      </label>
-      <LnInput
-        id={id}
-        name={name}
-        type={type}
-        autoComplete={autoComplete}
-        required={required}
-        minLength={minLength}
-        inputMode={inputMode}
-        placeholder={placeholder}
-      />
-      {hint && <p className="text-xs text-[var(--color-ln-mute)]">{hint}</p>}
     </div>
   );
 }

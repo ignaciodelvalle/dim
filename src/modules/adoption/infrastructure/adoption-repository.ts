@@ -4,7 +4,7 @@
 // Returns domain types or lightweight shapes (not raw Drizzle row types).
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 
 import {
   attachments,
@@ -17,8 +17,16 @@ import {
   profiles,
   reminders,
 } from "@/db";
-import { closeCase, findOpenCaseForPetAndKind } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import {
+  closeCase,
+  findOpenAdoptionApplicationCase,
+  findOpenAdoptionListingCase,
+  findOpenCaseForPetAndKind,
+  openCase,
+} from "@/lib/infra/case-helpers";
+import { hashDni } from "@/lib/utils/dni-hash";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -46,6 +54,35 @@ type SetListingStatusArgs = {
   action: "publish" | "pause" | "unpause" | "unpublish";
   currentListedAt: Date | null;
   now: Date;
+};
+
+type SetBulkEligibilityIdempotentArgs = {
+  petId: string;
+  eligible: boolean;
+  ineligibleReason: string | null;
+  ineligibleReasonNotes: string | null;
+  ineligibleUntil: Date | null;
+  now: Date;
+  userId: string;
+  orgId: string;
+  orgVerified: boolean;
+  /** Deterministic UUID derived from (bulkActionId + ":" + petId). */
+  clientIdempotencyKey: string;
+};
+
+type BatchShelterPetForEligibility = {
+  petId: string;
+  publicToken: string;
+};
+
+type BatchShelterPetForListing = {
+  petId: string;
+  publicToken: string;
+  adoptionListedAt: Date | null;
+  status: string;
+  adoptionEligible: boolean | null;
+  inCustodyDispute: boolean | null;
+  rabiesObservationStatus: string | null;
 };
 
 type UpdateListingContentArgs = {
@@ -96,15 +133,16 @@ type InsertAdoptionFinalizedArgs = {
   orgId: string;
   orgVerified: boolean;
   custodyOwnershipId: string;
+  /**
+   * The adopter's REAL account id. Always a registered account: stub-profile
+   * creation was removed from finalize-adoption (org-pilot-pack), so this
+   * writer never invents a profile row — hence no displayName/phone/dni here.
+   */
   adopterUserId: string;
-  isStubAdopter: boolean;
   fosterRow: { id: string; ownerUserId: string | null } | null;
   fosterUserId: string | null;
   /** Pre-found custody case id, or null if not intaked. */
   custodyCaseId: string | null;
-  displayName: string;
-  phone: string | null;
-  dni: string | null;
   contractAttachmentId: string | null;
   /** Supabase Storage path of the uploaded contract file (null when no file). */
   contractStoragePath: string | null;
@@ -114,6 +152,11 @@ type InsertAdoptionFinalizedArgs = {
   contractFileSize: number | null;
   followupMonths: number | null;
   notes: string | null;
+  /**
+   * When finalizing from an approved online application, the id of that
+   * `adoption_application_submitted` event. Null for offline / foster / DNI paths.
+   */
+  adoptedFromApplicationId?: string | null;
   /** Organization display name — used in reminder description copy. */
   orgDisplayName: string;
   /** Pet name — used in reminder description copy. */
@@ -123,6 +166,41 @@ type InsertAdoptionFinalizedArgs = {
 
 type ShelterPetResult = (PetRow & { custodyOwnershipId: string }) | null;
 
+// ---------------------------------------------------------------------------
+// Reversal types
+// ---------------------------------------------------------------------------
+
+/**
+ * Result of the reversibility gate. `ok: false` covers all three rejection
+ * reasons the reverse-adoption use-case must enforce: no finalize event
+ * authored by this org, already reversed (idempotency guard), or custody has
+ * since moved off the adopter this finalize event names (stale finalize —
+ * also the second line of defense against a double-reverse, since after the
+ * first reversal the active ownership role is shelter_custody, not owner).
+ */
+type ReversibleAdoptionResult =
+  | {
+      ok: true;
+      finalizeEventId: string;
+      adopterOwnershipId: string;
+      adopterUserId: string | null;
+      petName: string;
+    }
+  | { ok: false; error: string };
+
+type InsertAdoptionReversedArgs = {
+  petId: string;
+  userId: string;
+  orgId: string;
+  orgVerified: boolean;
+  /** The active `owner` ownership row (the adopter) to close. */
+  adopterOwnershipId: string;
+  /** The `adoption_finalized` event this reversal retracts (event linkage). */
+  finalizeEventId: string;
+  reason: string | null;
+  now: Date;
+};
+
 type OrgRow = typeof organizations.$inferSelect;
 
 type PetWithOrgResult = {
@@ -130,7 +208,22 @@ type PetWithOrgResult = {
   org: OrgRow;
 } | null;
 
+// NOTE: ApplicationEventRow is intentionally NOT exported from the repository
+// public surface. Callers receive only the projected shape defined per method.
+// Keeping the raw row type internal prevents accidental PII leaks (the payload
+// carries applicant name/phone/address/DNI) across module boundaries.
 type ApplicationEventRow = typeof petEvents.$inferSelect;
+
+/**
+ * Projected application shape returned by findApplicationForReview.
+ * Contains only the fields the review/info-request callers need.
+ * The full event (including PII payload) stays in the immutable event log.
+ */
+type ApplicationReviewShape = {
+  id: string;
+  /** Extracted from payload — the only PII field callers legitimately need. */
+  applicantUserId: string | null;
+};
 
 // ---------------------------------------------------------------------------
 // Repository
@@ -182,21 +275,84 @@ export const AdoptionRepository = {
   },
 
   /**
-   * Finds a profile by DNI number. Returns the profile id or null.
+   * Finds a profile by DNI (via hash — no plaintext comparison).
+   * Wave 5 Item 25a: equality matching uses HMAC-SHA256 hash, never plaintext.
+   *
+   * Retired from the finalize-adoption path (org-pilot-pack): finalization now
+   * requires a REGISTERED account (see findAdopterAccountByDni below). Kept for
+   * any non-finalize caller and as the historical hash-equality reference.
    */
   async findStubAdopterByDni(dni: string, tx?: Tx): Promise<{ id: string } | null> {
     const client = tx ?? db;
     const [row] = await client
       .select({ id: profiles.id })
       .from(profiles)
-      .where(eq(profiles.dniNumber, dni))
+      .where(eq(profiles.dniHash, hashDni(dni)))
       .limit(1);
     return row ?? null;
   },
 
   /**
+   * Finds an adopter ACCOUNT by DNI hash for the finalize-adoption flow
+   * (org-pilot-pack, reconciliation ruling): a valid match is a `profiles` row
+   * whose dniHash matches AND that has a corresponding `auth.users` row —
+   * i.e. a real registered account. `dniVerified` is intentionally NOT part of
+   * the match contract (a walk-in adopter who registers on the spot has
+   * dniVerified=false right after signup and must still match).
+   *
+   * `hasAuthAccount` is resolved via a raw-SQL EXISTS against `auth.users`
+   * because legacy stub profiles (created by the retired manual-DNI branch)
+   * have NO auth row and no schema flag distinguishes them — the auth join is
+   * the only honest signal. Callers MUST refuse when hasAuthAccount=false.
+   */
+  async findAdopterAccountByDni(
+    dni: string,
+    tx?: Tx,
+  ): Promise<{
+    id: string;
+    displayName: string;
+    dniVerified: boolean;
+    hasAuthAccount: boolean;
+  } | null> {
+    const client = tx ?? db;
+    const rows = await client.execute<{
+      id: string;
+      display_name: string;
+      dni_verified: boolean;
+      has_auth_account: boolean;
+    }>(sql`
+      SELECT p.id::text AS id,
+             p.display_name AS display_name,
+             p.dni_verified AS dni_verified,
+             EXISTS (SELECT 1 FROM auth.users u WHERE u.id = p.id) AS has_auth_account
+      FROM profiles p
+      WHERE p.dni_hash = ${hashDni(dni)}
+      LIMIT 1
+    `);
+    const row = rows[0];
+    if (!row) return null;
+    return {
+      id: row.id,
+      displayName: row.display_name,
+      dniVerified: row.dni_verified,
+      hasAuthAccount: row.has_auth_account,
+    };
+  },
+
+  /**
    * Updates adoption eligibility and inserts the adoption_eligibility_set event.
    * Must be called inside a db.transaction().
+   *
+   * Case wiring (CASE_ATTACHMENT_RULES adoption_eligibility_set):
+   *   - eligible=true  → opens an adoption_listing case (or attaches to one
+   *                      already open for this org, degrading `opens` per the
+   *                      rule) and writes case_id on the event atomically.
+   *   - eligible=false → attaches to the org's open adoption_listing case if
+   *                      one exists; otherwise the event inserts with no
+   *                      case_id (silent no-op — matches the documented
+   *                      `requires-open` override for this event/payload).
+   * case_id is append-only on pet_events (DB trigger), so the decision must
+   * be made before/at the same insert — it cannot be backfilled later.
    */
   async setEligibility(args: SetEligibilityArgs, tx: Tx): Promise<void> {
     await tx
@@ -211,6 +367,31 @@ export const AdoptionRepository = {
         updatedAt: args.now,
       })
       .where(eq(pets.id, args.petId));
+
+    let caseId: string | null = null;
+    const existingListingCase = await findOpenAdoptionListingCase(args.petId, args.orgId, tx);
+    if (args.eligible) {
+      if (existingListingCase) {
+        caseId = existingListingCase.id;
+      } else {
+        const caseRow = await openCase(
+          {
+            kind: "adoption_listing",
+            primarySubjectKind: "registered_pet",
+            primaryPetId: args.petId,
+            openedByUserId: args.userId,
+            openedByOrganizationId: args.orgId,
+            openedReason: { code: "adoption_listing_opened" },
+          },
+          tx,
+        );
+        caseId = caseRow.id;
+      }
+    } else {
+      // requires-open (with silent no-op override): attach if a listing is
+      // open, otherwise leave case_id null rather than rejecting the insert.
+      caseId = existingListingCase?.id ?? null;
+    }
 
     const payload = validateEventPayload("adoption_eligibility_set", {
       eligible: args.eligible,
@@ -235,6 +416,7 @@ export const AdoptionRepository = {
       authorOrganizationId: args.orgId,
       authorVerified: args.orgVerified,
       payload,
+      caseId,
     });
   },
 
@@ -273,6 +455,131 @@ export const AdoptionRepository = {
     }
   },
 
+  // ---------------------------------------------------------------------------
+  // Bulk operations
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Batch ownership query for bulk eligibility writes.
+   *
+   * Returns only pets under active shelter_custody of the given org that are
+   * NOT deceased — matches the single-pet requireAlivePetAccess scope.
+   */
+  async findBatchShelterPetsForEligibility(
+    tokens: string[],
+    orgId: string,
+  ): Promise<BatchShelterPetForEligibility[]> {
+    if (tokens.length === 0) return [];
+    return db
+      .select({ petId: pets.id, publicToken: pets.publicToken })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+  },
+
+  /**
+   * Batch ownership query for bulk listing publish/unpublish.
+   *
+   * Fetches the extra columns needed to evaluate publish guards (D18–D21)
+   * per pet in the loop. Same scope as findBatchShelterPetsForEligibility.
+   */
+  async findBatchShelterPetsForListing(
+    tokens: string[],
+    orgId: string,
+  ): Promise<BatchShelterPetForListing[]> {
+    if (tokens.length === 0) return [];
+    return db
+      .select({
+        petId: pets.id,
+        publicToken: pets.publicToken,
+        adoptionListedAt: pets.adoptionListedAt,
+        status: pets.status,
+        adoptionEligible: pets.adoptionEligible,
+        inCustodyDispute: pets.inCustodyDispute,
+        rabiesObservationStatus: pets.rabiesObservationStatus,
+      })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+  },
+
+  /**
+   * Atomically updates pet eligibility columns and inserts an
+   * adoption_eligibility_set event using insertEventIdempotent.
+   *
+   * Differs from setEligibility: uses idempotency-key deduplication so
+   * re-submitting the same bulkActionId is a safe no-op (wasNoop=true).
+   * The previous_state is null for the bulk path (performance: no pre-load).
+   *
+   * Must be called inside a db.transaction().
+   */
+  async setBulkEligibilityIdempotent(
+    args: SetBulkEligibilityIdempotentArgs,
+    tx: Tx,
+  ): Promise<{ wasNoop: boolean }> {
+    // UPDATE pets eligibility columns (last-write-wins — idempotent on retry).
+    await tx
+      .update(pets)
+      .set({
+        adoptionEligible: args.eligible,
+        adoptionIneligibleReason: args.eligible ? null : (args.ineligibleReason ?? null),
+        adoptionIneligibleReasonNotes: args.eligible ? null : (args.ineligibleReasonNotes ?? null),
+        adoptionIneligibleUntil: args.eligible ? null : args.ineligibleUntil,
+        adoptionEligibilitySetAt: args.now,
+        adoptionEligibilitySetByUserId: args.userId,
+        updatedAt: args.now,
+      })
+      .where(eq(pets.id, args.petId));
+
+    const payload = validateEventPayload("adoption_eligibility_set", {
+      eligible: args.eligible,
+      ineligible_reason: args.eligible ? null : (args.ineligibleReason ?? null),
+      ineligible_reason_notes: args.eligible ? null : (args.ineligibleReasonNotes ?? null),
+      ineligible_until: args.eligible
+        ? null
+        : args.ineligibleUntil
+          ? args.ineligibleUntil.toISOString()
+          : null,
+      // Bulk path: previous_state is null for performance (no per-pet pre-load).
+      previous_state: null,
+    });
+
+    const { wasNoop } = await insertEventIdempotent(
+      {
+        petId: args.petId,
+        eventType: "adoption_eligibility_set",
+        occurredAt: args.now,
+        recordedAt: args.now,
+        recordedByUserId: args.userId,
+        authorRole: "shelter",
+        authorOrganizationId: args.orgId,
+        authorVerified: args.orgVerified,
+        payload,
+        notes: null,
+        clientIdempotencyKey: args.clientIdempotencyKey,
+      },
+      tx as Parameters<typeof insertEventIdempotent>[1],
+    );
+
+    return { wasNoop };
+  },
+
   /**
    * Updates the listing content fields. No event emitted.
    */
@@ -302,6 +609,17 @@ export const AdoptionRepository = {
   /**
    * Inserts an adoption_application_submitted event. Must be called inside
    * a db.transaction() so the org member fan-out can share the same tx.
+   *
+   * Case wiring (CASE_ATTACHMENT_RULES adoption_application_submitted, mode
+   * "opens"): opens an adoption_application case scoped to (pet, applicant)
+   * — or attaches to one already open for THIS applicant, degrading `opens`
+   * per the rule. The scoping is per-applicant (not per-pet): the partial
+   * unique index `cases_open_adoption_app_per_applicant_idx` allows multiple
+   * distinct applicants to each have their own concurrent open
+   * adoption_application case for the same pet, so a second application from
+   * a DIFFERENT applicant opens a second, distinct case. case_id is
+   * append-only on pet_events, so the decision is made atomically with this
+   * insert.
    */
   async insertApplication(args: InsertApplicationArgs, tx: Tx): Promise<{ eventId: string }> {
     const payload = validateEventPayload("adoption_application_submitted", {
@@ -316,6 +634,27 @@ export const AdoptionRepository = {
       prior_pets: args.priorPets ?? undefined,
     });
 
+    const existingApplicationCase = await findOpenAdoptionApplicationCase(
+      args.petId,
+      args.userId,
+      tx,
+    );
+    const caseId = existingApplicationCase
+      ? existingApplicationCase.id
+      : (
+          await openCase(
+            {
+              kind: "adoption_application",
+              primarySubjectKind: "registered_pet",
+              primaryPetId: args.petId,
+              applicantUserId: args.userId,
+              openedByUserId: args.userId,
+              openedReason: { code: "adoption_application_submitted" },
+            },
+            tx,
+          )
+        ).id;
+
     const [eventRow] = await tx
       .insert(petEvents)
       .values({
@@ -328,6 +667,7 @@ export const AdoptionRepository = {
         authorOrganizationId: null,
         authorVerified: false,
         payload,
+        caseId,
       })
       .returning({ id: petEvents.id });
 
@@ -414,17 +754,38 @@ export const AdoptionRepository = {
   },
 
   /**
-   * Loads a pending application for org-side review (approve/reject).
+   * Loads a pending application for org-side review (approve/reject/info-request).
    * Verifies the pet is under active shelter_custody of the given org.
+   *
+   * PII fix (Item 27): projects ONLY the fields callers need. The full event
+   * payload (which may contain applicant name/phone/address/DNI from the
+   * adoption_application_submitted event) is kept in the immutable event log
+   * but is never returned to callers. applicantUserId is the single PII field
+   * the review and notification flows legitimately require.
    */
   async findApplicationForReview(
     applicationEventId: string,
     organizationId: string,
     tx?: Tx,
-  ): Promise<{ application: ApplicationEventRow; pet: PetRow } | { error: string }> {
+  ): Promise<
+    | {
+        application: ApplicationReviewShape;
+        pet: { id: string; name: string; publicToken: string };
+      }
+    | { error: string }
+  > {
     const client = tx ?? db;
     const [row] = await client
-      .select({ application: petEvents, pet: pets })
+      .select({
+        applicationId: petEvents.id,
+        // Extract only applicant_user_id from the payload — the single field
+        // callers need for notification routing. Name/phone/address/DNI stay
+        // in the immutable event log and are never returned.
+        applicantUserId: sql<string | null>`${petEvents.payload}->>'applicant_user_id'`,
+        petId: pets.id,
+        petName: pets.name,
+        petPublicToken: pets.publicToken,
+      })
       .from(petEvents)
       .innerJoin(pets, eq(pets.id, petEvents.petId))
       .innerJoin(ownerships, eq(ownerships.petId, pets.id))
@@ -446,7 +807,7 @@ export const AdoptionRepository = {
     // Check: already resolved?
     const decided = await client.execute<{ id: string }>(sql`
       SELECT id FROM pet_events
-      WHERE pet_id = ${row.pet.id}
+      WHERE pet_id = ${row.petId}
         AND event_type = 'adoption_application_resolved'
         AND payload->>'application_event_id' = ${applicationEventId}
       LIMIT 1
@@ -458,7 +819,7 @@ export const AdoptionRepository = {
     // Check: pet already finalized?
     const finalized = await client.execute<{ id: string }>(sql`
       SELECT id FROM pet_events
-      WHERE pet_id = ${row.pet.id}
+      WHERE pet_id = ${row.petId}
         AND event_type = 'adoption_finalized'
       LIMIT 1
     `);
@@ -466,7 +827,75 @@ export const AdoptionRepository = {
       return { error: "Esta mascota ya fue adoptada — no es posible revisar postulaciones." };
     }
 
-    return { application: row.application, pet: row.pet };
+    return {
+      application: { id: row.applicationId, applicantUserId: row.applicantUserId },
+      pet: { id: row.petId, name: row.petName, publicToken: row.petPublicToken },
+    };
+  },
+
+  /**
+   * Loads an APPROVED application for the finalize-from-application flow.
+   *
+   * Verifies, org-scoped:
+   *   - the event exists, is an adoption_application_submitted for THIS pet
+   *   - the pet is under active shelter_custody of the given org
+   *   - the application has a resolved event with outcome=approved
+   *   - the applicant has an account (applicant_user_id present)
+   *
+   * Returns the applicant's real user id (the account they applied with) so
+   * finalization transfers ownership directly to it — the pet then appears in
+   * the adopter's /mis-mascotas immediately. PII-safe: only applicant_user_id
+   * is projected, never the full application payload.
+   */
+  async findApprovedApplicationForFinalize(
+    applicationEventId: string,
+    organizationId: string,
+    petId: string,
+    tx?: Tx,
+  ): Promise<{ applicantUserId: string } | { error: string }> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({
+        applicantUserId: sql<string | null>`${petEvents.payload}->>'applicant_user_id'`,
+      })
+      .from(petEvents)
+      .innerJoin(pets, eq(pets.id, petEvents.petId))
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          eq(petEvents.id, applicationEventId),
+          eq(petEvents.eventType, "adoption_application_submitted"),
+          eq(petEvents.petId, petId),
+          eq(ownerships.ownerOrganizationId, organizationId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!row) {
+      return { error: "Postulación no encontrada o no pertenece a tu organización." };
+    }
+
+    const approved = await client.execute<{ id: string }>(sql`
+      SELECT id FROM pet_events
+      WHERE pet_id = ${petId}
+        AND event_type = 'adoption_application_resolved'
+        AND payload->>'application_event_id' = ${applicationEventId}
+        AND payload->>'outcome' = 'approved'
+      LIMIT 1
+    `);
+    if (approved.length === 0) {
+      return {
+        error: "La postulación seleccionada no está aprobada. Aprobala antes de finalizar.",
+      };
+    }
+
+    if (!row.applicantUserId) {
+      return { error: "La postulación no tiene un postulante con cuenta miMAR." };
+    }
+
+    return { applicantUserId: row.applicantUserId };
   },
 
   /**
@@ -509,7 +938,6 @@ export const AdoptionRepository = {
   /**
    * Composite atomic write for finalizing an adoption. Must be called inside a
    * db.transaction(). Handles:
-   *   - optional stub profile insert
    *   - close shelter_custody ownership
    *   - close foster ownership + foster_placement case (if active foster)
    *   - insert new owner row
@@ -530,35 +958,24 @@ export const AdoptionRepository = {
       orgVerified,
       custodyOwnershipId,
       adopterUserId,
-      isStubAdopter,
       fosterRow,
       fosterUserId,
       custodyCaseId,
-      displayName,
-      phone,
-      dni,
       contractAttachmentId,
       contractStoragePath,
       contractMimeType,
       contractFileSize,
       followupMonths,
       notes,
+      adoptedFromApplicationId,
       orgDisplayName,
       petName,
       now,
     } = args;
 
-    // Stub profile insert.
-    if (isStubAdopter && dni) {
-      await tx.insert(profiles).values({
-        id: adopterUserId,
-        displayName,
-        phone,
-        dniNumber: dni,
-        dniVerified: false,
-        role: "owner",
-      });
-    }
+    // No stub-profile insert: the adopter ALWAYS pre-exists as a registered
+    // account (finalize-adoption refuses otherwise), so this writer only ever
+    // moves custody onto a profile someone can actually log into.
 
     // Close shelter_custody.
     await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, custodyOwnershipId));
@@ -600,6 +1017,7 @@ export const AdoptionRepository = {
       contract_attachment_id: contractAttachmentId,
       post_adoption_followup_months: followupMonths,
       notes,
+      adopted_from_application_id: adoptedFromApplicationId ?? null,
     });
 
     const [adoptionEvent] = await tx
@@ -639,9 +1057,10 @@ export const AdoptionRepository = {
       });
     }
 
-    // Reminder rows for non-stub adopter.
+    // Post-adoption check-in reminders. They land in the adopter's own account,
+    // which always exists (see adopterUserId's contract above).
     const CHECKIN_WINDOWS = [1, 3, 6, 12] as const;
-    if (!isStubAdopter && followupMonths !== null && followupMonths > 0) {
+    if (followupMonths !== null && followupMonths > 0) {
       const dueWindows = CHECKIN_WINDOWS.filter((m) => m <= followupMonths);
       if (dueWindows.length > 0) {
         await tx.insert(reminders).values(
@@ -861,5 +1280,179 @@ export const AdoptionRepository = {
       authorVerified: false,
       payload,
     });
+  },
+
+  // ---------------------------------------------------------------------------
+  // Reversal (mirrors finalize in reverse — see reverse-adoption.ts)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Finds a pet by public token with NO ownership/org constraint — unlike
+   * findShelterPet, the reversal flow's caller (the finalizing org) may no
+   * longer hold any active ownership row on this pet at all (that is exactly
+   * what a finalized adoption does: it ends the org's shelter_custody row).
+   */
+  async findPetByToken(
+    petPublicToken: string,
+    tx?: Tx,
+  ): Promise<{ id: string; name: string } | null> {
+    const client = tx ?? db;
+    const [row] = await client
+      .select({ id: pets.id, name: pets.name })
+      .from(pets)
+      .where(eq(pets.publicToken, petPublicToken))
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * The reversibility gate. Finds the LATEST adoption_finalized event
+   * authored by THIS organization for this pet, and verifies:
+   *   1. it exists (this org actually finalized an adoption for this pet);
+   *   2. it has not already been reversed (no adoption_reversed event
+   *      references it via reverted_finalization_event_id) — idempotency;
+   *   3. the pet's current active ownership is still that same adopter,
+   *      role='owner' — defends against a stale finalize (custody moved on
+   *      via a later cycle) and doubles as the second double-reverse guard
+   *      (after a first reversal the active role is shelter_custody, not
+   *      owner, so this check alone would already reject a repeat call).
+   *
+   * Read-only — safe to call from a server component for UI gating (see the
+   * org pet ficha's "ya no está bajo tu custodia" branch) as well as from the
+   * use-case as the authoritative pre-write check.
+   */
+  async findReversibleAdoption(
+    petId: string,
+    organizationId: string,
+    tx?: Tx,
+  ): Promise<ReversibleAdoptionResult> {
+    const client = tx ?? db;
+
+    const [finalizeEvent] = await client
+      .select({
+        id: petEvents.id,
+        adopterUserId: sql<string | null>`${petEvents.payload}->>'adopter_user_id'`,
+      })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          eq(petEvents.eventType, "adoption_finalized"),
+          eq(petEvents.authorOrganizationId, organizationId),
+        ),
+      )
+      .orderBy(desc(petEvents.occurredAt))
+      .limit(1);
+
+    if (!finalizeEvent) {
+      return {
+        ok: false,
+        error: "Esta organización no finalizó ninguna adopción para esta mascota.",
+      };
+    }
+
+    const reversed = await client.execute<{ id: string }>(sql`
+      SELECT id FROM pet_events
+      WHERE pet_id = ${petId}
+        AND event_type = 'adoption_reversed'
+        AND payload->>'reverted_finalization_event_id' = ${finalizeEvent.id}
+      LIMIT 1
+    `);
+    if (reversed.length > 0) {
+      return { ok: false, error: "Esta adopción ya fue revertida." };
+    }
+
+    const [ownerRow] = await client
+      .select({ id: ownerships.id, ownerUserId: ownerships.ownerUserId, petName: pets.name })
+      .from(ownerships)
+      .innerJoin(pets, eq(pets.id, ownerships.petId))
+      .where(
+        and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      )
+      .limit(1);
+
+    if (
+      !ownerRow ||
+      !finalizeEvent.adopterUserId ||
+      ownerRow.ownerUserId !== finalizeEvent.adopterUserId
+    ) {
+      return {
+        ok: false,
+        error:
+          "La mascota ya no está bajo la custodia del adoptante de esta adopción — no se puede revertir.",
+      };
+    }
+
+    return {
+      ok: true,
+      finalizeEventId: finalizeEvent.id,
+      adopterOwnershipId: ownerRow.id,
+      adopterUserId: ownerRow.ownerUserId,
+      petName: ownerRow.petName,
+    };
+  },
+
+  /**
+   * Composite atomic write for reversing an adoption. Must be called inside a
+   * db.transaction(). Mirrors insertAdoptionFinalized in reverse:
+   *   - close the adopter's `owner` ownership row
+   *   - insert a fresh `shelter_custody` ownership row for the finalizing org
+   *   - force the pet UN-LISTED (adoption_listed_at / paused_at → null) — PO
+   *     semantics: reversal never auto-relists. Without this, restoring an
+   *     active shelter_custody row would silently resurrect whatever
+   *     adoption_listed_at value predates the original finalize (finalize
+   *     never clears it — see insertAdoptionFinalized above), and the pet
+   *     would reappear on /adoptar the moment shelter_custody becomes active
+   *     again (queryAdoptionListing's D-guards only check listedAt + active
+   *     shelter_custody, nothing else stops that).
+   *   - insert the adoption_reversed event, referencing the finalize event id
+   */
+  async insertAdoptionReversed(
+    args: InsertAdoptionReversedArgs,
+    tx: Tx,
+  ): Promise<{ eventId: string }> {
+    const { petId, userId, orgId, orgVerified, adopterOwnershipId, finalizeEventId, reason, now } =
+      args;
+
+    // Close the adopter's owner ownership row.
+    await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, adopterOwnershipId));
+
+    // Restore shelter_custody ownership to the finalizing org.
+    await tx.insert(ownerships).values({
+      petId,
+      ownerOrganizationId: orgId,
+      role: "shelter_custody",
+      startedAt: now,
+      transferredFromId: adopterOwnershipId,
+    });
+
+    // Force UN-LISTED (see method doc above).
+    await tx
+      .update(pets)
+      .set({ adoptionListedAt: null, adoptionListingPausedAt: null, updatedAt: now })
+      .where(eq(pets.id, petId));
+
+    const payload = validateEventPayload("adoption_reversed", {
+      actor: "shelter",
+      reason,
+      reverted_finalization_event_id: finalizeEventId,
+    });
+
+    const [event] = await tx
+      .insert(petEvents)
+      .values({
+        petId,
+        eventType: "adoption_reversed",
+        occurredAt: now,
+        recordedAt: now,
+        recordedByUserId: userId,
+        authorRole: "shelter",
+        authorOrganizationId: orgId,
+        authorVerified: orgVerified,
+        payload,
+      })
+      .returning({ id: petEvents.id });
+
+    return { eventId: event.id };
   },
 };

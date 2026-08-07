@@ -3,8 +3,12 @@
 import { useActionState, useState } from "react";
 
 import type { PregnancyFormState } from "@/app/actions/pregnancy";
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { todayIsoInAr } from "@/lib/utils/format";
 
 const initialState: PregnancyFormState = { error: null };
 type FormAction = (prev: PregnancyFormState, formData: FormData) => Promise<PregnancyFormState>;
@@ -22,14 +26,19 @@ type Outcome = (typeof OUTCOMES)[number]["value"];
 
 export function PregnancyEndedForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const [outcome, setOutcome] = useState<Outcome>("live_birth");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
 
   return (
     <>
       <LnSheetHeader
         tone="rosa"
-        icon="🍼"
+        icon={<Icon name="lactancia" decorative />}
         title="Cerrar gestación"
         subtitle="Libreta sanitaria oficial"
       />
@@ -51,18 +60,18 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
           </LnField>
 
           {/* Outcome radio group */}
-          <div className="flex flex-col gap-[6px]">
-            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          <div className="flex flex-col gap-1.5">
+            <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Resultado{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </p>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               {OUTCOMES.map((o) => (
                 <label
                   key={o.value}
-                  className="flex cursor-pointer items-center gap-[8px] text-[13px] text-[var(--color-ln-ink)]"
+                  className="flex cursor-pointer items-center gap-2 text-md text-[var(--color-ln-ink)]"
                 >
                   <input
                     type="radio"
@@ -82,6 +91,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
           {outcome === "live_birth" && (
             <LnField label="Cantidad de crías nacidas vivas" required>
               {({ id, describedBy, invalid }) => (
+                // Wave 2 Item 9: inputMode="numeric" for whole-number birth count
                 <LnInput
                   id={id}
                   name="liveBirthsCount"
@@ -89,6 +99,8 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
                   min={1}
                   max={20}
                   required={outcome === "live_birth"}
+                  inputMode="numeric"
+                  enterKeyHint="done"
                   placeholder="1–20"
                   aria-describedby={describedBy}
                   invalid={invalid}
@@ -123,7 +135,7 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
           </LnField>
 
           <LnSubCard>
-            <p className="text-[12px] text-[var(--color-ln-mute)]">
+            <p className="text-sm text-[var(--color-ln-mute)]">
               Tras este registro la mascota podrá ser candidata para futuros embarazos. Si querés
               evitarlo, considerá registrar también una esterilización.
             </p>
@@ -131,8 +143,10 @@ export function PregnancyEndedForm({ action }: { action: FormAction }) {
 
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

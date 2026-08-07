@@ -8,11 +8,13 @@
 // Returns Drizzle Case rows — callers already type them as Case.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, notInArray } from "drizzle-orm";
 
 import { type Case, type NewCase, cases, db } from "@/db";
-import { generatePrefixedToken } from "@/lib/publicToken";
+import { generatePrefixedToken } from "@/lib/infra/publicToken";
 import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
+import type { OpenedReason, OpenedReasonAudit } from "@/src/modules/cases/domain/opened-reason";
+import { openedReasonProse } from "@/src/modules/cases/domain/opened-reason-prose";
 
 // ---------------------------------------------------------------------------
 // Type aliases (matching lib/case-helpers.ts exactly)
@@ -30,22 +32,68 @@ export interface OpenCaseInput {
   kind: CaseKind;
   primarySubjectKind: "registered_pet" | "unowned_animal" | "location" | "general";
   primaryPetId?: string | null;
-  primaryLocationLat?: string | null;
-  primaryLocationLng?: string | null;
+  locationLat?: string | null;
+  locationLng?: string | null;
   applicantUserId?: string | null;
   jurisdictionCountry?: string;
   jurisdictionProvince?: string | null;
   jurisdictionLocality?: string | null;
+  /** Structural locality-attribution FK (migration 0147): ar_localities uuid PK. */
+  localityId?: string | null;
   openedByUserId?: string | null;
   openedByOrganizationId?: string | null;
   /** custody_transfer_handshake only: canonical receiver org id. */
   receiverOrganizationId?: string | null;
-  /** Required ≥ 10 chars when manual; auto-open events pass an "auto: ..." string. */
-  openedReason: string;
+  /**
+   * Why this case is being opened. THE FENCE.
+   *
+   * A closed union, so a writer cannot invent a reason or pass a bare string:
+   * both are `tsc` errors here, at the write boundary, before any row exists.
+   * That is the whole point of this type — transfer-custody.ts passed a
+   * template string for months and nothing caught it.
+   *
+   * Writing dual-writes: byte-identical legacy prose into `opened_reason`
+   * (>= 10 chars, satisfying the CHECK) PLUS the code and params. See
+   * resolveOpenedReasonColumns.
+   */
+  openedReason: OpenedReason;
+  /**
+   * Internal ids that belong in the AUDIT prose but must never reach
+   * `opened_reason_params`. Only the three writers whose prose embeds a UUID
+   * need this (foster_proposal_sent, pet_marked_lost, microchip_replaced).
+   */
+  openedReasonAudit?: OpenedReasonAudit;
   welfareReportId?: string | null;
   adoptionApplicationId?: string | null;
   custodyDisputeId?: string | null;
   parentListingCaseId?: string | null;
+}
+
+/**
+ * Decide the three `opened_reason*` columns for a case-open.
+ *
+ * Pure and exported so the dual-write contract is testable without a DB — it
+ * is the single most consequential decision in the case-open path.
+ *
+ * A structured reason writes BOTH representations, and the prose it writes is
+ * byte-identical to what the writer emitted before the cutover. That is
+ * load-bearing: `opened_reason` is still a live SQL query key (outbreak dedupe
+ * runs `LIKE 'manual [code]:%'` against it), and identical prose means both
+ * cohorts match one query and a rollback renders every row correctly.
+ */
+export function resolveOpenedReasonColumns(
+  openedReason: OpenedReason,
+  audit: OpenedReasonAudit = {},
+): { openedReason: string; openedReasonCode: string; openedReasonParams: unknown } {
+  const { code, ...params } = openedReason;
+  return {
+    openedReason: openedReasonProse(openedReason, audit),
+    openedReasonCode: code,
+    // `{}` rather than null for param-less codes: the pair CHECK
+    // (cases_opened_reason_structured_pair) makes "code without params"
+    // unrepresentable at rest.
+    openedReasonParams: params,
+  };
 }
 
 export interface CloseCaseInput {
@@ -105,16 +153,19 @@ export class CasesRepository {
       status: "open",
       primarySubjectKind: input.primarySubjectKind,
       primaryPetId: input.primaryPetId ?? null,
-      primaryLocationLat: input.primaryLocationLat ?? null,
-      primaryLocationLng: input.primaryLocationLng ?? null,
+      // Canonical write (P3 Phase C). Legacy primary_location_lat/lng dropped in 0102.
+      // cases_subject_location_consistency now references location_lat/lng directly.
+      locationLat: input.locationLat ?? null,
+      locationLng: input.locationLng ?? null,
       applicantUserId: input.applicantUserId ?? null,
       jurisdictionCountry: input.jurisdictionCountry ?? "AR",
       jurisdictionProvince: input.jurisdictionProvince ?? null,
       jurisdictionLocality: input.jurisdictionLocality ?? null,
+      localityId: input.localityId ?? null,
       openedByUserId: input.openedByUserId ?? null,
       openedByOrganizationId: input.openedByOrganizationId ?? null,
       receiverOrganizationId: input.receiverOrganizationId ?? null,
-      openedReason: input.openedReason,
+      ...resolveOpenedReasonColumns(input.openedReason, input.openedReasonAudit),
       welfareReportId: input.welfareReportId ?? null,
       adoptionApplicationId: input.adoptionApplicationId ?? null,
       custodyDisputeId: input.custodyDisputeId ?? null,
@@ -132,6 +183,16 @@ export class CasesRepository {
    * UPDATE `cases` setting status='closed', closed_reason, closed_at,
    * closed_by_user_id. Idempotent: closing an already-closed case is a
    * no-op (returns the existing row).
+   *
+   * Concurrency: the terminal-status guard is folded INTO the UPDATE's WHERE
+   * (`status NOT IN ('closed','merged')`) rather than living only in the
+   * pre-read above. Two concurrent closers can both pass the pre-read (both
+   * see "open"); without the predicate on the UPDATE itself both would write,
+   * clobbering the true closer's reason/actor and letting each caller believe
+   * it won the close (duplicate downstream effects). With the predicate, only
+   * the first committer's UPDATE matches a row — the loser's UPDATE matches
+   * zero rows, and we re-read to return the now-closed row so the result stays
+   * idempotent while signalling (empty rowcount) that this call did NOT close it.
    */
   async closeCase(input: CloseCaseInput, executor: CaseExecutor = db): Promise<Case | null> {
     const [existing] = await executor
@@ -143,7 +204,7 @@ export class CasesRepository {
     if (existing.status === "closed" || existing.status === "merged") {
       return existing;
     }
-    const [updated] = await executor
+    const updatedRows = await executor
       .update(cases)
       .set({
         status: "closed",
@@ -152,9 +213,20 @@ export class CasesRepository {
         closedByUserId: input.closedByUserId ?? null,
         updatedAt: new Date(),
       })
-      .where(eq(cases.id, input.caseId))
+      .where(and(eq(cases.id, input.caseId), notInArray(cases.status, ["closed", "merged"])))
       .returning();
-    return updated;
+    if (updatedRows.length === 0) {
+      // Lost the race: another closer committed between our pre-read and this
+      // UPDATE. Re-read and return the now-closed row (idempotent), but this
+      // caller is NOT the winner and must not run close-dependent downstream.
+      const [current] = await executor
+        .select()
+        .from(cases)
+        .where(eq(cases.id, input.caseId))
+        .limit(1);
+      return current ?? null;
+    }
+    return updatedRows[0];
   }
 
   // -------------------------------------------------------------------------
@@ -253,13 +325,20 @@ export class CasesRepository {
 
   /**
    * For adoption_application — finds an open case for (pet, kind, applicant).
-   * Returns null when none.
+   * Returns null when none. Scoped per applicant: the partial unique index
+   * `cases_open_adoption_app_per_applicant_idx` allows one open
+   * adoption_application case PER (pet, applicant) — multiple applicants may
+   * each have their own concurrent open case for the same pet.
+   *
+   * Pass `executor` (the tx from `db.transaction`) so the lookup participates
+   * in the same transaction as the caller's pet_event insert.
    */
   async findOpenAdoptionApplicationCase(
     petId: string,
     applicantUserId: string,
+    executor: CaseExecutor = db,
   ): Promise<Case | null> {
-    const [row] = await db
+    const [row] = await executor
       .select()
       .from(cases)
       .where(
@@ -276,9 +355,16 @@ export class CasesRepository {
 
   /**
    * For adoption_listing — finds an open case for (pet, kind, org).
+   *
+   * Pass `executor` (the tx from `db.transaction`) so the lookup participates
+   * in the same transaction as the caller's pet_event insert.
    */
-  async findOpenAdoptionListingCase(petId: string, orgId: string): Promise<Case | null> {
-    const [row] = await db
+  async findOpenAdoptionListingCase(
+    petId: string,
+    orgId: string,
+    executor: CaseExecutor = db,
+  ): Promise<Case | null> {
+    const [row] = await executor
       .select()
       .from(cases)
       .where(

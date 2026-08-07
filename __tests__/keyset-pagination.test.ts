@@ -9,17 +9,13 @@
 
 import { describe, expect, it } from "vitest";
 
-// keysetWhere uses Drizzle SQL — mock the drizzle column reference minimally.
-// We only check the fragment is defined and its queryChunks reference the cursor values.
-import { sql } from "drizzle-orm";
-
 import {
   decodeCursor,
   encodeCursor,
   keysetWhere,
   newerHref,
   olderHref,
-} from "@/lib/keyset-pagination";
+} from "@/lib/utils/keyset-pagination";
 
 // ---------------------------------------------------------------------------
 // encodeCursor / decodeCursor roundtrip

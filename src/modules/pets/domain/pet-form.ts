@@ -2,8 +2,12 @@
 // Zero external imports — no @/db, drizzle-orm, or next imports allowed.
 // Extracted from app/actions/pets.ts parsePetForm + helpers.
 
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import { type PermanentCondition, sanitizeConditionCodes } from "@/lib/permanent-conditions";
+import { canonicalProvinceNameForStorage } from "@/lib/domain/jurisdiction-canonical";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import {
+  type PermanentCondition,
+  sanitizeConditionCodes,
+} from "@/lib/reference/permanent-conditions";
 import type { ParsedPet } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +68,32 @@ export function normalizeConditionsOther(parsed: ParsedPet): string | null {
   return parsed.permanentConditionsOther;
 }
 
+// Email: anything shaped like local@domain.tld.
+const EMAIL_PATTERN = /[^\s@]+@[^\s@]+\.[^\s@]{2,}/;
+// Phone candidate: a run of digits with common separators. Flagged only when
+// the run contains 9+ digits — AR numbers have 10 (or 8 local + area handled
+// by the +9 threshold), while dates ("01/02/2020" splits on "/") and dosage
+// counts stay well below it.
+const PHONE_CANDIDATE_PATTERN = /\+?\d[\d\s().-]*\d/g;
+
+/**
+ * Privacy guard for owner free text that can render on PUBLIC surfaces
+ * (permanentConditionsOther shows on /p/[publicToken] via
+ * discloseConditionsPublicly and the Tier-2 medical view). Detects contact
+ * info an owner may have pasted by accident so the save path can reject it
+ * instead of publishing PII (Ley 25.326 hardening, 2026-07-04).
+ *
+ * Pure function — conservative heuristics, no external imports.
+ */
+export function detectContactInfoInFreeText(text: string): "email" | "phone" | null {
+  if (EMAIL_PATTERN.test(text)) return "email";
+  for (const candidate of text.match(PHONE_CANDIDATE_PATTERN) ?? []) {
+    const digits = candidate.replace(/\D/g, "");
+    if (digits.length >= 9) return "phone";
+  }
+  return null;
+}
+
 // ---------------------------------------------------------------------------
 // Main export
 // ---------------------------------------------------------------------------
@@ -83,6 +113,27 @@ export function parsePetForm(
   const species = String(formData.get("species") ?? "").trim();
   if (!name) return { parsed: null, error: "Falta el nombre." };
   if (!species) return { parsed: null, error: "Falta la especie." };
+
+  const loc = parseLocationFromFormData(formData);
+
+  // Locality is required — pets must always have a jurisdiction (PO decision
+  // 2026-07-08: a serious national registry needs at least the barrio/localidad
+  // as epidemiological signal). Existing pets without a locality are forced to
+  // set one via a movement.
+  const localityNameRaw = loc.locality ?? "";
+  if (!localityNameRaw) {
+    return { parsed: null, error: "LOCALITY_REQUIRED" };
+  }
+
+  // The locality MUST come from the autocomplete — a real `ar_localities` row,
+  // which always carries its province. A value typed by hand that never
+  // resolved to a catalog result arrives with an empty province: reject it so
+  // free text can never enter the registry as a locality. The strict INDEC
+  // (province, locality) pair check still runs downstream in the action.
+  const provinceForStorage = canonicalProvinceNameForStorage(loc.provinceCode ?? "");
+  if (!provinceForStorage) {
+    return { parsed: null, error: "LOCALITY_UNRESOLVED" };
+  }
 
   const sexRaw = String(formData.get("sex") ?? "unknown");
   const sex: "male" | "female" | "unknown" =
@@ -177,10 +228,8 @@ export function parsePetForm(
     trainingLevel,
     insuranceCompany: String(formData.get("insuranceCompany") ?? "").trim() || null,
     insurancePolicyNumber: String(formData.get("insurancePolicyNumber") ?? "").trim() || null,
-    jurisdictionProvince: canonicalProvinceNameForStorage(
-      String(formData.get("provinceCode") ?? "").trim(),
-    ),
-    jurisdictionLocality: String(formData.get("localityName") ?? "").trim() || null,
+    jurisdictionProvince: provinceForStorage,
+    jurisdictionLocality: loc.locality,
     acquisitionMethod,
     emergencyInfoVisible: formData.get("emergencyInfoVisible") === "true",
     permanentConditions,
@@ -195,6 +244,22 @@ export function parsePetForm(
     discloseConditionsPublicly: normalizeDisclose(draft),
     permanentConditionsOther: normalizeConditionsOther(draft),
   };
+
+  // PII guard: the "otra condición" free text can render on the public
+  // credential (discloseConditionsPublicly / Tier-2 público). Reject saves
+  // that contain phone/email so contact data never reaches a public surface
+  // by accident — regardless of the current disclose flag, which the owner
+  // can flip later without re-editing the text.
+  if (parsed.permanentConditionsOther) {
+    const contactKind = detectContactInfoInFreeText(parsed.permanentConditionsOther);
+    if (contactKind) {
+      return {
+        parsed: null,
+        error:
+          "La descripción de la condición no puede incluir teléfonos ni emails: puede mostrarse en la credencial pública. Escribila sin datos de contacto.",
+      };
+    }
+  }
 
   return { parsed, error: null };
 }

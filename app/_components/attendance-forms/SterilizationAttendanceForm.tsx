@@ -6,6 +6,13 @@
 import { useState, useTransition } from "react";
 
 import type { AttendanceResult, SterilizationPayload } from "@/app/actions/attendance";
+import {
+  OpFieldLabel,
+  OpFormAlert,
+  OpInput,
+  OpSelect,
+  OpSubmitButton,
+} from "@/components/ui/dashboard";
 
 type Props = {
   appointmentToken: string;
@@ -51,65 +58,36 @@ export function SterilizationAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <p
-          role="alert"
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <OpFormAlert>{error}</OpFormAlert>}
       <div>
-        <label htmlFor="ster-procedure" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-          Procedimiento
-        </label>
-        <select
-          id="ster-procedure"
-          name="procedure"
-          defaultValue="castration"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-        >
+        <OpFieldLabel htmlFor="ster-procedure">Procedimiento</OpFieldLabel>
+        <OpSelect id="ster-procedure" name="procedure" defaultValue="castration">
           <option value="castration">Castración (macho)</option>
           <option value="spay">Ovariectomía / Castración (hembra)</option>
-        </select>
+        </OpSelect>
       </div>
 
       <div>
-        <label
-          htmlFor="ster-performed_by"
-          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-        >
-          Realizado por
-        </label>
-        <input
+        <OpFieldLabel htmlFor="ster-performed_by">Realizado por</OpFieldLabel>
+        <OpInput
           id="ster-performed_by"
           name="performed_by"
           type="text"
           placeholder="Nombre del cirujano (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label htmlFor="ster-clinic" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-          Clínica / establecimiento
-        </label>
-        <input
+        <OpFieldLabel htmlFor="ster-clinic">Clínica / establecimiento</OpFieldLabel>
+        <OpInput
           id="ster-clinic"
           name="clinic"
           type="text"
           placeholder="Nombre del lugar (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {pending ? "Guardando…" : submitLabel}
-      </button>
+      <OpSubmitButton pending={pending}>{submitLabel}</OpSubmitButton>
     </form>
   );
 }

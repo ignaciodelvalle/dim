@@ -1,49 +1,43 @@
 "use server";
 
-// Server action wrapper around lib/performed-by-search. Auth-gated +
-// rate-limited (60 req/min per session) — same shape as
-// searchLocalitiesAction. Returns suggestions directly when ok,
-// otherwise a typed error so the combobox can render a hint instead
-// of throwing.
+// performed-by.ts — thin shim (strangler migration 60/61).
+//
+// Business logic moved to:
+//   src/modules/search/application/performed-by/
+//
+// This file re-exports the type and provides thin Action wrappers so all
+// existing UI importers and the parity test keep working unchanged.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import type { SearchJurisdiction } from "@/lib/infra/performed-by-search";
 import {
-  type PerformedBySuggestion,
-  type SearchJurisdiction,
-  searchVetsAndClinics,
-} from "@/lib/performed-by-search";
+  __resetPerformedByRateLimitForTests as _reset,
+  searchVetsAndClinicsAction as _searchVetsAndClinicsAction,
+} from "@/src/modules/search/application/performed-by/search-performed-by";
 
-const RATE_LIMIT_WINDOW_MS = 60_000;
-const RATE_LIMIT_MAX = 60;
-const rateLimitMap = new Map<string, { count: number; windowStart: number }>();
+// ---------------------------------------------------------------------------
+// Type re-export (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
 
-function checkRateLimit(sessionKey: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(sessionKey);
-  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
-    rateLimitMap.set(sessionKey, { count: 1, windowStart: now });
-    return true;
-  }
-  if (entry.count >= RATE_LIMIT_MAX) return false;
-  entry.count += 1;
-  return true;
-}
+export type { SearchPerformedByResult } from "@/src/modules/search/application/performed-by/types";
 
-// @no-auth-required: test-only utility, prefixed with `__` to mark non-public surface.
-export async function __resetPerformedByRateLimitForTests(): Promise<void> {
-  rateLimitMap.clear();
-}
-
-export type SearchPerformedByResult =
-  | { results: PerformedBySuggestion[] }
-  | { error: "rate_limited" };
+// ---------------------------------------------------------------------------
+// Action wrappers — auth-gated: guard here, module does the work
+// ---------------------------------------------------------------------------
 
 export async function searchVetsAndClinicsAction(input: {
   query: string;
   jurisdiction?: SearchJurisdiction;
-}): Promise<SearchPerformedByResult> {
+}): Promise<Awaited<ReturnType<typeof _searchVetsAndClinicsAction>>> {
   const { user } = await requireUserOrRedirect();
-  if (!checkRateLimit(user.id)) return { error: "rate_limited" };
-  const results = await searchVetsAndClinics(input.query, input.jurisdiction);
-  return { results };
+  return _searchVetsAndClinicsAction(user.id, input);
+}
+
+// @no-auth-required: test-only reset helper — delegates to the module that
+// owns the rate-limit state so the reset resets the live state.
+export async function __resetPerformedByRateLimitForTests(): Promise<void> {
+  return _reset();
 }

@@ -6,9 +6,11 @@ import Link from "next/link";
 
 import { LnCard, LnCardBody } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { approvalRequests, db, organizationInvitations, organizations } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { formatDate } from "@/lib/utils/format";
 import { WithdrawButton } from "./WithdrawButton";
 
 const REQUEST_TYPE_LABELS: Record<string, string> = {
@@ -127,21 +129,21 @@ export default async function SolicitudesPage({
   const totalCount = allRequests.length;
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/cuenta"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mi cuenta
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px] flex items-baseline gap-[14px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-6 flex items-baseline gap-3.5">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mis solicitudes
         </h1>
-        <span className="font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
+        <span className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
           {totalCount === 0
             ? "ninguna"
             : totalCount === 1
@@ -154,33 +156,29 @@ export default async function SolicitudesPage({
       {/* Pending org invitations                                            */}
       {/* ------------------------------------------------------------------ */}
       {pendingInvitations.length > 0 && (
-        <div className="mb-[32px]">
-          <LnSectionHead num="01" title="Invitaciones a organizaciones" className="mb-[14px]" />
-          <div className="flex flex-col gap-[10px]">
+        <div className="mb-8">
+          <LnSectionHead num="01" title="Invitaciones a organizaciones" className="mb-3.5" />
+          <div className="flex flex-col gap-2.5">
             {pendingInvitations.map((inv) => (
               <LnCard key={inv.invitationToken}>
                 <LnCardBody>
                   <div className="flex items-center justify-between gap-4">
                     <div className="min-w-0">
-                      <p className="font-[var(--font-ln-serif)] text-[14.5px] font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
+                      <p className="font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)] truncate">
                         {inv.orgDisplayName}
                       </p>
-                      <div className="mt-[6px] flex flex-wrap items-center gap-[6px]">
-                        <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-[2px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] px-[7px] py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
                           {INVITED_ROLE_LABELS[inv.invitedRole] ?? inv.invitedRole}
                         </span>
-                        <span className="font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
-                          Expira{" "}
-                          {inv.expiresAt.toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "long",
-                          })}
+                        <span className="font-ln-mono text-sm text-[var(--color-ln-mute)]">
+                          Expira {formatDate(inv.expiresAt)}
                         </span>
                       </div>
                     </div>
                     <Link
                       href={`/r/invite/${inv.invitationToken}`}
-                      className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-[var(--font-ln-sans)] text-[12px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+                      className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-[13px] py-[7px] font-ln-sans text-sm font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
                     >
                       Ver invitación
                     </Link>
@@ -198,21 +196,17 @@ export default async function SolicitudesPage({
       <LnSectionHead
         num={pendingInvitations.length > 0 ? "02" : "01"}
         title="Solicitudes de rol"
-        className="mb-[14px]"
+        className="mb-3.5"
       />
 
       {/* Empty state */}
       {totalCount === 0 && (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            No mandaste solicitudes todavía.
-          </p>
-        </div>
+        <LnEmptyState variant="dashed" title="No mandaste solicitudes todavía." />
       )}
 
       {/* Filter chips */}
       {totalCount > 0 && (
-        <div className="mb-[20px] flex flex-wrap gap-[6px]">
+        <div className="mb-5 flex flex-wrap gap-1.5">
           <FilterChip href="/cuenta/solicitudes" label="Todas" active={activeFilter === "all"} />
           <FilterChip
             href="/cuenta/solicitudes?filter=pending"
@@ -234,14 +228,12 @@ export default async function SolicitudesPage({
 
       {/* No results for filter */}
       {totalCount > 0 && filtered.length === 0 && (
-        <p className="text-[13px] text-[var(--color-ln-mute)]">
-          No hay solicitudes con ese filtro.
-        </p>
+        <p className="text-md text-[var(--color-ln-mute)]">No hay solicitudes con ese filtro.</p>
       )}
 
       {/* Requests list */}
       {filtered.length > 0 && (
-        <div className="flex flex-col gap-[12px]">
+        <div className="flex flex-col gap-3">
           {filtered.map((req) => {
             const statusVariant = (
               ["pending", "approved", "rejected", "withdrawn"].includes(req.status)
@@ -254,43 +246,27 @@ export default async function SolicitudesPage({
               <LnCard key={req.id}>
                 <LnCardBody>
                   {/* Type + status */}
-                  <div className="mb-[10px] flex flex-wrap items-center gap-[7px]">
-                    <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+                  <div className="mb-2.5 flex flex-wrap items-center gap-[7px]">
+                    <span className="inline-flex items-center rounded-[var(--radius-xs)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-2 py-0.5 font-ln-mono text-xs uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
                       {REQUEST_TYPE_LABELS[req.type] ?? req.type}
                     </span>
                     <span
-                      className={`inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${style.bg} ${style.text} ${style.border}`}
+                      className={`inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${style.bg} ${style.text} ${style.border}`}
                     >
                       {STATUS_LABELS[req.status]}
                     </span>
                   </div>
 
                   {/* Dates */}
-                  <div className="mb-[10px] flex flex-col gap-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-                    <span>
-                      Enviada el{" "}
-                      {req.createdAt.toLocaleDateString("es-AR", {
-                        year: "numeric",
-                        month: "long",
-                        day: "numeric",
-                      })}
-                    </span>
-                    {req.decidedAt && (
-                      <span>
-                        Decidida el{" "}
-                        {req.decidedAt.toLocaleDateString("es-AR", {
-                          year: "numeric",
-                          month: "long",
-                          day: "numeric",
-                        })}
-                      </span>
-                    )}
+                  <div className="mb-2.5 flex flex-col gap-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
+                    <span>Enviada el {formatDate(req.createdAt)}</span>
+                    {req.decidedAt && <span>Decidida el {formatDate(req.decidedAt)}</span>}
                   </div>
 
                   {/* Rejection reason */}
                   {req.status === "rejected" && req.decisionNotes && (
-                    <div className="mb-[10px] rounded-[4px] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-[12px] py-[8px]">
-                      <p className="text-[12px] text-[var(--color-ln-err)]">
+                    <div className="mb-2.5 rounded-[var(--radius-sm)] border border-[var(--color-ln-err-100)] bg-[var(--color-ln-err-050)] px-3 py-2">
+                      <p className="text-sm text-[var(--color-ln-err)]">
                         <span className="font-semibold">Motivo:</span> {req.decisionNotes}
                       </p>
                     </div>
@@ -326,7 +302,7 @@ function FilterChip({
       href={href}
       aria-current={active ? "page" : undefined}
       className={[
-        "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] font-[var(--font-ln-sans)] text-[12px] font-medium transition-colors no-underline",
+        "inline-flex cursor-pointer items-center rounded-full border px-[11px] py-[5px] font-ln-sans text-sm font-medium transition-colors no-underline",
         active
           ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)]"
           : "border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-[var(--color-ln-ink-2)] hover:bg-[var(--color-ln-stripe)]",

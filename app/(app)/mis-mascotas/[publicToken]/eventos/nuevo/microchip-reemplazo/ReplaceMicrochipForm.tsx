@@ -1,9 +1,14 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader, LnSubCard } from "@/components/ui/Sheet";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: EventFormState = { error: null };
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -25,37 +30,47 @@ export function ReplaceMicrochipForm({
   currentChip: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
-  const today = new Date().toISOString().slice(0, 10);
+  // N3: the action returns where to go instead of redirect()-ing, because the
+  // App Router drops a Server Action's own redirect in production.
+  const navigating = useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
+  const { key: idempotencyKey } = useIdempotencyKey();
+  const today = todayIsoInAr();
+
+  // Controlled field state — preserves typed input on validation error.
+  const [newChipNumber, setNewChipNumber] = useState("");
+  const [replacedBy, setReplacedBy] = useState("");
+  const [replacedAt, setReplacedAt] = useState(today);
+  const [notes, setNotes] = useState("");
 
   return (
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🔄"
+        icon={<Icon name="microchip-reemplazo" decorative />}
         title="Reemplazar microchip"
         subtitle="Libreta sanitaria oficial"
       />
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           {/* Current chip display */}
           <LnSubCard>
-            <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
-              Chip actual
-            </p>
-            <p className="font-[var(--font-ln-mono)] text-[13px] font-semibold text-[var(--color-ln-ink)]">
+            <p className="font-ln-mono text-sm text-[var(--color-ln-mute)]">Chip actual</p>
+            <p className="font-ln-mono text-md font-semibold text-[var(--color-ln-ink)]">
               {currentChip}
             </p>
           </LnSubCard>
 
           {/* Reason */}
-          <div className="flex flex-col gap-[6px]">
-            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          <div className="flex flex-col gap-1.5">
+            <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Motivo del reemplazo{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </p>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               {OWNER_REASONS.map((r) => (
                 <LnRadio key={r.value} name="reason" value={r.value} required>
                   {r.label}
@@ -70,6 +85,8 @@ export function ReplaceMicrochipForm({
                 id={id}
                 name="newChipNumber"
                 type="text"
+                value={newChipNumber}
+                onChange={(e) => setNewChipNumber(e.target.value)}
                 placeholder="985141004321456"
                 aria-describedby={describedBy}
                 invalid={invalid}
@@ -83,6 +100,8 @@ export function ReplaceMicrochipForm({
                 id={id}
                 name="replacedBy"
                 type="text"
+                value={replacedBy}
+                onChange={(e) => setReplacedBy(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -96,7 +115,8 @@ export function ReplaceMicrochipForm({
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={replacedAt}
+                onChange={(e) => setReplacedAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -109,6 +129,8 @@ export function ReplaceMicrochipForm({
                 name="notes"
                 rows={3}
                 maxLength={300}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -116,8 +138,10 @@ export function ReplaceMicrochipForm({
           </LnField>
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>
@@ -128,7 +152,7 @@ export function ReplaceMicrochipForm({
         tone="azul"
         ctaLabel="Confirmar reemplazo de chip"
         formId={FORM_ID}
-        isPending={isPending}
+        isPending={isPending || navigating}
       />
     </>
   );

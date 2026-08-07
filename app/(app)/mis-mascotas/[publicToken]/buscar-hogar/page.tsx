@@ -1,21 +1,12 @@
 // Buscar nuevo hogar — Libreta Nacional redesign.
 // Presentation only; RehomeRequestForm and data fetching unchanged.
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import { db, organizationCoverage, organizations, ownerships, pets, profiles } from "@/db";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
-import { LnCallout } from "@/components/ui/DocElements";
-import {
-  db,
-  organizationCoverage,
-  organizationMemberships,
-  organizations,
-  ownerships,
-  pets,
-  profiles,
-} from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import { RehomeRequestForm } from "./RehomeRequestForm";
 
 export default async function BuscarHogarPage({
@@ -103,54 +94,57 @@ export default async function BuscarHogarPage({
   })();
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href={`/mis-mascotas/${publicToken}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← {pet.name}
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[26px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+      <div className="mb-6">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           Buscar nuevo hogar para {pet.name}
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Estas organizaciones están verificadas y operan en tu zona. Enviando una solicitud, les
           avisás que {pet.name} necesita un hogar definitivo.
         </p>
       </div>
 
       {coveringOrgs.length === 0 ? (
-        <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] px-[20px] py-[32px] text-center">
-          <p className="text-[13px] text-[var(--color-ln-mute)]">
-            {province
+        <LnEmptyState
+          variant="dashed"
+          title={
+            province
               ? `No encontramos refugios verificados en ${locality ?? province} registrados en el sistema. Podés contactar organizaciones directamente o pedir al refugio que hoy tiene a ${pet.name} que busque un voluntario.`
-              : `${pet.name} no tiene provincia registrada. Editá el perfil para poder buscar organizaciones cercanas.`}
-          </p>
-          {!province && (
-            <Link
-              href={`/mis-mascotas/${publicToken}/editar`}
-              className="mt-[12px] inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] no-underline hover:underline"
-            >
-              Editar mascota →
-            </Link>
-          )}
-        </div>
+              : `${pet.name} no tiene provincia registrada. Editá el perfil para poder buscar organizaciones cercanas.`
+          }
+          action={
+            !province ? (
+              <Link
+                href={`/mis-mascotas/${publicToken}/editar`}
+                className="font-ln-mono text-sm text-[var(--color-ln-azul)] no-underline hover:underline"
+              >
+                Editar mascota →
+              </Link>
+            ) : undefined
+          }
+        />
       ) : (
-        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
           {coveringOrgs.map((org) => (
             <div
               key={org.id}
-              className="flex flex-col gap-[10px] border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-2.5 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
             >
               <div>
-                <p className="font-[var(--font-ln-serif)] text-[14px] font-semibold text-[var(--color-ln-ink)]">
+                <p className="font-ln-serif text-md font-semibold text-[var(--color-ln-ink)]">
                   {org.displayName}
                 </p>
-                <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] capitalize text-[var(--color-ln-mute)]">
+                <p className="mt-0.5 font-ln-mono text-sm capitalize text-[var(--color-ln-mute)]">
                   {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {" · "}
                   {org.jurisdictionLocality ?? org.jurisdictionProvince}
@@ -167,7 +161,7 @@ export default async function BuscarHogarPage({
         </div>
       )}
 
-      <p className="mt-[20px] text-[12px] text-[var(--color-ln-mute)]">
+      <p className="mt-5 text-sm text-[var(--color-ln-mute)]">
         Las organizaciones recibirán una notificación con tus datos de contacto para hacer el
         seguimiento. No se compromete ningún acuerdo — es un primer contacto.
       </p>

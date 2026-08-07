@@ -1,0 +1,4 @@
+{
+  "src/modules/lost/infrastructure/lost-listing-read.ts#last_known_location": "Legacy fallback key. Pre-Lost&Found-Fase-1 status_changed rows (before location_description existed) stored the lost location under last_known_location; some historical rows on production predate the rename. No current writer schema (statusChanged in lib/events/event-schemas.ts) emits this key — new writes only ever set location_description. This read is a read-only fallback for old rows, not a live write path. See also app/(public)/p/[publicToken]/page.tsx#last_known_location for the same historical fallback on the public credential.",
+  "app/(public)/p/[publicToken]/page.tsx#last_known_location": "Same legacy fallback as src/modules/lost/infrastructure/lost-listing-read.ts#last_known_location (see that entry) — the public credential's lost-pet location line falls back to the pre-rename key for historical status_changed rows."
+}

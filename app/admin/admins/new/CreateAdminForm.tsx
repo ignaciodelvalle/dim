@@ -7,6 +7,9 @@ import { useState } from "react";
 
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
+import { OpButton, OpInput } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 type SuccessState = {
   profileId: string;
@@ -44,9 +47,10 @@ export function CreateAdminForm() {
           displayName: displayName.trim(),
           email: email.trim(),
         });
+        notifySaved("Cuenta admin creada");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
     } finally {
       setLoading(false);
     }
@@ -67,6 +71,7 @@ export function CreateAdminForm() {
         email={success.email}
         profileId={success.profileId}
         detailPath={`/admin/admins/${success.profileId}`}
+        variant="create"
         onCreateAnother={handleCreateAnother}
       />
     );
@@ -76,57 +81,56 @@ export function CreateAdminForm() {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="space-y-4">
         <div>
-          <label htmlFor="email" className="block text-[12px] font-medium text-ln-op-ink-2 mb-1">
-            Email
+          <label htmlFor="email" className="block text-sm font-medium text-ln-op-ink-2 mb-1">
+            Email{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
           </label>
-          <input
+          <OpInput
             id="email"
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="nuevo.admin@dim.gob.ar"
-            className="w-full text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
 
         <div>
-          <label
-            htmlFor="displayName"
-            className="block text-[12px] font-medium text-ln-op-ink-2 mb-1"
-          >
-            Nombre de display
+          <label htmlFor="displayName" className="block text-sm font-medium text-ln-op-ink-2 mb-1">
+            Nombre de display{" "}
+            <span className="text-ln-op-danger" aria-hidden="true">
+              *
+            </span>
           </label>
-          <input
+          <OpInput
             id="displayName"
             type="text"
             required
             value={displayName}
             onChange={(e) => setDisplayName(e.target.value)}
-            placeholder="Admin MiMAR"
+            placeholder="Admin miMAR"
             maxLength={100}
-            className="w-full text-[13px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
       </div>
 
       {error && (
-        <div className="rounded-[6px] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3">
-          <p className="text-[13px] text-ln-op-danger">{error}</p>
+        <div className="rounded-[var(--radius-md)] bg-ln-op-danger-bg border border-ln-op-danger-bd px-4 py-3">
+          <p className="text-md text-ln-op-danger">{error}</p>
         </div>
       )}
 
       <div className="flex gap-3">
-        <button
-          type="submit"
-          disabled={loading}
-          className="px-5 py-2 text-[13px] font-semibold bg-ln-op-azul text-white rounded-[6px] hover:bg-ln-op-azul-700 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
+        <OpButton type="submit" disabled={loading} loading={loading} variant="primary">
           {loading ? "Creando..." : "Crear cuenta admin"}
-        </button>
+        </OpButton>
+        {/* Straight to the hub tab (privileged-accounts fusion 2026-08-02) —
+            /admin/admins is redirect-only now, no reason to pay the hop. */}
         <a
-          href="/admin/admins"
-          className="px-5 py-2 text-[13px] border border-ln-op-line rounded-[6px] hover:bg-ln-op-stripe"
+          href="/admin/cuentas?registro=admins"
+          className="px-5 py-2 text-md border border-ln-op-line rounded-[var(--radius-md)] hover:bg-ln-op-stripe"
         >
           Cancelar
         </a>

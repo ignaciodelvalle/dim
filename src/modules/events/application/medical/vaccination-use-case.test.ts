@@ -8,7 +8,7 @@
 //
 // Dependencies are mocked via vitest.fn(). No DB needed.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import { type CreateVaccinationInput, createVaccination } from "./vaccination-use-case";
@@ -32,6 +32,7 @@ function makeRepo(overrides: FakeRepo = {}): EventsRepository {
     insertAttachment: vi.fn().mockResolvedValue(undefined),
     completeReminder: vi.fn().mockResolvedValue(undefined),
     insertReminders: vi.fn().mockResolvedValue(undefined),
+    findOpenReminders: vi.fn().mockResolvedValue([]),
     ...overrides,
   } as unknown as EventsRepository;
 }
@@ -138,6 +139,87 @@ describe("createVaccination", () => {
     const { repo, transaction } = makeDeps();
     await createVaccination(BASE_INPUT, { repo, transaction });
     expect(repo.insertReminders).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Duplicate reminder supersede (case/accent-insensitive title match)
+// ---------------------------------------------------------------------------
+
+describe("createVaccination duplicate reminder supersede", () => {
+  it("completes an existing open vaccine reminder with a different-case title", async () => {
+    const { repo, transaction } = makeDeps({
+      findOpenReminders: vi
+        .fn()
+        .mockResolvedValue([{ id: "reminder-old", title: "Refuerzo: Antirrábica" }]),
+    });
+    const input: CreateVaccinationInput = {
+      ...BASE_INPUT,
+      vaccineName: "antirrábica",
+      nextDueAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    await createVaccination(input, { repo, transaction });
+    expect(repo.completeReminder).toHaveBeenCalledWith(
+      "reminder-old",
+      "pet-1",
+      expect.any(Date),
+      "fake-tx",
+    );
+    expect(repo.insertReminders).toHaveBeenCalledTimes(1);
+  });
+
+  it("completes an existing open vaccine reminder with a diacritic-only difference", async () => {
+    const { repo, transaction } = makeDeps({
+      findOpenReminders: vi
+        .fn()
+        .mockResolvedValue([{ id: "reminder-old", title: "refuerzo: antirrabica" }]),
+    });
+    const input: CreateVaccinationInput = {
+      ...BASE_INPUT,
+      vaccineName: "Antirrábica",
+      nextDueAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    await createVaccination(input, { repo, transaction });
+    expect(repo.completeReminder).toHaveBeenCalledWith(
+      "reminder-old",
+      "pet-1",
+      expect.any(Date),
+      "fake-tx",
+    );
+  });
+
+  it("does NOT touch an open reminder for a different vaccine", async () => {
+    const { repo, transaction } = makeDeps({
+      findOpenReminders: vi
+        .fn()
+        .mockResolvedValue([{ id: "reminder-other", title: "Refuerzo: Triple felina" }]),
+    });
+    const input: CreateVaccinationInput = {
+      ...BASE_INPUT,
+      vaccineName: "Antirrábica",
+      nextDueAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    await createVaccination(input, { repo, transaction });
+    expect(repo.completeReminder).not.toHaveBeenCalled();
+    expect(repo.insertReminders).toHaveBeenCalledTimes(1);
+  });
+
+  it("does NOT double-complete the reminder already resolved via sourceReminderId", async () => {
+    const { repo, transaction } = makeDeps({
+      findOpenReminders: vi
+        .fn()
+        .mockResolvedValue([{ id: "reminder-1", title: "Refuerzo: Antirrábica" }]),
+    });
+    const input: CreateVaccinationInput = {
+      ...BASE_INPUT,
+      vaccineName: "Antirrábica",
+      sourceReminderId: "reminder-1",
+      nextDueAt: new Date("2025-06-01T10:00:00Z"),
+    };
+    await createVaccination(input, { repo, transaction });
+    // Once for the explicit sourceReminderId completion, not twice for the
+    // duplicate-match pass (it's excluded by id).
+    expect(repo.completeReminder).toHaveBeenCalledTimes(1);
   });
 });
 

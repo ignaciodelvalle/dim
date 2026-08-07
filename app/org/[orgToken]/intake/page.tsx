@@ -9,21 +9,19 @@
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 import { db, petEvents, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDate, pluralizeEs, speciesLabel } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { IntakeForm } from "./IntakeForm";
 
 type TabKey = "cola" | "registrar";
 
-const SPECIES_LABEL: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  other: "Otra especie",
-};
+// Intake queue is recency-bounded; cap the fetch and signal truncation (audit
+// #15) so a high-volume org isn't silently shown a partial list with no notice.
+const INTAKE_CAP = 100;
 
 export default async function IntakePage({
   params,
@@ -43,15 +41,15 @@ export default async function IntakePage({
     return (
       <div className="flex items-center justify-center py-16">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-md text-ln-op-mute">
             Para registrar ingresos necesitás el permiso{" "}
-            <code className="text-[12px] font-mono">intake.create</code>. Pedíselo a un
-            administrador desde el panel.
+            <code className="text-sm font-mono">intake.create</code>. Pedíselo a un administrador
+            desde el panel.
           </p>
           <Link
             href={`/org/${orgToken}`}
-            className="inline-block rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            className="inline-block rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
           >
             Volver al panel
           </Link>
@@ -81,8 +79,12 @@ export default async function IntakePage({
             ),
           )
           .orderBy(desc(petEvents.occurredAt))
-          .limit(100)
+          .limit(INTAKE_CAP + 1)
       : [];
+
+  // Truncation signal (audit #15): fetch one extra to detect "there are more".
+  const intakeTruncated = intakeRows.length > INTAKE_CAP;
+  const displayIntakeRows = intakeTruncated ? intakeRows.slice(0, INTAKE_CAP) : intakeRows;
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -90,18 +92,26 @@ export default async function IntakePage({
 
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <p className="text-[12px] uppercase tracking-wider text-ln-op-mute">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Ingresos</h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">Ingresos</h1>
         </div>
         {activeTab === "cola" && (
-          <Link
-            href={`/org/${orgToken}/intake?tab=registrar`}
-            className="inline-flex items-center rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
-          >
-            + Nuevo ingreso
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link
+              href={`/org/${orgToken}/intake/importar`}
+              className="inline-flex items-center rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-md font-medium text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+            >
+              Importar CSV
+            </Link>
+            <Link
+              href={`/org/${orgToken}/intake?tab=registrar`}
+              className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
+            >
+              + Nuevo ingreso
+            </Link>
+          </div>
         )}
       </header>
 
@@ -114,7 +124,7 @@ export default async function IntakePage({
             <Link
               key={tab}
               href={`/org/${orgToken}/intake?tab=${tab}`}
-              className={`px-4 py-2 text-[13px] font-medium no-underline border-b-2 transition-colors ${
+              className={`px-4 py-2 text-md font-medium no-underline border-b-2 transition-colors ${
                 isActive
                   ? "border-ln-op-azul text-ln-op-azul"
                   : "border-transparent text-ln-op-mute hover:text-ln-op-ink-2"
@@ -128,38 +138,47 @@ export default async function IntakePage({
 
       {activeTab === "cola" ? (
         intakeRows.length === 0 ? (
-          <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-            Todavía no registraste ningún ingreso.{" "}
+          <p className="rounded-[var(--radius-md)] border border-dashed border-ln-op-line p-8 text-center text-md text-ln-op-mute">
+            No hay ingresos registrados.{" "}
             <Link
               href={`/org/${orgToken}/intake?tab=registrar`}
               className="text-ln-op-azul hover:underline no-underline"
             >
-              Registrar el primero
+              Registrar ingreso
             </Link>
           </p>
         ) : (
           <OpCard>
             <OpCardHead
               title="Ingresos recientes"
-              actions={`${intakeRows.length} registro${intakeRows.length !== 1 ? "s" : ""}`}
+              actions={
+                intakeTruncated
+                  ? `Últimos ${INTAKE_CAP}`
+                  : `${displayIntakeRows.length} ${pluralizeEs(displayIntakeRows.length, "registro")}`
+              }
             />
             <OpCardBody className="p-0">
+              {intakeTruncated && (
+                <p className="px-4 pt-3 text-sm text-ln-op-mute">
+                  Mostrando los {INTAKE_CAP} ingresos más recientes. Hay más en el historial del
+                  animal.
+                </p>
+              )}
               <ul className="divide-y divide-ln-op-line">
-                {intakeRows.map((row) => (
+                {displayIntakeRows.map((row) => (
                   <li
                     key={row.eventId}
                     className="flex items-center justify-between gap-3 px-4 py-3"
                   >
                     <div className="min-w-0 space-y-0.5">
-                      <p className="text-[13px] font-medium text-ln-op-ink">{row.petName}</p>
-                      <p className="text-[12px] text-ln-op-mute">
-                        {SPECIES_LABEL[row.petSpecies] ?? row.petSpecies} ·{" "}
-                        {formatDate(row.occurredAt)}
+                      <p className="text-md font-medium text-ln-op-ink">{row.petName}</p>
+                      <p className="text-sm text-ln-op-mute">
+                        {speciesLabel(row.petSpecies)} · {formatDate(row.occurredAt)}
                       </p>
                     </div>
                     <Link
                       href={`/org/${orgToken}/mascotas/${row.petPublicToken}`}
-                      className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+                      className="shrink-0 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
                     >
                       Ver ficha
                     </Link>
@@ -171,7 +190,7 @@ export default async function IntakePage({
         )
       ) : (
         <div className="space-y-4">
-          <p className="text-[13px] text-ln-op-mute">
+          <p className="text-md text-ln-op-mute">
             Cargá los datos básicos del animal y el motivo de ingreso. La organización queda como
             custodia temporal hasta que se asigne tránsito o se concrete una adopción.
           </p>

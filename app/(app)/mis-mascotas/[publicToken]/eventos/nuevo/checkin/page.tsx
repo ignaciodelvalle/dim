@@ -1,7 +1,7 @@
 import { recordPostAdoptionCheckinAction } from "@/app/actions/checkin";
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, petEvents, reminders } from "@/db";
-import { requirePetAccess } from "@/lib/pet-access";
+import { requirePetAccess } from "@/lib/infra/pet-access";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -21,7 +21,7 @@ export default async function PostAdoptionCheckinPage({
   searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
-  searchParams: Promise<{ notes?: string }>;
+  searchParams: Promise<{ notes?: string; autoconfirm?: string }>;
 }) {
   const { publicToken } = await params;
   const sp = await searchParams;
@@ -64,17 +64,17 @@ export default async function PostAdoptionCheckinPage({
     return (
       <LnSheetWrap>
         <LnSheetCard>
-          <div className="px-[18px] py-[24px] space-y-[10px]">
-            <p className="font-[var(--font-ln-serif)] text-[16px] font-semibold text-[var(--color-ln-ink)]">
+          <div className="px-[18px] py-6 space-y-[10px]">
+            <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ink)]">
               Sin check-ins pendientes
             </p>
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               {pet.name} no tiene un check-in post-adopción pendiente en este momento. Si el refugio
               te pide otro seguimiento más adelante, te vamos a avisar.
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}`}
-              className="inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
+              className="inline-block font-ln-mono text-sm text-[var(--color-ln-azul)] underline underline-offset-2"
             >
               ← Volver al perfil
             </Link>
@@ -89,7 +89,11 @@ export default async function PostAdoptionCheckinPage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <CheckinForm action={boundAction} defaults={{ notes: sp.notes ?? null }} />
+        <CheckinForm
+          action={boundAction}
+          defaults={{ notes: sp.notes ?? null }}
+          autoConfirm={sp.autoconfirm === "1"}
+        />
       </LnSheetCard>
     </LnSheetWrap>
   );

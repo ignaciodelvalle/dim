@@ -17,6 +17,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/src/modules/organizations/infrastructure/authz-resolver", () => ({
   requireCapability: vi.fn(),
+  requireCapabilityForOrgToken: vi.fn(),
 }));
 
 vi.mock("@/lib/supabase/server", () => ({
@@ -79,9 +80,11 @@ vi.mock("../application/search-foster-volunteers", () => ({
 // Imports (after mocks)
 // ---------------------------------------------------------------------------
 
-import { db } from "@/db";
 import { createClient } from "@/lib/supabase/server";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
@@ -125,17 +128,24 @@ const MOCK_ORG = {
 };
 
 function mockAuth() {
-  vi.mocked(requireCapability).mockResolvedValue({
+  // assign/end/propose/search pin the capability to the URL org via
+  // requireCapabilityForOrgToken; cancel still uses requireCapability (scoped to
+  // proposal.organizationId). Stub both to the same success actor.
+  const ok = {
     error: null,
     user: MOCK_USER,
     organization: MOCK_ORG,
-  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never);
+  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never;
+  vi.mocked(requireCapability).mockResolvedValue(ok);
+  vi.mocked(requireCapabilityForOrgToken).mockResolvedValue(ok);
 }
 
 function mockAuthError(error: string) {
-  vi.mocked(requireCapability).mockResolvedValue({
+  const fail = {
     error,
-  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never);
+  } as ReturnType<typeof requireCapability> extends Promise<infer U> ? U : never;
+  vi.mocked(requireCapability).mockResolvedValue(fail);
+  vi.mocked(requireCapabilityForOrgToken).mockResolvedValue(fail);
 }
 
 function mockSession(userId: string | null) {
@@ -197,12 +207,14 @@ describe("assignFosterAction", () => {
       notifications: [NOTIFICATION],
     });
     const fd = fakeFormData({ fosterUserId: "u-1", expectedWeeks: "4", notes: "test note" });
-    await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
+    const state = await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
     expect(assignFoster).toHaveBeenCalledWith(
       { petPublicToken: "PET-tok", fosterUserId: "u-1", expectedWeeksRaw: "4", notes: "test note" },
       expect.objectContaining({ actor: expect.objectContaining({ user: MOCK_USER }) }),
     );
-    expect(redirect).toHaveBeenCalledWith("/org/ORG-tok/mascotas?foster=PET-tok");
+    // N3 (B.2): returned, not redirect()ed.
+    expect(state.redirectTo).toBe("/org/ORG-tok/mascotas?foster=PET-tok");
+    expect(redirect).not.toHaveBeenCalled();
   });
 
   it("uses ?foster= redirect param (not ?fostend=)", async () => {
@@ -212,8 +224,8 @@ describe("assignFosterAction", () => {
       notifications: [],
     });
     const fd = fakeFormData({ fosterUserId: "u-1" });
-    await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
-    const [path] = vi.mocked(redirect).mock.calls[0];
+    const state = await assignFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
+    const path = state.redirectTo ?? "";
     expect(path).toContain("?foster=");
     expect(path).not.toContain("?fostend=");
   });
@@ -243,8 +255,8 @@ describe("endFosterAction", () => {
       notifications: [],
     });
     const fd = fakeFormData({ reason: "returned" });
-    await endFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
-    const [path] = vi.mocked(redirect).mock.calls[0];
+    const state = await endFosterAction("ORG-tok", "PET-tok", { error: null }, fd);
+    const path = state.redirectTo ?? "";
     expect(path).toContain("?fostend=");
     expect(path).not.toContain("?foster=");
   });

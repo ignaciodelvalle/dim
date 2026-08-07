@@ -1,11 +1,13 @@
 "use client";
 
 import { LnField, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import {
   type TransferCustodyFormState,
   transferCustodyAction,
 } from "@/src/modules/transfers/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: TransferCustodyFormState = { error: null };
 
@@ -25,13 +27,18 @@ export function TransferCustodyForm({
 }) {
   const action = transferCustodyAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [notes, setNotes] = useState("");
 
   return (
     <form action={formAction} className="space-y-5">
       <section className="space-y-3">
-        <h2 className="text-[11px] font-semibold uppercase tracking-wider text-ln-op-mute">
-          Destino
-        </h2>
+        <h2 className="text-sm font-semibold uppercase tracking-wider text-ln-op-mute">Destino</h2>
         <LnField
           label="Organización destino"
           required
@@ -59,7 +66,7 @@ export function TransferCustodyForm({
         </LnField>
 
         <fieldset className="space-y-2">
-          <legend className="text-[12px] text-ln-op-ink-2">Rol en el destino</legend>
+          <legend className="text-sm text-ln-op-ink-2">Rol en el destino</legend>
           <label className="flex items-start gap-2">
             <input
               type="radio"
@@ -69,10 +76,8 @@ export function TransferCustodyForm({
               className="mt-1"
             />
             <span>
-              <span className="block text-[13px] font-medium text-ln-op-ink">
-                Custodia temporal
-              </span>
-              <span className="block text-[11px] text-ln-op-mute">
+              <span className="block text-md font-medium text-ln-op-ink">Custodia temporal</span>
+              <span className="block text-sm text-ln-op-mute">
                 El destino se hace cargo con vistas a rehoming (igual que un intake).
               </span>
             </span>
@@ -80,10 +85,8 @@ export function TransferCustodyForm({
           <label className="flex items-start gap-2">
             <input type="radio" name="newRole" value="owner" className="mt-1" />
             <span>
-              <span className="block text-[13px] font-medium text-ln-op-ink">
-                Dueño/a permanente
-              </span>
-              <span className="block text-[11px] text-ln-op-mute">
+              <span className="block text-md font-medium text-ln-op-ink">Dueño/a permanente</span>
+              <span className="block text-sm text-ln-op-mute">
                 El destino mantiene al animal indefinidamente (santuario, decomiso sin rehoming).
               </span>
             </span>
@@ -98,6 +101,8 @@ export function TransferCustodyForm({
               rows={3}
               maxLength={500}
               placeholder="Motivo, condiciones especiales, contacto en el destino…"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               aria-describedby={describedBy}
               invalid={invalid}
             />
@@ -105,24 +110,20 @@ export function TransferCustodyForm({
         </LnField>
       </section>
 
-      <p className="text-[11px] rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">
+      <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-ln-op-warn">
         Si el animal tiene tránsito activo, ese registro se cierra automáticamente y se notifica al
         tránsito.
       </p>
 
       {state.error && (
-        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending}
-        className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-      >
+      <OpButton type="submit" disabled={isPending}>
         {isPending ? "Transfiriendo…" : "Transferir custodia"}
-      </button>
+      </OpButton>
     </form>
   );
 }

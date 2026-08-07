@@ -45,11 +45,33 @@ describe("<LnSuccessScreen>", () => {
     expect(html).toContain("Tocá para copiar");
   });
 
+  it("renders a custom codeLabel over the default tracking-code framing", () => {
+    const html = render(
+      <LnSuccessScreen
+        title="OK"
+        code="DIM-A1B2-C3D4"
+        codeLabel="Credencial de la mascota"
+        next={minimalActions}
+      />,
+    );
+    expect(html).toContain("Credencial de la mascota");
+    expect(html).not.toContain("Tu código de seguimiento");
+    expect(html).toContain("DIM-A1B2-C3D4");
+  });
+
   it("renders codeWarning when provided", () => {
     const html = render(
       <LnSuccessScreen title="OK" codeWarning="Guardalo bien." next={minimalActions} />,
     );
     expect(html).toContain("Guardalo bien.");
+  });
+
+  it("renders the official-and-immutable stamp only when official is set", () => {
+    const without = render(<LnSuccessScreen title="OK" next={minimalActions} />);
+    expect(without).not.toContain("Comprobante oficial e inmutable");
+
+    const withStamp = render(<LnSuccessScreen title="OK" official next={minimalActions} />);
+    expect(withStamp).toContain("Comprobante oficial e inmutable");
   });
 
   it("renders an <a> for href actions", () => {

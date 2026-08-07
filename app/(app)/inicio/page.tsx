@@ -1,414 +1,121 @@
-// Owner home — Libreta Nacional redesign.
+// /inicio folds into the pet profile (owner-ia-redesign P5, decision 7).
 //
-// Layout: greeting (serif h1 + date/place mono right) → capture block
-// (EventCatcher restyled as "Asentar un hecho" card) → 2-col grid:
-//   left:  01 Mis mascotas registry (LnRegRow)
-//   right: stacked cards — Vencimientos, Próximos turnos, Casos abiertos
+// The profile keeps its route; /inicio no longer renders a dashboard — it is a
+// server redirect INTO the most-urgent live pet's credential. "Open the app →
+// land on the pet that most needs you." The ordering is the SAME shared rank
+// (rankOwnerCarousel / petUrgencyRank) the profile carousel (P4) and the
+// /mis-mascotas index use, so the pet /inicio lands on is exactly the pet whose
+// dot sits first in the swipe.
 //
-// Data fetching, server actions, routes, and EventCatcher behavior unchanged.
-// Auth + role gates enforced by (app)/layout.tsx.
+// Zero live pets → the index+inbox (/mis-mascotas), which is the only surface
+// that exists for a pets-less owner (denuncias, inbound transfers, adoption
+// postulaciones, foster proposals — none of which have a credential to live on;
+// inventory §9.2).
+//
+// URL fragments never reach the server, but QUERY params do — so the tab-bar
+// capture deep-link points at /inicio?sheet=anotar (CitizenTabBar) and this
+// redirect FORWARDS its query string onto the resolved profile URL. The result
+// is a single server redirect (/inicio?sheet=anotar → /mis-mascotas/DIM-XXXX?
+// sheet=anotar) where the profile's SheetMounter opens the anotar sheet on
+// arrival — no second hop, no capture-flow break. The zero-pet path forwards the
+// SAME query onto the bare /mis-mascotas index for consistency (harmless — it
+// preserves any OTHER forwarded params) but ?sheet=anotar itself is INERT there:
+// the index doesn't mount SheetMounter, and with zero live pets there is nothing
+// to capture an event against anyway. For a pets-less owner the index's own
+// "Registrar mascota" CTA is the correct landing, not a capture sheet (W1
+// review fix bar 2026-07-15: the prior comment claimed this forward "opens the
+// capture sheet for zero-pet owners" — it never did). The former /cuenta/casos
+// #casos anchor now points at /mis-mascotas#inbox directly.
+//
+// Vet gate: /inicio is also a post-login landing target, so a dual-role vet can
+// arrive here. It honours the SAME vet-landing gate /mis-mascotas uses
+// (resolveVetLanding unless ?as=owner) so the two owner entry points behave
+// identically — otherwise /inicio was a back-door around the vet gate (Cursor).
 
-import Link from "next/link";
+import { redirect } from "next/navigation";
 
-import { type CaseRow, CasesWidget } from "@/components/CasesWidget";
-import { EventCatcher, type EventCatcherPet, type PetState } from "@/components/EventCatcher";
-import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { LnSectionHead } from "@/components/ui/DocElements";
-import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { speciesLabel } from "@/lib/format";
-import type { DashboardPet, WorkflowItem, WorkflowKind } from "@/lib/owner-dashboard";
 import {
-  fetchActiveReminders,
-  fetchOpenWorkflows,
-  fetchPetsForOwner,
-  fetchUpcomingAppointments,
-} from "@/lib/owner-dashboard";
-import { getProfileCached } from "@/lib/request-cache";
-import { petPhotoUrl } from "@/lib/storage";
-import type { ReminderVariant } from "@/lib/vaccine-reminder-state";
-import { IntentApplyBanner } from "./_components/IntentApplyBanner";
-import { RemindersSection } from "./_components/RemindersSection";
+  fetchComplianceStatesForPets,
+  fetchLivePetsForCarouselRanking,
+} from "@/lib/analytics/owner-dashboard";
+import type { CarouselPetInput } from "@/lib/domain/owner-carousel";
+import { rankOwnerCarousel } from "@/lib/domain/owner-carousel";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { getProfileCached } from "@/lib/infra/request-cache";
+import { resolveVetLanding } from "@/lib/infra/role-landing";
+import { lnPetStatusFromCompliance } from "@/lib/projections/pet-compliance";
 
 export const dynamic = "force-dynamic";
 
-// ---------------------------------------------------------------------------
-// Adapters: DB row shapes → presentational props
-// ---------------------------------------------------------------------------
-
-function petStateFromDashboard(p: DashboardPet): PetState {
-  if (p.status === "lost") return "urgent";
-  return "ok";
-}
-
-function adaptPet(p: DashboardPet): EventCatcherPet {
-  return {
-    id: p.id,
-    name: p.name,
-    publicToken: p.publicToken,
-    photoUrl: p.primaryPhotoStoragePath ? petPhotoUrl(p.primaryPhotoStoragePath) : null,
-    status: (p.status === "active" || p.status === "lost" || p.status === "deceased"
-      ? p.status
-      : "active") as EventCatcherPet["status"],
-    state: petStateFromDashboard(p),
-  };
-}
-
-const WORKFLOW_KIND_ICON: Record<WorkflowKind, string> = {
-  pet_lost: "🧭",
-  welfare_report_open: "🚨",
-  welfare_report_closed: "🚨",
-  adoption_application_pending: "📨",
-  adoption_application_resolved: "📨",
-  foster_proposal_pending: "🏠",
-  foster_proposal_resolved: "🏠",
-  custody_transfer_pending: "🤝",
-  custody_dispute_open: "⚖️",
-  approval_request_pending: "📋",
-  approval_request_decided: "📋",
-  bite_observation_open: "🦷",
-  dangerous_breed_pending_attestation: "⚠️",
-  case_generic_open: "📁",
-};
-
-function adaptWorkflow(w: WorkflowItem): CaseRow {
-  return {
-    id: w.id,
-    title: w.title,
-    subtitle: w.subtitle ?? "",
-    ctaUrl: w.ctaUrl,
-    since: w.since,
-    severity: w.severity === "urgent" ? "danger" : w.severity,
-    icon: WORKFLOW_KIND_ICON[w.kind],
-  };
-}
-
-/** Map DB pet status to LnPetStatus for registry rows. */
-function toLnStatus(status: string): "ok" | "lost" {
-  if (status === "lost") return "lost";
-  return "ok";
-}
-
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
-
-export default async function InicioPage() {
+export default async function InicioPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { user } = await requireUserOrRedirect();
+  const sp = await searchParams;
 
-  // getProfileCached is warmed by (app)/layout.tsx in the same render pass —
-  // this is a memoized hit, not an extra DB round-trip.
-  const [profileRow, pets, openWf, appointments, reminders] = await Promise.all([
-    getProfileCached(user.id),
-    fetchPetsForOwner(user.id),
-    fetchOpenWorkflows(user.id),
-    fetchUpcomingAppointments(user.id, 5),
-    fetchActiveReminders(user.id),
-  ]);
-  // Deactivated profiles greet generically — parity with the pre-cache query,
-  // which filtered deactivated_at IS NULL.
-  const firstName =
-    profileRow && profileRow.deactivatedAt === null
-      ? (profileRow.displayName ?? "").trim().split(/\s+/)[0] || "amigo"
-      : "amigo";
+  // Vet gate — mirror of /mis-mascotas (page.tsx): a vet who also owns pets
+  // reaches the owner surfaces only via ?as=owner; otherwise they land at their
+  // org portal. Keeping this here closes the /inicio back-door around the gate.
+  const profile = await getProfileCached(user.id);
+  if (profile?.role === "vet" && sp.as !== "owner") {
+    redirect(await resolveVetLanding(user.id));
+  }
 
-  const eventCatcherPets = pets.map(adaptPet);
-  const cases = openWf.map(adaptWorkflow);
+  // Forward the original query string (e.g. ?sheet=anotar from the tab bar) onto
+  // whichever destination we redirect to — the profile OR the zero-pet index.
+  const forwarded = new URLSearchParams();
+  for (const [key, value] of Object.entries(sp)) {
+    if (typeof value === "string") forwarded.set(key, value);
+    else if (Array.isArray(value)) for (const v of value) forwarded.append(key, v);
+  }
+  const query = forwarded.toString();
 
-  // Visible pets for the registry (no deceased)
-  const registryPets = pets.filter((p) => p.status !== "deceased");
+  // The carousel source: EVERY live pet the owner can move between (foster/
+  // transit included — no role filter, no cap). Ranking must see the whole
+  // household or a most-urgent pet beyond the newest 50 would never surface
+  // (QA ronda 4 CONFIRMED). Deceased pets never enter the swipe (decision 6);
+  // they live in the index's "En memoria".
+  const livePets = await fetchLivePetsForCarouselRanking(user.id);
 
-  // Today's date for the greeting datestamp
-  const today = new Date();
-  const dateLabel = today.toLocaleDateString("es-AR", {
-    weekday: "short",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
+  // No live pet → the index+inbox is the home. Forward the query for
+  // consistency with the profile branch below (harmless — preserves any other
+  // params), but note ?sheet=anotar itself is inert on the bare index: there is
+  // no pet yet to capture an event against, and the index doesn't mount
+  // SheetMounter. The index's own "Registrar mascota" CTA is the right next
+  // step for a zero-pet owner.
+  if (livePets.length === 0) {
+    redirect(`/mis-mascotas${query ? `?${query}` : ""}`);
+  }
+
+  // Compliance over the live set — the SAME projection the index and the
+  // profile read (deriveComplianceState → lnPetStatusFromCompliance), so the
+  // urgency order here can never disagree with the carousel dots.
+  const complianceByPet = await fetchComplianceStatesForPets(
+    user.id,
+    livePets.map((p) => p.id),
+  );
+
+  const carouselInput: CarouselPetInput[] = livePets.map((p) => {
+    const compliance = complianceByPet.get(p.id);
+    return {
+      token: p.publicToken,
+      status: p.status,
+      pregnancyStatus: p.pregnancyStatus ?? null,
+      complianceStatus: compliance
+        ? lnPetStatusFromCompliance(
+            { status: p.status, pregnancyStatus: p.pregnancyStatus ?? null },
+            compliance,
+          )
+        : null,
+    };
   });
 
-  return (
-    <div className="mx-auto max-w-5xl px-[32px] py-[28px] pb-[48px] md:px-[32px]">
-      {/* ------------------------------------------------------------------ */}
-      {/* Greeting                                                            */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="mb-[24px] flex items-start justify-between gap-4">
-        <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-            Buen día, {firstName}.
-          </h1>
-          {reminders.length > 0 || cases.length > 0 ? (
-            <p className="mt-[6px] text-[14px] text-[var(--color-ln-ink-2)]">
-              {reminders.length > 0 && (
-                <>
-                  Tenés{" "}
-                  <strong>
-                    {reminders.length} vencimiento{reminders.length !== 1 ? "s" : ""} próximo
-                    {reminders.length !== 1 ? "s" : ""}
-                  </strong>
-                  {cases.length > 0 ? " y " : "."}
-                </>
-              )}
-              {cases.length > 0 && (
-                <>
-                  {cases.length > 1 ? `${cases.length} casos abiertos` : "un caso abierto"} que{" "}
-                  {cases.length !== 1 ? "requieren" : "requiere"} atención.
-                </>
-              )}
-            </p>
-          ) : (
-            <p className="mt-[6px] text-[14px] text-[var(--color-ln-mute)]">Todo en orden.</p>
-          )}
-        </div>
-        <div className="flex-shrink-0 text-right font-[var(--font-ln-mono)] text-[11px] uppercase leading-[1.6] tracking-[.06em] text-[var(--color-ln-mute)]">
-          <div className="font-semibold text-[var(--color-ln-ink-2)]">
-            {dateLabel.toUpperCase()}
-          </div>
-        </div>
-      </div>
-
-      <IntentApplyBanner />
-
-      {/* RemindersSection stays above EventCatcher (keeps visibility gate) */}
-      <RemindersSection reminders={reminders} />
-
-      {/* ------------------------------------------------------------------ */}
-      {/* Capture block — EventCatcher restyled as "Asentar un hecho"        */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="mb-[24px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] border-t-[3px] border-t-[var(--color-ln-azul)] bg-[var(--color-ln-card)] shadow-[0_1px_0_rgba(0,0,0,.02)]">
-        {/* Card header */}
-        <div className="relative flex items-center gap-[12px] px-[18px] pb-[12px] pt-[16px]">
-          <div className="grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[18px] text-[var(--color-ln-azul)]">
-            ✏️
-          </div>
-          <div className="min-w-0 flex-1">
-            <h2 className="m-0 font-[var(--font-ln-serif)] text-[17px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
-              Asentar un hecho en la libreta
-            </h2>
-            <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">
-              Escribí en lenguaje natural — abrimos el formulario que corresponda.
-            </p>
-          </div>
-          {/* ASIENTO seal */}
-          <div
-            aria-hidden="true"
-            className="-rotate-9 grid h-[44px] w-[44px] flex-shrink-0 place-items-center rounded-full border-2 border-[var(--color-ln-azul)] font-[var(--font-ln-mono)] text-[6.5px] uppercase leading-[1.2] tracking-[.08em] text-[var(--color-ln-azul)] opacity-70"
-          >
-            <span className="text-center">
-              ASIENTO
-              <br />
-              miMAR
-            </span>
-          </div>
-        </div>
-
-        {/* EventCatcher body — behavior untouched, only outer container styled above */}
-        <div className="border-t border-[var(--color-ln-line-2)] px-[18px] pb-[18px] pt-[14px]">
-          <EventCatcher pets={eventCatcherPets} />
-        </div>
-      </div>
-
-      {/* ------------------------------------------------------------------ */}
-      {/* 2-col grid                                                          */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="grid gap-[24px] lg:grid-cols-[1fr_320px]">
-        {/* LEFT — registry */}
-        <div>
-          <LnSectionHead
-            num="01"
-            title="Mis mascotas"
-            meta={
-              <Link
-                href="/mis-mascotas"
-                className="text-[var(--color-ln-azul)] no-underline hover:underline"
-              >
-                {registryPets.length} inscripta{registryPets.length !== 1 ? "s" : ""} · ver todas →
-              </Link>
-            }
-          />
-          {registryPets.length > 0 ? (
-            <LnRegistry>
-              {registryPets.map((p) => (
-                <LnRegRow
-                  key={p.id}
-                  name={p.name}
-                  status={toLnStatus(p.status)}
-                  breed={speciesLabel(p.species)}
-                  species={speciesLabel(p.species)}
-                  photoSrc={petPhotoUrl(p.primaryPhotoStoragePath) ?? undefined}
-                  photoSize={64}
-                  href={`/mis-mascotas/${p.publicToken}`}
-                />
-              ))}
-            </LnRegistry>
-          ) : (
-            <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[24px] text-center">
-              <p className="text-[13px] text-[var(--color-ln-mute)]">
-                Todavía no cargaste ninguna mascota.
-              </p>
-              <Link
-                href="/mis-mascotas/nueva"
-                className="mt-[10px] inline-block rounded-[3px] bg-[var(--color-ln-azul)] px-[14px] py-[8px] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
-              >
-                Agregar mi primera mascota
-              </Link>
-            </div>
-          )}
-        </div>
-
-        {/* RIGHT — stacked cards */}
-        <div className="flex flex-col gap-[20px]">
-          {/* Vencimientos */}
-          {reminders.length > 0 && (
-            <LnCard>
-              <LnCardHead
-                title="Vencimientos"
-                label={`${reminders.length} próximo${reminders.length !== 1 ? "s" : ""}`}
-              />
-              <LnCardBody>
-                <div className="flex flex-col gap-[10px]">
-                  {reminders.slice(0, 4).map((r) => (
-                    <DueRow key={r.reminderId} reminder={r} />
-                  ))}
-                </div>
-              </LnCardBody>
-            </LnCard>
-          )}
-
-          {/* Próximos turnos */}
-          {appointments.length > 0 && (
-            <LnCard>
-              <LnCardHead title="Próximos turnos" label="agenda" />
-              <LnCardBody>
-                <div className="flex flex-col gap-[10px]">
-                  {appointments.map(({ appointment, slot, offering, pet }) => (
-                    <ApptRow
-                      key={appointment.publicToken}
-                      token={appointment.publicToken}
-                      date={new Date(slot.startsAt)}
-                      title={`${pet.name} · ${offering.displayName}`}
-                      meta={new Date(slot.startsAt).toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    />
-                  ))}
-                </div>
-              </LnCardBody>
-            </LnCard>
-          )}
-
-          {/* Casos abiertos — CasesWidget has its own card frame */}
-          {cases.length > 0 && <CasesWidget cases={cases} />}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="mt-[40px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
-        <span>Documento sincronizado</span>
-        <Link
-          href="/denuncias/nueva"
-          className="text-[var(--color-ln-azul)] normal-case no-underline hover:underline"
-        >
-          + Denunciar maltrato animal
-        </Link>
-        <span>miMAR · Registro Nacional de Mascotas</span>
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Sub-components
-// ---------------------------------------------------------------------------
-
-const MONTH_ABBR = [
-  "ENE",
-  "FEB",
-  "MAR",
-  "ABR",
-  "MAY",
-  "JUN",
-  "JUL",
-  "AGO",
-  "SEP",
-  "OCT",
-  "NOV",
-  "DIC",
-];
-
-function ApptRow({
-  date,
-  title,
-  meta,
-  token,
-}: {
-  date: Date;
-  title: string;
-  meta: string;
-  token: string;
-}) {
-  return (
-    <Link
-      href={`/mis-turnos/${token}`}
-      className="flex items-center gap-[12px] rounded-[4px] hover:bg-[var(--color-ln-stripe)] transition-colors no-underline -mx-[6px] px-[6px] py-[4px]"
-    >
-      <div className="flex h-[44px] w-[44px] flex-shrink-0 flex-col items-center justify-center rounded-[4px] border border-[var(--color-ln-line)] text-center">
-        <span className="font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.06em] text-[var(--color-ln-mute)]">
-          {MONTH_ABBR[date.getMonth()]}
-        </span>
-        <span className="font-[var(--font-ln-serif)] text-[16px] font-semibold leading-tight text-[var(--color-ln-ink)]">
-          {date.getDate()}
-        </span>
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-[13px] font-medium text-[var(--color-ln-ink)]">{title}</p>
-        <p className="font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">{meta}</p>
-      </div>
-    </Link>
-  );
-}
-
-type ActiveReminderRow = {
-  reminderId: string;
-  petName: string;
-  petToken: string;
-  title: string;
-  daysUntilDue: number;
-  variant: ReminderVariant;
-};
-
-function DueRow({ reminder }: { reminder: ActiveReminderRow }) {
-  const isOver = reminder.daysUntilDue < 0;
-  const isCritical = reminder.variant === "overdue_critical" || reminder.variant === "overdue";
-  const dotClass = isCritical
-    ? "bg-[var(--color-ln-err)]"
-    : reminder.variant === "due_soon"
-      ? "bg-[var(--color-ln-warn)]"
-      : "bg-[var(--color-ln-celeste)]";
-  const whenColor = isOver
-    ? "text-[var(--color-ln-err)]"
-    : reminder.variant === "due_soon"
-      ? "text-[var(--color-ln-warn)]"
-      : "text-[var(--color-ln-mute)]";
-
-  return (
-    <Link
-      href={`/mis-mascotas/${reminder.petToken}?tab=vacunas`}
-      className="flex items-center gap-[10px] rounded-[4px] hover:bg-[var(--color-ln-stripe)] transition-colors no-underline -mx-[6px] px-[6px] py-[4px]"
-    >
-      <span
-        className={`h-[8px] w-[8px] flex-shrink-0 rounded-full ${dotClass}`}
-        aria-hidden="true"
-      />
-      <div className="min-w-0 flex-1">
-        <p className="text-[12.5px] font-medium text-[var(--color-ln-ink)]">
-          {reminder.title} · {reminder.petName}
-        </p>
-      </div>
-      <span className={`flex-shrink-0 font-[var(--font-ln-mono)] text-[11px] ${whenColor}`}>
-        {isOver ? `−${Math.abs(reminder.daysUntilDue)} días` : `en ${reminder.daysUntilDue} días`}
-      </span>
-    </Link>
-  );
+  const ranked = rankOwnerCarousel(carouselInput);
+  // rankOwnerCarousel returns at least one entry (livePets is non-empty and the
+  // cap is > 0); the first is the most-urgent pet. The forwarded query (built
+  // above) rides onto the profile so a capture deep-link opens the sheet in this
+  // SAME redirect — no second hop.
+  redirect(`/mis-mascotas/${ranked[0].token}${query ? `?${query}` : ""}`);
 }

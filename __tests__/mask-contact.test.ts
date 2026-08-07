@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { maskEmail, maskPhone } from "@/lib/mask-contact";
+import { maskEmail, maskPhone } from "@/lib/utils/mask-contact";
 
 describe("maskEmail", () => {
   it("keeps first char and full domain", () => {

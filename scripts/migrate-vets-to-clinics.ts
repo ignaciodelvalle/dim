@@ -79,7 +79,7 @@ const { and, eq, isNull } = await import("drizzle-orm");
 const { db, organizationMemberships, organizations, profiles, serviceOfferings } = await import(
   "../db"
 );
-const { generatePublicToken } = await import("../lib/publicToken");
+const { generatePublicToken } = await import("@/lib/infra/publicToken");
 
 const admin: SupabaseClient = createSdkClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false },

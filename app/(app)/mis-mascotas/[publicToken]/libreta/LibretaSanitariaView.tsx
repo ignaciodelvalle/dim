@@ -6,18 +6,33 @@
 //
 // Render logic (groupedEvents, agrupada/cronologica toggle) is UNCHANGED.
 
+import { Icon } from "@/components/Icon";
 import { ConfidenceBadge } from "@/components/event/ConfidenceBadge";
+import { LnButton } from "@/components/ui/Button";
 import { LnSectionHead } from "@/components/ui/DocElements";
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnVaccineLedger, type LnVaccineRow } from "@/components/ui/Ledger";
-import { eventPayloadSummary } from "@/lib/events";
-import { formatDate } from "@/lib/format";
+import type { LnVstampVariant } from "@/components/ui/StatusFlag";
+import type { EventType } from "@/db/schema";
+import { eventPayloadSummary } from "@/lib/events/events";
 import {
   LIBRETA_GROUPS,
   LIBRETA_GROUP_LABELS,
   type LibretaGroupKey,
   libretaConfidenceTier,
-} from "@/lib/libreta-sanitaria";
-import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/sanitary-vocab";
+} from "@/lib/infra/libreta-sanitaria";
+import { notificableEno, tipoEventoLabel, tipoEventoNorma } from "@/lib/reference/sanitary-vocab";
+import { AR_TIME_ZONE, eventTypeLabel, formatDate, parseDateInput } from "@/lib/utils/format";
+
+// A date-only "YYYY-MM-DD" next_due_at (legacy rows written before the
+// noon-UTC normalization) is midnight UTC = 21:00 of the PREVIOUS AR day, so
+// the "vencida" status flipped 3 hours early and the printed date was one day
+// off. Anchor date-only values at noon UTC (parseDateInput); full ISO
+// timestamps pass through. Same guard as pet-compliance.ts::parseNextDue.
+function parseNextDue(raw: string): Date | null {
+  const d = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? parseDateInput(raw) : new Date(raw);
+  return d && !Number.isNaN(d.getTime()) ? d : null;
+}
 
 type Event = {
   id: string;
@@ -57,8 +72,8 @@ export function LibretaSanitariaView({ groupedEvents, publicToken, vista }: Prop
           <LnSectionHead
             num="01"
             title="Registro de vacunación"
-            meta="Asientos certificados"
-            className="mb-[16px]"
+            meta="Asientos de la libreta"
+            className="mb-4"
           />
           <LnVaccineLedger rows={vaccinationEvents.map(eventToVaccineRow)} />
         </section>
@@ -71,11 +86,13 @@ export function LibretaSanitariaView({ groupedEvents, publicToken, vista }: Prop
             num={String(idx + (vaccinationEvents.length > 0 ? 2 : 1)).padStart(2, "0")}
             title={LIBRETA_GROUP_LABELS[group]}
             meta={`${groupedEvents[group].length} asiento${groupedEvents[group].length !== 1 ? "s" : ""}`}
-            className="mb-[16px]"
+            className="mb-4"
           />
           <LnTimelineSection events={groupedEvents[group]} publicToken={publicToken} />
         </section>
       ))}
+
+      <PaperLibretaRoadmapCta />
     </div>
   );
 }
@@ -92,24 +109,30 @@ function eventToVaccineRow(event: Event): LnVaccineRow {
     day: "2-digit",
     month: "short",
     year: "numeric",
+    timeZone: AR_TIME_ZONE,
   });
 
   const nextDueRaw = p.next_due_at ?? p.next_due ?? null;
-  const nextDue =
-    nextDueRaw && typeof nextDueRaw === "string"
-      ? new Date(nextDueRaw).toLocaleDateString("es-AR", {
-          day: "2-digit",
-          month: "short",
-          year: "numeric",
-        })
-      : undefined;
+  const nextDueDate =
+    typeof nextDueRaw === "string" && nextDueRaw ? parseNextDue(nextDueRaw) : null;
+  const nextDue = nextDueDate
+    ? nextDueDate.toLocaleDateString("es-AR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        timeZone: AR_TIME_ZONE,
+      })
+    : undefined;
 
-  // Derive vstamp status from next_due_at
-  let status: "ok" | "due" | "over" = "ok";
-  if (nextDueRaw) {
-    const next = new Date(nextDueRaw as string);
+  // Derive vstamp status from next_due_at. A NULL next_due_at means we don't
+  // know when the next dose is due — "we don't know" must never be sealed
+  // green "VIGENTE" on a medical document (state-honesty audit); only a
+  // known-future refuerzo date earns "ok". Default is the neutral "unknown"
+  // stamp, distinct from genuinely-current (ok) and expired (over).
+  let status: LnVstampVariant = "unknown";
+  if (nextDueDate) {
     const now = new Date();
-    const daysUntil = (next.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    const daysUntil = (nextDueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
     if (daysUntil < 0) status = "over";
     else if (daysUntil < 30) status = "due";
     else status = "ok";
@@ -151,7 +174,7 @@ function eventColor(eventType: string): string {
       return "var(--color-ln-ok)";
     case "medication_started":
     case "medication_stopped":
-      return "#6b4ea8";
+      return "var(--color-ln-violeta)";
     case "note_added":
       return "var(--color-ln-warn)";
     case "sterilization_performed":
@@ -165,28 +188,29 @@ function eventColor(eventType: string): string {
   }
 }
 
+// Returns an ICON_MAP name for the timeline dot; rendered via <Icon>.
 function eventIcon(eventType: string): string {
   switch (eventType) {
     case "weight_recorded":
-      return "⚖️";
+      return "peso";
     case "vet_visit_logged":
-      return "🩺";
+      return "vet";
     case "medication_started":
-      return "💊";
+      return "medicacion";
     case "medication_stopped":
-      return "✓";
+      return "medicacion-fin";
     case "note_added":
-      return "📝";
+      return "nota";
     case "sterilization_performed":
-      return "✂️";
+      return "esterilizacion";
     case "microchip_implanted":
-      return "🔖";
+      return "microchip";
     case "clinical_info_logged":
-      return "📋";
+      return "clinico";
     case "death_recorded":
-      return "🍃";
+      return "fallecimiento";
     default:
-      return "·";
+      return "circle";
   }
 }
 
@@ -215,12 +239,22 @@ function LnTimelineSection({
 
         const date =
           event.occurredAt instanceof Date ? event.occurredAt : new Date(event.occurredAt);
-        const dayStr = date.getDate().toString().padStart(2, "0");
+        // AR-pinned parts: getDate()/getFullYear() read the AMBIENT zone
+        // (UTC on the server, the viewer's zone in the browser), so a
+        // late-evening timestamp rendered a different day server-side than
+        // client-side (hydration risk) — and the wrong AR day either way.
+        const dayStr = date.toLocaleDateString("es-AR", {
+          day: "2-digit",
+          timeZone: AR_TIME_ZONE,
+        });
         const monthStr = date
-          .toLocaleDateString("es-AR", { month: "short" })
+          .toLocaleDateString("es-AR", { month: "short", timeZone: AR_TIME_ZONE })
           .toUpperCase()
           .replace(".", "");
-        const yearStr = date.getFullYear();
+        const yearStr = date.toLocaleDateString("es-AR", {
+          year: "numeric",
+          timeZone: AR_TIME_ZONE,
+        });
 
         const color = eventColor(event.eventType);
         const icon = eventIcon(event.eventType);
@@ -230,16 +264,16 @@ function LnTimelineSection({
           <div key={event.id} className="grid" style={{ gridTemplateColumns: "96px 34px 1fr" }}>
             {/* Date */}
             <div
-              className="flex flex-col items-end justify-start pr-[16px] pt-[11px]"
+              className="flex flex-col items-end justify-start pr-4 pt-[11px]"
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
               <span
-                className="text-[11px] font-semibold leading-tight"
+                className="text-sm font-semibold leading-tight"
                 style={{ color: "var(--color-ln-ink-2)" }}
               >
                 {dayStr} {monthStr}
               </span>
-              <span className="text-[10px]" style={{ color: "var(--color-ln-mute)" }}>
+              <span className="text-xs" style={{ color: "var(--color-ln-mute)" }}>
                 {yearStr}
               </span>
             </div>
@@ -247,14 +281,14 @@ function LnTimelineSection({
             {/* Dot + line */}
             <div className="flex flex-col items-center">
               <div
-                className="mt-[11px] flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-full border-2 text-[12px]"
+                className="mt-[11px] flex h-[28px] w-[28px] flex-shrink-0 items-center justify-center rounded-full border-2 text-sm"
                 style={{
                   borderColor: color,
                   color,
                   background: "var(--color-ln-card)",
                 }}
               >
-                {icon}
+                <Icon name={icon} size={16} decorative />
               </div>
               {!isLast && (
                 <div
@@ -267,19 +301,25 @@ function LnTimelineSection({
               )}
             </div>
 
-            {/* Card */}
-            <div className="ml-[14px] mb-[14px] mt-[8px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[14px] py-[11px]">
+            {/* Card.
+                min-w-0: this is the `1fr` track of a `96px 34px 1fr` grid, and
+                a grid item's automatic minimum size is its MIN-CONTENT, not
+                zero. 130px of the row is already spoken for by the two fixed
+                tracks, so on a 390px phone the card gets ~200px — and any
+                unbreakable run longer than that in the free-text fields below
+                (event notes, a payload summary, a SENASA norm citation) would
+                push the whole row wider than the viewport with nothing in the
+                ancestor chain to clip or scroll it. min-w-0 lets the track
+                shrink; break-words makes the long run wrap instead. */}
+            <div className="ml-3.5 mb-3.5 mt-2 min-w-0 break-words rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-3.5 py-[11px]">
               <div className="flex flex-wrap items-center gap-[7px]">
-                <p
-                  className="m-0 text-[13px] font-semibold"
-                  style={{ color: "var(--color-ln-ink)" }}
-                >
-                  {senasaLabel ?? summary.primary ?? event.eventType}
+                <p className="m-0 text-md font-semibold" style={{ color: "var(--color-ln-ink)" }}>
+                  {senasaLabel ?? summary.primary ?? eventTypeLabel(event.eventType as EventType)}
                 </p>
                 <ConfidenceBadge tier={confidenceTier} />
                 {isEno && (
                   <span
-                    className="rounded-full border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-[7px] py-[1px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.08em]"
+                    className="rounded-full border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-025)] px-[7px] py-px font-ln-mono text-xs font-semibold uppercase tracking-[.08em]"
                     style={{ color: "var(--color-ln-warn)" }}
                     title="Notificable ENO (Enfermedades de Notificación Obligatoria, Ley 15.465)"
                   >
@@ -289,27 +329,24 @@ function LnTimelineSection({
               </div>
               {senasaNorma && (
                 <p
-                  className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px]"
+                  className="mt-0.5 font-ln-mono text-sm"
                   style={{ color: "var(--color-ln-mute)" }}
                 >
                   {senasaNorma}
                 </p>
               )}
               {summary.secondary && (
-                <p className="mt-[2px] text-[12px]" style={{ color: "var(--color-ln-ink-2)" }}>
+                <p className="mt-0.5 text-sm" style={{ color: "var(--color-ln-ink-2)" }}>
                   {summary.secondary}
                 </p>
               )}
               {event.notes && (
-                <p
-                  className="mt-[3px] text-[12px] italic"
-                  style={{ color: "var(--color-ln-mute)" }}
-                >
+                <p className="mt-[3px] text-sm italic" style={{ color: "var(--color-ln-mute)" }}>
                   {event.notes}
                 </p>
               )}
               <div
-                className="mt-[8px] flex flex-wrap items-center gap-[12px] font-[var(--font-ln-mono)] text-[10.5px]"
+                className="mt-2 flex flex-wrap items-center gap-3 font-ln-mono text-sm"
                 style={{ color: "var(--color-ln-mute)" }}
               >
                 <time dateTime={date.toISOString()}>{formatDate(event.occurredAt)}</time>
@@ -348,7 +385,7 @@ function ChronologicalView({
     <div className="space-y-[32px]">
       {vaccineEvents.length > 0 && (
         <section>
-          <LnSectionHead num="01" title="Registro de vacunación" className="mb-[16px]" />
+          <LnSectionHead num="01" title="Registro de vacunación" className="mb-4" />
           <LnVaccineLedger rows={vaccineEvents.map(eventToVaccineRow)} />
         </section>
       )}
@@ -358,11 +395,13 @@ function ChronologicalView({
             num="02"
             title="Historial clínico"
             meta="orden cronológico"
-            className="mb-[16px]"
+            className="mb-4"
           />
           <LnTimelineSection events={otherEvents} publicToken={publicToken} />
         </section>
       )}
+
+      <PaperLibretaRoadmapCta />
     </div>
   );
 }
@@ -373,15 +412,40 @@ function ChronologicalView({
 
 function EmptyLibreta() {
   return (
-    <div className="rounded-[4px] border border-dashed border-[var(--color-ln-line-strong)] p-[40px] text-center">
-      <p
-        className="font-[var(--font-ln-mono)] text-[12px] uppercase tracking-[.06em]"
-        style={{ color: "var(--color-ln-mute)" }}
-      >
-        Todavía no hay registros en esta libreta.
-      </p>
-      <p className="mt-[6px] text-[13px]" style={{ color: "var(--color-ln-mute)" }}>
-        Cuando agregues una vacuna, un peso o una visita al vet, va a aparecer acá.
+    <LnEmptyState
+      variant="dashed"
+      title="Todavía no hay registros en esta libreta."
+      description="Cuando agregues una vacuna, un peso o una visita al vet, va a aparecer acá."
+      action={<PaperLibretaRoadmapCta />}
+    />
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Roadmap placeholder — "cargar la libreta de papel" (PO-approved pattern:
+// visible, disabled, reads as "coming", never as broken — precedent: the
+// "Informe de situación (en desarrollo)" stub in panorama's SituationalMap,
+// PO re-ratified visible-in-prod). Placed in the LIBRETA (not the alta/
+// registration flow — explicit PO decision) at the exact spot an owner
+// looking at a thin history would wish for backfill: the bottom of both
+// rendered libreta views (agrupada + cronológica), AND as the empty state's
+// action slot for a pet with zero digital entries yet. Disabled semantics
+// (aria-disabled, not a dead link) — no href, no onClick.
+// ---------------------------------------------------------------------------
+
+function PaperLibretaRoadmapCta() {
+  const label = "Cargar la libreta de papel (en desarrollo)";
+  return (
+    <div
+      data-testid="paper-libreta-roadmap-cta"
+      className="mt-2 flex flex-col items-start gap-1.5 rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] px-3.5 py-3"
+    >
+      <LnButton type="button" variant="ghost" size="sm" disabled aria-disabled="true" title={label}>
+        <Icon name="libreta" size="sm" decorative />
+        {label}
+      </LnButton>
+      <p className="text-xs text-[var(--color-ln-mute)]">
+        Vas a poder pasar la historia en papel a la credencial digital.
       </p>
     </div>
   );

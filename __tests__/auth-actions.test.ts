@@ -17,6 +17,28 @@ vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
 
+// loginAction now reads request headers (callerIp) for its per-IP + per-email
+// rate-limit budgets. Provide a trusted edge IP so callerIp resolves cleanly.
+vi.mock("next/headers", () => ({
+  headers: vi.fn(async () => ({
+    get: (key: string) => (key === "x-real-ip" ? "10.0.0.1" : null),
+  })),
+}));
+
+// Rate limiter: allow by default (enforceRateLimit resolves), overridable per
+// test. Keep the REAL RateLimitError / callerIp / emailRateLimitKey so the
+// action's `instanceof RateLimitError` branch and key derivation work.
+const { mockEnforceRateLimit } = vi.hoisted(() => ({
+  mockEnforceRateLimit: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
+  return {
+    ...actual,
+    enforceRateLimit: (...args: unknown[]) => mockEnforceRateLimit(...args),
+  };
+});
+
 // redirect() normally throws NEXT_REDIRECT; capture the target instead.
 const { mockRedirect } = vi.hoisted(() => ({ mockRedirect: vi.fn() }));
 vi.mock("next/navigation", () => ({
@@ -29,6 +51,7 @@ vi.mock("next/navigation", () => ({
 
 import { loginAction, logoutAction } from "@/app/actions/auth";
 import { db, notifications, profiles } from "@/db";
+import { RateLimitError } from "@/lib/infra/rate-limit";
 import { createClient } from "@/lib/supabase/server";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
@@ -39,9 +62,11 @@ const supabaseAdmin = createSupabaseClient(SUPABASE_URL, SECRET, {
 });
 
 const OWNER_EMAIL = "authact-owner@dim-test.local";
+const DEACT_ADMIN_EMAIL = "authact-deact-admin@dim-test.local";
 const PASS = "AuthAct_2026!";
 
 let ownerUserId: string;
+let deactAdminUserId: string;
 
 const signInMock = vi.fn();
 const signOutMock = vi.fn().mockResolvedValue({ error: null });
@@ -93,16 +118,33 @@ beforeAll(async () => {
   });
   if (r.error || !r.data.user) throw new Error(`createUser owner: ${r.error?.message}`);
   ownerUserId = r.data.user.id;
+
+  // Deactivated institutional admin (task #39 loop guard).
+  await purgeUserByEmail(DEACT_ADMIN_EMAIL);
+  const d = await supabaseAdmin.auth.admin.createUser({
+    email: DEACT_ADMIN_EMAIL,
+    password: PASS,
+    email_confirm: true,
+  });
+  if (d.error || !d.data.user) throw new Error(`createUser deact admin: ${d.error?.message}`);
+  deactAdminUserId = d.data.user.id;
+  await db
+    .update(profiles)
+    .set({ role: "admin", accountType: "institutional", deactivatedAt: new Date() })
+    .where(eq(profiles.id, deactAdminUserId));
 }, 60_000);
 
 afterAll(async () => {
   await purgeUserByEmail(OWNER_EMAIL);
+  await purgeUserByEmail(DEACT_ADMIN_EMAIL);
 });
 
 beforeEach(() => {
   mockRedirect.mockReset();
   signInMock.mockReset();
   signOutMock.mockClear();
+  mockEnforceRateLimit.mockReset();
+  mockEnforceRateLimit.mockResolvedValue(undefined);
   mockSupabaseClient();
 });
 
@@ -114,7 +156,9 @@ describe("loginAction", () => {
   it("returns an error when email or password is missing (no Supabase call)", async () => {
     const fd = loginForm({ email: "" });
     const result = await loginAction({ error: null }, fd);
-    expect(result).toEqual({ error: "Faltan datos." });
+    // The action echoes the submitted email back so the form can restore it
+    // across React 19's post-action reset (here it is the empty string).
+    expect(result).toEqual({ error: "Faltan datos.", email: "" });
     expect(signInMock).not.toHaveBeenCalled();
   });
 
@@ -126,7 +170,8 @@ describe("loginAction", () => {
 
     const result = await loginAction({ error: null }, loginForm({ password: "wrong" }));
 
-    expect(result).toEqual({ error: "Correo o contraseña incorrectos." });
+    // Echoes the submitted email back so the form restores it after the reset.
+    expect(result).toEqual({ error: "Correo o contraseña incorrectos.", email: OWNER_EMAIL });
     expect(mockRedirect).not.toHaveBeenCalled();
   });
 
@@ -136,10 +181,16 @@ describe("loginAction", () => {
       error: null,
     });
 
-    // The action redirects, which our mock turns into a throw.
-    await expect(loginAction({ error: null }, loginForm())).rejects.toThrow(/NEXT_REDIRECT/);
+    // N3 contract (X1-F3): the action RETURNS its destination and the form
+    // performs a full document navigation. It must not call next/navigation's
+    // redirect() — that response resolves while the App Router silently drops
+    // the transition, which on THIS surface reads as "Ingresando…" → the button
+    // returning to "Iniciar sesión" → nothing at all.
+    const state = await loginAction({ error: null }, loginForm());
+    expect(state.redirectTo).toBe("/inicio");
+    expect(state.error).toBeNull();
     expect(signInMock).toHaveBeenCalledWith({ email: OWNER_EMAIL, password: PASS });
-    expect(mockRedirect).toHaveBeenCalledWith("/inicio");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("honors a safe returnTo for non-admin/govt roles", async () => {
@@ -148,10 +199,62 @@ describe("loginAction", () => {
       error: null,
     });
 
-    await expect(
-      loginAction({ error: null }, loginForm({ returnTo: "/mis-mascotas/abc" })),
-    ).rejects.toThrow(/NEXT_REDIRECT/);
-    expect(mockRedirect).toHaveBeenCalledWith("/mis-mascotas/abc");
+    const state = await loginAction({ error: null }, loginForm({ returnTo: "/mis-mascotas/abc" }));
+    expect(state.redirectTo).toBe("/mis-mascotas/abc");
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  // Task #39: a deactivated institutional account must never come out of
+  // login holding a session — the portal guards bounce it to `/`, whose
+  // role-redirect sends it back: an infinite 307 loop ending in a browser
+  // error page (no feedback, no logout surface). The action signs the fresh
+  // session back out and returns a visible form error instead.
+  it("signs a deactivated institutional account back out with an explanatory error", async () => {
+    signInMock.mockResolvedValue({
+      data: { user: { id: deactAdminUserId } },
+      error: null,
+    });
+
+    const result = await loginAction({ error: null }, loginForm({ email: DEACT_ADMIN_EMAIL }));
+
+    expect(result).toEqual({
+      error: "Tu cuenta institucional está desactivada. Contactá al equipo de miMAR.",
+      email: DEACT_ADMIN_EMAIL,
+    });
+    expect(signOutMock).toHaveBeenCalledTimes(1);
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("returns a friendly error and never calls Supabase when rate-limited", async () => {
+    // First budget check (per-IP) trips: enforceRateLimit throws RateLimitError.
+    mockEnforceRateLimit.mockRejectedValueOnce(
+      new RateLimitError(new Date(Date.now() + 60_000), "auth_login_ip"),
+    );
+
+    const result = await loginAction({ error: null }, loginForm());
+
+    expect(result.error).toMatch(/demasiados intentos/i);
+    // Fail closed: the credential check must not run once the budget is spent.
+    expect(signInMock).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
+  });
+
+  it("enforces both a per-IP and a per-email login budget", async () => {
+    signInMock.mockResolvedValue({ data: { user: { id: ownerUserId } }, error: null });
+
+    await loginAction({ error: null }, loginForm());
+
+    // Two independent budgets are consumed: per-IP and per-email.
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_login_ip",
+      "10.0.0.1",
+      expect.objectContaining({ maxPerMinute: expect.any(Number) }),
+    );
+    expect(mockEnforceRateLimit).toHaveBeenCalledWith(
+      "auth_login_email",
+      expect.any(String),
+      expect.objectContaining({ maxPerMinute: expect.any(Number) }),
+    );
   });
 
   it("ignores an unsafe (off-origin) returnTo and falls back to role landing", async () => {
@@ -160,11 +263,12 @@ describe("loginAction", () => {
       error: null,
     });
 
-    await expect(
-      loginAction({ error: null }, loginForm({ returnTo: "//evil.com/phish" })),
-    ).rejects.toThrow(/NEXT_REDIRECT/);
-    // Unsafe returnTo is dropped; owner lands on /inicio.
-    expect(mockRedirect).toHaveBeenCalledWith("/inicio");
+    const state = await loginAction({ error: null }, loginForm({ returnTo: "//evil.com/phish" }));
+    // Unsafe returnTo is dropped; owner lands on /inicio. Still asserted on the
+    // RETURNED destination — the open-redirect guard must survive the move off
+    // redirect(), since that is the security half of this action.
+    expect(state.redirectTo).toBe("/inicio");
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });
 

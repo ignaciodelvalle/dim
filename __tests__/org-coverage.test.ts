@@ -48,13 +48,21 @@ const MOCK_ORG_ID = "00000000-cafe-dead-beef-000000000001";
 const MOCK_ORG_TOKEN = "mock-org-token-for-role-tests";
 const MOCK_USER_ID = "00000000-cafe-dead-beef-000000000002";
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireOrgAccessByToken: vi.fn(async () => ({
     user: { id: MOCK_USER_ID },
     organization: { id: MOCK_ORG_ID },
     membership: { id: "mock-membership-id", role: "admin" },
     supabase: {},
   })),
+}));
+
+// The success path of an org action ends in revalidatePath(), which needs a
+// Next request store that vitest has no way to provide. Stubbing it is what
+// lets the cross-org guard be tested through the REAL action (B1/B2) instead
+// of being paraphrased with a hand-written SELECT.
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
 }));
 import {
   db,
@@ -66,8 +74,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
-import { generatePublicToken } from "@/lib/publicToken";
+import { broadcastLostPet } from "@/lib/infra/lost-pet-broadcast";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -377,10 +385,10 @@ describe("isManagerRole — decision path", () => {
 
 // Typed shorthand to build a mock OrgAccessSession with a specific role.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function mockSession(role: string): any {
+function mockSession(role: string, organizationId: string = MOCK_ORG_ID): any {
   return {
     user: { id: MOCK_USER_ID },
-    organization: { id: MOCK_ORG_ID },
+    organization: { id: organizationId },
     membership: { id: "mock-mem", role },
     supabase: {},
   };
@@ -388,7 +396,7 @@ function mockSession(role: string): any {
 
 describe("addCoverageZoneAction — role gate", () => {
   it("A6: member role → returns { error } and writes nothing to DB", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
 
     const result = await addCoverageZoneAction({
@@ -410,7 +418,7 @@ describe("addCoverageZoneAction — role gate", () => {
   });
 
   it("A7: volunteer role → returns { error } and writes nothing to DB", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("volunteer"));
 
     const result = await addCoverageZoneAction({
@@ -427,7 +435,7 @@ describe("addCoverageZoneAction — role gate", () => {
   it("A4: rejects invalid province name", async () => {
     // We can test validation logic in isolation by checking the same PROVINCES
     // set used by the action (widened to string for has() compatibility).
-    const { PROVINCES } = await import("@/lib/ar-provincias");
+    const { PROVINCES } = await import("@/lib/reference/ar-provincias");
     const validNames: ReadonlySet<string> = new Set<string>(PROVINCES.map((p) => p.name));
     expect(validNames.has("NotAProvince")).toBe(false);
     expect(validNames.has("Buenos Aires")).toBe(true);
@@ -485,42 +493,67 @@ describe("addCoverageZoneAction — DB path (direct insert for idempotency)", ()
 // ---------------------------------------------------------------------------
 
 describe("removeCoverageZoneAction — cross-org guard", () => {
-  it("B2: cannot delete a row that belongs to another org", async () => {
-    // Insert a zone in org2.
+  // This block used to never call removeCoverageZoneAction at all: it inserted
+  // a row under org2, then SELECTed it WHERE organization_id = org1 and
+  // asserted the (empty by construction) result — a paraphrase of the guard,
+  // not the guard. Deleting the org predicate from deleteCoverageScoped left
+  // it green. Both tests below drive the REAL action; the session is injected
+  // through the requireOrgAccessByToken mock because vitest cannot forge the
+  // Supabase cookie session the guard reads.
+
+  it("B2: an org1 admin cannot delete an org2 row — the call fails AND the row survives", async () => {
     const zoneId = await insertZone({
       orgId_: orgId2,
       province: OTHER_PROVINCE,
       locality: null,
     });
 
-    // Verify the row exists.
-    const [row] = await db
-      .select({ id: organizationCoverage.id })
-      .from(organizationCoverage)
-      .where(
-        and(eq(organizationCoverage.id, zoneId), eq(organizationCoverage.organizationId, orgId2)),
-      );
-    expect(row).toBeTruthy();
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
+    vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("admin", orgId));
 
-    // The action would check that the row's organizationId === the resolved
-    // org's id. Since we can't call it with a mocked session, we verify
-    // the cross-org isolation by confirming org1 has no ownership of this row.
-    const cross = await db
+    const result = await removeCoverageZoneAction({ orgToken, coverageId: zoneId });
+
+    // 1. The attempt REPORTS failure — no silent no-op reported as success.
+    expect(result).toEqual({ error: "Zona no encontrada." });
+
+    // 2. And org2's row is still there. This is the half a scoped-DELETE
+    //    regression breaks first: drop the organization_id predicate and the
+    //    row disappears while the caller still gets a plausible answer.
+    const [survivor] = await db
+      .select({
+        id: organizationCoverage.id,
+        organizationId: organizationCoverage.organizationId,
+      })
+      .from(organizationCoverage)
+      .where(eq(organizationCoverage.id, zoneId));
+    expect(survivor, "the org2 zone must survive a delete attempt by org1").toBeTruthy();
+    expect(survivor.organizationId).toBe(orgId2);
+  });
+
+  it("B1: the owning org CAN delete its own row (so B2's failure is the guard, not a broken action)", async () => {
+    const zoneId = await insertZone({
+      orgId_: orgId2,
+      province: OTHER_PROVINCE,
+      locality: "San Miguel de Tucumán",
+    });
+
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
+    vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("admin", orgId2));
+
+    const result = await removeCoverageZoneAction({ orgToken: orgToken2, coverageId: zoneId });
+    expect(result).toEqual({ ok: true });
+
+    const rows = await db
       .select({ id: organizationCoverage.id })
       .from(organizationCoverage)
-      .where(
-        and(
-          eq(organizationCoverage.id, zoneId),
-          eq(organizationCoverage.organizationId, orgId), // org1 — should be empty
-        ),
-      );
-    expect(cross.length).toBe(0);
+      .where(eq(organizationCoverage.id, zoneId));
+    expect(rows).toHaveLength(0);
   });
 });
 
 describe("removeCoverageZoneAction — role gate", () => {
   it("B3: member role → returns { error } and deletes nothing", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
 
     const result = await removeCoverageZoneAction({
@@ -595,7 +628,7 @@ describe("setPrimaryCoverageZoneAction — transaction atomicity", () => {
 
 describe("setPrimaryCoverageZoneAction — role gate", () => {
   it("C3: member role → returns { error } and writes nothing", async () => {
-    const { requireOrgAccessByToken } = await import("@/lib/auth-guards");
+    const { requireOrgAccessByToken } = await import("@/lib/infra/auth-guards");
     vi.mocked(requireOrgAccessByToken).mockResolvedValueOnce(mockSession("member"));
 
     const result = await setPrimaryCoverageZoneAction({

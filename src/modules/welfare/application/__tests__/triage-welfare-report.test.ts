@@ -3,7 +3,7 @@
 //
 // All DB/repo calls are mocked. No Postgres required.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db/schema";
 import type { WelfareRepository } from "../../infrastructure/welfare-repository";

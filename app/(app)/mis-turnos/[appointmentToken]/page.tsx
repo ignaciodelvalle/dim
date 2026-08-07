@@ -10,8 +10,9 @@ import { Suspense } from "react";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnCallout } from "@/components/ui/DocElements";
 import { appointments, db, organizations, pets, profiles, serviceOfferings, timeSlots } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatTime } from "@/lib/utils/format";
 import { CancelButton } from "./CancelButton";
 import { MisTurnosSheetMounter } from "./MisTurnosSheetMounter";
 
@@ -71,13 +72,9 @@ export default async function AppointmentDetailPage({
     month: "long",
     year: "numeric",
   });
-  const slotTime = slot.startsAt.toLocaleTimeString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const slotTime = formatTime(slot.startsAt);
 
-  const statusConfig = STATUS_CONFIG[appointment.status] ?? STATUS_CONFIG.confirmed;
+  const statusConfig = STATUS_CONFIG[appointment.status] ?? UNKNOWN_STATUS_CONFIG;
   const canCancel = appointment.status === "confirmed" && slot.startsAt > new Date();
 
   // QR only while the slot is current — a past confirmed appointment (never
@@ -93,32 +90,32 @@ export default async function AppointmentDetailPage({
     : null;
 
   return (
-    <div className="mx-auto max-w-md px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-md px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href="/mis-turnos"
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Mis turnos
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px] flex items-start justify-between gap-3">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+      <div className="mb-6 flex items-start justify-between gap-3">
+        <h1 className="m-0 font-ln-serif text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {offering.displayName}
         </h1>
         <span
-          className={`flex-shrink-0 inline-flex items-center rounded-[2px] border px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
+          className={`flex-shrink-0 inline-flex items-center rounded-[var(--radius-xs)] border px-2 py-0.5 font-ln-mono text-xs font-semibold uppercase tracking-[.1em] ${statusConfig.bg} ${statusConfig.text} ${statusConfig.border}`}
         >
           {statusConfig.label}
         </span>
       </div>
 
       {/* Details */}
-      <LnCard className="mb-[20px]">
+      <LnCard className="mb-5">
         <LnCardHead title="Detalle del turno" />
         <LnCardBody>
-          <dl className="flex flex-col gap-[12px]">
+          <dl className="flex flex-col gap-3">
             <DetailRow label="Mascota">
               <Link
                 href={`/mis-mascotas/${pet.publicToken}`}
@@ -149,18 +146,18 @@ export default async function AppointmentDetailPage({
 
       {/* QR check-in */}
       {showCheckInQr && qrSvg && (
-        <LnCard className="mb-[20px]">
+        <LnCard className="mb-5">
           <LnCardHead title="Check-in en la clínica" label="QR" />
-          <LnCardBody className="flex flex-col items-center gap-[10px]">
-            <p className="self-start text-[12.5px] text-[var(--color-ln-ink-2)]">
+          <LnCardBody className="flex flex-col items-center gap-2.5">
+            <p className="self-start text-md text-[var(--color-ln-ink-2)]">
               Mostrá este QR cuando llegues. Si el escáner no lo lee, dictá el código de abajo.
             </p>
             <div
-              className="rounded-[4px] border border-[var(--color-ln-line)] bg-white p-[8px]"
+              className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-white p-2"
               // biome-ignore lint/security/noDangerouslySetInnerHtml: server-rendered SVG from qrcode lib
               dangerouslySetInnerHTML={{ __html: qrSvg }}
             />
-            <p className="select-all text-center font-[var(--font-ln-mono)] text-[18px] font-bold tracking-widest text-[var(--color-ln-ink)]">
+            <p className="select-all text-center font-ln-mono text-lg font-bold tracking-widest text-[var(--color-ln-ink)]">
               {appointmentToken}
             </p>
           </LnCardBody>
@@ -169,7 +166,7 @@ export default async function AppointmentDetailPage({
 
       {/* Attended notice */}
       {appointment.status === "attended" && (
-        <div className="mb-[20px]">
+        <div className="mb-5">
           <LnCallout tone="azul">
             Asististe a este turno. El registro médico quedó guardado en la libreta de {pet.name}.
           </LnCallout>
@@ -178,7 +175,7 @@ export default async function AppointmentDetailPage({
 
       {/* Cancel */}
       {canCancel && (
-        <div className="border-t border-[var(--color-ln-line-2)] pt-[16px]">
+        <div className="border-t border-[var(--color-ln-line-2)] pt-4">
           <Suspense>
             <CancelButton />
           </Suspense>
@@ -200,10 +197,10 @@ export default async function AppointmentDetailPage({
 function DetailRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="font-[var(--font-ln-mono)] text-[10px] uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
+      <dt className="font-ln-mono text-xs uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
         {label}
       </dt>
-      <dd className="mt-[2px] text-[13px] text-[var(--color-ln-ink-2)]">{children}</dd>
+      <dd className="mt-0.5 text-md text-[var(--color-ln-ink-2)]">{children}</dd>
     </div>
   );
 }
@@ -235,10 +232,30 @@ const STATUS_CONFIG: Record<string, StatusConfig> = {
     text: "text-[var(--color-ln-mute)]",
     border: "border-[var(--color-ln-line-strong)]",
   },
+  // Cancelled BY THE ORG/PROVIDER — was previously absent from this map, so
+  // it fell through to the confirmed-green badge (state-honesty audit).
+  // Neutral "cancelado" treatment, matches AppointmentCard.tsx's existing
+  // cancelled_by_org handling for the same label/tone.
+  cancelled_by_org: {
+    label: "Cancelado por el prestador",
+    bg: "bg-[var(--color-ln-stripe)]",
+    text: "text-[var(--color-ln-mute)]",
+    border: "border-[var(--color-ln-line-strong)]",
+  },
   no_show: {
     label: "No asistió",
     bg: "bg-[var(--color-ln-err-050)]",
     text: "text-[var(--color-ln-err)]",
     border: "border-[var(--color-ln-err-100)]",
   },
+};
+
+// Fallback for any status not in the map above — must read as unknown/neutral,
+// NEVER as the confirmed-green badge (state-honesty audit: an unrecognized
+// status previously silently fell back to "Confirmado").
+const UNKNOWN_STATUS_CONFIG: StatusConfig = {
+  label: "Estado desconocido",
+  bg: "bg-[var(--color-ln-stripe)]",
+  text: "text-[var(--color-ln-mute)]",
+  border: "border-[var(--color-ln-line-strong)]",
 };

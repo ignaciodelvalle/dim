@@ -13,6 +13,7 @@
 // Three of those hardcoded the textarea id (duplicate-id smell when more than one
 // row renders); this shared version derives it from useId().
 
+import { OpTextarea } from "@/components/ui/dashboard/OpField";
 import { useId } from "react";
 
 /** Minimum length for an action-reason. Consumers reuse it for submit validation. */
@@ -31,21 +32,21 @@ export function MotivoField({
   return (
     <div className="space-y-1">
       <div className="flex items-center justify-between">
-        <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
-          Motivo (minimo {MOTIVO_MIN} caracteres)
+        <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
+          Motivo (mínimo {MOTIVO_MIN} caracteres)
         </label>
         <span
-          className={`text-[10px] tabular-nums ${tooShort ? "text-ln-op-danger" : "text-ln-op-mute"}`}
+          className={`text-xs tabular-nums ${tooShort ? "text-ln-op-danger" : "text-ln-op-mute"}`}
         >
           {len}/{MOTIVO_MIN}
         </span>
       </div>
-      <textarea
+      <OpTextarea
         id={id}
         rows={3}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-xs rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        size="xs"
       />
     </div>
   );

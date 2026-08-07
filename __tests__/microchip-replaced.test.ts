@@ -5,10 +5,9 @@
 // withMutationOverride used for cleanup that cascades into pet_events.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { replaceMicrochipForUser } from "@/app/actions/microchip";
 import {
   auditLog,
   cases,
@@ -22,6 +21,7 @@ import {
   pets,
   profiles,
 } from "@/db";
+import { replaceMicrochipForUser } from "@/src/modules/pets/application/microchip/replace-microchip";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -626,12 +626,114 @@ describe("replaceMicrochipForUser — audit_log row written", () => {
     const rows = await db
       .select()
       .from(auditLog)
-      .where(and(eq(auditLog.actorUserId, ownerUserId), eq(auditLog.action, "microchip.replace")));
-    expect(rows.length).toBeGreaterThan(0);
-    const row = rows[rows.length - 1];
+      .where(
+        and(
+          eq(auditLog.actorUserId, ownerUserId),
+          eq(auditLog.action, "microchip.replace"),
+          sql`${auditLog.payload}->>'event_id' = ${result.eventId}`,
+        ),
+      );
+    expect(rows.length).toBe(1);
+    const row = rows[0];
     const payload = row.payload as Record<string, unknown>;
     expect(payload.event_id).toBe(result.eventId);
     expect(payload.target_pet_id).toBe(primaryPetId);
+
+    await resetPrimaryChip();
+  });
+});
+
+describe("replaceMicrochipForUser — idempotency guard (projection-writes audit §6)", () => {
+  it("second identical call with the same clientIdempotencyKey is a no-op", async () => {
+    await resetPrimaryChip();
+    const idemKey = crypto.randomUUID();
+
+    const input = {
+      petId: primaryPetId,
+      previousChipNumber: CHIP_ORIGINAL,
+      newChipNumber: CHIP_REPLACEMENT,
+      reason: "damaged" as const,
+      replacedAt: new Date().toISOString(),
+      clientIdempotencyKey: idemKey,
+      actorContext: { kind: "owner" as const },
+    };
+
+    const first = await replaceMicrochipForUser(ownerUserId, input);
+    expect(first).toMatchObject({ ok: true });
+    if (!("ok" in first) || !first.ok) throw new Error("Expected ok");
+
+    // Double-submit: identical payload, same key.
+    const second = await replaceMicrochipForUser(ownerUserId, input);
+    expect(second).toMatchObject({ ok: true });
+    if (!("ok" in second) || !second.ok) throw new Error("Expected ok");
+
+    // The retry returns the ORIGINAL event — no second event emitted.
+    expect(second.eventId).toBe(first.eventId);
+
+    const events = await db
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, primaryPetId),
+          eq(petEvents.eventType, "microchip_replaced"),
+          eq(petEvents.clientIdempotencyKey, idemKey),
+        ),
+      );
+    expect(events.length).toBe(1);
+
+    // Canonical rows untouched by the retry: exactly one ACTIVE chip row
+    // (the replacement) — the retry did not flip it to 'replaced' again nor
+    // insert a second replacement row.
+    const activeRows = await db
+      .select({ code: petIdentifications.code })
+      .from(petIdentifications)
+      .where(
+        and(
+          eq(petIdentifications.petId, primaryPetId),
+          eq(petIdentifications.kind, "microchip_iso"),
+          eq(petIdentifications.status, "active"),
+        ),
+      );
+    expect(activeRows.length).toBe(1);
+    expect(activeRows[0].code).toBe(CHIP_REPLACEMENT);
+
+    // Only ONE audit_log row for the pair of calls.
+    const auditRows = await db
+      .select()
+      .from(auditLog)
+      .where(
+        and(
+          eq(auditLog.actorUserId, ownerUserId),
+          eq(auditLog.action, "microchip.replace"),
+          sql`${auditLog.payload}->>'event_id' = ${first.eventId}`,
+        ),
+      );
+    expect(auditRows.length).toBe(1);
+
+    await resetPrimaryChip();
+  });
+
+  it("no key → both calls insert (admin-tool/legacy path unchanged)", async () => {
+    await resetPrimaryChip();
+
+    const input = {
+      petId: primaryPetId,
+      previousChipNumber: CHIP_ORIGINAL,
+      newChipNumber: CHIP_REPLACEMENT,
+      reason: "damaged" as const,
+      replacedAt: new Date().toISOString(),
+      actorContext: { kind: "owner" as const },
+    };
+
+    const first = await replaceMicrochipForUser(ownerUserId, input);
+    const second = await replaceMicrochipForUser(ownerUserId, input);
+    expect(first).toMatchObject({ ok: true });
+    expect(second).toMatchObject({ ok: true });
+    if (!("ok" in first) || !first.ok || !("ok" in second) || !second.ok) {
+      throw new Error("Expected ok");
+    }
+    expect(second.eventId).not.toBe(first.eventId);
 
     await resetPrimaryChip();
   });

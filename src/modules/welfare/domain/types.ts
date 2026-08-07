@@ -36,7 +36,7 @@ export function welfareReportKindLabel(kind: WelfareReportKind | string): string
     case "no_shelter":
       return "Sin refugio del clima";
     case "hoarding":
-      return "Acumulación (hoarding)";
+      return "Acumulación de animales";
     case "dog_fighting":
       return "Peleas de perros";
     case "trafficking":
@@ -70,6 +70,24 @@ export function welfareReportSeverityLabel(severity: WelfareReportSeverity | str
       return severity;
   }
 }
+
+/**
+ * Bare severity-tier label (no urgency framing) for the four tiers this
+ * vocabulary shares across welfare denuncias AND bite-incident severity
+ * (situational-map-config/DetailDrawer read the same low/medium/high/critical
+ * strings off a pet_events payload). Lives here — next to
+ * welfareReportSeverityLabel, welfare's canonical severity owner — instead of
+ * two byte-identical UI-local copies (was duplicated verbatim in
+ * DetailDrawer's SEVERITY_LABEL and WelfareDenunciaRow's SEVERITY_BASE_LABEL).
+ * `Record<string, string>` (not keyed to WelfareReportSeverity) so untyped
+ * callers can index it directly with `?? key` fallback, same as before.
+ */
+export const SEVERITY_BASE_LABEL: Record<string, string> = {
+  low: "Baja",
+  medium: "Media",
+  high: "Alta",
+  critical: "Crítica",
+};
 
 // ---------------------------------------------------------------------------
 // Status
@@ -106,6 +124,30 @@ export function welfareReportStatusLabel(status: WelfareReportStatus | string): 
 }
 
 // ---------------------------------------------------------------------------
+// Assignment display
+// ---------------------------------------------------------------------------
+
+/**
+ * es-AR label for a denuncia's "Asignado a" chip.
+ *
+ * G0b (govt/public honesty): a denuncia DERIVED to an org but not assigned to a
+ * named operator must NOT read as "Sin asignar" — that made a derived case look
+ * unowned (the DEN-9KSC-MRMZ ambiguity). When there is no personal assignee but
+ * the case has been derived, the holding ORG is the owner of record → show
+ * "Derivada a {org}". Precedence: a named operator assignment always wins (an
+ * operator can pick up a derived case); only when there is no assignee does the
+ * derivation surface. No derivation and no assignee → the honest "Sin asignar".
+ */
+export function welfareAssignmentLabel(
+  assignedToName: string | null | undefined,
+  derivedOrgName: string | null | undefined,
+): string {
+  if (assignedToName) return assignedToName;
+  if (derivedOrgName) return `Derivada a ${derivedOrgName}`;
+  return "Sin asignar";
+}
+
+// ---------------------------------------------------------------------------
 // Subject kind
 // ---------------------------------------------------------------------------
 
@@ -121,7 +163,7 @@ export type WelfareReportSubjectKind = (typeof WELFARE_REPORT_SUBJECT_KINDS)[num
 export function welfareReportSubjectKindLabel(kind: WelfareReportSubjectKind | string): string {
   switch (kind) {
     case "registered_pet":
-      return "Mascota MiMAR registrada";
+      return "Mascota miMAR registrada";
     case "unowned_animal":
       return "Animal sin dueño identificado";
     case "location":

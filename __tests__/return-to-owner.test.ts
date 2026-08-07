@@ -15,16 +15,6 @@ import { and, desc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
-  actorCancelProposalWriter,
-  orgAcceptOwnerReturnWriter,
-  orgRejectOwnerReturnWriter,
-  ownerAcceptReturnWriter,
-  ownerProposeReturnToOrgWriter,
-  ownerRejectReturnWriter,
-  proposeReturnAsRefugioWriter,
-  proposeReturnAsVecinoWriter,
-} from "@/app/actions/return-to-owner";
-import {
   db,
   notifications,
   organizationMemberships,
@@ -34,8 +24,18 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
-import { generatePublicToken } from "@/lib/publicToken";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import {
+  actorCancelProposalWriter,
+  orgAcceptOwnerReturnWriter,
+  orgRejectOwnerReturnWriter,
+  ownerAcceptReturnWriter,
+  ownerProposeReturnToOrgWriter,
+  ownerRejectReturnWriter,
+  proposeReturnAsRefugioWriter,
+  proposeReturnAsVecinoWriter,
+} from "@/src/modules/return-to-owner/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -551,7 +551,7 @@ describe("ownerAcceptReturnWriter — auto-cancel", () => {
     // Insert proposal event directly (bypassing the lost-status check in propose).
     const now = new Date();
     await withMutationOverride(async (tx) => {
-      const { validateEventPayload } = await import("@/lib/event-schemas");
+      const { validateEventPayload } = await import("@/lib/events/event-schemas");
       const payload = validateEventPayload("custody_transfer_proposed", {
         from_user_id: null,
         from_organization_id: orgId,

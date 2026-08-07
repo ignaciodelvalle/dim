@@ -13,7 +13,7 @@ import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, petIdentifications, pets, profiles } from "@/db";
-import { generatePublicToken } from "@/lib/publicToken";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import type {
   DisclosurePrefsInput,
   EnrichedLostDescriptionInput,

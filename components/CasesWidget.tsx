@@ -1,23 +1,16 @@
 import Link from "next/link";
 
-// CasesWidget — replaces the old "Mis mascotas" mini grid on /inicio.
+import { Icon } from "@/components/Icon";
+import { LnListRow } from "@/components/ui/ListRow";
+import type { WorkflowItem, WorkflowKind } from "@/lib/analytics/owner-dashboard";
+import { AR_TIME_ZONE, calendarDaysAgoInAr } from "@/lib/utils/format";
+
+// CasesWidget — the owner's cases list.
 //
-// Shows the owner's open cases ("casos abiertos") across every kind the
-// system tracks for personal accounts: lost-pet episodes, adoption
-// applications, foster proposals, welfare denuncias, custody disputes,
-// approval requests in flight.
-//
-// Why this and not a pet list:
-//   - The pet picker in EventCatcher already enumerates the pets and
-//     supports tap-twice to open a pet profile. A second pet list
-//     below is redundant.
-//   - What an owner needs at-a-glance is "what's happening with my
-//     pets", not "which pets are mine". Cases are the happening.
-//
-// Data shape: this component accepts the existing `WorkflowItem` shape
-// from `lib/owner-dashboard.ts` so the migration is a rename + a few
-// visual tweaks — no new query. Each row has title, subtitle, ctaUrl,
-// since, and a severity (`info | warning | danger | success`).
+// Used on /inicio (open cases, with a "Ver historial →" link) and on
+// /cuenta/casos (rendered twice: open + closed/past history). Accepts the
+// adapted CaseRow shape; the WorkflowItem→CaseRow adapter is exported here so
+// both call sites share one mapping.
 //
 // Spec: docs/owner-home-plan-2026-05-20.md — v3 revision.
 
@@ -30,79 +23,109 @@ export type CaseRow = {
   subtitle: string;
   /** Where this row goes on click. Usually `/casos/{publicCode}` or `/mis-mascotas/{token}`. */
   ctaUrl: string;
-  /** Open date. Drives "hace X días". */
+  /** Open/decision date. Drives "hace X días". */
   since: Date;
   /** Visual tone. */
   severity: "info" | "warning" | "danger" | "success";
-  /** Optional case-kind icon (emoji ok in v1, swap for lucide later). */
+  /** Optional case-kind icon (emoji in v1; Icon webfont pending). */
   icon?: string;
 };
 
-const MAX_VISIBLE = 5;
+/** Case-kind → icon name for the Icon component. */
+export const WORKFLOW_KIND_ICON: Record<WorkflowKind, string> = {
+  pet_lost: "perdida",
+  welfare_report_open: "denuncia",
+  welfare_report_closed: "denuncia",
+  adoption_application_pending: "solicitud",
+  adoption_application_resolved: "solicitud",
+  foster_proposal_pending: "casa",
+  foster_proposal_resolved: "casa",
+  custody_transfer_pending: "trato",
+  custody_dispute_open: "disputa",
+  approval_request_pending: "custodia",
+  approval_request_decided: "custodia",
+  bite_observation_open: "mordedura",
+  dangerous_breed_pending_attestation: "alerta",
+  case_generic_open: "nota",
+};
+
+/** Adapt a WorkflowItem (lib/owner-dashboard) to a CaseRow for rendering. */
+export function adaptWorkflow(w: WorkflowItem): CaseRow {
+  return {
+    id: w.id,
+    title: w.title,
+    subtitle: w.subtitle ?? "",
+    ctaUrl: w.ctaUrl,
+    since: w.since,
+    severity: w.severity === "urgent" ? "danger" : w.severity,
+    icon: WORKFLOW_KIND_ICON[w.kind],
+  };
+}
 
 export function CasesWidget({
   cases,
-  totalCount,
+  title = "Mis casos",
+  emptyText = "Sin casos abiertos. Cualquier denuncia, postulación o pérdida que empieces va a aparecer acá.",
+  historyHref,
 }: {
   cases: CaseRow[];
-  totalCount?: number;
+  /** Section heading. */
+  title?: string;
+  /** Copy shown when there are no cases. */
+  emptyText?: string;
+  /** When set, renders a "Ver historial →" link in the header. */
+  historyHref?: string;
 }) {
-  const visible = cases.slice(0, MAX_VISIBLE);
-  const total = totalCount ?? cases.length;
+  const total = cases.length;
 
   return (
-    <section
-      aria-labelledby="oh-cases-h"
-      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
-    >
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="oh-cases-h" className="text-base font-semibold text-ln-ink ">
-          Mis casos
+    <section aria-label={title} className="rounded-2xl border border-ln-line bg-ln-card p-4">
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold text-ln-ink">
+          {title}
           {total > 0 && (
-            <span className="ml-2 text-xs font-normal text-ln-mute ">
-              · {total} abierto{total === 1 ? "" : "s"}
+            <span className="ml-2 text-xs font-normal text-ln-mute">
+              · {total} {total === 1 ? "caso" : "casos"}
             </span>
           )}
         </h2>
-        <Link href="/cuenta/casos" className="text-xs font-medium text-ln-azul hover:underline">
-          Ver historial →
-        </Link>
+        {historyHref && (
+          <Link
+            href={historyHref}
+            className="shrink-0 text-xs font-medium text-ln-azul hover:underline"
+          >
+            Ver historial →
+          </Link>
+        )}
       </div>
 
-      {visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute ">
-          Sin casos abiertos. Cualquier denuncia, postulación o pérdida que empieces va a aparecer
-          acá.
+      {cases.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-ln-line-strong p-6 text-center text-sm text-ln-mute">
+          {emptyText}
         </p>
       ) : (
-        <ul className="divide-y divide-ln-line ">
-          {visible.map((c) => (
+        <ul className="divide-y divide-ln-line">
+          {cases.map((c) => (
             <li key={c.id}>
-              <Link
+              <LnListRow
                 href={c.ctaUrl}
-                className="flex items-start gap-3 py-3 transition-colors hover:bg-ln-stripe "
+                className="py-3 transition-colors hover:bg-ln-stripe"
+                icon={<CaseIcon severity={c.severity} icon={c.icon} />}
+                trailing={
+                  <p
+                    className="shrink-0 text-sm text-ln-mute"
+                    title={c.since.toLocaleString("es-AR", { timeZone: AR_TIME_ZONE })}
+                  >
+                    {relativeShort(c.since)}
+                  </p>
+                }
               >
-                <CaseIcon severity={c.severity} icon={c.icon} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-ln-ink ">{c.title}</p>
-                  <p className="mt-0.5 truncate text-xs text-ln-mute ">{c.subtitle}</p>
-                </div>
-                <p
-                  className="shrink-0 text-[11px] text-ln-mute "
-                  title={c.since.toLocaleString("es-AR")}
-                >
-                  {relativeShort(c.since)}
-                </p>
-              </Link>
+                <p className="truncate text-sm font-medium text-ln-ink">{c.title}</p>
+                <p className="mt-0.5 truncate text-xs text-ln-mute">{c.subtitle}</p>
+              </LnListRow>
             </li>
           ))}
         </ul>
-      )}
-
-      {total > visible.length && (
-        <p className="mt-2 text-right text-xs text-ln-mute ">
-          Mostrando los {visible.length} más recientes
-        </p>
       )}
     </section>
   );
@@ -117,26 +140,26 @@ function CaseIcon({
 }) {
   const tone =
     severity === "danger"
-      ? "bg-[var(--color-ln-err-050)] text-ln-err  "
+      ? "bg-[var(--color-ln-err-050)] text-ln-err"
       : severity === "warning"
-        ? "bg-[var(--color-ln-warn-050)] text-ln-warn  "
+        ? "bg-[var(--color-ln-warn-050)] text-ln-warn"
         : severity === "success"
-          ? "bg-[var(--color-ln-ok-050)] text-ln-ok  "
-          : "bg-ln-celeste/10 text-ln-azul  ";
+          ? "bg-[var(--color-ln-ok-050)] text-ln-ok"
+          : "bg-ln-celeste/10 text-ln-azul";
   return (
     <span
-      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-base ${tone}`}
+      className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${tone}`}
       aria-hidden
     >
-      {icon ?? "•"}
+      {icon ? <Icon name={icon} size={18} decorative /> : <Icon name="nota" size={18} decorative />}
     </span>
   );
 }
 
 function relativeShort(d: Date): string {
-  const ms = Date.now() - d.getTime();
-  const day = 24 * 60 * 60 * 1000;
-  const days = Math.floor(ms / day);
+  // AR-calendar days, not elapsed-ms floor: 20:00 yesterday viewed at 10:00
+  // today must read "ayer", not "hoy" (calendarDaysAgoInAr rationale).
+  const days = calendarDaysAgoInAr(d);
   if (days < 1) return "hoy";
   if (days === 1) return "ayer";
   if (days < 30) return `hace ${days} d.`;

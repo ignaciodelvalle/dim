@@ -14,8 +14,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets } from "@/db";
-import { closeCase, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const PET_TOKEN = "DIM-D2-PA1";
@@ -66,7 +66,7 @@ describe("D2: bite_incident case opens with incident + observation events", () =
           kind: "bite_incident",
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
-          openedReason: "Bite incident reported by owner — victim=human, severity=moderate",
+          openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
         },
         tx,
       );
@@ -160,7 +160,7 @@ describe("D2: per-pet partial index allows opening a new case after close", () =
       kind: "bite_incident",
       primarySubjectKind: "registered_pet",
       primaryPetId: petId,
-      openedReason: "Second incident for the same pet — closed-then-reopen scenario",
+      openedReason: { code: "bite_reported_owner", victimKind: "human", severity: "moderate" },
     });
     secondCaseId = second.id;
     expect(second.status).toBe("open");

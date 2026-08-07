@@ -1,7 +1,7 @@
 import { LnSheetCard, LnSheetWrap } from "@/components/ui/Sheet";
 import { db, petEvents } from "@/db";
-import { formatDate } from "@/lib/format";
-import { requireOwnedPetByToken } from "@/lib/pets";
+import { requireOwnedPetByToken } from "@/lib/infra/pets";
+import { formatDate } from "@/lib/utils/format";
 import { createMedicationEndAction } from "@/src/modules/events/actions";
 import { and, eq, inArray } from "drizzle-orm";
 import Link from "next/link";
@@ -9,10 +9,18 @@ import { MedicationEndForm } from "./MedicationEndForm";
 
 export default async function NewMedicationEndPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ publicToken: string }>;
+  searchParams: Promise<{ occurredAt?: string; notes?: string }>;
 }) {
   const { publicToken } = await params;
+  const sp = await searchParams;
+  // Captura-rápida URL-prefill slots (event-capture-registry).
+  const defaults = {
+    occurredAt: sp.occurredAt ?? null,
+    notes: sp.notes ?? null,
+  };
   const session = await requireOwnedPetByToken(publicToken);
   const { pet } = session;
 
@@ -62,13 +70,13 @@ export default async function NewMedicationEndPage({
     return (
       <LnSheetWrap>
         <LnSheetCard>
-          <div className="px-[18px] py-[24px] space-y-[10px]">
-            <p className="text-[13px] text-[var(--color-ln-mute)]">
+          <div className="px-[18px] py-6 space-y-[10px]">
+            <p className="text-md text-[var(--color-ln-mute)]">
               No hay medicaciones abiertas para {pet.name}.
             </p>
             <Link
               href={`/mis-mascotas/${pet.publicToken}`}
-              className="inline-block font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-azul)] underline underline-offset-2"
+              className="inline-block font-ln-mono text-sm text-[var(--color-ln-azul)] underline underline-offset-2"
             >
               ← Volver al perfil
             </Link>
@@ -81,7 +89,11 @@ export default async function NewMedicationEndPage({
   return (
     <LnSheetWrap>
       <LnSheetCard>
-        <MedicationEndForm action={boundAction} openMedications={openMedications} />
+        <MedicationEndForm
+          action={boundAction}
+          openMedications={openMedications}
+          defaults={defaults}
+        />
       </LnSheetCard>
     </LnSheetWrap>
   );

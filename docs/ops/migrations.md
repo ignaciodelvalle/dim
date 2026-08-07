@@ -61,6 +61,9 @@ database that holds real data.
 - **Checksum drift** — each file's sha256 is stored on apply. If a file is
   edited after being applied, later runs **warn loudly** (the DB no longer
   matches the committed SQL). Pass `--strict` to make drift a hard error.
+  Consequence: an applied file is immutable, **comments included**. When one of
+  them says something false, correct it in
+  [`docs/db/migration-errata.md`](../db/migration-errata.md) — never in the file.
 - **Forward-only** — the runner never reverts. There is no down-migration path.
 
 CLI surface:

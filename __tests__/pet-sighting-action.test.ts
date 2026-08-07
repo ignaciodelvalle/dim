@@ -47,7 +47,7 @@ vi.mock("@/lib/supabase/admin", () => ({
 // ---------------------------------------------------------------------------
 
 const mockUpload = vi.fn();
-vi.mock("@/lib/uploads", () => ({
+vi.mock("@/lib/infra/uploads", () => ({
   uploadAttachmentIfPresent: (...args: unknown[]) => mockUpload(...args),
 }));
 
@@ -73,8 +73,8 @@ const { MockRateLimitError, mockEnforceRateLimit } = vi.hoisted(() => {
   };
 });
 
-vi.mock("@/lib/rate-limit", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/rate-limit")>();
+vi.mock("@/lib/infra/rate-limit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/rate-limit")>();
   return {
     ...actual,
     enforceRateLimit: (endpoint: string, id: string, cfg: unknown) =>
@@ -105,6 +105,15 @@ const INSERTED_EVENT_ID = "evt-0000-0000-0000-000000000001";
 const mockDb = {
   select: vi.fn(),
   insert: vi.fn(),
+  // P4 item 3 (2026-07-08): the action now wraps insertEventIdempotent in
+  // db.transaction() (advisory lock inside it requires an active tx). The
+  // mock tx is just `mockDb` itself — its .select/.insert get reassigned by
+  // buildMockDb() before each test same as the top-level `db` reference.
+  transaction: vi.fn((cb: (tx: typeof mockDb) => unknown) => cb(mockDb)),
+  // The lock statement itself (`select pg_advisory_xact_lock(...)`) — only
+  // reached on the keyed path; a no-op stub is enough since these tests never
+  // assert on its SQL.
+  execute: vi.fn(async () => undefined),
 };
 
 // Rebuild mock DB state before each test.
@@ -280,6 +289,39 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 
   // --- Rate limiting (persistent DB-backed enforceRateLimit) ---
 
+  it("a validation-rejected submission does NOT consume the rate-limit budget (tester fix #6)", async () => {
+    vi.resetModules();
+    buildMockDb();
+    mockEnforceRateLimit.mockClear();
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    // Missing location → validation error BEFORE the limiter is consulted,
+    // so the finder can fix the form and retry immediately.
+    const fd = makeFormData({});
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(false);
+    expect(mockEnforceRateLimit).not.toHaveBeenCalled();
+  });
+
+  it("a successful submission DOES consume the rate-limit budget", async () => {
+    vi.resetModules();
+    buildMockDb();
+    mockEnforceRateLimit.mockClear();
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const result = await reportPetSightingAction(
+      PUBLIC_TOKEN,
+      PREVIOUS_STATE,
+      makeFormData({ ...BASE_LOCATION }),
+    );
+    expect(result.ok).toBe(true);
+    expect(mockEnforceRateLimit).toHaveBeenCalledTimes(1);
+  });
+
   it("returns ok:false when enforceRateLimit throws RateLimitError", async () => {
     vi.resetModules();
     buildMockDb();
@@ -384,5 +426,98 @@ describe("reportPetSightingAction — P0d payload fields", () => {
 
     expect(result.ok).toBe(true);
     expect(capturedAttachmentInsert).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Idempotency: duplicate clientIdempotencyKey → wasNoop=true → no second insert
+// ---------------------------------------------------------------------------
+//
+// These tests mock @/lib/event-idempotency directly so they are independent of
+// the DB layer. Pattern mirrors checkin and finder idempotency unit tests.
+
+describe("reportPetSightingAction — idempotency guard", () => {
+  // Track how many times insertEventIdempotent is called so we can assert
+  // the notification path is NOT reached on a noop.
+  const mockInsertEventIdempotent = vi.fn();
+
+  beforeEach(() => {
+    vi.resetModules();
+    buildMockDb();
+    mockEnforceRateLimit.mockResolvedValue(undefined);
+    mockUpload.mockResolvedValue({ uploadedPath: null, mimeType: null, size: null, error: null });
+    capturedPetEventInsert = null;
+    capturedNotificationInsert = null;
+    capturedAttachmentInsert = null;
+
+    // Override the idempotency helper so we can control wasNoop.
+    vi.doMock("@/lib/events/event-idempotency", () => ({
+      insertEventIdempotent: mockInsertEventIdempotent,
+    }));
+  });
+
+  it("returns ok:true and skips second insert when same clientIdempotencyKey is reused (wasNoop=true)", async () => {
+    const IDEMPOTENCY_KEY = "de305d54-75b4-431b-adb2-eb6b9e546014";
+
+    // Simulate conflict on the second DB call: wasNoop=true.
+    mockInsertEventIdempotent.mockResolvedValue({
+      event: { id: INSERTED_EVENT_ID },
+      wasNoop: true,
+    });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    // Single call with wasNoop=true — simulates a duplicate submission.
+    const fd = makeFormData({ ...BASE_LOCATION, clientIdempotencyKey: IDEMPOTENCY_KEY });
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    // insertEventIdempotent must have been called with the key. P4 item 3:
+    // the call now also carries the tx executor as a 2nd arg (advisory lock
+    // requires an active transaction) — match it loosely.
+    expect(mockInsertEventIdempotent).toHaveBeenCalledWith(
+      expect.objectContaining({ clientIdempotencyKey: IDEMPOTENCY_KEY }),
+      expect.anything(),
+    );
+  });
+
+  it("skips notification insert when wasNoop=true", async () => {
+    mockInsertEventIdempotent.mockResolvedValue({
+      event: { id: INSERTED_EVENT_ID },
+      wasNoop: true,
+    });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const fd = makeFormData({
+      ...BASE_LOCATION,
+      clientIdempotencyKey: "de305d54-75b4-431b-adb2-eb6b9e546014",
+    });
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    // Noop path must NOT insert a notification.
+    expect(capturedNotificationInsert).toBeNull();
+  });
+
+  it("proceeds with normal insert and notification when clientIdempotencyKey is absent", async () => {
+    mockInsertEventIdempotent.mockResolvedValue({
+      event: { id: INSERTED_EVENT_ID },
+      wasNoop: false,
+    });
+
+    const { reportPetSightingAction } = await import("@/app/actions/pet-sighting");
+
+    const fd = makeFormData({ ...BASE_LOCATION }); // no clientIdempotencyKey
+    const result = await reportPetSightingAction(PUBLIC_TOKEN, PREVIOUS_STATE, fd);
+
+    expect(result.ok).toBe(true);
+    // P4 item 3: 2nd arg is the tx executor — match it loosely.
+    expect(mockInsertEventIdempotent).toHaveBeenCalledWith(
+      expect.objectContaining({ clientIdempotencyKey: null }),
+      expect.anything(),
+    );
+    // Normal path inserts the notification.
+    expect(capturedNotificationInsert).not.toBeNull();
   });
 });

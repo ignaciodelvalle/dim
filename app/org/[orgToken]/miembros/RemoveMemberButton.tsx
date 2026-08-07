@@ -2,9 +2,10 @@
 
 // RemoveMemberButton — confirms and calls removeMemberAction for a member row.
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { removeMemberAction } from "@/src/modules/organizations/actions";
 
 type Props = {
@@ -14,10 +15,10 @@ type Props = {
 };
 
 export function RemoveMemberButton({ organizationId, membershipId, displayName }: Props) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   function handleRemove() {
     setError(null);
@@ -28,53 +29,38 @@ export function RemoveMemberButton({ organizationId, membershipId, displayName }
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR member list drops the row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
-  }
-
-  if (!confirming) {
-    return (
-      <button
-        type="button"
-        onClick={() => setConfirming(true)}
-        className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
-      >
-        Quitar
-      </button>
-    );
   }
 
   return (
     <div className="flex flex-col gap-1">
-      <p className="text-[12px] text-ln-op-mute">
-        ¿Quitar a <strong>{displayName}</strong> de la organización?
-      </p>
+      <button
+        ref={triggerRef}
+        type="button"
+        onClick={() => setConfirming(true)}
+        className="rounded-[var(--radius-sm)] border border-ln-op-danger px-3 py-[5px] text-sm font-medium text-ln-op-danger transition-colors hover:bg-ln-op-danger hover:text-white"
+      >
+        Quitar
+      </button>
       {error && (
-        <p className="text-[12px] text-ln-op-danger" role="alert">
+        <p className="text-sm text-ln-op-danger" role="alert">
           {error}
         </p>
       )}
-      <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={handleRemove}
-          disabled={pending}
-          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] font-medium text-white transition-colors disabled:opacity-60"
-        >
-          {pending ? "Quitando..." : "Confirmar"}
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            setConfirming(false);
-            setError(null);
-          }}
-          disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] font-medium text-ln-op-ink transition-colors hover:bg-ln-op-stripe disabled:opacity-60"
-        >
-          Cancelar
-        </button>
-      </div>
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => setConfirming(false)}
+        onConfirm={handleRemove}
+        title={`¿Quitar a ${displayName} de la organización?`}
+        description="Esta acción eliminará al miembro de la organización."
+        confirmLabel="Quitar"
+        tone="danger"
+        pending={pending}
+        triggerRef={triggerRef}
+      />
     </div>
   );
 }

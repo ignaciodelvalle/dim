@@ -2,6 +2,8 @@
 
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { type EndFosterFormState, endFosterAction } from "@/src/modules/foster/actions";
 
 const SELECTABLE_END_REASONS = [
@@ -14,7 +16,7 @@ const SELECTABLE_END_REASONS = [
 type ReasonValue = (typeof SELECTABLE_END_REASONS)[number]["value"];
 
 const fieldCls =
-  "w-full rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 export function EndFosterButton({
   orgToken,
@@ -42,26 +44,28 @@ export function EndFosterButton({
         { error: null },
         formData,
       );
-      if (result.error) setError(result.error);
-      // success → action redirects; we won't reach here in that case
+      if (result.error) {
+        setError(result.error);
+      } else if (result.redirectTo) {
+        // N3: the action names the destination and this navigates. It used to
+        // redirect() server-side — a transition the App Router drops, so the
+        // foster stay ENDED and the operator kept looking at the button.
+        navigateAfterActionSuccess(result.redirectTo);
+      }
     });
   }
 
   if (!open) {
     return (
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors whitespace-nowrap"
-      >
+      <OpButton variant="danger" size="sm" onClick={() => setOpen(true)} className="shrink-0">
         Finalizar tránsito
-      </button>
+      </OpButton>
     );
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-stripe p-3 space-y-2 w-full sm:w-80">
-      <label htmlFor={`end-reason-${publicToken}`} className="block text-[12px] text-ln-op-mute">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe p-3 space-y-2 w-full sm:w-80">
+      <label htmlFor={`end-reason-${publicToken}`} className="block text-sm text-ln-op-mute">
         Motivo
       </label>
       <select
@@ -81,58 +85,54 @@ export function EndFosterButton({
         onChange={(e) => setNotes(e.target.value)}
         rows={2}
         placeholder="Notas (opcional)"
+        aria-label="Notas"
         className={fieldCls}
       />
       {error && (
-        <output className="block text-[12px] text-ln-op-danger" role="alert">
+        <output className="block text-sm text-ln-op-danger" role="alert">
           {error}
         </output>
       )}
       {confirming ? (
         <div className="space-y-2">
-          <p className="text-[12px] text-ln-op-ink-2">
+          <p className="text-sm text-ln-op-ink-2">
             Esto cierra el tránsito y notifica al voluntario. ¿Confirmás?
           </p>
           <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={submit}
-              disabled={pending}
-              className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-            >
-              {pending ? "Cerrando..." : "Confirmar finalización"}
-            </button>
-            <button
-              type="button"
+            <OpButton variant="danger" size="sm" onClick={submit} disabled={pending}>
+              {pending ? "Cerrando..." : "Finalizar tránsito"}
+            </OpButton>
+            <OpButton
+              variant="ghost"
+              size="sm"
               onClick={() => setConfirming(false)}
               disabled={pending}
-              className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
             >
               Atrás
-            </button>
+            </OpButton>
           </div>
         </div>
       ) : (
         <div className="flex gap-2">
-          <button
-            type="button"
+          <OpButton
+            variant="danger"
+            size="sm"
             onClick={() => setConfirming(true)}
             disabled={pending}
-            className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
-            Confirmar
-          </button>
-          <button
-            type="button"
+            Finalizar tránsito
+          </OpButton>
+          <OpButton
+            variant="ghost"
+            size="sm"
             onClick={() => {
               setOpen(false);
               setConfirming(false);
             }}
             disabled={pending}
-            className="rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors"
           >
             Cancelar
-          </button>
+          </OpButton>
         </div>
       )}
     </div>

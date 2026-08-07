@@ -8,15 +8,16 @@
 // from here; everything else continues to import from
 // `@/lib/adoption-listing`.
 
-import { and, desc, eq, ilike, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNotNull, isNull, lt, ne, or, sql } from "drizzle-orm";
 
 import { attachments, db, organizations, ownerships, pets } from "@/db";
+import { likeContains } from "@/lib/utils/like-helpers";
 
 import type {
   AdoptionListingCursor,
   AdoptionListingFilters,
   AdoptionListingItem,
-} from "@/lib/adoption-listing";
+} from "@/lib/infra/adoption-listing";
 
 const DEFAULT_PAGE_SIZE = 24;
 
@@ -95,8 +96,15 @@ export async function queryAdoptionListing(
     conditions.push(eq(organizations.publicToken, filters.organizationToken));
   }
   if (filters.searchQuery) {
-    const pattern = `%${filters.searchQuery}%`;
-    conditions.push(or(ilike(pets.name, pattern), ilike(pets.breed, pattern)));
+    const pattern = likeContains(filters.searchQuery);
+    // unaccent() on both sides: "labrador" finds "Labràdor", etc.
+    // likeContains() escapes % and _ to prevent wildcard injection.
+    conditions.push(
+      or(
+        sql`unaccent(${pets.name}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+        sql`unaccent(${pets.breed}) ILIKE unaccent(${pattern}) ESCAPE '\'`,
+      ),
+    );
   }
 
   // Keyset cursor.
@@ -123,14 +131,17 @@ export async function queryAdoptionListing(
       primaryPhotoStoragePath: attachments.storagePath,
       jurisdictionProvince: pets.jurisdictionProvince,
       jurisdictionLocality: pets.jurisdictionLocality,
-      // microchipId: sourced from canonical pet_identifications via correlated
-      // subquery so the badge shows canonical data without a batch join.
-      microchipId: sql<string | null>`(
-        SELECT pi.code FROM pet_identifications pi
+      // hasMicrochip: EXISTS, never the code. The card renders a "Con chip"
+      // badge — a boolean — and /adoptar is unauthenticated, so selecting the
+      // 15-digit canonical value put every listed pet's chip one `"use client"`
+      // away from the public RSC payload. Same standard queryLostListing's
+      // Item-27 location split already applies: don't fetch PII you only need
+      // to test for presence, rather than fetch it and redact in JS.
+      hasMicrochip: sql<boolean>`EXISTS (
+        SELECT 1 FROM pet_identifications pi
         WHERE pi.pet_id = ${pets.id}
           AND pi.kind = 'microchip_iso'
           AND pi.status = 'active'
-        LIMIT 1
       )`,
       adoptionListedAt: pets.adoptionListedAt,
       adoptionStory: pets.adoptionStory,

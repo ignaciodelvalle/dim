@@ -18,7 +18,7 @@
 //   - getGrantedCapabilities: delegates to domain resolveGrantedCaps + DB approved rows
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -33,7 +33,6 @@ import { VET_INDIVIDUAL_IMPLICIT_CAPS } from "@/src/modules/organizations/domain
 import {
   getActiveMemberships,
   getGrantedCapabilities,
-  requireCapability,
 } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // ---------------------------------------------------------------------------

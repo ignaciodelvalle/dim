@@ -14,7 +14,7 @@
 
 import "server-only";
 
-import { and, desc, eq, gt, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, lte, ne } from "drizzle-orm";
 
 import {
   attachments,
@@ -28,8 +28,10 @@ import {
   reminders,
 } from "@/db";
 import type { NewAuditLogRow, NewPetEvent, NewPetIdentification, PetEvent } from "@/db/schema";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
-import { enqueueOutboxForEvent } from "@/lib/event-outbox-enqueue";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
+import { enqueueOutboxForEvent } from "@/lib/events/event-outbox-enqueue";
+import { validatedEventValues } from "@/lib/events/validated-event-values";
+import { AR_TIME_ZONE } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -52,6 +54,38 @@ export type AttachmentInput = {
 export type ReminderInput = typeof reminders.$inferInsert;
 
 // ---------------------------------------------------------------------------
+// Same-day duplicate warn (P4 item 4, 2026-07-08)
+// ---------------------------------------------------------------------------
+
+/**
+ * Returns the [start, end] UTC instants bracketing the Argentina-local
+ * calendar day containing `date`. Argentina has used a fixed UTC-3 offset
+ * with no DST since 2009 (Ley 26.350), so constructing the boundaries
+ * directly from the AR-local Y-M-D parts is safe — no per-date offset table
+ * needed.
+ */
+function arCalendarDayRangeUtc(date: Date): { start: Date; end: Date } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: AR_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const y = parts.find((p) => p.type === "year")?.value;
+  const m = parts.find((p) => p.type === "month")?.value;
+  const d = parts.find((p) => p.type === "day")?.value;
+  if (!y || !m || !d) {
+    throw new Error(
+      `arCalendarDayRangeUtc: could not resolve AR-local date parts for ${date.toISOString()}`,
+    );
+  }
+  return {
+    start: new Date(`${y}-${m}-${d}T00:00:00-03:00`),
+    end: new Date(`${y}-${m}-${d}T23:59:59.999-03:00`),
+  };
+}
+
+// ---------------------------------------------------------------------------
 // EventsRepository
 // ---------------------------------------------------------------------------
 
@@ -63,23 +97,67 @@ export class EventsRepository {
   /**
    * Insert an event with idempotency-key deduplication.
    * Returns { event, wasNoop } — callers check wasNoop to skip side-effects.
+   *
+   * The payload is validated against the per-type Zod schema at this boundary
+   * (event-sourcing integrity review 2026-07-04 item 2) via
+   * validatedEventValues. Use-case-level validateEventPayload calls remain
+   * valid: re-parsing an already-parsed payload is a no-op.
    */
   async insertEventIdempotent(
     values: NewPetEvent,
     executor: DbOrTx = db,
   ): Promise<{ event: PetEvent; wasNoop: boolean }> {
-    return insertEventIdempotent(values, executor as Parameters<typeof insertEventIdempotent>[1]);
+    return insertEventIdempotent(
+      validatedEventValues(values),
+      executor as Parameters<typeof insertEventIdempotent>[1],
+    );
   }
 
   /**
    * Insert an event without idempotency (plain insert).
    * Used for non-idempotent events: dangerousBreed, doseTaken, cascade events,
    * outbreak_signal, symptom-writer path.
+   *
+   * The payload is validated against the per-type Zod schema at this boundary
+   * — an invalid payload throws EventPayloadValidationError before any row is
+   * written (event-sourcing integrity review 2026-07-04 item 2).
    */
   async insertEvent(values: NewPetEvent, executor: DbOrTx = db): Promise<PetEvent> {
-    const [row] = await executor.insert(petEvents).values(values).returning();
+    const validated = validatedEventValues(values);
+    const [row] = await executor.insert(petEvents).values(validated).returning();
     if (!row) throw new Error("EventsRepository.insertEvent: insert returned no rows");
     return row;
+  }
+
+  /**
+   * Find an existing event of the same (pet, eventType) whose occurredAt
+   * falls on the same Argentina-local calendar day as `occurredAt`. Used by
+   * the SUSPICIOUS same-day-duplicate warn (P4 item 4) for
+   * vaccination_administered / deworming_administered — a hit means the
+   * caller should surface a non-blocking confirm prompt instead of inserting
+   * outright. Returns the first match's id only (existence check, not a
+   * projection read).
+   */
+  async findSameDayEventOfType(
+    petId: string,
+    eventType: string,
+    occurredAt: Date,
+    executor: DbOrTx = db,
+  ): Promise<{ id: string } | null> {
+    const { start, end } = arCalendarDayRangeUtc(occurredAt);
+    const [row] = await executor
+      .select({ id: petEvents.id })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.petId, petId),
+          eq(petEvents.eventType, eventType),
+          gte(petEvents.occurredAt, start),
+          lte(petEvents.occurredAt, end),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
   }
 
   // ===========================================================================
@@ -99,10 +177,19 @@ export class EventsRepository {
    * Skips the insert if an active row for the same (pet, kind) already exists:
    * callers of this helper are "add identifier to a pet that has none" flows
    * (createMicrochip backfill, set-pet-lost retroactive chip), so an existing
-   * active row means a prior partial write — keeping it is the correct
-   * re-sync, and inserting would trip the chip_unique partial index with a
-   * raw 500. Replacement flows expire the old row first (see
-   * expireActiveIdentification) and use direct inserts.
+   * active row means a prior partial write — keeping it is the correct re-sync.
+   * Replacement flows expire the old row first (see expireActiveIdentification)
+   * and use direct inserts.
+   *
+   * This is a LAST-RESORT re-sync guard, not a conflict check, and callers must
+   * not lean on it as one. It compares (pet, kind) and never looks at `code`,
+   * so it cannot tell a repeat of the same chip from a different one — and it
+   * is reached only after the event has already been written. The
+   * `chip_unique` partial index is UNIQUE(code) across ALL active chip rows,
+   * so a different code on the same pet would not trip it either: two active
+   * chips would simply coexist and `rowsToIdentifications` would pick whichever
+   * row the query returned last. Deciding whether a chip may be recorded at all
+   * belongs upstream, in checkChipMatchesCanonical, before anything is appended.
    */
   async insertIdentification(values: NewPetIdentification, executor: DbOrTx = db): Promise<void> {
     const [existing] = await executor
@@ -164,6 +251,31 @@ export class EventsRepository {
   async insertReminders(rows: ReminderInput[], executor: DbOrTx = db): Promise<void> {
     if (rows.length === 0) return;
     await executor.insert(reminders).values(rows);
+  }
+
+  /**
+   * Find open (incomplete) reminders of a given type for a pet.
+   *
+   * Used by callers that need to match against existing reminder titles
+   * (e.g. the vaccine reminder supersede-on-duplicate check in
+   * vaccination-use-case.ts — `reminders.title` is free text, there is no
+   * structural vaccine-kind column, so title matching happens caller-side).
+   */
+  async findOpenReminders(
+    petId: string,
+    reminderType: (typeof reminders.$inferSelect)["reminderType"],
+    executor: DbOrTx = db,
+  ): Promise<{ id: string; title: string }[]> {
+    return executor
+      .select({ id: reminders.id, title: reminders.title })
+      .from(reminders)
+      .where(
+        and(
+          eq(reminders.petId, petId),
+          eq(reminders.reminderType, reminderType),
+          isNull(reminders.completedAt),
+        ),
+      );
   }
 
   /**
@@ -345,6 +457,38 @@ export class EventsRepository {
   // ===========================================================================
   // Pet reads
   // ===========================================================================
+
+  // ===========================================================================
+  // Bulk reads
+  // ===========================================================================
+
+  /**
+   * Batch ownership query for bulk event writes.
+   *
+   * Returns only the pets that are currently under active shelter_custody of
+   * the given org and are NOT deceased (mirrors requireAlivePetAccess scope
+   * used in the single-pet path). Tokens absent from the result are ineligible.
+   */
+  async findBatchShelterPets(
+    tokens: string[],
+    orgId: string,
+  ): Promise<Array<{ petId: string; publicToken: string; petName: string }>> {
+    if (tokens.length === 0) return [];
+    const rows = await db
+      .select({ petId: pets.id, publicToken: pets.publicToken, petName: pets.name })
+      .from(pets)
+      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+      .where(
+        and(
+          inArray(pets.publicToken, tokens),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+          ne(pets.status, "deceased"),
+        ),
+      );
+    return rows;
+  }
 
   /**
    * Return the minimal alive-state snapshot for a pet.

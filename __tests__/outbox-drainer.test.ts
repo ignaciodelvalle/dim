@@ -9,7 +9,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { BACKOFF_MINUTES, MAX_ATTEMPTS, computeNextRetryAt } from "@/lib/outbox-drainer";
+import { BACKOFF_MINUTES, MAX_ATTEMPTS, computeNextRetryAt } from "@/lib/infra/outbox-drainer";
 
 // ---------------------------------------------------------------------------
 // Backoff schedule

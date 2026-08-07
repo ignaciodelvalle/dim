@@ -4,7 +4,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db/schema";
-import type { WelfareRepository } from "../../infrastructure/welfare-repository";
+import {
+  UNRESOLVED_EXPORTER_LABEL,
+  type WelfareRepository,
+} from "../../infrastructure/welfare-repository";
 import { generateMpfExport } from "../generate-mpf-export";
 
 // ---------------------------------------------------------------------------
@@ -70,7 +73,7 @@ function makeDeps(
     findById: vi.fn().mockResolvedValue(report),
     findRecentMpfExport: vi.fn().mockResolvedValue(recentExport),
     findReporterName: vi.fn().mockResolvedValue(opts.reporterName ?? null),
-    findExporterName: vi.fn().mockResolvedValue(opts.exporterName ?? "Autoridad DIM"),
+    findExporterName: vi.fn().mockResolvedValue(opts.exporterName ?? UNRESOLVED_EXPORTER_LABEL),
     findSubjectPet: vi.fn().mockResolvedValue(opts.subjectPet ?? null),
     findAttachments: vi.fn().mockResolvedValue([]),
     insertAudit: vi.fn().mockResolvedValue(undefined),

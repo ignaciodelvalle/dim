@@ -1,6 +1,6 @@
 // Org pet detail page — shows the animal's key data and mounts the
 // ?sheet= action flows (elegibilidad, reemplazar-microchip, fin-transito,
-// devolver-al-dueno) via OrgPetSheetMounter.
+// devolver-al-dueno, vacuna, peso, nota) via OrgPetSheetMounter.
 //
 // Only accessible to org members with at least `pet.read_held` capability
 // who have an active ownership row (shelter_custody or foster) on this pet.
@@ -9,11 +9,15 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { fetchPendingOwnerReturnProposalForOrg } from "@/app/actions/return-to-owner";
-import { db, ownerships, petEvents, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { Icon } from "@/components/Icon";
+import { cases, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { type PetSituationTone, derivePetSituation } from "@/lib/ui/pet-situation";
+import { situationLabelForSex, speciesLabel } from "@/lib/utils/format";
+import { AdoptionRepository } from "@/src/modules/adoption/infrastructure/adoption-repository";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { fetchPendingOwnerReturnProposalForOrg } from "@/src/modules/return-to-owner/application/proposal-queries";
 import { and, desc, eq, gt, inArray, isNull } from "drizzle-orm";
 
 import {
@@ -25,8 +29,10 @@ import {
   OpStateBadge,
 } from "@/components/ui/dashboard";
 
+import { ADOPTION_LISTING_LABELS } from "../mascota-ctas";
 import { OrgPetSheetMounter } from "./OrgPetSheetMounter";
 import { OwnerReturnProposalCard } from "./OwnerReturnProposalCard";
+import { ReverseAdoptionAction } from "./ReverseAdoptionAction";
 
 export default async function OrgPetDetailPage({
   params,
@@ -41,14 +47,14 @@ export default async function OrgPetDetailPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-md text-ln-op-ink-2">
             Para ver la ficha del animal necesitás el permiso{" "}
-            <code className="text-[11px]">pet.read_held</code>.
+            <code className="text-sm">pet.read_held</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -72,7 +78,60 @@ export default async function OrgPetDetailPage({
     )
     .limit(1);
 
-  if (!petRow) notFound();
+  if (!petRow) {
+    // The org has no active ownership row on this pet. Distinguish "the pet
+    // genuinely does not exist" (→ 404) from "the pet exists but left this
+    // org's custody" (e.g. a finalized adoption or transfer). The latter is a
+    // stale in-app link and deserves a confirming state, not a bare dead-end
+    // 404 (QA ALTO, 2026-07-16). Existence by publicToken is already public
+    // (Tier-0 credential, /p/[token]), so this leaks nothing new.
+    const [stillExists] = await db
+      .select({ id: pets.id, name: pets.name })
+      .from(pets)
+      .where(eq(pets.publicToken, publicToken))
+      .limit(1);
+    if (!stillExists) notFound();
+
+    // The pet may have left custody via a finalized adoption THIS org itself
+    // performed — reversible from right here, without the org needing to
+    // catch the ephemeral post-finalize banner on the list page. Any other
+    // reason (transfer to another org, a different org's adoption) leaves
+    // findReversibleAdoption ok:false and no CTA renders.
+    const canReverseAdoption = granted.has("adoption.finalize");
+    const reversible = canReverseAdoption
+      ? await AdoptionRepository.findReversibleAdoption(stillExists.id, organization.id)
+      : null;
+
+    return (
+      <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
+        <div className="max-w-md text-center space-y-4">
+          <Icon name="check-circle" className="mx-auto text-ln-op-ok" decorative />
+          <h1 className="text-title font-semibold text-ln-op-ink">
+            Esta mascota ya no está bajo tu custodia
+          </h1>
+          <p className="text-md text-ln-op-ink-2">
+            Pasó a un nuevo dueño o fue transferida, así que salió del listado de tu organización.
+            Es el resultado esperado de una adopción o transferencia finalizada.
+          </p>
+          {reversible?.ok && (
+            <div className="text-left">
+              <ReverseAdoptionAction
+                orgToken={orgToken}
+                petPublicToken={publicToken}
+                petName={stillExists.name}
+              />
+            </div>
+          )}
+          <Link
+            href={`/org/${orgToken}/mascotas`}
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
+          >
+            Volver al listado
+          </Link>
+        </div>
+      </main>
+    );
+  }
   const { pet, ownershipRole } = petRow;
 
   // Active foster name (for the fin-transito sheet).
@@ -85,6 +144,28 @@ export default async function OrgPetDetailPage({
     )
     .limit(1);
   const fosterName = fosterRow?.displayName ?? null;
+
+  // Open custody_episode opened by a sanitary_authority org — the same DC13
+  // canonical discriminator /p and the owner profile use. Feeds the
+  // custodia-oficial situation on the ficha (pet-state-header R6).
+  const openCustodyRows = await db
+    .select({ caseId: cases.id })
+    .from(cases)
+    .innerJoin(
+      organizations,
+      and(
+        eq(organizations.id, cases.openedByOrganizationId),
+        eq(organizations.orgType, "sanitary_authority"),
+      ),
+    )
+    .where(
+      and(
+        eq(cases.primaryPetId, pet.id),
+        eq(cases.caseKind, "custody_episode"),
+        eq(cases.status, "open"),
+      ),
+    )
+    .limit(1);
 
   // Pending return proposal check (for devolver-al-dueno sheet).
   let canProposeReturn = false;
@@ -128,7 +209,7 @@ export default async function OrgPetDetailPage({
   } | null = null;
 
   if (granted.has("custody.transfer")) {
-    const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, organization.id);
+    const pending = await fetchPendingOwnerReturnProposalForOrg(pet.id, organization.id, db);
     if (pending) {
       const proposalPayload = pending.proposal.payload as Record<string, unknown>;
       const notes = (proposalPayload.notes as string | null) ?? null;
@@ -153,9 +234,27 @@ export default async function OrgPetDetailPage({
   const canonicalIds = await fetchActiveIdentifications(pet.id);
 
   const canManageEligibility = granted.has("intake.create") && ownershipRole === "shelter_custody";
+  // The publish CTA existed only in the list's row menu — from the ficha
+  // there was no way to publish, which misled QA into "Apta no publica"
+  // (Cowork QA v3, B1). Mirrors mascota-ctas.tsx's publish-listing candidate.
+  const canManageAdoptionListing =
+    granted.has("adoption.listing.manage") && ownershipRole === "shelter_custody";
   const canReplaceMicrochip = granted.has("event.write");
+  // Clinical event recording on the held-pet ficha (staging validation
+  // 2026-07-04, bug 2): the capability existed but had no surface here. The
+  // shared server actions re-enforce event.write at the signing boundary
+  // (lib/infra/pet-access.ts), so this flag only gates UI visibility.
+  // Vaccine/weight require a living pet (requireAlivePetAccess); nota stays
+  // available for deceased pets (parity with the owner-side note action).
+  const canWriteEvents = granted.has("event.write");
+  const canRecordClinical = canWriteEvents && pet.status !== "deceased";
   const canEndFoster = granted.has("foster.end") && !!fosterName;
-  const speciesLabel = pet.species === "dog" ? "Perro" : pet.species === "cat" ? "Gato" : "Otro";
+  // Finalize adoption is reachable from the pet ficha (not only the list card),
+  // so the "aprobación → finalizá en la ficha" guidance actually lands on a
+  // page that has the action. The finalize page itself enforces eligibility.
+  const canFinalizeAdoption =
+    granted.has("adoption.finalize") && ownershipRole === "shelter_custody";
+  const petSpeciesLabel = speciesLabel(pet.species);
 
   const eligibility = {
     eligible: pet.adoptionEligible,
@@ -175,9 +274,53 @@ export default async function OrgPetDetailPage({
   }
   const adState = adoptionState();
 
+  // Pet SITUATION (pet-state-header R6) — the same single derivation every
+  // other surface uses, FULL set: org viewers are custodians, not the public,
+  // so no privacy filtering applies here. Renders as an Op-toned strip at the
+  // top of the ficha + a badge replacing the plain-text Estado value. Default
+  // al-dia → no strip (quiet ficha). Note: en-tratamiento is not derivable
+  // here (no medication projection is loaded on this page); all other
+  // situations are wired.
+  const petSituation = derivePetSituation({
+    status: pet.status,
+    rabiesObservationStatus: pet.rabiesObservationStatus,
+    pregnancyStatus: pet.pregnancyStatus,
+    inAdoption: Boolean(pet.adoptionListedAt) && !pet.adoptionListingPausedAt,
+    inTransit: !!fosterName,
+    underOfficialCustody: openCustodyRows.length > 0,
+  });
+  const orgSituation = petSituation.isDefault ? null : petSituation;
+  const orgSituationLabel = orgSituation ? situationLabelForSex(orgSituation.label, pet.sex) : null;
+
+  // Situation tone → Op design-language classes (the org console does not use
+  // the ln-* document palette). WCAG: tone never travels alone — the strip and
+  // badge both pair it with the situation icon + label. `ok` is unreachable
+  // (isDefault → no strip); rosa has no Op family, viol is its Op analog.
+  const OP_TONE_CLASSES: Record<PetSituationTone, string> = {
+    ok: "bg-ln-op-ok-bg border-ln-op-ok-bd text-ln-op-ok",
+    alerta: "bg-ln-op-danger-bg border-ln-op-danger-bd text-ln-op-danger",
+    vigilancia: "bg-ln-op-blue-bg border-ln-op-blue-bd text-ln-op-azul",
+    tratamiento: "bg-ln-op-warn-bg border-ln-op-warn-bd text-ln-op-warn",
+    gestacion: "bg-ln-op-viol-bg border-ln-op-viol-bd text-ln-op-viol",
+    accion: "bg-ln-op-stripe border-ln-op-line text-ln-op-ink-2",
+    memoria: "bg-ln-op-stripe border-ln-op-line text-ln-op-mute",
+  };
+
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto space-y-6">
+        {/* Situation strip (pet-state-header R6) — the ficha's state carrier,
+            same tone families as the credential masthead, Op design language. */}
+        {orgSituation && (
+          <div
+            data-section="org-situation-strip"
+            className={`flex items-center gap-2 rounded-[var(--radius-sm)] border border-l-[3px] px-4 py-2.5 text-md font-semibold ${OP_TONE_CLASSES[orgSituation.tone]}`}
+          >
+            <Icon name={orgSituation.icon} size="sm" decorative />
+            {orgSituationLabel}
+          </div>
+        )}
+
         {/* Header */}
         <header className="space-y-1">
           <OpCrumbs
@@ -185,12 +328,12 @@ export default async function OrgPetDetailPage({
           />
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
-              <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+              <p className="text-sm uppercase tracking-wider text-ln-op-mute">
                 {organization.displayName}
               </p>
-              <h1 className="text-[22px] font-semibold text-ln-op-ink">{pet.name}</h1>
-              <p className="text-[13px] text-ln-op-ink-2">
-                {speciesLabel}
+              <h1 className="text-title font-semibold text-ln-op-ink">{pet.name}</h1>
+              <p className="text-md text-ln-op-ink-2">
+                {petSpeciesLabel}
                 {pet.breed ? ` · ${pet.breed}` : ""}
                 {pet.color ? ` · ${pet.color}` : ""}
               </p>
@@ -203,18 +346,26 @@ export default async function OrgPetDetailPage({
         <OpCard>
           <OpCardHead title="Datos del animal" />
           <OpCardBody>
-            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+            <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-md">
               <dt className="text-ln-op-mute">Token público</dt>
               <dd>
                 <OpCodeBadge tone="neutral">{pet.publicToken}</OpCodeBadge>
               </dd>
               <dt className="text-ln-op-mute">Estado</dt>
-              <dd className="text-ln-op-ink capitalize">
-                {pet.status === "lost"
-                  ? "Perdida"
-                  : pet.status === "active"
-                    ? "Activa"
-                    : "Fallecida"}
+              <dd>
+                {orgSituation ? (
+                  // Badge with icon + gendered label — replaces the old
+                  // plain-text value whenever a situation is active.
+                  <span
+                    data-section="org-situation-badge"
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-sm font-semibold ${OP_TONE_CLASSES[orgSituation.tone]}`}
+                  >
+                    <Icon name={orgSituation.icon} size={13} decorative />
+                    {orgSituationLabel}
+                  </span>
+                ) : (
+                  <span className="text-ln-op-ink">Activa</span>
+                )}
               </dd>
               <dt className="text-ln-op-mute">Rol de custodia</dt>
               <dd className="text-ln-op-ink">
@@ -243,28 +394,89 @@ export default async function OrgPetDetailPage({
         </OpCard>
 
         {/* Action buttons */}
-        {(canManageEligibility || canReplaceMicrochip || canEndFoster || canProposeReturn) && (
+        {(canManageEligibility ||
+          canManageAdoptionListing ||
+          canReplaceMicrochip ||
+          canWriteEvents ||
+          canEndFoster ||
+          canProposeReturn ||
+          canFinalizeAdoption) && (
           <section className="space-y-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-wider text-ln-op-mute">
-              Acciones
-            </h2>
+            <h2 className="text-sm font-bold uppercase tracking-wider text-ln-op-mute">Acciones</h2>
             <div className="flex flex-wrap gap-2">
+              {/* Azul, not green (one-primary-per-screen review, 2026-08-06):
+                  this NAVIGATES to /adoption — the green stays on that form's
+                  own "Finalizar adopción" submit, which is the actual
+                  confirmation. A green link here promised a commit it never
+                  performed, and made the org portal read with two accents. */}
+              {canFinalizeAdoption && (
+                <Link
+                  href={`/org/${orgToken}/mascotas/${publicToken}/adoption`}
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                >
+                  Finalizar adopción
+                </Link>
+              )}
               {canManageEligibility && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=elegibilidad`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
-                  {pet.adoptionEligible === true
-                    ? "Elegibilidad · Apta ✓"
-                    : pet.adoptionEligible === false
-                      ? "Elegibilidad · NO apta"
-                      : "Elegibilidad"}
+                  {pet.adoptionEligible === true ? (
+                    <span className="inline-flex items-center gap-1">
+                      Elegibilidad · Apta <Icon name="check" size={13} decorative />
+                    </span>
+                  ) : pet.adoptionEligible === false ? (
+                    "Elegibilidad · NO apta"
+                  ) : (
+                    "Elegibilidad"
+                  )}
+                </Link>
+              )}
+              {canManageAdoptionListing && (
+                <Link
+                  href={`/org/${orgToken}/mascotas/${publicToken}/adoptar`}
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                >
+                  {pet.adoptionListedAt && !pet.adoptionListingPausedAt ? (
+                    <span className="inline-flex items-center gap-1">
+                      {ADOPTION_LISTING_LABELS.listed} <Icon name="check" size={13} decorative />
+                    </span>
+                  ) : pet.adoptionListedAt && pet.adoptionListingPausedAt ? (
+                    ADOPTION_LISTING_LABELS.paused
+                  ) : (
+                    ADOPTION_LISTING_LABELS.unlisted
+                  )}
+                </Link>
+              )}
+              {canRecordClinical && (
+                <>
+                  <Link
+                    href={`/org/${orgToken}/mascotas/${publicToken}?sheet=vacuna`}
+                    className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  >
+                    Registrar vacuna
+                  </Link>
+                  <Link
+                    href={`/org/${orgToken}/mascotas/${publicToken}?sheet=peso`}
+                    className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  >
+                    Registrar peso
+                  </Link>
+                </>
+              )}
+              {canWriteEvents && (
+                <Link
+                  href={`/org/${orgToken}/mascotas/${publicToken}?sheet=nota`}
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                >
+                  Agregar nota
                 </Link>
               )}
               {canReplaceMicrochip && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=reemplazar-microchip`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   Reemplazar microchip
                 </Link>
@@ -272,7 +484,7 @@ export default async function OrgPetDetailPage({
               {canEndFoster && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=fin-transito`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink hover:bg-ln-op-stripe"
                 >
                   Cerrar tránsito
                 </Link>
@@ -280,7 +492,7 @@ export default async function OrgPetDetailPage({
               {canProposeReturn && (
                 <Link
                   href={`/org/${orgToken}/mascotas/${publicToken}?sheet=devolver-al-dueno`}
-                  className="inline-block text-[12px] px-3 py-1.5 rounded-[4px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
+                  className="inline-block text-sm px-3 py-1.5 rounded-[var(--radius-sm)] bg-ln-op-azul text-white hover:bg-ln-op-azul-700"
                 >
                   Devolver al dueño
                 </Link>
@@ -307,6 +519,9 @@ export default async function OrgPetDetailPage({
             orgToken={orgToken}
             petPublicToken={publicToken}
             petName={pet.name}
+            petSpecies={pet.species}
+            canWriteEvents={canWriteEvents}
+            canRecordClinical={canRecordClinical}
             eligibility={eligibility}
             currentChip={canonicalIds.microchip?.code ?? null}
             fosterName={fosterName}
@@ -317,7 +532,7 @@ export default async function OrgPetDetailPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

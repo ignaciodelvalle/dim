@@ -13,8 +13,8 @@ import { and, eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, notifications, ownerships, petEvents, pets, profiles } from "@/db";
-import { generatePublicToken } from "@/lib/publicToken";
-import { closeEligibleRabiesObservations } from "@/lib/rabies-observation-closer";
+import { generatePublicToken } from "@/lib/infra/publicToken";
+import { closeEligibleRabiesObservations } from "@/lib/infra/rabies-observation-closer";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -33,8 +33,15 @@ async function purgeUserByEmail(email: string) {
   const { data } = await supabase.auth.admin.listUsers();
   const found = data?.users.find((u) => u.email === email);
   if (!found) return;
-  await db.delete(notifications).where(eq(notifications.userId, found.id));
-  await db.delete(profiles).where(eq(profiles.id, found.id));
+  // Deleting a profile cascades a SET NULL onto pet_events.recorded_by_user_id
+  // (an UPDATE), which the pet_events append-only trigger blocks unless the
+  // mutation-override GUC is set. Leftover events from a prior run can
+  // reference this user, so the purge must run under the override to stay
+  // hermetic against a polluted local DB (mirrors the afterAll cleanup).
+  await withMutationOverride(async (tx) => {
+    await tx.delete(notifications).where(eq(notifications.userId, found.id));
+    await tx.delete(profiles).where(eq(profiles.id, found.id));
+  });
   await supabase.auth.admin.deleteUser(found.id);
 }
 
@@ -126,6 +133,38 @@ async function makeRabiesPet(opts: {
   return { id: pet.id, publicToken: pet.publicToken };
 }
 
+/**
+ * A pet flagged in_progress but with NO rabies_observation_started event at
+ * all — the still-real error path (commit 923e5079 replaced the "missing
+ * observation_until" error with a computeObservationUntil fallback, but a
+ * pet with no started event has nothing to fall back to).
+ */
+async function makeRabiesPetWithNoStartedEvent(): Promise<{ id: string; publicToken: string }> {
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: generatePublicToken(),
+      name: "RabiesTestPetNoEvent",
+      species: "dog",
+      sex: "male",
+      potentiallyDangerousBreed: false,
+      rabiesObservationStatus: "in_progress",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "Mar del Plata",
+    })
+    .returning();
+  createdPetIds.push(pet.id);
+
+  await db.insert(ownerships).values({
+    petId: pet.id,
+    ownerUserId,
+    role: "owner",
+    startedAt: new Date(),
+  });
+
+  return { id: pet.id, publicToken: pet.publicToken };
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -178,14 +217,34 @@ describe("closeEligibleRabiesObservations", () => {
     expect(second.closedNegative).toBe(0);
   });
 
-  it("recovery — bad payload (missing observation_until) is recorded as an error, batch survives", async () => {
-    const bad = await makeRabiesPet({ observationUntil: "missing" });
+  it("recovery — missing observation_until falls back to the computed 10-day deadline and auto-closes (commit 923e5079)", async () => {
+    // No observation_until in the started payload, but the event occurred 11
+    // days ago (see makeRabiesPet) — computeObservationUntil derives a
+    // deadline 10 days after occurredAt, which is already past. The old
+    // behavior recorded this as an error; the closer now auto-closes it.
+    const recovered = await makeRabiesPet({ observationUntil: "missing" });
+
+    const stats = await closeEligibleRabiesObservations();
+    expect(stats.errors.some((e) => e.petId === recovered.id)).toBe(false);
+
+    const [row] = await db
+      .select({ status: pets.rabiesObservationStatus })
+      .from(pets)
+      .where(eq(pets.id, recovered.id));
+    expect(row.status).toBe("completed_negative");
+  });
+
+  it("recovery — in_progress pet with no rabies_observation_started event is recorded as an error, batch survives", async () => {
+    const bad = await makeRabiesPetWithNoStartedEvent();
     const good = await makeRabiesPet({
       observationUntil: new Date(Date.now() - 5 * 60 * 1000),
     });
 
     const stats = await closeEligibleRabiesObservations();
-    expect(stats.errors.some((e) => e.petId === bad.id)).toBe(true);
+    const badError = stats.errors.find((e) => e.petId === bad.id);
+    expect(badError).toBeDefined();
+    expect(badError?.reason).toContain("no rabies_observation_started event found");
+
     // The good pet still got closed despite the bad row in the same batch.
     const [goodRow] = await db
       .select({ status: pets.rabiesObservationStatus })

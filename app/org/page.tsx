@@ -7,19 +7,53 @@
 // from the URL segment is now the only source of truth — see AGENTS.md and
 // docs/superpowers/plans/2026-05-17-code-rename-refugio-to-org.md for context.
 
+import { OpPill } from "@/components/ui/dashboard/OpPill";
 import { db, organizationMemberships, organizations } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { BRANDING } from "@/lib/ui/branding";
 import { and, eq, isNull } from "drizzle-orm";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
+// PO quick win V2 (2026-07-24): matches the fuller es-AR label set already
+// used for approval-request display (lib/infra/approval-payload-summary.ts) —
+// "Clínica" alone read as ambiguous when read next to "Refugio"/"Red de
+// rescate" on the picker.
 const ORG_TYPE_LABELS: Record<string, string> = {
-  clinic: "Clínica",
+  clinic: "Clínica veterinaria",
   shelter: "Refugio",
   rescue_network: "Red de rescate",
   sanitary_authority: "Autoridad sanitaria",
-  other: "Organización",
+  other: "Otra",
 };
+
+// PO quick win V2 (2026-07-24): the cookie middleware.ts stamps on every
+// /org/[orgToken]/* request — a UX preference only (see middleware.ts's
+// comment), re-validated here against the caller's OWN membership list.
+const LAST_ORG_COOKIE = "dim_last_org";
+
+// miMAR brand header for the standalone org index (#43 item 5). The picker and
+// empty state render outside the org rail, so they carried no brand — a member
+// of several orgs landed on an unbranded "Seleccionar organización" screen.
+// Mirrors the OpRail monogram + serif wordmark, tuned for the light op page.
+function MiMarBrandHeader({ subtitle }: { subtitle: string }) {
+  return (
+    <div className="flex items-center gap-2.5">
+      <div className="grid h-[34px] w-[34px] flex-shrink-0 place-items-center rounded-[var(--radius-sm)] bg-ln-op-navy font-ln-mono text-md font-bold text-white">
+        m·
+      </div>
+      <div className="flex flex-col leading-tight">
+        <span className="font-ln-serif text-base font-semibold tracking-[-0.005em] text-ln-op-ink">
+          {BRANDING.appName}
+        </span>
+        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-ln-op-mute">
+          {subtitle}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default async function OrgIndexPage() {
   const { user } = await requireUserOrRedirect();
@@ -37,10 +71,13 @@ export default async function OrgIndexPage() {
 
   if (myOrgs.length === 0) {
     return (
-      <main className="min-h-screen bg-ln-op-page flex items-center justify-center p-6">
+      <main className="min-h-screen bg-ln-op-page flex flex-col items-center justify-center p-6">
+        <div className="mb-8">
+          <MiMarBrandHeader subtitle="Portal de organizaciones" />
+        </div>
         <div className="max-w-md text-center space-y-3">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin organizaciones</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <h1 className="text-title font-semibold text-ln-op-ink">Sin organizaciones</h1>
+          <p className="text-md text-ln-op-mute">
             No sos miembro activo de ninguna organización. Si tu organización te invitó, revisá tu
             email para aceptar la invitación. Si querés registrar una nueva, andá a{" "}
             <Link href="/cuenta/upgrade" className="underline text-ln-op-azul">
@@ -50,7 +87,7 @@ export default async function OrgIndexPage() {
           </p>
           <Link
             href="/mis-mascotas"
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium"
           >
             Volver a mis mascotas
           </Link>
@@ -64,25 +101,47 @@ export default async function OrgIndexPage() {
     redirect(`/org/${myOrgs[0].org.publicToken}`);
   }
 
+  // PO quick win V2 (2026-07-24): sort the last-used org first — re-validated
+  // against THIS caller's own already-fetched membership list (no new query;
+  // a stale/foreign cookie just fails to match and the list renders in its
+  // original order). Never auto-redirects: a multi-org member switching
+  // between orgs would be surprised by a silent jump away from the picker.
+  const lastOrgToken = (await cookies()).get(LAST_ORG_COOKIE)?.value;
+  const lastUsedIndex = lastOrgToken
+    ? myOrgs.findIndex(({ org }) => org.publicToken === lastOrgToken)
+    : -1;
+  const sortedOrgs =
+    lastUsedIndex > 0
+      ? [
+          myOrgs[lastUsedIndex],
+          ...myOrgs.slice(0, lastUsedIndex),
+          ...myOrgs.slice(lastUsedIndex + 1),
+        ]
+      : myOrgs;
+
   // Multiple memberships — render a picker so the user can choose.
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto pt-8 space-y-6">
+        <MiMarBrandHeader subtitle="Portal de organizaciones" />
         <header className="space-y-2">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Seleccionar organización</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <h1 className="text-title font-semibold text-ln-op-ink">Seleccionar organización</h1>
+          <p className="text-md text-ln-op-mute">
             Pertenecés a {myOrgs.length} organizaciones. Elegí con cuál querés trabajar.
           </p>
         </header>
         <ul className="space-y-3">
-          {myOrgs.map(({ org, membership }) => (
+          {sortedOrgs.map(({ org, membership }) => (
             <li key={org.id}>
               <Link
                 href={`/org/${org.publicToken}`}
-                className="block p-4 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
+                className="block p-4 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors no-underline"
               >
-                <p className="text-[13px] font-semibold text-ln-op-ink">{org.displayName}</p>
-                <p className="text-[12px] text-ln-op-mute mt-0.5">
+                <div className="flex items-center gap-2">
+                  <p className="text-md font-semibold text-ln-op-ink">{org.displayName}</p>
+                  {org.publicToken === lastOrgToken && <OpPill tone="neutral">Última usada</OpPill>}
+                </div>
+                <p className="text-sm text-ln-op-mute mt-0.5">
                   {ORG_TYPE_LABELS[org.orgType] ?? org.orgType}
                   {org.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
                   {" · "}

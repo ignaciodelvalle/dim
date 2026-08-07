@@ -14,7 +14,7 @@ import { describe, expect, it } from "vitest";
 const BANNER_MARKER = "integración con los";
 
 const FILES = [
-  join(process.cwd(), "app", "denuncias", "codigo", "[code]", "page.tsx"),
+  join(process.cwd(), "app", "(public)", "denuncias", "codigo", "[code]", "page.tsx"),
   join(process.cwd(), "app", "(app)", "denuncias", "[id]", "page.tsx"),
 ];
 

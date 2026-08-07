@@ -1,5 +1,5 @@
-import { formatDateTime } from "@/lib/format";
-import type { TimelineEvent } from "@/lib/govt-dashboards";
+import type { TimelineEvent } from "@/lib/analytics/govt-dashboards";
+import { formatDateTime } from "@/lib/utils/format";
 
 // Dot color per event kind — maps to a Tailwind background class using ln-op-* tokens.
 const KIND_DOT: Record<string, string> = {
@@ -28,7 +28,7 @@ type TimelineProps = {
 export function Timeline({ events }: TimelineProps) {
   if (events.length === 0) {
     return (
-      <p className="text-[12px] text-ln-op-mute py-2">
+      <p className="text-sm text-ln-op-mute py-2">
         No hay eventos en la línea de tiempo de esta denuncia.
       </p>
     );
@@ -44,13 +44,13 @@ export function Timeline({ events }: TimelineProps) {
             aria-hidden="true"
           />
           <div className="space-y-0.5">
-            <p className="text-[10px] text-ln-op-mute tabular-nums font-mono">
+            <p className="text-xs text-ln-op-mute tabular-nums font-mono">
               {formatDateTime(event.occurredAt)}
               {event.actorName && (
                 <span className="ml-1 text-ln-op-faint">· {event.actorName}</span>
               )}
             </p>
-            <p className="text-[12.5px] text-ln-op-ink leading-[1.5]">{event.summary}</p>
+            <p className="text-md text-ln-op-ink leading-[1.5]">{event.summary}</p>
           </div>
         </li>
       ))}

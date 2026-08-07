@@ -16,8 +16,8 @@ const findExpiredCrossOrgTransfers =
 const expireCrossOrgTransfer = (
   candidate: Parameters<typeof TransfersRepository.expireOneCrossOrgCase>[0],
 ) => TransfersRepository.expireOneCrossOrgCase(candidate);
-import { closeCase, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { V1_CASE_KINDS } from "@/src/modules/cases/domain/case-kinds";
 import { getLifecycle } from "@/src/modules/cases/domain/lifecycles";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -132,7 +132,7 @@ describe("cross-org transfer — propose + accept happy path", () => {
           primaryPetId: petId,
           openedByOrganizationId: senderId,
           receiverOrganizationId: receiverId,
-          openedReason: "auto: cross-org transfer proposed reason=space_constraint",
+          openedReason: { code: "cross_org_transfer_proposed", reason: "space_constraint" },
         },
         tx,
       );
@@ -266,7 +266,7 @@ describe("cross-org transfer — expire cron", () => {
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
           openedByOrganizationId: senderId,
-          openedReason: "auto: cross-org transfer for expiry test",
+          openedReason: { code: "cross_org_transfer_proposed", reason: "other" },
         },
         tx,
       );

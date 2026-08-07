@@ -1,10 +1,14 @@
 "use client";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -20,19 +24,30 @@ type OpenMedication = {
 export function MedicationEndForm({
   action,
   openMedications,
+  defaults,
 }: {
   action: FormAction;
   openMedications: OpenMedication[];
+  /** Optional prefill values forwarded from URL searchParams (captura-rápida). */
+  defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3 redirect contract: the action returns `redirectTo` on success and the
+  // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
+  useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
+  const [selectedMedicationId, setSelectedMedicationId] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [reason, setReason] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   return (
     <>
       <LnSheetHeader
         tone="violeta"
-        icon="🛑"
+        icon={<Icon name="medicacion-fin" decorative />}
         title="Fin de medicación"
         subtitle="Libreta sanitaria oficial"
       />
@@ -45,7 +60,8 @@ export function MedicationEndForm({
                 id={id}
                 name="medicationStartedEventId"
                 required
-                defaultValue=""
+                value={selectedMedicationId}
+                onChange={(e) => setSelectedMedicationId(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               >
@@ -68,7 +84,8 @@ export function MedicationEndForm({
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -81,6 +98,8 @@ export function MedicationEndForm({
                 name="reason"
                 type="text"
                 placeholder="Tratamiento completo, efectos adversos..."
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -92,6 +111,8 @@ export function MedicationEndForm({
                 id={id}
                 name="notes"
                 rows={3}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -100,8 +121,10 @@ export function MedicationEndForm({
           <AttachmentField />
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

@@ -1,0 +1,178 @@
+// Access check for /casos/[publicCode]. Mirrors what Fase F's
+// `can_read_case` RLS function will enforce at the DB level — the page
+// uses this helper today so the same rules are visible in app code.
+//
+// Returns true if the viewer can read this case. Caller treats false as
+// 404 (not 403) to avoid leaking case existence to outside parties.
+//
+// Anonymous viewers (viewer = null, per handoff P0-1): allowed only for
+// case kinds whose existence + outline is intentionally public — bite
+// incidents (public-health interest), lost pet episodes (already public
+// via /p/[token]), adoption listings (already public via /adoptar), and
+// welfare denuncias (transparency over the abuse-reporting flow). All
+// other kinds 404 for anon. The page additionally redacts PII for the
+// anonymous render path.
+
+import { and, eq, isNull } from "drizzle-orm";
+
+import { custodyDisputeParties, db, organizationMemberships, ownerships } from "@/db";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import type { CaseDetail } from "@/lib/infra/case-queries";
+import type { CaseKind } from "@/src/modules/cases/domain/case-kinds";
+
+export interface CaseViewer {
+  userId: string;
+  role: "owner" | "vet" | "govt" | "admin";
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>;
+}
+
+// Case kinds whose existence + redacted outline can be shown without auth.
+// Keep this list narrow — every new entry exposes a new surface to scraping
+// and competing-fact harassment. Off-list kinds 404 for anon (no leak).
+const PUBLIC_ANONYMOUS_KINDS: ReadonlySet<CaseKind> = new Set<CaseKind>([
+  "bite_incident",
+  "lost_pet_episode",
+  "adoption_listing",
+  "welfare_denuncia",
+]);
+
+export function isPubliclyVisibleKind(kind: string): boolean {
+  return PUBLIC_ANONYMOUS_KINDS.has(kind as CaseKind);
+}
+
+// Case kinds that must NEVER surface to the subject pet's owner — the owner
+// is the subject of the investigation, not a party entitled to see it.
+// Consumed by canReadCase's subject-owner branch AND by every app-layer
+// query that lists/reads cases or case-linked events for a pet's owner
+// (pet-document-redesign privacy fix, REQ-1.1/1.2). Keep this list narrow;
+// today it's a single kind, but the shape is a Set so future additions
+// (if any) don't require touching every call site.
+export const HIDDEN_FROM_SUBJECT_CASE_KINDS: ReadonlySet<CaseKind> = new Set<CaseKind>([
+  "welfare_denuncia",
+]);
+
+export function isHiddenFromSubjectKind(kind: string): boolean {
+  return HIDDEN_FROM_SUBJECT_CASE_KINDS.has(kind as CaseKind);
+}
+
+export async function canReadCase(detail: CaseDetail, viewer: CaseViewer | null): Promise<boolean> {
+  // Anonymous: allow only if the case kind is in the public allow-list.
+  // The page renders a PII-redacted view; see `app/casos/[publicCode]`.
+  if (!viewer) {
+    return isPubliclyVisibleKind(detail.caseKind);
+  }
+
+  // Admin: universal scope.
+  if (viewer.role === "admin") return true;
+
+  // Govt: scope-bound to jurisdiction. Subsumption-aware — a whole-province
+  // assignment (e.g. whole-CABA) governs every barrio in it, so a case tagged
+  // to a barrio is readable. See jurisdictionScopeContains.
+  if (viewer.role === "govt") {
+    const inScope = jurisdictionScopeContains(
+      viewer.jurisdictions,
+      detail.jurisdictionProvince,
+      detail.jurisdictionLocality,
+    );
+    if (inScope) return true;
+    // Govt out-of-scope keeps falling through to the per-kind checks
+    // below — they still don't apply, so the function returns false.
+    return false;
+  }
+
+  // Subject pet owner — except welfare_denuncia, where the owner is the
+  // subject of the investigation and must not see the case detail.
+  if (detail.pet) {
+    const [ownerRow] = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, detail.pet.id),
+          eq(ownerships.ownerUserId, viewer.userId),
+          eq(ownerships.role, "owner"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    if (ownerRow) {
+      if (isHiddenFromSubjectKind(detail.caseKind)) return false;
+      return true;
+    }
+  }
+
+  // adoption_application — only the applicant.
+  if (detail.caseKind === "adoption_application") {
+    // applicantUserId lives on the case row, but it's not in the
+    // CaseDetail projection. For v1 we accept the simpler check:
+    // the applicant accessing their own application is a write-only
+    // path today (the list page exists). When Fase F lands the SQL
+    // function makes this authoritative.
+    return false;
+  }
+
+  // adoption_listing — members of the opened_by org.
+  if (detail.caseKind === "adoption_listing" && detail.openedByOrganization) {
+    const [memberRow] = await db
+      .select({ id: organizationMemberships.id })
+      .from(organizationMemberships)
+      .where(
+        and(
+          eq(organizationMemberships.organizationId, detail.openedByOrganization.id),
+          eq(organizationMemberships.userId, viewer.userId),
+          isNull(organizationMemberships.leftAt),
+        ),
+      )
+      .limit(1);
+    if (memberRow) return true;
+  }
+
+  // foster_placement — the active foster on the pet OR org-side members
+  // of the opened_by org.
+  if (detail.caseKind === "foster_placement" && detail.pet) {
+    const [fosterRow] = await db
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, detail.pet.id),
+          eq(ownerships.ownerUserId, viewer.userId),
+          eq(ownerships.role, "foster"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    if (fosterRow) return true;
+    if (detail.openedByOrganization) {
+      const [memberRow] = await db
+        .select({ id: organizationMemberships.id })
+        .from(organizationMemberships)
+        .where(
+          and(
+            eq(organizationMemberships.organizationId, detail.openedByOrganization.id),
+            eq(organizationMemberships.userId, viewer.userId),
+            isNull(organizationMemberships.leftAt),
+          ),
+        )
+        .limit(1);
+      if (memberRow) return true;
+    }
+  }
+
+  // custody_dispute — registered parties (user-side).
+  if (detail.caseKind === "custody_dispute" && detail.custodyDispute) {
+    const [partyRow] = await db
+      .select({ id: custodyDisputeParties.id })
+      .from(custodyDisputeParties)
+      .where(
+        and(
+          eq(custodyDisputeParties.disputeId, detail.custodyDispute.id),
+          eq(custodyDisputeParties.partyUserId, viewer.userId),
+        ),
+      )
+      .limit(1);
+    if (partyRow) return true;
+  }
+
+  return false;
+}

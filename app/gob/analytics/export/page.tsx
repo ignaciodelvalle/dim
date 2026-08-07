@@ -1,15 +1,10 @@
 // ---------------------------------------------------------------------------
-// DEFERRED BY DESIGN (audit-internal-roles-pages PR2/9 -- 2026-05-26)
-//
-// This page exists but is NOT reachable from any nav or dashboard CTA. The
-// underlying flow (Parquet/CSV export for govt analytics) is not yet wired
-// end-to-end. Keep this page intact -- when the flow lands, wire the parent
-// /gob/analytics page first (add nav entry in nav-presets.ts); this export
-// page is a child of analytics and will become reachable automatically.
-//
-// Wire when KPI/analytics work returns to the roadmap; currently exploratory.
-//
-// Audited: 2026-05-26. Re-evaluate during next role audit.
+// Reachable via the "Exportar datos" CTA in /gob/analytics' filter-bar
+// `actions` slot (rewired 2026-07-21 -- orphan flagged by
+// docs/reviews/results/2026-07-21-audit-4-decision-ciclos.md). No dedicated
+// nav-presets.ts entry: this route is a child of /gob/analytics, which
+// already has its own GOB_NAV_SECTIONS entry (same pattern as
+// censo/poblacion/adopciones/campanas' export routes, dec0f58f).
 // ---------------------------------------------------------------------------
 
 import Link from "next/link";
@@ -17,28 +12,12 @@ import { Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCallout, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { type ProvinceCode, provinceByCode } from "@/lib/ar-provincias";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
-import { PROVINCE_ISO_MAP } from "@/lib/govt-dashboards";
+import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { ExportFormClient } from "./ExportFormClient";
+import { EXPORT_DEFAULT_PRESET } from "./export-period";
 
 export const dynamic = "force-dynamic";
-
-// Mirrors the ALL_PROVINCES list used in the parent analytics page.
-const ALL_PROVINCES: Array<{ code: string; name: string }> = [
-  { code: "AR-C", name: "CABA" },
-  { code: "AR-B", name: "Buenos Aires" },
-  { code: "AR-X", name: "Cordoba" },
-  { code: "AR-S", name: "Santa Fe" },
-  { code: "AR-M", name: "Mendoza" },
-  { code: "AR-T", name: "Tucuman" },
-  { code: "AR-E", name: "Entre Rios" },
-  { code: "AR-A", name: "Salta" },
-  { code: "AR-N", name: "Misiones" },
-  { code: "AR-H", name: "Chaco" },
-  { code: "AR-W", name: "Corrientes" },
-];
 
 export default async function GobAnalyticsExportPage({
   searchParams,
@@ -63,38 +42,38 @@ export default async function GobAnalyticsExportPage({
         <LnEmptyState
           icon="lock"
           title="Sin acceso"
-          description="Tu rol no tiene acceso a la exportacion de datos. Pedile al admin que te asigne una jurisdiccion."
+          description="Tu rol no tiene acceso a la exportación de datos. Pedile al admin que te asigne una jurisdicción."
         />
       </div>
     );
   }
 
   const params = await searchParams;
-  const period = params.period ?? "30d";
+  // Single-sourced with the picker's defaultPreset and the action's resolver
+  // (RA-2 F11) — three independent "30d" literals is how the vocabularies
+  // drifted apart in the first place.
+  const period = params.period ?? EXPORT_DEFAULT_PRESET;
   const from = params.from ?? "";
   const to = params.to ?? "";
+  const province = params.province ?? "";
+  const locality = params.locality ?? "";
 
-  // Resolve selected province → localities list for JurisdictionSwitcher.
-  const selectedProvinceIso = params.province ?? null;
-  const selectedProvinceObj = selectedProvinceIso ? provinceByCode(selectedProvinceIso) : null;
-  const localities =
-    selectedProvinceObj != null
-      ? await listLocalitiesByProvince(selectedProvinceObj.code as ProvinceCode)
-      : [];
-
-  const allowedProvinces =
-    profile.role === "admin"
-      ? ALL_PROVINCES
-      : Array.from(new Set(jurisdictions.map((j) => j.province)))
-          .map((name) => ({ code: PROVINCE_ISO_MAP[name] ?? "", name }))
-          .filter((p) => p.code !== "");
+  // Resolve selected province → localities list + switcher options.
+  const { localities, allowedProvinces } = await resolveJurisdictionScope({
+    role: profile.role,
+    jurisdictions,
+    params: { province: params.province, locality: params.locality },
+  });
 
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Breadcrumb */}
-      <nav aria-label="Breadcrumb" className="text-[12px] text-ln-op-mute">
-        <Link href="/gob/analytics" className="hover:underline text-ln-op-azul">
-          Analytics
+      <nav aria-label="Breadcrumb" className="text-sm text-ln-op-mute">
+        {/* F9 (2026-08-01): the breadcrumb parent is the Programa hub's
+            Analítica vista — /gob/analytics is a redirect now, and a
+            breadcrumb that bounces is a breadcrumb that lies about depth. */}
+        <Link href="/gob/programa?vista=analitica" className="hover:underline text-ln-op-azul">
+          Analítica
         </Link>
         <span aria-hidden="true" className="mx-1">
           /
@@ -104,9 +83,11 @@ export default async function GobAnalyticsExportPage({
 
       {/* Page header */}
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Exportar datos</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Genera un export anonimizado de los datos de tu cobertura.
+        <h1 className="text-title font-semibold text-ln-op-ink">Exportar datos</h1>
+        <p className="text-md text-ln-op-mute">
+          {profile.role === "admin"
+            ? "Vista universal — todas las jurisdicciones."
+            : "Genera una exportación anonimizada de los datos de tu cobertura."}
         </p>
       </header>
 
@@ -116,16 +97,16 @@ export default async function GobAnalyticsExportPage({
         title="Aviso sobre proteccion de datos personales (Ley 25.326)."
         body={
           <>
-            Los datos exportados estan anonimizados segun los principios de minimizacion y
-            proporcionalidad. No se incluye ningun dato personal identificable (nombre, DNI, email,
+            Los datos exportados están anonimizados según los principios de minimización y
+            proporcionalidad. No se incluye ningún dato personal identificable (nombre, DNI, email,
             microchip) en el archivo generado. El link de descarga vence a las 24 horas. El uso de
-            este export queda registrado en el log de auditoria.
+            esta exportación queda registrada en el log de auditoría.
           </>
         }
       />
 
       <OpCard>
-        <OpCardHead title="Configurar export" />
+        <OpCardHead title="Configurar exportación" />
         <OpCardBody>
           <Suspense fallback={null}>
             <ExportFormClient
@@ -134,6 +115,8 @@ export default async function GobAnalyticsExportPage({
               period={period}
               from={from}
               to={to}
+              province={province}
+              locality={locality}
             />
           </Suspense>
         </OpCardBody>

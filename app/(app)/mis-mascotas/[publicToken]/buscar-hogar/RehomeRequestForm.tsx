@@ -14,6 +14,9 @@ type Props = {
 
 import { useState } from "react";
 
+import { Icon } from "@/components/Icon";
+import { notifySaved } from "@/lib/ui/action-feedback";
+
 export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName }: Props) {
   const [isPending, startTransition] = useTransition();
   const [sent, setSent] = useState(false);
@@ -28,14 +31,15 @@ export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName 
         setError(result.error);
       } else {
         setSent(true);
+        notifySaved("Solicitud enviada");
       }
     });
   }
 
   if (sent) {
     return (
-      <span className="text-sm text-[var(--color-ln-ok)] font-medium whitespace-nowrap">
-        ✓ Solicitud enviada a {orgDisplayName}
+      <span className="inline-flex items-center gap-1 text-sm text-[var(--color-ln-ok)] font-medium whitespace-nowrap">
+        <Icon name="check" size={14} decorative /> Solicitud enviada a {orgDisplayName}
       </span>
     );
   }
@@ -46,7 +50,7 @@ export function RehomeRequestForm({ petPublicToken, targetOrgId, orgDisplayName 
         type="button"
         onClick={handleSend}
         disabled={isPending}
-        className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
+        className="px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-sm font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
       >
         {isPending ? "Enviando…" : "Enviar solicitud"}
       </button>

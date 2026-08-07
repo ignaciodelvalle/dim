@@ -1,3 +1,17 @@
+// OpStateBadge — state badge for org pet pipeline states.
+//
+// Domain enum: published · paused · draft · adopted.
+// (Distinct from CaseStatus — do NOT change color assignments here.)
+//
+// Thin semantic wrapper over OpStatusPill; public API is unchanged.
+//
+// A11y: meaning is conveyed by BOTH icon and text, not color alone (WCAG 1.4.1).
+// The icon is aria-hidden; the text label (or override) is the accessible name.
+
+import { Icon } from "@/components/Icon";
+
+import { OpStatusPill, type StatusTone } from "./OpStatusPill";
+
 type State = "published" | "paused" | "draft" | "adopted";
 
 type Props = {
@@ -6,29 +20,30 @@ type Props = {
   label?: string;
 };
 
-const STATE_CLASSES: Record<State, string> = {
-  published: "bg-ln-op-ok-bg text-ln-op-ok border-ln-op-ok-bd",
-  paused: "bg-ln-op-warn-bg text-ln-op-warn border-ln-op-warn-bd",
-  draft: "bg-ln-op-stripe text-ln-op-mute border-ln-op-line",
-  adopted: "bg-ln-op-viol-bg text-ln-op-viol border-ln-op-viol-bd",
+// Icon name per state (retired unicode status glyphs → sober lucide icons):
+//   published → filled dot (live)  · paused → pause  ·
+//   draft → empty ring (not yet)   · adopted → star (special).
+const STATE_CONFIG: Record<State, { label: string; tone: StatusTone; icon: string }> = {
+  published: { label: "Publicado", tone: "st-ok", icon: "circle-dot" },
+  paused: { label: "Pausado", tone: "st-warn", icon: "pausa" },
+  draft: { label: "Borrador", tone: "neutral", icon: "circle" },
+  adopted: { label: "Adoptado", tone: "st-info", icon: "estrella" },
 };
 
 /**
  * State badge for org pet pipeline states.
  *
+ * A11y: meaning is conveyed by BOTH icon and text, not color alone (WCAG 1.4.1).
+ * The icon is aria-hidden; the text label (or override) is the accessible name.
+ *
  * Visually derived from .org-statebadge (redesign-a-org.css L27-31).
  * States: published · paused · draft · adopted.
  */
 export function OpStateBadge({ state, label }: Props) {
+  const { label: defaultLabel, tone, icon } = STATE_CONFIG[state];
   return (
-    <span
-      className={[
-        "inline-block rounded-[3px] border px-[7px] py-[2px]",
-        "font-ln-mono text-[9px] font-bold uppercase tracking-[0.06em]",
-        STATE_CLASSES[state],
-      ].join(" ")}
-    >
-      {label ?? state}
-    </span>
+    <OpStatusPill tone={tone} icon={<Icon name={icon} size={12} decorative />}>
+      {label ?? defaultLabel}
+    </OpStatusPill>
   );
 }

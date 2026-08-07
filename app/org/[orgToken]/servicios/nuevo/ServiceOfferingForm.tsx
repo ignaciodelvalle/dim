@@ -18,7 +18,9 @@ import { useActionState, useState } from "react";
 import type { ServiceOfferingFormState } from "@/app/actions/service-offerings";
 import { LnCheckbox, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import type { ServiceKindDef } from "@/lib/service-kinds";
+import { OpButton } from "@/components/ui/dashboard";
+import type { ServiceKindDef } from "@/lib/reference/service-kinds";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
 const INITIAL_STATE: ServiceOfferingFormState = { error: null };
 
@@ -38,6 +40,10 @@ export function ServiceOfferingForm({
   orgToken: string;
 }) {
   const [state, formAction, isPending] = useActionState(createAction, INITIAL_STATE);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
   const [step, setStep] = useState(1);
 
   return (
@@ -49,15 +55,19 @@ export function ServiceOfferingForm({
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {state.error && (
-          <p className="text-[13px] rounded-[6px] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+          <p className="text-md rounded-[var(--radius-md)] border border-ln-op-danger bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
             {state.error}
           </p>
         )}
 
         {/* Step 1 — Tipo + nombre + descripción */}
-        <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+        <section
+          className={step === 1 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 1}
+          inert={step !== 1 ? true : undefined}
+        >
           <div className="space-y-1">
-            <label htmlFor="serviceKind" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="serviceKind" className="block text-md font-medium text-ln-op-ink">
               Tipo de servicio <span className="text-ln-op-danger">*</span>
             </label>
             <LnSelect id="serviceKind" name="serviceKind" required>
@@ -71,7 +81,7 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="displayName" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="displayName" className="block text-md font-medium text-ln-op-ink">
               Nombre del servicio <span className="text-ln-op-danger">*</span>
             </label>
             <LnInput
@@ -86,7 +96,7 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="description" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="description" className="block text-md font-medium text-ln-op-ink">
               Descripción <span className="text-ln-op-mute font-normal">(opcional)</span>
             </label>
             <LnTextarea
@@ -99,23 +109,20 @@ export function ServiceOfferingForm({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => setStep(2)}
-            className="w-full px-5 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-          >
+          <OpButton variant="primary" block onClick={() => setStep(2)}>
             Continuar
-          </button>
+          </OpButton>
         </section>
 
         {/* Step 2 — Capacidad */}
-        <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
-          <div className="grid grid-cols-2 gap-4">
+        <section
+          className={step === 2 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 2}
+          inert={step !== 2 ? true : undefined}
+        >
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
-              <label
-                htmlFor="durationMinutes"
-                className="block text-[13px] font-medium text-ln-op-ink"
-              >
+              <label htmlFor="durationMinutes" className="block text-md font-medium text-ln-op-ink">
                 Duración (minutos) <span className="text-ln-op-danger">*</span>
               </label>
               <LnInput
@@ -129,10 +136,7 @@ export function ServiceOfferingForm({
               />
             </div>
             <div className="space-y-1">
-              <label
-                htmlFor="slotCapacity"
-                className="block text-[13px] font-medium text-ln-op-ink"
-              >
+              <label htmlFor="slotCapacity" className="block text-md font-medium text-ln-op-ink">
                 Capacidad por turno <span className="text-ln-op-danger">*</span>
               </label>
               <LnInput
@@ -148,7 +152,7 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="space-y-1">
-            <label htmlFor="priceArs" className="block text-[13px] font-medium text-ln-op-ink">
+            <label htmlFor="priceArs" className="block text-md font-medium text-ln-op-ink">
               Precio (ARS){" "}
               <span className="text-ln-op-mute font-normal">— vacío para campaña gratuita</span>
             </label>
@@ -162,19 +166,19 @@ export function ServiceOfferingForm({
             />
           </div>
 
-          <button
-            type="button"
-            onClick={() => setStep(3)}
-            className="w-full px-5 py-3 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
-          >
+          <OpButton variant="primary" block onClick={() => setStep(3)}>
             Continuar
-          </button>
+          </OpButton>
         </section>
 
         {/* Step 3 — Elegibilidad + submit */}
-        <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
+        <section
+          className={step === 3 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 3}
+          inert={step !== 3 ? true : undefined}
+        >
           <div className="space-y-1">
-            <span className="block text-[13px] font-medium text-ln-op-ink">Especies elegibles</span>
+            <span className="block text-md font-medium text-ln-op-ink">Especies elegibles</span>
             <div className="flex gap-4">
               <LnCheckbox name="eligibilitySpecies" value="dog" defaultChecked>
                 Perros
@@ -185,11 +189,11 @@ export function ServiceOfferingForm({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label
                 htmlFor="eligibilityAgeMinMonths"
-                className="block text-[13px] font-medium text-ln-op-ink"
+                className="block text-md font-medium text-ln-op-ink"
               >
                 Edad mínima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>
@@ -205,7 +209,7 @@ export function ServiceOfferingForm({
             <div className="space-y-1">
               <label
                 htmlFor="eligibilityAgeMaxMonths"
-                className="block text-[13px] font-medium text-ln-op-ink"
+                className="block text-md font-medium text-ln-op-ink"
               >
                 Edad máxima (meses) <span className="text-ln-op-mute font-normal">(opcional)</span>
               </label>
@@ -221,16 +225,12 @@ export function ServiceOfferingForm({
           </div>
 
           <div className="flex items-center gap-3 pt-2">
-            <button
-              type="submit"
-              disabled={isPending}
-              className="flex-1 px-5 py-3 rounded-[6px] bg-ln-op-ok text-white text-[13px] font-medium disabled:opacity-50 hover:opacity-90 transition-opacity"
-            >
+            <OpButton type="submit" variant="primary" className="flex-1" disabled={isPending}>
               {isPending ? "Enviando…" : "Crear servicio"}
-            </button>
+            </OpButton>
             <a
               href={`/org/${orgToken}/servicios`}
-              className="text-[12px] text-ln-op-azul hover:underline"
+              className="text-sm text-ln-op-azul hover:underline"
             >
               Cancelar
             </a>

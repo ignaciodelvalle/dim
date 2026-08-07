@@ -13,11 +13,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  unverifyOrgForAuthority,
-  verifyOrgAction,
-  verifyOrgForAuthority,
-} from "@/app/actions/admin-org-verification";
+import { verifyOrgAction } from "@/app/actions/admin-org-verification";
 import {
   auditLog,
   db,
@@ -26,6 +22,8 @@ import {
   organizations,
   profiles,
 } from "@/db";
+import { unverifyOrgForAuthority } from "@/src/modules/organizations/application/admin-org-verification/unverify-org";
+import { verifyOrgForAuthority } from "@/src/modules/organizations/application/admin-org-verification/verify-org";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

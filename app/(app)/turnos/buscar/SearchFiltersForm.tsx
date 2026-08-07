@@ -12,8 +12,8 @@ import { useState } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
-import type { LocalitySearchResult } from "@/lib/ar-localidades";
-import { SERVICE_KINDS } from "@/lib/service-kinds";
+import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
+import { SERVICE_KINDS } from "@/lib/reference/service-kinds";
 
 type Props = {
   currentServiceKind: string;
@@ -65,7 +65,7 @@ export function SearchFiltersForm({
             id="service_kind_sel"
             name="service_kind"
             defaultValue={currentServiceKind}
-            className="text-sm border border-[var(--color-ln-line)] rounded-[4px] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="text-sm border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           >
             {SERVICE_KINDS.map((k) => (
               <option key={k.code} value={k.code}>
@@ -105,7 +105,7 @@ export function SearchFiltersForm({
 
         <button
           type="submit"
-          className="text-sm px-4 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
+          className="text-sm px-4 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
         >
           Buscar
         </button>
@@ -122,7 +122,7 @@ export function SearchFiltersForm({
             name="fecha_desde"
             type="date"
             defaultValue={currentFechaDesde}
-            className="text-sm border border-[var(--color-ln-line)] rounded-[4px] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="text-sm border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           />
         </div>
         <LnCheckbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>

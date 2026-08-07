@@ -6,7 +6,9 @@ import Link from "next/link";
 import { deleteVaccineReminderAction } from "@/app/actions/reminders";
 import { ReminderCard } from "@/components/ReminderCard";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import type { ActiveReminderRow } from "@/lib/owner-dashboard";
+import type { ActiveReminderRow } from "@/lib/analytics/owner-dashboard";
+import { buildReminderVaccineUrl } from "@/lib/ui/reminder-urls";
+import { pluralizeEs } from "@/lib/utils/format";
 
 // ---------------------------------------------------------------------------
 // Date formatting helpers — Spanish, no date-fns dependency.
@@ -36,13 +38,13 @@ function formatDueAt(dueAt: Date): string {
 
 function buildStatusText(daysUntilDue: number): string {
   if (daysUntilDue > 0) {
-    return `Vence en ${daysUntilDue} día${daysUntilDue === 1 ? "" : "s"}`;
+    return `Vence en ${daysUntilDue} ${pluralizeEs(daysUntilDue, "día")}`;
   }
   if (daysUntilDue === 0) {
     return "Vence hoy";
   }
   const abs = Math.abs(daysUntilDue);
-  return `Vencida hace ${abs} día${abs === 1 ? "" : "s"}`;
+  return `Vencida hace ${abs} ${pluralizeEs(abs, "día")}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -56,7 +58,37 @@ export function PetReminders({
   reminders: ActiveReminderRow[];
   petToken: string;
 }) {
-  if (reminders.length === 0) return null;
+  if (reminders.length === 0) {
+    return (
+      <LnCard aria-labelledby="pet-reminders-heading">
+        <LnCardHead
+          title={<span id="pet-reminders-heading">Próximas vacunas</span>}
+          actions={
+            <Link
+              href={`/mis-mascotas/${petToken}/vacunas/programar`}
+              className="text-sm text-[var(--color-ln-azul)] underline-offset-4 hover:underline"
+            >
+              + Programar
+            </Link>
+          }
+        />
+        <LnCardBody>
+          <div className="rounded-xl border border-dashed border-[var(--color-ln-line-strong)] p-5 text-center">
+            <p className="text-sm text-[var(--color-ln-mute)]">Sin próximas vacunas.</p>
+            <p className="mt-1 text-xs text-[var(--color-ln-mute)]">
+              Programá un recordatorio y te avisamos cuando se acerque la fecha.
+            </p>
+            <Link
+              href={`/mis-mascotas/${petToken}/vacunas/programar`}
+              className="mt-3 inline-block text-xs font-medium text-[var(--color-ln-azul)] hover:underline"
+            >
+              Programar vacuna →
+            </Link>
+          </div>
+        </LnCardBody>
+      </LnCard>
+    );
+  }
 
   return (
     <LnCard aria-labelledby="pet-reminders-heading">
@@ -74,7 +106,7 @@ export function PetReminders({
               href={`/mis-mascotas/${petToken}?tab=vacunas`}
               className="text-[var(--color-ln-azul)] underline-offset-4 hover:underline"
             >
-              Ver libreta →
+              Ver vacunas →
             </Link>
           </div>
         }
@@ -92,15 +124,15 @@ export function PetReminders({
                 actions={
                   <div className="flex items-center gap-2">
                     <Link
-                      href={`/mis-mascotas/${petToken}/eventos/nuevo/vacuna?reminderId=${r.reminderId}`}
-                      className="px-3 py-1.5 rounded-[3px] bg-[var(--color-ln-azul)] text-white text-xs font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+                      href={buildReminderVaccineUrl(petToken, r.reminderId)}
+                      className="px-3 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white text-xs font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
                     >
                       Registrar
                     </Link>
                     <form action={deleteVaccineReminderAction.bind(null, petToken, r.reminderId)}>
                       <button
                         type="submit"
-                        className="px-3 py-1.5 rounded-[3px] border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] text-xs font-medium hover:bg-[var(--color-ln-stripe)] transition-colors"
+                        className="px-3 py-1.5 rounded-[var(--radius-pill)] border border-[var(--color-ln-line)] text-[var(--color-ln-ink-2)] text-xs font-medium hover:bg-[var(--color-ln-stripe)] transition-colors"
                       >
                         Eliminar
                       </button>

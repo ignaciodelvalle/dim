@@ -2,9 +2,45 @@
 
 // Post-create / post-reset success panel.
 // Displays the magic link returned by createInstitutionalAccountAction or
-// resetInstitutionalCredentialsAction with a copy button and guidance copy.
+// resetInstitutionalCredentialsAction behind a reveal toggle, with a copy
+// button and guided copy.
+//
+// Security: the link is a one-time provisioning credential. It is MASKED by
+// default (only the copy action works from state) and revealed only on an
+// explicit user action.
 
 import { useState } from "react";
+
+import { Icon } from "@/components/Icon";
+
+import { OpButton } from "@/components/ui/dashboard";
+import { MAGIC_LINK_TTL_SECONDS, formatTtl } from "@/lib/utils/magic-link-ttl";
+
+// ––– variant copies ––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+type Variant = "create" | "reset";
+
+const VARIANT_COPY: Record<Variant, { title: string; subtitle: string }> = {
+  create: {
+    title: "Cuenta institucional creada",
+    subtitle: "Compartí el link con el operador para que complete el acceso.",
+  },
+  reset: {
+    title: "Credenciales restablecidas",
+    subtitle: "El link anterior fue invalidado. Compartí el nuevo link con el operador.",
+  },
+};
+
+// ––– mask helper ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+/** Returns a fixed-length masked placeholder regardless of actual link length. */
+export function maskLink(_link: string): string {
+  return "••••••••••••••••••••••••••••••••";
+}
+
+// ––– component ––––––––––––––––––––––––––––––––––––––––––––––––––––––––––––
+
+type CopyState = "idle" | "copied" | "error";
 
 type Props = {
   magicLink: string;
@@ -12,7 +48,8 @@ type Props = {
   email: string;
   profileId: string;
   detailPath: string; // e.g. /admin/govts/[userId]
-  // Used in "create" context: show a "Crear otra" button that resets the create form.
+  variant?: Variant; // defaults to "create" for backwards-compat
+  // Used in "create" context: show a "Crear otra" button that resets the form.
   onCreateAnother?: () => void;
   // Used in "reset credentials" context: show a dismiss/close button.
   onReset?: () => void;
@@ -25,80 +62,110 @@ export function MagicLinkResultPanel({
   email,
   profileId: _profileId,
   detailPath,
+  variant = "create",
   onCreateAnother,
   onReset,
   resetLabel = "Cerrar",
 }: Props) {
-  const [copied, setCopied] = useState(false);
+  const [revealed, setRevealed] = useState(false);
+  const [copyState, setCopyState] = useState<CopyState>("idle");
+
+  const { title, subtitle } = VARIANT_COPY[variant];
+  const ttlLabel = formatTtl(MAGIC_LINK_TTL_SECONDS);
 
   async function handleCopy() {
+    if (!magicLink) return;
     try {
+      // Copy from state — not from the visible text — so this works while masked.
       await navigator.clipboard.writeText(magicLink);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2500);
+      setCopyState("copied");
+      setTimeout(() => setCopyState("idle"), 2500);
     } catch {
-      // Fallback: select the text in the input
+      setCopyState("error");
+      setTimeout(() => setCopyState("idle"), 4000);
     }
   }
 
+  const copyLabel =
+    copyState === "copied" ? (
+      <span className="inline-flex items-center gap-1">
+        Copiado <Icon name="check" size={14} decorative />
+      </span>
+    ) : copyState === "error" ? (
+      "Error al copiar"
+    ) : (
+      "Copiar"
+    );
+
   return (
-    <div className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-6 space-y-4">
       <div>
-        <h3 className="text-[16px] font-semibold text-ln-op-ok">Cuenta institucional creada</h3>
-        <p className="mt-1 text-[13px] text-ln-op-ok">
+        <h3 className="text-base font-semibold text-ln-op-ok">{title}</h3>
+        <p className="mt-1 text-md text-ln-op-ok">
           {displayName} &middot; {email}
         </p>
       </div>
 
       <div className="space-y-2">
-        <p className="text-[13px] font-medium text-ln-op-ink-2">Link de acceso (magic link)</p>
+        <p className="text-md font-medium text-ln-op-ink-2">Link de acceso (magic link)</p>
         <div className="flex gap-2">
           <code
-            id="magic-link-display"
-            className="flex-1 block overflow-hidden text-ellipsis whitespace-nowrap rounded-[4px] border border-ln-op-line bg-ln-op-card px-3 py-2 font-ln-mono text-[11px] text-ln-op-ink"
+            aria-label={revealed ? "Link de acceso visible" : "Link de acceso oculto"}
+            className="flex-1 block overflow-hidden text-ellipsis whitespace-nowrap rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-2 font-ln-mono text-sm text-ln-op-ink select-none"
           >
-            {magicLink || "(link no disponible - usa Resetear credentials)"}
+            {magicLink
+              ? revealed
+                ? magicLink
+                : maskLink(magicLink)
+              : "(link no disponible — usá Resetear credentials)"}
           </code>
           {magicLink && (
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="shrink-0 rounded-[6px] bg-ln-op-azul px-3 py-2 text-[13px] font-medium text-white transition-colors hover:bg-ln-op-azul-700"
-            >
-              {copied ? "Copiado" : "Copiar"}
-            </button>
+            <>
+              <OpButton
+                type="button"
+                onClick={() => setRevealed((v) => !v)}
+                variant="ghost"
+                aria-pressed={revealed}
+                className="shrink-0 px-3 py-2"
+              >
+                {revealed ? "Ocultar" : "Revelar"}
+              </OpButton>
+              <OpButton
+                type="button"
+                onClick={handleCopy}
+                variant="primary"
+                className="shrink-0 px-3 py-2"
+              >
+                {copyLabel}
+              </OpButton>
+            </>
           )}
         </div>
-        <p className="text-[11px] text-ln-op-mute">
-          Compartilo manualmente con el operador. El link expira en 24h. Si lo perdes, podes
-          regenerarlo desde la pagina de detalle del operador.
+        {copyState === "error" && (
+          <p className="text-sm text-ln-op-danger">No se pudo copiar — copialo manualmente.</p>
+        )}
+        <p className="text-sm text-ln-op-mute">
+          {subtitle} El link expira en {ttlLabel}. Si lo perdés, podés regenerarlo desde la página
+          de detalle del operador.
         </p>
       </div>
 
       <div className="flex gap-3 pt-2">
         <a
           href={detailPath}
-          className="rounded-[6px] bg-ln-op-azul px-4 py-2 text-[13px] font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+          className="rounded-[var(--radius-md)] bg-ln-op-azul px-4 py-2 text-md font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
         >
           Ver cuenta
         </a>
         {onCreateAnother && (
-          <button
-            type="button"
-            onClick={onCreateAnother}
-            className="rounded-[6px] border border-ln-op-line px-4 py-2 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
-          >
+          <OpButton type="button" onClick={onCreateAnother} variant="ghost" className="px-4 py-2">
             Crear otra
-          </button>
+          </OpButton>
         )}
         {onReset && (
-          <button
-            type="button"
-            onClick={onReset}
-            className="rounded-[6px] border border-ln-op-line px-4 py-2 text-[13px] font-medium text-ln-op-ink-2 transition-colors hover:bg-ln-op-stripe"
-          >
+          <OpButton type="button" onClick={onReset} variant="ghost" className="px-4 py-2">
             {resetLabel}
-          </button>
+          </OpButton>
         )}
       </div>
     </div>

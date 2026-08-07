@@ -11,13 +11,33 @@ import { queryLostListing } from "@/src/modules/lost/infrastructure/lost-listing
 // Next's standard caching.
 export const dynamic = "force-dynamic";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.mimar.gob.ar";
+// NEXT_PUBLIC_SITE_URL is the single source of truth for the app's public
+// origin (see docs/ops/production-deploy-plan.md "Site URL consistency").
+// A wrong or missing value here is worse than a build failure: it ships a
+// sitemap that silently advertises the wrong domain to search engines. Fail
+// loud in production instead of falling back to a hardcoded guess; keep a
+// harmless localhost fallback for local dev/CI where the route isn't hit.
+function resolveSiteUrl(): string {
+  const url = process.env.NEXT_PUBLIC_SITE_URL;
+  if (url) return url;
+  if (process.env.NODE_ENV === "production" && process.env.VERCEL) {
+    throw new Error(
+      "NEXT_PUBLIC_SITE_URL is not set. Refusing to generate a sitemap with a guessed domain in production.",
+    );
+  }
+  return "http://localhost:3000";
+}
 
 // Generous upper bound for the sitemap — both listing queries are already
 // bounded by the same guards used everywhere else.
 const SITEMAP_PAGE_SIZE = 5000;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  // Resolved per-request (not at module load) so this never runs during
+  // `next build`'s static route analysis — only when the dynamic route is
+  // actually hit, matching the lazy fail-closed pattern in lib/utils/dni-hash.ts.
+  const SITE_URL = resolveSiteUrl();
+
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${SITE_URL}/`, changeFrequency: "daily", priority: 1.0 },
     { url: `${SITE_URL}/adoptar`, changeFrequency: "hourly", priority: 0.9 },

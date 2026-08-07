@@ -3,7 +3,7 @@
 // db.transaction(), mirroring the openCase(input, tx) pattern.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, eq, inArray, isNull, lt, ne, sql } from "drizzle-orm";
+import { and, asc, eq, gt, inArray, isNull, lt, ne, sql } from "drizzle-orm";
 
 import {
   db,
@@ -18,8 +18,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -49,6 +49,12 @@ export type ExpireStats = {
   expired: number;
   errors: number;
 };
+
+// Keyset/drain bounds for expirePendingProposals (review 23 fleet extension):
+// bound each SELECT and drain the backlog within the run instead of loading ALL
+// expired pending proposals at once.
+const EXPIRE_PROPOSALS_BATCH_SIZE = 500;
+const EXPIRE_PROPOSALS_MAX_DURATION_MS = 45_000;
 
 // ---------------------------------------------------------------------------
 // Helper — org foster coordinator user ids
@@ -529,100 +535,135 @@ export const FosterRepository = {
    * Parity: recordedByUserId = null (system), authorRole = 'system',
    * auto_expired close reason, notifications emitted but NOT awaited here
    * (caller can choose to flush or ignore them).
+   *
+   * Bounded (review 23 fleet extension): previously this loaded EVERY expired
+   * pending proposal into memory in one unbounded SELECT. It now keyset-paginates
+   * over id in batches of EXPIRE_PROPOSALS_BATCH_SIZE, draining until the scope is
+   * empty or the wall-clock budget elapses. The cursor advances past every row
+   * fetched (expired OR errored) so an errored row is not re-fetched within the
+   * same run — expired rows also drop out of the `pending` scope, so a backlog
+   * drains across successive runs.
    */
-  async expirePendingProposals(now: Date): Promise<ExpireStats> {
-    const candidates = await db
-      .select()
-      .from(fosterProposals)
-      .where(and(eq(fosterProposals.status, "pending"), lt(fosterProposals.expiresAt, now)));
+  async expirePendingProposals(
+    now: Date,
+    opts?: { batchSize?: number; maxDurationMs?: number },
+  ): Promise<ExpireStats> {
+    const batchSize = opts?.batchSize ?? EXPIRE_PROPOSALS_BATCH_SIZE;
+    const maxDurationMs = opts?.maxDurationMs ?? EXPIRE_PROPOSALS_MAX_DURATION_MS;
+    const startedAt = Date.now();
 
+    let candidateCount = 0;
     let expired = 0;
     let errors = 0;
+    let cursor: string | null = null;
 
-    for (const p of candidates) {
-      try {
-        await db.transaction(async (tx) => {
-          // Status recheck — defense against race with accept/reject/cancel.
-          const [fresh] = await tx
-            .select({ status: fosterProposals.status })
-            .from(fosterProposals)
-            .where(eq(fosterProposals.id, p.id))
-            .limit(1);
-          if (!fresh || fresh.status !== "pending") return;
+    for (;;) {
+      if (Date.now() - startedAt >= maxDurationMs) break;
 
-          await tx
-            .update(fosterProposals)
-            .set({ status: "expired", updatedAt: now })
-            .where(eq(fosterProposals.id, p.id));
+      const candidates = await db
+        .select()
+        .from(fosterProposals)
+        .where(
+          and(
+            eq(fosterProposals.status, "pending"),
+            lt(fosterProposals.expiresAt, now),
+            ...(cursor ? [gt(fosterProposals.id, cursor)] : []),
+          ),
+        )
+        .orderBy(asc(fosterProposals.id))
+        .limit(batchSize);
 
-          // Resolve case_id (new rows have it directly; pre-migration rows
-          // fall back to open-case query).
-          const proposalCaseId =
-            p.caseId ??
-            (await findOpenCaseForPetAndKind(p.petId, "foster_proposal", tx))?.id ??
-            null;
+      if (candidates.length === 0) break;
 
-          const payload = validateEventPayload("foster_proposal_resolved", {
-            proposal_public_token: p.publicToken,
-            outcome: "expired",
-          });
-          await tx.insert(petEvents).values({
-            petId: p.petId,
-            eventType: "foster_proposal_resolved",
-            occurredAt: now,
-            recordedAt: now,
-            recordedByUserId: null,
-            authorRole: "system",
-            authorOrganizationId: p.organizationId,
-            authorVerified: false,
-            payload,
-            caseId: proposalCaseId,
-          });
+      for (const p of candidates) {
+        candidateCount += 1;
+        cursor = p.id;
+        try {
+          await db.transaction(async (tx) => {
+            // Status recheck — defense against race with accept/reject/cancel.
+            const [fresh] = await tx
+              .select({ status: fosterProposals.status })
+              .from(fosterProposals)
+              .where(eq(fosterProposals.id, p.id))
+              .limit(1);
+            if (!fresh || fresh.status !== "pending") return;
 
-          if (proposalCaseId) {
-            await closeCase({ caseId: proposalCaseId, reason: "auto_expired" }, tx);
-          }
+            await tx
+              .update(fosterProposals)
+              .set({ status: "expired", updatedAt: now })
+              .where(eq(fosterProposals.id, p.id));
 
-          // Notifications (best-effort — emitted inside tx, flushed by caller).
-          await tx.insert(notifications).values({
-            userId: p.volunteerUserId,
-            notificationType: "foster_proposal_expired",
-            severity: "info",
-            title: "Una propuesta de tránsito expiró",
-            body: "La propuesta que recibiste expiró sin respuesta. Si te interesa, pedile al refugio que vuelva a proponer.",
-            relatedPetId: p.petId,
-            ctaLabel: "Ver propuestas",
-            ctaUrl: "/cuenta/transitos/propuestas",
-          });
+            // Resolve case_id (new rows have it directly; pre-migration rows
+            // fall back to open-case query).
+            const proposalCaseId =
+              p.caseId ??
+              (await findOpenCaseForPetAndKind(p.petId, "foster_proposal", tx))?.id ??
+              null;
 
-          // Resolve the org token so coordinators get a working CTA into the pool.
-          const [orgRow] = await tx
-            .select({ publicToken: organizations.publicToken })
-            .from(organizations)
-            .where(eq(organizations.id, p.organizationId))
-            .limit(1);
-          const orgCoordinators = await getOrgFosterCoordinatorUserIds(p.organizationId, tx);
-          for (const uid of orgCoordinators) {
+            const payload = validateEventPayload("foster_proposal_resolved", {
+              proposal_public_token: p.publicToken,
+              outcome: "expired",
+            });
+            await tx.insert(petEvents).values({
+              petId: p.petId,
+              eventType: "foster_proposal_resolved",
+              occurredAt: now,
+              recordedAt: now,
+              recordedByUserId: null,
+              authorRole: "system",
+              authorOrganizationId: p.organizationId,
+              authorVerified: false,
+              payload,
+              caseId: proposalCaseId,
+            });
+
+            if (proposalCaseId) {
+              await closeCase({ caseId: proposalCaseId, reason: "auto_expired" }, tx);
+            }
+
+            // Notifications (best-effort — emitted inside tx, flushed by caller).
             await tx.insert(notifications).values({
-              userId: uid,
+              userId: p.volunteerUserId,
               notificationType: "foster_proposal_expired",
               severity: "info",
-              title: "Tu propuesta de tránsito expiró",
-              body: "El voluntario no respondió en 7 días. Probá con otro candidato del pool.",
+              title: "Una propuesta de tránsito expiró",
+              body: "La propuesta que recibiste expiró sin respuesta. Si te interesa, pedile al refugio que vuelva a proponer.",
               relatedPetId: p.petId,
               ctaLabel: "Ver propuestas",
-              ctaUrl: orgRow ? `/org/${orgRow.publicToken}/voluntarios/propuestas` : "/org",
+              ctaUrl: "/cuenta/transitos/propuestas",
             });
-          }
-        });
-        expired += 1;
-      } catch (err) {
-        console.error("[FosterRepository.expirePendingProposals] failed for", p.id, err);
-        errors += 1;
+
+            // Resolve the org token so coordinators get a working CTA into the pool.
+            const [orgRow] = await tx
+              .select({ publicToken: organizations.publicToken })
+              .from(organizations)
+              .where(eq(organizations.id, p.organizationId))
+              .limit(1);
+            const orgCoordinators = await getOrgFosterCoordinatorUserIds(p.organizationId, tx);
+            for (const uid of orgCoordinators) {
+              await tx.insert(notifications).values({
+                userId: uid,
+                notificationType: "foster_proposal_expired",
+                severity: "info",
+                title: "Tu propuesta de tránsito expiró",
+                body: "El voluntario no respondió en 7 días. Probá con otro candidato del pool.",
+                relatedPetId: p.petId,
+                ctaLabel: "Ver propuestas",
+                ctaUrl: orgRow ? `/org/${orgRow.publicToken}/voluntarios/propuestas` : "/org",
+              });
+            }
+          });
+          expired += 1;
+        } catch (err) {
+          console.error("[FosterRepository.expirePendingProposals] failed for", p.id, err);
+          errors += 1;
+        }
       }
+
+      if (candidates.length < batchSize) break; // last page
     }
 
-    return { candidates: candidates.length, expired, errors };
+    return { candidates: candidateCount, expired, errors };
   },
 
   // -------------------------------------------------------------------------
@@ -715,6 +756,26 @@ export const FosterRepository = {
     },
     tx: Tx,
   ): Promise<{ ownershipId: string; caseId: string }> {
+    // Idempotency guard (projection-writes audit §6): the use-case checks
+    // "one foster at a time" OUTSIDE the tx, so a double-submit could pass
+    // that check twice. Serialize on the pet (same advisory-lock pattern as
+    // the return-to-owner writers) and re-verify inside the tx.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${args.petId}))`);
+    const [activeFoster] = await tx
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, args.petId),
+          eq(ownerships.role, "foster"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    if (activeFoster) {
+      throw new Error("Este animal ya tiene un tránsito activo. Finalizalo antes de asignar otro.");
+    }
+
     const [ownership] = await tx
       .insert(ownerships)
       .values({
@@ -734,9 +795,15 @@ export const FosterRepository = {
         jurisdictionLocality: args.petJurisdictionLocality,
         openedByUserId: args.actorUserId,
         openedByOrganizationId: args.actorOrgId,
-        openedReason: `Foster placement assigned by ${args.actorOrgDisplayName}${
-          args.expectedWeeks ? ` — expected ${args.expectedWeeks} weeks` : ""
-        }`,
+        openedReason: {
+          code: "foster_placement_assigned",
+          actorOrgDisplayName: args.actorOrgDisplayName,
+          // `|| null`, not `?? null`: the prose template this replaces tested
+          // truthiness, so 0 meant "no duration". Keeping that exact semantic
+          // means params and prose agree instead of storing a 0 that the
+          // positive-int schema would reject on read.
+          expectedWeeks: args.expectedWeeks || null,
+        },
       },
       tx,
     );
@@ -858,7 +925,11 @@ export const FosterRepository = {
         openedByOrganizationId: args.orgId,
         jurisdictionProvince: args.petJurisdictionProvince,
         jurisdictionLocality: args.petJurisdictionLocality,
-        openedReason: `Foster proposal to volunteer ${args.volunteerUserId} by org ${args.orgId}`,
+        // The volunteer + org ids are AUDIT-only: they belong in the prose
+        // (as they always have) but never in params, so the renderer cannot
+        // reach them. Hence no params on this code.
+        openedReason: { code: "foster_proposal_sent" },
+        openedReasonAudit: { volunteerUserId: args.volunteerUserId, orgId: args.orgId },
       },
       tx,
     );
@@ -1386,8 +1457,11 @@ export const FosterRepository = {
    *   b. findOpenCaseForPetAndKind("foster_placement") → caseId
    *   c. insertPetEvent(foster_ended, UPFRONT UUID)
    *   d. closeCase(foster_placement, "resolved") if open
-   *   e. closeOwnerOwnerships (end any prior owner rows — prevents
-   *      unique-active-owner partial index violation at tx commit)
+   *   e. closeOwnerOwnerships + closeShelterCustody (end any prior owner rows
+   *      AND the org's active shelter_custody — a foster always coexists with an
+   *      active shelter_custody; leaving it open = permanent double custody.
+   *      Mirrors insertAdoptionFinalized, which closes BOTH. Prevents the
+   *      unique-active-owner partial index violation at tx commit.)
    *   f. insertOwnerOwnership (new role='owner' row for the foster user)
    *   g. insertPetEvent(custody_transferred, references foster_ended UUID)
    */
@@ -1423,7 +1497,11 @@ export const FosterRepository = {
     // c. Emit foster_ended (upfront UUID for ordering).
     const fosterEndedPayload = validateEventPayload("foster_ended", {
       foster_user_id: fosterUserId,
-      reason: "adopted_by_foster",
+      // "adoption" is the canonical programmatic reason for a foster→owner
+      // transition (see event-schemas.ts fosterEnded catalog). The old
+      // "adopted_by_foster" value is NOT in the enum, so this whole path threw
+      // an EventPayloadValidationError at runtime — the convert flow was dead.
+      reason: "adoption",
       notes: null,
     });
     await tx.insert(petEvents).values({
@@ -1452,6 +1530,24 @@ export const FosterRepository = {
       .set({ endedAt: now })
       .where(
         and(eq(ownerships.petId, petId), eq(ownerships.role, "owner"), isNull(ownerships.endedAt)),
+      );
+
+    // e2. Close the org's active shelter_custody row (AF-C1). A foster ALWAYS
+    //     coexists with an active shelter_custody (the org holds custody while
+    //     the volunteer holds foster). Closing only the foster + owner rows
+    //     leaves shelter_custody ACTIVE = permanent double custody: the org
+    //     could still re-foster / list / finalize the pet to a different
+    //     adopter, and metrics double-count. insertAdoptionFinalized closes
+    //     BOTH; convert must too. Custody moves cleanly to the new owner.
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
       );
 
     // f. Insert new owner ownership row.

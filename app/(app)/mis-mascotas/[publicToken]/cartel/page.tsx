@@ -9,10 +9,18 @@ import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 
 import { attachments, db, ownerships, profiles } from "@/db";
-import { ageFromDateOfBirth, sexLabel, speciesLabel } from "@/lib/format";
-import { fetchLostEpisodeForPet } from "@/lib/lost-mode";
-import { requirePetAccess } from "@/lib/pet-access";
-import { petPhotoUrl } from "@/lib/storage";
+import { fetchLostEpisodeForPet } from "@/lib/infra/lost-mode";
+import { requirePetAccess } from "@/lib/infra/pet-access";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
+import { petPhotoUrl } from "@/lib/infra/storage";
+import {
+  ageFromDateOfBirth,
+  lostThirdPersonPhrase,
+  markLostActionLabel,
+  markLostFirstPrompt,
+  sexLabel,
+  speciesLabel,
+} from "@/lib/utils/format";
 
 import "./cartel-print.css";
 import { PosterPreview } from "./PosterPreview";
@@ -31,24 +39,23 @@ export default async function CartelPage({
   // Guard: poster only makes sense when the pet is marked lost.
   if (pet.status !== "lost") {
     return (
-      <div className="mx-auto max-w-md px-[32px] py-[48px] text-center">
-        <p className="font-[var(--font-ln-serif)] text-[20px] font-semibold text-[var(--color-ln-ink)]">
-          {pet.name} no está marcada como perdida.
+      <div className="mx-auto max-w-md px-8 py-12 text-center">
+        <p className="font-ln-serif text-xl font-semibold text-[var(--color-ln-ink)]">
+          {pet.name} no {lostThirdPersonPhrase(pet.sex)}.
         </p>
-        <p className="mt-[6px] text-[13px] text-[var(--color-ln-mute)]">
-          Marcala como perdida primero para generar el cartel.
-        </p>
+        <p className="mt-1.5 text-md text-[var(--color-ln-mute)]">{markLostFirstPrompt(pet.sex)}</p>
         <Link
           href={`/mis-mascotas/${publicToken}?sheet=marcar-perdida`}
-          className="mt-[20px] inline-flex items-center rounded-[4px] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
+          className="mt-5 inline-flex items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-warn-100)] bg-[var(--color-ln-warn-050)] px-4 py-[9px] font-ln-sans text-md font-medium text-[var(--color-ln-warn)] no-underline hover:opacity-80 transition-opacity"
         >
-          Marcar como perdida
+          {markLostActionLabel(pet.sex)}
         </Link>
       </div>
     );
   }
 
-  // Fetch lost episode (placeName + lostSince).
+  // Fetch lost episode (placeName + lastSeenAt, both reflecting the latest
+  // owner location update — see fetchLostEpisodeForPet's overlay).
   const episode = await fetchLostEpisodeForPet(pet.id);
 
   // Resolve owner first name + phone from the active ownership row.
@@ -85,7 +92,7 @@ export default async function CartelPage({
   }
 
   // Generate QR SVG server-side pointing at the public credential page.
-  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.ar";
+  const baseUrl = resolveSiteUrl();
   const qrTargetUrl = `${baseUrl}/p/${publicToken}`;
   const qrSvg = await QRCode.toString(qrTargetUrl, {
     type: "svg",
@@ -102,12 +109,13 @@ export default async function CartelPage({
         species={speciesLabel(pet.species)}
         breed={pet.breed ?? null}
         sex={sexLabel(pet.sex)}
+        sexRaw={pet.sex}
         age={ageFromDateOfBirth(pet.dateOfBirth)}
         color={pet.color ?? null}
         distinguishingFeatures={pet.distinguishingFeatures ?? null}
         photoUrl={photoUrl}
         placeName={episode?.placeName ?? null}
-        lostSince={episode?.openedAt ?? null}
+        lastSeenAt={episode?.lastSeenAt ?? null}
         ownerFirstName={ownerFirstName}
         ownerPhone={ownerPhone}
         locationDisclosed={pet.discloseLastLocationWhenLost}

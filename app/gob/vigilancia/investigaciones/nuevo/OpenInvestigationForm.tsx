@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { openOutbreakInvestigationAction } from "@/src/modules/surveillance/actions";
 import type { EnoDisease } from "@/src/modules/surveillance/domain/eno-catalog";
 
@@ -17,6 +19,7 @@ export function OpenInvestigationForm({
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
+  const [submitted, setSubmitted] = useState(false);
   const [diseaseCode, setDiseaseCode] = useState(prefillDiseaseCode ?? "");
   const [reason, setReason] = useState("");
   const [signalId, setSignalId] = useState(prefillSignalId ?? "");
@@ -24,6 +27,7 @@ export function OpenInvestigationForm({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (pending || submitted) return; // guard against double-submit
     setError(null);
     startTransition(async () => {
       const result = await openOutbreakInvestigationAction({
@@ -35,83 +39,85 @@ export function OpenInvestigationForm({
         setError(result.error);
         return;
       }
-      router.push(`/gob/vigilancia/investigaciones/${result.publicCode}`);
+      // Full-document navigation (redirectTo contract) — immune to the Next.js
+      // 15.5 router-drop defect that silently no-ops router.push and lets the
+      // officer re-submit into a duplicate investigation (nav #46 burn-down).
+      setSubmitted(true);
+      navigateAfterActionSuccess(`/gob/vigilancia/investigaciones/${result.publicCode}`);
     });
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       <div className="space-y-1.5">
-        <label htmlFor="diseaseCode" className="block text-[13px] font-medium text-ln-op-ink">
+        <label htmlFor="diseaseCode" className="block text-md font-medium text-ln-op-ink">
           Enfermedad (ENO)
         </label>
-        <select
+        <OpSelect
           id="diseaseCode"
           value={diseaseCode}
           onChange={(e) => setDiseaseCode(e.target.value)}
           required
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
         >
           <option value="">Seleccionar enfermedad...</option>
           {diseases.map((d) => (
             <option key={d.code} value={d.code}>
-              {d.label} â€" {d.severity === "critical" ? "critica" : "alta"} ({d.notifyHours}h)
+              {d.label} — {d.severity === "critical" ? "crítica" : "alta"} ({d.notifyHours}h)
             </option>
           ))}
-        </select>
+        </OpSelect>
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="reason" className="block text-[13px] font-medium text-ln-op-ink">
-          Motivo de apertura (minimo 10 caracteres)
+        <label htmlFor="reason" className="block text-md font-medium text-ln-op-ink">
+          Motivo de apertura (mínimo 10 caracteres)
         </label>
-        <textarea
+        <OpTextarea
           id="reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={4}
           required
           minLength={10}
-          placeholder="Describe la situacion epidemiologica que motiva la apertura..."
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
+          placeholder="Describí la situación epidemiológica que motiva la apertura..."
         />
-        <p className="text-[12px] text-ln-op-mute tabular-nums">
-          {reason.trim().length} caracteres
-        </p>
+        <p className="text-sm text-ln-op-mute tabular-nums">{reason.trim().length} caracteres</p>
       </div>
 
       <div className="space-y-1.5">
-        <label htmlFor="signalId" className="block text-[13px] font-medium text-ln-op-ink">
+        <label htmlFor="signalId" className="block text-md font-medium text-ln-op-ink">
           Signal vinculada (opcional)
         </label>
-        <input
+        <OpInput
           id="signalId"
           type="text"
           value={signalId}
           onChange={(e) => setSignalId(e.target.value)}
           placeholder="ID del outbreak_signal event (si existe)"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink"
+          className="font-mono"
         />
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
 
       <div className="flex gap-3">
-        <button
+        <OpButton
           type="submit"
-          disabled={pending || !diseaseCode || reason.trim().length < 10}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50 hover:bg-ln-op-azul-700 transition-colors"
+          disabled={pending || submitted || !diseaseCode || reason.trim().length < 10}
+          variant="primary"
+          className="px-4 py-2"
         >
-          {pending ? "Abriendo..." : "Abrir investigacion"}
-        </button>
-        <button
+          {pending || submitted ? "Abriendo..." : "Abrir investigación"}
+        </OpButton>
+        <OpButton
           type="button"
           onClick={() => router.back()}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          variant="ghost"
+          className="px-4 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </form>
   );

@@ -61,7 +61,7 @@ describe("lib/welfare.ts shim — domain exports are identical to original value
     expect(welfareReportKindLabel("physical_abuse")).toBe("Maltrato físico / golpes / lesiones");
     expect(welfareReportKindLabel("chained")).toBe("Animal encadenado o sin movilidad");
     expect(welfareReportKindLabel("no_shelter")).toBe("Sin refugio del clima");
-    expect(welfareReportKindLabel("hoarding")).toBe("Acumulación (hoarding)");
+    expect(welfareReportKindLabel("hoarding")).toBe("Acumulación de animales");
     expect(welfareReportKindLabel("dog_fighting")).toBe("Peleas de perros");
     expect(welfareReportKindLabel("trafficking")).toBe("Tráfico / venta clandestina");
     expect(welfareReportKindLabel("other")).toBe("Otra");
@@ -87,7 +87,7 @@ describe("lib/welfare.ts shim — domain exports are identical to original value
   });
 
   it("welfareReportSubjectKindLabel produces the same output as original", () => {
-    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota MiMAR registrada");
+    expect(welfareReportSubjectKindLabel("registered_pet")).toBe("Mascota miMAR registrada");
     expect(welfareReportSubjectKindLabel("unowned_animal")).toBe("Animal sin dueño identificado");
     expect(welfareReportSubjectKindLabel("location")).toBe("Lugar / situación");
     expect(welfareReportSubjectKindLabel("general")).toBe("Otro");

@@ -6,6 +6,7 @@
 import { useState, useTransition } from "react";
 
 import type { AttendanceResult, VetVisitPayload } from "@/app/actions/attendance";
+import { OpFieldLabel, OpFormAlert, OpInput, OpSubmitButton } from "@/components/ui/dashboard";
 
 type Props = {
   appointmentToken: string;
@@ -54,75 +55,37 @@ export function GenericAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <p
-          role="alert"
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <OpFormAlert>{error}</OpFormAlert>}
       <div>
-        <label htmlFor="gen-reason" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
+        <OpFieldLabel htmlFor="gen-reason">
           Motivo de la consulta <span className="text-ln-op-danger">*</span>
-        </label>
-        <input
+        </OpFieldLabel>
+        <OpInput
           id="gen-reason"
           name="reason"
           type="text"
           required
           placeholder="Ej: Control de rutina, revisación"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label htmlFor="gen-diagnosis" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-          Diagnóstico / observaciones
-        </label>
-        <input
-          id="gen-diagnosis"
-          name="diagnosis"
-          type="text"
-          placeholder="Opcional"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-        />
+        <OpFieldLabel htmlFor="gen-diagnosis">Diagnóstico / observaciones</OpFieldLabel>
+        <OpInput id="gen-diagnosis" name="diagnosis" type="text" placeholder="Opcional" />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label htmlFor="gen-vet_name" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-            Veterinario/a
-          </label>
-          <input
-            id="gen-vet_name"
-            name="vet_name"
-            type="text"
-            placeholder="Nombre (opcional)"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-          />
+          <OpFieldLabel htmlFor="gen-vet_name">Veterinario/a</OpFieldLabel>
+          <OpInput id="gen-vet_name" name="vet_name" type="text" placeholder="Nombre (opcional)" />
         </div>
         <div>
-          <label htmlFor="gen-clinic" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-            Clínica
-          </label>
-          <input
-            id="gen-clinic"
-            name="clinic"
-            type="text"
-            placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-          />
+          <OpFieldLabel htmlFor="gen-clinic">Clínica</OpFieldLabel>
+          <OpInput id="gen-clinic" name="clinic" type="text" placeholder="Opcional" />
         </div>
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {pending ? "Guardando…" : submitLabel}
-      </button>
+      <OpSubmitButton pending={pending}>{submitLabel}</OpSubmitButton>
     </form>
   );
 }

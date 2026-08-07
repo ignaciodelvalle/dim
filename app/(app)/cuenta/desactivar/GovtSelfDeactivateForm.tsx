@@ -10,6 +10,7 @@ import { useState } from "react";
 
 import { govtSelfDeactivateAction } from "@/app/actions/profile-self-service";
 import { LnCheckbox } from "@/components/ui/Field";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 type LocalityRow = {
   province: string;
@@ -45,7 +46,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
 
       router.push("/cuenta?banner=govt_deactivated");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      setError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
       setLoading(false);
     }
   }
@@ -56,7 +57,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {error && (
         <div
           role="alert"
-          className="rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3"
+          className="rounded-[var(--radius-sm)] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3"
         >
           <p className="text-sm text-[var(--color-ln-seal)]">{error}</p>
         </div>
@@ -77,7 +78,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
               return (
                 <li
                   key={`${loc.province}/${loc.locality}`}
-                  className={`flex items-center justify-between rounded-[4px] border px-4 py-3 ${
+                  className={`flex items-center justify-between rounded-[var(--radius-sm)] border px-4 py-3 ${
                     covered
                       ? "border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)]"
                       : "border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)]"
@@ -108,7 +109,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {hasUncoveredLocality && (
         <div
           role="alert"
-          className="rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-5 py-4 space-y-2"
+          className="rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-5 py-4 space-y-2"
         >
           <p className="text-sm font-semibold text-[var(--color-ln-seal)]">
             No podés desactivarte todavía.
@@ -124,7 +125,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
       {canProceed && (
         <>
           {/* Confirmation text */}
-          <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 space-y-2">
+          <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-5 space-y-2">
             <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
               Si confirmás la desactivación:
             </p>
@@ -163,7 +164,7 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
               onChange={(e) => setReason(e.target.value)}
               rows={3}
               placeholder="Contanos por qué desactivás tu cuenta..."
-              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] resize-none"
+              className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] resize-none"
             />
           </div>
 
@@ -180,14 +181,14 @@ export function GovtSelfDeactivateForm({ localities }: { localities: LocalityRow
           <button
             type="submit"
             disabled={!confirmed || loading}
-            className="px-5 py-2 text-sm bg-[var(--color-ln-seal)] text-white rounded-[3px] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            className="px-5 py-2 text-sm bg-[var(--color-ln-seal)] text-white rounded-[var(--radius-pill)] hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Procesando..." : "Desactivar cuenta"}
           </button>
         )}
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[3px] hover:bg-[var(--color-ln-stripe)] transition-colors"
+          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[var(--radius-pill)] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           Cancelar
         </a>

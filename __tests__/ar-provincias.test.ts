@@ -3,7 +3,12 @@
 
 import { describe, expect, it } from "vitest";
 
-import { PROVINCES, type Province, provinceByCode, provinceByName } from "@/lib/ar-provincias";
+import {
+  PROVINCES,
+  type Province,
+  provinceByCode,
+  provinceByName,
+} from "@/lib/reference/ar-provincias";
 
 describe("PROVINCES const", () => {
   it("has 24 entries (23 provinces + CABA)", () => {

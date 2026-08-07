@@ -16,8 +16,8 @@ import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cases, db, petEvents, pets, welfareReports } from "@/db";
-import { closeCase, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 let petId: string;
@@ -100,7 +100,12 @@ describe("D1: welfare_denuncia case opens atomically with welfare_reports row", 
           kind: "welfare_denuncia",
           primarySubjectKind: "registered_pet",
           primaryPetId: petId,
-          openedReason: `Welfare denuncia ${REF_CODE} — kind=neglect, severity=high`,
+          openedReason: {
+            code: "welfare_report_citizen",
+            referenceCode: REF_CODE,
+            kind: "neglect",
+            severity: "high",
+          },
           welfareReportId,
         },
         tx,

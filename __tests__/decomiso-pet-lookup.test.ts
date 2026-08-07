@@ -12,13 +12,13 @@ import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireDecomisoPrincipal: vi.fn(),
 }));
 
 import { lookupPetForDecomisoAction } from "@/app/actions/decomiso-pet-lookup";
 import { db, govtAssignments, ownerships, pets, profiles } from "@/db";
-import { requireDecomisoPrincipal } from "@/lib/auth-guards";
+import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -28,11 +28,15 @@ import { withMutationOverride } from "./_helpers/db-overrides";
 const IN_PET_TOKEN = "DIM-LKUP-IN01";
 const OUT_PET_TOKEN = "DIM-LKUP-OT01";
 const NULL_PROV_TOKEN = "DIM-LKUP-NP01";
+// Same province as the govt user (CABA) but a DIFFERENT locality — must be
+// out of scope under the (province, locality) pair check (review 24 HIGH #3).
+const WRONG_LOCALITY_TOKEN = "DIM-LKUP-WL01";
 const OWNER_DISPLAY_NAME = "Titular Test Lookup";
 
 let inPetId: string;
 let outPetId: string;
 let nullProvPetId: string;
+let wrongLocalityPetId: string;
 let ownerUserId: string;
 let govtUserId: string;
 let adminUserId: string;
@@ -62,7 +66,7 @@ function adminSession(userId: string) {
 beforeAll(async () => {
   // Clean up any stale state.
   await withMutationOverride(async (tx) => {
-    for (const token of [IN_PET_TOKEN, OUT_PET_TOKEN, NULL_PROV_TOKEN]) {
+    for (const token of [IN_PET_TOKEN, OUT_PET_TOKEN, NULL_PROV_TOKEN, WRONG_LOCALITY_TOKEN]) {
       await tx.execute(sql`DELETE FROM ownerships WHERE pet_id IN (
         SELECT id FROM pets WHERE public_token = ${token}
       )`);
@@ -70,7 +74,8 @@ beforeAll(async () => {
     }
   });
 
-  // Pet in CABA — same province as the test govt user's jurisdiction.
+  // Pet in CABA / Buenos Aires — exact (province, locality) pair of the test
+  // govt user's jurisdiction, so it is in scope under the pair check.
   const [inPet] = await db
     .insert(pets)
     .values({
@@ -80,9 +85,26 @@ beforeAll(async () => {
       sex: "male",
       potentiallyDangerousBreed: false,
       jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Buenos Aires",
     })
     .returning();
   inPetId = inPet.id;
+
+  // Pet in CABA but a different locality — province matches, locality does not,
+  // so it must be OUT of scope under the pair check (the core HIGH #3 leak).
+  const [wrongLocalityPet] = await db
+    .insert(pets)
+    .values({
+      publicToken: WRONG_LOCALITY_TOKEN,
+      name: "Frida Lookup",
+      species: "dog",
+      sex: "female",
+      potentiallyDangerousBreed: false,
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "La Boca",
+    })
+    .returning();
+  wrongLocalityPetId = wrongLocalityPet.id;
 
   // Pet in Mendoza — out of scope for the CABA govt user.
   const [outPet] = await db
@@ -130,6 +152,15 @@ beforeAll(async () => {
     startedAt: new Date(),
   });
 
+  // Give the wrong-locality pet an owner too, so an escaped guard WOULD leak
+  // PII — the test asserts it does not.
+  await db.insert(ownerships).values({
+    petId: wrongLocalityPetId,
+    ownerUserId,
+    role: "owner",
+    startedAt: new Date(),
+  });
+
   // Govt user profile (stub — no auth.users row required for action testing).
   const gId = randomUUID();
   await db.insert(profiles).values({
@@ -161,7 +192,7 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await withMutationOverride(async (tx) => {
-    for (const id of [inPetId, outPetId, nullProvPetId].filter(Boolean)) {
+    for (const id of [inPetId, outPetId, nullProvPetId, wrongLocalityPetId].filter(Boolean)) {
       await tx.execute(sql`DELETE FROM ownerships WHERE pet_id = ${id}`);
       await tx.execute(sql`DELETE FROM pet_events WHERE pet_id = ${id}`);
       await tx.execute(sql`DELETE FROM pets WHERE id = ${id}`);
@@ -184,25 +215,33 @@ afterAll(async () => {
 // ---------------------------------------------------------------------------
 
 describe("lookupPetForDecomisoAction — jurisdiction scope logic (unit)", () => {
-  it("CABA govt is in-scope for CABA pet", () => {
+  // The scope check now requires the FULL (province, locality) pair to match
+  // an assignment (review 24 HIGH #3) — province-only / null-province allowances
+  // were cross-locality PII leaks.
+  const pairInScope = (
+    jurisdictions: { province: string; locality: string }[],
+    petProvince: string | null,
+    petLocality: string | null,
+  ) => jurisdictions.some((j) => j.province === petProvince && j.locality === petLocality);
+
+  it("CABA/Buenos Aires govt is in-scope for a CABA/Buenos Aires pet", () => {
     const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
-    const petProvince = "CABA";
-    const inScope = !petProvince || jurisdictions.some((j) => j.province === petProvince);
-    expect(inScope).toBe(true);
+    expect(pairInScope(jurisdictions, "CABA", "Buenos Aires")).toBe(true);
   });
 
-  it("CABA govt is out-of-scope for Mendoza pet", () => {
+  it("CABA govt is out-of-scope for a Mendoza pet (province mismatch)", () => {
     const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
-    const petProvince = "Mendoza";
-    const inScope = !petProvince || jurisdictions.some((j) => j.province === petProvince);
-    expect(inScope).toBe(false);
+    expect(pairInScope(jurisdictions, "Mendoza", "Mendoza")).toBe(false);
   });
 
-  it("null pet province is always in scope (no jurisdiction can be violated)", () => {
+  it("CABA/Buenos Aires govt is out-of-scope for a CABA/La Boca pet (locality mismatch)", () => {
     const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
-    const petProvince: string | null = null;
-    const inScope = !petProvince || jurisdictions.some((j) => j.province === petProvince);
-    expect(inScope).toBe(true);
+    expect(pairInScope(jurisdictions, "CABA", "La Boca")).toBe(false);
+  });
+
+  it("null pet province/locality is now OUT of scope (fail-closed)", () => {
+    const jurisdictions = [{ province: "CABA", locality: "Buenos Aires" }];
+    expect(pairInScope(jurisdictions, null, null)).toBe(false);
   });
 
   it("admin (empty jurisdictions) — logic check bypassed by role guard", () => {
@@ -259,17 +298,51 @@ describe("lookupPetForDecomisoAction — out-of-jurisdiction govt lookup", () =>
 });
 
 describe("lookupPetForDecomisoAction — null-province pet (no jurisdiction recorded)", () => {
-  it("govt user can look up a pet with null jurisdictionProvince", async () => {
+  it("govt user is now OUT of scope for a pet with null jurisdiction (fail-closed)", async () => {
     vi.mocked(requireDecomisoPrincipal).mockResolvedValue(govtSession(govtUserId) as never);
+
+    const result = await lookupPetForDecomisoAction(NULL_PROV_TOKEN);
+
+    // Pair check: null (province, locality) matches no assignment → rejected.
+    expect(result.found).toBe(false);
+    if (result.found) return;
+    expect(result.error).toBe("Esta mascota no está en tu jurisdicción asignada.");
+  });
+
+  it("admin can still look up a null-jurisdiction pet (universal scope)", async () => {
+    vi.mocked(requireDecomisoPrincipal).mockResolvedValue(adminSession(adminUserId) as never);
 
     const result = await lookupPetForDecomisoAction(NULL_PROV_TOKEN);
 
     expect(result.found).toBe(true);
     if (!result.found) return;
     expect(result.publicToken).toBe(NULL_PROV_TOKEN);
-    // No owner on this pet.
-    expect(result.hasOwner).toBe(false);
-    expect(result.ownerDisplayName).toBeNull();
+  });
+});
+
+describe("lookupPetForDecomisoAction — wrong-locality govt lookup (review 24 HIGH #3)", () => {
+  it("rejects a CABA/Buenos Aires govt reading a CABA/La Boca pet — no owner PII", async () => {
+    vi.mocked(requireDecomisoPrincipal).mockResolvedValue(govtSession(govtUserId) as never);
+
+    const result = await lookupPetForDecomisoAction(WRONG_LOCALITY_TOKEN);
+
+    expect(result.found).toBe(false);
+    if (result.found) return;
+    expect(result.error).toBe("Esta mascota no está en tu jurisdicción asignada.");
+    // The pet HAS an owner; confirm no PII fields leaked despite that.
+    expect("ownerDisplayName" in result).toBe(false);
+    expect("hasOwner" in result).toBe(false);
+  });
+
+  it("admin (universal scope) CAN read the CABA/La Boca pet and gets owner PII", async () => {
+    vi.mocked(requireDecomisoPrincipal).mockResolvedValue(adminSession(adminUserId) as never);
+
+    const result = await lookupPetForDecomisoAction(WRONG_LOCALITY_TOKEN);
+
+    expect(result.found).toBe(true);
+    if (!result.found) return;
+    expect(result.hasOwner).toBe(true);
+    expect(result.ownerDisplayName).toBe(OWNER_DISPLAY_NAME);
   });
 });
 

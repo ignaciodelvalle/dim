@@ -1,15 +1,23 @@
 "use client";
 
-// LostShareCard — four share buttons + a copy-link action. Client because
-// each button does a window.open() / navigator.clipboard / navigator.share
-// call when available.
+// LostShareCard — share-first hero for the lost-panel lean (task #43): a
+// full-width WhatsApp CTA (the channel that actually moves finder tips in
+// barrio/grupo contexts) plus a secondary row for copy-link + the printable
+// poster. Twitter/Facebook were dropped from this default lost path — they
+// converted far less than WhatsApp for lost-pet alerts and just diluted the
+// primary CTA into a 4-up grid (Cursor audit #735). Client because each
+// action does a window.open() / navigator.clipboard / navigator.share call.
 //
-// Why server-rendering the URLs first: we want stable links the server
-// has approved (canonical /p/{token}) instead of relying on the client
-// to assemble them. Share messages are templated server-side too so the
-// pet's first-name / phone visibility honours the disclosure prefs.
+// Why server-rendering the URL + text first: we want a stable link the
+// server has approved (canonical /p/{token}) instead of relying on the
+// client to assemble it. shareText is templated server-side by the caller
+// (LostCaseBlock) so the pet's first-name visibility honours the owner's
+// disclosure prefs — fixed 2026-07-04 (Cursor audit #735 flagged the prior
+// text as disclosure-blind despite this same claim).
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+
+import { Icon } from "@/components/Icon";
 
 interface Props {
   /** Public credential URL. e.g. https://mimar.ar/p/{token} */
@@ -22,6 +30,15 @@ interface Props {
 
 export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
   const [copied, setCopied] = useState(false);
+  // Mounted flag instead of reading `navigator` during render: SSR has no
+  // navigator, so the conditional button hydrated differently than it
+  // server-rendered (React #418 on every lost-pet profile). First client
+  // render now matches the server (no button), and the button appears
+  // after mount only where Web Share actually exists.
+  const [canNativeShare, setCanNativeShare] = useState(false);
+  useEffect(() => {
+    if ("share" in navigator) setCanNativeShare(true);
+  }, []);
 
   function copy() {
     void navigator.clipboard?.writeText(publicUrl).then(() => {
@@ -34,14 +51,7 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
     const url = `https://wa.me/?text=${encodeURIComponent(`${shareText} ${publicUrl}`)}`;
     window.open(url, "_blank", "noopener");
   }
-  function shareTwitter() {
-    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(publicUrl)}`;
-    window.open(url, "_blank", "noopener");
-  }
-  function shareFacebook() {
-    const url = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(publicUrl)}`;
-    window.open(url, "_blank", "noopener");
-  }
+
   function nativeShare() {
     if (typeof navigator !== "undefined" && "share" in navigator) {
       void navigator
@@ -51,70 +61,58 @@ export function LostShareCard({ publicUrl, shareText, posterHref }: Props) {
   }
 
   return (
-    <section
-      aria-labelledby="lp-share-h"
-      className="rounded-2xl border border-ln-line bg-ln-card p-4  "
-    >
-      <div className="mb-3 flex items-baseline justify-between">
-        <h2 id="lp-share-h" className="text-base font-semibold text-ln-ink ">
-          Compartir alerta
-        </h2>
+    <section aria-labelledby="lp-share-h">
+      <h2 id="lp-share-h" className="sr-only">
+        Compartir alerta
+      </h2>
+
+      {/* Hero — WhatsApp, the channel that actually moves finder tips. Uses
+          the project's own ok/success token rather than WhatsApp's brand
+          green — this design system is tokenized, no raw hex (lint:tokens). */}
+      <button
+        type="button"
+        onClick={shareWhatsApp}
+        className="flex min-h-11 w-full items-center justify-center gap-2 rounded-full bg-[var(--color-ln-ok)] px-5 py-3 text-md font-semibold text-white transition-colors hover:opacity-90"
+      >
+        <Icon name="mensaje" size="md" decorative />
+        Compartir por WhatsApp
+      </button>
+
+      {/* Secondary row — copy link + poster. */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={copy}
-          className="text-xs font-medium text-ln-azul hover:underline"
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-ln-line bg-ln-card px-3 text-sm font-medium text-ln-ink-2 transition-colors hover:bg-ln-stripe"
         >
-          {copied ? "Copiado ✓" : "Copiar link"}
+          {copied ? (
+            <>
+              <Icon name="check" size="sm" decorative /> Copiado
+            </>
+          ) : (
+            "Copiar link"
+          )}
         </button>
-      </div>
-      <div className="grid grid-cols-4 gap-2">
-        <ShareButton label="WhatsApp" icon="💬" onClick={shareWhatsApp} />
-        <ShareButton label="Twitter" icon="𝕏" onClick={shareTwitter} />
-        <ShareButton label="Facebook" icon="f" onClick={shareFacebook} />
         <a
           href={posterHref}
           target="_blank"
           rel="noreferrer"
-          className="flex flex-col items-center gap-1 rounded-lg bg-ln-stripe p-3 text-xs font-medium text-ln-ink-2 transition-colors hover:bg-[var(--color-ln-err-050)] hover:text-ln-err    "
+          className="flex min-h-11 items-center justify-center gap-1.5 rounded-full border border-ln-line bg-ln-card px-3 text-sm font-medium text-ln-ink-2 no-underline transition-colors hover:bg-ln-stripe"
         >
-          <span aria-hidden className="text-xl">
-            🖨
-          </span>
+          <Icon name="impresora" size="sm" decorative />
           Afiche
         </a>
       </div>
-      {typeof navigator !== "undefined" && "share" in navigator && (
+
+      {canNativeShare && (
         <button
           type="button"
           onClick={nativeShare}
-          className="mt-2 w-full rounded-lg bg-ln-stripe px-3 py-2 text-xs font-medium text-ln-ink-2 hover:bg-ln-stripe   "
+          className="mt-2 min-h-11 w-full rounded-full bg-ln-stripe px-3 py-2 text-sm font-medium text-ln-ink-2 hover:bg-ln-stripe"
         >
           Compartir con otras apps…
         </button>
       )}
     </section>
-  );
-}
-
-function ShareButton({
-  label,
-  icon,
-  onClick,
-}: {
-  label: string;
-  icon: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className="flex flex-col items-center gap-1 rounded-lg bg-ln-stripe p-3 text-xs font-medium text-ln-ink-2 transition-colors hover:bg-[var(--color-ln-err-050)] hover:text-ln-err    "
-    >
-      <span aria-hidden className="text-xl">
-        {icon}
-      </span>
-      {label}
-    </button>
   );
 }

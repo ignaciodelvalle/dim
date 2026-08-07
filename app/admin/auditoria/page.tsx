@@ -1,210 +1,113 @@
-import { and, desc, eq, inArray, sql } from "drizzle-orm";
-import Link from "next/link";
+// /admin/auditoria — the Auditoría hub.
+//
+// Audit-trail fusion (structural convergence 2026-08-02): the hub ABSORBS
+// /admin/historial as the "Actividad" vista (`?vista=sensibles|actividad`)
+// of one screen. Both admin surfaces queried the SAME audit_log at the SAME
+// universal admin scope — the historial page's own header said "parity with
+// /admin/auditoria" — differing only in filter surface (period picker +
+// mine-toggle vs. date-range + grouping/PII/target links). Same viewer, same
+// data, two nav destinations: the tell that they were one screen.
+//
+// /admin/historial now permanently redirects here (query params preserved —
+// see lib/ui/auditoria-hub-redirect.ts; the keyset cursor targets the same
+// table and ordering, so it survives the hop).
+//
+// CRITICAL scope fence: /gob/historial is NOT part of this fusion — the govt
+// twin is JURISDICTION-SCOPED ({ kind: "govt", actorIds }) and keeps its own
+// standalone route, query and nav entry. Only the two universal-scope admin
+// surfaces converge.
+//
+// Default vista = "sensibles" — the canonical route's own pre-fusion view
+// (the global registro with grouping/PII masking/target links); "actividad"
+// is the period-scoped activity audit ported from /admin/historial.
+//
+// The two vista screens are IMPORTED, not rewritten — this is a relocation,
+// not a redesign (F6/F3 hub precedent). Each keeps its own searchParams
+// contract, its own auth guard, its own query logic. The page keeps the
+// pre-fusion streamed-shell contract (platform-budget T3.3): the default
+// export is SYNCHRONOUS — the shell (loading skeleton) flushes before any
+// DB call; AuditoriaScreen keeps the bounded 8 s fetch group.
 
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { auditLog, db, profiles } from "@/db";
-import { requireAdminOrRedirect } from "@/lib/auth-guards";
-import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/keyset-pagination";
-import { likeContains } from "@/lib/like-helpers";
+import { Suspense } from "react";
 
-const ACTION_LABELS: Record<string, string> = {
-  request_approved: "Solicitud aprobada",
-  request_rejected: "Solicitud rechazada",
-  request_viewed: "Solicitud vista",
-  revocation_vet: "Revocacion matricula",
-  revocation_org: "Revocacion verificacion org",
-  revocation_govt_assignment: "Revocacion localidad govt",
-  deactivation_govt: "Desactivacion cuenta govt",
-  deactivation_admin: "Desactivacion cuenta admin",
-  pii_queried: "Busqueda de PII",
-  admin_seeded: "Admin inicializado",
-  approval_request_withdrawn_by_applicant: "Solicitud retirada por aplicante",
-};
+import { type UrlTabItem, UrlTabs, UrlTabsContent } from "@/components/ui/UrlTabs";
+import { OpDashboardSkeleton } from "@/components/ui/dashboard/OpDashboardSkeleton";
 
-const AUDITORIA_PAGE_LIMIT = 200;
+import { ActividadScreen } from "@/app/admin/historial/ActividadScreen";
+import { AuditoriaScreen } from "./AuditoriaScreen";
 
-export default async function AdminAuditoriaPage({
+export const dynamic = "force-dynamic";
+
+type Vista = "sensibles" | "actividad";
+const DEFAULT_VISTA: Vista = "sensibles";
+
+function parseVista(raw: string | undefined): Vista {
+  return raw === "actividad" ? "actividad" : DEFAULT_VISTA;
+}
+
+const VISTA_TABS: UrlTabItem[] = [
+  { value: "sensibles", label: "Cambios sensibles" },
+  { value: "actividad", label: "Actividad" },
+];
+
+// A vista switch invalidates only the keyset cursor's PAGE POSITION as a UX
+// matter of course (page 1 of the other presentation), never its validity —
+// both vistas read the same audit_log with the same (performed_at, id)
+// ordering. `action`/`actor`/`from`/`to` are intentionally NOT reset: both
+// vistas speak the exact same filter vocabulary over the same table, so an
+// investigation's filters follow the operator across tabs (same reasoning as
+// the Casos hub keeping `status`). `period` only drives the actividad vista
+// and is ignored by sensibles — harmless to carry.
+const VISTA_RESET_PARAMS = ["cursor"] as const;
+
+type AuditoriaHubSearchParams = Promise<Record<string, string | undefined>>;
+
+export default function AdminAuditoriaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; actor?: string; cursor?: string }>;
+  searchParams: AuditoriaHubSearchParams;
 }) {
-  await requireAdminOrRedirect();
-
-  const sp = await searchParams;
-  const actionFilter = sp.action?.trim() || null;
-  const actorFilter = sp.actor?.trim() || null;
-  const rawCursor = sp.cursor;
-  const cursor = decodeCursor(rawCursor);
-
-  // Build WHERE clause — push both filters into SQL so the LIMIT is
-  // applied after filtering (JS-side filtering would silently miss rows
-  // beyond the cap). actionFilter uses ILIKE for substring match;
-  // actorFilter uses exact equality on the UUID column.
-  // Keyset predicate is AND-composed last.
-  const filterClauses = [];
-  if (actionFilter)
-    filterClauses.push(sql`${auditLog.action} ILIKE ${likeContains(actionFilter)} ESCAPE '\\'`);
-  if (actorFilter) filterClauses.push(eq(auditLog.actorUserId, actorFilter));
-  const cursorClause = keysetWhere(auditLog.performedAt, auditLog.id, cursor);
-  if (cursorClause) filterClauses.push(cursorClause);
-  const whereClause = filterClauses.length > 0 ? and(...filterClauses) : undefined;
-
-  // Fetch limit+1 to detect hasMore.
-  const rawEntries = await db
-    .select({
-      id: auditLog.id,
-      actorUserId: auditLog.actorUserId,
-      action: auditLog.action,
-      approvalRequestId: auditLog.approvalRequestId,
-      targetUserId: auditLog.targetUserId,
-      performedAt: auditLog.performedAt,
-    })
-    .from(auditLog)
-    .where(whereClause)
-    .orderBy(desc(auditLog.performedAt), desc(auditLog.id))
-    .limit(AUDITORIA_PAGE_LIMIT + 1);
-
-  const hasMore = rawEntries.length > AUDITORIA_PAGE_LIMIT;
-  const entries = hasMore ? rawEntries.slice(0, AUDITORIA_PAGE_LIMIT) : rawEntries;
-
-  // Pagination links — changing a filter resets cursor to page 1.
-  const filterParams: Record<string, string | undefined> = {
-    ...(actionFilter ? { action: actionFilter } : {}),
-    ...(actorFilter ? { actor: actorFilter } : {}),
-  };
-  const lastEntry = entries.at(-1);
-  const olderLink =
-    hasMore && lastEntry
-      ? olderHref("/admin/auditoria", filterParams, {
-          ts: lastEntry.performedAt,
-          id: lastEntry.id,
-        })
-      : null;
-  const newerLink = rawCursor ? newerHref("/admin/auditoria", filterParams) : null;
-
-  // Resolve actor names in one batch. actorUserId is nullable (ARCH-H,
-  // migration 0080): rows whose actor was hard-deleted have NULL actor_user_id.
-  const actorIds = Array.from(
-    new Set(entries.map((e) => e.actorUserId).filter((id): id is string => id !== null)),
+  // Sync export — skeleton config mirrors loading.tsx (T3.3 streamed shell).
+  return (
+    <Suspense fallback={<OpDashboardSkeleton cards={[10]} />}>
+      <AuditoriaHubBody searchParams={searchParams} />
+    </Suspense>
   );
-  const namesById = new Map<string, string>();
-  if (actorIds.length > 0) {
-    const rows = await db
-      .select({ id: profiles.id, displayName: profiles.displayName })
-      .from(profiles)
-      .where(inArray(profiles.id, actorIds));
-    for (const r of rows) namesById.set(r.id, r.displayName);
-  }
+}
+
+async function AuditoriaHubBody({ searchParams }: { searchParams: AuditoriaHubSearchParams }) {
+  const sp = await searchParams;
+  const vista = parseVista(sp.vista);
 
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Auditoria global</h1>
-        <p className="text-[13px] text-ln-op-ink-2">
-          Ultimas {entries.length} entradas del registro de auditoria (todas las acciones de
-          autoridad).
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">Auditoría</p>
+        <h1 className="text-title font-semibold text-ln-op-ink">
+          ¿Quién hizo qué, y necesito investigarlo?
+        </h1>
+        <p className="text-md text-ln-op-ink-2">
+          Un solo registro de auditoría, dos lecturas: los cambios sensibles que requieren
+          investigación y la actividad de los operadores por período. Elegí la vista que necesitás
+          ahora.
         </p>
       </header>
 
-      <form action="/admin/auditoria" method="get" className="flex flex-wrap items-center gap-2">
-        <input
-          type="text"
-          name="action"
-          defaultValue={actionFilter ?? ""}
-          placeholder="Filtrar por accion"
-          className="rounded-[6px] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-[13px] text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
-        />
-        <button
-          type="submit"
-          className="rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90"
-        >
-          Filtrar
-        </button>
-        {(actionFilter || actorFilter) && (
-          <a
-            href="/admin/auditoria"
-            className="text-[12px] text-ln-op-mute underline underline-offset-4"
-          >
-            Limpiar filtros
-          </a>
-        )}
-      </form>
-
-      {entries.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute">No hay entradas que coincidan.</p>
-      ) : (
-        <OpCard>
-          <OpCardHead
-            title="Registro de auditoría"
-            actions={<span className="text-[12px] text-ln-op-mute">{entries.length} entradas</span>}
-          />
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line-2">
-              {entries.map((entry) => (
-                <li
-                  key={entry.id}
-                  className="flex items-start justify-between gap-3 px-4 py-2.5 odd:bg-ln-op-stripe"
-                >
-                  <div className="min-w-0 space-y-0.5">
-                    <p className="text-[13px] font-medium text-ln-op-ink">
-                      {ACTION_LABELS[entry.action] ?? entry.action}
-                    </p>
-                    <p className="text-[12px] text-ln-op-mute">
-                      {entry.actorUserId
-                        ? (namesById.get(entry.actorUserId) ?? "Desconocido")
-                        : "Usuario eliminado"}
-                      {entry.approvalRequestId && (
-                        <>
-                          {" "}
-                          {"·"} req:{" "}
-                          <span className="font-ln-mono">
-                            {entry.approvalRequestId.slice(0, 8)}&#x2026;
-                          </span>
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <time className="whitespace-nowrap text-[12px] text-ln-op-mute">
-                    {new Date(entry.performedAt).toLocaleString("es-AR", {
-                      dateStyle: "short",
-                      timeStyle: "short",
-                    })}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          </OpCardBody>
-        </OpCard>
-      )}
-
-      {/* Pagination footer */}
-      {(newerLink || olderLink) && (
-        <nav
-          aria-label="Paginación de auditoría"
-          className="flex items-center justify-between gap-4 border-t border-ln-op-line pt-4"
-        >
-          <div>
-            {newerLink && (
-              <Link
-                href={newerLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
-              >
-                ← Más recientes
-              </Link>
-            )}
-          </div>
-          <div>
-            {olderLink && (
-              <Link
-                href={olderLink}
-                className="text-[12px] font-medium text-ln-op-azul no-underline hover:underline"
-              >
-                Ver más antiguos →
-              </Link>
-            )}
-          </div>
-        </nav>
-      )}
+      <UrlTabs
+        paramKey="vista"
+        defaultValue={DEFAULT_VISTA}
+        tabs={VISTA_TABS}
+        resetParamsOnChange={VISTA_RESET_PARAMS}
+        aria-label="Vista de Auditoría"
+      >
+        <UrlTabsContent value={vista}>
+          {vista === "actividad" ? (
+            <ActividadScreen searchParams={sp} underHub />
+          ) : (
+            <AuditoriaScreen searchParams={sp} underHub />
+          )}
+        </UrlTabsContent>
+      </UrlTabs>
     </div>
   );
 }

@@ -22,18 +22,17 @@
 // Reference: src/modules/foster/actions.ts, src/modules/adoption/actions.ts
 
 import { auditLog, db, notifications } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
 import { acceptCrossOrgTransfer } from "./application/accept-cross-org-transfer";
 import { acceptPetTransfer } from "./application/accept-pet-transfer";
 import { cancelCrossOrgTransfer } from "./application/cancel-cross-org-transfer";
 import { cancelPetTransfer } from "./application/cancel-pet-transfer";
-import { expireCrossOrgTransfers } from "./application/expire-cross-org-transfers";
 import { expirePetTransfers } from "./application/expire-pet-transfers";
 import { getTransferForViewer } from "./application/get-transfer-for-viewer";
 import { initiatePetTransfer } from "./application/initiate-pet-transfer";
@@ -135,7 +134,7 @@ export async function initiatePetTransferAction(
   if (result.value.recipientNeedsInvite) {
     try {
       const admin = createAdminClient();
-      const origin = process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
+      const origin = resolveSiteUrl();
       await admin.auth.admin.inviteUserByEmail(input.toEmail.trim().toLowerCase(), {
         redirectTo: `${origin}/transferencias/${result.value.transferToken}`,
         data: {
@@ -364,29 +363,65 @@ export async function getTransferForViewerAction(
 // @no-auth-required: invoked only from /api/cron/expire-pet-transfers
 // ---------------------------------------------------------------------------
 
-export type ExpirePetTransfersStats = { expired: number };
+export type ExpirePetTransfersStats = { expired: number; errors: number };
+
+// Keyset/drain bounds (review 23 item 12): bound each pass and drain the
+// backlog within the run instead of loading ALL expired transfers at once.
+const EXPIRE_TRANSFERS_BATCH_SIZE = 500;
+const EXPIRE_TRANSFERS_MAX_DURATION_MS = 45_000;
+const EXPIRE_TRANSFERS_MAX_ITERATIONS = 50;
 
 /** System action called by the cron route. Throws on fatal error (cron logs it). */
+// @no-auth-required: cron/system path — auth enforced at the /api/cron/expire-pet-transfers route via authorizeCronRequest (CRON_SECRET).
 export async function expirePetTransfersAction(): Promise<ExpirePetTransfersStats> {
-  const result = await expirePetTransfers({ repo: TransfersRepository });
-  if (!result.ok) throw new Error(result.error);
+  const start = Date.now();
+  let totalExpired = 0;
+  let totalErrors = 0;
+  let iterations = 0;
 
-  // Flush per-row notifications best-effort.
-  await flushNotifications(result.notifications);
+  for (;;) {
+    if (
+      iterations >= EXPIRE_TRANSFERS_MAX_ITERATIONS ||
+      Date.now() - start >= EXPIRE_TRANSFERS_MAX_DURATION_MS
+    ) {
+      break;
+    }
 
-  // Parity (R6): audit_log insert per expired row; actor=fromOwnerId per row.
-  for (const entry of result.value.auditEntries) {
-    await flushAuditLog({
-      actorUserId: entry.actorUserId,
-      action: "pet_transfer_expired",
-      payload: {
-        transfer_public_token: entry.transferToken,
-        pet_id: entry.petId,
-      },
-    });
+    const result = await expirePetTransfers(
+      { repo: TransfersRepository },
+      { limit: EXPIRE_TRANSFERS_BATCH_SIZE },
+    );
+    if (!result.ok) throw new Error(result.error);
+
+    // Flush per-row notifications best-effort.
+    await flushNotifications(result.notifications);
+
+    // Parity (R6): audit_log insert per expired row; actor=fromOwnerId per row.
+    for (const entry of result.value.auditEntries) {
+      await flushAuditLog({
+        actorUserId: entry.actorUserId,
+        action: "pet_transfer_expired",
+        payload: {
+          transfer_public_token: entry.transferToken,
+          pet_id: entry.petId,
+        },
+      });
+    }
+
+    totalExpired += result.value.expired;
+    totalErrors += result.value.errors;
+    iterations += 1;
+
+    // A partial batch means no more expirable rows this pass (expired rows drop
+    // out of the 'pending' scope). A full batch of expirals → keep draining.
+    if (result.value.expired < EXPIRE_TRANSFERS_BATCH_SIZE) break;
   }
 
-  return { expired: result.value.expired };
+  // Surface per-row failures to the caller (cron route) so a run where rows
+  // failed to expire reports HTTP 500 instead of a silent success (review 23
+  // fleet extension). The use-case already tracks per-row errors; this action
+  // previously discarded them.
+  return { expired: totalExpired, errors: totalErrors };
 }
 
 // ---------------------------------------------------------------------------
@@ -407,7 +442,12 @@ export interface ProposeCrossOrgInput {
 export async function proposeCrossOrgTransferAction(
   input: ProposeCrossOrgInput,
 ): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.propose");
+  // URL-pinned org resolution (same confused-deputy fix as accept/reject): a
+  // multi-org member proposing from /org/{sender}/… must be authorized against
+  // the sender org, not the session-default (most-recently-joined) membership.
+  // Sender custody (findActiveShelterCustody scoped to org.id) stays enforced
+  // inside the use-case.
+  const auth = await requireCapabilityForOrgToken("org.transfer.propose", input.senderOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -457,7 +497,13 @@ export async function acceptCrossOrgTransferAction(input: {
   receiverOrgToken: string;
   casePublicCode: string;
 }): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.accept");
+  // Resolve the acting org FROM the receiver URL token, not the session-default
+  // (most-recently-joined) membership. A member of several orgs operating under
+  // /org/{receiver}/… must be authorized against the receiver org — otherwise
+  // the use-case's receiver-token match rejects a legitimate accept with
+  // "operando desde una organización distinta a la receiver". org.id vs
+  // case.receiverOrganizationId stays enforced inside the use-case (defense in depth).
+  const auth = await requireCapabilityForOrgToken("org.transfer.accept", input.receiverOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -504,7 +550,9 @@ export async function rejectCrossOrgTransferAction(input: {
   reason?: string | null;
   message?: string | null;
 }): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.accept");
+  // Same URL-pinned org resolution as accept: the receiver's inbox reject must
+  // resolve the acting org from the URL token, not the last-joined membership.
+  const auth = await requireCapabilityForOrgToken("org.transfer.accept", input.receiverOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -554,7 +602,10 @@ export async function cancelCrossOrgTransferAction(input: {
   reason?: string | null;
   message?: string | null;
 }): Promise<CrossOrgTransferResult> {
-  const auth = await requireCapability("org.transfer.propose");
+  // Same URL-pinned org resolution as propose: the sender's cancel must resolve
+  // the acting org from the URL token, not the last-joined membership. org.id vs
+  // case.openedByOrganizationId stays enforced in the use-case (defense in depth).
+  const auth = await requireCapabilityForOrgToken("org.transfer.propose", input.senderOrgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -594,21 +645,6 @@ export async function cancelCrossOrgTransferAction(input: {
 }
 
 // ---------------------------------------------------------------------------
-// expireCrossOrgTransfersAction — cron
-// AUTH: NONE (CRON_SECRET gated at route level)
-// @no-auth-required: invoked only from /api/cron/expire-cross-org-transfers
-// ---------------------------------------------------------------------------
-
-export type ExpireCrossOrgStats = { expired: number; errors: number };
-
-/** System action called by the cron route. Throws on fatal error. */
-export async function expireCrossOrgTransfersAction(): Promise<ExpireCrossOrgStats> {
-  const result = await expireCrossOrgTransfers({ repo: TransfersRepository });
-  if (!result.ok) throw new Error(result.error);
-  return result.value;
-}
-
-// ---------------------------------------------------------------------------
 // transferCustodyAction — R11: direct org-to-org handoff
 // AUTH: SOURCE ORG (custody.transfer) = caller's active org (implicit-org scope)
 // CRITICAL: pet ownership row MUST match caller's active organization.id —
@@ -617,6 +653,12 @@ export async function expireCrossOrgTransfersAction(): Promise<ExpireCrossOrgSta
 
 export type TransferCustodyFormState = {
   error: string | null;
+  /**
+   * N3 post-action destination. The action must NOT redirect() — the App
+   * Router drops a server action's own redirect in production: the write
+   * commits and the screen never moves (lib/ui/full-page-action-nav.ts).
+   */
+  redirectTo?: string | null;
 };
 
 export async function transferCustodyAction(
@@ -625,7 +667,12 @@ export async function transferCustodyAction(
   _previous: TransferCustodyFormState,
   formData: FormData,
 ): Promise<TransferCustodyFormState> {
-  const auth = await requireCapability("custody.transfer");
+  // URL-pinned org resolution (same confused-deputy fix as propose/accept/reject/
+  // cancel): a multi-org member operating from /org/{orgToken}/… must be
+  // authorized against THAT org, not the session-default (most-recently-joined)
+  // membership. Pet ownership vs organization.id stays enforced inside the
+  // use-case via repo.findPetUnderOrg (defense in depth).
+  const auth = await requireCapabilityForOrgToken("custody.transfer", orgToken);
   if (auth.error !== null) return { error: auth.error };
   const { user, organization } = auth;
 
@@ -645,6 +692,12 @@ export async function transferCustodyAction(
   if (!result.ok) return { error: result.error };
 
   await flushNotifications(result.notifications);
-  // PARITY: ?transferido=<petToken> redirect.
-  redirect(`/org/${orgToken}/mascotas?transferido=${publicToken}`);
+  // The direct custody handoff now OPENS a receiver-consent handshake instead of
+  // an immediate flip — the pet stays under the source org until the receiver
+  // accepts. Send the proposer to the transfers hub (where the pending proposal
+  // lives), not to a "transferido" toast that would misrepresent an unaccepted
+  // proposal as a completed handoff.
+  revalidatePath(`/org/${orgToken}/transferencias`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/org/${orgToken}/transferencias` };
 }

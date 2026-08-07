@@ -46,7 +46,7 @@ vi.mock("next/link", () => ({
   }) => React.createElement("a", { href, className }, children),
 }));
 
-import { PetSightingForm } from "@/app/p/[publicToken]/sighting/PetSightingForm";
+import { PetSightingForm } from "@/app/(public)/p/[publicToken]/sighting/PetSightingForm";
 
 function render(node: React.ReactElement): string {
   return renderToStaticMarkup(node);
@@ -99,6 +99,39 @@ describe("<PetSightingForm> — initial state (form render)", () => {
     const html = render(<PetSightingForm {...BASE_PROPS} />);
     expect(html).toContain('name="description"');
     expect(html).toContain('name="sightedAt"');
+  });
+
+  // A3 (UI review 2026-08-06): "¿Cuándo la viste?" was a native
+  // <input type="datetime-local">, whose visible text follows the BROWSER's
+  // locale — month/day order and an AM/PM clock for anyone on an en-US machine,
+  // on the field that decides when a lost pet was seen. It is now two
+  // author-owned masked text fields (dd/mm/aaaa + HH:mm) recomposed into the
+  // SAME hidden "sightedAt" the server action already parses.
+  describe("¿Cuándo la viste? — es-AR date + time", () => {
+    it("renders NO native datetime-local (nor a native time widget)", () => {
+      const html = render(<PetSightingForm {...BASE_PROPS} />);
+      expect(html).not.toContain('type="datetime-local"');
+      expect(html).not.toContain('type="time"');
+      expect(html).not.toContain('type="date"');
+    });
+
+    it("renders the two masked halves with es-AR placeholders and labels", () => {
+      const html = render(<PetSightingForm {...BASE_PROPS} />);
+      expect(html).toContain('id="sightedAtDate"');
+      expect(html).toContain('id="sightedAtTime"');
+      expect(html).toContain('placeholder="dd/mm/aaaa"');
+      expect(html).toContain('placeholder="hh:mm"');
+      expect(html).toContain("Hora (24 h)");
+    });
+
+    it("submits sightedAt as a hidden YYYY-MM-DDTHH:mm composed from both halves", () => {
+      const html = render(<PetSightingForm {...BASE_PROPS} />);
+      const hidden = html.match(/<input type="hidden" name="sightedAt" value="([^"]*)"/);
+      expect(hidden).not.toBeNull();
+      // Exactly the wire format parseArDatetimeLocal accepts — unchanged from
+      // what the datetime-local used to submit.
+      expect(hidden?.[1]).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+    });
   });
 });
 

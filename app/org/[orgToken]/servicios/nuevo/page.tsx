@@ -6,8 +6,8 @@ import Link from "next/link";
 
 import { createServiceOfferingAction } from "@/app/actions/service-offerings";
 import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { SERVICE_KINDS } from "@/lib/service-kinds";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { SERVICE_KINDS } from "@/lib/reference/service-kinds";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { ServiceOfferingForm } from "./ServiceOfferingForm";
@@ -29,14 +29,14 @@ export default async function NuevoServicioPage({
           detail={
             <>
               Para crear servicios necesitás el permiso{" "}
-              <code className="text-[11px]">service_offering.create</code>. Pedíselo a un
-              administrador desde el panel.
+              <code className="text-sm">service_offering.create</code>. Pedíselo a un administrador
+              desde el panel.
             </>
           }
         />
         <Link
           href={`/org/${orgToken}`}
-          className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:opacity-90 transition-opacity"
+          className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:opacity-90 transition-opacity"
         >
           Volver al panel
         </Link>
@@ -47,11 +47,11 @@ export default async function NuevoServicioPage({
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Nuevo servicio</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Nuevo servicio</h1>
+        <p className="text-md text-ln-op-mute">
           Completá los datos del servicio. Una vez enviado, la autoridad competente lo revisa y
           aprueba antes de que puedas armar la agenda.
         </p>
@@ -71,7 +71,7 @@ export default async function NuevoServicioPage({
       <footer className="pt-4 border-t border-ln-op-line">
         <Link
           href={`/org/${orgToken}/servicios`}
-          className="text-[12px] text-ln-op-azul hover:underline"
+          className="text-sm text-ln-op-azul hover:underline"
         >
           ← Volver a mis servicios
         </Link>

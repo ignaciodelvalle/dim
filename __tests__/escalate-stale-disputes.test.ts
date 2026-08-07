@@ -14,7 +14,7 @@ import {
   escalateStaleDispute,
   findStaleDisputes,
 } from "@/lib/case-closers/escalate-stale-disputes";
-import { generatePublicToken } from "@/lib/publicToken";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const createdPetIds: string[] = [];

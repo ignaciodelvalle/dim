@@ -1,0 +1,73 @@
+# Run nocturno 2026-07-19 — reporte de cierre
+
+> Ejecución autónoma del backlog nocturno. Todo lo de abajo está **commiteado,
+> verificado (`pnpm verify` verde + fresh review adversarial SHIP-READY) y
+> pusheado** a `integration/all-20260703`. El cutover a `main` quedó SIN apretar —
+> es tuyo.
+
+## 1. Resumen
+
+Se ejecutaron **9 tandas** en el rango `7d84def9..aafe34e2`, cada una implementada por un writer con contexto fresco y verificada (typecheck + biome + tests targeted) antes de commitear. Cierre: `pnpm verify` completo verde (typecheck + toda la cadena de lints + build + tests) y un fresh review adversarial de los 8 commits del run → **cero CRITICAL/HIGH**, los cambios riesgosos (PF3 acceso, foster ownership) confirmados sanos.
+
+## 2. HECHO (commiteado + pusheado)
+
+| Commit | Tanda | Qué |
+|---|---|---|
+| `67512383` | 🔥 Bug prod | **500 en /notificaciones** (client-fn llamada desde server) — 19 hits en staging. Función pura extraída fuera del boundary client. |
+| `488ce2fd` | Honestidad H1/H2 | Mortalidad + reunificación: KPIs 0% ya no pintan rojo/verde falso sin datos → "—" neutral. |
+| `004ed43f` | Honestidad H3/H5/H6/H7/V10 | Export a fiscalía como link visible (no window.open que el popup-blocker mata); revoke refresca el SSR; alarma de síntomas acotada en tiempo+rabia; PDF de libreta en es-AR + con correcciones aplicadas. |
+| `6be910f4` | Filtros/standard | perdidas usa `resolveAnalyticsPeriod` (los chips 12m/ytd ya no son no-op); empty-states → `LnEmptyState` (inteligencia/programa/maltrato); presets single-sourced. |
+| `e0e9c3d2` | Vuelta de tuerca | adopción desbloquea rechazados; devolución sin loop de propuestas muertas; tarjeta rábica renombrada honesta + jump-links repointeados; CTAs sin `<button>` en `<a>`; credencial degradada con `<h1>`. |
+| `c5994e62` | A11y | `inert` en 10 wizards / 30 steps inactivos (WCAG 4.1.2). |
+| `2c34485c` | Foster + V8 | **CustodyKindToggle restaurado en el alta** (estaba vivo pero solo en modo edición → nunca aparecía; toda mascota se registraba como owner) + select opcional de método de adquisición. |
+| `aafe34e2` | PF3 + V9 | Libreta a server-`<Suspense>` reusando el acceso ya resuelto (elimina el re-auth por perfil, sin filtrar acceso); combobox de orgs en reasignar decomiso + verify en disputas. |
+| `1b654810` | Pulido | `MpfExportGate` (mismo `window.open` bug) + test stale a es-AR. |
+| `98625bf2` | 🆕 2ª capa honestidad (del re-review) | **Turnos**: cancelado-por-clínica ya no muestra "Confirmado" verde (+ fallback neutro) y el conteo del header coincide con lo mostrado. **Libreta**: vacuna sin fecha de refuerzo → "SIN DATO" neutral (no verde "VIGENTE"). **Welfare**: banner "no enviado" solo si `open`, "En revisión" para en-curso. **Lost**: link de compartir clickeable (`credentialQrUrl`) + copy real de caso vencido. |
+
+Más los **6 quick-wins de performance** ya pusheados antes del run (crons N+1, mortality headline, perfil Promise.all, rabies denom compartido, census cache en memoria, perdidas count-only) + LOW-1.
+
+## 3. NO HECHO — y por qué (para destrabar)
+
+| Ítem | Por qué NO | Qué necesita |
+|---|---|---|
+| **Viaje transfronterizo** (feature fachada) | **Decisión de PO** — vos elegiste "dejarlo por ahora". | Decidir: construir el form "Registrar viaje" (tren dedicado) o esconder `/viaje` tras flag. |
+| **Filtros "sin reload" total** (nivel Panorama) | **No alcanzable barato.** El reload es un fix intencional del bug Next 15.5.18 (router-drop); los 17 dashboards son server-components sin API route. Igualarlo = rewrite per-page (~17×) o subir Next. El "doble reload" de la personalizada YA estaba arreglado. | Decisión de PO: pilotear el rewrite de 1-2 dashboards, o apostar a un upgrade de Next.js, o aceptar el hard-nav. |
+| **PF1 — consolidar el fan-out de queries** (`~40-48` count() FILTER / pool de 2) | **Delicado**: cambia cómo se agregan métricas; un error mueve NÚMEROS del dashboard. Merece un tren dedicado con verificación de paridad número-por-número, no un fix apurado de noche. Los quick-wins ya bajaron ~13 queries. | Tren dedicado con tests de paridad. |
+| **PF2 — globals.css skins a CSS Modules** | **Bajo impacto / riesgo alto**: el propio perf-audit corrigió la magnitud a ~10,5 KB gz (no el titular que parecía), y mover skins CSS sin verificación visual runtime arriesga romper estilos en muchas pantallas. Malo el trade de noche. | Tren dedicado con verificación visual. |
+| **Cutover a `main` (PR #760)** | **Es tuyo** — mergear a main puede disparar deploy de producción. | Confirmar si dispara prod + apretar el merge (todo listo, MERGEABLE). |
+
+## 4. EN OBSERVACIÓN (LOW, no bloquean — tu ojo)
+
+- **Reasignación de decomiso lista orgs a nivel NACIONAL**, no scopeada por jurisdicción (`decomisos/page.tsx`). No es regresión (antes era UUID libre + el server re-valida), pero si la política es reasignar solo dentro de la jurisdicción, ese guard va en el use-case. **Decisión de política tuya.**
+- **AddPartyForm** permite submit de un target verificado-pero-inactivo (el server es el boundary real, sin impacto de seguridad; inconsistencia de UX menor).
+- **CTAs de mis-mascotas** copian las clases de `LnButton` inline (fix a11y correcto, pero las clases pueden divergir si el estilo del botón cambia — mantenibilidad).
+- **Flags resueltos en el pulido** (ya no pendientes): `MpfExportGate.tsx` (mismo `window.open`) y el test stale `item14-owner-hub` — ambos arreglados en `1b654810`.
+- **Flag de la 2ª capa (tu decisión)**: el fix del link de mascota perdida (`LostCaseBlock`) ahora usa el resolver canónico `credentialQrUrl` — arregla la URL relativa no-clickeable en prod, pero **cambia el fallback de dev-local de `localhost:3000` a `mimar.ar`** cuando `SITE_URL` está vacío (había un comentario "localhost on purpose"). Si en dev local querés seguir viendo `localhost`, seteá `NEXT_PUBLIC_SITE_URL` en el `.env` local (en prod ya está seteado, así que no afecta).
+- **Follow-up de la 2ª capa**: la página PÚBLICA `app/(public)/denuncias/codigo/[code]/page.tsx` tiene el **mismo** bug del banner "no enviado" que arreglamos en la privada — quedó fuera de scope, mismo fix aplica.
+
+## 5. Delta de reviews (re-corrida del deep review, fresh sobre el código nuevo)
+
+Re-corrí el deep review completo (41 agentes, verificado) contra el código post-fixes. **El delta confirma que lo que arreglamos quedó arreglado** y que la aguja se movió — pero también que hay una segunda capa más profunda.
+
+### ✅ RESUELTO (aparecía anoche, YA NO)
+Ninguno de estos reaparece en la re-corrida — el fix funcionó:
+- **Honestidad de KPIs vacíos** (mortalidad/reunificación "0% rojo") — cerrado.
+- **A11y `inert`** en steps ocultos de wizards (WCAG 4.1.2) — cerrado.
+- **Adopción** bloqueando rechazados — cerrado.
+- **MPF export** `window.open` (button **y** gate) — cerrado.
+- **Libreta PDF** amendments + es-AR — cerrado (aunque ver abajo: aparece un gap NUEVO de libreta, distinto).
+- **Foster**: bajó de **CRÍTICO → HIGH-MED**. El re-review confirma "el toggle en pantalla ya cubre el caso, daño menor" — solo queda muerto el deep-link `?custodyKind=transito` (menor).
+- Revoke pill, surveillance alarm — cerrados.
+
+### 🆕 SEGUNDA CAPA (el código más limpio dejó ver más hondo)
+Los agentes ahora cavaron en dominios que anoche no llegó a auditar en profundidad. **La misma clase — deshonestidad de estados — pero en lugares nuevos:**
+- **Turnos (el dominio más débil ahora)**: un turno cancelado por la clínica se muestra badge verde **"Confirmado"**; y desaparece de la agenda pero **sigue contando** en el total ("3 turnos", aparecen 2).
+- **Libreta**: una vacuna **sin fecha de refuerzo** se sella verde **"VIGENTE"** — "no sabemos" leído como "vigente" en un documento médico. Y el PDF **pierde el peso** (`weight_kg` número vs `kg` string).
+- **Welfare**: banner "aún no se envió al gobierno" mostrado sobre denuncias que un funcionario **ya está trabajando**.
+- **Lost**: el link para compartir una mascota perdida con `SITE_URL=""` genera una **URL relativa no clickeable** (el canal principal de difusión — es el bug de QR conocido, otra instancia); banner "sin actividad en más de un año" es **factualmente falso** (la regla es 365d + 60d).
+- **Ruteo legal**: notificación de mordedura ruteada a la jurisdicción del **hogar** de la mascota, no del **incidente**; MPF export **cableado a CABA** ofrecido en toda jurisdicción.
+- **A11y (capa nueva, distinta del inert)**: **ningún wizard mueve el FOCO al cambiar de paso** (signup, alta, mark-lost, denuncia, mordedura, servicios) — un patrón compartido que amerita un helper; + modales de decomiso sin foco/Escape, OrgBiteForm victim-type sin radiogroup, FoundPetForm sin anuncio de éxito.
+- **Usabilidad**: la consola **Panorama no tiene tratamiento móvil** (overlays se tapan en 375px); dashboard de adopción linkea a ruta privada (**404 para staff**); **Aceptar** transferencia (irreversible) es de un clic mientras rechazar pide confirmación; `gob/organizaciones` hardcodea `/gob` y expulsa al admin.
+
+### Lectura
+No es que "aparecieron bugs nuevos": es que **al limpiar la primera capa, la auditoría alcanzó la segunda**. La honestidad-de-estados sigue siendo la dimensión más débil, ahora localizada en **Turnos, Libreta (detalle) y Welfare** — candidatos naturales para el próximo run. El foco-en-wizards es un a11y de clase, un helper compartido lo cierra en varios dominios de una. Reporte completo del re-review: el output del workflow (run `wf_d29d99dc`).

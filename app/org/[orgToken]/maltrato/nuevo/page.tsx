@@ -14,10 +14,10 @@
 import { and, eq, isNull } from "drizzle-orm";
 import Link from "next/link";
 
-import { WelfareReportForm } from "@/app/denuncias/nueva/WelfareReportForm";
+import { WelfareReportForm } from "@/app/(public)/denuncias/nueva/WelfareReportForm";
 import { OpBreach, OpCallout, OpCrumbs } from "@/components/ui/dashboard";
-import { db, organizationMemberships, organizations, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { db, organizationMemberships, profiles } from "@/db";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { createOrgWelfareReportAction } from "@/src/modules/welfare/actions";
 
 const ALLOWED_ROLES = new Set(["admin", "coordinator", "member", "vet_individual"]);
@@ -50,7 +50,7 @@ export default async function OrgNuevaDenunciaPage({
         <OpCrumbs
           items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Nueva denuncia" }]}
         />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
+        <h1 className="text-title font-semibold text-ln-op-ink">
           Reporte de maltrato — solo para roles institucionales
         </h1>
         <OpBreach
@@ -59,11 +59,11 @@ export default async function OrgNuevaDenunciaPage({
           }
           detail={
             !organization.verified
-              ? `${organization.displayName} todavía no fue verificada por MiMAR. El canal profesional de reporte se habilita una vez que la verificación esté aprobada.`
+              ? `${organization.displayName} todavía no fue verificada por miMAR. El canal profesional de reporte se habilita una vez que la verificación esté aprobada.`
               : `Tu rol actual dentro de la organización (${membership?.role ?? "—"}) no habilita este canal. Pediselo a un coordinador o admin de la organización para que lo emita en tu nombre.`
           }
         />
-        <p className="text-[13px] text-ln-op-mute">
+        <p className="text-md text-ln-op-mute">
           Mientras tanto, podés usar el{" "}
           <Link href="/denuncias/nueva" className="text-ln-op-azul hover:underline no-underline">
             canal público de denuncias
@@ -95,10 +95,8 @@ export default async function OrgNuevaDenunciaPage({
       />
 
       <header className="space-y-2">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">
-          Nueva investigación de maltrato
-        </h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Nueva investigación de maltrato</h1>
+        <p className="text-md text-ln-op-mute">
           Canal profesional: tu reporte se procesa con prioridad crítica y notifica inmediatamente a
           las autoridades de la jurisdicción.
         </p>
@@ -117,7 +115,7 @@ export default async function OrgNuevaDenunciaPage({
       <OpCallout
         title="Particularidades del canal profesional"
         body={
-          <ul className="list-disc pl-5 space-y-1 text-[12px]">
+          <ul className="list-disc pl-5 space-y-1 text-sm">
             <li>
               Severidad <strong>crítica automática</strong> — tu rol profesional eleva la prioridad
               sin importar lo que selecciones abajo.
@@ -136,7 +134,7 @@ export default async function OrgNuevaDenunciaPage({
       <WelfareReportForm action={boundAction} isAnonymous={false} />
 
       <footer className="pt-4 border-t border-ln-op-line">
-        <p className="text-[12px] text-ln-op-mute">
+        <p className="text-sm text-ln-op-mute">
           Ley Nacional 14.346 (1954) — Malos tratos y actos de crueldad contra animales.
         </p>
       </footer>

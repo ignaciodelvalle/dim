@@ -4,11 +4,20 @@
 // Extracted as a thin wrapper so the vecino page can stay a pure server component.
 
 import { confirmChipMatchAction } from "@/app/actions/chip-match";
+import { AR_TIME_ZONE, speciesLabel } from "@/lib/utils/format";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 type Props = {
   matchedPetToken: string;
+  /**
+   * The code the actor typed into the alta, round-tripped through the page's
+   * `?chip=` param. It is this screen's authorization: the confirm action
+   * refuses unless it equals the matched pet's canonical chip. Nothing here
+   * discloses it — the value originated in this browser one step ago.
+   */
+  attemptedMicrochipId: string;
   petName: string;
   petSpecies: string | null;
   petBreed: string | null;
@@ -22,6 +31,7 @@ type Props = {
 
 export function MatchConfirmationCardVecino({
   matchedPetToken,
+  attemptedMicrochipId,
   petName,
   petSpecies,
   petBreed,
@@ -42,6 +52,7 @@ export function MatchConfirmationCardVecino({
       const result = await confirmChipMatchAction({
         matchedPetToken,
         actorMode: "vecino",
+        attemptedMicrochipId,
         decision,
       });
       if ("error" in result) {
@@ -52,30 +63,61 @@ export function MatchConfirmationCardVecino({
         // Vecino does NOT add the pet; original owner regains visibility.
         router.push("/mis-mascotas");
       } else {
-        // Continue creating the pet but mark that the chip didn't match.
-        router.push("/mis-mascotas/nueva?chipMismatched=true");
+        // Carry the adjudication receipt back to the alta (RA-2 F6).
+        //
+        // This used to push "?chipMismatched=true" — a flag NOTHING read
+        // (nueva/page.tsx takes no props at all), so the vecino landed on a
+        // blank form, re-entered the same chip, and was bounced right back to
+        // this page. The button promised "podés continuar con el registro" and
+        // the flow made that impossible.
+        //
+        // The receipt is the signed force token; the alta posts it back and
+        // createPetAction registers the animal without the disputed code.
+        //
+        // The code in the return URL is OUR OWN attemptedMicrochipId, not
+        // something the server told us. The response used to carry the matched
+        // pet's canonical chip, which made this action a nationwide chip oracle
+        // for anyone who could name a public token.
+        const conflict = "chipConflict" in result ? result.chipConflict : undefined;
+        if (conflict) {
+          const params = new URLSearchParams({
+            chipConflict: conflict.forceToken,
+            microchipId: attemptedMicrochipId,
+          });
+          router.push(`/mis-mascotas/nueva?${params.toString()}`);
+        } else {
+          router.push("/mis-mascotas/nueva");
+        }
       }
     });
   }
 
-  const speciesLine = [petSpecies, petBreed].filter(Boolean).join(", ");
+  const speciesLine = [petSpecies ? speciesLabel(petSpecies) : null, petBreed]
+    .filter(Boolean)
+    .join(", ");
   const details = [petColor, petSex ? sexLabel(petSex) : null].filter(Boolean).join(" · ");
 
   return (
     <div className="space-y-6">
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-1">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-1">
         <p className="text-sm font-semibold text-[var(--color-ln-warn)]">
           Posible coincidencia detectada
         </p>
         <p className="text-sm text-[var(--color-ln-warn)]">
-          El microchip que ingresaste ya figura en MiMAR asociado a la siguiente mascota.
+          El microchip que ingresaste ya figura en miMAR asociado a la siguiente mascota.
         </p>
       </div>
 
-      <div className="rounded-[4px] border border-[var(--color-ln-line)] overflow-hidden">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] overflow-hidden">
         {petPhotoUrl && (
-          <div className="aspect-video overflow-hidden bg-[var(--color-ln-stripe)]">
-            <img src={petPhotoUrl} alt={petName} className="w-full h-full object-cover" />
+          <div className="relative aspect-video overflow-hidden bg-[var(--color-ln-stripe)]">
+            <Image
+              src={petPhotoUrl}
+              alt={petName}
+              fill
+              sizes="(max-width: 768px) 100vw, 600px"
+              className="object-cover"
+            />
           </div>
         )}
         <div className="p-4 space-y-3">
@@ -99,7 +141,11 @@ export function MatchConfirmationCardVecino({
               <span>{lastLocationText}</span>
               {lastLocationDate && (
                 <span className="text-[var(--color-ln-mute)] ml-1">
-                  ({new Date(lastLocationDate).toLocaleDateString("es-AR")})
+                  (
+                  {new Date(lastLocationDate).toLocaleDateString("es-AR", {
+                    timeZone: AR_TIME_ZONE,
+                  })}
+                  )
                 </span>
               )}
             </p>
@@ -108,7 +154,7 @@ export function MatchConfirmationCardVecino({
       </div>
 
       {error && (
-        <p className="text-sm rounded-[4px] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
+        <p className="text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-seal)] bg-[var(--color-ln-err-050)] px-3 py-2 text-[var(--color-ln-seal)]">
           {error}
         </p>
       )}
@@ -118,7 +164,7 @@ export function MatchConfirmationCardVecino({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("same")}
-          className="flex-1 px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+          className="flex-1 px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "Es la misma mascota"}
         </button>
@@ -126,7 +172,7 @@ export function MatchConfirmationCardVecino({
           type="button"
           disabled={isPending}
           onClick={() => handleDecision("not_same")}
-          className="flex-1 px-4 py-3 rounded-[3px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] font-medium hover:opacity-80 disabled:opacity-50 transition-colors"
+          className="flex-1 px-4 py-3 rounded-[var(--radius-pill)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] font-medium hover:opacity-80 disabled:opacity-50 transition-colors"
         >
           {isPending ? "Procesando..." : "No es la misma"}
         </button>

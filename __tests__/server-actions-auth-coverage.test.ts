@@ -49,6 +49,10 @@ const AUTH_GUARDS = [
   "requireUser",
   "requireUserOrRedirect",
   "requireCapability",
+  // Confused-deputy-safe capability guard (Wave F3): resolves the org from the
+  // URL orgToken, then requireCapability pinned to that org.id — so a /org/{token}
+  // action authorizes against the URL org, not the session-default membership.
+  "requireCapabilityForOrgToken",
   "requireOrgAccessByToken",
   "requireActiveOrgOrRedirect",
   "requireAdminOrRedirect",
@@ -59,6 +63,11 @@ const AUTH_GUARDS = [
   "requireOwnedPet",
   "requireOwnedPetByToken",
   "requireOwnedAndAlive",
+  // File-local admin guard used by the alert-subscriptions / alert-firings
+  // actions: wraps auth.getUser + a profiles.role === 'admin' re-check. Same
+  // contract as the named guards above; registered so those actions are
+  // recognized as auth-gated rather than false-positives.
+  "requireAdminUser",
   "auth.getUser",
 ] as const;
 

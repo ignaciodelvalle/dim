@@ -26,8 +26,17 @@ export type LnHeroTag = {
 export type LnHeroProps = {
   name: string;
   status?: LnPetStatus;
+  /** The animal's sex — the status flag inflects on it ("PERDIDA", not "PERDIDO"). */
+  sex?: string | null;
   breed?: string;
   photoSrc?: string;
+  /**
+   * When there is NO photo, makes the placeholder a link that starts adding
+   * one. Pass only for a viewer who can actually edit this pet — the hero also
+   * renders for read-only viewers, and offering an action they cannot take is
+   * worse than offering none. See LnPetPhoto.addPhotoHref.
+   */
+  addPhotoHref?: string;
   tags?: LnHeroTag[];
   actions?: ReactNode;
   className?: string;
@@ -36,8 +45,10 @@ export type LnHeroProps = {
 export function LnHero({
   name,
   status = "ok",
+  sex,
   breed,
   photoSrc,
+  addPhotoHref,
   tags = [],
   actions,
   className = "",
@@ -45,7 +56,7 @@ export function LnHero({
   return (
     <div
       className={[
-        "mb-[24px] overflow-hidden rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]",
+        "mb-6 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]",
         className,
       ]
         .filter(Boolean)
@@ -62,36 +73,50 @@ export function LnHero({
         aria-hidden="true"
       >
         {/* Watermark */}
-        <span className="absolute bottom-[8px] right-[16px] font-[var(--font-ln-mono)] text-[9px] uppercase tracking-[.24em] text-white/60">
+        <span className="absolute bottom-[8px] right-[16px] font-ln-mono text-xs uppercase tracking-[.24em] text-white/60">
           LIBRETA SANITARIA NACIONAL
         </span>
       </div>
 
-      {/* Main content — negative margin to overlap the band */}
-      <div className="flex items-end gap-[22px] px-[24px] pb-[22px]" style={{ marginTop: -50 }}>
-        {/* Photo overlapping band */}
-        <LnPetPhoto src={photoSrc} alt={name} status={status} size={132} radius="md" />
+      {/* Main content — UX 3.5 item 4: only the PHOTO overlaps the band (via its
+          own negative margin); the text column stays fully below the band so the
+          dark serif name never sits over the patterned band (legibility). The
+          old row-level marginTop pulled the name up into the band when breed +
+          wrapping tags made the text column tall. */}
+      <div className="flex items-end gap-[22px] px-6 pb-[22px]">
+        {/* Photo overlapping band (pokes 50px up into the band) */}
+        <div className="-mt-[50px] flex-shrink-0">
+          <LnPetPhoto
+            src={photoSrc}
+            alt={name}
+            status={status}
+            size={132}
+            radius="md"
+            addPhotoHref={addPhotoHref}
+            addPhotoLabel={name}
+          />
+        </div>
 
         {/* Info */}
-        <div className="min-w-0 flex-1 pb-[4px]">
-          <div className="flex items-center gap-[14px]">
-            <h1 className="m-0 font-[var(--font-ln-serif)] text-[32px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+        <div className="min-w-0 flex-1 pb-1">
+          <div className="flex flex-wrap items-center gap-3.5">
+            <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
               {name}
             </h1>
-            {status && <LnStatusFlag status={status} />}
+            {status && <LnStatusFlag status={status} sex={sex} />}
           </div>
 
-          {breed && <p className="mt-[3px] text-[14px] text-[var(--color-ln-mute)]">{breed}</p>}
+          {breed && <p className="mt-[3px] text-md text-[var(--color-ln-mute)]">{breed}</p>}
 
           {tags.length > 0 && (
-            <div className="mt-[12px] flex flex-wrap gap-[7px]">
+            <div className="mt-3 flex flex-wrap gap-[7px]">
               {tags.map((tag) => {
                 const isCeleste = tag.variant !== "gray";
                 return (
                   <span
                     key={tag.key}
                     className={[
-                      "inline-flex items-center gap-[6px] rounded-full border px-[10px] py-[3px] text-[11.5px] font-medium",
+                      "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-[3px] text-sm font-medium",
                       isCeleste
                         ? "border-[var(--color-ln-celeste-100)] bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul-700)]"
                         : "border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] text-[var(--color-ln-ink-2)]",
@@ -109,9 +134,7 @@ export function LnHero({
         </div>
 
         {/* Actions */}
-        {actions && (
-          <div className="flex flex-shrink-0 items-end gap-[8px] pb-[8px]">{actions}</div>
-        )}
+        {actions && <div className="flex flex-shrink-0 items-end gap-2 pb-2">{actions}</div>}
       </div>
     </div>
   );

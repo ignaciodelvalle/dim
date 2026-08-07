@@ -1,12 +1,12 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { cancelFosterProposalAction } from "@/src/modules/foster/actions";
 
 export function CancelProposalButton({ proposalPublicToken }: { proposalPublicToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -23,53 +23,45 @@ export function CancelProposalButton({ proposalPublicToken }: { proposalPublicTo
         setConfirming(false);
         return;
       }
-      router.refresh();
+      // Full document reload so the SSR proposal list drops/updates the row
+      // (router.refresh() is banned — see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
   if (!confirming) {
     return (
       <div className="text-right">
-        <button
-          type="button"
-          onClick={() => setConfirming(true)}
-          disabled={pending}
-          className="rounded-[4px] border border-ln-op-danger px-3 py-[5px] text-[12px] text-ln-op-danger transition-colors hover:bg-ln-op-danger-bg disabled:opacity-50"
-        >
+        <OpButton variant="danger" size="sm" onClick={() => setConfirming(true)} disabled={pending}>
           Cancelar
-        </button>
+        </OpButton>
       </div>
     );
   }
 
   return (
     <div className="flex flex-col items-end gap-1">
-      <p className="text-[12px] text-ln-op-ink-2">El voluntario va a recibir aviso.</p>
+      <p className="text-sm text-ln-op-ink-2">El voluntario va a recibir aviso.</p>
       {error && (
-        <output role="alert" className="text-[12px] text-ln-op-danger">
+        <output role="alert" className="text-sm text-ln-op-danger">
           {error}
         </output>
       )}
       <div className="flex gap-2">
-        <button
-          type="button"
-          onClick={cancel}
-          disabled={pending}
-          className="rounded-[4px] bg-ln-op-danger px-3 py-[5px] text-[12px] text-white hover:opacity-90 disabled:opacity-50 transition-opacity"
-        >
+        <OpButton variant="danger" size="sm" onClick={cancel} disabled={pending}>
           {pending ? "Cancelando..." : "Confirmar cancelación"}
-        </button>
-        <button
-          type="button"
+        </OpButton>
+        <OpButton
+          variant="ghost"
+          size="sm"
           onClick={() => {
             setConfirming(false);
             setError(null);
           }}
           disabled={pending}
-          className="rounded-[4px] border border-ln-op-line px-3 py-[5px] text-[12px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-50 transition-colors"
         >
           No, volver
-        </button>
+        </OpButton>
       </div>
     </div>
   );

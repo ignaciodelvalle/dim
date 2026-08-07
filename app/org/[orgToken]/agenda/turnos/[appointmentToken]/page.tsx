@@ -14,8 +14,9 @@ import {
 } from "@/app/actions/attendance";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatDateShort, formatTime } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 import { AttendanceFormDispatcher } from "./AttendanceFormDispatcher";
 
@@ -73,11 +74,7 @@ export default async function OrgAppointmentDetailPage({
     month: "long",
     year: "numeric",
   });
-  const slotTime = slot.startsAt.toLocaleTimeString("es-AR", {
-    timeZone: "America/Argentina/Buenos_Aires",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const slotTime = formatTime(slot.startsAt);
 
   const isActionable = appointment.status === "confirmed";
   const backUrl = `/org/${orgToken}/agenda`;
@@ -85,15 +82,15 @@ export default async function OrgAppointmentDetailPage({
 
   return (
     <div className="max-w-lg mx-auto space-y-6">
-      <Link href={backUrl} className="inline-block text-[12px] text-ln-op-azul hover:underline">
+      <Link href={backUrl} className="inline-block text-sm text-ln-op-azul hover:underline">
         ← Volver a la agenda
       </Link>
 
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">{offering.displayName}</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">{offering.displayName}</h1>
       </header>
 
       <OpCard>
@@ -130,13 +127,13 @@ export default async function OrgAppointmentDetailPage({
       ) : (
         <OpCard>
           <OpCardBody>
-            <p className="text-[13px] text-ln-op-ink-2">
+            <p className="text-md text-ln-op-ink-2">
               Este turno ya fue procesado (estado:{" "}
-              <strong className="text-ln-op-ink">{appointment.status}</strong>).
+              <strong className="text-ln-op-ink">{pill.label}</strong>).
             </p>
             {appointment.attendedAt && (
-              <p className="text-[12px] text-ln-op-mute mt-1">
-                Asistencia registrada el {appointment.attendedAt.toLocaleDateString("es-AR")}.
+              <p className="text-sm text-ln-op-mute mt-1">
+                Asistencia registrada el {formatDateShort(appointment.attendedAt)}.
               </p>
             )}
           </OpCardBody>
@@ -149,8 +146,8 @@ export default async function OrgAppointmentDetailPage({
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <dt className="text-[10px] text-ln-op-mute uppercase tracking-[0.08em]">{label}</dt>
-      <dd className="text-[13px] text-ln-op-ink mt-0.5">{children}</dd>
+      <dt className="text-xs text-ln-op-mute uppercase tracking-[0.08em]">{label}</dt>
+      <dd className="text-md text-ln-op-ink mt-0.5">{children}</dd>
     </div>
   );
 }

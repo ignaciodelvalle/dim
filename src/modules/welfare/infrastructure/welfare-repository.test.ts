@@ -21,7 +21,7 @@
 import { eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { auditLog, db, notifications, pets, welfareReportAttachments, welfareReports } from "@/db";
+import { db, pets, welfareReportAttachments, welfareReports } from "@/db";
 import { WelfareRepository } from "./welfare-repository";
 
 // ---------------------------------------------------------------------------

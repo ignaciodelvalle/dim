@@ -11,7 +11,7 @@ import { eq } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets } from "@/db";
-import { fetchPetWeightHistory } from "@/lib/owner-dashboard";
+import { fetchPetWeightHistory } from "@/lib/analytics/owner-dashboard";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";

@@ -3,7 +3,7 @@
 // db.transaction(), mirroring the openCase(input, tx) pattern from foster.
 // No auth logic — auth lives at the action / use-case edge.
 
-import { and, desc, eq, inArray, isNull, lt, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, inArray, isNull, lt, sql } from "drizzle-orm";
 
 import {
   cases,
@@ -18,8 +18,9 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { closeCase, findOpenCaseForPetAndKind, openCase } from "@/lib/infra/case-helpers";
+import type { OpenedReason } from "@/src/modules/cases/domain/opened-reason";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -80,7 +81,7 @@ type OpenHandshakeCaseArgs = {
   openedByUserId: string;
   openedByOrganizationId: string;
   receiverOrganizationId: string;
-  openedReason: string;
+  openedReason: OpenedReason;
 };
 
 // ---------------------------------------------------------------------------
@@ -149,6 +150,25 @@ export const TransfersRepository = {
       .where(eq(pets.id, petId))
       .limit(1);
     return row?.publicToken ?? null;
+  },
+
+  /**
+   * Returns a pet's transferability snapshot (status + inCustodyDispute) given
+   * its UUID id. Used to RE-RUN the initiate-time pet guards under the accept
+   * lock (TR-C1) — the initiate-time state is stale by the time the recipient
+   * accepts. Returns null if the pet is gone.
+   */
+  async findPetStatusById(
+    petId: string,
+    tx?: Tx,
+  ): Promise<{ status: PetRow["status"]; inCustodyDispute: boolean } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ status: pets.status, inCustodyDispute: pets.inCustodyDispute })
+      .from(pets)
+      .where(eq(pets.id, petId))
+      .limit(1);
+    return row ?? null;
   },
 
   /**
@@ -284,10 +304,17 @@ export const TransfersRepository = {
   },
 
   /**
-   * Returns all pending transfers whose expiresAt is before `now`.
+   * Returns pending transfers whose expiresAt is before `now`.
    * Per-row (not single tx) — callers iterate and expire one at a time.
+   *
+   * `limit` bounds the result (review 23 item 12): the scan used to load ALL
+   * expired pending transfers, unbounded at scale. Expired rows flip out of the
+   * 'pending' scope, so the caller drains the backlog across bounded passes.
    */
-  async expirablePetTransfers(now: Date): Promise<
+  async expirablePetTransfers(
+    now: Date,
+    limit?: number,
+  ): Promise<
     Array<{
       id: string;
       petId: string;
@@ -295,7 +322,7 @@ export const TransfersRepository = {
       publicToken: string;
     }>
   > {
-    return db
+    const base = db
       .select({
         id: petTransfers.id,
         petId: petTransfers.petId,
@@ -308,7 +335,10 @@ export const TransfersRepository = {
           eq(petTransfers.status, "pending"),
           sql`${petTransfers.expiresAt} < ${now.toISOString()}`,
         ),
-      );
+      )
+      .orderBy(asc(petTransfers.id));
+
+    return limit ? base.limit(limit) : base;
   },
 
   // -------------------------------------------------------------------------
@@ -400,6 +430,33 @@ export const TransfersRepository = {
           eq(ownerships.petId, petId),
           eq(ownerships.ownerOrganizationId, orgId),
           eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      )
+      .limit(1);
+    return row ?? null;
+  },
+
+  /**
+   * Returns the active `owner`-role ownership row an org holds on a pet, or
+   * null. The owner-side mirror of findActiveShelterCustody — used to re-verify
+   * the source still holds custody under the accept lock (TR-H1) when the
+   * proposal's from_role is `owner` (santuario/decomiso handoff).
+   */
+  async findActiveOwnerOwnershipForOrg(
+    petId: string,
+    orgId: string,
+    tx?: Tx,
+  ): Promise<{ id: string } | null> {
+    const client: DbOrTx = tx ?? db;
+    const [row] = await (client as typeof db)
+      .select({ id: ownerships.id })
+      .from(ownerships)
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "owner"),
           isNull(ownerships.endedAt),
         ),
       )
@@ -500,6 +557,27 @@ export const TransfersRepository = {
           eq(ownerships.petId, petId),
           eq(ownerships.ownerOrganizationId, orgId),
           eq(ownerships.role, "shelter_custody"),
+          isNull(ownerships.endedAt),
+        ),
+      );
+  },
+
+  /**
+   * Ends the active `owner`-role ownership held by an org on a pet (endedAt=now).
+   * Mirrors endShelterCustody but for the permanent-owner source side — a
+   * santuario/decomiso org handing off a pet it held as `owner`. Used by
+   * acceptCrossOrgTransfer when the proposal's from_role is `owner`.
+   */
+  async endOwnerOwnershipForOrg(petId: string, orgId: string, tx: Tx): Promise<void> {
+    const now = new Date();
+    await tx
+      .update(ownerships)
+      .set({ endedAt: now })
+      .where(
+        and(
+          eq(ownerships.petId, petId),
+          eq(ownerships.ownerOrganizationId, orgId),
+          eq(ownerships.role, "owner"),
           isNull(ownerships.endedAt),
         ),
       );
@@ -701,6 +779,32 @@ export const TransfersRepository = {
     return row ?? null;
   },
 
+  /**
+   * Acquires a transaction-scoped advisory lock keyed on the pet id. Serializes
+   * concurrent custody writers (cross-org accept vs reject/cancel/expire) on the
+   * same pet so an in-tx status re-check is authoritative. Auto-released at tx
+   * commit/rollback. Mirrors the pg_advisory_xact_lock(hashtext(petId)) pattern
+   * used by the return-to-owner writers.
+   */
+  async acquirePetAdvisoryLock(petId: string, tx: Tx): Promise<void> {
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${petId}))`);
+  },
+
+  /**
+   * Re-reads a case's status inside a transaction. Used under the advisory lock
+   * to re-check the case is still open BEFORE any destructive custody write —
+   * the pre-tx status read is stale and a concurrent reject/cancel/expire may
+   * have closed the case after it.
+   */
+  async caseStatusById(caseId: string, tx: Tx): Promise<string | null> {
+    const [row] = await tx
+      .select({ status: cases.status })
+      .from(cases)
+      .where(eq(cases.id, caseId))
+      .limit(1);
+    return row?.status ?? null;
+  },
+
   // -------------------------------------------------------------------------
   // Cross-org expiry helpers (moved from lib/case-closers)
   // -------------------------------------------------------------------------
@@ -712,6 +816,10 @@ export const TransfersRepository = {
   async findExpirableCrossOrgCases(options?: {
     now?: Date;
     staleAfterDays?: number;
+    /** Keyset cursor: only return cases whose id sorts after this value. */
+    afterId?: string | null;
+    /** Max rows to return (keyset page size). Omit for no limit. */
+    limit?: number;
   }): Promise<
     Array<{
       id: string;
@@ -725,7 +833,7 @@ export const TransfersRepository = {
     const staleAfterMs = (options?.staleAfterDays ?? 30) * 24 * 60 * 60 * 1000;
     const openedBefore = new Date(now.getTime() - staleAfterMs);
 
-    return db
+    const base = db
       .select({
         id: cases.id,
         publicCode: cases.publicCode,
@@ -739,8 +847,12 @@ export const TransfersRepository = {
           eq(cases.caseKind, "custody_transfer_handshake"),
           eq(cases.status, "open"),
           lt(cases.openedAt, openedBefore),
+          ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
         ),
-      );
+      )
+      .orderBy(asc(cases.id));
+
+    return options?.limit ? base.limit(options.limit) : base;
   },
 
   /**

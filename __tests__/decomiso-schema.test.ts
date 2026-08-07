@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { AUDIT_LOG_ACTIONS } from "@/db/schema";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 const VALID_UUID = "eb40c5e3-76b7-4985-81f3-37776ff4183b";
 const VALID_UUID_2 = "9180cd33-7a5f-470c-8263-ec14c69c5ac2";
@@ -219,7 +219,7 @@ describe("AUDIT_LOG_ACTIONS — decomiso entries (spec §4.5)", () => {
 
 describe("requireDecomisoPrincipal — export check", () => {
   it("is exported from lib/auth-guards", async () => {
-    const guards = await import("@/lib/auth-guards");
+    const guards = await import("@/lib/infra/auth-guards");
     expect(typeof guards.requireDecomisoPrincipal).toBe("function");
   });
 });

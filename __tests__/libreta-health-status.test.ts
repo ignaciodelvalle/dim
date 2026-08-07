@@ -12,7 +12,7 @@ import {
   computeLibretaHealthStatus,
   computeMedicationsActive,
   computeVaccinationSummary,
-} from "@/lib/libreta-health-status";
+} from "@/lib/domain/libreta-health-status";
 
 // Helper: shape a vaccination event the way the libreta page returns it.
 function vaxEvent(opts: {
@@ -87,6 +87,23 @@ describe("computeVaccinationSummary", () => {
     expect(summary.expired).toBeGreaterThan(0);
   });
 
+  it("derives next-due a full CALENDAR year later for a 12-month vaccine, not 360 days (PJ-M2)", () => {
+    // A 12-month dose with no explicit next_due_at must expire ~1 calendar year
+    // later. The old `intervalMonths * 30 * DAY_MS` math treated a year as 360
+    // days, expiring the dose ~5 days early.
+    const occurredAt = "2025-03-15T12:00:00.000Z";
+    const events = [vaxEvent({ vaccineName: "Antirrábica", occurredAt })];
+    const summary = computeVaccinationSummary(events, "dog", now);
+    const row = summary.perVaccine.find((v) => v.vaccineName === "Antirrábica");
+
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const days360 = new Date(new Date(occurredAt).getTime() + 360 * DAY_MS);
+    // A real calendar year (365 days here) is strictly LATER than 360 days.
+    expect(row?.nextDueAt?.getTime()).toBeGreaterThan(days360.getTime());
+    // And it lands on the same calendar day one year on.
+    expect(row?.nextDueAt?.toISOString()).toBe("2026-03-15T12:00:00.000Z");
+  });
+
   it("honors an explicit next_due_at over the catalog interval", () => {
     const events = [
       vaxEvent({
@@ -123,17 +140,32 @@ describe("computeVaccinationSummary", () => {
     expect(summary.otherCount).toBe(1);
   });
 
-  it("does not let non-catalog vaccines change core-vaccine headline status", () => {
+  it("does not let non-catalog vaccines inflate the POSITIVE headline counts", () => {
     const events = [
       vaxEvent({ vaccineName: "Vacuna Exótica X", occurredAt: "2026-05-01T00:00:00Z" }),
     ];
     const summary = computeVaccinationSummary(events, "dog", now);
-    // Off-catalog dose must not inflate active/dueSoon/expired or reduce missing.
+    // An unidentified dose may never be counted as protection. This half of the
+    // original assertion is the security-relevant one and is unchanged.
     expect(summary.active).toBe(0);
     expect(summary.dueSoon).toBe(0);
     expect(summary.expired).toBe(0);
-    expect(summary.missing).toBeGreaterThanOrEqual(3);
     expect(summary.otherCount).toBe(1);
+
+    // The other half USED to read `missing >= 3` — "an off-catalog dose must not
+    // reduce missing". PO decision 2026-07-28 reversed exactly that: an
+    // unidentified dose blocks the never-given CLAIM, because the libreta was
+    // reporting a matrícula-signed "Séxtuple" as absent (the catalog spells it
+    // "Séxtuple (DHPPi-L)").
+    //
+    // KNOWN COST, accepted deliberately: the rule cannot be narrower without
+    // the fuzzy matching we rejected. Nothing machine-checkable separates
+    // "Séxtuple" (a core vaccine, differently written) from "Vacuna Exótica X"
+    // (genuinely unrelated) — so even this clearly-unrelated dose suppresses
+    // the claim. The shrinking path is write-side normalisation, not a cleverer
+    // read: once the vet form stores catalog names, unmatched doses become rare.
+    expect(summary.missing).toBe(0);
+    expect(summary.unconfirmed).toBeGreaterThanOrEqual(3);
   });
 
   it("dedupes multiple doses of the same off-catalog vaccine name", () => {
@@ -241,5 +273,60 @@ describe("computeLibretaHealthStatus", () => {
     );
     expect(status.permanentConditions).toEqual([]);
     expect(status.permanentConditionsOther).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// "Sin confirmar" — the libreta stops asserting an absence it cannot prove.
+//
+// Live review 2026-07-28: a vet signed a dose named "Séxtuple" (matrícula, lot
+// VG-2026-25). The catalog entry is "Séxtuple (DHPPi-L)". findVaccineByName is
+// exact equality, so the signed dose landed in the off-catalog bucket AND the
+// core entry reported `missing` — the dashboard told the owner "2 vacunas del
+// calendario recomendado sin aplicar" a few centimetres above the signed record.
+//
+// PO decision 2026-07-28: keep exact matching (fuzzy-matching a medical record
+// risks asserting a vaccine nobody gave), but never claim the ABSENCE while an
+// unidentified dose is on file.
+// ---------------------------------------------------------------------------
+
+describe("computeVaccinationSummary — an unidentified dose blocks the 'never given' claim", () => {
+  it("reports a core vaccine as UNCONFIRMED, not missing, when an unmatched dose exists", () => {
+    const summary = computeVaccinationSummary(
+      [vaxEvent({ vaccineName: "Séxtuple", occurredAt: "2026-06-26T00:00:00.000Z" })],
+      "dog",
+      new Date("2026-07-28T00:00:00.000Z"),
+    );
+
+    // The dose is still counted as off-catalog — it is not silently dropped.
+    expect(summary.otherCount).toBe(1);
+    // …and NOTHING is asserted to be absent.
+    expect(summary.missing).toBe(0);
+    expect(summary.unconfirmed).toBeGreaterThan(0);
+    for (const v of summary.perVaccine) {
+      expect(v.status).not.toBe("missing");
+    }
+  });
+
+  it("still reports MISSING when the animal carries no unidentifiable dose", () => {
+    // The control. With nothing on file that could plausibly BE the core
+    // vaccine, "nunca aplicada" is a defensible statement and must survive —
+    // this fix must not turn every gap into a shrug.
+    const summary = computeVaccinationSummary([], "dog", new Date("2026-07-28T00:00:00.000Z"));
+    expect(summary.unconfirmed).toBe(0);
+    expect(summary.missing).toBeGreaterThan(0);
+  });
+
+  it("a dose that DOES match the catalog leaves the other core vaccines missing", () => {
+    // A matched dose is identified, so it cannot stand in for anything else:
+    // the remaining core vaccines are genuinely unaccounted for.
+    const summary = computeVaccinationSummary(
+      [vaxEvent({ vaccineName: "Antirrábica", occurredAt: "2026-06-26T00:00:00.000Z" })],
+      "dog",
+      new Date("2026-07-28T00:00:00.000Z"),
+    );
+    expect(summary.otherCount).toBe(0);
+    expect(summary.unconfirmed).toBe(0);
+    expect(summary.missing).toBeGreaterThan(0);
   });
 });

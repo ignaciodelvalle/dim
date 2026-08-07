@@ -1,18 +1,31 @@
 -- DIM welfare reports — storage bucket + RLS
 -- --------------------------------------------
 -- Apply once per environment via Supabase Studio → SQL Editor. Idempotent.
+-- The tracked production path for the policy state below is migration
+-- db/migrations/0164_welfare_evidence_bucket_lockdown.sql — keep the two in
+-- sync.
 --
--- Bucket: welfare-evidence
---   - INSERT (upload) allowed for anon AND authenticated. A witness who
---     happens to film an abuse incident must be able to submit it without
---     creating an account.
---   - SELECT uses the "unguessable path" model: the path embeds 256 bits of
---     UUID entropy ({welfare_report_id}/{attachment_id}.{ext}), so SELECT is
---     gated by existence of the parent report row, not by reporter identity.
---     This allows the by-code lookup flow (/denuncias/codigo/[code]) to
---     generate signed URLs for anon-uploaded evidence without service-role
---     plumbing. The path is effectively unreachable without the report-id link.
---   - UPDATE / DELETE: none (admin only via service role).
+-- Bucket: welfare-evidence (PRIVATE)
+--   - NO anon or authenticated policy. Every access is server-side through the
+--     service-role client, which bypasses RLS:
+--       · write — uploadWelfareEvidence() / removeWelfareEvidence()
+--         (lib/infra/welfare-uploads.ts), called from the denuncia server
+--         actions and submitClaimDispute.
+--       · read  — welfareAttachmentSignedUrl() (lib/infra/storage.ts), called
+--         from server components that have already authorized the viewer
+--         (receipt code, reporter identity, jurisdiction fence, admin role).
+--   - UPDATE / DELETE: service role only, same as above.
+--
+-- WHY (RA-8 R2, 2026-07-31): this file used to grant `anon, authenticated`
+-- unrestricted INSERT plus a SELECT gated only on "some welfare_reports row
+-- owns this path prefix" — a clause with NO caller identity in it. Supabase's
+-- list endpoint is filtered by that same policy, so the "unguessable path"
+-- premise was false: an anonymous LIST at the bucket root enumerated every
+-- object and a GET on each passed the identical check. Anonymous download of
+-- every cruelty-complaint evidence file in the country. RLS cannot express
+-- "this anonymous reporter holds the receipt code", so the authorization moved
+-- to the server code that already performs it, and the bucket went deny-all.
+-- Migration 0123(B) closed the same enumeration class for pet-photos.
 --
 -- Path convention: {welfare_report_id}/{attachment_id}.{ext}
 
@@ -21,22 +34,5 @@ values ('welfare-evidence', 'welfare-evidence', false)
 on conflict (id) do nothing;
 
 drop policy if exists "Anyone can upload welfare evidence" on storage.objects;
-create policy "Anyone can upload welfare evidence"
-  on storage.objects
-  for insert
-  to anon, authenticated
-  with check (bucket_id = 'welfare-evidence');
-
 drop policy if exists "Reporter can read own welfare evidence" on storage.objects;
 drop policy if exists "Welfare evidence readable when parent report exists" on storage.objects;
-create policy "Welfare evidence readable when parent report exists"
-  on storage.objects
-  for select
-  to anon, authenticated
-  using (
-    bucket_id = 'welfare-evidence'
-    and exists (
-      select 1 from public.welfare_reports wr
-      where split_part(storage.objects.name, '/', 1) = wr.id::text
-    )
-  );

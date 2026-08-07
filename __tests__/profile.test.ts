@@ -13,8 +13,27 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
-import { updateProfileForUser, uploadAvatarForUser } from "@/app/actions/profile";
-import { auditLog, db, notifications, profiles } from "@/db";
+// updateEmergencyContactsAction (pet-document-redesign ADR-13, Phase 5) calls
+// requireUserOrRedirect() — mocked here so the narrow-write test below can
+// drive it directly against the real seeded actor without a Next.js request
+// context. Doesn't affect the *ForUser writers above, which are called
+// directly with an explicit userId (never go through this guard).
+vi.mock("@/lib/infra/auth-guards", () => ({
+  requireUserOrRedirect: vi.fn(),
+}));
+
+// revalidatePath needs a Next.js request/static-generation context that
+// doesn't exist under vitest — mocked to a no-op, same reasoning as the
+// auth-guards mock above.
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
+import { updateEmergencyContactsAction } from "@/app/actions/profile";
+import { auditLog, db, notifications, ownerships, pets, profiles } from "@/db";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { updateProfileForUser } from "@/src/modules/pets/application/profile/update-profile";
+import { uploadAvatarForUser } from "@/src/modules/pets/application/profile/upload-avatar";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -215,6 +234,123 @@ describe("updateProfileForUser — validation rejections", () => {
       phone: "",
     });
     expect(result).not.toHaveProperty("error");
+  });
+});
+
+// ============================================================================
+// updateEmergencyContactsAction — PET-LEVEL override write (owner-ia-redesign
+// P2, PO decision 2). Writes the 4 pet.preferred_vet_* / emergency_contact_*
+// columns (migration 0145), scoped to a pet the caller currently OWNS. Must
+// never touch the account-level profiles columns.
+// ============================================================================
+
+const EMERGENCY_PET_TOKEN = "DIM-TEST-EMG1";
+
+describe("updateEmergencyContactsAction — pet-level override write", () => {
+  beforeAll(async () => {
+    // Seed a pet owned by the actor so the ownership-scoped write can target it.
+    const [pet] = await db
+      .insert(pets)
+      .values({ publicToken: EMERGENCY_PET_TOKEN, species: "dog", name: "Test Emg Pet" })
+      .returning({ id: pets.id });
+    await db.insert(ownerships).values({ petId: pet.id, ownerUserId: actorUserId, role: "owner" });
+  });
+
+  afterAll(async () => {
+    // Ownerships cascade on pet delete; profile deletion (top-level afterAll)
+    // does not remove the pet row, so drop it explicitly here.
+    await db.delete(pets).where(eq(pets.publicToken, EMERGENCY_PET_TOKEN));
+  });
+
+  it("writes the 4 emergency fields onto the PET, leaving the account profile untouched", async () => {
+    vi.mocked(requireUserOrRedirect).mockResolvedValue({
+      user: { id: actorUserId },
+    } as never);
+
+    // Account-level columns are a distinct default surface — must stay null.
+    await db
+      .update(profiles)
+      .set({
+        displayName: "Untouched Display Name",
+        preferredVetName: null,
+        preferredVetPhone: null,
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+      })
+      .where(eq(profiles.id, actorUserId));
+
+    const result = await updateEmergencyContactsAction(EMERGENCY_PET_TOKEN, {
+      preferredVetName: "Dra. Pérez",
+      preferredVetPhone: "+54 9 11 1111-1111",
+      emergencyContactName: "Lucía F.",
+      emergencyContactPhone: "+54 9 11 2222-2222",
+    });
+
+    expect(result).not.toHaveProperty("error");
+
+    const [petRow] = await db
+      .select({
+        preferredVetName: pets.preferredVetName,
+        preferredVetPhone: pets.preferredVetPhone,
+        emergencyContactName: pets.emergencyContactName,
+        emergencyContactPhone: pets.emergencyContactPhone,
+      })
+      .from(pets)
+      .where(eq(pets.publicToken, EMERGENCY_PET_TOKEN))
+      .limit(1);
+
+    expect(petRow.preferredVetName).toBe("Dra. Pérez");
+    expect(petRow.preferredVetPhone).toBe("+54 9 11 1111-1111");
+    expect(petRow.emergencyContactName).toBe("Lucía F.");
+    expect(petRow.emergencyContactPhone).toBe("+54 9 11 2222-2222");
+
+    // The account-level default is a separate surface and stays untouched.
+    const [profileRow] = await db
+      .select({
+        displayName: profiles.displayName,
+        preferredVetName: profiles.preferredVetName,
+      })
+      .from(profiles)
+      .where(eq(profiles.id, actorUserId))
+      .limit(1);
+    expect(profileRow.displayName).toBe("Untouched Display Name");
+    expect(profileRow.preferredVetName).toBeNull();
+  });
+
+  it("clears an override to null when a field is submitted empty (account fallback on read)", async () => {
+    vi.mocked(requireUserOrRedirect).mockResolvedValue({
+      user: { id: actorUserId },
+    } as never);
+
+    const result = await updateEmergencyContactsAction(EMERGENCY_PET_TOKEN, {
+      preferredVetName: "",
+      preferredVetPhone: "",
+      emergencyContactName: "",
+      emergencyContactPhone: "",
+    });
+
+    expect(result).not.toHaveProperty("error");
+
+    const [petRow] = await db
+      .select({ preferredVetPhone: pets.preferredVetPhone })
+      .from(pets)
+      .where(eq(pets.publicToken, EMERGENCY_PET_TOKEN))
+      .limit(1);
+    expect(petRow.preferredVetPhone).toBeNull();
+  });
+
+  it("returns NOT_FOUND when the pet is not owned by the caller", async () => {
+    vi.mocked(requireUserOrRedirect).mockResolvedValue({
+      user: { id: "00000000-0000-0000-0000-000000000099" },
+    } as never);
+
+    const result = await updateEmergencyContactsAction(EMERGENCY_PET_TOKEN, {
+      preferredVetName: "Should not save",
+    });
+
+    expect(result).toHaveProperty("error");
+    if (!("error" in result)) return;
+    expect(result.error).toMatch(/NOT_FOUND/);
   });
 });
 

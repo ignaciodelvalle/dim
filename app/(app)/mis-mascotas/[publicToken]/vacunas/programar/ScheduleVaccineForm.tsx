@@ -2,7 +2,8 @@
 
 import type { ReminderFormState } from "@/app/actions/reminders";
 import { LnField, LnInput, LnTextarea } from "@/components/ui/Field";
-import { vaccinesForSpecies } from "@/lib/lookups";
+import { vaccinesForSpecies } from "@/lib/reference/lookups";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useActionState, useState } from "react";
 
 const initialState: ReminderFormState = { error: null };
@@ -24,11 +25,17 @@ export function ScheduleVaccineForm({
   species: string;
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // Nav contract N3 — the use-case returns redirectTo instead of calling
+  // redirect(); this performs the full document navigation.
+  const isNavigating = useActionRedirect(state.redirectTo, state);
   const vaccines = vaccinesForSpecies(species);
   const [suggestedDate, setSuggestedDate] = useState<string>("");
   const [dateValue, setDateValue] = useState<string>("");
+  const [vaccineName, setVaccineName] = useState<string>("");
+  const [description, setDescription] = useState<string>("");
 
   function handleVaccineChange(name: string) {
+    setVaccineName(name);
     const def = vaccines.find((v) => v.name.toLowerCase() === name.trim().toLowerCase());
     if (def?.intervalMonths) {
       const suggested = isoDateFromNowPlusMonths(def.intervalMonths);
@@ -52,6 +59,7 @@ export function ScheduleVaccineForm({
             autoComplete="off"
             aria-describedby={describedBy}
             invalid={invalid}
+            value={vaccineName}
             onChange={(e) => handleVaccineChange(e.target.value)}
           />
         )}
@@ -92,6 +100,8 @@ export function ScheduleVaccineForm({
             name="description"
             rows={3}
             placeholder="Cualquier detalle (clínica habitual, dosis, etc.)"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -106,10 +116,10 @@ export function ScheduleVaccineForm({
 
       <button
         type="submit"
-        disabled={isPending}
-        className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        disabled={isPending || isNavigating}
+        className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
-        {isPending ? "Guardando..." : "Programar vacuna"}
+        {isPending || isNavigating ? "Guardando..." : "Programar vacuna"}
       </button>
     </form>
   );

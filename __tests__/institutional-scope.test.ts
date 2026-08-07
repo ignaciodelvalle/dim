@@ -9,7 +9,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { db, govtAssignments, notifications, profiles } from "@/db";
 import {
@@ -18,8 +18,8 @@ import {
   canDeactivateAdmin,
   canDeactivateGovt,
   canResetCredentials,
-} from "@/lib/institutional-scope";
-import type { ActorProfile } from "@/lib/institutional-scope";
+} from "@/lib/domain/institutional-scope";
+import type { ActorProfile } from "@/lib/domain/institutional-scope";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 // ============================================================================
@@ -27,12 +27,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // ============================================================================
 
 describe("createAdminClient", () => {
-  // The module-level cache means we cannot test the throw path without a fresh
-  // module instance. We test what is testable without re-requiring the module:
-  // (a) when env vars are present the client is returned with auth namespace,
-  // (b) the error message contract is exactly as spec'd.
-  // The throw-when-missing-key scenario is verified in the error text contract test.
-
   it("returns a client with auth namespace when env vars are present", () => {
     const hasEnv =
       !!process.env.NEXT_PUBLIC_SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,16 +37,22 @@ describe("createAdminClient", () => {
     expect(client.auth).toBeDefined();
   });
 
-  it("error message contract: throws with expected text when env vars are absent", () => {
-    // Verify the error text matches spec exactly.
-    // The factory validates env vars at call time — the exact error string is:
-    const expectedMessage = "Supabase admin client not configured: missing env vars.";
-    expect(expectedMessage).toContain("missing env vars");
-    expect(expectedMessage).toContain("Supabase admin client not configured");
-
-    // Functional verification: createAdminClient() should throw when key is missing.
-    // Since the module is cached we cannot directly test this without a reset mechanism.
-    // The implementation is verified via code inspection + the spec contract above.
+  it("throws the exact configured-missing error when env vars are absent", async () => {
+    // The module-level cache would satisfy a second call from the statically
+    // imported instance, so the throw path needs a FRESH module: reset the
+    // registry and dynamic-import a new instance with the env stubbed empty.
+    vi.resetModules();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "");
+    vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
+    try {
+      const fresh = await import("@/lib/supabase/admin");
+      expect(() => fresh.createAdminClient()).toThrowError(
+        "Supabase admin client not configured: missing env vars.",
+      );
+    } finally {
+      vi.unstubAllEnvs();
+      vi.resetModules();
+    }
   });
 });
 

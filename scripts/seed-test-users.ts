@@ -19,7 +19,13 @@
  *   owner@dim.test       → role=owner, 3 mascotas + 1 reminder
  *   vet@dim.test         → role=vet (via approval flow)
  *   orgadmin@dim.test    → admin de "Refugio Test (Seed)" (verified via flow)
- *   govt@dim.test        → role=govt, CABA + La Plata
+ *   govt@dim.test        → role=govt, Ushuaia + El Calafate (remote)
+ *   govt-local@dim.test  → role=govt, La Plata + CABA/Palermo (local)
+ *   ZERO_PET_OWNER_EMAIL → role=owner, GUARANTEED 0 mascotas, 0 org
+ *                          memberships. The owner empty state depends on it.
+ *                          The address lives in exactly one place on purpose —
+ *                          scripts/seed-reserved-accounts.ts. Read that file
+ *                          before giving this account anything.
  *
  * Idempotent — safe to re-run.
  *
@@ -29,6 +35,8 @@
 
 import { type SupabaseClient, createClient as createSdkClient } from "@supabase/supabase-js";
 import { config as loadEnv } from "dotenv";
+
+import { ZERO_PET_OWNER_DISPLAY_NAME, ZERO_PET_OWNER_EMAIL } from "./seed-reserved-accounts";
 
 // IMPORTANT: load env BEFORE importing anything that reads process.env at
 // module load time (db/index.ts throws if DATABASE_URL is missing). ESM
@@ -47,6 +55,10 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY ?? "";
 const DATABASE_URL = process.env.DATABASE_URL ?? "";
 
 const isLocalUrl = (u: string) => u.includes("127.0.0.1") || u.includes("localhost");
+// --allow-remote opts out of the local-only guard so the test accounts can be
+// seeded into a remote (e.g. staging) project. NODE_ENV=production stays hard-
+// blocked regardless. This script is idempotent (skips already-existing users).
+const ALLOW_REMOTE = process.argv.slice(2).includes("--allow-remote");
 
 if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
   console.error(
@@ -58,11 +70,17 @@ if (process.env.NODE_ENV === "production") {
   console.error("Refusing to seed: NODE_ENV=production.");
   process.exit(2);
 }
-if (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL)) {
+const isLocal = isLocalUrl(SUPABASE_URL) && isLocalUrl(DATABASE_URL);
+if (!isLocal && !ALLOW_REMOTE) {
   console.error(
-    `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local.`,
+    `Refusing to seed: NEXT_PUBLIC_SUPABASE_URL (${SUPABASE_URL}) or DATABASE_URL is not local. Re-run with --allow-remote to seed a remote (e.g. staging) project.`,
   );
   process.exit(2);
+}
+if (!isLocal && ALLOW_REMOTE) {
+  console.warn(
+    `WARNING: --allow-remote in effect — seeding test users into a REMOTE project (${SUPABASE_URL}).`,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -70,9 +88,14 @@ if (!isLocalUrl(SUPABASE_URL) || !isLocalUrl(DATABASE_URL)) {
 // ---------------------------------------------------------------------------
 
 const { and, eq, isNull } = await import("drizzle-orm");
-const { approveRequestForAuthority } = await import("../app/actions/admin-decisions");
-const { createOrganizationForUser, requestVetUpgradeForUser } = await import(
-  "../app/actions/upgrade"
+const { approveRequestForAuthority } = await import(
+  "../src/modules/organizations/application/admin-decisions/approve-request"
+);
+const { createOrganizationForUser } = await import(
+  "../src/modules/organizations/application/upgrade/create-organization"
+);
+const { requestVetUpgradeForUser } = await import(
+  "../src/modules/organizations/application/upgrade/request-vet-upgrade"
 );
 // NOTE: we deliberately do NOT import `createInstitutionalAccountForAuthority`
 // from `app/actions/admin-institutional.ts`. That writer transitively imports
@@ -83,6 +106,7 @@ const { createOrganizationForUser, requestVetUpgradeForUser } = await import(
 const {
   approvalRequests,
   auditLog,
+  cases,
   db,
   govtAssignments,
   notifications,
@@ -96,7 +120,14 @@ const {
   profiles,
   reminders,
 } = await import("../db");
-const { generatePublicToken } = await import("../lib/publicToken");
+const { generatePublicToken, generatePrefixedToken } = await import("@/lib/infra/publicToken");
+// Safe to import: does NOT transitively pull in lib/supabase/admin.ts
+// (server-only), unlike createInstitutionalAccountForAuthority. Used to
+// canonicalize govt_assignments locations before this script inserts them
+// directly (see provisionGovt below — issue #758).
+const { JurisdictionValidationError, resolveCanonicalJurisdiction } = await import(
+  "@/lib/infra/jurisdiction-validation"
+);
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -107,6 +138,9 @@ const SHARED_PASSWORD = "Test1234!";
 const EMAILS = {
   admin: "admin@dim.test",
   owner: "owner@dim.test",
+  // Owner B — a second, separate tenant used as the cross-tenant isolation
+  // target (e2e/cross-tenant-isolation.spec.ts). Owns its own pets.
+  ownerB: "owner2@dim.test",
   vet: "vet@dim.test",
   orgAdmin: "orgadmin@dim.test",
   govt: "govt@dim.test",
@@ -114,8 +148,11 @@ const EMAILS = {
 } as const;
 
 const DISPLAY = {
-  admin: "Admin DIM",
+  // Brand: MiMAR is the user-facing name; the "DIM" codename must never surface
+  // in operator UI (it leaked into Auditoría/Historial actor labels as "Admin DIM").
+  admin: "Administración miMAR",
   owner: "Lucía Tester",
+  ownerB: "Bruno Segundo",
   vet: "Dr. Juan Veterinario",
   orgAdmin: "Refugio Admin",
   govt: "Operador/a Gobierno (remoto)",
@@ -137,7 +174,7 @@ const GOVT_REMOTE_LOCALITIES = [
 // over green test suite for the seed.
 const GOVT_LOCAL_LOCALITIES = [
   { province: "Buenos Aires", locality: "La Plata" },
-  { province: "Buenos Aires", locality: "CABA" },
+  { province: "CABA", locality: "Palermo" },
 ];
 
 // Coverage zones for the seed refugio — required for Lost & Found Fase 6
@@ -148,7 +185,7 @@ const ORG_COVERAGE_ZONES: Array<{
   isPrimary: boolean;
 }> = [
   { province: "Buenos Aires", locality: "La Plata", isPrimary: true },
-  { province: "Buenos Aires", locality: "CABA", isPrimary: false },
+  { province: "CABA", locality: "Palermo", isPrimary: false },
 ];
 
 // ---------------------------------------------------------------------------
@@ -159,7 +196,7 @@ const supabase: SupabaseClient = createSdkClient(SUPABASE_URL, SERVICE_ROLE_KEY,
   auth: { autoRefreshToken: false, persistSession: false },
 });
 
-type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE";
+type LogTag = "STEP" | "OK" | "SKIP" | "WARN" | "INFO" | "DONE" | "ERROR";
 function log(tag: LogTag, msg: string) {
   console.log(`[${tag.padEnd(4)}] ${msg}`);
 }
@@ -185,9 +222,11 @@ async function findAuthUserIdByEmail(email: string): Promise<string | null> {
  * This fires the same `handle_new_user` trigger as a real /signup submission;
  * it just bypasses email confirmation + rate limits (necessary for local seed).
  *
- * `userRole` is read by the trigger from raw_user_meta_data.user_role to set
- * the initial profiles.role. Pass 'owner' (default) for normal users; 'admin'
- * is used only for the bootstrap founder.
+ * `userRole` is read by the trigger from raw_app_meta_data.user_role (NOT
+ * user_metadata, which is client-writable — see migration 0133). The service
+ * role CAN write app_metadata, so we pass it there. display_name stays in
+ * user_metadata (non-privileged). Pass 'owner' (default) for normal users;
+ * 'admin' is used only for the bootstrap founder.
  */
 async function ensureAuthUser(
   email: string,
@@ -201,7 +240,8 @@ async function ensureAuthUser(
     email,
     password: SHARED_PASSWORD,
     email_confirm: true,
-    user_metadata: { display_name: displayName, user_role: userRole },
+    user_metadata: { display_name: displayName },
+    app_metadata: { user_role: userRole },
   });
   if (error || !data.user) {
     throw new Error(`createUser(${email}) failed: ${error?.message ?? "no user"}`);
@@ -254,8 +294,8 @@ async function bootstrapAdmin(): Promise<string> {
   log(created ? "OK" : "SKIP", `auth.users ${EMAILS.admin} (admin)`);
   await syncDniVerified(id);
 
-  // The trigger set role='admin' via metadata. We still need account_type and
-  // a known password (it was set on create, but be idempotent if re-running).
+  // The trigger set role='admin' via app_metadata. We still need account_type
+  // and a known password (it was set on create, but be idempotent if re-running).
   await db
     .update(profiles)
     .set({
@@ -492,15 +532,42 @@ async function provisionGovt(
         .where(eq(profiles.id, id));
 
       // Insert any govt_assignments that don't already exist (idempotent).
+      // Each loc is resolved through the SAME canonical catalog the real
+      // writers use (resolveCanonicalJurisdiction) before it ever touches
+      // govt_assignments — this script bypasses createInstitutionalAccountForAuthority
+      // (server-only import, see note above), so it must not bypass its
+      // canonicalization guarantee too. Fail loud on garbage input rather
+      // than silently insert a locality that will never resolve at read
+      // time (issue #758).
       for (const loc of config.localities) {
+        let canonicalProvince: string;
+        let canonicalLocality: string;
+        try {
+          const resolved = await resolveCanonicalJurisdiction({
+            rawProvince: loc.province,
+            rawLocality: loc.locality,
+          });
+          canonicalProvince = resolved.province.name;
+          canonicalLocality = resolved.locality.localityName;
+        } catch (err) {
+          if (err instanceof JurisdictionValidationError) {
+            log(
+              "ERROR",
+              `${config.email}: jurisdicción inválida (${loc.province} / ${loc.locality}) — ${err.message}`,
+            );
+            process.exit(2);
+          }
+          throw err;
+        }
+
         const [existing] = await tx
           .select({ id: govtAssignments.id })
           .from(govtAssignments)
           .where(
             and(
               eq(govtAssignments.userId, id),
-              eq(govtAssignments.jurisdictionProvince, loc.province),
-              eq(govtAssignments.jurisdictionLocality, loc.locality),
+              eq(govtAssignments.jurisdictionProvince, canonicalProvince),
+              eq(govtAssignments.jurisdictionLocality, canonicalLocality),
               isNull(govtAssignments.revokedAt),
             ),
           )
@@ -508,8 +575,8 @@ async function provisionGovt(
         if (existing) continue;
         await tx.insert(govtAssignments).values({
           userId: id,
-          jurisdictionProvince: loc.province,
-          jurisdictionLocality: loc.locality,
+          jurisdictionProvince: canonicalProvince,
+          jurisdictionLocality: canonicalLocality,
           grantedByUserId: adminId,
         });
       }
@@ -673,7 +740,9 @@ async function seedOwnerPets(ownerUserId: string): Promise<void> {
         // pet_identifications below.
         status: "active",
         jurisdictionProvince: "CABA",
-        jurisdictionLocality: "CABA",
+        // Real barrio — "CABA" is a province, not a locality; /turnos/buscar
+        // prefills the locality filter from the owner's first pet.
+        jurisdictionLocality: "Palermo",
         acquisitionMethod: "adopted",
       })
       .returning({ id: pets.id, publicToken: pets.publicToken });
@@ -839,6 +908,27 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
       role: "shelter_custody",
     });
 
+    // The pet's birth certificate in the spine. Without it these three rows are
+    // pets that, as far as the append-only log is concerned, were never
+    // registered — a cache row outranking the spine, which is what invariant #3
+    // forbids. lint:spine caught exactly this the first time CI ran the fence
+    // against a database built by db:bootstrap (2026-07-28): three orphans,
+    // Lola / Toby / Rocco, straight out of this loop.
+    //
+    // It is dated one second before the intake so the spine reads in the order
+    // the events actually happened: registered, then taken in.
+    const registeredAt = new Date(Date.now() - 1000);
+    await db.insert(petEvents).values({
+      petId: pet.id,
+      eventType: "pet_registered",
+      occurredAt: registeredAt,
+      recordedByUserId: intakeActorId,
+      authorRole: "shelter",
+      authorOrganizationId: orgId,
+      authorVerified: true,
+      payload: { source: "seed-script" },
+    });
+
     await db.insert(petEvents).values({
       petId: pet.id,
       eventType: "shelter_intake_recorded",
@@ -897,8 +987,334 @@ async function seedShelterPets(orgId: string, intakeActorId: string): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
+// Step 10 — the two PUBLIC fixtures the bootstrap seed never had
+// ---------------------------------------------------------------------------
+//
+// e2e/_seed-profile.ts said it out loud: "pnpm db:bootstrap: reference data +
+// seed-test-users and STOPS. No cases, no lost pets, no adoption listings."
+// Two axe gates in e2e/public-smoke.spec.ts resolve their fixture off the
+// RENDERED /perdidas and /adoptar pages, so with nothing lost and nothing
+// listed they SKIPPED on every CI run — including the audit of the lost-mode
+// credential, which is the Ley 26.653 hero surface. A gate that can only skip
+// is not a gate.
+//
+// These two steps close that, minimally and deterministically: one lost pet off
+// the owner's existing pets, one adoption listing off the shelter's. No new
+// pets, no randomness beyond the tokens the pets already carry.
+
+/** Mark the owner's first pet lost — spine event + open case + projection. */
+async function seedLostPet(ownerUserId: string): Promise<void> {
+  log("STEP", "10/11 — lost pet (e2e fixture: /perdidas + the lost-mode credential)");
+
+  const [existingLost] = await db
+    .select({ id: pets.id })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, ownerUserId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+        eq(pets.status, "lost"),
+      ),
+    )
+    .limit(1);
+  if (existingLost) {
+    log("SKIP", "owner already has a lost pet");
+    return;
+  }
+
+  const [pet] = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      name: pets.name,
+      status: pets.status,
+      province: pets.jurisdictionProvince,
+      locality: pets.jurisdictionLocality,
+    })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerUserId, ownerUserId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+        eq(pets.status, "active"),
+      ),
+    )
+    .orderBy(pets.createdAt)
+    .limit(1);
+  if (!pet) {
+    log("SKIP", "owner has no active pet to mark lost");
+    return;
+  }
+
+  // The episode case, exactly as setPetLostWriter opens it. Not optional
+  // decoration: a status='lost' pet with no open lost_pet_episode is the stale
+  // state the profile renders as a banner, and the spine fence counts it.
+  const casePublicCode = generatePrefixedToken("CAS");
+  const [caseRow] = await db
+    .insert(cases)
+    .values({
+      publicCode: casePublicCode,
+      caseKind: "lost_pet_episode",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      jurisdictionProvince: pet.province,
+      jurisdictionLocality: pet.locality,
+      openedByUserId: ownerUserId,
+      openedReason: `Pet ${pet.publicToken} marked as lost by owner — se escapó por el portón`,
+    })
+    .returning({ id: cases.id });
+
+  const now = new Date();
+  await db.insert(petEvents).values({
+    petId: pet.id,
+    eventType: "status_changed",
+    occurredAt: now,
+    recordedAt: now,
+    recordedByUserId: ownerUserId,
+    authorRole: "owner",
+    caseId: caseRow.id,
+    payload: {
+      payload_version: 1,
+      from_status: pet.status,
+      to_status: "lost",
+      location_description: "Palermo, CABA (última vez visto en Av. Santa Fe al 3200)",
+      reason: null,
+      // Affirmative consent, stated explicitly (migration 0158 made the column
+      // defaults fail-closed): this fixture DOES disclose, because the surface
+      // under audit is the disclosing credential.
+      disclosure_prefs_snapshot: {
+        first_name: true,
+        phone: true,
+        email: false,
+        last_location: true,
+        finder_form: true,
+      },
+    },
+  });
+
+  // Projection: status + the 5 disclosure columns, same set the writer updates.
+  await db
+    .update(pets)
+    .set({
+      status: "lost",
+      discloseFirstNameWhenLost: true,
+      disclosePhoneWhenLost: true,
+      discloseEmailWhenLost: false,
+      discloseLastLocationWhenLost: true,
+      allowFinderFormWhenLost: true,
+      updatedAt: now,
+    })
+    .where(eq(pets.id, pet.id));
+
+  log("OK", `lost pet ${pet.name} (${pet.publicToken}) · caso ${casePublicCode}`);
+}
+
+/** List the shelter's first pet for adoption — the /adoptar public fixture. */
+async function seedAdoptionListing(orgId: string, actorUserId: string): Promise<void> {
+  log("STEP", "11/11 — adoption listing (e2e fixture: /adoptar + the public pet detail)");
+
+  const [pet] = await db
+    .select({
+      id: pets.id,
+      publicToken: pets.publicToken,
+      name: pets.name,
+      adoptionListedAt: pets.adoptionListedAt,
+    })
+    .from(pets)
+    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+    .where(
+      and(
+        eq(ownerships.ownerOrganizationId, orgId),
+        eq(ownerships.role, "shelter_custody"),
+        isNull(ownerships.endedAt),
+        eq(pets.status, "active"),
+      ),
+    )
+    .orderBy(pets.createdAt)
+    .limit(1);
+  if (!pet) {
+    log("SKIP", "org holds no active pet in custody");
+    return;
+  }
+  if (pet.adoptionListedAt) {
+    log("SKIP", `${pet.name} already listed for adoption`);
+    return;
+  }
+
+  const now = new Date();
+
+  // The ELIGIBILITY half is a pet FACT, so it belongs in the spine before it
+  // belongs in the cache: `adoptionEligible` + `adoptionEligibilitySetAt` are
+  // both in rederivePetCache's CHECKED_COLUMNS, and writing them without their
+  // `adoption_eligibility_set` event is exactly the drift invariant #3 forbids
+  // (the pet-cache harness caught this seed doing it). Mirrors
+  // AdoptionRepository.setEligibility: open the adoption_listing case, then
+  // insert the event carrying its id.
+  const casePublicCode = generatePrefixedToken("CAS");
+  const [listingCase] = await db
+    .insert(cases)
+    .values({
+      publicCode: casePublicCode,
+      caseKind: "adoption_listing",
+      status: "open",
+      primarySubjectKind: "registered_pet",
+      primaryPetId: pet.id,
+      jurisdictionCountry: "AR",
+      openedByUserId: actorUserId,
+      openedByOrganizationId: orgId,
+      openedReason: "Mascota publicada en adopción por el refugio",
+    })
+    .returning({ id: cases.id });
+
+  await db.insert(petEvents).values({
+    petId: pet.id,
+    eventType: "adoption_eligibility_set",
+    occurredAt: now,
+    recordedAt: now,
+    recordedByUserId: actorUserId,
+    authorRole: "shelter",
+    authorOrganizationId: orgId,
+    authorVerified: true,
+    caseId: listingCase.id,
+    payload: {
+      payload_version: 1,
+      eligible: true,
+      ineligible_reason: null,
+      ineligible_reason_notes: null,
+      ineligible_until: null,
+      previous_state: null,
+    },
+  });
+
+  // The LISTING half is curated shelf metadata — no event, by design
+  // (AdoptionRepository.setListingStatus emits none) and none of these columns
+  // is in CHECKED_COLUMNS.
+  // The full gate queryAdoptionListing checks: eligible + listed + not paused,
+  // on an active shelter_custody row of a VERIFIED shelter org (provisionOrg
+  // already verifies it). Anything less and the listing exists in the table
+  // while the public page stays empty — which is exactly the failure mode this
+  // fixture is here to prevent.
+  await db
+    .update(pets)
+    .set({
+      adoptionEligible: true,
+      adoptionEligibilitySetAt: now,
+      adoptionEligibilitySetByUserId: actorUserId,
+      adoptionListedAt: now,
+      adoptionListingPausedAt: null,
+      adoptionStory: "Llegó al refugio como callejera y se recuperó muy bien. Busca familia.",
+      adoptionRequirements: "Casa con patio cerrado. Visita previa.",
+      adoptionEnergyLevel: "medium",
+      adoptionSizeEstimate: "medium",
+      adoptionAgeBucket: "adult",
+      adoptionGoodWithKids: true,
+      adoptionGoodWithDogs: true,
+      updatedAt: now,
+    })
+    .where(eq(pets.id, pet.id));
+
+  log("OK", `adoption listing ${pet.name} (${pet.publicToken})`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// Owner B — cross-tenant isolation target (owner2@dim.test).
+// Minimal owner: auth user (role via metadata trigger) + DNI-verified + pets.
+// Idempotent, like every other step.
+// ---------------------------------------------------------------------------
+
+async function ensureOwnerB(): Promise<string> {
+  log("STEP", "2b/9 — owner B (owner2@dim.test, cross-tenant target)");
+  const { id, created } = await ensureAuthUser(EMAILS.ownerB, DISPLAY.ownerB, "owner");
+  log(created ? "OK" : "SKIP", `auth.users ${EMAILS.ownerB} (owner)`);
+  await setPassword(id, SHARED_PASSWORD);
+  await syncDniVerified(id);
+  return id;
+}
+
+// ---------------------------------------------------------------------------
+// Zero-pet owner — the GUARANTEED owner empty state.
+//
+// Same minimal shape as owner B (auth user + DNI-verified profile) and then
+// NOTHING ELSE, forever. No pet step follows it, and no seed script may add
+// one: scripts/seed-reserved-accounts.ts holds the contract, and
+// scripts/check-seed-hygiene.ts fails `pnpm test` the moment this account owns
+// a pet or joins an organization.
+//
+// It lives here rather than in a demo seed on purpose. This script is what
+// `pnpm db:bootstrap` runs, so a fresh CI database has the account — the empty
+// state is baseline, not demo furniture (see
+// __tests__/seed-precondition-contract.test.ts on that distinction).
+// ---------------------------------------------------------------------------
+
+async function ensureZeroPetOwner(): Promise<string> {
+  log("STEP", `2c/9 — zero-pet owner (${ZERO_PET_OWNER_EMAIL}, owner empty state)`);
+  const { id, created } = await ensureAuthUser(
+    ZERO_PET_OWNER_EMAIL,
+    ZERO_PET_OWNER_DISPLAY_NAME,
+    "owner",
+  );
+  log(created ? "OK" : "SKIP", `auth.users ${ZERO_PET_OWNER_EMAIL} (owner)`);
+  await setPassword(id, SHARED_PASSWORD);
+  await syncDniVerified(id);
+  return id;
+}
+
+// Owner B's pet — a minimal real pet (no microchip, so no unique-chip clash
+// with Owner A's seeded identifications) giving the cross-tenant e2e a real
+// pet_id + pet_registered event to probe. Idempotent.
+async function seedOwnerBPet(ownerBId: string): Promise<void> {
+  log("STEP", "8b/9 — owner B mascota (cross-tenant target)");
+  const [hasPet] = await db
+    .select({ id: ownerships.id })
+    .from(ownerships)
+    .where(
+      and(
+        eq(ownerships.ownerUserId, ownerBId),
+        eq(ownerships.role, "owner"),
+        isNull(ownerships.endedAt),
+      ),
+    )
+    .limit(1);
+  if (hasPet) {
+    log("SKIP", "owner B already has a pet");
+    return;
+  }
+  const [pet] = await db
+    .insert(pets)
+    .values({
+      publicToken: generatePublicToken(),
+      species: "dog",
+      breed: "Mestizo",
+      name: "Rocco",
+      sex: "male",
+      color: "marrón",
+      status: "active",
+      jurisdictionProvince: "CABA",
+      jurisdictionLocality: "Palermo", // real barrio — "CABA" is not a locality
+      acquisitionMethod: "adopted",
+    })
+    .returning({ id: pets.id, publicToken: pets.publicToken });
+  await db.insert(ownerships).values({ petId: pet.id, ownerUserId: ownerBId, role: "owner" });
+  await db.insert(petEvents).values({
+    petId: pet.id,
+    eventType: "pet_registered",
+    occurredAt: new Date(),
+    recordedByUserId: ownerBId,
+    authorRole: "owner",
+    payload: { source: "seed-script" },
+  });
+  log("OK", `owner B pet Rocco (${pet.publicToken})`);
+}
 
 async function main() {
   log("INFO", `Seeding against ${SUPABASE_URL}`);
@@ -906,6 +1322,8 @@ async function main() {
 
   const adminId = await bootstrapAdmin();
   const ownerId = await signupOwner();
+  const ownerBId = await ensureOwnerB();
+  await ensureZeroPetOwner();
   const vetId = await provisionVet(adminId);
   const { orgAdminUserId, orgId, orgToken } = await provisionOrg(adminId);
   await seedOrgCoverage(orgId);
@@ -923,7 +1341,10 @@ async function main() {
   });
   await attachVetToOrg(orgId, vetId);
   await seedOwnerPets(ownerId);
+  await seedOwnerBPet(ownerBId);
   await seedShelterPets(orgId, orgAdminUserId);
+  await seedLostPet(ownerId);
+  await seedAdoptionListing(orgId, orgAdminUserId);
 
   log("DONE", "seed complete");
   console.log("\n=== Access summary ===");
@@ -935,9 +1356,12 @@ async function main() {
   );
   console.log(`  ${EMAILS.orgAdmin.padEnd(24)}  role=owner   → /org/${orgToken}`);
   console.log(`  ${EMAILS.govt.padEnd(24)}  role=govt    → /gob (Ushuaia + El Calafate)`);
-  console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA)`);
+  console.log(`  ${EMAILS.govtLocal.padEnd(24)}  role=govt    → /gob (La Plata + CABA/Palermo)`);
+  console.log(
+    `  ${ZERO_PET_OWNER_EMAIL.padEnd(24)}  role=owner   → /mis-mascotas (RESERVED: 0 mascotas, never give it any)`,
+  );
   console.log(`\n  Refugio portal:   /org/${orgToken}`);
-  console.log("  Admin DIM:        /admin");
+  console.log("  Administración miMAR:  /admin");
   console.log("  Gobierno:         /gob");
   console.log("  Mis mascotas:     /mis-mascotas");
 }

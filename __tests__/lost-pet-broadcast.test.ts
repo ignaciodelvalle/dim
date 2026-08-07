@@ -13,8 +13,8 @@
 //  10. setPetLostWriter — broadcast failure does NOT roll back the lost-flip
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, isNull, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { and, eq, sql } from "drizzle-orm";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
   db,
@@ -27,8 +27,8 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { broadcastLostPet } from "@/lib/lost-pet-broadcast";
-import { generatePublicToken } from "@/lib/publicToken";
+import { broadcastLostPet } from "@/lib/infra/lost-pet-broadcast";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import type { DisclosurePrefsInput } from "@/src/modules/events/actions";
 import { setPetLostWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";
@@ -913,5 +913,65 @@ describe("setPetLostWriter — broadcast failure is non-fatal", () => {
     expect(events.length).toBeGreaterThan(0);
     const payload = events[0].payload as Record<string, unknown>;
     expect(payload.to_status).toBe("lost");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// 11. broadcastLostPet — idempotent per episode (retry re-notifies nobody)
+// ---------------------------------------------------------------------------
+//
+// Review B.1: the highest-blast-radius duplication site. A retry of the SAME
+// lost episode (client timeout, double-submit) must NOT re-notify every org
+// member. Each recipient row now carries a deterministic dedupeKey
+// `lost:${episodeKey}:${userId}` inserted with ON CONFLICT DO NOTHING.
+
+const LOCALITY_IDEMPOTENT = "Broadcast-Test-Idempotent";
+
+describe("broadcastLostPet — idempotency", () => {
+  it("a second broadcast for the same episode inserts no duplicate notifications", async () => {
+    const { orgId } = await insertVerifiedOrg({
+      suffix: "idempotent",
+      province: TEST_PROVINCE,
+      locality: LOCALITY_IDEMPOTENT,
+    });
+    await addMember(orgId, memberA1UserId);
+    await addMember(orgId, memberA2UserId);
+
+    const { petId, publicToken } = await insertActivePet({
+      suffix: "idempotent",
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: LOCALITY_IDEMPOTENT,
+    });
+
+    const pet = {
+      ...petForBroadcast(petId, publicToken, "idempotent"),
+      jurisdictionProvince: TEST_PROVINCE,
+      jurisdictionLocality: LOCALITY_IDEMPOTENT,
+    };
+    const owner = { id: ownerUserId, displayName: "Owner" };
+    const episodeKey = `case-${petId}`;
+
+    const first = await broadcastLostPet(db, pet, owner, null, { episodeKey });
+    expect(first.broadcastedToMemberIds.length).toBeGreaterThanOrEqual(2);
+
+    // Retry the SAME episode — the fan-out reports the same recipients, but no
+    // second row is written for any of them.
+    const second = await broadcastLostPet(db, pet, owner, null, { episodeKey });
+    expect(second.broadcastedToMemberIds.length).toBeGreaterThanOrEqual(2);
+
+    const notifs = await db
+      .select()
+      .from(notifications)
+      .where(
+        and(
+          eq(notifications.notificationType, "lost_pet_broadcast"),
+          eq(notifications.relatedPetId, petId),
+        ),
+      );
+    // Exactly one row per member despite two broadcast calls.
+    const perMember = new Map<string, number>();
+    for (const n of notifs) perMember.set(n.userId, (perMember.get(n.userId) ?? 0) + 1);
+    for (const [, c] of perMember) expect(c).toBe(1);
+    expect(notifs).toHaveLength(perMember.size);
   });
 });

@@ -5,10 +5,11 @@
 import { and, desc, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import { db, fosterProposals, organizationMemberships, ownerships, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDate, formatDateShort, pluralizeEs, speciesLabel } from "@/lib/utils/format";
 
 import { EndFosterButton } from "./EndFosterButton";
 
@@ -40,13 +41,23 @@ export default async function OrgTransitosPage({
 
   const { organization } = await requireOrgAccessByToken(orgToken);
 
-  // Find all pets this org ever held via shelter_custody (active + ended),
-  // so historial can reach past pets too.
+  // Pets in range for this org. Historial needs every pet the org EVER held
+  // (active + ended custody) so it can reach transferred-out pets. Activos must
+  // only consider pets the org CURRENTLY holds (active custody ownership):
+  // otherwise a pet the org already transferred out stays in petIds, and a
+  // foster row still open under its NEW holder would surface on this org's
+  // active tab — a cross-tenant leak (review 24). The endedAt filter is applied
+  // only for the activos tab.
   const orgPets = await db
     .select({ id: pets.id, publicToken: pets.publicToken, name: pets.name, species: pets.species })
     .from(pets)
     .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(eq(ownerships.ownerOrganizationId, organization.id));
+    .where(
+      and(
+        eq(ownerships.ownerOrganizationId, organization.id),
+        ...(activeTab === "activos" ? [isNull(ownerships.endedAt)] : []),
+      ),
+    );
 
   const petIds = [...new Set(orgPets.map((p) => p.id))];
   const petMap = new Map(orgPets.map((p) => [p.id, p]));
@@ -116,8 +127,8 @@ export default async function OrgTransitosPage({
   return (
     <div className="space-y-6">
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Tránsitos</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Tránsitos</h1>
+        <p className="text-md text-ln-op-mute">
           Mascotas bajo cuidado de voluntarios, miembros o vecinos de la organización.
         </p>
       </header>
@@ -131,7 +142,7 @@ export default async function OrgTransitosPage({
             <Link
               key={tab}
               href={`/org/${orgToken}/transitos?tab=${tab}`}
-              className={`px-4 py-2 text-[13px] font-medium no-underline border-b-2 transition-colors ${
+              className={`px-4 py-2 text-md font-medium no-underline border-b-2 transition-colors ${
                 isActive
                   ? "border-ln-op-azul text-ln-op-azul"
                   : "border-transparent text-ln-op-mute hover:text-ln-op-ink-2"
@@ -144,7 +155,7 @@ export default async function OrgTransitosPage({
       </nav>
 
       {activeTab === "activos" && fosters.length === 0 && (
-        <p className="text-[13px] text-ln-op-mute py-6 text-center">
+        <p className="text-md text-ln-op-mute py-6 text-center">
           Ninguna mascota tiene tránsito activo.{" "}
           <Link
             href={`/org/${orgToken}/voluntarios`}
@@ -156,16 +167,14 @@ export default async function OrgTransitosPage({
       )}
 
       {activeTab === "historial" && fosters.length === 0 && (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Todavía no hay tránsitos finalizados.
-        </p>
+        <LnEmptyState icon="huella" title="Todavía no hay tránsitos finalizados." />
       )}
 
       {fosters.length > 0 && activeTab === "activos" && (
         <OpCard>
           <OpCardHead
             title="Tránsitos en curso"
-            actions={`${fosters.length} activo${fosters.length !== 1 ? "s" : ""}`}
+            actions={`${fosters.length} ${pluralizeEs(fosters.length, "activo")}`}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
@@ -181,19 +190,15 @@ export default async function OrgTransitosPage({
                   <li key={ownership.id} className="px-4 py-3 space-y-2">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 min-w-0">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
+                        <p className="text-md font-medium text-ln-op-ink">
                           {pet.name}{" "}
                           <span className="text-ln-op-mute font-normal">
                             → {foster.displayName}
                           </span>
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
-                          {pet.species} · iniciado{" "}
-                          {new Date(ownership.startedAt).toLocaleDateString("es-AR", {
-                            day: "numeric",
-                            month: "short",
-                            year: "numeric",
-                          })}
+                        <p className="text-sm text-ln-op-mute">
+                          {speciesLabel(pet.species)} · iniciado{" "}
+                          {formatDateShort(ownership.startedAt)}
                           {ownership.allowCoFoster && (
                             <span className="text-ln-op-ok"> · acepta co-foster</span>
                           )}
@@ -214,7 +219,7 @@ export default async function OrgTransitosPage({
         <OpCard>
           <OpCardHead
             title="Tránsitos finalizados"
-            actions={`${fosters.length} registro${fosters.length !== 1 ? "s" : ""}`}
+            actions={`${fosters.length} ${pluralizeEs(fosters.length, "registro")}`}
           />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
@@ -225,20 +230,20 @@ export default async function OrgTransitosPage({
                   <li key={ownership.id} className="px-4 py-3">
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-0.5 min-w-0">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
+                        <p className="text-md font-medium text-ln-op-ink">
                           {pet.name}{" "}
                           <span className="text-ln-op-mute font-normal">
                             → {foster.displayName}
                           </span>
                         </p>
-                        <p className="text-[12px] text-ln-op-mute">
-                          {pet.species} · {formatDate(ownership.startedAt)}
+                        <p className="text-sm text-ln-op-mute">
+                          {speciesLabel(pet.species)} · {formatDate(ownership.startedAt)}
                           {ownership.endedAt ? ` – ${formatDate(ownership.endedAt)}` : ""}
                         </p>
                       </div>
                       <Link
                         href={`/org/${orgToken}/mascotas/${pet.publicToken}`}
-                        className="shrink-0 rounded-[6px] border border-ln-op-line px-3 py-1.5 text-[12px] text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
+                        className="shrink-0 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-1.5 text-sm text-ln-op-ink hover:bg-ln-op-stripe transition-colors no-underline"
                       >
                         Ver ficha
                       </Link>

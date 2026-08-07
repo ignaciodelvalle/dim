@@ -1,9 +1,14 @@
-// Use-case: close stale lost_pet_episode cases (inactive >180 days).
+// Use-case: close stale lost_pet_episode cases (inactive >60d AND open >365d).
 //
 // Migrated from lib/case-closers/close-stale-lost-episodes.ts.
 // The lib file becomes a thin re-export shim (strangler pattern).
 //
-// Scan: lost_pet_episode cases with status='open', opened_at < now-180d,
+// pet-document-redesign ADR-18: staleAfterDays raised 180 -> 365 so a lost
+// pet can never silently expire in under a year. The 60-day inactivity
+// guard is an ADDITIONAL AND-condition (both must hold), so the effective
+// minimum age before any auto-close is >= 1 year.
+//
+// Scan: lost_pet_episode cases with status='open', opened_at < now-365d,
 // AND no pet_events attached in the last 60 days.
 // Process: in ONE tx — UPDATE status='closed', closed_reason='auto_expired'
 // (guarded AND status='open'); if 0 rows → return (anti-race); if
@@ -11,17 +16,21 @@
 //
 // Auth: none (system-initiated cron). No user authz inside.
 
-import { and, eq, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, lt, sql } from "drizzle-orm";
 
 import { cases, db, petEvents } from "@/db";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 export interface CloseStaleLostEpisodesOptions {
   now?: Date;
-  /** Days a case must have been open before becoming eligible. Default 180. */
+  /** Days a case must have been open before becoming eligible. Default 365 (ADR-18). */
   staleAfterDays?: number;
   /** Days of inactivity required to consider a case stale. Default 60. */
   inactivityDays?: number;
+  /** Keyset cursor: only return cases whose id sorts after this value. */
+  afterId?: string | null;
+  /** Max rows to return (keyset page size). Omit for no limit. */
+  limit?: number;
 }
 
 export interface CloseStaleLostEpisodesCandidate {
@@ -34,13 +43,13 @@ export async function findStaleLostEpisodes(
   options?: CloseStaleLostEpisodesOptions,
 ): Promise<CloseStaleLostEpisodesCandidate[]> {
   const now = options?.now ?? new Date();
-  const staleAfterMs = (options?.staleAfterDays ?? 180) * 24 * 60 * 60 * 1000;
+  const staleAfterMs = (options?.staleAfterDays ?? 365) * 24 * 60 * 60 * 1000;
   const inactivityMs = (options?.inactivityDays ?? 60) * 24 * 60 * 60 * 1000;
   const openedBefore = new Date(now.getTime() - staleAfterMs);
   const inactiveSince = new Date(now.getTime() - inactivityMs);
 
   const inactiveSinceIso = inactiveSince.toISOString();
-  const rows = await db
+  const base = db
     .select({
       id: cases.id,
       primaryPetId: cases.primaryPetId,
@@ -52,13 +61,17 @@ export async function findStaleLostEpisodes(
         eq(cases.caseKind, "lost_pet_episode"),
         eq(cases.status, "open"),
         lt(cases.openedAt, openedBefore),
+        ...(options?.afterId ? [gt(cases.id, options.afterId)] : []),
         sql`NOT EXISTS (
           SELECT 1 FROM ${petEvents}
           WHERE ${petEvents.caseId} = ${cases.id}
             AND ${petEvents.occurredAt} >= ${inactiveSinceIso}::timestamptz
         )`,
       ),
-    );
+    )
+    .orderBy(asc(cases.id));
+
+  const rows = options?.limit ? await base.limit(options.limit) : await base;
 
   return rows;
 }

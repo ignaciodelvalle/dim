@@ -1,24 +1,33 @@
-// Adoption-applications review surface — index. Lists every PENDING
-// application across all pets in shelter_custody of the active org,
-// grouped by pet, newest application first.
+// Adoption-applications review surface — queue index (UX audit 1.3 adopciones).
 //
-// Gated on `adoption.review`. The detail page at /{appEventId} is where
-// the actual approve/reject buttons live; this index just collects them.
+// Migrated from a plain grouped list to a selectable queue with:
+//   - Filter chips (pendientes / aprobadas / rechazadas) via ?status= param.
+//   - Age/SLA badge per row (days pending; warning past ADOPTION_SLA_WARNING_DAYS).
+//   - Bulk approve / reject via OpBulkBar (shift-click range select supported).
+//   - Partial-failure surfacing with a shared bulkActionId for audit traceability.
 //
-// "Pending" means: there's an adoption_application_submitted event with
-// no posterior _approved / _rejected, AND the pet has no
-// adoption_finalized event (the F5.5 cascade should already close
-// orphans when finalize fires, but we defend anyway).
+// The detail page at /{appEventId} remains the single-item canonical path;
+// this queue is an additive faster path for batch decisions.
+//
+// Gated on `adoption.review`. The server component fetches applications filtered
+// by status (default: pending). Client-side selection + bulk actions live in
+// AdoptionQueueList.
 
 import { sql } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { AdoptionQueueList } from "@/components/AdoptionQueueList";
+import type { AdoptionQueueRow, AdoptionQueueStatus } from "@/components/AdoptionQueueList";
 import { db } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { safePayloadUuid } from "@/lib/infra/sql-fragments";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 export const dynamic = "force-dynamic";
+
+// ---------------------------------------------------------------------------
+// DB row shapes per status
+// ---------------------------------------------------------------------------
 
 type PendingRow = {
   application_id: string;
@@ -29,186 +38,191 @@ type PendingRow = {
   applicant_name: string | null;
   housing_type: string;
   submitted_at: string;
-  // UI-6: "info pedida" marker — set when this org already probed the
-  // application for more information (note_added kind=adoption_info_requested).
   info_requested: boolean;
 };
 
+type ResolvedRow = {
+  application_id: string;
+  pet_id: string;
+  pet_name: string;
+  pet_public_token: string;
+  applicant_name: string | null;
+  housing_type: string;
+  submitted_at: string;
+  outcome: string;
+  decided_at: string;
+};
+
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
+
 export default async function AdoptionReviewIndexPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ orgToken: string }>;
+  searchParams: Promise<{ status?: string }>;
 }) {
   const { orgToken } = await params;
+  const { status: statusParam } = await searchParams;
+
   const { organization: orgFromToken } = await requireOrgAccessByToken(orgToken);
   const auth = await requireCapability("adoption.review", orgFromToken.id);
+
   if (auth.error !== null) {
     return (
       <div className="max-w-2xl mx-auto space-y-4">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Sin acceso</h1>
-        <p className="text-[13px] text-ln-op-ink-2">{auth.error}</p>
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <h1 className="text-title font-semibold text-ln-op-ink">Sin acceso</h1>
+        <p className="text-md text-ln-op-ink-2">{auth.error}</p>
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </div>
     );
   }
+
   const { organization } = auth;
 
-  const rows = await db.execute<PendingRow>(sql`
-    SELECT
-      s.id::text AS application_id,
-      p.id::text AS pet_id,
-      p.name AS pet_name,
-      p.public_token AS pet_public_token,
-      s.payload->>'applicant_user_id' AS applicant_user_id,
-      pr.display_name AS applicant_name,
-      s.payload->>'housing_type' AS housing_type,
-      s.recorded_at::text AS submitted_at,
-      EXISTS (
-        SELECT 1 FROM pet_events n
-        WHERE n.pet_id = s.pet_id
-          AND n.event_type = 'note_added'
-          AND n.payload->>'kind' = 'adoption_info_requested'
-          AND n.payload->>'application_event_id' = s.id::text
-      ) AS info_requested
-    FROM pet_events s
-    JOIN pets p ON p.id = s.pet_id
-    JOIN ownerships o ON o.pet_id = p.id
-      AND o.role = 'shelter_custody'
-      AND o.ended_at IS NULL
-      AND o.owner_organization_id = ${organization.id}
-    LEFT JOIN profiles pr ON pr.id = (s.payload->>'applicant_user_id')::uuid
-    WHERE s.event_type = 'adoption_application_submitted'
-      AND NOT EXISTS (
-        SELECT 1 FROM pet_events d
-        WHERE d.pet_id = s.pet_id
-          AND d.event_type = 'adoption_application_resolved'
-          AND d.payload->>'application_event_id' = s.id::text
-      )
-      AND NOT EXISTS (
-        SELECT 1 FROM pet_events f
-        WHERE f.pet_id = s.pet_id AND f.event_type = 'adoption_finalized'
-      )
-    ORDER BY s.recorded_at DESC
-    LIMIT 200
-  `);
+  // Resolve active status filter. Default to "pending".
+  const activeStatus: AdoptionQueueStatus =
+    statusParam === "approved" ? "approved" : statusParam === "rejected" ? "rejected" : "pending";
 
-  // Group by pet, preserving newest-first order across groups.
-  const groups = new Map<
-    string,
-    {
-      petId: string;
-      petName: string;
-      petPublicToken: string;
-      apps: PendingRow[];
-    }
-  >();
-  for (const r of rows) {
-    const g = groups.get(r.pet_id) ?? {
-      petId: r.pet_id,
+  // ---------------------------------------------------------------------------
+  // Fetch rows by status
+  // ---------------------------------------------------------------------------
+
+  let rows: AdoptionQueueRow[] = [];
+  // UX 3.6 (d): fetch one extra row past the cap to detect truncation, so the
+  // list can tell the operator there are more results instead of silently
+  // cutting off at 200.
+  let truncated = false;
+
+  if (activeStatus === "pending") {
+    // Pending: submitted with no posterior resolution and pet not yet finalized.
+    const dbRows = await db.execute<PendingRow>(sql`
+      SELECT
+        s.id::text AS application_id,
+        p.id::text AS pet_id,
+        p.name AS pet_name,
+        p.public_token AS pet_public_token,
+        s.payload->>'applicant_user_id' AS applicant_user_id,
+        pr.display_name AS applicant_name,
+        s.payload->>'housing_type' AS housing_type,
+        s.recorded_at::text AS submitted_at,
+        EXISTS (
+          SELECT 1 FROM pet_events n
+          WHERE n.pet_id = s.pet_id
+            AND n.event_type = 'note_added'
+            AND n.payload->>'kind' = 'adoption_info_requested'
+            AND n.payload->>'application_event_id' = s.id::text
+        ) AS info_requested
+      FROM pet_events s
+      JOIN pets p ON p.id = s.pet_id
+      JOIN ownerships o ON o.pet_id = p.id
+        AND o.role = 'shelter_custody'
+        AND o.ended_at IS NULL
+        AND o.owner_organization_id = ${organization.id}
+      LEFT JOIN profiles pr ON pr.id = ${safePayloadUuid(sql`s.payload->>'applicant_user_id'`)}
+      WHERE s.event_type = 'adoption_application_submitted'
+        AND NOT EXISTS (
+          SELECT 1 FROM pet_events d
+          WHERE d.pet_id = s.pet_id
+            AND d.event_type = 'adoption_application_resolved'
+            AND d.payload->>'application_event_id' = s.id::text
+        )
+        AND NOT EXISTS (
+          SELECT 1 FROM pet_events f
+          WHERE f.pet_id = s.pet_id AND f.event_type = 'adoption_finalized'
+        )
+      ORDER BY s.recorded_at ASC
+      LIMIT 201
+    `);
+
+    truncated = dbRows.length > 200;
+    rows = dbRows.slice(0, 200).map((r) => ({
+      applicationEventId: r.application_id,
       petName: r.pet_name,
       petPublicToken: r.pet_public_token,
-      apps: [],
-    };
-    g.apps.push(r);
-    groups.set(r.pet_id, g);
+      applicantName: r.applicant_name,
+      housingType: r.housing_type,
+      submittedAt: r.submitted_at,
+      infoRequested: r.info_requested,
+    }));
+  } else {
+    // Approved / rejected: find resolved applications belonging to this org.
+    const outcome = activeStatus === "approved" ? "approved" : "rejected";
+
+    const dbRows = await db.execute<ResolvedRow>(sql`
+      SELECT
+        s.id::text AS application_id,
+        p.id::text AS pet_id,
+        p.name AS pet_name,
+        p.public_token AS pet_public_token,
+        pr.display_name AS applicant_name,
+        s.payload->>'housing_type' AS housing_type,
+        s.recorded_at::text AS submitted_at,
+        res.payload->>'outcome' AS outcome,
+        res.recorded_at::text AS decided_at
+      FROM pet_events s
+      JOIN pets p ON p.id = s.pet_id
+      JOIN ownerships o ON o.pet_id = p.id
+        AND o.role = 'shelter_custody'
+        AND o.owner_organization_id = ${organization.id}
+      LEFT JOIN profiles pr ON pr.id = ${safePayloadUuid(sql`s.payload->>'applicant_user_id'`)}
+      JOIN pet_events res ON res.pet_id = s.pet_id
+        AND res.event_type = 'adoption_application_resolved'
+        AND res.payload->>'application_event_id' = s.id::text
+        AND res.payload->>'outcome' = ${outcome}
+        AND res.payload->>'auto_generated' IS DISTINCT FROM 'true'
+      WHERE s.event_type = 'adoption_application_submitted'
+      ORDER BY res.recorded_at DESC
+      LIMIT 201
+    `);
+
+    // For resolved views we show read-only rows (no bulk actions).
+    // submittedAt is used for the age badge (days to decision).
+    truncated = dbRows.length > 200;
+    rows = dbRows.slice(0, 200).map((r) => ({
+      applicationEventId: r.application_id,
+      petName: r.pet_name,
+      petPublicToken: r.pet_public_token,
+      applicantName: r.applicant_name,
+      housingType: r.housing_type,
+      submittedAt: r.submitted_at,
+      infoRequested: false,
+    }));
   }
 
   return (
     <div className="space-y-6">
       {/* Page header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Postulaciones pendientes</h1>
-        <p className="text-[13px] text-ln-op-mute">
-          Personas que se postularon para adoptar mascotas en custodia. Entrá a cada postulación
-          para aprobarla o no avanzar con ella.
+        <h1 className="text-title font-semibold text-ln-op-ink">Postulaciones</h1>
+        <p className="text-md text-ln-op-mute">
+          Revisá, aprobá o rechazá postulaciones de adopción. Podés seleccionar varias para
+          procesarlas en lote.
         </p>
       </header>
 
-      {groups.size === 0 ? (
-        <OpCard>
-          <OpCardBody>
-            <div className="py-6 text-center space-y-2">
-              <p className="text-[13px] font-medium text-ln-op-ink">
-                No tenés postulaciones pendientes.
-              </p>
-              <p className="text-[12px] text-ln-op-mute">
-                Cuando alguien se postule a una mascota publicada en /adoptar, aparece acá.
-              </p>
-            </div>
-          </OpCardBody>
-        </OpCard>
-      ) : (
-        <div className="space-y-6">
-          {Array.from(groups.values()).map((group) => (
-            <OpCard key={group.petId}>
-              <OpCardHead
-                title={group.petName}
-                actions={
-                  <span className="text-ln-op-mute font-normal">
-                    {group.apps.length} pendiente{group.apps.length === 1 ? "" : "s"}
-                  </span>
-                }
-              />
-              <OpCardBody className="p-0">
-                <ul className="divide-y divide-ln-op-line">
-                  {group.apps.map((app) => (
-                    <li
-                      key={app.application_id}
-                      className="hover:bg-ln-op-stripe transition-colors"
-                    >
-                      <Link
-                        href={`/org/${orgToken}/adopciones/${app.application_id}`}
-                        className="block px-4 py-3 space-y-1"
-                      >
-                        <div className="flex items-baseline justify-between gap-2">
-                          <p className="flex items-center gap-2 text-[13px] font-medium text-ln-op-ink">
-                            {app.applicant_name ?? "Postulante"}
-                            {app.info_requested && (
-                              <span className="inline-flex items-center rounded-[2px] border border-ln-op-azul bg-ln-op-celeste-050 px-[6px] py-[1px] text-[9px] font-semibold uppercase tracking-[.08em] text-ln-op-azul">
-                                Info pedida
-                              </span>
-                            )}
-                          </p>
-                          <span className="text-[12px] text-ln-op-mute">
-                            {new Date(app.submitted_at).toLocaleDateString("es-AR")}
-                          </span>
-                        </div>
-                        <p className="text-[12px] text-ln-op-mute">
-                          Vivienda: {housingTypeLabel(app.housing_type)}
-                        </p>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              </OpCardBody>
-            </OpCard>
-          ))}
-        </div>
+      {/* Queue — filter chips + row list (incl. its own empty state) + bulk bar
+          live here. AdoptionQueueList renders the chips and a single dashed
+          empty block for every status, so the page must NOT add a second one. */}
+      <AdoptionQueueList rows={rows} orgToken={orgToken} activeStatus={activeStatus} />
+      {truncated && (
+        <p className="text-sm text-ln-op-mute">
+          Mostrando las primeras 200. Hay más — refiná los filtros para acotar la lista.
+        </p>
       )}
 
       <footer className="pt-4 border-t border-ln-op-line">
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Panel de {organization.displayName}
         </Link>
       </footer>
     </div>
   );
-}
-
-function housingTypeLabel(value: string): string {
-  switch (value) {
-    case "casa_con_patio":
-      return "Casa con patio";
-    case "casa_sin_patio":
-      return "Casa sin patio";
-    case "departamento":
-      return "Departamento";
-    default:
-      return "Otra";
-  }
 }

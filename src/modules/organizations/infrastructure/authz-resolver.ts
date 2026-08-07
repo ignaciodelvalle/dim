@@ -15,7 +15,6 @@
 import { and, eq, isNull } from "drizzle-orm";
 
 import {
-  ORGANIZATION_CAPABILITIES,
   type Organization,
   type OrganizationCapability,
   type OrganizationMembership,
@@ -24,6 +23,7 @@ import {
   organizationMemberships,
   organizations,
 } from "@/db";
+import { getProfileCached } from "@/lib/infra/request-cache";
 import { createClient } from "@/lib/supabase/server";
 import { resolveGrantedCaps } from "@/src/modules/organizations/domain/capabilities";
 
@@ -140,6 +140,25 @@ export async function requireCapability(
     };
   }
 
+  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2). requireCapability is
+  // the org-side mutation guard (member management, capability grants, cross-org
+  // custody transfers, foster/adoption state changes). Like requirePetAccess it
+  // resolves the user from the JWT, which stays valid after erase_subject_data()
+  // soft-deletes the profile — so without this check a self-erased org member
+  // could keep mutating through every requireCapability-gated action. getProfile-
+  // Cached is request-memoized (already selects deletedAt); a server-action call
+  // pays one indexed read — the price of the boundary.
+  const actingProfile = await getProfileCached(user.id);
+  if (actingProfile?.deletedAt != null) {
+    return {
+      user: { id: user.id },
+      membership: null,
+      organization: null,
+      granted: null,
+      error: "Tu cuenta fue eliminada.",
+    };
+  }
+
   const memberships = await getActiveMemberships(user.id);
   const active = organizationId
     ? memberships.find((m) => m.organization.id === organizationId)
@@ -173,4 +192,42 @@ export async function requireCapability(
     granted,
     error: null,
   };
+}
+
+// ---------------------------------------------------------------------------
+// requireCapabilityForOrgToken
+//
+// Confused-deputy guard for org-scoped server actions reached through an
+// /org/{orgToken}/… URL. Resolves the acting organization from the URL
+// publicToken FIRST, then pins the capability check to THAT org.id — never the
+// session-default (most-recently-joined) membership that bare requireCapability
+// falls back to. A member of several orgs acting under /org/{A} is authorized
+// against org A, not whichever org they happened to join last.
+//
+// Returns the same RequireCapabilityResult shape as requireCapability. When the
+// token matches no organization the standard "no access" failure is returned —
+// indistinguishable from "not a member", so org existence is never leaked.
+// ---------------------------------------------------------------------------
+
+export async function requireCapabilityForOrgToken(
+  capability: OrganizationCapability,
+  orgToken: string,
+): Promise<RequireCapabilityResult> {
+  const [org] = await db
+    .select({ id: organizations.id })
+    .from(organizations)
+    .where(eq(organizations.publicToken, orgToken))
+    .limit(1);
+
+  if (!org) {
+    return {
+      user: null,
+      membership: null,
+      organization: null,
+      granted: null,
+      error: "No tenés acceso a esta organización.",
+    };
+  }
+
+  return requireCapability(capability, org.id);
 }

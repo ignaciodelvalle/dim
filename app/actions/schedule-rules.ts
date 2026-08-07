@@ -1,191 +1,45 @@
 "use server";
 
-// Server actions for service_schedule_rules CRUD (Fase 2).
+// schedule-rules.ts — thin shim (strangler 24/61).
 //
-// Authorization model:
-//   - Org-side: requireCapability('service_offering.create') + offering must be
-//     status='approved' before rules can be created/edited. Soft-delete sets
-//     status='archived' (never hard-delete: materialized time_slots may reference).
+// Business logic moved to:
+//   src/modules/service-offerings/application/schedule-rules/
 //
-// Writer/wrapper split mirrors app/actions/service-offerings.ts.
+// This file provides thin Action wrappers (used by UI components) that add
+// the auth guard + revalidatePath. The bare ForOrg writers are NOT exported
+// here (authz triage 2026-07-04): every export of a "use server" file is an
+// independently-addressable server action, so a bare writer taking a
+// caller-supplied actorUserId/orgId would let any client edit another org's
+// schedule. Callers import the writers from
+// src/modules/service-offerings/application/schedule-rules/ directly.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, serviceOfferings, serviceScheduleRules } from "@/db";
-import { CreateScheduleRuleInput, UpdateScheduleRuleInput } from "@/lib/scheduling-schemas";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+import {
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
-// ============================================================================
-// Types
-// ============================================================================
+import { createScheduleRuleForOrg as _createScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/create-schedule-rule";
+import { deleteScheduleRuleForOrg as _deleteScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/delete-schedule-rule";
+import type { ScheduleRuleFormState } from "@/src/modules/service-offerings/application/schedule-rules/types";
+import { updateScheduleRuleForOrg as _updateScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/update-schedule-rule";
 
-export type ScheduleRuleResult = { error: string } | { ok: true };
-export type ScheduleRuleFormState = { error: string | null };
+// ---------------------------------------------------------------------------
+// Type re-exports (erased at runtime — allowed in "use server" files)
+// ---------------------------------------------------------------------------
 
-// ============================================================================
-// Inner writers — testable without auth context
-// ============================================================================
+export type {
+  ScheduleRuleFormState,
+  ScheduleRuleResult,
+} from "@/src/modules/service-offerings/application/schedule-rules/types";
 
-export async function createScheduleRuleForOrg(
-  actorUserId: string,
-  orgId: string,
-  input: {
-    serviceOfferingId: string;
-    daysOfWeek: number[];
-    startTimeLocal: string;
-    endTimeLocal: string;
-    effectiveFrom: string;
-    effectiveUntil: string | null;
-  },
-): Promise<ScheduleRuleResult> {
-  const parsed = CreateScheduleRuleInput.safeParse(input);
-  if (!parsed.success) {
-    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
-  }
-
-  // Verify offering belongs to org and is approved.
-  const [offering] = await db
-    .select({
-      id: serviceOfferings.id,
-      status: serviceOfferings.status,
-      organizationId: serviceOfferings.organizationId,
-    })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.id, parsed.data.serviceOfferingId))
-    .limit(1);
-
-  if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.organizationId !== orgId)
-    return { error: "El servicio no pertenece a tu organización." };
-  if (offering.status !== "approved") {
-    return { error: "Solo se pueden crear reglas de agenda para servicios aprobados." };
-  }
-
-  try {
-    await db.insert(serviceScheduleRules).values({
-      serviceOfferingId: parsed.data.serviceOfferingId,
-      daysOfWeek: parsed.data.daysOfWeek.map((d) => d as unknown as number),
-      startTimeLocal: parsed.data.startTimeLocal,
-      endTimeLocal: parsed.data.endTimeLocal,
-      effectiveFrom: parsed.data.effectiveFrom,
-      effectiveUntil: parsed.data.effectiveUntil ?? null,
-      status: "active",
-    });
-  } catch (err) {
-    return {
-      error: `No se pudo crear la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
-export async function updateScheduleRuleForOrg(
-  actorUserId: string,
-  ruleId: string,
-  orgId: string,
-  input: {
-    daysOfWeek?: number[];
-    startTimeLocal?: string;
-    endTimeLocal?: string;
-    effectiveFrom?: string;
-    effectiveUntil?: string | null;
-  },
-): Promise<ScheduleRuleResult> {
-  const parsed = UpdateScheduleRuleInput.safeParse(input);
-  if (!parsed.success) {
-    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
-  }
-
-  // Verify ownership via offering.
-  const [rule] = await db
-    .select({
-      id: serviceScheduleRules.id,
-      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
-    })
-    .from(serviceScheduleRules)
-    .where(eq(serviceScheduleRules.id, ruleId))
-    .limit(1);
-
-  if (!rule) return { error: "Regla no encontrada." };
-
-  const [offering] = await db
-    .select({ organizationId: serviceOfferings.organizationId })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.id, rule.serviceOfferingId))
-    .limit(1);
-
-  if (!offering || offering.organizationId !== orgId) {
-    return { error: "No tenés permiso para editar esta regla." };
-  }
-
-  const updates: Partial<typeof serviceScheduleRules.$inferInsert> = {};
-  if (parsed.data.daysOfWeek !== undefined) {
-    updates.daysOfWeek = parsed.data.daysOfWeek.map((d) => d as unknown as number);
-  }
-  if (parsed.data.startTimeLocal !== undefined) updates.startTimeLocal = parsed.data.startTimeLocal;
-  if (parsed.data.endTimeLocal !== undefined) updates.endTimeLocal = parsed.data.endTimeLocal;
-  if (parsed.data.effectiveFrom !== undefined) updates.effectiveFrom = parsed.data.effectiveFrom;
-  if ("effectiveUntil" in parsed.data) updates.effectiveUntil = parsed.data.effectiveUntil ?? null;
-  updates.updatedAt = new Date();
-
-  try {
-    await db.update(serviceScheduleRules).set(updates).where(eq(serviceScheduleRules.id, ruleId));
-  } catch (err) {
-    return {
-      error: `No se pudo actualizar la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
-// Soft-delete: sets status='archived'. Hard delete is forbidden because
-// materialized time_slots carry a nullable FK back to the rule via rule_id.
-export async function deleteScheduleRuleForOrg(
-  actorUserId: string,
-  ruleId: string,
-  orgId: string,
-): Promise<ScheduleRuleResult> {
-  const [rule] = await db
-    .select({
-      id: serviceScheduleRules.id,
-      serviceOfferingId: serviceScheduleRules.serviceOfferingId,
-    })
-    .from(serviceScheduleRules)
-    .where(eq(serviceScheduleRules.id, ruleId))
-    .limit(1);
-
-  if (!rule) return { error: "Regla no encontrada." };
-
-  const [offering] = await db
-    .select({ organizationId: serviceOfferings.organizationId })
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.id, rule.serviceOfferingId))
-    .limit(1);
-
-  if (!offering || offering.organizationId !== orgId) {
-    return { error: "No tenés permiso para eliminar esta regla." };
-  }
-
-  try {
-    await db
-      .update(serviceScheduleRules)
-      .set({ status: "archived", updatedAt: new Date() })
-      .where(eq(serviceScheduleRules.id, ruleId));
-  } catch (err) {
-    return {
-      error: `No se pudo eliminar la regla: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
-// ============================================================================
+// ---------------------------------------------------------------------------
 // Form-shaped wrappers — gate auth + capability, delegate to inner writers
-// ============================================================================
+// ---------------------------------------------------------------------------
 
 // ── Org-side wrappers ────────────────────────────────────────────────────────
 
@@ -208,7 +62,7 @@ export async function createScheduleRuleAction(
   const effectiveUntilRaw = String(formData.get("effectiveUntil") ?? "").trim();
   const effectiveUntil = effectiveUntilRaw || null;
 
-  const result = await createScheduleRuleForOrg(user.id, organization.id, {
+  const result = await _createScheduleRuleForOrg(user.id, organization.id, {
     serviceOfferingId,
     daysOfWeek: daysRaw.filter((d) => !Number.isNaN(d)),
     startTimeLocal,
@@ -249,7 +103,7 @@ export async function updateScheduleRuleAction(
   const effectiveUntil =
     effectiveUntilRaw !== null ? String(effectiveUntilRaw).trim() || null : undefined;
 
-  const result = await updateScheduleRuleForOrg(user.id, ruleId, organization.id, {
+  const result = await _updateScheduleRuleForOrg(user.id, ruleId, organization.id, {
     daysOfWeek: daysRaw.length > 0 ? daysRaw.filter((d) => !Number.isNaN(d)) : undefined,
     startTimeLocal,
     endTimeLocal,
@@ -273,14 +127,15 @@ export async function deleteScheduleRuleAction(
   orgToken: string,
   offeringToken: string,
 ): Promise<{ error: string | null }> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard): resolve the acting org
+  // FROM the URL orgToken rather than the session-default (most-recently-joined)
+  // membership, so a multi-org member deleting from /org/{orgToken}/… is
+  // authorized against that org. The delete stays scoped to organization.id.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const user = auth.user!;
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
+  const { user, organization } = auth;
 
-  const result = await deleteScheduleRuleForOrg(user.id, ruleId, organization.id);
+  const result = await _deleteScheduleRuleForOrg(user.id, ruleId, organization.id);
   if ("error" in result) return { error: result.error };
 
   revalidatePath(`/org/${orgToken}/servicios/${offeringToken}/agenda`);

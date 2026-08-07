@@ -17,6 +17,7 @@ import { type UpgradeFormState, createClinicAction } from "@/app/actions/upgrade
 import { LocationFields } from "@/components/LocationFields";
 import { LnInput } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 
 const initialState: UpgradeFormState = { error: null };
 
@@ -25,21 +26,22 @@ const STEP_LABELS = ["Datos legales", "Contacto", "Ubicación"];
 
 export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
   const [state, formAction, pending] = useActionState(createClinicAction, initialState);
+  useActionRedirect(state.redirectTo, state);
   const [step, setStep] = useState(1);
   const formRef = useRef<HTMLFormElement>(null);
 
   if (state.missingPrereq === "dni" && state.prereqUrl) {
     return (
-      <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
+      <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-4 space-y-2">
         <p className="text-sm font-medium text-[var(--color-ln-warn)]">
           Antes de crear tu consultorio, declará tu DNI.
         </p>
         <p className="text-xs text-[var(--color-ln-warn)]">
-          MiMAR requiere que declares tu DNI antes de crear una organización.
+          miMAR requiere que declares tu DNI antes de crear una organización.
         </p>
         <a
           href={state.prereqUrl}
-          className="inline-block mt-1 px-4 py-2 rounded-[3px] bg-[var(--color-ln-warn)] hover:opacity-90 text-white text-sm font-medium transition-colors"
+          className="inline-block mt-1 px-4 py-2 rounded-[var(--radius-pill)] bg-[var(--color-ln-warn)] hover:opacity-90 text-white text-sm font-medium transition-colors"
         >
           Declarar DNI →
         </a>
@@ -56,7 +58,11 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
         onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
       >
         {/* Step 1 — Legales */}
-        <section className={step === 1 ? "space-y-4" : "sr-only"} aria-hidden={step !== 1}>
+        <section
+          className={step === 1 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 1}
+          inert={step !== 1 ? true : undefined}
+        >
           <Field
             id="name"
             name="name"
@@ -85,14 +91,18 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(2)}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Continuar
           </button>
         </section>
 
         {/* Step 2 — Contacto */}
-        <section className={step === 2 ? "space-y-4" : "sr-only"} aria-hidden={step !== 2}>
+        <section
+          className={step === 2 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 2}
+          inert={step !== 2 ? true : undefined}
+        >
           <Field
             id="email"
             name="email"
@@ -104,14 +114,18 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="button"
             onClick={() => setStep(3)}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
           >
             Continuar
           </button>
         </section>
 
         {/* Step 3 — Ubicación L1 */}
-        <section className={step === 3 ? "space-y-4" : "sr-only"} aria-hidden={step !== 3}>
+        <section
+          className={step === 3 ? "space-y-4" : "sr-only"}
+          aria-hidden={step !== 3}
+          inert={step !== 3 ? true : undefined}
+        >
           <div className="space-y-1">
             <p className="block text-sm font-medium text-[var(--color-ln-ink)]">
               Jurisdicción donde ejercés
@@ -119,7 +133,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
             <p className="text-xs text-[var(--color-ln-mute)] mb-2">
               Para enrutar la verificación al govt correspondiente.
             </p>
-            <LocationFields mode="l1" />
+            <LocationFields mode="l1" cascade />
           </div>
 
           {state.error && (
@@ -131,7 +145,7 @@ export function CrearConsultorioForm({ defaultName }: { defaultName: string }) {
           <button
             type="submit"
             disabled={pending}
-            className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             {pending ? "Creando consultorio..." : "Crear consultorio"}
           </button>

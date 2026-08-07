@@ -1,8 +1,11 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 
 import { proposeVetUpgradeAction } from "@/app/actions/admin-proposals";
+import { OpButton, OpInput, OpTextarea } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Target = { id: string; displayName: string; role: "owner" | "vet" | "govt" | "admin" };
 
@@ -11,9 +14,14 @@ type Mode = "idle" | "vet";
 export function ProposeUserActions({
   target,
   actorRole: _actorRole,
+  manageHref = null,
 }: {
   target: Target;
   actorRole: "admin" | "govt";
+  /** Detail page where this account is actually managed (govt/admin rows,
+   *  admin portal only). When present it replaces the dead "sin acciones"
+   *  notice with a link to the page that carries the real controls. */
+  manageHref?: string | null;
 }) {
   const [mode, setMode] = useState<Mode>("idle");
 
@@ -24,8 +32,18 @@ export function ProposeUserActions({
   }
 
   if (!canProposeVet) {
+    if (manageHref) {
+      return (
+        <Link
+          href={manageHref}
+          className="text-sm font-medium text-ln-op-azul no-underline hover:underline underline-offset-4"
+        >
+          Gestionar cuenta {"→"}
+        </Link>
+      );
+    }
     return (
-      <p className="text-[12px] text-ln-op-mute">
+      <p className="text-sm text-ln-op-mute">
         Sin acciones disponibles desde tu rol para este usuario.
       </p>
     );
@@ -33,30 +51,12 @@ export function ProposeUserActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {canProposeVet && <ActionButton onClick={() => setMode("vet")}>Proponer vet</ActionButton>}
+      {canProposeVet && (
+        <OpButton type="button" onClick={() => setMode("vet")} variant="primary" size="sm">
+          Proponer vet
+        </OpButton>
+      )}
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  tone = "default",
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  tone?: "default" | "danger";
-}) {
-  const base =
-    "text-[12px] px-3 py-1.5 rounded-[6px] transition-opacity hover:opacity-90 disabled:opacity-50";
-  const variant =
-    tone === "danger"
-      ? "border border-ln-op-warn text-ln-op-warn"
-      : "border border-ln-op-line text-ln-op-ink-2";
-  return (
-    <button type="button" onClick={onClick} className={`${base} ${variant}`}>
-      {children}
-    </button>
   );
 }
 
@@ -75,7 +75,7 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
 
   if (submitted) {
     return (
-      <p className="text-[12px] text-ln-op-ok">
+      <p className="text-sm text-ln-op-ok">
         Solicitud creada. {target.displayName} fue notificado.
       </p>
     );
@@ -93,14 +93,18 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
         especialidad: form.especialidad || null,
         anosExperiencia: form.anosExperiencia ? Number(form.anosExperiencia) : null,
       });
-      if ("error" in result) setError(result.error);
-      else setSubmitted(true);
+      if ("error" in result) {
+        setError(result.error);
+      } else {
+        setSubmitted(true);
+        notifySaved("Solicitud creada");
+      }
     });
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line p-3 space-y-2">
-      <p className="text-[10px] uppercase tracking-wider text-ln-op-mute">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line p-3 space-y-2">
+      <p className="text-xs uppercase tracking-wider text-ln-op-mute">
         Proponer rol vet para {target.displayName}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -136,23 +140,14 @@ function VetProposeForm({ target, onDone }: { target: Target; onDone: () => void
           inputMode="numeric"
         />
       </div>
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={pending}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-azul text-white hover:bg-ln-op-azul-700 transition-colors disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={pending} variant="primary" size="sm">
           {pending ? "Creando..." : "Crear solicitud"}
-        </button>
-        <button
-          type="button"
-          onClick={onDone}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
-        >
+        </OpButton>
+        <OpButton type="button" onClick={onDone} variant="ghost" size="sm">
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );
@@ -172,16 +167,16 @@ function Field({
   const id = useId();
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
+      <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
-      <input
+      <OpInput
         id={id}
         type="text"
         inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        size="xs"
       />
     </div>
   );
@@ -201,15 +196,15 @@ function Textarea({
   const id = useId();
   return (
     <div className="space-y-1">
-      <label htmlFor={id} className="block text-[10px] uppercase tracking-wider text-ln-op-mute">
+      <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
-      <textarea
+      <OpTextarea
         id={id}
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-[12px] rounded-[6px] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        size="xs"
       />
     </div>
   );

@@ -30,7 +30,7 @@ import {
   type PetEventMetadata,
   type PetProfileV2Events,
   fetchPetEventsForProfileV2,
-} from "@/lib/owner-dashboard";
+} from "@/lib/analytics/owner-dashboard";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -126,6 +126,10 @@ describe("PROFILE_V2_TYPED_EVENT_TYPES constant", () => {
 
   it("includes clinical_info_logged (covers pregnancy sub_kind for A4 achievement)", () => {
     expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("clinical_info_logged");
+  });
+
+  it("includes dangerous_breed_attested (pet-document-redesign REQ-10.1 — PPP attestation fix)", () => {
+    expect(PROFILE_V2_TYPED_EVENT_TYPES).toContain("dangerous_breed_attested");
   });
 });
 

@@ -33,9 +33,11 @@ import {
   reverseGeocodeAction,
   reverseGeocodePublicAction,
 } from "@/app/actions/geocoding";
+import { searchLocalitiesPublicAction } from "@/app/actions/localities";
+import { Icon } from "@/components/Icon";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { LnInput } from "@/components/ui/Field";
-import { type Province, provinceByName } from "@/lib/ar-provincias";
+import { LnInput, LnSelect } from "@/components/ui/Field";
+import { PROVINCES, type Province, provinceByName } from "@/lib/reference/ar-provincias";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState } from "react";
 
@@ -63,6 +65,21 @@ export type LocationFieldsValue = {
   description?: string | null;
 };
 
+/** Structured value emitted by the optional `onChange` callback — the same data
+ * the L2 hidden inputs carry, so a parent can LIFT this component's state
+ * instead of reading the uncontrolled inputs via FormData at submit time.
+ * Reflects the L2-derived jurisdiction/point/address; L1's locality pick is
+ * owned by LocalityPickerAcross's own hidden inputs and is not mirrored here. */
+export type LocationFieldsChange = {
+  provinceCode: string | null;
+  provinceName: string | null;
+  localityName: string | null;
+  lat: number | null;
+  lng: number | null;
+  address: string | null;
+  source: "gps" | "pin_manual" | "geocodificada" | null;
+};
+
 const FORWARD_DEBOUNCE_MS = 600;
 const MIN_QUERY_LENGTH = 3;
 
@@ -75,11 +92,34 @@ export function LocationFields({
   useMyLocationVariant = "secondary",
   allowAnonymous = false,
   onLocationPresenceChange,
+  onPointPresenceChange,
+  onChange,
+  required = false,
+  l1Label = "Localidad",
+  cascade = false,
+  defaultCenter = null,
 }: {
   mode: LocationMode;
   defaultValue?: LocationFieldsValue;
   biasProvince?: string | null;
   biasLocality?: string | null;
+  /** Renders the red-seal `*` on the L1 "Localidad" label, matching the
+   * LnField required marker used by sibling fields (QA round 2 2026-07-03 #7:
+   * the helper said "Requerido" but the label carried no asterisk). For L1 it is
+   * also forwarded to the locality autocomplete, adding native `required` +
+   * `aria-required` on the text input so an empty submit is blocked client-side. */
+  required?: boolean;
+  /** Overrides the L1 field label. Defaults to "Localidad". Lets a caller name
+   * the field in context (e.g. "Localidad donde ejercés") WITHOUT rendering a
+   * second, redundant label above the picker (#43 item 4). */
+  l1Label?: string;
+  /** L1 only. When true, renders a province-first cascade: a Provincia <select>
+   * gates the locality autocomplete, which stays disabled until a province is
+   * picked and then searches scoped to that province_code. Changing the province
+   * clears the locality selection. Mirrors the JurisdictionFilter pattern.
+   * Reusable capability — wired ON for the pet alta forms; other L1 surfaces
+   * keep the single cross-province input (cascade=false). No effect on L2. */
+  cascade?: boolean;
   // Override the wire-format name for the L2 address / lat / lng hidden
   // inputs. Retained for flexibility; no current consumer overrides these
   // (the lastKnownLocation alias was retired by critique §5).
@@ -94,8 +134,30 @@ export function LocationFields({
   // any of jurisdiction / address / map point is set). Lets a parent warn on
   // empty location without coupling to the uncontrolled hidden inputs (UI-7 B6).
   onLocationPresenceChange?: (hasLocation: boolean) => void;
+  // Optional (L2): notified whenever an EXACT map point is set/cleared. Narrower
+  // than onLocationPresenceChange (which also fires for a typed address alone) —
+  // the denuncia wizard gates advancing on a marked point specifically, so the
+  // canonical locality can be inferred from it (QA 2026-07-10, FIX #3A).
+  onPointPresenceChange?: (hasPoint: boolean) => void;
+  // Optional (L2): emits the full structured value whenever the derived
+  // jurisdiction / point / address changes. Lets a parent LIFT this state and
+  // stop reading the uncontrolled hidden inputs at submit time (DenunciaWizard
+  // M-followup). Additive + opt-in — consumers that omit it are unaffected and
+  // keep relying on the hidden-input wire format.
+  onChange?: (value: LocationFieldsChange) => void;
+  // Optional (L2): initial center for the EMPTY map — no marker, no hidden
+  // input value. The public sighting form passes the pet's DISCLOSED
+  // last-known lost location here (privacy-gated server-side).
+  defaultCenter?: { lat: number; lng: number } | null;
 }) {
   const isL2 = mode === "l2";
+
+  // Province-first cascade (L1 + cascade only). Drives the locality search
+  // scope and gates the picker. Seeded from defaultValue for a future edit
+  // adoption; null in the create alta so the picker starts disabled.
+  const [cascadeProvinceCode, setCascadeProvinceCode] = useState<string | null>(
+    defaultValue?.provinceCode ?? null,
+  );
 
   // Map point (L2 only). Pre-filled when defaultValue has lat/lng.
   const [point, setPoint] = useState<{ lat: number; lng: number } | null>(
@@ -105,6 +167,14 @@ export function LocationFields({
   );
   const [geoError, setGeoError] = useState<string | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
+  // panorama-event-points Slice 1: how the CURRENT coordinate was captured, so
+  // consumers (the sighting writer) can record a precision hint. Set on each
+  // coordinate origin: device geolocation → 'gps', a map gesture → 'pin_manual',
+  // a typed-address geocode → 'geocodificada'. Emitted as a hidden `locationSource`
+  // field; forms that don't read it simply ignore the extra field.
+  const [locationSource, setLocationSource] = useState<
+    "gps" | "pin_manual" | "geocodificada" | null
+  >(null);
 
   // Picked jurisdiction (L2 only) — driven by Nominatim result selection or
   // map-drag reverse geocoding. The hidden inputs read from here. Defaults
@@ -131,6 +201,11 @@ export function LocationFields({
   const [geocodeLoading, setGeocodeLoading] = useState<"none" | "forward" | "reverse">("none");
   const [geocodeResults, setGeocodeResults] = useState<GeocodeResult[]>([]);
   const [geocodeMessage, setGeocodeMessage] = useState<"empty" | "failed" | null>(null);
+  // Label of the auto-picked forward-geocode match. The single-result path
+  // used to be SILENT: the pin jumped but nothing said WHAT was matched
+  // (Cowork QA parte A, 2026-08-06 — the wizard "geocodifica sin feedback").
+  // pickResult/reverse repopulate the input itself, so only auto-pick needs it.
+  const [geocodeFoundLabel, setGeocodeFoundLabel] = useState<string | null>(null);
   // Suppress forward effect when address text was filled by a result pick
   // or by reverse geocoding (prevents infinite loops).
   const skipNextForward = useRef(false);
@@ -150,6 +225,7 @@ export function LocationFields({
     if (trimmed.length < MIN_QUERY_LENGTH) {
       setGeocodeResults([]);
       setGeocodeMessage(null);
+      setGeocodeFoundLabel(null);
       return;
     }
 
@@ -157,6 +233,7 @@ export function LocationFields({
     const timer = setTimeout(async () => {
       setGeocodeLoading("forward");
       setGeocodeMessage(null);
+      setGeocodeFoundLabel(null);
       try {
         const results = await forwardAction(trimmed, {
           province: biasProvince,
@@ -170,7 +247,9 @@ export function LocationFields({
           // LocationPicker only fires onChange on user gestures, so this
           // doesn't loop back into handlePointChange.
           setPoint({ lat: results[0].lat, lng: results[0].lng });
+          setLocationSource("geocodificada");
           applyJurisdictionFromResult(results[0]);
+          setGeocodeFoundLabel(results[0].display_name);
           // Show alternates so the user can correct the top guess.
           setGeocodeResults(results.length > 1 ? results : []);
         }
@@ -197,9 +276,39 @@ export function LocationFields({
     onLocationPresenceChange(hasLocation);
   }, [pickedProvince, pickedLocality, addressText, point]);
 
+  // Notify the parent whenever the EXACT map point presence changes (FIX #3A).
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onPointPresenceChange is a stable callback from the parent; including it would loop on inline closures.
+  useEffect(() => {
+    if (!onPointPresenceChange) return;
+    onPointPresenceChange(point != null);
+  }, [point]);
+
+  // Emit the full structured value whenever the L2-derived state changes, so a
+  // parent can lift it (DenunciaWizard M-followup). Opt-in — no-op unless a
+  // consumer passes onChange.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onChange is a stable parent callback; including it would loop on inline closures.
+  useEffect(() => {
+    if (!onChange) return;
+    onChange({
+      provinceCode: pickedProvince?.code ?? null,
+      provinceName: pickedProvince?.name ?? null,
+      localityName: pickedLocality,
+      lat: point?.lat ?? null,
+      lng: point?.lng ?? null,
+      address: isL2 ? addressText.trim() || null : null,
+      source: point ? locationSource : null,
+    });
+  }, [pickedProvince, pickedLocality, point, addressText, locationSource, isL2]);
+
   // Reverse geocoding (coords → address + jurisdiction). Fires on map gesture.
-  async function handlePointChange(newPoint: { lat: number; lng: number }) {
+  // `source` records the coordinate origin (default 'pin_manual' — a map click/
+  // drag; handleUseMyLocation passes 'gps').
+  async function handlePointChange(
+    newPoint: { lat: number; lng: number },
+    source: "gps" | "pin_manual" = "pin_manual",
+  ) {
     setPoint(newPoint);
+    setLocationSource(source);
     if (!isL2) return;
     setGeocodeLoading("reverse");
     setGeocodeMessage(null);
@@ -211,6 +320,7 @@ export function LocationFields({
         setAddressText(r.display_name);
         applyJurisdictionFromResult(r);
         setGeocodeResults([]);
+        setGeocodeFoundLabel(null);
       } else {
         setGeocodeMessage("empty");
       }
@@ -237,9 +347,13 @@ export function LocationFields({
     skipNextForward.current = true;
     setAddressText(result.display_name);
     setPoint({ lat: result.lat, lng: result.lng });
+    setLocationSource("geocodificada");
     applyJurisdictionFromResult(result);
     setGeocodeResults([]);
     setGeocodeMessage(null);
+    // The input now carries the picked label — the confirmation line would
+    // just repeat it.
+    setGeocodeFoundLabel(null);
   }
 
   function handleUseMyLocation() {
@@ -251,8 +365,9 @@ export function LocationFields({
     setGeoLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        // Treat as a pin move so we reverse-geocode and fill the address.
-        handlePointChange({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        // Treat as a pin move so we reverse-geocode and fill the address, but
+        // record the true origin: device GPS.
+        handlePointChange({ lat: pos.coords.latitude, lng: pos.coords.longitude }, "gps");
         setGeoLoading(false);
       },
       (err) => {
@@ -279,24 +394,106 @@ export function LocationFields({
           aria-label="Usar mi ubicación actual"
           className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-ln-azul text-white font-semibold text-sm hover:opacity-90 disabled:opacity-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-azul focus-visible:ring-offset-2 transition-colors"
         >
-          <span aria-hidden="true">📍</span>
+          <Icon name="ubicacion" size="sm" decorative />
           {geoLoading ? "Obteniendo ubicación…" : "Usar mi ubicación actual"}
         </button>
       )}
 
-      {/* L1 — cross-province locality autocomplete, single input. */}
-      {!isL2 && (
+      {/* L1 (single input) — cross-province locality autocomplete. Province is
+          derived from the chosen locality. */}
+      {!isL2 && !cascade && (
         <div className="space-y-1.5">
-          <label htmlFor="localityName" className="block text-sm font-medium text-ln-ink">
-            Localidad
+          <label htmlFor="localityName-input" className="block text-sm font-medium text-ln-ink">
+            {l1Label}
+            {required && (
+              <span className="ml-1 text-[var(--color-ln-seal)]" aria-hidden="true">
+                *
+              </span>
+            )}
           </label>
           <LocalityPickerAcross
             id="localityName"
+            required={required}
             defaultValue={{
               provinceCode: defaultValue?.provinceCode ?? null,
               localityName: defaultValue?.localityName ?? null,
             }}
+            // On anonymous surfaces (signup, before a session exists) the default
+            // auth-gated search action redirects to /login the moment the user
+            // types — the picker silently shows "Sin resultados". Route through the
+            // no-auth public action there; authed L1 surfaces keep the default.
+            searchAction={allowAnonymous ? searchLocalitiesPublicAction : undefined}
           />
+        </div>
+      )}
+
+      {/* L1 (cascade) — Provincia <select> gates a province-scoped locality
+          autocomplete. Someone typing "Palermo" no longer sees the CABA barrio
+          AND an unrelated locality elsewhere: they pick the province first, then
+          the search is scoped to it. Wire contract is UNCHANGED — the picker
+          still emits provinceCode / provinceName / localityName /
+          localityNameIndecId, and it only emits a provinceCode when a real
+          ar_localities row is picked (never from the raw <select>), so a
+          free-typed locality still fails the LOCALITY_UNRESOLVED guard. */}
+      {!isL2 && cascade && (
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="cascade-province" className="block text-sm font-medium text-ln-ink">
+              Provincia
+              {required && (
+                <span className="ml-1 text-[var(--color-ln-seal)]" aria-hidden="true">
+                  *
+                </span>
+              )}
+            </label>
+            <LnSelect
+              id="cascade-province"
+              value={cascadeProvinceCode ?? ""}
+              onChange={(e) => setCascadeProvinceCode(e.target.value || null)}
+              required={required}
+              aria-required={required || undefined}
+            >
+              <option value="" disabled>
+                Elegí la provincia
+              </option>
+              {PROVINCES.map((p) => (
+                <option key={p.code} value={p.code}>
+                  {p.name}
+                </option>
+              ))}
+            </LnSelect>
+          </div>
+
+          <div className="space-y-1.5">
+            <label htmlFor="localityName-input" className="block text-sm font-medium text-ln-ink">
+              {l1Label === "Localidad" ? "Localidad o barrio" : l1Label}
+              {required && (
+                <span className="ml-1 text-[var(--color-ln-seal)]" aria-hidden="true">
+                  *
+                </span>
+              )}
+            </label>
+            <LocalityPickerAcross
+              // Remount on province change so the query + picked locality reset —
+              // a Palermo/CABA pick never survives a switch to Buenos Aires.
+              key={cascadeProvinceCode ?? "none"}
+              id="localityName"
+              required={required}
+              scopeProvinceCode={cascadeProvinceCode}
+              disabled={!cascadeProvinceCode}
+              defaultValue={{
+                // Only carry a province from a genuinely resolved prior pick
+                // (edit adoption). In the create alta this is null, so a
+                // free-typed locality carries no province and stays UNRESOLVED.
+                provinceCode: defaultValue?.provinceCode ?? null,
+                localityName: defaultValue?.localityName ?? null,
+              }}
+              placeholder={
+                cascadeProvinceCode ? "Buscá tu localidad o barrio" : "Elegí primero la provincia"
+              }
+              searchAction={allowAnonymous ? searchLocalitiesPublicAction : undefined}
+            />
+          </div>
         </div>
       )}
 
@@ -344,6 +541,11 @@ export function LocationFields({
                 ))}
               </ul>
             )}
+            {geocodeFoundLabel && geocodeMessage === null && (
+              <output className="block text-xs text-ln-ok">
+                Encontramos: {geocodeFoundLabel}. Ajustá el pin si no es el punto exacto.
+              </output>
+            )}
             {geocodeMessage === "empty" && (
               <p className="text-xs text-ln-mute ">
                 No encontramos esa dirección. Podés moverte por el mapa para ajustarla.
@@ -374,7 +576,11 @@ export function LocationFields({
               Tocá el mapa para marcar el punto, arrastrá el pin para ajustarlo, o usá el botón si
               estás en el lugar.
             </p>
-            <LocationPicker value={point} onChange={handlePointChange} />
+            <LocationPicker
+              value={point}
+              onChange={handlePointChange}
+              defaultCenter={defaultCenter}
+            />
             {geoError && (
               <p className="text-xs text-ln-warn " role="alert">
                 {geoError}
@@ -395,6 +601,13 @@ export function LocationFields({
           <input type="hidden" name="localityNameIndecId" value="" />
           <input type="hidden" name={latInputName} value={point ? String(point.lat) : ""} />
           <input type="hidden" name={lngInputName} value={point ? String(point.lng) : ""} />
+          {/* panorama-event-points Slice 1: coordinate-capture origin. Only
+              emitted alongside a real point; consumers that don't read it ignore it. */}
+          <input
+            type="hidden"
+            name="locationSource"
+            value={point && locationSource ? locationSource : ""}
+          />
         </>
       )}
     </div>

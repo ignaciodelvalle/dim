@@ -1,25 +1,38 @@
-// Cuenta hub — Libreta Nacional redesign.
+// Cuenta hub — Item 14.1 reorder.
 //
-// Layout: serif page title → identity card (avatar + name + email + role badges)
-//   → verifications section → privacy section → quick-actions list (LnRegRow style)
-//   → vet clinic banner → sheet mounter.
+// Layout: serif page title → identity card → verifications → grouped action
+//   sections (Tu información / Rol y organizaciones / Privacidad y datos /
+//   Zona de riesgo) → logout → footer → sheet mounter.
 //
-// Data fetching, server actions, and CuentaSheetMounter are unchanged.
+// Changes from previous flat "01 Acciones" list:
+//   - Replaced single group with four named LnSectionHead groups.
+//   - Dropped Notificaciones + Mis denuncias (already in OWNER_NAV — no duplicates).
+//   - Added Zona de riesgo section visually separated (error border/bg) with
+//     DeactivateAccountDialog (ConfirmDialog + motivo, ≥ 5 chars).
+//   - Role/foster items appear per capabilities (owner, vet).
 
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { logoutAction } from "@/app/actions/auth";
 import { db, organizationMemberships, profiles } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { createAdminClient } from "@/lib/supabase/admin";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
+import {
+  countActiveFosterOwnerships,
+  countPendingFosterProposals,
+} from "@/lib/analytics/owner-dashboard";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { shouldShowTagSurfaces } from "@/lib/infra/tag-surfaces-visibility";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 
+import { Icon } from "@/components/Icon";
+import { LnBadge } from "@/components/ui/Badge";
 import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
 import { LnSectionHead } from "@/components/ui/DocElements";
 
 import { CuentaSheetMounter } from "./CuentaSheetMounter";
-import { PrivacySection } from "./_components/PrivacySection";
+import { DeactivateAccountDialog } from "./_components/DeactivateAccountDialog";
+import { PushNotificationsCard } from "./_components/PushNotificationsCard";
 
 // Role display labels
 const ROLE_LABELS: Record<string, string> = {
@@ -34,27 +47,37 @@ const ACCOUNT_TYPE_LABELS: Record<string, string> = {
   institutional: "Institucional",
 };
 
-export default async function CuentaPage() {
-  const { user } = await requireUserOrRedirect();
+// Deadline for the cuenta data load before it degrades to an honest error card
+// instead of an unbounded "Cargando…" spin (task #50: /cuenta hang). A hung DB
+// query no longer strands the user on the loading skeleton forever.
+const CUENTA_LOAD_TIMEOUT_MS = 8_000;
 
-  // Profile DB read and admin auth email lookup are independent — run in parallel.
-  const adminClient = createAdminClient();
-  const [[profile], emailResult] = await Promise.all([
+/**
+ * Load every row the cuenta hub needs. Profile read and pet count run in
+ * parallel; the vet-clinic membership probe only runs for verified vets.
+ *
+ * Email comes from the session (`user.email`) — NOT a service-role
+ * `auth.admin.getUserById` call. That admin lookup was an unbounded network
+ * round-trip with no timeout: when the Supabase Auth admin API stalled, the
+ * enclosing `Promise.all` never settled and the page hung on the loading
+ * skeleton (task #50). `requireUserOrRedirect()` already carries the email for
+ * exactly this display-only use, so the round-trip was redundant as well as
+ * fragile (and it violated admin.ts's "only import from admin-institutional").
+ */
+async function loadCuentaData(userId: string) {
+  const [rows, pendingProposals, activeFosters, showChapas] = await Promise.all([
     db
       .select({
         role: profiles.role,
         displayName: profiles.displayName,
         avatarUrl: profiles.avatarUrl,
         accountType: profiles.accountType,
-        dniNumber: profiles.dniNumber,
+        // Wave 5 Item 25a: no plaintext DNI. Display uses dniLast4 only.
+        dniLast4: profiles.dniLast4,
         dniVerified: profiles.dniVerified,
         matriculaNumber: profiles.matriculaNumber,
         matriculaJurisdiccion: profiles.matriculaJurisdiccion,
         matriculaVerified: profiles.matriculaVerified,
-        discloseNameCredential: profiles.discloseNameCredential,
-        disclosePhoneCredential: profiles.disclosePhoneCredential,
-        allowOrgContact: profiles.allowOrgContact,
-        allowLostAlertsInZone: profiles.allowLostAlertsInZone,
         preferredVetName: profiles.preferredVetName,
         preferredVetPhone: profiles.preferredVetPhone,
         emergencyContactName: profiles.emergencyContactName,
@@ -62,11 +85,20 @@ export default async function CuentaPage() {
         phone: profiles.phone,
       })
       .from(profiles)
-      .where(eq(profiles.id, user.id))
+      .where(eq(profiles.id, userId))
       .limit(1),
-    adminClient.auth.admin.getUserById(user.id).catch(() => ({ data: null })),
+    // Foster badges (owner-ia-redesign P1 item 5) — the /cuenta/transitos hub
+    // page that used to fetch these was removed; its 4 links folded into the
+    // "Rol y organizaciones" group below, badges included.
+    countPendingFosterProposals(userId).catch(() => 0),
+    countActiveFosterOwnerships(userId).catch(() => 0),
+    // Discovery-only jurisdiction gating (physical-tag design D6): the entry
+    // hides when engraved_plate is disabled everywhere the user has pets AND
+    // they hold no tags yet. /cuenta/chapas itself stays reachable by URL.
+    shouldShowTagSurfaces(userId).catch(() => false),
   ]);
-  const email = emailResult.data?.user?.email ?? "";
+
+  const profile = rows[0];
 
   let vetNeedsClinic = false;
   if (profile?.role === "vet" && profile.matriculaVerified) {
@@ -75,7 +107,7 @@ export default async function CuentaPage() {
       .from(organizationMemberships)
       .where(
         and(
-          eq(organizationMemberships.userId, user.id),
+          eq(organizationMemberships.userId, userId),
           inArray(organizationMemberships.role, ["admin", "coordinator"]),
           isNull(organizationMemberships.leftAt),
         ),
@@ -84,10 +116,49 @@ export default async function CuentaPage() {
     vetNeedsClinic = !adminRow;
   }
 
+  return { profile, vetNeedsClinic, pendingProposals, activeFosters, showChapas };
+}
+
+export default async function CuentaPage() {
+  const { user } = await requireUserOrRedirect();
+
+  // email is display-only (identity card) — taken straight from the session.
+  const email = user.email ?? "";
+
+  // Bound the whole load: a slow/hung query degrades to an error card with a
+  // retry, never an unbounded spin on the loading skeleton (task #50).
+  const load = await loadWithTimeout(loadCuentaData(user.id), CUENTA_LOAD_TIMEOUT_MS);
+
+  if (!load.ok) {
+    return (
+      <div className="mx-auto max-w-4xl px-8 py-7">
+        <LnCard>
+          <LnCardHead title="No pudimos cargar tu cuenta" />
+          <LnCardBody>
+            <p className="text-md text-[var(--color-ln-ink-2)]">
+              {load.reason === "timeout"
+                ? "La carga está tardando más de lo esperado."
+                : "Hubo un problema al cargar tus datos."}{" "}
+              Volvé a intentar.
+            </p>
+            <Link
+              href="/cuenta"
+              className="mt-4 inline-flex items-center justify-center rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] text-md font-semibold text-[var(--color-ln-ink)] no-underline transition-colors hover:bg-[var(--color-ln-stripe)]"
+            >
+              Reintentar
+            </Link>
+          </LnCardBody>
+        </LnCard>
+      </div>
+    );
+  }
+
+  const { profile, vetNeedsClinic, pendingProposals, activeFosters, showChapas } = load.value;
+
   if (!profile) {
     return (
-      <div className="mx-auto max-w-4xl px-[32px] py-[28px]">
-        <p className="text-[13px] text-[var(--color-ln-err)]">
+      <div className="mx-auto max-w-4xl px-8 py-7">
+        <p className="text-md text-[var(--color-ln-err)]">
           No se encontró tu perfil. Cerrá sesión e intentá de nuevo.
         </p>
       </div>
@@ -103,16 +174,18 @@ export default async function CuentaPage() {
   const roleLabel = ROLE_LABELS[profile.role] ?? profile.role;
   const accountTypeLabel = ACCOUNT_TYPE_LABELS[profile.accountType] ?? profile.accountType;
 
+  const isPersonal = profile.accountType === "personal";
+
   return (
-    <div className="mx-auto max-w-4xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
       {/* ------------------------------------------------------------------ */}
       {/* Page header                                                         */}
       {/* ------------------------------------------------------------------ */}
-      <div className="mb-[28px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[34px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-7">
+        <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           Mi cuenta
         </h1>
-        <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+        <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
           Perfil, verificaciones y configuración.
         </p>
       </div>
@@ -120,10 +193,10 @@ export default async function CuentaPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Identity card                                                        */}
       {/* ------------------------------------------------------------------ */}
-      <LnCard className="mb-[28px]">
+      <LnCard className="mb-7">
         <LnCardHead title="Datos de la cuenta" />
         <LnCardBody>
-          <div className="flex items-center gap-[16px]">
+          <div className="flex items-center gap-4">
             {/* Avatar */}
             {profile.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -133,27 +206,24 @@ export default async function CuentaPage() {
                 className="h-[64px] w-[64px] flex-shrink-0 rounded-full border border-[var(--color-ln-line-strong)] object-cover"
               />
             ) : (
-              <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] font-[var(--font-ln-serif)] text-[22px] font-semibold text-[var(--color-ln-ink-2)]">
+              <div className="flex h-[64px] w-[64px] flex-shrink-0 items-center justify-center rounded-full border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] font-ln-serif text-title font-semibold text-[var(--color-ln-ink-2)]">
                 {initials}
               </div>
             )}
 
             <div className="min-w-0 flex-1">
-              <p className="font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+              <p className="font-ln-serif text-lg font-semibold leading-tight text-[var(--color-ln-ink)]">
                 {profile.displayName}
               </p>
               {email && (
-                <p className="mt-[2px] font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
-                  {email}
-                </p>
+                <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">{email}</p>
               )}
-              <div className="mt-[8px] flex flex-wrap gap-[6px]">
-                <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-azul)]">
-                  {roleLabel}
-                </span>
-                <span className="inline-flex items-center rounded-[2px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[8px] py-[2px] font-[var(--font-ln-mono)] text-[9.5px] uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
-                  {accountTypeLabel}
-                </span>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                <LnBadge variant="info">{roleLabel}</LnBadge>
+                <LnBadge variant="neutral">{accountTypeLabel}</LnBadge>
+                {/* Pet-count badge removed (owner-ia-redesign P5, decision 9):
+                    the pet count is the /mis-mascotas index's own header now;
+                    the account view slims to identity/role/rights for owners. */}
               </div>
             </div>
           </div>
@@ -163,55 +233,51 @@ export default async function CuentaPage() {
       {/* ------------------------------------------------------------------ */}
       {/* Verifications                                                        */}
       {/* ------------------------------------------------------------------ */}
-      <LnCard className="mb-[28px]">
+      <LnCard className="mb-7">
         <LnCardHead title="Verificaciones de identidad" />
         <LnCardBody>
-          <div className="flex flex-col gap-[12px]">
-            {/* DNI */}
-            {profile.dniNumber ? (
-              <div className="flex items-center gap-[10px]">
+          <div className="flex flex-col gap-3">
+            {/* DNI — Wave 5 Item 25a: show last-4 only (no plaintext).
+                Full DNI is never stored; disambiguation via dniLast4. */}
+            {profile.dniLast4 ? (
+              <div className="flex items-center gap-2.5">
                 <VerificationBadge verified={profile.dniVerified} />
-                <span className="text-[13px] text-[var(--color-ln-ink-2)]">
-                  DNI{" "}
-                  <span className="font-[var(--font-ln-mono)]">
-                    {profile.dniVerified ? `••••${profile.dniNumber.slice(-3)}` : profile.dniNumber}
-                  </span>{" "}
+                <span className="text-md text-[var(--color-ln-ink-2)]">
+                  DNI <span className="font-ln-mono">{`••••${profile.dniLast4}`}</span>{" "}
                   {/* DNI verification is self-declared (trust-on-input) until the Mi Argentina
                       integration lands. Use "declarado" to avoid overclaiming identity assurance. */}
                   {profile.dniVerified ? "declarado" : "no declarado"}
                 </span>
               </div>
             ) : (
-              <div className="flex items-center gap-[10px]">
+              <div className="flex items-center gap-2.5">
                 <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-mute)]" />
-                <span className="text-[13px] text-[var(--color-ln-mute)]">
-                  DNI no declarado —{" "}
-                  <Link
-                    href="?sheet=verificar-dni"
-                    className="text-[var(--color-ln-azul)] no-underline hover:underline"
-                  >
-                    Declarar ahora
-                  </Link>
-                </span>
+                <span className="text-md text-[var(--color-ln-mute)]">DNI no declarado</span>
+                <Link
+                  href="?sheet=verificar-dni"
+                  className="inline-flex items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[11px] py-1.5 text-sm font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-celeste-050)] no-underline"
+                >
+                  Declarar ahora
+                </Link>
               </div>
             )}
 
             {/* Matrícula */}
             {profile.matriculaNumber ? (
-              <div className="flex items-center gap-[10px]">
+              <div className="flex items-center gap-2.5">
                 <VerificationBadge verified={profile.matriculaVerified} />
-                <span className="text-[13px] text-[var(--color-ln-ink-2)]">
+                <span className="text-md text-[var(--color-ln-ink-2)]">
                   Matrícula M.N. {profile.matriculaNumber}
                   {profile.matriculaJurisdiccion && ` (${profile.matriculaJurisdiccion})`}{" "}
-                  {profile.matriculaVerified ? "verificada" : "— pendiente de verificación"}
+                  {profile.matriculaVerified
+                    ? "verificada"
+                    : "— reportada al colegio / autoridad jurisdiccional — pendiente de validación"}
                 </span>
               </div>
             ) : profile.role === "vet" ? (
-              <div className="flex items-center gap-[10px]">
+              <div className="flex items-center gap-2.5">
                 <span className="h-[8px] w-[8px] flex-shrink-0 rounded-full bg-[var(--color-ln-warn)]" />
-                <span className="text-[13px] text-[var(--color-ln-mute)]">
-                  Matrícula no cargada
-                </span>
+                <span className="text-md text-[var(--color-ln-mute)]">Matrícula no cargada</span>
               </div>
             ) : null}
           </div>
@@ -219,37 +285,23 @@ export default async function CuentaPage() {
       </LnCard>
 
       {/* ------------------------------------------------------------------ */}
-      {/* Privacy controls (PrivacySection is a client component — unchanged) */}
-      {/* ------------------------------------------------------------------ */}
-      <div className="mb-[28px]">
-        <PrivacySection
-          prefs={{
-            discloseNameCredential: profile.discloseNameCredential,
-            disclosePhoneCredential: profile.disclosePhoneCredential,
-            allowOrgContact: profile.allowOrgContact,
-            allowLostAlertsInZone: profile.allowLostAlertsInZone,
-          }}
-        />
-      </div>
-
-      {/* ------------------------------------------------------------------ */}
       {/* Vet clinic banner                                                    */}
       {/* ------------------------------------------------------------------ */}
       {vetNeedsClinic && (
-        <div className="mb-[28px] overflow-hidden rounded-[4px] border border-[var(--color-ln-celeste-100)] border-t-[3px] border-t-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-[18px] py-[14px]">
+        <div className="mb-7 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-celeste-100)] border-t-[3px] border-t-[var(--color-ln-azul)] bg-[var(--color-ln-celeste-050)] px-[18px] py-3.5">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-[13px] font-semibold text-[var(--color-ln-ink)]">
+              <p className="text-md font-semibold text-[var(--color-ln-ink)]">
                 ¿Vas a ofrecer servicios profesionales?
               </p>
-              <p className="mt-[2px] text-[12px] text-[var(--color-ln-ink-2)]">
+              <p className="mt-0.5 text-sm text-[var(--color-ln-ink-2)]">
                 Creá tu consultorio para publicar servicios, gestionar turnos y emitir eventos en
                 libretas sanitarias.
               </p>
             </div>
             <Link
               href="/cuenta/crear-consultorio"
-              className="flex-shrink-0 rounded-[3px] bg-[var(--color-ln-azul)] px-[14px] py-[8px] font-[var(--font-ln-sans)] text-[12.5px] font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
+              className="flex-shrink-0 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] px-3.5 py-2 font-ln-sans text-md font-semibold text-white no-underline hover:bg-[var(--color-ln-azul-700)]"
             >
               Crear consultorio →
             </Link>
@@ -257,46 +309,78 @@ export default async function CuentaPage() {
         </div>
       )}
 
-      {/* ------------------------------------------------------------------ */}
-      {/* Quick actions                                                         */}
-      {/* ------------------------------------------------------------------ */}
-      <LnSectionHead num="01" title="Acciones" className="mb-[16px]" />
+      {/* ================================================================== */}
+      {/* Grouped action sections (Item 14.1)                                 */}
+      {/* ================================================================== */}
 
-      <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+      {/* ------------------------------------------------------------------ */}
+      {/* 01 Tu información                                                    */}
+      {/* ------------------------------------------------------------------ */}
+      <LnSectionHead num="01" title="Tu información" className="mb-4" />
+
+      <div className="mb-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
         <ActionRow
           href="?sheet=editar-perfil"
           label="Editar mi información"
           description="Nombre, teléfono y foto de perfil"
         />
-        <ActionRow
-          href="/notificaciones"
-          label="Notificaciones"
-          description="Avisos, alertas y novedades de tus mascotas"
-        />
-        <ActionRow
-          href="/cuenta/memberships"
-          label="Mis organizaciones"
-          description="Refugios, clínicas y redes en las que participás"
-        />
-        <ActionRow
-          href="/cuenta/solicitudes"
-          label="Mis solicitudes"
-          description="Estado de tus solicitudes de rol"
-        />
-        {profile.role === "owner" && (
+        {showChapas && (
           <ActionRow
-            href="?sheet=solicitar-upgrade-vet"
-            label="Convertirme en profesional / organización"
-            description="Registrá tu matrícula veterinaria o creá una clínica, refugio u otra organización"
+            href="/cuenta/chapas"
+            label="Mis chapas"
+            description="Chapas físicas con QR vinculadas a tus mascotas"
           />
         )}
-        <ActionRow
-          href="/cuenta/privacidad"
-          label="Privacidad y derechos"
-          description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
-        />
-        {profile.role === "owner" && profile.accountType === "personal" && (
-          <>
+      </div>
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 02 Rol y organizaciones                                              */}
+      {/* Shown only for personal accounts. Institutional accounts (govt/     */}
+      {/* admin) don't have org memberships or role transitions here.         */}
+      {/* ------------------------------------------------------------------ */}
+      {isPersonal && (
+        <>
+          <LnSectionHead num="02" title="Rol y organizaciones" className="mb-4" />
+
+          <div className="mb-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
+            {profile.role === "owner" && (
+              <>
+                {/* Two rows on purpose (Cowork QA parte A, 2026-08-06): the
+                    single row promised BOTH paths but linked only the vet
+                    sheet — org creation (/cuenta/upgrade, OrgCreateForm) was
+                    fully built and unreachable from here. */}
+                <ActionRow
+                  href="?sheet=solicitar-upgrade-vet"
+                  label="Convertirme en profesional"
+                  description="Registrá tu matrícula veterinaria y firmá eventos clínicos verificados"
+                />
+                <ActionRow
+                  href="/cuenta/upgrade"
+                  label="Crear una organización"
+                  description="Clínicas, refugios y redes de rescate crean su panel organizacional"
+                />
+              </>
+            )}
+            {profile.role === "vet" && (
+              <ActionRow
+                href="/cuenta/crear-consultorio"
+                label="Crear consultorio"
+                description="Configurá tu consultorio veterinario para gestionar turnos y publicar servicios"
+              />
+            )}
+            <ActionRow
+              href="/cuenta/memberships"
+              label="Mis organizaciones"
+              description="Refugios, clínicas y redes en las que participás"
+            />
+            <ActionRow
+              href="/cuenta/solicitudes"
+              label="Mis solicitudes"
+              description="Estado de tus solicitudes de rol"
+            />
+            {/* Tránsitos — folded in from the removed /cuenta/transitos hub
+                page (owner-ia-redesign P1 item 5): its 4 links, badges
+                included. */}
             <ActionRow
               href="/cuenta/ofrecerme-como-transito"
               label="Ofrecerme como hogar de tránsito"
@@ -306,49 +390,87 @@ export default async function CuentaPage() {
               href="/cuenta/transitos/propuestas"
               label="Propuestas de tránsito"
               description="Refugios proponiéndote cuidar mascotas"
+              badge={pendingProposals > 0 ? pendingProposals : undefined}
             />
             <ActionRow
               href="/cuenta/transitos/activos"
               label="Tránsitos activos"
               description="Mascotas que estás cuidando ahora"
+              badge={activeFosters > 0 ? activeFosters : undefined}
             />
             <ActionRow
               href="/cuenta/transitos/historial"
               label="Historial de tránsitos"
               description="Tránsitos terminados y propuestas no concretadas"
             />
-          </>
-        )}
-        {profile.role === "vet" && (
-          <ActionRow
-            href="?sheet=renunciar-rol"
-            label="Renunciar a rol veterinario"
-            description="Volvés a rol dueño/a"
-            danger
-          />
-        )}
-        {profile.role === "govt" && profile.accountType === "institutional" && (
-          <ActionRow
-            href="/cuenta/desactivar"
-            label="Desactivar mi cuenta"
-            description="Desactiva tu cuenta de operador govt"
-            danger
-          />
-        )}
+            {profile.role === "vet" && (
+              <ActionRow
+                href="?sheet=renunciar-rol"
+                label="Renunciar a rol veterinario"
+                description="Volvés a rol dueño/a"
+                danger
+              />
+            )}
+          </div>
+        </>
+      )}
+
+      {/* ------------------------------------------------------------------ */}
+      {/* 03 Privacidad y datos                                                */}
+      {/* ------------------------------------------------------------------ */}
+      <LnSectionHead num={isPersonal ? "03" : "02"} title="Privacidad y datos" className="mb-4" />
+
+      <div className="mb-8 overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
+        <ActionRow
+          href="/cuenta/privacidad"
+          label="Privacidad y derechos"
+          description="Descargar tus datos · Eliminar cuenta · Ley 25.326"
+        />
       </div>
 
+      {/* Web Push v1 (feature-flagged): renders nothing unless
+          NEXT_PUBLIC_PUSH_ENABLED + VAPID public key are configured. */}
+      <PushNotificationsCard />
+
+      {/* ------------------------------------------------------------------ */}
+      {/* Zona de riesgo — personal accounts only. Visually separated:        */}
+      {/* error-tone heading + border + bg. ConfirmDialog with mandatory       */}
+      {/* motivo (≥ 5 chars) gates irreversible deactivation.                 */}
+      {/* Govt deactivation lives at /cuenta/desactivar (coverage check).     */}
+      {/* ------------------------------------------------------------------ */}
+      {isPersonal && (
+        <section aria-labelledby="zona-riesgo-heading" className="mb-8">
+          {/* Custom error-tone section heading — not using LnSectionHead      */}
+          {/* because we need the error color variant.                          */}
+          <div className="mb-4 flex items-baseline gap-3.5 border-b-2 border-[var(--color-ln-err)] pb-2.5">
+            <span className="font-ln-mono text-sm font-semibold tracking-[.04em] text-[var(--color-ln-err)]">
+              04
+            </span>
+            <h2
+              id="zona-riesgo-heading"
+              className="m-0 font-ln-serif text-title font-semibold tracking-[-0.01em] text-[var(--color-ln-err)]"
+            >
+              Zona de riesgo
+            </h2>
+          </div>
+          <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-err)] bg-[var(--color-ln-err-050)]">
+            <DeactivateAccountDialog />
+          </div>
+        </section>
+      )}
+
       {/* Logout */}
-      <form action={logoutAction} className="mt-[28px]">
+      <form action={logoutAction} className="mt-1 mb-7">
         <button
           type="submit"
-          className="rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[16px] py-[9px] font-[var(--font-ln-sans)] text-[13px] font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+          className="rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-4 py-[9px] font-ln-sans text-md font-medium text-[var(--color-ln-err)] transition-colors hover:bg-[var(--color-ln-stripe)]"
         >
           Cerrar sesión
         </button>
       </form>
 
       {/* Footer */}
-      <div className="mt-[32px] flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-[14px] font-[var(--font-ln-mono)] text-[10.5px] uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
+      <div className="mt-8 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t border-[var(--color-ln-line-2)] pt-3.5 font-ln-mono text-sm uppercase tracking-[.04em] text-[var(--color-ln-faint)]">
         <span>Documento sincronizado</span>
         <span>miMAR · Registro Nacional de Mascotas</span>
       </div>
@@ -382,18 +504,32 @@ function VerificationBadge({ verified }: { verified: boolean }) {
     return (
       <span
         aria-label="declarado"
-        className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-[11px] font-bold text-[var(--color-ln-ok)]"
+        className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)]"
       >
-        ✓
+        <Icon name="check" size={13} decorative />
       </span>
     );
   }
   return (
     <span
       aria-label="no declarado"
-      className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[11px] text-[var(--color-ln-warn)]"
+      className="inline-flex h-[20px] w-[20px] flex-shrink-0 items-center justify-center rounded-full bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)]"
     >
-      ⏳
+      {/* clock/pending glyph */}
+      <svg
+        width="11"
+        height="11"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="2.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <circle cx="12" cy="12" r="10" />
+        <polyline points="12 6 12 12 16 14" />
+      </svg>
     </span>
   );
 }
@@ -403,17 +539,20 @@ function ActionRow({
   label,
   description,
   danger = false,
+  badge,
 }: {
   href: string;
   label: string;
   description: string;
   danger?: boolean;
+  /** Pending-count pill (e.g. tránsitos propuestas/activos), folded in from the removed hub page. */
+  badge?: number;
 }) {
   return (
     <Link
       href={href}
       className={[
-        "flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-[14px] no-underline last:border-b-0",
+        "flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[18px] py-3.5 no-underline last:border-b-0",
         "hover:bg-[var(--color-ln-stripe)] transition-colors",
       ]
         .filter(Boolean)
@@ -421,15 +560,23 @@ function ActionRow({
     >
       <div className="min-w-0">
         <p
-          className={`text-[13.5px] font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
+          className={`flex items-center gap-1.5 text-md font-medium leading-tight ${danger ? "text-[var(--color-ln-err)]" : "text-[var(--color-ln-ink)]"}`}
         >
+          {danger && <Icon name="alerta" size={14} decorative />}
           {label}
         </p>
-        <p className="mt-[2px] text-[11.5px] text-[var(--color-ln-mute)]">{description}</p>
+        <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{description}</p>
       </div>
-      <span aria-hidden="true" className="flex-shrink-0 text-[var(--color-ln-mute)] text-[16px]">
-        ›
-      </span>
+      <div className="flex flex-shrink-0 items-center gap-2">
+        {badge !== undefined && (
+          <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[var(--color-ln-azul)] px-1.5 font-ln-mono text-xs font-semibold text-white">
+            {badge}
+          </span>
+        )}
+        <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
+          ›
+        </span>
+      </div>
     </Link>
   );
 }

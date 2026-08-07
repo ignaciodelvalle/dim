@@ -211,7 +211,7 @@ describe("openOutbreakInvestigation — validation errors", () => {
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/catalogo ENO/i);
+    expect(result.error).toMatch(/catálogo ENO/i);
   });
 
   it("returns error when reason is shorter than 10 chars", async () => {
@@ -324,7 +324,7 @@ describe("addInvestigationNote — jurisdiction scope enforcement (CRITICAL)", (
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/jurisdiccion/i);
+    expect(result.error).toMatch(/jurisdicción/i);
   });
 
   it("does NOT insert caseEvent when govt is out of scope", async () => {
@@ -441,7 +441,7 @@ describe("escalateInvestigation — jurisdiction scope enforcement (CRITICAL)", 
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/jurisdiccion/i);
+    expect(result.error).toMatch(/jurisdicción/i);
   });
 
   it("does NOT call escalateCase when govt is out of scope", async () => {
@@ -621,7 +621,7 @@ describe("closeInvestigation — jurisdiction scope enforcement (CRITICAL)", () 
     );
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.error).toMatch(/jurisdiccion/i);
+    expect(result.error).toMatch(/jurisdicción/i);
   });
 
   it("does NOT call closeCase when govt is out of scope", async () => {

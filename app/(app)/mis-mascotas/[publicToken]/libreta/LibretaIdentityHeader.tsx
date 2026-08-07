@@ -3,8 +3,8 @@
 
 import Link from "next/link";
 
-import { sexLabel, speciesLabel } from "@/lib/format";
-import { tattooLocationLabel } from "@/lib/lookups";
+import { tattooLocationLabel } from "@/lib/reference/lookups";
+import { sexLabel, speciesLabel } from "@/lib/utils/format";
 
 type Props = {
   pet: {

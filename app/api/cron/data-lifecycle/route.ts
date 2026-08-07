@@ -26,8 +26,9 @@ import { type NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 
 import { cronRuns, db } from "@/db";
-import { authorizeCronRequest } from "@/lib/cron-auth";
-import { runDataLifecyclePurge } from "@/lib/data-lifecycle";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { sendCronAlert } from "@/lib/infra/cron-alert";
+import { runDataLifecyclePurge } from "@/lib/infra/data-lifecycle";
 
 export const dynamic = "force-dynamic";
 
@@ -74,10 +75,25 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
     })
     .where(eq(cronRuns.id, run.id));
 
-  return NextResponse.json({
-    ok: status === "ok",
-    ...counts,
-    durationMs,
-    runId: run.id,
-  });
+  // A failed purge must return HTTP 500 so Vercel's cron dashboard flags it and
+  // retries — previously the route always returned 200 (review 23 fleet
+  // extension).
+  if (status === "failed") {
+    await sendCronAlert({
+      job: CRON_NAME,
+      severity: "critical",
+      error: errors[0]?.reason ?? "data-lifecycle purge failed",
+      details: { ...counts, errors },
+    });
+  }
+
+  return NextResponse.json(
+    {
+      ok: status === "ok",
+      ...counts,
+      durationMs,
+      runId: run.id,
+    },
+    { status: status === "ok" ? 200 : 500 },
+  );
 }

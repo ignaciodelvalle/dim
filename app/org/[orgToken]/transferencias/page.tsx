@@ -11,13 +11,20 @@
 import { and, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
-import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import { ResultCount } from "@/components/ui/ResultCount";
+import { OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDate, requestOutcomeLabel } from "@/lib/utils/format";
+import { capRows } from "@/lib/utils/list-pagination";
+import { CancelTransferAction } from "./CancelTransferAction";
 
+// "open" comes from requestOutcomeLabel — shared with the receiver's
+// Transferencias recibidas screen so the same case status never reads two
+// different words across the org's own two tabs (copy audit 2026-08-04).
 const STATUS_LABEL: Record<string, string> = {
-  open: "Esperando respuesta",
+  open: requestOutcomeLabel("open") ?? "Pendiente",
   escalated: "Escalada",
   closed: "Cerrada",
   merged: "Fusionada",
@@ -65,9 +72,12 @@ export default async function OrgTransferenciasSalientesPage({
       ),
     )
     .orderBy(desc(cases.openedAt))
-    .limit(200);
+    // UX 3.6 (d) / #815 audit finding #7: fetch one extra row past the cap to
+    // detect truncation (same pattern as adopciones/page.tsx), instead of a
+    // bare limit(200) that silently drops older rows with no indication.
+    .limit(201);
 
-  const handshakeRows = rows;
+  const { rows: handshakeRows, truncated } = capRows(rows, 200);
 
   return (
     <div className="space-y-6">
@@ -80,20 +90,20 @@ export default async function OrgTransferenciasSalientesPage({
 
       <header className="flex items-baseline justify-between gap-4">
         <div className="space-y-1">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferencias salientes</h1>
-          <p className="text-[13px] text-ln-op-mute">
+          <h1 className="text-title font-semibold text-ln-op-ink">Transferencias salientes</h1>
+          <p className="text-md text-ln-op-mute">
             Propuestas que {organization.displayName} envió a otras organizaciones.
           </p>
         </div>
         <Link
           href={`/org/${orgToken}/transferencias/nueva`}
-          className="inline-flex items-center rounded-[6px] bg-ln-op-azul px-3 py-1.5 text-[13px] font-medium text-white hover:opacity-90 transition-opacity no-underline"
+          className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white hover:opacity-90 transition-opacity no-underline"
         >
           + Nueva propuesta
         </Link>
       </header>
 
-      <nav className="flex gap-4 text-[12px]">
+      <nav className="flex gap-4 text-sm">
         <span className="font-semibold text-ln-op-ink">Salientes</span>
         <Link
           href={`/org/${orgToken}/transferencias/recibidas`}
@@ -104,45 +114,66 @@ export default async function OrgTransferenciasSalientesPage({
       </nav>
 
       {handshakeRows.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          Todavía no propusiste ninguna transferencia.
-        </p>
+        <LnEmptyState icon="transferencia" title="Todavía no propusiste ninguna transferencia." />
       ) : (
-        <OpCard>
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line">
-              {handshakeRows.map((r) => {
-                const statusLabel =
-                  r.status === "closed" && r.closedReason
-                    ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
-                    : (STATUS_LABEL[r.status] ?? r.status);
-                return (
-                  <li key={r.caseId} className="flex items-start justify-between gap-3 px-4 py-3">
-                    <div className="min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
-                        {r.petName ?? "(sin pet)"}{" "}
-                        <span className="font-mono text-[12px] text-ln-op-mute">
-                          · {r.publicCode}
-                        </span>
-                      </p>
-                      <p className="text-[12px] text-ln-op-mute">
-                        Abierta el {formatDate(r.openedAt)}
-                        {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
-                      </p>
-                      <Link
-                        href={`/casos/${r.publicCode}`}
-                        className="inline-block text-[12px] text-ln-op-azul hover:underline no-underline"
-                      >
-                        Ver caso →
-                      </Link>
-                    </div>
-                    <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>{statusLabel}</OpPill>
-                  </li>
-                );
-              })}
-            </ul>
-          </OpCardBody>
-        </OpCard>
+        <>
+          <OpCard>
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {handshakeRows.map((r) => {
+                  const statusLabel =
+                    r.status === "closed" && r.closedReason
+                      ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
+                      : (STATUS_LABEL[r.status] ?? r.status);
+                  return (
+                    <li key={r.caseId} className="px-4 py-3 space-y-2">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-md font-medium text-ln-op-ink">
+                            {r.petName ?? "(sin pet)"}{" "}
+                            <span className="font-mono text-sm text-ln-op-mute">
+                              · {r.publicCode}
+                            </span>
+                          </p>
+                          <p className="text-sm text-ln-op-mute">
+                            Abierta el {formatDate(r.openedAt)}
+                            {r.closedAt ? ` · Cerrada el ${formatDate(r.closedAt)}` : ""}
+                          </p>
+                          <Link
+                            href={`/casos/${r.publicCode}`}
+                            className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
+                          >
+                            Ver caso →
+                          </Link>
+                        </div>
+                        <OpPill tone={STATUS_PILL_TONE[r.status] ?? "neutral"}>
+                          {statusLabel}
+                        </OpPill>
+                      </div>
+                      {/* Cancel — sender side only, only while the proposal is
+                          still pending (E4, 2026-07-21 facades harvest). */}
+                      {r.status === "open" && (
+                        <CancelTransferAction
+                          senderOrgToken={orgToken}
+                          casePublicCode={r.publicCode}
+                          petName={r.petName ?? "(sin pet)"}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+          {truncated && (
+            <ResultCount
+              shown={200}
+              noun="transferencias"
+              hint="Este listado todavía no tiene filtros."
+              className="text-sm text-ln-op-mute"
+            />
+          )}
+        </>
       )}
     </div>
   );

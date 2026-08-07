@@ -1,7 +1,7 @@
 // Unit tests for startWelfareReport use-case.
 // Spec R3 — start transitions + audit_log + triage-actor backfill + reporter notification.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { WelfareReport } from "@/db/schema";
 import type { WelfareRepository } from "../../infrastructure/welfare-repository";
@@ -46,7 +46,9 @@ function makeDeps(reportOverride?: Partial<WelfareReport>) {
   const report = makeReport(reportOverride);
   const repo = {
     findById: vi.fn().mockResolvedValue(report),
-    updateStatus: vi.fn().mockResolvedValue(undefined),
+    // 1 = "the compare-and-swap matched the row". The old mock resolved
+    // `undefined`, which the use-case could not distinguish from a lost race.
+    updateStatus: vi.fn().mockResolvedValue(1),
     insertAudit: vi.fn().mockResolvedValue(undefined),
   } as unknown as WelfareRepository;
   const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
@@ -160,5 +162,133 @@ describe("startWelfareReport — guard failures", () => {
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.notifications).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// DOUBLE SUBMIT (staging validation 2026-08-01, bug 2). "Iniciar seguimiento"
+// leaves the screen on the route-level "Cargando…" skeleton after a 200, and a
+// funcionario clicks again. This is the circuit with the most legal weight in
+// the system (Ley 14.346), so "does the second click append a second record?"
+// needs an answer that is asserted, not reasoned about.
+//
+// The fixtures above cannot answer it: `findById` returns a FIXED report no
+// matter what was written, so every test is the first click by construction.
+// These use a mutable fake that actually remembers the write.
+// ---------------------------------------------------------------------------
+
+type FakeStore = { status: WelfareReport["status"]; audits: string[] };
+
+function makeStatefulDeps(initial: WelfareReport["status"] = "open") {
+  const store: FakeStore = { status: initial, audits: [] };
+  const repo = {
+    findById: vi.fn(async () => makeReport({ status: store.status })),
+    // Honours expectedStatus exactly as the SQL does: the UPDATE matches only
+    // while the row is still in the state the caller validated.
+    updateStatus: vi.fn(
+      async (
+        _id: string,
+        patch: { status?: WelfareReport["status"] },
+        _tx?: unknown,
+        opts: { expectedStatus?: WelfareReport["status"] } = {},
+      ) => {
+        if (opts.expectedStatus !== undefined && opts.expectedStatus !== store.status) return 0;
+        if (patch.status) store.status = patch.status;
+        return 1;
+      },
+    ),
+    insertAudit: vi.fn(async (row: { action: string }) => {
+      store.audits.push(row.action);
+    }),
+  } as unknown as WelfareRepository;
+  const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+    await cb({});
+  });
+  const actor = { user: { id: "admin-user-01" }, profile: { role: "admin" as const } };
+  return { repo, transaction, actor, store };
+}
+
+describe("startWelfareReport — a second click never appends a second record", () => {
+  const input = { welfareReportId: "rpt-001", notes: "Iniciando seguimiento del caso." };
+
+  it("sequential double click: the second call is rejected and writes nothing", async () => {
+    const { repo, transaction, actor, store } = makeStatefulDeps("open");
+
+    const first = await startWelfareReport(input, { repo, transaction, actor });
+    const second = await startWelfareReport(input, { repo, transaction, actor });
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(false);
+    // The audit trail is what a fiscal reads. Exactly one entry.
+    expect(store.audits).toEqual(["welfare_report_started"]);
+    expect(store.status).toBe("in_progress");
+  });
+
+  it("the second click is refused by the state machine, before any write", async () => {
+    const { repo, transaction, actor } = makeStatefulDeps("open");
+    await startWelfareReport(input, { repo, transaction, actor });
+    const second = await startWelfareReport(input, { repo, transaction, actor });
+
+    expect(second.ok).toBe(false);
+    if (second.ok) return;
+    expect(second.error).toMatch(/in_progress/);
+  });
+
+  it("THE RACE: two clicks that both read 'open' still produce one audit row", async () => {
+    // Both invocations complete their findById + transition check against the
+    // pre-transition status — the window the sequential guard cannot see. Only
+    // the compare-and-swap inside the transaction separates them.
+    const { repo, transaction, actor, store } = makeStatefulDeps("open");
+
+    const [a, b] = await Promise.all([
+      startWelfareReport(input, { repo, transaction, actor }),
+      startWelfareReport(input, { repo, transaction, actor }),
+    ]);
+
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+    expect(store.audits).toEqual(["welfare_report_started"]);
+  });
+
+  it("the loser of the race gets a refresh message, not a raw DB error", async () => {
+    const { repo, transaction, actor } = makeStatefulDeps("open");
+    const results = await Promise.all([
+      startWelfareReport(input, { repo, transaction, actor }),
+      startWelfareReport(input, { repo, transaction, actor }),
+    ]);
+    const loser = results.find((r) => !r.ok);
+    expect(loser).toBeDefined();
+    if (!loser || loser.ok) return;
+    expect(loser.error).toContain("Actualizá la página");
+    expect(loser.error).not.toMatch(/No se pudo iniciar/);
+  });
+
+  it("a lost race appends NO audit row (the transaction aborts before insertAudit)", async () => {
+    // Repo that always loses the swap — the state the second writer meets.
+    const store: FakeStore = { status: "open", audits: [] };
+    const repo = {
+      findById: vi.fn(async () => makeReport({ status: "open" })),
+      updateStatus: vi.fn(async () => 0),
+      insertAudit: vi.fn(async (row: { action: string }) => {
+        store.audits.push(row.action);
+      }),
+    } as unknown as WelfareRepository;
+    const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<void>) => {
+      await cb({});
+    });
+    const actor = { user: { id: "admin-user-01" }, profile: { role: "admin" as const } };
+
+    const result = await startWelfareReport(input, { repo, transaction, actor });
+
+    expect(result.ok).toBe(false);
+    expect(repo.insertAudit).not.toHaveBeenCalled();
+    expect(store.audits).toEqual([]);
+  });
+
+  it("a winning call still passes the status it validated as the swap condition", async () => {
+    const { repo, transaction, actor } = makeStatefulDeps("triaged");
+    await startWelfareReport(input, { repo, transaction, actor });
+
+    const call = (repo.updateStatus as ReturnType<typeof vi.fn>).mock.calls[0];
+    expect(call[3]).toEqual({ expectedStatus: "triaged" });
   });
 });

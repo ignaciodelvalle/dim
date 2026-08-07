@@ -6,7 +6,7 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/lib/auth-guards", () => ({
+vi.mock("@/lib/infra/auth-guards", () => ({
   requireAdminOrGovtOrRedirect: vi.fn(),
 }));
 
@@ -16,13 +16,15 @@ vi.mock("next/cache", () => ({
 }));
 
 import { auditLog, caseEvents, cases, db, govtAssignments, profiles } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { getOutbreakInvestigationDetail } from "@/lib/infra/case-queries";
 import {
   addInvestigationNoteAction,
   closeInvestigationAction,
   escalateInvestigationAction,
   openOutbreakInvestigationAction,
 } from "@/src/modules/surveillance/actions";
+import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
@@ -102,8 +104,13 @@ async function cleanupTestCasesForUsers(userIds: string[]) {
     .where(inArray(cases.openedByUserId, userIds));
   const caseIds = caseRows.map((r) => r.id);
   if (caseIds.length > 0) {
-    await db.delete(caseEvents).where(inArray(caseEvents.caseId, caseIds));
-    await db.delete(cases).where(inArray(cases.id, caseIds));
+    // case_events is append-only (migration 0121); both the explicit delete
+    // and the cases ON DELETE CASCADE fire the trigger, so clean up under the
+    // accountable mutation override.
+    await withMutationOverride(async (tx) => {
+      await tx.delete(caseEvents).where(inArray(caseEvents.caseId, caseIds));
+      await tx.delete(cases).where(inArray(cases.id, caseIds));
+    });
   }
 }
 
@@ -136,8 +143,12 @@ async function cleanupOpenOutbreakCasesForJurisdiction(
   if (ids.length > 0) {
     // caseEvents has ON DELETE CASCADE from cases, but explicit delete is
     // more explicit and avoids relying on the migration having CASCADE set.
-    await db.delete(caseEvents).where(inArray(caseEvents.caseId, ids));
-    await db.delete(cases).where(inArray(cases.id, ids));
+    // case_events is append-only (0121) — both fire the trigger, so run the
+    // cleanup under the accountable mutation override.
+    await withMutationOverride(async (tx) => {
+      await tx.delete(caseEvents).where(inArray(caseEvents.caseId, ids));
+      await tx.delete(cases).where(inArray(cases.id, ids));
+    });
   }
 }
 
@@ -145,16 +156,16 @@ beforeAll(async () => {
   govtUserId = await ensureUser(GOVT_EMAIL, "govt");
   adminUserId = await ensureUser(ADMIN_EMAIL, "admin");
 
-  // Ensure govt user has jurisdiction (La Plata, Buenos Aires).
-  try {
-    await db.insert(govtAssignments).values({
-      userId: govtUserId,
-      jurisdictionProvince: "Buenos Aires",
-      jurisdictionLocality: "La Plata",
-    });
-  } catch {
-    // Already assigned — OK.
-  }
+  // Ensure govt user has EXACTLY ONE jurisdiction assignment. The old
+  // insert-and-swallow ran on EVERY suite run with no unique constraint to
+  // trip its catch — 44 duplicate rows had accumulated (found during the
+  // 2026-07-14 test-isolation sweep). Idempotent form: clear, then insert.
+  await db.delete(govtAssignments).where(eq(govtAssignments.userId, govtUserId));
+  await db.insert(govtAssignments).values({
+    userId: govtUserId,
+    jurisdictionProvince: "Buenos Aires",
+    jurisdictionLocality: "La Plata",
+  });
 
   await cleanupTestCasesForUsers([govtUserId, adminUserId]);
 });
@@ -374,7 +385,7 @@ describe("addInvestigationNoteAction", () => {
       entryType: "system",
       notes: "Nota de usuario fuera de scope.",
     });
-    expect(result).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(result).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 
   it("rejects out-of-scope govt user (same province, wrong locality)", async () => {
@@ -386,7 +397,7 @@ describe("addInvestigationNoteAction", () => {
       entryType: "system",
       notes: "Nota de usuario con provincia correcta pero localidad incorrecta.",
     });
-    expect(result).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(result).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 
   it("admin bypasses jurisdiction check", async () => {
@@ -439,7 +450,7 @@ describe("closeInvestigationAction", () => {
       outcome: "resolved",
       reason: "Investigacion cerrada con exito.",
     });
-    expect(result).toMatchObject({ error: expect.stringContaining("informe epidemiologico") });
+    expect(result).toMatchObject({ error: expect.stringContaining("informe epidemiológico") });
   });
 
   it("SUCCEEDS close-resolved with inline final report text", async () => {
@@ -541,6 +552,81 @@ describe("closeInvestigationAction", () => {
 // escalateInvestigationAction
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// getOutbreakInvestigationDetail — jurisdiction scoping (review 24 HIGH #1/#2)
+// ---------------------------------------------------------------------------
+//
+// The detail query loads the full case_events timeline (epidemiological notes,
+// which can carry PII). It must be scoped IN SQL to the reader's (province,
+// locality) assignments so an out-of-jurisdiction govt reader gets null.
+
+describe("getOutbreakInvestigationDetail — jurisdiction scoping", () => {
+  let scopedCaseCode: string;
+  // Unique disease + jurisdiction so the per-(disease, jurisdiction) dedup guard
+  // can't collide with cases other describes in this file open.
+  // Valid ENO code + a jurisdiction (Chubut/Rawson) no other describe uses, so
+  // the per-(disease, jurisdiction) dedup guard can't collide.
+  const SCOPE_DISEASE = "leptospirosis";
+  const CASE_PROVINCE = "Chubut";
+  const CASE_LOCALITY = "Rawson";
+
+  beforeAll(async () => {
+    await cleanupOpenOutbreakCasesForJurisdiction(SCOPE_DISEASE, CASE_PROVINCE, CASE_LOCALITY);
+    (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
+      govtSession(govtUserId, CASE_PROVINCE, CASE_LOCALITY),
+    );
+    const result = await openOutbreakInvestigationAction({
+      diseaseCode: SCOPE_DISEASE,
+      reason: "Caso para test de scoping de detalle de investigacion.",
+    });
+    if (!("ok" in result)) throw new Error(`Setup failed: ${JSON.stringify(result)}`);
+    scopedCaseCode = result.publicCode;
+  });
+
+  afterAll(async () => {
+    await cleanupOpenOutbreakCasesForJurisdiction(SCOPE_DISEASE, CASE_PROVINCE, CASE_LOCALITY);
+  });
+
+  it("in-scope govt (matching province + locality) resolves the case", async () => {
+    const detail = await getOutbreakInvestigationDetail(
+      scopedCaseCode,
+      [{ province: CASE_PROVINCE, locality: CASE_LOCALITY }],
+      false,
+    );
+    expect(detail).not.toBeNull();
+    expect(detail?.publicCode).toBe(scopedCaseCode);
+  });
+
+  it("wrong-locality govt (same province) gets null — no notes leaked", async () => {
+    const detail = await getOutbreakInvestigationDetail(
+      scopedCaseCode,
+      [{ province: CASE_PROVINCE, locality: "Mar del Plata" }],
+      false,
+    );
+    expect(detail).toBeNull();
+  });
+
+  it("out-of-province govt gets null", async () => {
+    const detail = await getOutbreakInvestigationDetail(
+      scopedCaseCode,
+      [{ province: "Mendoza", locality: "Mendoza" }],
+      false,
+    );
+    expect(detail).toBeNull();
+  });
+
+  it("govt with no assignments gets null (no nationwide leak)", async () => {
+    const detail = await getOutbreakInvestigationDetail(scopedCaseCode, [], false);
+    expect(detail).toBeNull();
+  });
+
+  it("admin (isAdmin=true, empty jurisdictions) resolves the case (universal scope)", async () => {
+    const detail = await getOutbreakInvestigationDetail(scopedCaseCode, [], true);
+    expect(detail).not.toBeNull();
+    expect(detail?.publicCode).toBe(scopedCaseCode);
+  });
+});
+
 describe("escalateInvestigationAction", () => {
   it("escalates an open investigation and writes case_event + audit row atomically", async () => {
     (requireAdminOrGovtOrRedirect as ReturnType<typeof vi.fn>).mockResolvedValue(
@@ -607,7 +693,7 @@ describe("escalateInvestigationAction", () => {
       casePublicCode: openResult.publicCode,
       reason: "Intento de escalada desde jurisdiccion erronea, deberia ser rechazado.",
     });
-    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 
   it("rejects escalation from same province but wrong locality", async () => {
@@ -630,6 +716,6 @@ describe("escalateInvestigationAction", () => {
       casePublicCode: openResult.publicCode,
       reason: "Intento de escalada desde localidad incorrecta dentro de la misma provincia.",
     });
-    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdiccion") });
+    expect(escalateResult).toMatchObject({ error: expect.stringContaining("jurisdicción") });
   });
 });

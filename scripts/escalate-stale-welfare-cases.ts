@@ -9,7 +9,7 @@ import {
   escalateStaleWelfareCase,
   findStaleWelfareCases,
 } from "@/lib/case-closers/escalate-stale-welfare-cases";
-import { runCaseCron } from "@/lib/case-cron";
+import { runCaseCron } from "@/lib/infra/case-cron";
 
 async function main() {
   const start = Date.now();

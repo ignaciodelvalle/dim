@@ -1,9 +1,37 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 
 import { lookupTransferTargetAction, resolveDisputeAction } from "@/app/actions/custody-disputes";
+import { Icon } from "@/components/Icon";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
+
+// The consequence of an ownership_transferred resolution, stated once and used
+// twice: as the inline hint under the destination field, and as the confirm
+// dialog's description. Two copies would drift; one constant cannot.
+const TRANSFER_CONSEQUENCE =
+  "La transferencia cierra todas las ownerships activas y abre una nueva al destino.";
+
+// Every resolution closes the dispute and lands an immutable event; only the
+// ownership_transferred branch also moves custody, which is why that branch
+// leads with TRANSFER_CONSEQUENCE.
+const RESOLUTION_IS_FINAL =
+  "La resolución se asienta como evento inmutable en el historial y no se puede deshacer.";
+
+function resolveConsequence(outcome: Outcome): string {
+  switch (outcome) {
+    case "ownership_transferred":
+      return `${TRANSFER_CONSEQUENCE} ${RESOLUTION_IS_FINAL}`;
+    case "ownership_confirmed":
+      return `Esto confirma al dueño actual y cierra la disputa. ${RESOLUTION_IS_FINAL}`;
+    case "case_dismissed":
+      return `Esto desestima el caso y cierra la disputa sin cambiar la titularidad. ${RESOLUTION_IS_FINAL}`;
+    default:
+      return `Esto cierra la disputa con la resolución que redactaste. ${RESOLUTION_IS_FINAL}`;
+  }
+}
 
 const OUTCOMES = [
   { value: "ownership_confirmed", label: "Confirma al dueño actual" },
@@ -21,7 +49,6 @@ type VerifyState =
   | { status: "error"; message: string };
 
 export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [outcome, setOutcome] = useState<Outcome>("ownership_confirmed");
   const [transferKind, setTransferKind] = useState<"user" | "org">("user");
@@ -32,6 +59,8 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const resolveTriggerRef = useRef<HTMLButtonElement>(null);
 
   const currentTargetId = transferKind === "user" ? transferToUserId : transferToOrgId;
 
@@ -55,7 +84,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
     if (!id) return;
     setVerifyState({ status: "loading" });
     startTransition(async () => {
-      const result = await lookupTransferTargetAction({ kind: transferKind, id });
+      const result = await lookupTransferTargetAction({ kind: transferKind, id, disputeToken });
       if (!result.found) {
         setVerifyState({ status: "error", message: result.error });
       } else {
@@ -64,7 +93,12 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
     });
   }
 
-  function submit() {
+  // Step 1 of the resolve act: validate, then OPEN THE DIALOG. Resolving a
+  // custody dispute is the gravest single click a government official makes in
+  // this system — it closes every active ownership and opens a new one — and
+  // until 2026-07-30 it fired straight off the button with no confirmation at
+  // all (D.3, clase 1). The action itself only runs from `runResolve` below.
+  function requestResolve() {
     setError(null);
     setOkMessage(null);
     if (resolutionSummary.trim().length < 100) {
@@ -81,6 +115,13 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
         return;
       }
     }
+    setConfirming(true);
+  }
+
+  // Step 2: the user confirmed in the dialog. This is the only caller of
+  // resolveDisputeAction.
+  function runResolve() {
+    setError(null);
     startTransition(async () => {
       const result = await resolveDisputeAction({
         disputeToken,
@@ -98,40 +139,42 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
       });
       if ("error" in result) {
         setError(result.error);
+        setConfirming(false);
         return;
       }
       setOkMessage("Disputa resuelta.");
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
   return (
-    <div className="space-y-3 rounded-[6px] border border-ln-op-line p-4">
+    <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line p-4">
       <div>
-        <label htmlFor="outcome" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="outcome" className="block text-sm text-ln-op-mute mb-1">
           Resolución
         </label>
-        <select
+        <OpSelect
           id="outcome"
           value={outcome}
           onChange={(e) => setOutcome(e.target.value as Outcome)}
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {OUTCOMES.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
-        </select>
+        </OpSelect>
       </div>
 
       {outcome === "ownership_transferred" && (
-        <div className="space-y-2 rounded-[6px] border border-ln-op-line p-3">
-          <div className="flex gap-2 text-[12px]">
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-ln-op-line p-3">
+          <div className="flex gap-2 text-sm">
             <button
               type="button"
               onClick={() => handleKindChange("user")}
-              className={`px-2 py-1 rounded-[4px] border ${
+              className={`px-2 py-1 rounded-[var(--radius-sm)] border ${
                 transferKind === "user"
                   ? "bg-ln-op-azul text-white border-ln-op-azul"
                   : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -142,7 +185,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
             <button
               type="button"
               onClick={() => handleKindChange("org")}
-              className={`px-2 py-1 rounded-[4px] border ${
+              className={`px-2 py-1 rounded-[var(--radius-sm)] border ${
                 transferKind === "org"
                   ? "bg-ln-op-azul text-white border-ln-op-azul"
                   : "border-ln-op-line text-ln-op-ink hover:bg-ln-op-stripe"
@@ -152,93 +195,108 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
             </button>
           </div>
           <div>
-            <label htmlFor="transfer-target" className="block text-[12px] text-ln-op-mute mb-1">
+            <label htmlFor="transfer-target" className="block text-sm text-ln-op-mute mb-1">
               {transferKind === "user"
-                ? "User ID destino (UUID)"
-                : "Organization ID destino (UUID)"}
+                ? "ID de usuario destino (UUID)"
+                : "ID de organización destino (UUID)"}
             </label>
             <div className="flex gap-2">
-              <input
+              <OpInput
                 id="transfer-target"
                 type="text"
                 value={currentTargetId}
                 onChange={(e) => handleTargetChange(e.target.value)}
                 placeholder="00000000-0000-0000-0000-000000000000"
-                className="flex-1 px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                className="flex-1 font-mono"
+                block={false}
               />
-              <button
+              <OpButton
                 type="button"
                 onClick={verify}
                 disabled={pending || !currentTargetId.trim()}
-                className="px-3 py-2 rounded-[6px] border border-ln-op-line text-[13px] text-ln-op-ink hover:bg-ln-op-stripe disabled:opacity-40 transition-colors whitespace-nowrap"
+                variant="ghost"
+                className="px-3 py-2 whitespace-nowrap"
               >
                 {verifyState.status === "loading" ? "Verificando..." : "Verificar"}
-              </button>
+              </OpButton>
             </div>
 
             {verifyState.status === "ok" && (
               <p
-                className={`text-[12px] mt-1 ${verifyState.active ? "text-ln-op-ok" : "text-ln-op-danger"}`}
+                className={`text-sm mt-1 flex items-center gap-1 ${verifyState.active ? "text-ln-op-ok" : "text-ln-op-danger"}`}
               >
-                {verifyState.active ? "✓" : "✗"} {verifyState.displayName}
-                {!verifyState.active && " — cuenta desactivada"}
+                <Icon name={verifyState.active ? "check" : "close"} size={14} decorative />
+                <span>
+                  {verifyState.displayName}
+                  {!verifyState.active && " — cuenta desactivada"}
+                </span>
               </p>
             )}
             {verifyState.status === "error" && (
-              <p className="text-[12px] text-ln-op-danger mt-1">{verifyState.message}</p>
+              <p className="text-sm text-ln-op-danger mt-1">{verifyState.message}</p>
             )}
 
-            <p className="text-[12px] text-ln-op-mute mt-1">
-              La transferencia cierra todas las ownerships activas y abre una nueva al destino.
-            </p>
+            <p className="text-sm text-ln-op-mute mt-1">{TRANSFER_CONSEQUENCE}</p>
           </div>
         </div>
       )}
 
       <div>
-        <label htmlFor="resolution-summary" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="resolution-summary" className="block text-sm text-ln-op-mute mb-1">
           Resumen de la resolución (mínimo 100 caracteres)
         </label>
-        <textarea
+        <OpTextarea
           id="resolution-summary"
           value={resolutionSummary}
           onChange={(e) => setResolutionSummary(e.target.value)}
           rows={5}
           placeholder="Explicá el fundamento, evidencia considerada y decisión tomada."
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
-        <p className="text-[12px] text-ln-op-mute mt-1 tabular-nums">
+        <p className="text-sm text-ln-op-mute mt-1 tabular-nums">
           {resolutionSummary.trim().length} / 100
         </p>
       </div>
 
       <div>
-        <label htmlFor="resolution-notes" className="block text-[12px] text-ln-op-mute mb-1">
+        <label htmlFor="resolution-notes" className="block text-sm text-ln-op-mute mb-1">
           Notas internas (opcional)
         </label>
-        <textarea
+        <OpTextarea
           id="resolution-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="Notas que quedan en el payload del evento"
-          className="w-full px-3 py-2 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 
-      {error && <output className="block text-[13px] text-ln-op-danger">{error}</output>}
-      {okMessage && <output className="block text-[13px] text-ln-op-ok">{okMessage}</output>}
+      {error && <output className="block text-md text-ln-op-danger">{error}</output>}
+      {okMessage && <output className="block text-md text-ln-op-ok">{okMessage}</output>}
 
       <div className="flex gap-2">
-        <button
+        <OpButton
+          ref={resolveTriggerRef}
           type="button"
-          onClick={submit}
+          onClick={requestResolve}
           disabled={pending}
-          className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50 transition-colors"
+          variant="primary"
+          className="px-4 py-2"
         >
           {pending ? "Resolviendo..." : "Resolver disputa"}
-        </button>
+        </OpButton>
       </div>
+
+      <ConfirmDialog
+        open={confirming}
+        onClose={() => !pending && setConfirming(false)}
+        onConfirm={runResolve}
+        title="Resolver la disputa de custodia"
+        description={resolveConsequence(outcome)}
+        confirmLabel="Resolver disputa"
+        tone="danger"
+        pending={pending}
+        triggerRef={resolveTriggerRef}
+      />
     </div>
   );
 }

@@ -272,7 +272,9 @@ async function main() {
     { audience: "govt-local", route: "/gob/cola", cookie: govtLocalCookie },
     { audience: "govt-local", route: "/gob/perdidas", cookie: govtLocalCookie },
     { audience: "govt-local", route: "/gob/maltrato", cookie: govtLocalCookie },
-    { audience: "govt-local", route: "/gob/analytics", cookie: govtLocalCookie },
+    // F9 (2026-08-01): /gob/analytics is a redirect now — timing it would
+    // measure the hop, not the dashboard. Point at the vista itself.
+    { audience: "govt-local", route: "/gob/programa?vista=analitica", cookie: govtLocalCookie },
     { audience: "govt-local", route: "/gob/vigilancia", cookie: govtLocalCookie },
     { audience: "govt-local", route: "/gob/casos", cookie: govtLocalCookie },
     { audience: "govt-local", route: "/gob/usuarios?q=test", cookie: govtLocalCookie },

@@ -1,77 +1,30 @@
 "use server";
 
-// Server actions for applicant self-service management of approval_requests.
+// approval-requests.ts — thin shim (strangler migration 49/61).
 //
-// Writer/wrapper pattern (matches profile.ts):
-//   - Inner writer (withdrawApprovalRequestForUser) exported for tests.
-//   - Public wrapper (withdrawApprovalRequestAction) gates via
-//     requireUserOrRedirect and calls revalidatePath.
+// Business logic moved to:
+//   src/modules/organizations/application/approval-requests/
+//
+// This file provides withdrawApprovalRequestAction (outer auth-guarded server
+// action used by UI components). The inner writer lives in the application
+// module and is deliberately NOT exported from this "use server" file —
+// exporting it would make it an independently-addressable server action that
+// accepts an attacker-supplied userId (authz triage 2026-07-04).
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function. Types are re-exported with `export type` (erased at runtime).
 
-import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { approvalRequests, auditLog, db } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import type { WithdrawApprovalRequestResult } from "@/src/modules/organizations/application/approval-requests/types";
+import { withdrawApprovalRequestForUser as _withdrawApprovalRequestForUser } from "@/src/modules/organizations/application/approval-requests/withdraw-approval-request";
 
 // ---------------------------------------------------------------------------
-// Exported result type
+// Type re-exports (erased at runtime — allowed in "use server" files)
 // ---------------------------------------------------------------------------
 
-export type WithdrawApprovalRequestResult = { error: string } | { ok: true };
-
-// ---------------------------------------------------------------------------
-// Inner writer: withdrawApprovalRequestForUser
-// ---------------------------------------------------------------------------
-
-export async function withdrawApprovalRequestForUser(
-  userId: string,
-  requestId: string,
-): Promise<WithdrawApprovalRequestResult> {
-  // 1. Load the request
-  const [request] = await db
-    .select({
-      id: approvalRequests.id,
-      applicantUserId: approvalRequests.applicantUserId,
-      status: approvalRequests.status,
-    })
-    .from(approvalRequests)
-    .where(eq(approvalRequests.id, requestId))
-    .limit(1);
-
-  if (!request) return { error: "NOT_FOUND" };
-
-  // 2. Capability check — only the applicant can withdraw their own request
-  if (request.applicantUserId !== userId) return { error: "FORBIDDEN" };
-
-  // 3. Validation — only pending requests can be withdrawn
-  if (request.status !== "pending") {
-    return { error: `NOT_PENDING: current status is '${request.status}'` };
-  }
-
-  // 4. Transition to withdrawn.
-  // DB constraint approval_decision_consistent requires:
-  //   withdrawn → decided_at IS NULL AND decided_by_user_id IS NULL
-  // The self-withdrawal timestamp lives in withdrawn_at instead.
-  await db
-    .update(approvalRequests)
-    .set({
-      status: "withdrawn",
-      withdrawnAt: new Date(),
-      updatedAt: new Date(),
-    })
-    .where(and(eq(approvalRequests.id, requestId), eq(approvalRequests.status, "pending")));
-
-  // 5. Audit log
-  await db.insert(auditLog).values({
-    actorUserId: userId,
-    action: "approval_request_withdrawn_by_applicant",
-    approvalRequestId: requestId,
-    targetUserId: userId,
-    payload: { request_id: requestId },
-  });
-
-  return { ok: true };
-}
+export type { WithdrawApprovalRequestResult } from "@/src/modules/organizations/application/approval-requests/types";
 
 // ---------------------------------------------------------------------------
 // Public wrapper: withdrawApprovalRequestAction
@@ -81,7 +34,7 @@ export async function withdrawApprovalRequestAction(
   requestId: string,
 ): Promise<WithdrawApprovalRequestResult> {
   const { user } = await requireUserOrRedirect();
-  const result = await withdrawApprovalRequestForUser(user.id, requestId);
+  const result = await _withdrawApprovalRequestForUser(user.id, requestId);
   if ("ok" in result) {
     revalidatePath("/cuenta/solicitudes");
   }

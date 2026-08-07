@@ -10,13 +10,21 @@
 import { inArray } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { db, petIdentifications, pets } from "@/db";
-import { batchFetchActiveIdentifications, fetchActiveIdentifications } from "@/lib/pet-identifiers";
+import { db, ownerships, petIdentifications, pets, profiles } from "@/db";
+import { fetchComplianceStatesForPets } from "@/lib/analytics/owner-dashboard";
+import {
+  batchFetchActiveIdentifications,
+  fetchActiveIdentifications,
+} from "@/lib/infra/pet-identifiers";
 
 const seedPetIds: string[] = [];
 
 const CHIP_CODE = "858000099990001";
 const TATTOO_CODE = "ARCHQ-REGRESSION";
+
+// v4-shaped UUIDs (zod's uuid format wants the version/variant nibbles).
+const OWNER_ID = "00000000-0000-4000-8000-00000000ad01";
+const STRANGER_ID = "00000000-0000-4000-8000-00000000ad02";
 
 beforeAll(async () => {
   const [chipPet] = await db
@@ -60,13 +68,33 @@ beforeAll(async () => {
       tattooLocation: "inner_ear_left",
     },
   ]);
+
+  // Both seed pets belong to OWNER_ID. STRANGER_ID owns nothing — that
+  // asymmetry is what the chip-scoping tests below assert on.
+  await db
+    .insert(profiles)
+    .values([
+      { id: OWNER_ID, displayName: "Owner ARCH-Q" },
+      { id: STRANGER_ID, displayName: "Stranger ARCH-Q" },
+    ])
+    .onConflictDoNothing({ target: profiles.id });
+
+  await db.insert(ownerships).values(
+    seedPetIds.map((petId) => ({
+      petId,
+      ownerUserId: OWNER_ID,
+      role: "owner" as const,
+    })),
+  );
 });
 
 afterAll(async () => {
   if (seedPetIds.length > 0) {
     await db.delete(petIdentifications).where(inArray(petIdentifications.petId, seedPetIds));
+    await db.delete(ownerships).where(inArray(ownerships.petId, seedPetIds));
     await db.delete(pets).where(inArray(pets.id, seedPetIds));
   }
+  await db.delete(profiles).where(inArray(profiles.id, [OWNER_ID, STRANGER_ID]));
 });
 
 describe("fetchActiveIdentifications (single pet)", () => {
@@ -90,5 +118,49 @@ describe("batchFetchActiveIdentifications", () => {
     const map = await batchFetchActiveIdentifications(seedPetIds);
     expect(map.get(seedPetIds[0])?.microchip?.code).toBe(CHIP_CODE);
     expect(map.has(seedPetIds[1])).toBe(false);
+  });
+});
+
+describe("fetchComplianceStatesForPets microchip sourcing", () => {
+  // Regression for the list-vs-profile mismatch: the list surface used to pass
+  // microchipCode: null, so a pet with a declared chip read "Sin registro" on
+  // /mis-mascotas while the profile said "Declarado". The list
+  // now sources the code from batchFetchActiveIdentifications — same source the
+  // profile header uses.
+  //
+  // The chip read is ALSO ownership-bound (2026-08-01 chip-read audit). This
+  // suite used to pass a throwaway UUID and assert the code came back, pinning
+  // the hole as if it were the contract: `userId` scoped only the reminder
+  // lookup, so the function answered "give me the chip of any pet id" for any
+  // caller. That is the shape of both microchip disclosures fixed on
+  // 2026-07-31 — a caller-chosen pet id plus a guard that only proves identity.
+  // The pair below now pins the binding instead of the hole.
+
+  it("feeds the pet's active chip code into the list compliance state for its owner", async () => {
+    const states = await fetchComplianceStatesForPets(OWNER_ID, seedPetIds);
+    const chipCard = states.get(seedPetIds[0])?.cards.find((c) => c.key === "microchip");
+    expect(chipCard).toBeDefined();
+    // Code known from identifications, no professional implant event → declared.
+    expect(chipCard?.state).toBe("Declarado");
+    expect(chipCard?.detail).toBe(CHIP_CODE);
+  });
+
+  it("withholds the chip code from a caller who owns none of the pets", async () => {
+    const states = await fetchComplianceStatesForPets(STRANGER_ID, seedPetIds);
+    const chipCard = states.get(seedPetIds[0])?.cards.find((c) => c.key === "microchip");
+    // The card still renders — this is a PII fence, not a crash or a blank
+    // dashboard — but it degrades to "no chip on record" rather than printing
+    // 15 digits the caller has no relationship to.
+    expect(chipCard?.detail).toBeNull();
+    expect(chipCard?.detail).not.toBe(CHIP_CODE);
+    // Belt-and-braces: the code is nowhere in the serialized state.
+    expect(JSON.stringify([...states.values()])).not.toContain(CHIP_CODE);
+  });
+
+  it("keeps 'Sin registro' for an owned pet without identifications", async () => {
+    const states = await fetchComplianceStatesForPets(OWNER_ID, [seedPetIds[1]]);
+    const chipCard = states.get(seedPetIds[1])?.cards.find((c) => c.key === "microchip");
+    expect(chipCard?.state).toBe("Sin registro");
+    expect(chipCard?.detail).toBeNull();
   });
 });

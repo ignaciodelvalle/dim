@@ -19,13 +19,13 @@
 // around; keeping them all here is simpler than the controlled-uncontrolled
 // hybrid that DenunciaWizard / MarkLostWizard use.
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnCheckbox } from "@/components/ui/Field";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { provinceByName } from "@/lib/ar-provincias";
+import { provinceByName } from "@/lib/reference/ar-provincias";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   upsertFosterVolunteerAction,
   withdrawFosterVolunteerAction,
@@ -57,7 +57,6 @@ const TOTAL_STEPS = 3;
 const STEP_LABELS = ["Tu disponibilidad", "Qué podés recibir", "Contexto del hogar"];
 
 export function FosterVolunteerWizard({ initial }: { initial: InitialState | null }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [okMessage, setOkMessage] = useState<string | null>(null);
@@ -128,7 +127,11 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         return;
       }
       setOkMessage(`Listo. Tenés ${result.availableSlots} slot(s) disponible(s).`);
-      router.refresh();
+      // Full document reload: the status banner + slot count above the wizard
+      // are SSR (pool matching reads the volunteer snapshot), and a partial
+      // refresh can leave wizard step state inconsistent with DB status.
+      // router.refresh() is banned — see lib/ui/full-page-action-nav.ts.
+      navigateAfterActionSuccess(window.location.pathname);
     });
   }
 
@@ -144,7 +147,8 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
       }
       setConfirmWithdraw(false);
       setOkMessage("Saliste del pool. Podés volver a inscribirte cuando quieras.");
-      router.refresh();
+      // Same full-reload rationale as submit() above.
+      navigateAfterActionSuccess(window.location.pathname);
     });
   }
 
@@ -153,7 +157,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
       {/* Status banner + pause/withdraw lives above the wizard — these are
           "out of band" actions that don't fit a linear flow. */}
       {initial && initial.status === "active" && (
-        <div className="rounded-[4px] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok)] bg-[var(--color-ln-ok-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
           <p className="text-[var(--color-ln-ok)]">
             Estás inscripto · <strong>{initial.availableSlots}</strong> slot(s) disponible(s)
           </p>
@@ -168,7 +172,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                     type="button"
                     onClick={withdraw}
                     disabled={pending}
-                    className="px-3 py-1.5 rounded-[3px] text-xs bg-[var(--color-ln-seal)] text-white hover:opacity-90 disabled:opacity-60 transition-colors"
+                    className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs bg-[var(--color-ln-seal)] text-white hover:opacity-90 disabled:opacity-60 transition-colors"
                   >
                     {pending ? "Saliendo…" : "Confirmar salida"}
                   </button>
@@ -176,7 +180,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                     type="button"
                     onClick={() => setConfirmWithdraw(false)}
                     disabled={pending}
-                    className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
+                    className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] disabled:opacity-60 transition-colors"
                   >
                     Cancelar
                   </button>
@@ -188,7 +192,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                   type="button"
                   onClick={() => submit("update_preferences_only", "paused")}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs border border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)] transition-colors"
                 >
                   Pausar
                 </button>
@@ -196,7 +200,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                   type="button"
                   onClick={() => setConfirmWithdraw(true)}
                   disabled={pending}
-                  className="px-3 py-1.5 rounded-[3px] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors"
+                  className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs border border-[var(--color-ln-seal)] text-[var(--color-ln-seal)] hover:bg-[var(--color-ln-err-050)] transition-colors"
                 >
                   Salir del pool
                 </button>
@@ -206,7 +210,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
         </div>
       )}
       {initial && initial.status === "paused" && (
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm flex flex-wrap items-center justify-between gap-3">
           <p className="text-[var(--color-ln-warn)]">
             Tu inscripción está <strong>pausada</strong>. No recibís propuestas nuevas.
           </p>
@@ -214,14 +218,14 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             type="button"
             onClick={() => submit("update_preferences_only", "active")}
             disabled={pending}
-            className="px-3 py-1.5 rounded-[3px] text-xs bg-[var(--color-ln-ok)] text-white hover:opacity-90 transition-colors"
+            className="px-3 py-1.5 rounded-[var(--radius-pill)] text-xs bg-[var(--color-ln-ok)] text-white hover:opacity-90 transition-colors"
           >
             Reactivar
           </button>
         </div>
       )}
       {isWithdrawn && (
-        <div className="rounded-[4px] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm text-[var(--color-ln-warn)]">
+        <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-warn)] bg-[var(--color-ln-warn-050)] p-3 text-sm text-[var(--color-ln-warn)]">
           Saliste del pool antes. Re-inscribirte va a sumar un slot fresh.
         </div>
       )}
@@ -239,7 +243,11 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
           onBack={step > 1 ? () => setStep((s) => s - 1) : undefined}
         >
           {/* Step 1 — Disponibilidad */}
-          <section className={step === 1 ? "space-y-5" : "sr-only"} aria-hidden={step !== 1}>
+          <section
+            className={step === 1 ? "space-y-5" : "sr-only"}
+            aria-hidden={step !== 1}
+            inert={step !== 1 ? true : undefined}
+          >
             <div className="space-y-2">
               <p className="text-sm text-[var(--color-ln-ink-2)]">
                 ¿Dónde estás y por cuánto tiempo podés alojar un animal?
@@ -284,7 +292,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                 value={maxDurationWeeks}
                 onChange={(e) => setMaxDurationWeeks(e.target.value)}
                 placeholder="Ej: 8"
-                className="w-32 px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-32 px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
               <p className="text-xs text-[var(--color-ln-mute)]">
                 Dejalo vacío si podés acompañar el tránsito hasta el fin.
@@ -294,14 +302,18 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="button"
               onClick={() => setStep(2)}
-              className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar
             </button>
           </section>
 
           {/* Step 2 — Preferencias */}
-          <section className={step === 2 ? "space-y-5" : "sr-only"} aria-hidden={step !== 2}>
+          <section
+            className={step === 2 ? "space-y-5" : "sr-only"}
+            aria-hidden={step !== 2}
+            inert={step !== 2 ? true : undefined}
+          >
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
                 Especies que aceptás
@@ -375,14 +387,18 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="button"
               onClick={() => setStep(3)}
-              className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
+              className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white font-medium hover:bg-[var(--color-ln-azul-700)] transition-colors"
             >
               Continuar
             </button>
           </section>
 
           {/* Step 3 — Hogar + Submit */}
-          <section className={step === 3 ? "space-y-5" : "sr-only"} aria-hidden={step !== 3}>
+          <section
+            className={step === 3 ? "space-y-5" : "sr-only"}
+            aria-hidden={step !== 3}
+            inert={step !== 3 ? true : undefined}
+          >
             <fieldset className="space-y-3">
               <legend className="text-sm font-medium text-[var(--color-ln-ink)]">
                 Hogar (opcional)
@@ -412,7 +428,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
                 onChange={(e) => setNotes(e.target.value)}
                 rows={3}
                 placeholder="Algo que quieras que sepan: experiencia previa, horarios, etc."
-                className="w-full px-3 py-2 rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
 
@@ -424,7 +440,7 @@ export function FosterVolunteerWizard({ initial }: { initial: InitialState | nul
             <button
               type="submit"
               disabled={pending}
-              className="w-full px-4 py-3 rounded-[3px] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
+              className="w-full px-4 py-3 rounded-[var(--radius-pill)] bg-[var(--color-ln-ok)] text-white font-medium hover:opacity-90 disabled:opacity-50 transition-colors"
             >
               {pending
                 ? "Guardando..."
@@ -482,7 +498,7 @@ function TriStateRow({
             key={opt.l}
             type="button"
             onClick={() => onChange(opt.v)}
-            className={`px-2 py-1 rounded-[3px] border text-xs transition-colors ${
+            className={`px-2 py-1 rounded-[var(--radius-pill)] border text-xs transition-colors ${
               value === opt.v
                 ? "border-[var(--color-ln-azul)] bg-[var(--color-ln-azul)] text-white"
                 : "border-[var(--color-ln-line-strong)] hover:bg-[var(--color-ln-stripe)]"

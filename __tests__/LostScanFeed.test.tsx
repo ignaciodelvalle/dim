@@ -11,7 +11,11 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { LostScanFeed, type ScanFeedItem } from "@/components/pet-profile/LostScanFeed";
+import {
+  LostScanFeed,
+  type ScanFeedItem,
+  relativeShort,
+} from "@/components/pet-profile/LostScanFeed";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -38,7 +42,6 @@ function renderFeed(items: ScanFeedItem[]): string {
       items,
       totalScans: 0,
       totalSightings: items.length,
-      caseHref: "/casos/LOS-00001",
     }),
   );
 }
@@ -58,7 +61,7 @@ describe("LostScanFeed — photo rendering (P0g)", () => {
     // The alt text should be descriptive (in Spanish, per repo convention).
     expect(html).toContain("Foto adjunta al avistaje");
     // The "foto adjunta" text fallback should NOT appear when a real img is rendered.
-    expect(html).not.toContain("📷 foto adjunta");
+    expect(html).not.toContain("foto adjunta");
   });
 
   it("renders 'foto adjunta' text fallback when photoStoragePath is set but photoUrl is absent", () => {
@@ -82,7 +85,8 @@ describe("LostScanFeed — photo rendering (P0g)", () => {
     const html = renderFeed(items);
 
     expect(html).toContain("11-5555-1234");
-    expect(html).toContain("📞");
+    // The phone glyph is now a lucide icon routed through <Icon name="telefono">.
+    expect(html).toContain('data-icon-name="telefono"');
   });
 
   it("renders nothing for photo/contact when neither is set", () => {
@@ -91,8 +95,24 @@ describe("LostScanFeed — photo rendering (P0g)", () => {
     ];
     const html = renderFeed(items);
 
-    expect(html).not.toContain("📞");
-    expect(html).not.toContain("📷");
+    expect(html).not.toContain('data-icon-name="telefono"');
+    expect(html).not.toContain('data-icon-name="camara"');
     expect(html).not.toContain("<img");
+  });
+});
+
+describe("relativeShort — pure given a fixed now", () => {
+  const NOW = new Date("2026-07-04T12:00:00Z").getTime();
+
+  it("is deterministic: same (date, now) yields the same label across calls", () => {
+    const d = new Date("2026-07-04T09:30:00Z");
+    expect(relativeShort(d, NOW)).toBe(relativeShort(d, NOW));
+  });
+
+  it("buckets elapsed time correctly against a frozen now", () => {
+    expect(relativeShort(new Date("2026-07-04T11:59:40Z"), NOW)).toBe("ahora");
+    expect(relativeShort(new Date("2026-07-04T11:30:00Z"), NOW)).toBe("hace 30 min");
+    expect(relativeShort(new Date("2026-07-04T09:00:00Z"), NOW)).toBe("hace 3 h");
+    expect(relativeShort(new Date("2026-07-01T12:00:00Z"), NOW)).toBe("hace 3 d.");
   });
 });

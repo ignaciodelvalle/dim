@@ -26,7 +26,6 @@ vi.mock("next/cache", () => ({
 
 import {
   addDisputePartyAction,
-  openDisputeFromEvent,
   resolveDisputeAction,
   withdrawDisputeAction,
 } from "@/app/actions/custody-disputes";
@@ -41,9 +40,10 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { openCase } from "@/lib/infra/case-helpers";
 import { createClient } from "@/lib/supabase/server";
+import { openDisputeFromEvent } from "@/src/modules/custody-disputes/application/open-dispute";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -149,7 +149,7 @@ async function seedOpenDispute(
         jurisdictionLocality: LOCALITY,
         openedByUserId: claimantUserId,
         openedByOrganizationId: null,
-        openedReason: "test dispute",
+        openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
       },
       tx,
     );
@@ -203,9 +203,17 @@ beforeAll(async () => {
   claimantUserId = await createUser(CLAIMANT_EMAIL);
   transfereeUserId = await createUser(TRANSFEREE_EMAIL);
 
-  // Promote admin + govt profile roles.
-  await db.update(profiles).set({ role: "admin" }).where(eq(profiles.id, adminUserId));
-  await db.update(profiles).set({ role: "govt" }).where(eq(profiles.id, govtUserId));
+  // Promote admin + govt profiles to institutional accounts. The consolidated
+  // guard (loadActiveInstitutionalProfile) rejects accountType !== "institutional",
+  // so role alone is no longer enough — createUser seeds accountType="personal".
+  await db
+    .update(profiles)
+    .set({ role: "admin", accountType: "institutional" })
+    .where(eq(profiles.id, adminUserId));
+  await db
+    .update(profiles)
+    .set({ role: "govt", accountType: "institutional" })
+    .where(eq(profiles.id, govtUserId));
   // Give the govt user a jurisdiction matching the seeded disputes.
   await db.execute(sql`
     INSERT INTO govt_assignments (user_id, jurisdiction_province, jurisdiction_locality, granted_by_user_id)
@@ -317,7 +325,7 @@ describe("addDisputePartyAction", () => {
           jurisdictionLocality: "Córdoba Capital",
           openedByUserId: claimantUserId,
           openedByOrganizationId: null,
-          openedReason: "Custody dispute raised out of jurisdiction (test fixture).",
+          openedReason: { code: "custody_dispute_raised", raisedByRole: "owner" },
         },
         tx,
       );
@@ -415,17 +423,17 @@ describe("resolveDisputeAction", () => {
     expect((audit.payload as { resolution: string }).resolution).toBe("ownership_confirmed");
   });
 
-  // KNOWN BUG (V1-9 audit finding, documented as a risk, NOT fixed here):
-  // the ownership_transferred branch builds a custody_transferred payload with
-  // BOTH from_user_id and from_organization_id hardcoded to null. The
-  // custody_transferred event schema (lib/event-schemas.ts) requires at least
-  // one "from" actor, so validateEventPayload rejects it and the whole
-  // resolution rolls back. The UI (ResolveDisputeForm) exposes this option, so
-  // the transfer path is effectively broken end-to-end. This test pins the
-  // CURRENT behavior (a clean error, atomic rollback) so a future fix flips it
-  // intentionally rather than silently. When fixed, swap the assertions to
-  // verify ownership re-points to the transferee and the old owner row closes.
-  it("ownership_transferred currently rolls back atomically (schema rejects null 'from')", async () => {
+  // REGRESSION (V1-9, fixed 2026-08-04). This branch used to hardcode BOTH
+  // from_user_id and from_organization_id to null, which the custody_transferred
+  // schema rejects ("at least one of from_user_id / from_organization_id must be
+  // set") — so validateEventPayload threw inside the transaction and every
+  // resolution-by-transfer rolled back with a raw error, while the UI happily
+  // offered the option. The predecessor is now read from the ownership row the
+  // use case closes, so the event carries real provenance.
+  //
+  // This test previously PINNED the broken behavior, which is how a green CI
+  // protected the bug for weeks. It now asserts the transfer actually lands.
+  it("ownership_transferred commits and records the outgoing holder as 'from'", async () => {
     const { petId, disputeToken } = await seedOpenDispute("DIM-CD-RES-XFER", "Resolve Transfer");
     mockSessionAs(adminUserId);
 
@@ -436,31 +444,63 @@ describe("resolveDisputeAction", () => {
       transferToUserId: transfereeUserId,
     });
 
-    // The action surfaces the validation failure as a clean error.
-    expect(result).toHaveProperty("error");
-    expect((result as { error: string }).error).toContain("custody_transferred");
+    expect(result).not.toHaveProperty("error");
 
-    // Atomic rollback: dispute stays open, no new ownership row, original owner
-    // ownership untouched (nothing was committed).
     const [dispute] = await db
       .select({ status: custodyDisputes.status })
       .from(custodyDisputes)
       .where(eq(custodyDisputes.publicToken, disputeToken))
       .limit(1);
-    expect(dispute?.status).toBe("open");
+    expect(dispute?.status).toBe("resolved");
 
-    const transfereeRows = await db
-      .select({ id: ownerships.id })
+    // Custody moved: exactly one active row, held by the transferee.
+    const activeRows = await db
+      .select({ ownerUserId: ownerships.ownerUserId, role: ownerships.role })
       .from(ownerships)
-      .where(and(eq(ownerships.petId, petId), eq(ownerships.ownerUserId, transfereeUserId)));
-    expect(transfereeRows).toHaveLength(0);
+      .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)));
+    expect(activeRows).toHaveLength(1);
+    expect(activeRows[0].ownerUserId).toBe(transfereeUserId);
+    expect(activeRows[0].role).toBe("owner");
 
-    const [activeOwn] = await db
-      .select({ ownerUserId: ownerships.ownerUserId })
+    // The previous owner's row is closed, not deleted.
+    const [priorRow] = await db
+      .select({ endedAt: ownerships.endedAt })
       .from(ownerships)
-      .where(and(eq(ownerships.petId, petId), isNull(ownerships.endedAt)))
+      .where(and(eq(ownerships.petId, petId), eq(ownerships.ownerUserId, ownerUserId)));
+    expect(priorRow?.endedAt).not.toBeNull();
+
+    // Provenance on the spine: the event names who it came from.
+    const [transferEvent] = await db
+      .select({ payload: petEvents.payload })
+      .from(petEvents)
+      .where(and(eq(petEvents.petId, petId), eq(petEvents.eventType, "custody_transferred")))
       .limit(1);
-    expect(activeOwn?.ownerUserId).toBe(ownerUserId);
+    const payload = transferEvent?.payload as {
+      from_user_id: string | null;
+      from_organization_id: string | null;
+      from_role: string;
+      to_user_id: string | null;
+    };
+    expect(payload.from_user_id).toBe(ownerUserId);
+    expect(payload.from_organization_id).toBeNull();
+    expect(payload.from_role).toBe("owner");
+    expect(payload.to_user_id).toBe(transfereeUserId);
+  });
+
+  it("rejects ownership_transferred naming both a user and an organization", async () => {
+    const { disputeToken } = await seedOpenDispute("DIM-CD-RES-XBOTH", "Resolve Both");
+    mockSessionAs(adminUserId);
+
+    const result = await resolveDisputeAction({
+      disputeToken,
+      resolution: "ownership_transferred",
+      resolutionSummary: LONG_SUMMARY,
+      transferToUserId: transfereeUserId,
+      transferToOrgId: "00000000-0000-0000-0000-000000000001",
+    });
+
+    expect(result).toHaveProperty("error");
+    expect((result as { error: string }).error).toContain("un solo destino");
   });
 
   it("rejects a resolution summary shorter than 100 characters", async () => {

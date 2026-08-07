@@ -17,6 +17,8 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { and, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
+
 vi.mock("@/lib/supabase/server", () => ({
   createClient: vi.fn(),
 }));
@@ -150,7 +152,8 @@ beforeAll(async () => {
     .set({
       displayName: "FosterE2E Volunteer",
       phone: "+541112345678",
-      dniNumber: "10000001",
+      dniHash: hashDni("10000001"),
+      dniLast4: dniLast4("10000001"),
       dniVerified: true,
       role: "owner",
       accountType: "personal",
@@ -328,6 +331,7 @@ describe("foster-e2e: propose → accept → adopt", () => {
     // ----- Step 4: org marks the pet adoption-eligible -----
     mockSessionAs(coordUserId);
     const setEligible = await setAdoptionEligibilityAction({
+      orgToken,
       petPublicToken: petToken,
       eligible: true,
     });
@@ -345,15 +349,16 @@ describe("foster-e2e: propose → accept → adopt", () => {
     formData.set("followupMonths", "0");
     formData.set("notes", "Adoptado directo desde el tránsito.");
 
-    // finalizeAdoptionAction redirects on success — wrap in try/catch.
-    let redirectErr: unknown = null;
-    try {
-      await finalizeAdoptionAction(orgToken, petToken, { error: null }, formData);
-    } catch (e) {
-      redirectErr = e;
-    }
-    // Next.js redirect throws a special internal error; verify the side effects.
-    expect(redirectErr).toBeTruthy(); // redirect threw, as expected
+    // finalizeAdoptionAction returns a redirect target on success (the client
+    // hard-navigates — the router-drop-immune cure), so no throw to catch.
+    const finalizeResult = await finalizeAdoptionAction(
+      orgToken,
+      petToken,
+      { error: null },
+      formData,
+    );
+    expect(finalizeResult.error).toBeNull();
+    expect(finalizeResult.redirectTo).toContain(`/org/${orgToken}/mascotas?adopcion=`);
 
     // Volunteer is now the owner.
     const [ownerRow] = await db

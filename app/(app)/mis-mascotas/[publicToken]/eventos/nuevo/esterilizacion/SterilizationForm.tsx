@@ -1,10 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnRadio, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
 
@@ -20,28 +24,38 @@ export function SterilizationForm({
   defaults?: { occurredAt: string | null; notes: string | null };
 }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3 redirect contract: the action returns `redirectTo` on success and the
+  // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
+  useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
+
+  // Controlled field state — preserves typed input on validation error.
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [performedBy, setPerformedBy] = useState("");
+  const [clinic, setClinic] = useState("");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   return (
     <>
       <LnSheetHeader
         tone="rosa"
-        icon="✂️"
+        icon={<Icon name="esterilizacion" decorative />}
         title="Registrar esterilización"
         subtitle="Libreta sanitaria oficial"
       />
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
           <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
-          <div className="flex flex-col gap-[6px]">
-            <p className="font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
+          <div className="flex flex-col gap-1.5">
+            <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.1em] text-[var(--color-ln-mute)]">
               Procedimiento{" "}
               <span className="text-[var(--color-ln-seal)]" aria-hidden="true">
                 *
               </span>
             </p>
-            <div className="flex flex-col gap-[6px]">
+            <div className="flex flex-col gap-1.5">
               <LnRadio name="procedure" value="castration" required>
                 Castración
               </LnRadio>
@@ -58,7 +72,8 @@ export function SterilizationForm({
                 type="date"
                 required
                 mono
-                defaultValue={defaults?.occurredAt ?? today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -70,6 +85,8 @@ export function SterilizationForm({
                 id={id}
                 name="performedBy"
                 type="text"
+                value={performedBy}
+                onChange={(e) => setPerformedBy(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -81,6 +98,8 @@ export function SterilizationForm({
                 id={id}
                 name="clinic"
                 type="text"
+                value={clinic}
+                onChange={(e) => setClinic(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -92,7 +111,8 @@ export function SterilizationForm({
                 id={id}
                 name="notes"
                 rows={3}
-                defaultValue={defaults?.notes ?? ""}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -101,8 +121,10 @@ export function SterilizationForm({
           <AttachmentField />
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

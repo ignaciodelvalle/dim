@@ -8,12 +8,19 @@
 //   - Attachment inserted when uploadedPath provided.
 //   - ARCH-R: legacy updateMicrochipBackfill (pets.microchipId column) removed.
 //     Canonical row written to pet_identifications via insertIdentification.
-//   - ARCH-S: pet.microchipId replaced by petHasCanonicalChip (pre-resolved by
-//     caller from pet_identifications) so no legacy column is needed.
+//   - ARCH-S: pet.microchipId replaced by a pre-resolved canonical chip value
+//     (from pet_identifications) so no legacy column is needed.
 //   - No outbox. No audit_log.
+//
+// The caller passes the canonical chip NUMBER, not a boolean. A boolean could
+// only answer "does this pet have a chip?", which collapses a re-submit of the
+// same chip and an implant of a different one into one branch — and that branch
+// wrote the event while skipping the canonical row. See
+// checkChipMatchesCanonical for what that cost.
 
-import { validateEventPayload } from "@/lib/event-schemas";
-import { chipImplantSiteFromLocation } from "@/src/modules/pets/domain/pet-rules";
+import { chipImplantSiteFromLocation } from "@/lib/domain/microchip-implant-site";
+import { checkChipMatchesCanonical } from "@/lib/domain/microchip-validation";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
 import type { UseCaseResult } from "../types";
@@ -23,7 +30,11 @@ import type { UseCaseResult } from "../types";
 // ---------------------------------------------------------------------------
 
 export type CreateMicrochipInput = {
-  pet: { id: string; petHasCanonicalChip: boolean };
+  /**
+   * `canonicalChipNumber` is the pet's active pet_identifications code, or null
+   * when the pet carries no chip yet. Resolved by the caller.
+   */
+  pet: { id: string; canonicalChipNumber: string | null };
   user: { id: string };
   eventAuthorship: {
     authorRole: string;
@@ -75,6 +86,13 @@ export async function createMicrochip(
   } = input;
   const { repo, transaction } = deps;
 
+  // Runs BEFORE the transaction opens: an implant that contradicts the chip on
+  // record must never reach the append-only spine, because nothing downstream
+  // can retract it. See checkChipMatchesCanonical for why rejection beats both
+  // overwriting the canonical row and flagging the conflict after the fact.
+  const conflict = checkChipMatchesCanonical(pet.canonicalChipNumber, chipNumber);
+  if (conflict) return { ok: false, error: conflict.error };
+
   const now = new Date();
 
   const eventId = await transaction(async (tx) => {
@@ -117,11 +135,12 @@ export async function createMicrochip(
     }
 
     // Insert canonical microchip row in pet_identifications.
-    // Only when the pet had no prior chip; insertIdentification itself skips
-    // if an active row already exists (re-sync guard).
+    // Only when the pet had no prior chip. A pet that already carries THIS
+    // chip needs nothing written — the guard above proved the codes agree, so
+    // this is a double-submit or a partial-write re-sync, and
+    // insertIdentification would skip it anyway.
     // ARCH-R: legacy pets.microchipId write removed.
-    // ARCH-S: guard uses petHasCanonicalChip (pre-resolved from pet_identifications by caller).
-    if (!pet.petHasCanonicalChip) {
+    if (pet.canonicalChipNumber === null) {
       const implantSite = chipImplantSiteFromLocation(locationOnBody);
       await repo.insertIdentification(
         {

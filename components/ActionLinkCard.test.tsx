@@ -120,3 +120,45 @@ describe("<ActionLinkCard>", () => {
     expect(html).not.toContain("min-w-[1.25rem]");
   });
 });
+
+describe("<ActionLinkCard> — the C.2 orphaned-route shape", () => {
+  // The transfers card on /mis-mascotas used to pass `hideWhenZero` as a bare
+  // flag against the INCOMING count. A user who had SENT a transfer and had no
+  // incoming ones lost the only link to /transferencias — while that page has
+  // carried an "Enviadas" section since UX 3.1, so a live pending proposal sat
+  // there with nothing pointing at it.
+  //
+  // The fix makes visibility a decision the CALLER computes over both
+  // directions, so these pin the two states that used to collapse into one.
+  it("stays visible with no badge when hideWhenZero is false (outgoing-only)", () => {
+    const html = render(
+      <ActionLinkCard
+        href="/transferencias"
+        icon="transferencia"
+        title="Transferencias pendientes"
+        description="Mascotas que alguien quiere transferirte, y las que enviaste"
+        badge={null}
+        hideWhenZero={false}
+      />,
+    );
+    // The LINK is what matters — without it the route is unreachable.
+    expect(html).toContain('href="/transferencias"');
+    // No badge: an outgoing proposal waits on someone else, so it earns the
+    // link but must not read as a call to action.
+    expect(html).not.toContain("aria-label");
+  });
+
+  it("still hides when the caller says both directions are empty", () => {
+    const html = render(
+      <ActionLinkCard
+        href="/transferencias"
+        icon="transferencia"
+        title="Transferencias pendientes"
+        description="Mascotas que alguien quiere transferirte, y las que enviaste"
+        badge={null}
+        hideWhenZero={true}
+      />,
+    );
+    expect(html).toBe("");
+  });
+});

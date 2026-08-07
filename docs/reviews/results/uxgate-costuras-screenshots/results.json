@@ -1,0 +1,38 @@
+[
+  {
+    "id": "a-perdida",
+    "pass": false,
+    "entityCodes": {
+      "pet": "DIM-DEMO-0010"
+    },
+    "notes": [
+      "Public lost banner visible: true",
+      "Govt /gob/perdidas shows Pipa: true",
+      "Public /perdidas shows Pipa: true",
+      "Govt list still shows Pipa after found: true"
+    ]
+  },
+  {
+    "id": "b-vacuna-atender",
+    "pass": false,
+    "entityCodes": {},
+    "notes": [
+      "Rabies KPI before: 43",
+      "Error: page.waitForURL: Timeout 15000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    ]
+  },
+  {
+    "id": "c-denuncia",
+    "pass": false,
+    "entityCodes": {
+      "den": "DEN-RK7T-94YM"
+    },
+    "notes": ["Error: page.goto: Target page, context or browser has been closed"]
+  },
+  {
+    "id": "d-adopcion",
+    "pass": false,
+    "entityCodes": {},
+    "notes": ["Error: page.goto: Target page, context or browser has been closed"]
+  }
+]

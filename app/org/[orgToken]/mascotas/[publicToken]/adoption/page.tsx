@@ -4,10 +4,13 @@
 // creation) lives in app/actions/adoption.ts.
 
 import { db, fosterProposals, ownerships, pets, profiles } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { resolveSiteUrl } from "@/lib/infra/site-url";
+import { safePayloadUuid } from "@/lib/infra/sql-fragments";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
+import QRCode from "qrcode";
 
 import { OpBreach, OpCard, OpCardBody, OpCardHead, OpCrumbs } from "@/components/ui/dashboard";
 
@@ -26,14 +29,14 @@ export default async function AdoptionPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Permiso requerido</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
+          <p className="text-md text-ln-op-ink-2">
             Para finalizar adopciones necesitás el permiso{" "}
-            <code className="text-[11px]">adoption.finalize</code>.
+            <code className="text-sm">adoption.finalize</code>.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -59,13 +62,13 @@ export default async function AdoptionPage({
     return (
       <main className="min-h-screen bg-ln-op-page p-6 flex items-center justify-center">
         <div className="max-w-md text-center space-y-4">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">Animal no disponible</h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <h1 className="text-title font-semibold text-ln-op-ink">Animal no disponible</h1>
+          <p className="text-md text-ln-op-ink-2">
             Este animal no figura bajo custodia activa de {organization.displayName}.
           </p>
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="inline-block px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] hover:bg-ln-op-azul-700"
+            className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md hover:bg-ln-op-azul-700"
           >
             Volver al listado
           </Link>
@@ -104,6 +107,45 @@ export default async function AdoptionPage({
       }
     : null;
 
+  // Approved online applications for this pet — the PRIMARY finalize path.
+  // Finalizing against one of these transfers ownership to the applicant's real
+  // account (closing the 100%-digital loop). D17: this is the org-side surface,
+  // so listing applicants here is legitimate (unlike the applicant-facing pages).
+  const approvedRows = await db.execute<{
+    application_id: string;
+    applicant_name: string | null;
+  }>(sql`
+    SELECT
+      s.id::text AS application_id,
+      pr.display_name AS applicant_name
+    FROM pet_events s
+    JOIN pet_events r ON r.pet_id = s.pet_id
+      AND r.event_type = 'adoption_application_resolved'
+      AND r.payload->>'application_event_id' = s.id::text
+      AND r.payload->>'outcome' = 'approved'
+    LEFT JOIN profiles pr ON pr.id = ${safePayloadUuid(sql`s.payload->>'applicant_user_id'`)}
+    WHERE s.event_type = 'adoption_application_submitted'
+      AND s.pet_id = ${pet.id}
+      AND s.payload->>'applicant_user_id' IS NOT NULL
+    ORDER BY r.recorded_at DESC
+  `);
+
+  const approvedApplications = approvedRows.map((r) => ({
+    applicationEventId: r.application_id,
+    applicantName: r.applicant_name,
+  }));
+
+  // Signup QR for the registered-adopter refusal panel (org-pilot-pack D9).
+  // resolveSiteUrl() is the PRN-4 empty-SITE_URL fix — never an empty origin,
+  // so the QR can never encode a host-less relative URL. Signup step 2 already
+  // captures the DNI, so after registering the org simply re-verifies.
+  const signupQrSvg = await QRCode.toString(`${resolveSiteUrl()}/signup`, {
+    type: "svg",
+    margin: 1,
+    width: 160,
+    errorCorrectionLevel: "M",
+  });
+
   return (
     <main className="min-h-screen bg-ln-op-page p-6">
       <div className="max-w-2xl mx-auto space-y-6">
@@ -115,13 +157,13 @@ export default async function AdoptionPage({
               { label: "Finalizar adopción" },
             ]}
           />
-          <p className="text-[11px] uppercase tracking-wider text-ln-op-mute">
+          <p className="text-sm uppercase tracking-wider text-ln-op-mute">
             {organization.displayName}
           </p>
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">
+          <h1 className="text-title font-semibold text-ln-op-ink">
             Finalizar adopción: {pet.name}
           </h1>
-          <p className="text-[13px] text-ln-op-ink-2">
+          <p className="text-md text-ln-op-ink-2">
             Esta acción cierra la custodia del refugio y, si hay un tránsito activo, también lo
             cierra. Queda registrado como evento inmutable en la historia de {pet.name}.
           </p>
@@ -152,6 +194,8 @@ export default async function AdoptionPage({
               orgToken={orgToken}
               publicToken={publicToken}
               fosterShortcut={fosterShortcut}
+              approvedApplications={approvedApplications}
+              signupQrSvg={signupQrSvg}
             />
           </OpCardBody>
         </OpCard>
@@ -159,7 +203,7 @@ export default async function AdoptionPage({
         <footer className="pt-4 border-t border-ln-op-line">
           <Link
             href={`/org/${orgToken}/mascotas`}
-            className="text-[12px] text-ln-op-mute underline hover:text-ln-op-ink"
+            className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
           >
             ← Volver al listado
           </Link>

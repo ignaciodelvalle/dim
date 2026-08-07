@@ -14,17 +14,33 @@
 // Used by LocationFields when mode="l1" after the unified-location refactor
 // (critique-direcciones-2026-05-27 §"Opción B").
 //
-// Auth: the underlying searchLocalitiesAction requires auth. L1 flows are
-// all authed, so no public variant is needed.
+// Auth: the default searchLocalitiesAction requires a session. Most L1 flows are
+// authed, but signup is not — anonymous surfaces inject searchLocalitiesPublicAction
+// via the `searchAction` prop (see LocationFields `allowAnonymous`). Without that,
+// the auth action redirects to /login the moment the user types.
 
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
-import { LnInput } from "@/components/ui/Field";
-import type { LocalitySearchResult } from "@/lib/ar-localidades";
+import type { SearchLocalitiesResult } from "@/app/actions/localities";
+import { LnCombobox } from "@/components/ui/LnCombobox";
+import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
+import { NO_BROWSER_AUTOFILL } from "@/lib/ui/no-browser-autofill";
 
 const DEBOUNCE_MS = 200;
 const MIN_QUERY_LENGTH = 2;
+
+// Institutional inbox for "my locality is missing from the INDEC catalog".
+//
+// This used to be a maintainer's personal Gmail address (cold-start review
+// RA-6, finding 3), and this component is not an internal tool: the zero-result
+// state renders on the PUBLIC /adoptar and /perdidas filters, on citizen
+// registration, and on /admin/govts/new — the screen where a jurisdiction is
+// onboarded. A funcionario creating a government account was being asked to
+// email a personal address. Same inbox the other institutional escalations
+// already use (/gob/perdidas' locality-assignment link, /gob/analytics' access
+// request, /terminos).
+const CATALOG_CONTACT_EMAIL = "hola@mimar.ar";
 
 type DefaultValue = {
   provinceCode?: string | null;
@@ -38,7 +54,17 @@ type Props = {
    * supplied, the input renders the locality name and the hidden inputs
    * carry the values directly until the user types something new. */
   defaultValue?: DefaultValue;
-  /** Optional ID, mostly for label association. */
+  /** Optional province scope (ISO 3166-2:AR code, e.g. "AR-B"). When set, the
+   * search is restricted to that province's localities; when absent, it searches
+   * across every province (the original behavior). Used by JurisdictionFilter to
+   * turn this into a province-scoped cascade. */
+  scopeProvinceCode?: string | null;
+  /** When true, the input is disabled (e.g. no province picked yet). */
+  disabled?: boolean;
+  /** Optional ID for the visible text input (label association).
+   * The hidden inputs use `name` for the wire contract; this id is
+   * intentionally suffixed with "-input" so it never collides with any
+   * hidden input's name in the same form namespace. */
   id?: string;
   /** Hidden-input base name. Defaults to "localityName" to match the wire
    * contract the actions already expect; the companion hiddens use suffixes
@@ -53,18 +79,45 @@ type Props = {
   onQueryChange?: (query: string) => void;
   /** Placeholder copy override. */
   placeholder?: string;
+  /** Injectable search action. Defaults to the auth-required searchLocalitiesAction.
+   * Pass searchLocalitiesPublicAction for unauthenticated surfaces (e.g. public filter bars). */
+  searchAction?: (input: {
+    provinceCode?: string;
+    query: string;
+  }) => Promise<SearchLocalitiesResult>;
 };
 
 export function LocalityPickerAcross({
   defaultValue,
+  scopeProvinceCode,
+  disabled,
   id,
   name = "localityName",
   required,
   onSelect,
   onQueryChange,
   placeholder = "Ej: Palermo, La Plata, Mendoza…",
+  searchAction = searchLocalitiesAction,
 }: Props) {
   const [query, setQuery] = useState(defaultValue?.localityName ?? "");
+  // The query the current `results` array actually answers.
+  //
+  // Without this, "Sin resultados." was a LIE for most of its life: it rendered
+  // whenever results were empty and no transition was in flight, which includes
+  // the entire 200 ms debounce window before the first request is even sent. A
+  // funcionario typing their own municipality watched "Sin resultados." sit
+  // under the field the whole time they typed, and concluded the municipality
+  // was missing from the registry (QA report 2026-08-01). Nothing was broken —
+  // the component was reporting "nothing found" when it meant "not asked yet".
+  //
+  // null = no answered search for the current input.
+  const [settledQuery, setSettledQuery] = useState<string | null>(null);
+  // Latest input, readable synchronously from inside an in-flight request so a
+  // slow response for "Pal" cannot overwrite a fast one for "Palermo".
+  const latestQueryRef = useRef(query);
+  // Set by handleSelect so the effect can tell "the user typed this" from "we
+  // wrote this into the box because they picked it".
+  const justPickedRef = useRef(false);
   // Hold the picked result so we can surface its provinceCode + indecId in
   // hidden inputs. When the user types without picking, this is null and
   // the hidden inputs fall back to the raw query (locality) + defaultValue
@@ -72,28 +125,49 @@ export function LocalityPickerAcross({
   const [selected, setSelected] = useState<LocalitySearchResult | null>(null);
   const [results, setResults] = useState<LocalitySearchResult[]>([]);
   const [open, setOpen] = useState(false);
-  const [activeIdx, setActiveIdx] = useState(0);
-  const [pending, startTransition] = useTransition();
+  // An edit-mode pre-fill is a real catalog row until the user types over it.
+  const [touched, setTouched] = useState(false);
+  // `pending` is deliberately unused: it only covers the in-flight request, not
+  // the debounce window before it, and reporting on that half was the bug.
+  // `searching` below is the honest signal.
+  const [, startTransition] = useTransition();
   const [errored, setErrored] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    latestQueryRef.current = query;
+    // The input text was just set BY a pick, not typed. Re-asking the catalog
+    // for the exact name it returned is pointless, and the reopened dropdown it
+    // caused (setOpen(results.length > 0) below) landed straight over the
+    // choice the user had just made — which reads as the pick not registering.
+    if (justPickedRef.current) {
+      justPickedRef.current = false;
+      return;
+    }
     if (query.length < MIN_QUERY_LENGTH) {
       setResults([]);
+      setSettledQuery(null);
       setOpen(false);
       return;
     }
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
       startTransition(async () => {
-        // No provinceCode — searchLocalitiesAction returns matches across
-        // every province (the action already supports this; it filters
-        // only when provinceCode is supplied).
-        const res = await searchLocalitiesAction({ query });
+        // scopeProvinceCode (when set) restricts results to one province;
+        // otherwise the action returns matches across every province (it
+        // filters only when provinceCode is supplied).
+        const res = await searchAction({
+          query,
+          provinceCode: scopeProvinceCode ?? undefined,
+        });
+        // A newer keystroke already superseded this request. Applying it would
+        // mark a stale query as "settled" and strand the field in a state where
+        // it reports on text the user is no longer typing.
+        if (latestQueryRef.current !== query) return;
         if ("results" in res) {
           setResults(res.results);
+          setSettledQuery(query);
           setOpen(res.results.length > 0);
-          setActiveIdx(0);
           setErrored(false);
         } else {
           setErrored(true);
@@ -103,33 +177,25 @@ export function LocalityPickerAcross({
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
-  }, [query]);
+  }, [query, scopeProvinceCode, searchAction]);
 
   function handleSelect(r: LocalitySearchResult) {
+    justPickedRef.current = true;
     setSelected(r);
     setQuery(r.localityName);
     setOpen(false);
     onSelect?.(r);
   }
 
-  function handleKey(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (!open || results.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActiveIdx((i) => Math.min(i + 1, results.length - 1));
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActiveIdx((i) => Math.max(i - 1, 0));
-    } else if (e.key === "Enter") {
-      e.preventDefault();
-      handleSelect(results[activeIdx]);
-    } else if (e.key === "Escape") {
-      setOpen(false);
-    }
-  }
-
-  const showNoResults =
-    !pending && query.length >= MIN_QUERY_LENGTH && results.length === 0 && !errored;
+  const status = resolveLocalityFieldStatus({
+    query,
+    settledQuery,
+    resultCount: results.length,
+    errored,
+    hasPick: selected !== null,
+    hasUntouchedDefault:
+      !touched && Boolean(defaultValue?.localityName) && Boolean(defaultValue?.provinceCode),
+  });
 
   // Hidden-input values. When the user picked a result, all four are
   // canonical; when they typed free text, we fall through to the raw query
@@ -140,28 +206,55 @@ export function LocalityPickerAcross({
   const localityNameValue = selected?.localityName ?? query;
   const indecIdValue = selected?.indecId ?? defaultValue?.indecId ?? "";
 
+  // Decouple the visible-input id from the hidden-input name namespace.
+  // form.elements.namedItem("localityName") must resolve to the single hidden
+  // input, not collide with a same-named id on the visible input.
+  const visibleInputId = id ? `${id}-input` : undefined;
+
   return (
     <div className="relative">
-      <LnInput
-        id={id}
+      <LnCombobox
+        id={visibleInputId}
         type="text"
+        disabled={disabled}
         value={query}
         onChange={(e) => {
           setQuery(e.target.value);
           setSelected(null);
+          setTouched(true);
           onQueryChange?.(e.target.value);
         }}
-        onKeyDown={handleKey}
         onFocus={() => {
           if (results.length > 0) setOpen(true);
         }}
-        onBlur={() => {
-          setTimeout(() => setOpen(false), 150);
-        }}
         placeholder={placeholder}
         required={required}
-        aria-autocomplete="list"
-        aria-expanded={open}
+        aria-required={required || undefined}
+        // Only system-catalog localities are valid here — suppress the browser's
+        // own autofill/history/password-manager dropdown so it can't overlay or
+        // pollute the results (see lib/ui/no-browser-autofill.ts).
+        {...NO_BROWSER_AUTOFILL}
+        items={results}
+        getItemKey={(r) =>
+          r.indecId ?? `${r.provinceCode}-${r.localitySlug}-${r.departmentName ?? "x"}`
+        }
+        onSelect={handleSelect}
+        open={open}
+        onOpenChange={setOpen}
+        listClassName="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-ln-line  bg-ln-card  shadow-lg"
+        renderItem={(r, { active }) => (
+          <div
+            className={`block w-full text-left px-3 py-2 ${
+              active ? "bg-ln-stripe " : "hover:bg-ln-stripe "
+            }`}
+          >
+            <p className="text-sm text-ln-ink ">{r.localityName}</p>
+            <p className="text-xs text-ln-mute ">
+              {r.departmentName ? `${r.departmentName}, ` : ""}
+              {r.provinceName}
+            </p>
+          </div>
+        )}
       />
       {/* Wire contract:
             provinceCode        — ISO 3166-2:AR. Empty when user typed free text and there's no defaultValue.
@@ -172,44 +265,19 @@ export function LocalityPickerAcross({
       <input type="hidden" name="provinceName" value={provinceNameValue} />
       <input type="hidden" name={name} value={localityNameValue} />
       <input type="hidden" name={`${name}IndecId`} value={indecIdValue} />
-      {open && results.length > 0 && (
-        <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-md border border-ln-line  bg-ln-card  shadow-lg">
-          {results.map((r, i) => (
-            <li key={r.indecId ?? `${r.provinceCode}-${r.localitySlug}-${r.departmentName ?? "x"}`}>
-              <button
-                type="button"
-                onMouseDown={(e) => {
-                  e.preventDefault();
-                  handleSelect(r);
-                }}
-                className={`block w-full text-left px-3 py-2 ${
-                  i === activeIdx ? "bg-ln-stripe " : "hover:bg-ln-stripe "
-                }`}
-              >
-                <p className="text-sm text-ln-ink ">{r.localityName}</p>
-                <p className="text-xs text-ln-mute ">
-                  {r.departmentName ? `${r.departmentName}, ` : ""}
-                  {r.provinceName}
-                </p>
-              </button>
-            </li>
-          ))}
-        </ul>
+      {status === "searching" && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ln-mute">
+          Buscando…
+        </span>
       )}
-      {pending && (
-        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-ln-mute">…</span>
-      )}
-      {showNoResults && (
-        <p className="text-xs text-ln-mute  mt-1">
-          Sin resultados.{" "}
-          <a
-            href={`mailto:ignaciodelvalle2014@gmail.com?subject=MiMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
-            className="underline"
-          >
-            Sugerí esta localidad
-          </a>
-        </p>
-      )}
+
+      <LocalityFieldStatusLine
+        status={status}
+        query={query}
+        localityName={localityNameValue}
+        provinceName={provinceNameValue}
+      />
+
       {errored && (
         <p className="text-xs text-ln-warn  mt-1">
           No pudimos buscar localidades ahora. Probá de nuevo en un momento.
@@ -217,4 +285,110 @@ export function LocalityPickerAcross({
       )}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// Status line
+// ---------------------------------------------------------------------------
+
+/**
+ * What the field should be saying about itself right now.
+ *
+ * Extracted as a pure function because the states are the whole bug: the old
+ * component could only say "Sin resultados.", so every other state — searching,
+ * confirmed, typed-but-not-picked — was communicated by silence.
+ */
+export type LocalityFieldStatus = "idle" | "searching" | "no-results" | "committed" | "needs-pick";
+
+export function resolveLocalityFieldStatus(input: {
+  query: string;
+  /** The query the current results answer; null when nothing has been answered. */
+  settledQuery: string | null;
+  resultCount: number;
+  errored: boolean;
+  /** The user picked a catalog row. */
+  hasPick: boolean;
+  /** Edit-mode pre-fill the user has not typed over — already a catalog row. */
+  hasUntouchedDefault: boolean;
+}): LocalityFieldStatus {
+  // The error message renders on its own; do not stack a second line under it.
+  if (input.errored) return "idle";
+
+  // Before "searching", deliberately: picking a row re-runs the search for the
+  // exact name that was picked, and flickering "Buscando…" over a confirmation
+  // the user just earned reads as the pick not having registered.
+  if (input.hasPick || input.hasUntouchedDefault) return "committed";
+
+  // Long enough to search but no answer for THIS text yet. Covers the debounce
+  // window, not just the request — reporting "Sin resultados." during the
+  // debounce was the actual defect (QA report 2026-08-01).
+  if (input.query.length >= MIN_QUERY_LENGTH && input.settledQuery !== input.query) {
+    return "searching";
+  }
+
+  // Only once a real search for this exact text came back empty.
+  if (input.settledQuery === input.query && input.resultCount === 0) return "no-results";
+
+  if (input.query.trim() !== "" && input.resultCount > 0) return "needs-pick";
+
+  return "idle";
+}
+
+function LocalityFieldStatusLine({
+  status,
+  query,
+  localityName,
+  provinceName,
+}: {
+  status: LocalityFieldStatus;
+  query: string;
+  localityName: string;
+  provinceName: string;
+}) {
+  if (status === "searching") {
+    return (
+      <p className="text-xs text-ln-mute mt-1" aria-live="polite">
+        Buscando localidades…
+      </p>
+    );
+  }
+
+  if (status === "no-results") {
+    // Names the text that failed and points at the likely cause. A bare "Sin
+    // resultados." reads to a funcionario as "my municipality is not in the
+    // national registry" rather than "check the spelling" — and the catalog
+    // holds every INDEC locality, so that reading is always wrong.
+    return (
+      <p className="text-xs text-ln-mute mt-1" aria-live="polite">
+        No encontramos “{query}”. Probá con menos letras o revisá la ortografía.{" "}
+        <a
+          href={`mailto:${CATALOG_CONTACT_EMAIL}?subject=miMAR%20%E2%80%94%20Agregar%20localidad&body=Localidad:%20${encodeURIComponent(query)}`}
+          className="underline"
+        >
+          Sugerí esta localidad
+        </a>
+      </p>
+    );
+  }
+
+  if (status === "committed") {
+    // The restriction stays — only a real ar_localities row is accepted. What
+    // was missing is the acknowledgement: until now the only feedback that a
+    // pick had registered arrived at submit time, as a rejection.
+    return (
+      <p className="text-xs text-ln-ok mt-1">
+        Localidad confirmada{provinceName ? `: ${localityName}, ${provinceName}` : ""}
+      </p>
+    );
+  }
+
+  if (status === "needs-pick") {
+    return (
+      <p className="text-xs text-ln-warn mt-1" aria-live="polite">
+        Elegí una de las opciones para confirmar tu localidad.
+      </p>
+    );
+  }
+
+  return null;
 }

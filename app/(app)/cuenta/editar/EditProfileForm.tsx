@@ -9,7 +9,13 @@
 import { useRef, useState } from "react";
 
 import { updateProfileAction, uploadAvatarAction } from "@/app/actions/profile";
-import { looksLikeArPhone } from "@/lib/ar-phone";
+import {
+  EmergencyContactFields,
+  type EmergencyContactValues,
+} from "@/components/pet-profile/EmergencyContactFields";
+import { looksLikeArPhone } from "@/lib/reference/ar-phone";
+import { notifySaved } from "@/lib/ui/action-feedback";
+import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
 function PhoneFormatWarning({ value }: { value: string }) {
   if (!value || looksLikeArPhone(value)) return null;
@@ -148,9 +154,14 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
       setFieldErrors(newErrors);
       if (!hasError && Object.keys(newErrors).length === 0) {
         setSuccessMessage("Tus datos fueron actualizados correctamente.");
+        // This form never navigates/reloads on save — the toast is the
+        // confirmation (mutation-feedback convention, lib/ui/action-feedback.ts).
+        // The inline banner above stays too — it's the durable signal for
+        // anyone who dismisses the toast before reading it.
+        notifySaved("Perfil actualizado");
       }
     } catch (err) {
-      setGlobalError(err instanceof Error ? err.message : "Error desconocido");
+      setGlobalError(err instanceof Error ? err.message : UNKNOWN_ERROR_FALLBACK);
     } finally {
       setLoading(false);
     }
@@ -166,14 +177,14 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
     <form onSubmit={handleSubmit} className="space-y-6">
       {/* Success banner */}
       {successMessage && (
-        <div className="rounded-[4px] bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok)] px-4 py-3">
+        <div className="rounded-[var(--radius-sm)] bg-[var(--color-ln-ok-050)] border border-[var(--color-ln-ok)] px-4 py-3">
           <p className="text-sm text-[var(--color-ln-ok)]">{successMessage}</p>
         </div>
       )}
 
       {/* Global error */}
       {globalError && (
-        <div className="rounded-[4px] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3">
+        <div className="rounded-[var(--radius-sm)] bg-[var(--color-ln-err-050)] border border-[var(--color-ln-seal)] px-4 py-3">
           <p className="text-sm text-[var(--color-ln-seal)]">{globalError}</p>
         </div>
       )}
@@ -239,7 +250,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           minLength={2}
           maxLength={80}
           placeholder="Tu nombre o apodo"
-          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           aria-describedby={fieldErrors.displayName ? "displayName-error" : undefined}
         />
         {fieldErrors.displayName && (
@@ -264,7 +275,7 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
           value={phone}
           onChange={(e) => setPhone(e.target.value)}
           placeholder="+54 9 11 1234-5678"
-          className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+          className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
           aria-describedby={fieldErrors.phone ? "phone-error" : undefined}
         />
         {fieldErrors.phone && (
@@ -276,100 +287,39 @@ export function EditProfileForm({ initialProfile }: { initialProfile: InitialPro
       </div>
 
       {/* Emergency / vet contact group — appears on <PetEmergencyCard>
-          of every pet detail. Tap-to-call linkable. */}
-      <fieldset className="space-y-3 rounded-[4px] border border-[var(--color-ln-line)] p-4">
-        <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-[var(--color-ln-mute)]">
-          Contactos para emergencias
-        </legend>
-        <p className="text-xs text-[var(--color-ln-mute)]">
-          Aparecen en la credencial de cada mascota. Si una mascota está perdida y un finder escanea
-          el QR, podemos mostrarle estos contactos (según tus preferencias de privacidad).
-        </p>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label
-              htmlFor="preferredVetName"
-              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-            >
-              Veterinario/a de cabecera
-            </label>
-            <input
-              id="preferredVetName"
-              type="text"
-              value={preferredVetName}
-              onChange={(e) => setPreferredVetName(e.target.value)}
-              maxLength={80}
-              placeholder="Dra. Pérez"
-              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="preferredVetPhone"
-              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-            >
-              Teléfono del vet
-            </label>
-            <input
-              id="preferredVetPhone"
-              type="tel"
-              value={preferredVetPhone}
-              onChange={(e) => setPreferredVetPhone(e.target.value)}
-              placeholder="+54 9 11 1234-5678"
-              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-            />
-            <PhoneFormatWarning value={preferredVetPhone} />
-          </div>
-          <div>
-            <label
-              htmlFor="emergencyContactName"
-              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-            >
-              Contacto de emergencia
-            </label>
-            <input
-              id="emergencyContactName"
-              type="text"
-              value={emergencyContactName}
-              onChange={(e) => setEmergencyContactName(e.target.value)}
-              maxLength={80}
-              placeholder="Lucía F."
-              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-            />
-          </div>
-          <div>
-            <label
-              htmlFor="emergencyContactPhone"
-              className="block text-xs font-medium text-[var(--color-ln-ink-2)] mb-1"
-            >
-              Teléfono del contacto
-            </label>
-            <input
-              id="emergencyContactPhone"
-              type="tel"
-              value={emergencyContactPhone}
-              onChange={(e) => setEmergencyContactPhone(e.target.value)}
-              placeholder="+54 9 11 1234-5678"
-              className="w-full text-sm rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-            />
-            <PhoneFormatWarning value={emergencyContactPhone} />
-          </div>
-        </div>
-      </fieldset>
+          of every pet detail. Tap-to-call linkable. Extracted to
+          EmergencyContactFields (pet-document-redesign ADR-13, Phase 5) —
+          shared with the narrow `?sheet=emergencia` in-profile edit. */}
+      <EmergencyContactFields
+        values={{
+          preferredVetName,
+          preferredVetPhone,
+          emergencyContactName,
+          emergencyContactPhone,
+        }}
+        onChange={(field, value) => {
+          const setters: Record<keyof EmergencyContactValues, (v: string) => void> = {
+            preferredVetName: setPreferredVetName,
+            preferredVetPhone: setPreferredVetPhone,
+            emergencyContactName: setEmergencyContactName,
+            emergencyContactPhone: setEmergencyContactPhone,
+          };
+          setters[field](value);
+        }}
+      />
 
       {/* Actions */}
       <div className="flex gap-3 pt-2">
         <button
           type="submit"
           disabled={loading}
-          className="px-5 py-2 text-sm bg-[var(--color-ln-azul)] text-white rounded-[3px] hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="px-5 py-2 text-sm bg-[var(--color-ln-azul)] text-white rounded-[var(--radius-pill)] hover:bg-[var(--color-ln-azul-700)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {loading ? "Guardando..." : "Guardar cambios"}
         </button>
         <a
           href="/cuenta"
-          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[3px] hover:bg-[var(--color-ln-stripe)] transition-colors"
+          className="px-5 py-2 text-sm border border-[var(--color-ln-line-strong)] rounded-[var(--radius-pill)] hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
           Cancelar
         </a>

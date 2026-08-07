@@ -25,13 +25,13 @@ import { headers } from "next/headers";
 
 import { db, notifications } from "@/db";
 import { organizationInvitations } from "@/db";
-import { listLocalitiesByProvince } from "@/lib/ar-localidades";
-import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/ar-provincias";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { generateInvitationToken } from "@/lib/publicToken";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
+import { listLocalitiesByProvince } from "@/lib/infra/ar-localidades";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { generateInvitationToken } from "@/lib/infra/publicToken";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { generateUniqueToken, isUniqueViolation } from "@/lib/infra/unique-token";
+import { PROVINCES, type ProvinceCode, provinceByName } from "@/lib/reference/ar-provincias";
 import { createClient } from "@/lib/supabase/server";
-import { generateUniqueToken, isUniqueViolation } from "@/lib/unique-token";
 import { isManagerRole } from "@/src/modules/organizations/domain/role-rules";
 import {
   getActiveMemberships,
@@ -125,6 +125,16 @@ export async function updateOrganizationAction(
   // Outer guard: redirect to /login if unauth; notFound() if no active membership.
   const { user } = await requireOrgAccessByToken(orgToken);
 
+  // Helper: parse an optional nullable integer from FormData.
+  // Empty string → null (clear the value). Not submitted → undefined (keep existing).
+  function parseCapacity(key: string): number | null | undefined {
+    if (!formData.has(key)) return undefined;
+    const raw = String(formData.get(key) ?? "").trim();
+    if (!raw) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? Math.round(n) : null;
+  }
+
   const result = await updateOrganization(
     {
       userId: user.id,
@@ -139,6 +149,12 @@ export async function updateOrganizationAction(
         personeriaJuridicaNumber:
           String(formData.get("personeriaJuridicaNumber") ?? "").trim() || null,
         tier0ShowOriginOrg: formData.get("tier0ShowOriginOrg") === "true",
+        // Shelter capacity (Item 16 D1). Only shelter orgs show the section,
+        // but the action accepts them from any org (the form gates by orgType).
+        capacityDogs: parseCapacity("capacityDogs"),
+        capacityCats: parseCapacity("capacityCats"),
+        capacityOther: parseCapacity("capacityOther"),
+        capacityTotal: parseCapacity("capacityTotal"),
       },
     },
     { repo },
@@ -152,52 +168,9 @@ export async function updateOrganizationAction(
   return { error: null, ok: true };
 }
 
-// ---------------------------------------------------------------------------
-// updateOrganizationForUser — testable inner writer (preserved for shim compat)
-// ---------------------------------------------------------------------------
-
-export type UpdateOrgInput = {
-  orgToken: string;
-  displayName: string;
-  legalName?: string | null;
-  email?: string | null;
-  phone?: string | null;
-  website?: string | null;
-  description?: string | null;
-  personeriaJuridicaNumber?: string | null;
-  tier0ShowOriginOrg?: boolean;
-};
-
-export async function updateOrganizationForUser(
-  userId: string,
-  orgToken: string,
-  input: UpdateOrgInput,
-): Promise<UpdateOrgFormState> {
-  const result = await updateOrganization(
-    {
-      userId,
-      orgToken,
-      fields: {
-        displayName: input.displayName,
-        legalName: input.legalName,
-        email: input.email,
-        phone: input.phone,
-        website: input.website,
-        description: input.description,
-        personeriaJuridicaNumber: input.personeriaJuridicaNumber,
-        tier0ShowOriginOrg: input.tier0ShowOriginOrg,
-      },
-    },
-    { repo },
-  );
-
-  if (!result.ok) return { error: result.error };
-
-  revalidatePath(`/org/${orgToken}/configuracion`);
-  revalidatePath(`/org/${orgToken}`);
-
-  return { error: null, ok: true };
-}
+// updateOrganizationForUser lives in ./actions.internal.ts — it accepts a
+// caller-supplied userId, so it must never be exported from this "use server"
+// file (authz triage 2026-07-04; it had no live caller here — shim compat only).
 
 // ---------------------------------------------------------------------------
 // removeMemberAction
@@ -588,6 +561,7 @@ async function callerIpAddress(): Promise<string> {
   }
 }
 
+// @no-auth-required: public contact/volunteer form served from the (public) route group to unauthenticated visitors; abuse-controlled by an IP rate limit (enforceRateLimit), not a session.
 export async function submitOrgContactAction(
   orgToken: string,
   kind: "contact" | "volunteer",
@@ -613,6 +587,8 @@ export async function submitOrgContactAction(
   );
 
   if (!result.ok) return { ok: false, error: result.error };
+  // El mensaje ya está guardado; esto es lo que hace que un humano se entere.
+  await flushNotifications(result.notifications);
   return { ok: true, error: null };
 }
 

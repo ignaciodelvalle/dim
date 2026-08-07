@@ -2,10 +2,14 @@
 
 import { useActionState, useState } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LocationFields } from "@/components/LocationFields";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetAccordion, LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { useIdempotencyKey } from "@/lib/use-idempotency-key";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 import { AttachmentField } from "../AttachmentField";
 
@@ -31,17 +35,35 @@ const TITLE_PLACEHOLDERS: Record<SubKind, string> = {
   other: "Descripción breve",
 };
 
-export function ClinicalInfoForm({ action }: { action: FormAction }) {
+export function ClinicalInfoForm({
+  action,
+  defaults,
+}: {
+  action: FormAction;
+  /** Optional prefill values forwarded from URL searchParams (captura-rápida). */
+  defaults?: { occurredAt: string | null; notes: string | null };
+}) {
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3 redirect contract: the action returns `redirectTo` on success and the
+  // form performs the full document navigation (see lib/ui/use-action-redirect.ts).
+  useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
   const { key: idempotencyKey } = useIdempotencyKey();
   const [subKind, setSubKind] = useState<SubKind>("lab_work");
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayIsoInAr();
+
+  // Controlled field state
+  const [title, setTitle] = useState("");
+  const [details, setDetails] = useState("");
+  const [performedBy, setPerformedBy] = useState("");
+  const [occurredAt, setOccurredAt] = useState(defaults?.occurredAt ?? today);
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   return (
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🔬"
+        icon={<Icon name="clinico" decorative />}
         title="Información clínica"
         subtitle="Libreta sanitaria oficial"
       />
@@ -75,6 +97,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 type="text"
                 required
                 placeholder={TITLE_PLACEHOLDERS[subKind]}
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -87,6 +111,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 name="details"
                 rows={4}
                 placeholder="Resultados, valores de referencia, comentarios del veterinario…"
+                value={details}
+                onChange={(e) => setDetails(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
@@ -98,6 +124,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 name="performedBy"
                 type="text"
                 placeholder="Dr. García · Clínica Veterinaria X"
+                value={performedBy}
+                onChange={(e) => setPerformedBy(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
@@ -110,7 +138,8 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 type="date"
                 required
                 mono
-                defaultValue={today}
+                value={occurredAt}
+                onChange={(e) => setOccurredAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -123,27 +152,32 @@ export function ClinicalInfoForm({ action }: { action: FormAction }) {
                 name="notes"
                 rows={3}
                 placeholder="Cualquier detalle extra que quieras recordar…"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
                 aria-describedby={describedBy}
               />
             )}
           </LnField>
           <LnSheetAccordion num="+" title="Ubicación">
-            <LocationFields mode="l1" />
+            <LocationFields mode="l1" cascade />
           </LnSheetAccordion>
           <AttachmentField />
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>
           )}
         </form>
       </LnSheetBody>
+      {/* Wave 2 Item 9: verb fix — Rule 2 requires "Registrar X" for logging an observable event */}
       <LnSheetFooter
         tone="azul"
-        ctaLabel="Guardar información clínica"
+        ctaLabel="Registrar información clínica"
         formId={FORM_ID}
         isPending={isPending}
       />

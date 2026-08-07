@@ -20,12 +20,12 @@
 
 import "server-only";
 
-import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
-import { writePoint } from "@/lib/location";
-import { validateMicrochipId } from "@/lib/microchip-validation";
-import { fetchActiveIdentifications } from "@/lib/pet-identifiers";
-import { normalizeTattooCode } from "@/lib/tattoo-lookup";
+import { writePoint } from "@/lib/domain/location";
+import { validateMicrochipId } from "@/lib/domain/microchip-validation";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { openCase } from "@/lib/infra/case-helpers";
+import { fetchActiveIdentifications } from "@/lib/infra/pet-identifiers";
+import { normalizeTattooCode } from "@/lib/infra/tattoo-lookup";
 
 import type { DisclosurePrefsInput } from "../../domain/disclosure-prefs";
 import { parseDisclosurePrefsSnapshot } from "../../domain/disclosure-prefs";
@@ -77,8 +77,18 @@ export type SetPetLostWriterParams = {
 
 export type SetPetLostWriterResult = { error: string | null };
 
-// biome-ignore lint/suspicious/noExplicitAny: broadcastLostPet accepts typed PetForBroadcast; we pass any-typed shapes from the writer
-type BroadcastFn = (db: any, pet: any, owner: any, lastLocation: any) => Promise<any>;
+// broadcastLostPet accepts typed PetForBroadcast; we pass any-typed shapes from
+// the writer, so the params are intentionally loose. Aliasing `any` once keeps
+// the single suppression valid even when the formatter wraps the signature.
+// biome-ignore lint/suspicious/noExplicitAny: writer passes loosely-typed shapes to broadcastLostPet
+type AnyBroadcastArg = any;
+type BroadcastFn = (
+  db: AnyBroadcastArg,
+  pet: AnyBroadcastArg,
+  owner: AnyBroadcastArg,
+  lastLocation: AnyBroadcastArg,
+  opts?: { episodeKey?: string | null },
+) => Promise<AnyBroadcastArg>;
 
 type Deps = {
   repo: Pick<EventsRepository, "insertEvent" | "updatePetLostProjection" | "insertIdentification">;
@@ -176,6 +186,11 @@ export async function setPetLostWriter(
       ? await fetchActiveIdentifications(petId)
       : { microchip: null, tattoo: null };
 
+  // Captured inside the tx, read post-tx to key the broadcast fan-out so a
+  // retry of THIS lost episode re-notifies nobody (review B.1). Each episode
+  // opens a fresh case, so a genuinely new lost episode gets a new key.
+  let episodeCaseId: string | null = null;
+
   try {
     await deps.transaction(async (tx) => {
       // Open a lost_pet_episode case atomically with the status_changed event.
@@ -187,10 +202,19 @@ export async function setPetLostWriter(
           jurisdictionProvince: petJurisdictionProvince,
           jurisdictionLocality: petJurisdictionLocality,
           openedByUserId: recordedByUserId,
-          openedReason: `Pet ${petPublicToken || petId} marked as lost by owner${reason ? ` — ${reason}` : ""}`,
+          openedReason: {
+            code: "pet_marked_lost",
+            // Public token only. The prose falls back to the internal pet UUID
+            // when there is no token (audit channel, byte-identical as ever);
+            // the LABEL omits the id entirely instead of showing a UUID.
+            petPublicToken: petPublicToken || null,
+            ownerNote: reason || null,
+          },
+          openedReasonAudit: { petId },
         },
         tx as CaseExecutor,
       );
+      episodeCaseId = caseRow.id;
 
       const eventPayload = validateEventPayload("status_changed", {
         from_status: fromStatus as "active" | "lost" | "deceased",
@@ -369,6 +393,7 @@ export async function setPetLostWriter(
         },
         { id: ownerUserId, displayName: ownerDisplayName },
         null,
+        { episodeKey: episodeCaseId },
       );
     } catch (err) {
       console.error("[setPetLost] broadcast failed (non-fatal):", err);

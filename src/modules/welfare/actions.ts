@@ -22,7 +22,6 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
-import { redirect } from "next/navigation";
 
 import {
   db,
@@ -31,33 +30,37 @@ import {
   organizations,
   welfareReports,
 } from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
 import {
-  requireAdminOrGovtOrRedirect,
-  requireAdminOrRedirect,
-  requireUserOrRedirect,
-} from "@/lib/auth-guards";
-import { signalWelfareReport } from "@/lib/authority";
-import { closeCase, openCase } from "@/lib/case-helpers";
-import { parseDateInput } from "@/lib/format";
-import { canonicalProvinceNameForStorage } from "@/lib/jurisdiction-canonical";
-import {
-  JurisdictionValidationError,
-  resolveCanonicalJurisdiction,
-} from "@/lib/jurisdiction-validation";
-import { writePoint } from "@/lib/location";
-import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/rate-limit";
-import { welfareAttachmentSignedUrl } from "@/lib/storage";
-import { createClient } from "@/lib/supabase/server";
-import {
-  MPF_EXPORT_SCHEMA_VERSION,
   createSignedExportUrl,
   generateWelfareMpfPdf,
   uploadExportToStorage,
   welfareReportToMpfDto,
-} from "@/lib/welfare-exports";
-import { computeFlagReasons } from "@/lib/welfare-moderation";
-import { uploadWelfareEvidence } from "@/lib/welfare-uploads";
+} from "@/lib/analytics/welfare-exports";
+import { signalWelfareReport } from "@/lib/domain/authority";
+import { writePoint } from "@/lib/domain/location";
+import {
+  CoordError,
+  JurisdictionValidationError,
+  normalizeLocationForWrite,
+} from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { findAuthoritiesForJurisdiction } from "@/lib/infra/approval-routing";
+import {
+  requireAdminOrGovtOrRedirect,
+  requireAdminOrRedirect,
+  requireDenunciaModerationPrincipal,
+  requireUserOrRedirect,
+} from "@/lib/infra/auth-guards";
+import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
+import { closeCase, openCase } from "@/lib/infra/case-helpers";
+import { resolveRoutableJurisdiction } from "@/lib/infra/jurisdiction-from-text";
+import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
+import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
+import { computeFlagReasons } from "@/lib/infra/welfare-moderation";
+import { removeWelfareEvidence, uploadWelfareEvidence } from "@/lib/infra/welfare-uploads";
+import { createClient } from "@/lib/supabase/server";
+import { parseDateInput } from "@/lib/utils/format";
+import { canReceiveDerivedWelfare } from "@/src/modules/welfare/domain/derivation-eligibility";
 import { generateReferenceCode } from "@/src/modules/welfare/domain/reference-code";
 import { and, eq, isNull } from "drizzle-orm";
 
@@ -68,8 +71,13 @@ import { closeWelfareReport } from "./application/close-welfare-report";
 import { confirmWelfareAsSpam } from "./application/confirm-welfare-as-spam";
 import { createOrgWelfareReport } from "./application/create-org-welfare-report";
 import { createWelfareReport } from "./application/create-welfare-report";
+import { escalateModerationToAdmin } from "./application/escalate-moderation-to-admin";
 import { generateMpfExport } from "./application/generate-mpf-export";
 import { passWelfareToTriage } from "./application/pass-welfare-to-triage";
+import {
+  loadAndVerifyScope as loadAndVerifyScopeFor,
+  loadInScopeReport as loadInScopeReportFor,
+} from "./application/report-scope-guards";
 import { returnDerivedReport } from "./application/return-derived-report";
 import { startWelfareReport } from "./application/start-welfare-report";
 import { takeDerivedReport } from "./application/take-derived-report";
@@ -83,7 +91,10 @@ import { WelfareRepository } from "./infrastructure/welfare-repository";
 // ---------------------------------------------------------------------------
 
 export type { TriageDecision } from "./application/triage-welfare-report";
-export type WelfareReportFormState = { error: string | null };
+// N3 (lib/ui/full-page-action-nav.ts): the action RETURNS its destination and
+// the form navigates. A dropped navigation here is a FILED denuncia with no
+// receipt shown, so this is never redirect().
+export type WelfareReportFormState = { error: string | null; redirectTo?: string | null };
 export type TriageResult = { ok: true } | { error: string };
 export type ModerationResult = { ok: true } | { error: string };
 export type AssignResult = { ok: true } | { ok: false; error: string };
@@ -117,6 +128,10 @@ async function flushNotifications(
   if (pending.length === 0) return;
   try {
     await repo.insertNotifications(pending as (typeof notifications.$inferInsert)[]);
+    // Web Push leg — urgent-only filtering happens inside the seam;
+    // best-effort, never throws into the action path.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications(pending);
   } catch (e) {
     console.error("[welfare/actions] notifications insert failed (action did succeed):", e);
   }
@@ -135,7 +150,8 @@ export async function triageWelfareReportAction(input: {
 
   // Jurisdiction scope is enforced inside the action via a pre-load.
   // The use-case receives a trusted actor — jurisdiction check happens here.
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -155,7 +171,7 @@ export async function triageWelfareReportAction(input: {
 
   await flushNotifications(result.notifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   return { ok: true };
 }
@@ -170,7 +186,8 @@ export async function startWelfareReportAction(input: {
 }): Promise<TriageResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -187,7 +204,7 @@ export async function startWelfareReportAction(input: {
 
   await flushNotifications(result.notifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   return { ok: true };
 }
@@ -202,7 +219,8 @@ export async function closeWelfareReportAction(input: {
 }): Promise<TriageResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadInScopeReport(
+  const loaded = await loadInScopeReportFor(
+    repo,
     input.welfareReportId,
     session.profile,
     session.jurisdictions,
@@ -222,7 +240,7 @@ export async function closeWelfareReportAction(input: {
 
   await flushNotifications(result.notifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   return { ok: true };
 }
@@ -246,7 +264,7 @@ export async function passWelfareToTriageAction(input: {
   if (!result.ok) return { error: result.error };
 
   revalidatePath("/admin/moderacion");
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   return { ok: true };
 }
 
@@ -273,13 +291,130 @@ export async function confirmWelfareAsSpamAction(input: {
 }
 
 // ---------------------------------------------------------------------------
+// Jurisdiction denuncia moderation (govt-scoped) — SDD phase 2
+// ---------------------------------------------------------------------------
+//
+// AUTH SCOPE: requireDenunciaModerationPrincipal ('denuncia.moderate') THEN a
+// per-report jurisdiction check via loadInScopeReport:
+//   admin → universal scope (no per-row check)
+//   govt  → the report's jurisdiction MUST be in the account's assignments
+//           (Wave A/F hardening — never widen beyond assignments). A flagged
+//           report with no jurisdiction is never in a govt's scope → admin-only.
+//
+// These are the govt-facing counterparts of the admin-only pass/confirm actions.
+// They REUSE the same use-cases (passWelfareToTriage / confirmWelfareAsSpam) —
+// no forked writer — and add the jurisdiction scope guard the admin path does
+// not need. The admin-only actions above are untouched (no regression).
+//
+//   approve  → pass to triage (unflag; the welfare case proceeds in /gob/maltrato)
+//   reject   → confirm as abuse/spam (status=invalid, permanent)
+//   escalate → hand back to the national admin queue with a motivo (append-only)
+
+export async function approveDenunciaModerationAction(input: {
+  welfareReportId: string;
+  notes: string;
+}): Promise<ModerationResult> {
+  const session = await requireDenunciaModerationPrincipal();
+
+  const loaded = await loadInScopeReportFor(
+    repo,
+    input.welfareReportId,
+    session.profile,
+    session.jurisdictions,
+  );
+  if ("error" in loaded) return { error: loaded.error };
+  // Once escalated to admin, the report leaves the govt actionable queue and is
+  // the national admin's to resolve. A govt resolving it here would silently
+  // clear moderationResolvedAt and drop it from the admin queue, defeating the
+  // escalation/oversight. Admin-only pass/confirm stay unguarded on purpose.
+  if (loaded.row.moderationEscalatedAt != null) {
+    return { error: "Esta denuncia fue escalada a la administración nacional." };
+  }
+
+  const result = await passWelfareToTriage(input, {
+    repo,
+    transaction: db.transaction.bind(db),
+    actor: { user: session.user },
+  });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/gob/denuncias");
+  revalidatePath("/admin/moderacion");
+  return { ok: true };
+}
+
+export async function rejectDenunciaAsAbuseAction(input: {
+  welfareReportId: string;
+  notes: string;
+}): Promise<ModerationResult> {
+  const session = await requireDenunciaModerationPrincipal();
+
+  const loaded = await loadInScopeReportFor(
+    repo,
+    input.welfareReportId,
+    session.profile,
+    session.jurisdictions,
+  );
+  if ("error" in loaded) return { error: loaded.error };
+  // Escalated reports are the national admin's to resolve — see approve action.
+  if (loaded.row.moderationEscalatedAt != null) {
+    return { error: "Esta denuncia fue escalada a la administración nacional." };
+  }
+
+  const result = await confirmWelfareAsSpam(input, {
+    repo,
+    transaction: db.transaction.bind(db),
+    actor: { user: session.user },
+  });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/gob/denuncias");
+  revalidatePath("/admin/moderacion");
+  return { ok: true };
+}
+
+export async function escalateDenunciaToAdminAction(input: {
+  welfareReportId: string;
+  notes: string;
+}): Promise<ModerationResult> {
+  const session = await requireDenunciaModerationPrincipal();
+
+  const loaded = await loadInScopeReportFor(
+    repo,
+    input.welfareReportId,
+    session.profile,
+    session.jurisdictions,
+  );
+  if ("error" in loaded) return { error: loaded.error };
+
+  const result = await escalateModerationToAdmin(input, {
+    repo,
+    transaction: db.transaction.bind(db),
+    actor: { user: session.user },
+  });
+
+  if (!result.ok) return { error: result.error };
+
+  revalidatePath("/gob/denuncias");
+  revalidatePath("/admin/moderacion");
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
 // assignWelfareToMeAction — R5
 // ---------------------------------------------------------------------------
 
 export async function assignWelfareToMeAction(reportId: string): Promise<AssignResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadAndVerifyScope(reportId, session.profile, session.jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(
+    repo,
+    reportId,
+    session.profile,
+    session.jurisdictions,
+  );
   if ("error" in loaded) return { ok: false, error: loaded.error };
 
   const result = await assignWelfare(
@@ -289,7 +424,7 @@ export async function assignWelfareToMeAction(reportId: string): Promise<AssignR
 
   if (!result.ok) return result;
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${reportId}`);
   return { ok: true };
 }
@@ -301,7 +436,12 @@ export async function assignWelfareToMeAction(reportId: string): Promise<AssignR
 export async function unassignWelfareAction(reportId: string): Promise<AssignResult> {
   const session = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadAndVerifyScope(reportId, session.profile, session.jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(
+    repo,
+    reportId,
+    session.profile,
+    session.jurisdictions,
+  );
   if ("error" in loaded) return { ok: false, error: loaded.error };
 
   const result = await unassignWelfare(
@@ -311,7 +451,7 @@ export async function unassignWelfareAction(reportId: string): Promise<AssignRes
 
   if (!result.ok) return result;
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${reportId}`);
   return { ok: true };
 }
@@ -338,7 +478,7 @@ export async function deriveWelfareToOrgAction(input: {
 }): Promise<DeriveWelfareToOrgResult> {
   const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const loaded = await loadAndVerifyScope(input.welfareReportId, profile, jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(repo, input.welfareReportId, profile, jurisdictions);
   if ("error" in loaded) return { ok: false, error: loaded.error };
 
   const report = loaded.row;
@@ -348,7 +488,8 @@ export async function deriveWelfareToOrgAction(input: {
     return { ok: false, error: "No se puede derivar una denuncia cerrada o inválida." };
   }
 
-  // Verify the target org exists, is verified, and is shelter or rescue_network.
+  // Verify the target org exists, is verified, and is an eligible derivation
+  // recipient (shelter / rescue_network / sanitary_authority — #48).
   const [targetOrg] = await db
     .select({
       id: organizations.id,
@@ -363,8 +504,12 @@ export async function deriveWelfareToOrgAction(input: {
 
   if (!targetOrg) return { ok: false, error: "Organización no encontrada." };
   if (!targetOrg.verified) return { ok: false, error: "La organización no está verificada." };
-  if (targetOrg.orgType !== "shelter" && targetOrg.orgType !== "rescue_network") {
-    return { ok: false, error: "Solo se puede derivar a refugios o redes de rescate verificados." };
+  if (!canReceiveDerivedWelfare(targetOrg.orgType)) {
+    return {
+      ok: false,
+      error:
+        "Solo se puede derivar a refugios, redes de rescate o autoridades sanitarias verificadas.",
+    };
   }
 
   // Capture the previous derivation target BEFORE overwriting, so we can send a
@@ -465,7 +610,7 @@ export async function deriveWelfareToOrgAction(input: {
 
   await flushNotifications(pendingNotifications);
 
-  revalidatePath("/gob/maltrato");
+  revalidatePath("/gob/denuncias");
   revalidatePath(`/gob/maltrato/${input.welfareReportId}`);
   revalidatePath(`/org/${targetOrg.publicToken}/maltrato/recibidos`);
   return { ok: true };
@@ -532,12 +677,16 @@ async function requireOrgInterventionAccess(
 
   if (!orgRow) return { error: "No sos miembro activo de esta organización." };
   if (!orgRow.orgVerified)
-    return { error: "Tu organización todavía no está verificada por MiMAR." };
-  // Defense-in-depth: derivation targets are restricted to shelter /
-  // rescue_network in deriveWelfareToOrgAction; mirror that constraint here so
-  // a data-integrity drift can never widen the intervention surface.
-  if (orgRow.orgType !== "shelter" && orgRow.orgType !== "rescue_network") {
-    return { error: "Solo refugios y redes de rescate pueden intervenir denuncias derivadas." };
+    return { error: "Tu organización todavía no está verificada por miMAR." };
+  // Defense-in-depth: derivation targets are restricted to eligible recipients
+  // in deriveWelfareToOrgAction; mirror that exact constraint here (shared
+  // canReceiveDerivedWelfare rule) so a data-integrity drift can never widen the
+  // intervention surface, and so an eligible sanitary_authority (#48) can act.
+  if (!canReceiveDerivedWelfare(orgRow.orgType)) {
+    return {
+      error:
+        "Solo refugios, redes de rescate y autoridades sanitarias pueden intervenir denuncias derivadas.",
+    };
   }
   if (!ORG_INTERVENTION_ROLES.has(orgRow.memberRole)) {
     return {
@@ -673,13 +822,33 @@ export async function generateMpfExportAction(
   const { profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect();
 
   // Jurisdiction scope guard (mirrors the detail page).
-  const loaded = await loadAndVerifyScope(welfareReportId, profile, jurisdictions);
+  const loaded = await loadAndVerifyScopeFor(repo, welfareReportId, profile, jurisdictions);
   if ("error" in loaded) return { ok: false, error: "not_found" };
+
+  // MPF export format cascade (jurisdiction-compliance, 2026-07-22) —
+  // replaces the old CABA-only gate (MPF_CONFIGURED_PROVINCES /
+  // isMpfConfiguredForProvince, removed). The export is no longer blocked by
+  // jurisdiction: EVERY jurisdiction can generate it. What varies per
+  // jurisdiction is the FORMAT, resolved via the same locality > province >
+  // country > national-default cascade every other govt_business_rules type
+  // uses. With zero override rows (the common case today) this always
+  // resolves { format: "estandar_nacional", source: "default" } — exactly the
+  // PDF every jurisdiction already got, minus the gate that used to block
+  // non-CABA reports from generating it at all.
+  const mpfFormatResolved = await resolveBusinessRule("mpf_export_format", {
+    country: "AR",
+    province: loaded.row.jurisdictionProvince,
+    locality: loaded.row.jurisdictionLocality,
+  });
 
   const supabase = await createClient();
 
   const result = await generateMpfExport(
-    { welfareReportId },
+    {
+      welfareReportId,
+      mpfExportFormat: mpfFormatResolved.payload.format,
+      mpfExportFormatSource: mpfFormatResolved.source,
+    },
     {
       repo,
       generatePdf: async (dto) => {
@@ -696,7 +865,7 @@ export async function generateMpfExportAction(
         const attachments = await Promise.all(
           attachmentRows.map(async (a) => ({
             filename: a.originalFilename ?? a.storagePath.split("/").pop() ?? "adjunto",
-            signedUrl: await welfareAttachmentSignedUrl(supabase, a.storagePath, 7 * 24 * 60 * 60),
+            signedUrl: await welfareAttachmentSignedUrl(a.storagePath, 7 * 24 * 60 * 60),
           })),
         );
         const exportGeneratedAt = new Date(dto.exportGeneratedAt);
@@ -706,6 +875,8 @@ export async function generateMpfExportAction(
           subjectPet,
           attachments,
           exportGeneratedAt,
+          mpfFormat: mpfFormatResolved.payload.format,
+          mpfFormatSource: mpfFormatResolved.source,
         });
         return generateWelfareMpfPdf(properDto);
       },
@@ -757,7 +928,9 @@ export async function createWelfareReportAction(
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Rate-limit anonymous submissions only. Auth users skip entirely.
+  // Rate-limit all submissions. Anonymous users get a tight IP-keyed cap;
+  // authenticated users get a generous per-user cap so flood attacks via
+  // accounts are still bounded.
   if (!user) {
     const hdrs = await headers();
     const ip = callerIp(hdrs);
@@ -765,6 +938,20 @@ export async function createWelfareReportAction(
       await enforceRateLimit("welfare_anon", ip, {
         maxPerMinute: 1,
         maxPerHour: 3,
+      });
+    } catch (err) {
+      if (err instanceof RateLimitError) {
+        return {
+          error:
+            "Estás enviando demasiadas denuncias seguidas. Esperá unos minutos y volvé a intentar. Si tenés muchos casos legítimos para reportar, considerá crear una cuenta.",
+        };
+      }
+      throw err;
+    }
+  } else {
+    try {
+      await enforceRateLimit("welfare_auth", user.id, {
+        maxPerHour: 10,
       });
     } catch (err) {
       if (err instanceof RateLimitError) {
@@ -784,28 +971,64 @@ export async function createWelfareReportAction(
   const subjectKind = String(formData.get("subjectKind") ?? "").trim();
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
-  const locationAddress = String(formData.get("locationAddress") ?? "").trim() || null;
-  const provinceCodeRaw = String(formData.get("provinceCode") ?? "").trim();
-  const localityNameRaw = String(formData.get("localityName") ?? "").trim();
-  const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
-  const jurisdictionProvince: string | null = provinceName;
-  let jurisdictionLocality: string | null = null;
-  if (provinceName && localityNameRaw) {
-    try {
-      const canonical = await resolveCanonicalJurisdiction({
-        rawProvince: provinceName,
-        rawLocality: localityNameRaw,
-      });
-      jurisdictionLocality = canonical.locality.localityName;
-    } catch (err) {
-      if (err instanceof JurisdictionValidationError) {
-        return { error: err.message };
-      }
-      throw err;
+  const loc = parseLocationFromFormData(formData);
+  // locality:"soft" — a public, anonymous maltrato report must NEVER hard-block
+  // because the geocoder returned a locality that isn't in the INDEC catalog
+  // (e.g. a CABA point, or a town OSM names differently). Soft passes the raw
+  // locality through (localityCanonical=false) instead of throwing; the authority
+  // still routes by province + coords + address. Exact CABA barrios resolve via
+  // the CABA-aware pickLocality in lib/geocoding.ts.
+  //
+  // requireCoords:true — FIX #3A (QA 2026-07-10): the wizard now requires an exact
+  // map point, and the canonical locality is inferred from it. Enforce coords
+  // server-side too (defense-in-depth) so a denuncia can never be created without
+  // a precise location. The DenunciaWizard blocks submit client-side; this catches
+  // any direct/legacy caller. Reverse-geocode of the point fills province/locality
+  // (soft); if that lookup is thin the row may still land locality-less — those
+  // residual rows are surfaced to whole-province operators by lib/metrics/scope.ts.
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, {
+      locality: "soft",
+      requireCoords: true,
+    });
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
     }
+    if (err instanceof CoordError) {
+      return {
+        error:
+          err.code === "COORD_REQUIRED"
+            ? "Marcá el lugar exacto en el mapa antes de enviar la denuncia."
+            : err.message,
+      };
+    }
+    throw err;
   }
-  const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
-  const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
+  const locationAddress = normalizedLoc.address;
+  // D.11 (PO, 2026-07-31) — GEOCODER-DOWN FALLBACK. The (province, locality)
+  // above is derived CLIENT-side by LocationFields from a geocoder result. When
+  // nominatim is unreachable those hidden inputs arrive empty and the row lands
+  // with jurisdiction_province NULL — invisible to every govt queue, because
+  // every branch of jurisdictionPairClause tests province equality. Rather than
+  // lose the denuncia, recover the jurisdiction from the address text the
+  // citizen typed and MARK IT UNVERIFIED. The mark is not bookkeeping: the
+  // triage row renders it (WelfareDenunciaRow), which is the condition the PO
+  // attached to accepting the mis-routing risk.
+  const routable = await resolveRoutableJurisdiction({
+    province: normalizedLoc.province,
+    locality: normalizedLoc.locality,
+    localityId: normalizedLoc.localityId,
+    addressText: locationAddress,
+  });
+  const jurisdictionProvince: string | null = routable.province;
+  const jurisdictionLocality: string | null = routable.locality;
+  // Structural locality-attribution FK (migration 0147) for the welfare_reports row.
+  const jurisdictionLocalityId: string | null = routable.localityId;
+  const jurisdictionUnverified = routable.unverified;
+  const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
+  const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const reporterContactEmail = String(formData.get("reporterContactEmail") ?? "").trim() || null;
   const reporterContactPhone = String(formData.get("reporterContactPhone") ?? "").trim() || null;
@@ -813,6 +1036,17 @@ export async function createWelfareReportAction(
   const dwellTimeMsRaw = String(formData.get("dwellTimeMs") ?? "").trim();
   const dwellTimeMs = dwellTimeMsRaw ? Number.parseInt(dwellTimeMsRaw, 10) : undefined;
   const honeypotValue = String(formData.get("_hp") ?? "");
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  // Anonymity choice from the wizard's final step ("anonymous" | "with_contact").
+  // PO decision (2026-07-08): honor "Enviar anónima" completely — a logged-in
+  // user who chooses anonymous is NOT linked to the report (reporter_user_id
+  // stays null), consistent with the finder-in-possession precedent and the
+  // strongest posture before data-protection officials. Only a non-anonymous
+  // submission attaches the account. The flag is absent for legacy callers, in
+  // which case the prior behavior (attach the session user) is preserved.
+  const isAnonymous = String(formData.get("contactMode") ?? "").trim() === "anonymous";
+  const reporterUserId = isAnonymous ? null : (user?.id ?? null);
 
   // Validate
   if (!WELFARE_KINDS.includes(kind)) return { error: "Tipo de denuncia inválido." };
@@ -906,7 +1140,7 @@ export async function createWelfareReportAction(
   const insertResult = await repo
     .insertReportWithRetry(
       {
-        reporterUserId: user?.id ?? null,
+        reporterUserId,
         reporterContactEmail,
         reporterContactPhone,
         kind: kind as Parameters<typeof repo.insertReportWithRetry>[0]["kind"],
@@ -918,6 +1152,8 @@ export async function createWelfareReportAction(
         locationAddress,
         jurisdictionProvince,
         jurisdictionLocality,
+        localityId: jurisdictionLocalityId,
+        jurisdictionUnverified,
         locationLat,
         locationLng,
         occurredAt,
@@ -938,7 +1174,7 @@ export async function createWelfareReportAction(
 
   // Upload files (after insert, before tx — parity)
   if (files.length > 0) {
-    uploadResult = await uploadWelfareEvidence(supabase, insertedId, files);
+    uploadResult = await uploadWelfareEvidence(insertedId, files);
     if (uploadResult.error) {
       return { error: uploadResult.error };
     }
@@ -949,8 +1185,11 @@ export async function createWelfareReportAction(
   let isOwnerOfSubjectPet = false;
   if (subjectKind === "registered_pet" && subjectPetToken) {
     subjectPetId = (await repo.findPetByToken(subjectPetToken))?.id ?? null;
-    if (subjectPetId && user?.id) {
-      const ownership = await repo.findActiveOwnership(subjectPetId, user.id);
+    // Gate ownership resolution on the effective reporter id: an anonymous
+    // submission must not reveal that the reporter is the pet's owner (that
+    // would make the report attributable), so it is treated as a third party.
+    if (subjectPetId && reporterUserId) {
+      const ownership = await repo.findActiveOwnership(subjectPetId, reporterUserId);
       isOwnerOfSubjectPet = ownership != null;
     }
   }
@@ -984,9 +1223,10 @@ export async function createWelfareReportAction(
       observedSymptoms,
       attachments,
       uploadedPaths: uploadResult?.uploadedPaths ?? [],
-      reporterUserId: user?.id ?? null,
+      reporterUserId,
       dwellTimeMs: Number.isFinite(dwellTimeMs) ? dwellTimeMs : undefined,
       honeypotValue,
+      clientIdempotencyKey,
     },
     {
       repo,
@@ -1000,17 +1240,12 @@ export async function createWelfareReportAction(
   );
 
   if (!result.ok) {
-    // Tx failed — clean up uploaded files
-    if (uploadResult?.uploadedPaths?.length) {
-      await supabase.storage
-        .from("welfare-evidence")
-        .remove(uploadResult.uploadedPaths)
-        .catch(() => {});
-    }
+    // Tx failed — clean up uploaded files.
+    await removeWelfareEvidence(uploadResult?.uploadedPaths ?? []);
     return { error: result.error };
   }
 
-  redirect(result.redirectTo);
+  return { error: null, redirectTo: result.redirectTo };
 }
 
 // ---------------------------------------------------------------------------
@@ -1056,7 +1291,7 @@ export async function createOrgWelfareReportAction(
 
   if (!orgRow) return { error: "No sos miembro activo de esta organización." };
   if (!orgRow.orgVerified) {
-    return { error: "Tu organización todavía no está verificada por MiMAR." };
+    return { error: "Tu organización todavía no está verificada por miMAR." };
   }
   if (!ORG_WELFARE_ROLES.has(orgRow.memberRole)) {
     return {
@@ -1071,30 +1306,43 @@ export async function createOrgWelfareReportAction(
   const subjectKind = String(formData.get("subjectKind") ?? "").trim();
   const subjectPetToken = String(formData.get("subjectPetToken") ?? "").trim() || null;
   const subjectDescription = String(formData.get("subjectDescription") ?? "").trim() || null;
-  const locationAddress = String(formData.get("locationAddress") ?? "").trim() || null;
-  const provinceCodeRaw = String(formData.get("provinceCode") ?? "").trim();
-  const localityNameRaw = String(formData.get("localityName") ?? "").trim();
-  const provinceName = canonicalProvinceNameForStorage(provinceCodeRaw);
-  const jurisdictionProvince: string | null = provinceName;
-  let jurisdictionLocality: string | null = null;
-  if (provinceName && localityNameRaw) {
-    try {
-      const canonical = await resolveCanonicalJurisdiction({
-        rawProvince: provinceName,
-        rawLocality: localityNameRaw,
-      });
-      jurisdictionLocality = canonical.locality.localityName;
-    } catch (err) {
-      if (err instanceof JurisdictionValidationError) {
-        return { error: err.message };
-      }
-      throw err;
+  const loc = parseLocationFromFormData(formData);
+  // locality:"soft" — same rationale as the public report: never hard-block an
+  // org welfare report on a geocoder locality that isn't catalog-canonical. Soft
+  // passes raw locality through; routing uses province + coords + address.
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "soft" });
+  } catch (err) {
+    if (err instanceof JurisdictionValidationError) {
+      return { error: err.message };
     }
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
   }
-  const locationLatRaw = String(formData.get("locationLat") ?? "").trim();
-  const locationLngRaw = String(formData.get("locationLng") ?? "").trim();
+  const locationAddress = normalizedLoc.address;
+  // D.11 geocoder-down fallback — same gate as the public intake above. An org
+  // report reaches the SAME jurisdiction-scoped triage queue, so a null province
+  // makes it just as invisible; there is no reason the professional path should
+  // be the one that silently loses reports.
+  const routable = await resolveRoutableJurisdiction({
+    province: normalizedLoc.province,
+    locality: normalizedLoc.locality,
+    localityId: normalizedLoc.localityId,
+    addressText: locationAddress,
+  });
+  const jurisdictionProvince: string | null = routable.province;
+  const jurisdictionLocality: string | null = routable.locality;
+  // Structural locality-attribution FK (migration 0147) for the welfare_reports row.
+  const jurisdictionLocalityId: string | null = routable.localityId;
+  const jurisdictionUnverified = routable.unverified;
+  const locationLatRaw = normalizedLoc.lat !== null ? String(normalizedLoc.lat) : "";
+  const locationLngRaw = normalizedLoc.lng !== null ? String(normalizedLoc.lng) : "";
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const observedSymptoms = String(formData.get("observedSymptoms") ?? "").trim() || null;
+  const orgClientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
   // Validate
   if (!WELFARE_KINDS.includes(kind)) return { error: "Tipo de denuncia inválido." };
@@ -1153,6 +1401,8 @@ export async function createOrgWelfareReportAction(
         locationAddress,
         jurisdictionProvince,
         jurisdictionLocality,
+        localityId: jurisdictionLocalityId,
+        jurisdictionUnverified,
         locationLat,
         locationLng,
         occurredAt,
@@ -1172,8 +1422,7 @@ export async function createOrgWelfareReportAction(
   const { id: insertedId, referenceCode: orgReferenceCode } = insertResult;
 
   // Upload evidence files
-  const supabase = await createClient();
-  const uploadResult = await uploadWelfareEvidence(supabase, insertedId, files);
+  const uploadResult = await uploadWelfareEvidence(insertedId, files);
   if (uploadResult.error) return { error: uploadResult.error };
 
   // Resolve pet at the action level (org reporters are always "witnesses" — no ownership check)
@@ -1216,6 +1465,7 @@ export async function createOrgWelfareReportAction(
         memberRole: orgRow.memberRole,
       },
       orgToken,
+      clientIdempotencyKey: orgClientIdempotencyKey,
     },
     {
       repo,
@@ -1229,21 +1479,12 @@ export async function createOrgWelfareReportAction(
   );
 
   if (!result.ok) {
-    if (uploadResult.uploadedPaths.length > 0) {
-      await supabase.storage
-        .from("welfare-evidence")
-        .remove(uploadResult.uploadedPaths)
-        .catch(() => {});
-    }
+    await removeWelfareEvidence(uploadResult.uploadedPaths);
     return { error: result.error };
   }
 
-  redirect(result.redirectTo);
+  return { error: null, redirectTo: result.redirectTo };
 }
-
-// ---------------------------------------------------------------------------
-// Internal helpers — jurisdiction scope guards
-// ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
 // addReporterCommentAction — reporter adds a free-text note to their case
@@ -1278,42 +1519,4 @@ export async function addReporterCommentAction(
 
   revalidatePath(`/denuncias/${welfareReportId}`);
   return { ok: true };
-}
-
-type WelfareReportRow = import("@/db").WelfareReport;
-
-async function loadInScopeReport(
-  reportId: string,
-  actor: { id: string; role: "admin" | "govt" },
-  jurisdictions: { province: string; locality: string }[],
-): Promise<{ row: WelfareReportRow } | { error: string }> {
-  const row = await repo.findById(reportId);
-  if (!row) return { error: "Denuncia no encontrada." };
-
-  if (actor.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) => j.province === row.jurisdictionProvince && j.locality === row.jurisdictionLocality,
-    );
-    if (!inScope) return { error: "La denuncia está fuera de tu jurisdicción." };
-  }
-
-  return { row };
-}
-
-async function loadAndVerifyScope(
-  reportId: string,
-  actor: { id: string; role: "admin" | "govt" },
-  jurisdictions: { province: string; locality: string }[],
-): Promise<{ row: WelfareReportRow } | { ok: false; error: string }> {
-  const row = await repo.findById(reportId);
-  if (!row) return { ok: false, error: "Denuncia no encontrada." };
-
-  if (actor.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) => j.province === row.jurisdictionProvince && j.locality === row.jurisdictionLocality,
-    );
-    if (!inScope) return { ok: false, error: "La denuncia está fuera de tu jurisdicción." };
-  }
-
-  return { row };
 }

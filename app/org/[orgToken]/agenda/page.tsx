@@ -10,10 +10,11 @@ import { and, eq, gte, lt } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { appointments, db, pets, profiles, serviceOfferings, timeSlots } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { AR_TIME_ZONE, formatTime, pluralizeEs } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { BlockSlotButton } from "./BlockSlotButton";
@@ -30,15 +31,6 @@ const STATUS_PILL: Record<string, { label: string; tone: StatusTone }> = {
   cancelled_by_owner: { label: "Cancelado", tone: "neutral" },
   no_show: { label: "Ausente", tone: "danger" },
 };
-
-type SlotTone = "ok" | "triaged" | "danger" | "neutral";
-
-function slotOccupancyTone(bookingsCount: number, capacity: number, status: string): SlotTone {
-  if (status === "cancelled") return "neutral";
-  if (bookingsCount >= capacity) return "danger";
-  if (bookingsCount > 0) return "triaged";
-  return "ok";
-}
 
 type SlotRow = {
   id: string;
@@ -168,41 +160,47 @@ export default async function OrgAgendaPage({
 
   return (
     <div className="space-y-6">
+      {/* Breadcrumbs (audit #18 — was missing on the day view). */}
+      <OpCrumbs items={[{ label: "Panel", href: `/org/${orgToken}` }, { label: "Agenda" }]} />
       {/* Page header */}
       <header className="space-y-1">
-        <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
           {organization.displayName}
         </p>
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Agenda del día</h1>
+        <h1 className="text-title font-semibold text-ln-op-ink">Agenda del día</h1>
       </header>
 
       {/* Date picker nav */}
       <div className="flex items-center gap-3">
         <Link
           href={`/org/${orgToken}/agenda?fecha=${prevDate}`}
-          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[12px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           ← Anterior
         </Link>
         {!isToday && (
           <Link
             href={`/org/${orgToken}/agenda`}
-            className="px-3 py-1.5 rounded-[6px] border border-ln-op-azul bg-ln-op-card text-[12px] font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
+            className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-azul bg-ln-op-card text-sm font-medium text-ln-op-azul hover:bg-ln-op-stripe transition-colors"
           >
             Hoy
           </Link>
         )}
-        <span className="text-[13px] font-medium text-ln-op-ink">
-          {new Date(`${targetDateStr}T12:00:00`).toLocaleDateString("es-AR", {
+        <span className="text-md font-medium text-ln-op-ink">
+          {/* Noon-UTC anchor + AR pin: offset-less "T12:00:00" parses in the
+              SERVER zone, and an unpinned formatter renders in it too — the
+              header day then depends on where the process runs. */}
+          {new Date(`${targetDateStr}T12:00:00Z`).toLocaleDateString("es-AR", {
             weekday: "long",
             day: "numeric",
             month: "long",
             year: "numeric",
+            timeZone: AR_TIME_ZONE,
           })}
         </span>
         <Link
           href={`/org/${orgToken}/agenda?fecha=${nextDate}`}
-          className="px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card text-[12px] text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
+          className="px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe transition-colors"
         >
           Siguiente →
         </Link>
@@ -210,9 +208,9 @@ export default async function OrgAgendaPage({
 
       {/* Slot occupancy — Cupos del día */}
       <section className="space-y-3">
-        <h2 className="text-[13px] font-semibold text-ln-op-ink">Cupos del día</h2>
+        <h2 className="text-md font-semibold text-ln-op-ink">Cupos del día</h2>
         {offeringGroups.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute py-4 text-center">
+          <p className="text-md text-ln-op-mute py-4 text-center">
             No hay cupos materializados para este día.
           </p>
         ) : (
@@ -225,21 +223,8 @@ export default async function OrgAgendaPage({
                 <OpCardBody className="p-0">
                   <ul className="divide-y divide-ln-op-line">
                     {group.slots.map((slot) => {
-                      const tone = slotOccupancyTone(
-                        slot.bookingsCount,
-                        slot.capacity,
-                        slot.status,
-                      );
-                      const startStr = slot.startsAt.toLocaleTimeString("es-AR", {
-                        timeZone: "America/Argentina/Buenos_Aires",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
-                      const endStr = slot.endsAt.toLocaleTimeString("es-AR", {
-                        timeZone: "America/Argentina/Buenos_Aires",
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
+                      const startStr = formatTime(slot.startsAt);
+                      const endStr = formatTime(slot.endsAt);
                       const occupancyLabel =
                         slot.status === "cancelled"
                           ? "Bloqueado"
@@ -247,11 +232,20 @@ export default async function OrgAgendaPage({
                       const canBlock = slot.bookingsCount === 0 && slot.status === "open";
                       return (
                         <li key={slot.id} className="flex items-center gap-4 px-4 py-3">
-                          <div className="shrink-0 text-[12px] font-mono text-ln-op-mute w-28">
+                          <div className="shrink-0 text-sm font-mono text-ln-op-mute w-28">
                             {startStr}–{endStr}
                           </div>
                           <div className="flex-1 flex items-center gap-2 min-w-0">
-                            <OpPill tone={tone}>{occupancyLabel}</OpPill>
+                            {/* Occupancy is DATA, not status (one-primary-per-screen
+                                review, 2026-08-06). This pill used to paint an
+                                empty cupo GREEN ("0/2" = all good?), a partly
+                                booked one blue and a full one RED — three alarm
+                                colours for a fraction that already says
+                                everything on its own, competing with the real
+                                states on the same screen ("Ausente" = danger,
+                                "Asistido" = ok). One neutral tone; the number
+                                carries the meaning. */}
+                            <OpPill tone="neutral">{occupancyLabel}</OpPill>
                           </div>
                           {canBlock && (
                             <div className="shrink-0">
@@ -271,34 +265,30 @@ export default async function OrgAgendaPage({
 
       {/* Appointments list */}
       {rows.length === 0 ? (
-        <p className="text-[13px] text-ln-op-mute py-8 text-center">No hay turnos para este día.</p>
+        <p className="text-md text-ln-op-mute py-8 text-center">No hay turnos para este día.</p>
       ) : (
         <OpCard>
-          <OpCardHead title={`${rows.length} turno${rows.length === 1 ? "" : "s"}`} />
+          <OpCardHead title={`${rows.length} ${pluralizeEs(rows.length, "turno")}`} />
           <OpCardBody className="p-0">
             <ul className="divide-y divide-ln-op-line">
               {rows.map(({ appointment, slot, offering, pet, ownerProfile }) => {
                 const kindDef = findServiceKind(offering.serviceKind);
                 const pill = STATUS_PILL[appointment.status] ?? STATUS_PILL.confirmed;
-                const slotTime = slot.startsAt.toLocaleTimeString("es-AR", {
-                  timeZone: "America/Argentina/Buenos_Aires",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                });
+                const slotTime = formatTime(slot.startsAt);
                 const ownerLabel = ownerProfile?.displayName?.split(" ")[0] ?? "Propietario";
                 const canAct = appointment.status === "confirmed";
 
                 return (
                   <li key={appointment.id} className="flex items-start gap-4 px-4 py-3">
-                    <div className="shrink-0 text-[12px] font-mono text-ln-op-mute w-14 pt-0.5">
+                    <div className="shrink-0 text-sm font-mono text-ln-op-mute w-14 pt-0.5">
                       {slotTime}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-[13px] font-semibold text-ln-op-ink">{pet.name}</p>
+                        <p className="text-md font-semibold text-ln-op-ink">{pet.name}</p>
                         <OpPill tone={pill.tone}>{pill.label}</OpPill>
                       </div>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {kindDef?.label ?? offering.serviceKind} · <span>{ownerLabel}</span>
                         {ownerProfile?.phone && <> · {ownerProfile.phone}</>}
                       </p>
@@ -307,7 +297,7 @@ export default async function OrgAgendaPage({
                       <div className="shrink-0">
                         <Link
                           href={`/org/${orgToken}/agenda/turnos/${appointment.publicToken}`}
-                          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors text-ln-op-azul"
+                          className="text-sm px-3 py-1.5 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card hover:bg-ln-op-stripe transition-colors text-ln-op-azul"
                         >
                           Gestionar
                         </Link>
@@ -322,7 +312,7 @@ export default async function OrgAgendaPage({
       )}
 
       <footer className="pt-4 border-t border-ln-op-line">
-        <Link href={`/org/${orgToken}`} className="text-[12px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-sm text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </footer>

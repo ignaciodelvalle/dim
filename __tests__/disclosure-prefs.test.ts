@@ -8,11 +8,11 @@
 //   5. Integration tests — old form submission without section preserves pet defaults
 
 import { createClient } from "@supabase/supabase-js";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, ownerships, petEvents, pets, profiles } from "@/db";
-import { generatePublicToken } from "@/lib/publicToken";
+import { generatePublicToken } from "@/lib/infra/publicToken";
 import type { DisclosurePrefsInput } from "@/src/modules/events/actions";
 import { setPetLostWriter } from "@/src/modules/events/application/writers";
 import { withMutationOverride } from "./_helpers/db-overrides";

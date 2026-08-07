@@ -19,7 +19,7 @@ import {
   requiresVia,
   tipoEventoLabel,
   tipoEventoNorma,
-} from "@/lib/sanitary-vocab";
+} from "@/lib/reference/sanitary-vocab";
 
 describe("sanitary-vocab — TS const ↔ DB seed parity", () => {
   it("every seed row has a matching TS entry with identical flags", async () => {

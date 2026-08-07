@@ -3,7 +3,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { validateEventPayload } from "@/lib/event-schemas";
+import { validateEventPayload } from "@/lib/events/event-schemas";
 
 describe("noteAdded schema — back-compat + new optional fields (P0c)", () => {
   it("accepts legacy {category, text} shape without kind", () => {

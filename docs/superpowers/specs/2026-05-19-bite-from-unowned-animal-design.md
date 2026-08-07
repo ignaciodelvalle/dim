@@ -2,11 +2,42 @@
 
 > Hoy MiMAR solo modela bite events donde la pet mordedora **está registrada**. Si te muerde un perro ajeno en la calle, no hay flow — el dato se pierde. Este spec abre el camino: usuario autenticado reporta haber sido mordido, identifica al perro/dueño si pudo, sino describe completo (raza, marcas, color, edad) y el sistema crea una **"pet temporal"**. Govt/admin con scope puede **reasignar** el caso a una pet real cuando aparezca información. El DNI del dueño (cuando se conoce) se persiste; si esa persona después se registra en MiMAR, el sistema **reconcilia** automáticamente conectando casos históricos a su cuenta y a sus pets.
 >
-> **Fecha:** 2026-05-19
+> **Fecha:** 2026-05-19 · **Revisado:** 2026-06-19
 > **Owner:** Ignacio Del Valle
-> **Estado:** ready for review, no code yet
-> **Versión:** 1.0
-> **Depende de:** sistema de casos (`specs/2026-05-19-cases-event-attachment-design.md` + `specs/2026-05-19-cases-lifecycles-design.md`) — usa `bite_incident` case con sujeto polimórfico. Bite-rabies observation existente (`2026-05-18-bite-rabies-observation-design.md`) se extiende para tolerar subject `unowned_animal`.
+> **Estado:** 🟢 Ready for CC — **backlog, gated a Wave 5** · plan ejecutable en `plans/2026-06-19-bite-from-unowned-animal.md`
+> **Versión:** 2.0 (revisión 2026-06-19: estado de código actualizado + alineación Wave 5 + modelo de víctima + decisiones cerradas)
+> **Depende de:** **Wave 5 launch-hardening** (`specs/2026-06-19-wave5-launch-hardening-handoff.md`, Items 25–28 — `dni_hash`) para la reconciliación. El **sistema de casos ya está implementado** (migraciones 0033/0034, posteriores a v1.0): `cases` con sujeto polimórfico + `pet_events.case_id` ya existen. Bite-rabies observation (`2026-05-18-...`) se extiende para tolerar subject `unowned_animal`.
+
+---
+
+## 0. Revisión v2.0 (2026-06-19) — leer ANTES del cuerpo v1.0
+
+El cuerpo (§1–§12) es de v1.0 (2026-05-19) y sigue siendo válido en su mayoría, pero quedó desactualizado en tres frentes. **Donde haya conflicto, mandan estas decisiones de v2.0.**
+
+**R1 — El sistema de casos YA está en código (la dependencia está resuelta).** v1.0 asumía cases "Ready for CC". Hoy: `cases` (sujeto polimórfico `registered_pet|unowned_animal|location|general`, `primary_pet_id` nullable, CHECK `cases_subject_pet_consistency`), `pet_events.case_id` (FK nullable, append-only, indexado), el módulo `src/modules/cases` (con `casesRepository.openCase()` + generación de `CAS-XXXX`), `/casos/[publicCode]` y las colas govt/admin/org **ya existen**. La feature NO está bloqueada — solo gated a Wave 5 por la reconciliación (R2).
+
+**R2 — Reconciliación por DNI se alinea a Wave 5: `dni_hash`, nunca DNI en claro.** v1.0 (§4.5, §7) matchea `profiles.dni_number` en texto. Wave 5 **dropea `dni_number`** → `dni_hash` (HMAC-SHA256 con pepper en env/KMS) + `dni_last4`, identidad desde claim Mi Argentina (`miarg_sub`). Correcciones obligatorias:
+  - `temporary_pet_descriptions.owner_dni_claimed` (texto) → **`owner_dni_hash`** (HMAC) + opcional `owner_dni_last4`. **Nunca** el DNI completo.
+  - El match en signup compara `temporary_pet_descriptions.owner_dni_hash == profiles.dni_hash` (mismo pepper). `miarg_sub` NO sirve como clave (un tercero no lo conoce; la víctima solo aporta DNI).
+  - Toda la feature corre **después** de Wave 5 (necesita el pepper + `dni_hash`). De ahí el "gated a Wave 5".
+
+**R3 — Embargo de identidad (§10): DESCARTADO.** Con DNI hasheado, govt nunca ve el número completo (igual que de cualquier usuario registrado post-Wave 5 — solo `dni_last4` + nombre). La privacidad es estructural, no un toggle → el checkbox "ocultar DNI a govt" es redundante. Se elimina la open question. Si la víctima no quiere comprometer al dueño, no declara el DNI.
+
+**R4 — Modelo de víctima (cubre los dos escenarios).** El mordedor siempre es el animal ajeno, pero la víctima varía:
+  - **Escenario A** — animal ajeno mordió a un **humano** (la víctima/reportante). Entry: `/denuncias/nueva`.
+  - **Escenario B** — animal ajeno mordió a **mi mascota DIM**. Entry: `/anotar` (en contexto de mi mascota).
+  En B hay dos animales. Decisión: el `bite_incident` se abre sobre el **mordedor ajeno** (con su observación rábica de 10 días — la obligación legal recae sobre el mordedor), **y** se registra a la víctima: `victim_kind` + `victim_pet_id` en el payload de `incident_reported`, **más** un `incident_reported(incident_type='bite_suffered')` en la **libreta de mi mascota** para que el dueño lo vea en su historial.
+
+**R5 — Sin event types nuevos. Se reutilizan los existentes** (el schema ya los anticipa):
+  - `incident_reported` — su Zod schema (`lib/event-schemas.ts`) ya incluye `incident_type` con `'bite_inflicted'` **y `'bite_suffered'`**, y los campos `victim_kind`, `victim_pet_id`, `victim_contact_name/phone`, `reporter_role`. No se agrega nada al schema.
+  - `rabies_observation_started` / `rabies_observation_ended` — la observación de 10 días.
+  - `note_added` con `category='system'` — la nota de auditoría de la reasignación (BU6). Reemplaza la idea de un `case_reassigned` nuevo (§4.4 ya se inclinaba por esto; queda confirmado).
+
+**R6 — Dónde viven los eventos del mordedor ajeno (subject sin `pet_id`).** Existen dos logs: `pet_events` (con `case_id` opcional) y `case_events` (timeline interno del caso, migración 0069, vocabulario `entryType` propio). **Decisión: Opción 1 — `pet_events` con `pet_id=NULL, case_id=set`** (como propone §4.3), porque reusa los EVENT_TYPES de rabia + sus schemas Zod + la semántica legal ya modelada. Esto exige hacer **`pet_events.pet_id` nullable + CHECK de consistencia** (§4.3) — el cambio de mayor riesgo del feature → el plan incluye un **grep/audit obligatorio de todos los consumidores que asumen `pet_id` presente** (proyecciones, RLS, queries) como paso de verificación. *Alternativa considerada y descartada:* `case_events` (evita tocar `pet_events` pero obliga a re-expresar la observación rábica fuera de su schema canónico y el cron no reusaría `validateEventPayload`). El evento de la **víctima** del escenario B sí va a `pet_events` normal (tiene `pet_id`: mi mascota).
+
+**R7 — Govt force-escalate (cierra open question §10).** El detalle del caso (`/casos/[publicCode]`) tiene, para govt scope-matching/admin, un botón **"Escalar a urgente"** que marca el `bite_incident` temporal como escalado (señal manual). La auto-escalación por `symptom_observed` (BU11) sigue sin aplicar salvo que govt agregue ese evento.
+
+**R8 — Entry points de v1 (R4).** Solo **`/anotar`** (escenario B) y **`/denuncias/nueva`** (escenario A, vía CTA cuando el subject es `unowned_animal` y es mordedura). Las otras dos de §5.1 (card en `/inicio`, ítem en gestión del perfil) quedan fuera de v1.
 
 ---
 

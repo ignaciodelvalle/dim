@@ -6,12 +6,13 @@
 // Implicit cells (role-based) remain inert.
 // Admin row cells are all inert (universal implicit grant).
 
+import { Icon } from "@/components/Icon";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   type CapabilityActionState,
   decideCapabilityAction,
   grantCapabilityAction,
 } from "@/src/modules/organizations/actions";
-import { useRouter } from "next/navigation";
 import React, { useActionState, useTransition } from "react";
 
 // ---------------------------------------------------------------------------
@@ -61,25 +62,23 @@ function RevokeCell({ grantId }: { grantId: string }) {
           <button
             type="submit"
             disabled={isSubmitting}
-            title="Confirmar revocación"
-            aria-label="Confirmar revocación"
+            title="Revocar permiso"
+            aria-label="Revocar permiso"
             onClick={() => setConfirming(false)}
-            className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
+            className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-danger text-white transition-colors hover:opacity-90 disabled:opacity-50"
           >
-            <span aria-hidden className="text-[12px] leading-none font-bold">
-              ✓
-            </span>
+            <Icon name="check" size={14} decorative />
           </button>
         </form>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="text-[9px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+          className="inline-flex items-center justify-center text-ln-op-mute hover:text-ln-op-ink transition-colors"
           aria-label="Cancelar revocación"
         >
-          ✕
+          <Icon name="close" size={12} decorative />
         </button>
-        {state.error && <span className="text-[10px] text-ln-op-danger">{state.error}</span>}
+        {state.error && <span className="text-xs text-ln-op-danger">{state.error}</span>}
       </div>
     );
   }
@@ -92,13 +91,11 @@ function RevokeCell({ grantId }: { grantId: string }) {
         title="Revocar este permiso"
         aria-label="Revocar"
         onClick={() => setConfirming(true)}
-        className="group flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
+        className="group flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-ok-bg text-ln-op-ok transition-colors hover:bg-ln-op-danger-bg hover:text-ln-op-danger disabled:opacity-50"
       >
-        <span aria-hidden className="text-[14px] leading-none">
-          ✓
-        </span>
+        <Icon name="check" size={14} decorative />
       </button>
-      {state.error && <span className="text-[10px] text-ln-op-danger">{state.error}</span>}
+      {state.error && <span className="text-xs text-ln-op-danger">{state.error}</span>}
     </div>
   );
 }
@@ -120,10 +117,28 @@ function GrantCell({
   capabilityLabel: string;
   isSelf: boolean;
 }) {
-  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = React.useState<string | null>(null);
   const [confirming, setConfirming] = React.useState(false);
+  // Tier B optimistic cell: + flips to ✓ on grant, reverts on error. No
+  // router.refresh() (banned — silent-drop defect, see
+  // lib/ui/full-page-action-nav.ts); the revoke affordance for the new grant
+  // appears on the next SSR visit, which needs the fresh grant id anyway.
+  const [granted, setGranted] = React.useState(false);
+
+  if (granted) {
+    return (
+      <div className="flex items-center justify-center">
+        <span
+          title="Permiso concedido — para revocarlo, volvé a entrar a esta página"
+          aria-label="Permiso concedido"
+          className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-sm)] bg-ln-op-ok-bg text-ln-op-ok"
+        >
+          <Icon name="check" size={14} decorative />
+        </span>
+      </div>
+    );
+  }
 
   if (isSelf) {
     return (
@@ -131,7 +146,7 @@ function GrantCell({
         <span
           title="No podés concederte permisos a vos mismo"
           aria-label="Autoconceción bloqueada"
-          className="text-[11px] text-ln-op-faint cursor-not-allowed select-none"
+          className="text-sm text-ln-op-faint cursor-not-allowed select-none"
         >
           —
         </span>
@@ -141,14 +156,15 @@ function GrantCell({
 
   function handleGrant() {
     setError(null);
+    setConfirming(false);
+    setGranted(true);
     startTransition(async () => {
       const result = await grantCapabilityAction({ organizationId, membershipId, capability });
       if (result.error) {
+        setGranted(false);
         setError(result.error);
-        setConfirming(false);
       } else {
-        setConfirming(false);
-        router.refresh();
+        notifySaved(`Permiso concedido: ${capabilityLabel}`);
       }
     });
   }
@@ -159,24 +175,22 @@ function GrantCell({
         <button
           type="button"
           disabled={isPending}
-          title={`Confirmar: ${capabilityLabel}`}
-          aria-label="Confirmar concesión"
+          title={`Conceder: ${capabilityLabel}`}
+          aria-label="Conceder permiso"
           onClick={handleGrant}
-          className="flex h-6 w-6 items-center justify-center rounded-[3px] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
+          className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] bg-ln-op-ok text-white transition-colors hover:opacity-90 disabled:opacity-50"
         >
-          <span aria-hidden className="text-[12px] leading-none font-bold">
-            ✓
-          </span>
+          <Icon name="check" size={14} decorative />
         </button>
         <button
           type="button"
           onClick={() => setConfirming(false)}
-          className="text-[9px] text-ln-op-mute hover:text-ln-op-ink transition-colors"
+          className="inline-flex items-center justify-center text-ln-op-mute hover:text-ln-op-ink transition-colors"
           aria-label="Cancelar"
         >
-          ✕
+          <Icon name="close" size={12} decorative />
         </button>
-        {error && <span className="text-[10px] text-ln-op-danger">{error}</span>}
+        {error && <span className="text-xs text-ln-op-danger">{error}</span>}
       </div>
     );
   }
@@ -189,13 +203,13 @@ function GrantCell({
         title={`Conceder: ${capabilityLabel}`}
         aria-label="Conceder"
         onClick={() => setConfirming(true)}
-        className="flex h-6 w-6 items-center justify-center rounded-[3px] text-ln-op-faint transition-colors hover:bg-ln-op-ok-bg hover:text-ln-op-ok disabled:opacity-50"
+        className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-op-btn)] text-ln-op-faint transition-colors hover:bg-ln-op-ok-bg hover:text-ln-op-ok disabled:opacity-50"
       >
-        <span aria-hidden className="text-[14px] leading-none">
+        <span aria-hidden className="text-md leading-none">
           +
         </span>
       </button>
-      {error && <span className="text-[10px] text-ln-op-danger">{error}</span>}
+      {error && <span className="text-xs text-ln-op-danger">{error}</span>}
     </div>
   );
 }
@@ -211,23 +225,31 @@ export function CapabilityMatrix({
   callerMembershipId,
 }: MatrixProps) {
   if (members.length === 0) {
-    return (
-      <p className="py-4 text-[13px] text-ln-op-mute">No hay miembros activos para mostrar.</p>
-    );
+    return <p className="py-4 text-md text-ln-op-mute">No hay miembros activos para mostrar.</p>;
   }
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-max border-collapse text-[12px]">
+      <table className="w-full min-w-max border-collapse text-sm">
+        <caption className="sr-only">Matriz de permisos por miembro y capacidad</caption>
         <thead>
           <tr className="border-b border-ln-op-line-2">
-            <th className="sticky left-0 z-10 min-w-[160px] bg-ln-op-card py-2 pr-3 text-left font-semibold text-ln-op-ink">
+            <th
+              scope="col"
+              className="sticky left-0 z-10 min-w-[160px] bg-ln-op-card py-2 pr-3 text-left font-semibold text-ln-op-ink"
+            >
               Miembro
             </th>
-            <th className="min-w-[60px] py-2 pr-2 text-left font-semibold text-ln-op-mute">Rol</th>
+            <th
+              scope="col"
+              className="min-w-[60px] py-2 pr-2 text-left font-semibold text-ln-op-mute"
+            >
+              Rol
+            </th>
             {columns.map((col) => (
               <th
                 key={col.capability}
+                scope="col"
                 title={col.capability}
                 className="min-w-[88px] px-2 py-2 text-center font-medium text-ln-op-mute"
               >
@@ -273,7 +295,12 @@ export function CapabilityMatrix({
                         aria-label="Incluido por rol"
                         className="flex items-center justify-center"
                       >
-                        <span className="text-[13px] text-ln-op-mute opacity-50">✓</span>
+                        <Icon
+                          name="check"
+                          size={13}
+                          decorative
+                          className="text-ln-op-mute opacity-50"
+                        />
                         <span className="sr-only">por rol</span>
                       </span>
                     </td>
@@ -284,7 +311,7 @@ export function CapabilityMatrix({
                 if (member.role === "admin") {
                   return (
                     <td key={col.capability} className="px-2 py-2 text-center">
-                      <span className="text-[11px] text-ln-op-faint">—</span>
+                      <span className="text-sm text-ln-op-faint">—</span>
                     </td>
                   );
                 }
@@ -308,13 +335,13 @@ export function CapabilityMatrix({
       </table>
 
       {/* Legend */}
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-ln-op-mute">
+      <div className="mt-3 flex flex-wrap items-center gap-4 text-sm text-ln-op-mute">
         <span className="flex items-center gap-1">
-          <span className="text-[13px] text-ln-op-ok">✓</span>
+          <Icon name="check" size={13} decorative className="text-ln-op-ok" />
           Explícito (revocable)
         </span>
         <span className="flex items-center gap-1">
-          <span className="text-[13px] opacity-50">✓</span>
+          <Icon name="check" size={13} decorative className="opacity-50" />
           Por rol (implícito)
         </span>
         <span className="flex items-center gap-1">

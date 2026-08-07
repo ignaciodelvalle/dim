@@ -19,25 +19,33 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 const mockValidateEventPayload = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/event-schemas", () => ({
+vi.mock("@/lib/events/event-schemas", () => ({
   validateEventPayload: mockValidateEventPayload,
 }));
 
 const mockCloseCase = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/case-helpers", () => ({
+vi.mock("@/lib/infra/case-helpers", () => ({
   closeCase: mockCloseCase,
   openCase: vi.fn(),
   findOpenCaseForPetAndKind: vi.fn(),
 }));
 
 const mockSignalAuthorityReport = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/authority", () => ({
+vi.mock("@/lib/domain/authority", () => ({
   signalAuthorityReport: mockSignalAuthorityReport,
 }));
 
 const mockFindAuthoritiesForJurisdiction = vi.hoisted(() => vi.fn());
-vi.mock("@/lib/approval-routing", () => ({
+vi.mock("@/lib/infra/approval-routing", () => ({
   findAuthoritiesForJurisdiction: mockFindAuthoritiesForJurisdiction,
+}));
+
+// The urgent authority fan-out dynamically imports "@/db" inside the use-case;
+// mock it so the notification rows (title/body) are assertable without a DB.
+const mockNotificationValues = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+vi.mock("@/db", () => ({
+  db: { insert: vi.fn(() => ({ values: mockNotificationValues })) },
+  notifications: {},
 }));
 
 import type { EventsRepository } from "../../infrastructure/events-repository";
@@ -370,6 +378,131 @@ describe("createDeathRecord", () => {
     expect(mockSignalAuthorityReport).toHaveBeenCalledWith(
       expect.objectContaining({ eventId: deathEventId, diseaseCode: "rabies_confirmed" }),
     );
+  });
+
+  // G7 (2026-08-02): the authority signal is no longer a silent void no-op.
+  // The use-case passes the recording actor (for the pending-transmission
+  // audit row) and surfaces the honest { delivered: false, v1_noop } marker
+  // in its own result so no downstream can pretend the report was sent.
+  it("passes the recording actor and surfaces the honest authoritySignal marker", async () => {
+    mockSignalAuthorityReport.mockResolvedValue({
+      delivered: false,
+      v1_noop: true,
+      target: "snvs_v2",
+      auditRecorded: true,
+    });
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flush = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createDeathRecord(
+      { ...baseInput, diseaseCode: "rabies_confirmed", confirmedByLab: true, isReportable: true },
+      { repo, transaction: tx, flushNotifications: flush },
+    );
+
+    expect(mockSignalAuthorityReport).toHaveBeenCalledWith(
+      expect.objectContaining({ reportedByUserId: userId }),
+    );
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.authoritySignal).toEqual(
+        expect.objectContaining({ delivered: false, v1_noop: true }),
+      );
+    }
+  });
+
+  it("returns authoritySignal: null when the death is not reportable", async () => {
+    const repo = makeRepo();
+    const tx = makeTransaction();
+    const flush = vi.fn().mockResolvedValue(undefined);
+
+    const result = await createDeathRecord(
+      { ...baseInput, diseaseCode: null, isReportable: false },
+      { repo, transaction: tx, flushNotifications: flush },
+    );
+
+    expect(mockSignalAuthorityReport).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.authoritySignal).toBeNull();
+    }
+  });
+
+  describe("urgent authority fan-out — the notification names the disposal", () => {
+    // Shared setup: pet in observation, started event found, one authority in
+    // jurisdiction — the fan-out inserts a notification row we can inspect.
+    function observedDeathDeps() {
+      const repo = makeRepo({
+        findLatestRabiesObservationStarted: vi.fn().mockResolvedValue({
+          id: randomUUID(),
+          payload: { bite_event_id: randomUUID() },
+        }),
+      });
+      mockFindAuthoritiesForJurisdiction.mockResolvedValue(["auth-user-1"]);
+      return { repo, tx: makeTransaction(), flush: vi.fn().mockResolvedValue(undefined) };
+    }
+
+    function insertedBody(): string {
+      expect(mockNotificationValues).toHaveBeenCalledTimes(1);
+      const rows = mockNotificationValues.mock.calls[0][0] as { body: string }[];
+      expect(rows).toHaveLength(1);
+      return rows[0].body;
+    }
+
+    it("names a non-recommended disposal (es-AR label) and its facility", async () => {
+      const { repo, tx, flush } = observedDeathDeps();
+
+      const result = await createDeathRecord(
+        {
+          ...baseInput,
+          pet: { ...basePet, rabiesObservationStatus: "in_progress" },
+          dispositionMethod: "owner_burial",
+          facility: "patio del domicilio",
+        },
+        { repo, transaction: tx, flushNotifications: flush },
+      );
+
+      expect(result.ok).toBe(true);
+      const body = insertedBody();
+      expect(body).toContain("Disposición declarada: Entierro en domicilio (patio del domicilio).");
+      // The pre-existing sentences stay intact around the new one.
+      expect(body).toContain("Causa declarada: natural.");
+      expect(body).toContain("Requiere revisión inmediata por riesgo de rabia.");
+    });
+
+    it("names a compliant disposal too — the contract is 'always name it'", async () => {
+      const { repo, tx, flush } = observedDeathDeps();
+
+      await createDeathRecord(
+        {
+          ...baseInput,
+          pet: { ...basePet, rabiesObservationStatus: "in_progress" },
+          dispositionMethod: "cremation_collective",
+          facility: "Crematorio San Roque",
+        },
+        { repo, transaction: tx, flushNotifications: flush },
+      );
+
+      expect(insertedBody()).toContain(
+        "Disposición declarada: Cremación colectiva (Crematorio San Roque).",
+      );
+    });
+
+    it("says 'sin registrar' when no disposal was declared", async () => {
+      const { repo, tx, flush } = observedDeathDeps();
+
+      await createDeathRecord(
+        {
+          ...baseInput,
+          pet: { ...basePet, rabiesObservationStatus: "in_progress" },
+          dispositionMethod: null,
+          facility: null,
+        },
+        { repo, transaction: tx, flushNotifications: flush },
+      );
+
+      expect(insertedBody()).toContain("Disposición declarada: sin registrar.");
+    });
   });
 
   it("returns ok=false when transaction throws", async () => {

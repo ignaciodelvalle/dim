@@ -4,7 +4,7 @@
 //
 // Dependencies are mocked via vitest.fn(). No DB needed.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import type { SurveillanceRepository } from "../infrastructure/surveillance-repository";
 import { type ReportBiteInput, reportBite } from "./report-bite";
@@ -37,7 +37,7 @@ function makeRepo(overrides: FakeRepo = {}): SurveillanceRepository {
 
 function makeDeps(repoOverrides: FakeRepo = {}) {
   const repo = makeRepo(repoOverrides);
-  const openCase = vi.fn().mockResolvedValue({ id: "case-1" });
+  const openCase = vi.fn().mockResolvedValue({ id: "case-1", publicCode: "CAS-AAAA-BBBB" });
   const transaction = vi.fn().mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
     return cb("fake-tx");
   });
@@ -69,6 +69,9 @@ const BASE_INPUT: ReportBiteInput = {
   clientIdempotencyKey: "key-abc",
   eventJurisdictionProvince: null,
   eventJurisdictionLocality: null,
+  locationLat: null,
+  locationLng: null,
+  locationSource: null,
 };
 
 // ---------------------------------------------------------------------------
@@ -80,6 +83,14 @@ describe("reportBite (owner path)", () => {
     const deps = makeDeps();
     const result = await reportBite(BASE_INPUT, deps);
     expect(result.ok).toBe(true);
+  });
+
+  it("returns the opened case public code for the receipt", async () => {
+    const deps = makeDeps();
+    const result = await reportBite(BASE_INPUT, deps);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.casePublicCode).toBe("CAS-AAAA-BBBB");
   });
 
   it("calls openCase with bite_incident kind", async () => {
@@ -147,6 +158,50 @@ describe("reportBite (owner path)", () => {
     const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
       .calls[0][0] as { payload: Record<string, unknown> };
     expect(call.payload.rabies_vaccine_valid_at_incident).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// panorama-event-points Slice 2 — incident coordinate capture
+// ---------------------------------------------------------------------------
+
+describe("reportBite — incident coordinate (Slice 2)", () => {
+  it("persists the map-pin coordinate COLUMNAR (as numeric strings) + location_source in payload", async () => {
+    const deps = makeDeps();
+    await reportBite(
+      {
+        ...BASE_INPUT,
+        locationLat: -34.6037,
+        locationLng: -58.3816,
+        locationSource: "pin_manual",
+      },
+      deps,
+    );
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
+      locationLat: unknown;
+      locationLng: unknown;
+      payload: Record<string, unknown>;
+    };
+    // Columnar coordinate (numeric-string), NOT in the payload.
+    expect(call.locationLat).toBe("-34.6037");
+    expect(call.locationLng).toBe("-58.3816");
+    // Precision hint travels in the payload.
+    expect(call.payload.location_source).toBe("pin_manual");
+  });
+
+  it("writes NULL columnar coords when no pin was dropped (falls into the residual, never faked)", async () => {
+    const deps = makeDeps();
+    await reportBite(BASE_INPUT, deps);
+    const call = (deps.repo.insertIncidentEventIdempotent as ReturnType<typeof vi.fn>).mock
+      .calls[0][0] as {
+      locationLat: unknown;
+      locationLng: unknown;
+      payload: Record<string, unknown>;
+    };
+    expect(call.locationLat).toBeNull();
+    expect(call.locationLng).toBeNull();
+    expect(call.payload.location_source).toBeNull();
   });
 });
 
@@ -235,6 +290,49 @@ describe("reportBite — authority fan-out", () => {
     };
     await reportBite(petNoJurisdiction, deps);
     expect(deps.findAuthoritiesForJurisdiction).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// LEGAL-ROUTING fix — incident jurisdiction overrides pet home jurisdiction
+// (PO decision: a bite routes to where it HAPPENED, not the pet's registered
+// home). A prior audit found both the opened case and the authority
+// notification always used pet.jurisdictionProvince/Locality — pinned here so
+// a regression can't silently bring back the home-jurisdiction routing.
+// ---------------------------------------------------------------------------
+
+describe("reportBite — incident jurisdiction overrides pet home jurisdiction", () => {
+  const INCIDENT_ELSEWHERE_INPUT: ReportBiteInput = {
+    ...BASE_INPUT,
+    // pet's home is jurisdiction A (Buenos Aires / Lomas de Zamora, per
+    // BASE_INPUT.pet). The bite happened in jurisdiction B.
+    eventJurisdictionProvince: "Córdoba",
+    eventJurisdictionLocality: "Río Cuarto",
+  };
+
+  it("opens the bite_incident case in the incident jurisdiction (B), not the pet's home (A)", async () => {
+    const deps = makeDeps();
+    await reportBite(INCIDENT_ELSEWHERE_INPUT, deps);
+    expect(deps.openCase).toHaveBeenCalledWith(
+      expect.objectContaining({
+        jurisdictionProvince: "Córdoba",
+        jurisdictionLocality: "Río Cuarto",
+      }),
+      "fake-tx",
+    );
+  });
+
+  it("notifies the incident jurisdiction's (B) authority, not the pet's home (A) authority", async () => {
+    const deps = makeDeps();
+    await reportBite(INCIDENT_ELSEWHERE_INPUT, deps);
+    expect(deps.findAuthoritiesForJurisdiction).toHaveBeenCalledWith({
+      province: "Córdoba",
+      locality: "Río Cuarto",
+    });
+    expect(deps.findAuthoritiesForJurisdiction).not.toHaveBeenCalledWith({
+      province: "Buenos Aires",
+      locality: "Lomas de Zamora",
+    });
   });
 });
 

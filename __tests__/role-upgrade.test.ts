@@ -12,8 +12,6 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { verifyDniForUser } from "@/app/actions/dni-verification";
-import { createOrganizationForUser, requestVetUpgradeForUser } from "@/app/actions/upgrade";
 import {
   approvalRequests,
   db,
@@ -23,6 +21,8 @@ import {
   organizations,
   profiles,
 } from "@/db";
+import { createOrganizationForUser } from "@/src/modules/organizations/application/upgrade/create-organization";
+import { requestVetUpgradeForUser } from "@/src/modules/organizations/application/upgrade/request-vet-upgrade";
 import { getActiveMemberships } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -133,9 +133,9 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
   it("happy path: creates approval_request + updates profile + notifies applicant and admin", async () => {
     const result = await requestVetUpgradeForUser(userId, {
       matriculaNumber: "MN-12345",
-      matriculaJurisdiccion: "CABA",
-      operationalProvince: "CABA",
-      operationalLocality: "Balvanera",
+      matriculaJurisdiccion: "Mendoza",
+      operationalProvince: "Mendoza",
+      operationalLocality: "Bowen",
       especialidad: "Clínica",
       anosExperiencia: 5,
     });
@@ -145,7 +145,7 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
     // Profile carries the submitted matricula (state submitted but unverified).
     const [profile] = await db.select().from(profiles).where(eq(profiles.id, userId)).limit(1);
     expect(profile.matriculaNumber).toBe("MN-12345");
-    expect(profile.matriculaJurisdiccion).toBe("CABA");
+    expect(profile.matriculaJurisdiccion).toBe("Mendoza");
     expect(profile.matriculaVerified).toBe(false);
     expect(profile.role).toBe("owner");
 
@@ -164,8 +164,8 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
     expect(req).toBeDefined();
     expect(req.status).toBe("pending");
     expect(req.targetUserId).toBe(userId);
-    expect(req.jurisdictionProvince).toBe("CABA");
-    expect(req.jurisdictionLocality).toBe("Balvanera");
+    expect(req.jurisdictionProvince).toBe("Mendoza");
+    expect(req.jurisdictionLocality).toBe("Bowen");
     expect(req.publicToken).toMatch(/^APR-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
     const payload = req.payload as { matricula_number: string; payload_version: number };
     expect(payload.matricula_number).toBe("MN-12345");
@@ -182,7 +182,13 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
       );
     expect(applicantNotifs.length).toBeGreaterThan(0);
 
-    // No govt is assigned to CABA/Balvanera → admin gets the authority notification.
+    // No govt is assigned to Mendoza/Bowen → admin gets the authority notification.
+    //
+    // This suite sat on CABA/Balvanera and asserted the admin fallback. That held
+    // only while Lucas held 5 CABA barrios and Balvanera was not one. Lucas now
+    // coordinates the whole East region, so CABA vet approvals route to HIM and
+    // the fallback never fires — the premise broke, not the routing. Mendoza has
+    // no seeded govt; move this again if that changes.
     const adminNotifs = await db
       .select()
       .from(notifications)
@@ -198,9 +204,9 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
   it("idempotency: a second submission with a pending request is rejected", async () => {
     const result = await requestVetUpgradeForUser(userId, {
       matriculaNumber: "MN-99999",
-      matriculaJurisdiccion: "CABA",
-      operationalProvince: "CABA",
-      operationalLocality: "Balvanera",
+      matriculaJurisdiccion: "Mendoza",
+      operationalProvince: "Mendoza",
+      operationalLocality: "Bowen",
     });
     expect(result.error).toMatch(/solicitud pendiente/i);
 
@@ -239,9 +245,9 @@ describe("requestVetUpgradeForUser (Fase 1)", () => {
 
     const result = await requestVetUpgradeForUser(userId, {
       matriculaNumber: "MN-77777",
-      matriculaJurisdiccion: "CABA",
-      operationalProvince: "CABA",
-      operationalLocality: "Balvanera",
+      matriculaJurisdiccion: "Mendoza",
+      operationalProvince: "Mendoza",
+      operationalLocality: "Bowen",
     });
     expect(result.ok).toBe(true);
 
@@ -330,8 +336,8 @@ describe("createOrganizationForUser (Fase 1)", () => {
       orgType: "shelter",
       cuit: "30712345678",
       email: "test@refugio.test",
-      jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Balvanera",
+      jurisdictionProvince: "Mendoza",
+      jurisdictionLocality: "Bowen",
     });
     expect(result.error).toBeNull();
     expect(result.ok).toBe(true);
@@ -342,8 +348,8 @@ describe("createOrganizationForUser (Fase 1)", () => {
     const [org] = await db.select().from(organizations).where(eq(organizations.id, orgId)).limit(1);
     expect(org.verified).toBe(false);
     expect(org.status).toBe("active");
-    expect(org.jurisdictionProvince).toBe("CABA");
-    expect(org.jurisdictionLocality).toBe("Balvanera");
+    expect(org.jurisdictionProvince).toBe("Mendoza");
+    expect(org.jurisdictionLocality).toBe("Bowen");
 
     const [membership] = await db
       .select()
@@ -372,7 +378,7 @@ describe("createOrganizationForUser (Fase 1)", () => {
       .limit(1);
     expect(req).toBeDefined();
     expect(req.status).toBe("pending");
-    expect(req.jurisdictionLocality).toBe("Balvanera");
+    expect(req.jurisdictionLocality).toBe("Bowen");
 
     const adminNotifs = await db
       .select()
@@ -394,8 +400,8 @@ describe("createOrganizationForUser (Fase 1)", () => {
       legalName: "Duplicado SA",
       orgType: "clinic",
       email: "dup@refugio.test",
-      jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Balvanera",
+      jurisdictionProvince: "Mendoza",
+      jurisdictionLocality: "Bowen",
     });
     expect(result.error).toMatch(/Ya administrás una organización/);
 
@@ -416,8 +422,8 @@ describe("createOrganizationForUser (Fase 1)", () => {
       orgType: "rescue_network",
       cuit: "30712345678", // same as userId's org
       email: "otro@refugio.test",
-      jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Balvanera",
+      jurisdictionProvince: "Mendoza",
+      jurisdictionLocality: "Bowen",
     });
     expect(result.error).toMatch(/Ya existe una organización con ese CUIT/);
   });
@@ -453,9 +459,9 @@ describe("DNI prerequisite enforcement", () => {
   it("requestVetUpgradeForUser returns missingPrereq=dni when dni_verified=false", async () => {
     const result = await requestVetUpgradeForUser(unverifiedUserId, {
       matriculaNumber: "MN-PREREQ",
-      matriculaJurisdiccion: "CABA",
-      operationalProvince: "CABA",
-      operationalLocality: "Balvanera",
+      matriculaJurisdiccion: "Mendoza",
+      operationalProvince: "Mendoza",
+      operationalLocality: "Bowen",
     });
     expect(result.error).not.toBeNull();
     expect(result.missingPrereq).toBe("dni");
@@ -469,8 +475,8 @@ describe("DNI prerequisite enforcement", () => {
       legalName: "Prereq SA",
       orgType: "shelter",
       email: "prereq@test.test",
-      jurisdictionProvince: "CABA",
-      jurisdictionLocality: "Balvanera",
+      jurisdictionProvince: "Mendoza",
+      jurisdictionLocality: "Bowen",
     });
     expect(result.error).not.toBeNull();
     expect(result.missingPrereq).toBe("dni");

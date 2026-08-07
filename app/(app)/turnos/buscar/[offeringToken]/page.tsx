@@ -1,14 +1,13 @@
 // /turnos/buscar/[offeringToken] — Libreta Nacional redesign.
 
+import { LnSectionHead } from "@/components/ui/DocElements";
+import { db, organizations, profiles, serviceOfferings, timeSlots } from "@/db";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { findServiceKind } from "@/lib/reference/service-kinds";
+import { formatTime, pluralizeEs } from "@/lib/utils/format";
 import { eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-
-import { LnCard, LnCardBody, LnCardHead } from "@/components/ui/Card";
-import { LnSectionHead } from "@/components/ui/DocElements";
-import { db, organizations, profiles, serviceOfferings, timeSlots } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { findServiceKind } from "@/lib/service-kinds";
 
 export default async function OfferingDetailPage({
   params,
@@ -56,8 +55,8 @@ export default async function OfferingDetailPage({
     .where(
       sql`${timeSlots.serviceOfferingId} = ${offering.id}
           AND ${timeSlots.status} = 'open'
-          AND ${timeSlots.startsAt} >= ${now}
-          AND ${timeSlots.startsAt} <= ${windowEnd}
+          AND ${timeSlots.startsAt} >= ${now.toISOString()}
+          AND ${timeSlots.startsAt} <= ${windowEnd.toISOString()}
           AND ${timeSlots.bookingsCount} < ${timeSlots.capacity}`,
     )
     .orderBy(timeSlots.startsAt);
@@ -87,17 +86,17 @@ export default async function OfferingDetailPage({
   const backParams = new URLSearchParams({ service_kind: offering.serviceKind });
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Back */}
       <Link
         href={`/turnos/buscar?${backParams.toString()}`}
-        className="mb-[20px] inline-block font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+        className="mb-5 inline-block font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
       >
         ← Resultados
       </Link>
 
       {/* Header */}
-      <div className="mb-[24px] flex items-start gap-[16px]">
+      <div className="mb-6 flex items-start gap-4">
         {offering.organizationId && org?.avatarUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img
@@ -107,11 +106,11 @@ export default async function OfferingDetailPage({
           />
         )}
         <div>
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[24px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+          <h1 className="m-0 font-ln-serif text-2xl font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
             {offering.displayName}
           </h1>
-          <p className="mt-[3px] text-[13px] text-[var(--color-ln-mute)]">{providerLabel}</p>
-          <p className="mt-[2px] font-[var(--font-ln-mono)] text-[11px] text-[var(--color-ln-mute)]">
+          <p className="mt-[3px] text-md text-[var(--color-ln-mute)]">{providerLabel}</p>
+          <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
             {kindDef?.label ?? offering.serviceKind}
             {offering.priceArs !== null
               ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
@@ -120,22 +119,20 @@ export default async function OfferingDetailPage({
             {org?.jurisdictionLocality ? ` · ${org.jurisdictionLocality}` : ""}
           </p>
           {offering.description && (
-            <p className="mt-[6px] text-[12.5px] text-[var(--color-ln-ink-2)]">
-              {offering.description}
-            </p>
+            <p className="mt-1.5 text-md text-[var(--color-ln-ink-2)]">{offering.description}</p>
           )}
         </div>
       </div>
 
       {/* Slot grid */}
-      <LnSectionHead title="Turnos disponibles" className="mb-[20px]" />
+      <LnSectionHead title="Turnos disponibles" className="mb-5" />
 
       {groupedByDay.size === 0 ? (
-        <p className="text-[13px] text-[var(--color-ln-mute)]">
+        <p className="text-md text-[var(--color-ln-mute)]">
           No hay turnos disponibles en los próximos 60 días.
         </p>
       ) : (
-        <div className="flex flex-col gap-[24px]">
+        <div className="flex flex-col gap-6">
           {Array.from(groupedByDay.entries()).map(([dayLabel, slots]) => {
             // biome-ignore lint/style/noNonNullAssertion: groupedByDay only contains non-empty slot arrays.
             const firstSlot = slots[0]!;
@@ -148,29 +145,25 @@ export default async function OfferingDetailPage({
 
             return (
               <div key={dayLabel}>
-                <p className="mb-[10px] font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.08em] text-[var(--color-ln-mute)] capitalize">
+                <p className="mb-2.5 font-ln-mono text-sm uppercase tracking-[.08em] text-[var(--color-ln-mute)] capitalize">
                   {dayHeading}
                 </p>
-                <div className="flex flex-wrap gap-[8px]">
+                <div className="flex flex-wrap gap-2">
                   {slots.map((slot) => {
-                    const timeLabel = slot.startsAt.toLocaleTimeString("es-AR", {
-                      timeZone: "America/Argentina/Buenos_Aires",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    });
+                    const timeLabel = formatTime(slot.startsAt);
                     const remaining = slot.capacity - slot.bookingsCount;
                     return (
                       <Link
                         key={slot.id}
                         href={`/turnos/buscar/${offeringToken}/reservar/${slot.id}`}
-                        className="inline-flex flex-col items-center rounded-[4px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[14px] py-[10px] no-underline hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)] transition-colors"
+                        className="inline-flex flex-col items-center rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2.5 no-underline hover:border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-celeste-050)] transition-colors"
                       >
-                        <span className="font-[var(--font-ln-mono)] text-[13px] font-semibold text-[var(--color-ln-ink)]">
+                        <span className="font-ln-mono text-md font-semibold text-[var(--color-ln-ink)]">
                           {timeLabel}
                         </span>
                         {slot.capacity > 1 && (
-                          <span className="mt-[1px] font-[var(--font-ln-mono)] text-[9.5px] text-[var(--color-ln-mute)]">
-                            {remaining} lugar{remaining === 1 ? "" : "es"}
+                          <span className="mt-px font-ln-mono text-xs text-[var(--color-ln-mute)]">
+                            {remaining} {pluralizeEs(remaining, "lugar")}
                           </span>
                         )}
                       </Link>

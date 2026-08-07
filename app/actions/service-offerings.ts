@@ -1,353 +1,71 @@
 "use server";
 
-// Server actions for the service offering approval workflow (Fase 1 + 1.5 + 2.5).
+// Service offering actions — thin Next.js "use server" controllers.
 //
-// Writer/wrapper split:
-//   - Inner writers (createServiceOfferingForOrg, createServiceOfferingForVetProvider,
-//     approve*, reject*) are pure DB functions: testable without FormData or
-//     Supabase session context.
-//   - Wrappers gate auth + capability, then delegate to the inner writer.
+// Business logic lives in src/modules/service-offerings/application/.
+// This file: parse input · AUTH guard · delegate to use-case · revalidate/redirect.
 //
-// Fase 1.5 — approval routing: createServiceOfferingForOrg uses
-// findAuthoritiesForJurisdiction to notify the governing govt(s) first,
-// falling back to all admins when no govt covers the locality.
-//
-// Fase 2.5 — shared writer: createServiceOfferingWriter accepts EITHER an
-// organizationId OR a providerUserId (discriminated union, matching the DB
-// CHECK constraint provider_xor). Both org and vet outer wrappers call it.
+// Writer/wrapper split (authz triage 2026-07-04): the bare ForOrg /
+// ForAuthority writers are NOT exported here — every export of a "use
+// server" file is an independently-addressable server action, so a bare
+// writer taking a caller-supplied actorUserId/orgId would let any client
+// create or approve offerings as any org/authority. Callers import them
+// from src/modules/service-offerings/application/ directly.
+// updateOfferingCapacityWriter is NOT exported either (review 07): it takes an
+// arbitrary offeringId with no auth guard, so a "use server" export would let
+// any client resize any offering. The capacity-sync test imports it from
+// src/modules/service-offerings/application/update-offering-capacity; the
+// guarded updateOfferingCapacityAction below scopes it to the caller's org.
 
-import { and, eq, gt, isNull, sql } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 
+import { db, serviceOfferings } from "@/db";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
-  appointments,
-  db,
-  notifications,
-  organizationMemberships,
-  profiles,
-  serviceOfferings,
-  timeSlots,
-} from "@/db";
-import { findAuthoritiesForJurisdiction } from "@/lib/approval-routing";
-import { tryResolveCanonicalJurisdiction } from "@/lib/jurisdiction-validation";
-import { generateOfferingToken } from "@/lib/publicToken";
-import { CreateServiceOfferingInput } from "@/lib/scheduling-schemas";
-import { findServiceKind } from "@/lib/service-kinds";
-import { createClient } from "@/lib/supabase/server";
-import { generateUniqueToken } from "@/lib/unique-token";
-import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
+  requireCapability,
+  requireCapabilityForOrgToken,
+} from "@/src/modules/organizations/infrastructure/authz-resolver";
 
-// ============================================================================
-// Types
-// ============================================================================
+import { approveServiceOfferingForAuthority as approveServiceOfferingForAuthorityUC } from "@/src/modules/service-offerings/application/approve-service-offering";
+import { createServiceOfferingForOrg as createServiceOfferingForOrgUC } from "@/src/modules/service-offerings/application/create-service-offering";
+import {
+  archiveServiceOfferingUseCase,
+  pauseServiceOfferingUseCase,
+  unpauseServiceOfferingUseCase,
+} from "@/src/modules/service-offerings/application/lifecycle-offering";
+import { rejectServiceOfferingForAuthority as rejectServiceOfferingForAuthorityUC } from "@/src/modules/service-offerings/application/reject-service-offering";
+import { updateOfferingCapacityWriter as updateOfferingCapacityWriterUC } from "@/src/modules/service-offerings/application/update-offering-capacity";
+import type {
+  AuthorityScope,
+  ServiceOfferingFormState,
+  ServiceOfferingResult,
+  UpdateCapacityResult,
+} from "@/src/modules/service-offerings/domain/types";
 
-export type ServiceOfferingResult = { error: string } | { ok: true };
-
-type OrgProvider = {
-  organizationId: string;
-  organizationPublicToken: string;
-  organizationDisplayName: string;
-};
-
-// ============================================================================
-// Inner writers — testable without auth context
-// ============================================================================
-
-// Org-side inner writer. Delegates to the shared writer below.
-export async function createServiceOfferingForOrg(
-  actorUserId: string,
-  orgId: string,
-  orgToken: string,
-  orgDisplayName: string,
-  orgProvince: string | null,
-  orgLocality: string | null,
-  input: {
-    serviceKind: string;
-    displayName: string;
-    description: string | null;
-    durationMinutes: number;
-    slotCapacity: number;
-    priceArs: number | null;
-    eligibilitySpecies: ("dog" | "cat")[] | null;
-    eligibilityAgeMinMonths: number | null;
-    eligibilityAgeMaxMonths: number | null;
-  },
-): Promise<ServiceOfferingResult> {
-  return createServiceOfferingWriter(
-    actorUserId,
-    {
-      organizationId: orgId,
-      organizationPublicToken: orgToken,
-      organizationDisplayName: orgDisplayName,
-    },
-    orgProvince ?? "",
-    orgLocality ?? "",
-    input,
-  );
-}
-
-async function createServiceOfferingWriter(
-  actorUserId: string,
-  provider: OrgProvider,
-  province: string,
-  locality: string,
-  input: {
-    serviceKind: string;
-    displayName: string;
-    description: string | null;
-    durationMinutes: number;
-    slotCapacity: number;
-    priceArs: number | null;
-    eligibilitySpecies: ("dog" | "cat")[] | null;
-    eligibilityAgeMinMonths: number | null;
-    eligibilityAgeMaxMonths: number | null;
-  },
-): Promise<ServiceOfferingResult> {
-  const parsed = CreateServiceOfferingInput.safeParse(input);
-  if (!parsed.success) {
-    return { error: `Datos inválidos: ${parsed.error.issues[0]?.message ?? "error"}` };
-  }
-
-  const kindDef = findServiceKind(parsed.data.serviceKind);
-  if (!kindDef) {
-    return { error: "Tipo de servicio no reconocido." };
-  }
-
-  // Canonicalize jurisdiction so the approval routing + future filters
-  // agree on the INDEC spelling. When both fields are empty (vet provider
-  // without operational scope yet), persist as null. When the lookup misses
-  // (uncatalogued locality), we keep the trimmed input — tolerant variant.
-  const canonical = await tryResolveCanonicalJurisdiction({
-    rawProvince: province,
-    rawLocality: locality,
-  });
-  const canonicalProvince: string | null = canonical.province || null;
-  const canonicalLocality: string | null = canonical.locality || null;
-
-  const publicToken = await generateUniqueToken(
-    serviceOfferings,
-    serviceOfferings.publicToken,
-    generateOfferingToken,
-  );
-  const authorityIds = await findAuthoritiesForJurisdiction({
-    province: canonicalProvince ?? "",
-    locality: canonicalLocality ?? "",
-  });
-
-  try {
-    await db.transaction(async (tx) => {
-      await tx.insert(serviceOfferings).values({
-        publicToken,
-        organizationId: provider.organizationId,
-        providerUserId: null,
-        jurisdictionProvince: canonicalProvince,
-        jurisdictionLocality: canonicalLocality,
-        serviceKind: parsed.data.serviceKind,
-        displayName: parsed.data.displayName,
-        description: parsed.data.description,
-        durationMinutes: parsed.data.durationMinutes,
-        slotCapacity: parsed.data.slotCapacity,
-        priceArs: parsed.data.priceArs?.toString() ?? null,
-        eligibilitySpecies: parsed.data.eligibilitySpecies,
-        eligibilityAgeMinMonths: parsed.data.eligibilityAgeMinMonths,
-        eligibilityAgeMaxMonths: parsed.data.eligibilityAgeMaxMonths,
-        status: "pending_approval",
-      });
-
-      const providerLabel = provider.organizationDisplayName;
-
-      // Notify applicant.
-      const ctaUrl = `/org/${provider.organizationPublicToken}/servicios`;
-
-      await tx.insert(notifications).values({
-        userId: actorUserId,
-        notificationType: "service_offering_submitted",
-        title: "Servicio enviado para revisión",
-        body: `"${parsed.data.displayName}" (${kindDef.label}) fue enviado. Te avisamos cuando sea aprobado.`,
-        severity: "info",
-        ctaLabel: "Ver mis servicios",
-        ctaUrl,
-      });
-
-      // Fan out to authorities.
-      if (authorityIds.length > 0) {
-        const roleById = new Map<string, string>();
-        for (const id of authorityIds) {
-          const [p] = await tx
-            .select({ id: profiles.id, role: profiles.role })
-            .from(profiles)
-            .where(eq(profiles.id, id))
-            .limit(1);
-          if (p) roleById.set(p.id, p.role);
-        }
-
-        await tx.insert(notifications).values(
-          authorityIds.map((authorityId) => {
-            const role = roleById.get(authorityId) ?? "admin";
-            const authCtaUrl = role === "govt" ? "/gob/servicios" : "/admin/servicios";
-            return {
-              userId: authorityId,
-              notificationType: "service_offering_pending_authority",
-              title: `Nuevo servicio a aprobar en ${locality || providerLabel}`,
-              body: `${providerLabel} solicitó aprobar "${parsed.data.displayName}" (${kindDef.label}).`,
-              severity: "info" as const,
-              ctaLabel: "Revisar",
-              ctaUrl: authCtaUrl,
-            };
-          }),
-        );
-      }
-    });
-  } catch (err) {
-    return {
-      error: `No se pudo crear la solicitud: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
-export async function approveServiceOfferingForAuthority(
-  actorUserId: string,
-  publicToken: string,
-): Promise<ServiceOfferingResult> {
-  const [offering] = await db
-    .select()
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.publicToken, publicToken))
-    .limit(1);
-  if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.status !== "pending_approval") {
-    return { error: `El servicio ya está en estado "${offering.status}".` };
-  }
-
-  const now = new Date();
-
-  try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(serviceOfferings)
-        .set({
-          status: "approved",
-          reviewedAt: now,
-          reviewedByUserId: actorUserId,
-          updatedAt: now,
-        })
-        .where(eq(serviceOfferings.id, offering.id));
-
-      // Notify active org members with admin role (they submitted / manage the offering).
-      const orgAdmins = await tx
-        .select({ userId: organizationMemberships.userId })
-        .from(organizationMemberships)
-        .where(
-          and(
-            // biome-ignore lint/style/noNonNullAssertion: org-scoped offering rows always have organizationId.
-            eq(organizationMemberships.organizationId, offering.organizationId!),
-            isNull(organizationMemberships.leftAt),
-          ),
-        );
-
-      if (orgAdmins.length > 0) {
-        await tx.insert(notifications).values(
-          orgAdmins.map((m) => ({
-            userId: m.userId,
-            notificationType: "service_offering_approved",
-            title: `Servicio aprobado: ${offering.displayName}`,
-            body: "Ya podés crear la agenda y empezar a recibir reservas.",
-            severity: "success" as const,
-            ctaLabel: "Gestionar agenda",
-            ctaUrl: `/org/${offering.organizationId}/servicios/${publicToken}`,
-          })),
-        );
-      }
-    });
-  } catch (err) {
-    return {
-      error: `No se pudo aprobar: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
-}
-
-export async function rejectServiceOfferingForAuthority(
-  actorUserId: string,
-  publicToken: string,
-  rejectionReason: string,
-): Promise<ServiceOfferingResult> {
-  const trimmedReason = rejectionReason.trim();
-  if (!trimmedReason || trimmedReason.length < 10) {
-    return { error: "El motivo del rechazo debe tener al menos 10 caracteres." };
-  }
-  if (trimmedReason.length > 1000) {
-    return { error: "El motivo del rechazo no puede superar los 1000 caracteres." };
-  }
-
-  const [offering] = await db
-    .select()
-    .from(serviceOfferings)
-    .where(eq(serviceOfferings.publicToken, publicToken))
-    .limit(1);
-  if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.status !== "pending_approval") {
-    return { error: `El servicio ya está en estado "${offering.status}".` };
-  }
-
-  const now = new Date();
-
-  try {
-    await db.transaction(async (tx) => {
-      await tx
-        .update(serviceOfferings)
-        .set({
-          status: "rejected",
-          reviewedAt: now,
-          reviewedByUserId: actorUserId,
-          rejectionReason: trimmedReason,
-          updatedAt: now,
-        })
-        .where(eq(serviceOfferings.id, offering.id));
-
-      const orgAdmins = await tx
-        .select({ userId: organizationMemberships.userId })
-        .from(organizationMemberships)
-        .where(
-          and(
-            // biome-ignore lint/style/noNonNullAssertion: org-scoped offering rows always have organizationId.
-            eq(organizationMemberships.organizationId, offering.organizationId!),
-            isNull(organizationMemberships.leftAt),
-          ),
-        );
-
-      if (orgAdmins.length > 0) {
-        await tx.insert(notifications).values(
-          orgAdmins.map((m) => ({
-            userId: m.userId,
-            notificationType: "service_offering_rejected",
-            title: `Servicio rechazado: ${offering.displayName}`,
-            body: `Tu solicitud fue rechazada: ${trimmedReason}`,
-            severity: "warning" as const,
-            ctaLabel: "Ver mis servicios",
-            ctaUrl: `/org/${offering.organizationId}/servicios`,
-          })),
-        );
-      }
-    });
-  } catch (err) {
-    return {
-      error: `No se pudo rechazar: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true };
+// Build the authority scope threaded into the approve/reject use-cases from the
+// institutional guard result. Admin is universal; a govt actor carries its
+// active jurisdiction assignments so the use-case can bound the offering's org
+// to that scope (fail-closed). A single builder keeps approve and reject in sync.
+function authorityScopeFromSession(
+  role: "admin" | "govt",
+  jurisdictions: ReadonlyArray<{ province: string; locality: string }>,
+): AuthorityScope {
+  return role === "admin" ? { role: "admin" } : { role: "govt", jurisdictions };
 }
 
 // ============================================================================
-// Form-shaped wrappers — gate auth + capability, delegate to inner writers
+// Type re-exports — keep public type surface stable for existing callers
+// (type-only exports are erased at runtime; allowed in "use server" files)
 // ============================================================================
 
-export type ServiceOfferingFormState = { error: string | null };
+export type { ServiceOfferingResult } from "@/src/modules/service-offerings/domain/types";
+export type { UpdateCapacityResult } from "@/src/modules/service-offerings/domain/types";
+export type { ServiceOfferingFormState } from "@/src/modules/service-offerings/domain/types";
+
+// ============================================================================
+// Form-shaped wrappers — gate auth + capability, delegate to use-cases
+// ============================================================================
 
 export async function createServiceOfferingAction(
   _prev: ServiceOfferingFormState,
@@ -396,7 +114,7 @@ export async function createServiceOfferingAction(
       ageMaxRaw !== null && ageMaxRaw !== "" ? Number.parseInt(String(ageMaxRaw), 10) : null,
   };
 
-  const result = await createServiceOfferingForOrg(
+  const result = await createServiceOfferingForOrgUC(
     user.id,
     organization.id,
     orgToken,
@@ -409,32 +127,39 @@ export async function createServiceOfferingAction(
   if ("error" in result) return { error: result.error };
 
   revalidatePath(`/org/${orgToken}/servicios`);
-  redirect(`/org/${orgToken}/servicios`);
+  // N3: return the destination; the form navigates (useActionRedirect).
+  return { error: null, redirectTo: `/org/${orgToken}/servicios` };
 }
 
 export async function approveServiceOfferingAction(
   publicToken: string,
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  // Authority-side approval is an act of admin/govt, not an org capability
+  // (unlike create/pause, which use requireCapability scoped to the caller's
+  // org). Gate with the full-invariant institutional guard — role ∈
+  // {admin,govt} + accountType==='institutional' + deactivatedAt IS NULL +
+  // deletedAt IS NULL — instead of the previous role-only profiles lookup,
+  // which let a DEACTIVATED or ERASED (soft-deleted, session still valid —
+  // Ley 25.326 art. 16) operator whose role column still read 'admin'/'govt'
+  // approve offerings.
+  // Destructure the FULL guard result — the previous `{ user }`-only destructure
+  // discarded session.jurisdictions, letting a jurisdiction-scoped govt operator
+  // approve a PENDING offering belonging to an org in ANY other jurisdiction. The
+  // use-case now bounds the offering's org to this scope (fail-closed for govt).
+  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (profile?.role !== "admin" && profile?.role !== "govt") {
-    return { error: "Solo admin o govt pueden aprobar servicios." };
-  }
-
-  const result = await approveServiceOfferingForAuthority(user.id, publicToken);
+  const result = await approveServiceOfferingForAuthorityUC(
+    user.id,
+    publicToken,
+    authorityScopeFromSession(profile.role, jurisdictions),
+  );
   if ("error" in result) return { error: result.error };
 
-  revalidatePath("/admin/servicios");
-  revalidatePath("/gob/servicios");
+  // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
+  // F3+F7 fusion (2026-07-22) made it the Directorio hub's "servicios" tab in
+  // BOTH portals — revalidate both hub routes or one goes stale.
+  revalidatePath("/gob/directorio");
+  revalidatePath("/admin/directorio");
   return { error: null };
 }
 
@@ -446,34 +171,16 @@ export async function pauseServiceOfferingAction(
   orgToken: string,
   publicToken: string,
 ): Promise<ServiceOfferingResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard): resolve the acting org
+  // FROM the URL orgToken, not the session-default (most-recently-joined)
+  // membership. Replaces the post-hoc `publicToken !== orgToken` mismatch check,
+  // which was security-safe but false-rejected legitimate multi-org members.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
+  const { organization } = auth;
 
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
-
-  const [offering] = await db
-    .select({ id: serviceOfferings.id, status: serviceOfferings.status })
-    .from(serviceOfferings)
-    .where(
-      and(
-        eq(serviceOfferings.publicToken, publicToken),
-        eq(serviceOfferings.organizationId, organization.id),
-      ),
-    )
-    .limit(1);
-
-  if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.status === "archived") return { error: "No podés pausar un servicio archivado." };
-  if (offering.status === "paused") return { error: "El servicio ya está pausado." };
-
-  await db
-    .update(serviceOfferings)
-    .set({ status: "paused", updatedAt: new Date() })
-    .where(eq(serviceOfferings.id, offering.id));
+  const result = await pauseServiceOfferingUseCase(organization.id, publicToken);
+  if ("error" in result) return result;
 
   revalidatePath(`/org/${orgToken}/servicios`);
   revalidatePath(`/org/${orgToken}/servicios/${publicToken}`);
@@ -484,33 +191,13 @@ export async function unpauseServiceOfferingAction(
   orgToken: string,
   publicToken: string,
 ): Promise<ServiceOfferingResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard) — see pauseServiceOfferingAction.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
+  const { organization } = auth;
 
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
-
-  const [offering] = await db
-    .select({ id: serviceOfferings.id, status: serviceOfferings.status })
-    .from(serviceOfferings)
-    .where(
-      and(
-        eq(serviceOfferings.publicToken, publicToken),
-        eq(serviceOfferings.organizationId, organization.id),
-      ),
-    )
-    .limit(1);
-
-  if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.status !== "paused") return { error: "El servicio no está pausado." };
-
-  await db
-    .update(serviceOfferings)
-    .set({ status: "approved", updatedAt: new Date() })
-    .where(eq(serviceOfferings.id, offering.id));
+  const result = await unpauseServiceOfferingUseCase(organization.id, publicToken);
+  if ("error" in result) return result;
 
   revalidatePath(`/org/${orgToken}/servicios`);
   revalidatePath(`/org/${orgToken}/servicios/${publicToken}`);
@@ -521,53 +208,13 @@ export async function archiveServiceOfferingAction(
   orgToken: string,
   publicToken: string,
 ): Promise<ServiceOfferingResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard) — see pauseServiceOfferingAction.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
+  const { organization } = auth;
 
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
-
-  const [offering] = await db
-    .select({ id: serviceOfferings.id, status: serviceOfferings.status })
-    .from(serviceOfferings)
-    .where(
-      and(
-        eq(serviceOfferings.publicToken, publicToken),
-        eq(serviceOfferings.organizationId, organization.id),
-      ),
-    )
-    .limit(1);
-
-  if (!offering) return { error: "Servicio no encontrado." };
-  if (offering.status === "archived") return { error: "El servicio ya está archivado." };
-
-  // Archiving with future confirmed appointments would strand the owners who
-  // booked them — they must be attended or cancelled first.
-  const [pending] = await db
-    .select({ id: appointments.id })
-    .from(appointments)
-    .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
-    .where(
-      and(
-        eq(appointments.serviceOfferingId, offering.id),
-        eq(appointments.status, "confirmed"),
-        gt(timeSlots.startsAt, new Date()),
-      ),
-    )
-    .limit(1);
-  if (pending) {
-    return {
-      error: "Hay turnos confirmados a futuro para este servicio. Cancelalos antes de eliminarlo.",
-    };
-  }
-
-  await db
-    .update(serviceOfferings)
-    .set({ status: "archived", updatedAt: new Date() })
-    .where(eq(serviceOfferings.id, offering.id));
+  const result = await archiveServiceOfferingUseCase(organization.id, publicToken);
+  if ("error" in result) return result;
 
   revalidatePath(`/org/${orgToken}/servicios`);
   revalidatePath(`/org/${orgToken}/servicios/${publicToken}`);
@@ -578,145 +225,32 @@ export async function rejectServiceOfferingAction(
   publicToken: string,
   rejectionReason: string,
 ): Promise<{ error: string | null }> {
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Sesión expirada." };
+  // Mirror approveServiceOfferingAction: authority-side rejection gates on the
+  // full-invariant institutional guard, not a role-only profiles lookup.
+  // Mirror approveServiceOfferingAction: destructure the full guard result and
+  // thread the jurisdiction scope so a scoped govt cannot reject an offering
+  // belonging to an org outside their assigned jurisdiction(s).
+  const { user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect();
 
-  const [profile] = await db
-    .select({ role: profiles.role })
-    .from(profiles)
-    .where(eq(profiles.id, user.id))
-    .limit(1);
-  if (profile?.role !== "admin" && profile?.role !== "govt") {
-    return { error: "Solo admin o govt pueden rechazar servicios." };
-  }
-
-  const result = await rejectServiceOfferingForAuthority(user.id, publicToken, rejectionReason);
+  const result = await rejectServiceOfferingForAuthorityUC(
+    user.id,
+    publicToken,
+    rejectionReason,
+    authorityScopeFromSession(profile.role, jurisdictions),
+  );
   if ("error" in result) return { error: result.error };
 
-  revalidatePath("/admin/servicios");
-  revalidatePath("/gob/servicios");
+  // Servicios is a dual-portal surface (portal-follows-viewer, 2026-07-02):
+  // F3+F7 fusion (2026-07-22) made it the Directorio hub's "servicios" tab in
+  // BOTH portals — revalidate both hub routes or one goes stale.
+  revalidatePath("/gob/directorio");
+  revalidatePath("/admin/directorio");
   return { error: null };
 }
 
 // ============================================================================
 // Offering capacity update — ARCH-F
 // ============================================================================
-//
-// updateOfferingCapacityWriter: pure inner writer, testable without auth context.
-// updateOfferingCapacityAction: org-scoped outer wrapper that gates auth.
-//
-// Concurrency strategy (matches bookSlotAction D10 pattern):
-//   - Open a Drizzle transaction.
-//   - Acquire pg_advisory_xact_lock(hashtext(slot_id::text)) on EACH future slot
-//     before updating it. This serializes concurrent booking attempts for those
-//     slots with concurrent capacity edits.
-//   - Re-read each slot inside the lock to get the live bookings_count.
-//   - Clamp: never reduce capacity below the slot's current bookings_count.
-//     Rationale: the DB CHECK (bookings_count <= capacity) is the final guardrail;
-//     setting capacity = bookingsCount when newCapacity < bookingsCount keeps
-//     the invariant intact and is the least surprising behavior for org staff —
-//     existing bookings are never stranded, and the slot naturally becomes "full".
-//   - Only future slots (starts_at > now) are updated; past slots are immutable.
-//   - The offering's slotCapacity is also updated in the same transaction so
-//     future cron-materialization runs see the correct value.
-
-export type UpdateCapacityResult = { ok: true; slotsUpdated: number } | { error: string };
-
-/**
- * Updates the offering's slotCapacity and syncs all future open/full slots
- * of that offering in one transaction.
- *
- * Invariant: each slot's capacity is set to MAX(newCapacity, slot.bookingsCount).
- * This prevents the DB CHECK (bookings_count <= capacity) from firing while
- * never stranding existing bookings.
- *
- * Past slots (starts_at <= now) are intentionally left untouched.
- *
- * @param offeringId    The internal UUID of the service offering.
- * @param newCapacity   The desired new capacity (must be > 0).
- */
-export async function updateOfferingCapacityWriter(
-  offeringId: string,
-  newCapacity: number,
-): Promise<UpdateCapacityResult> {
-  if (!Number.isInteger(newCapacity) || newCapacity < 1) {
-    return { error: "La capacidad debe ser un número entero mayor a 0." };
-  }
-
-  let slotsUpdated = 0;
-
-  try {
-    slotsUpdated = await db.transaction(async (tx) => {
-      // Capture `now` inside the transaction so it is consistent with the
-      // advisory-lock window and any concurrent bookSlotAction reads.
-      const now = new Date();
-      let count = 0;
-
-      // 1. Update the offering itself so future cron runs use the new value.
-      await tx
-        .update(serviceOfferings)
-        .set({ slotCapacity: newCapacity, updatedAt: now })
-        .where(eq(serviceOfferings.id, offeringId));
-
-      // 2. Fetch all future non-cancelled slots for this offering.
-      //    We intentionally include 'full' slots — no code path today writes
-      //    status='full' (booking reads bookingsCount < capacity, not status).
-      //    If a future change starts writing status='full', capacity raises must
-      //    also reconcile status back to 'open' where bookingsCount < newCapacity.
-      const futureSlots = await tx
-        .select({
-          id: timeSlots.id,
-          bookingsCount: timeSlots.bookingsCount,
-        })
-        .from(timeSlots)
-        .where(
-          and(
-            eq(timeSlots.serviceOfferingId, offeringId),
-            gt(timeSlots.startsAt, now),
-            // exclude cancelled slots — they are tombstoned and no longer bookable
-            sql`${timeSlots.status} != 'cancelled'`,
-          ),
-        );
-
-      // 3. For each future slot: acquire advisory lock, then update capacity.
-      for (const slot of futureSlots) {
-        // Advisory lock — uses Drizzle parameter binding (same pattern as
-        // bookSlotAction / blockSlotAction: the driver sends the slot UUID as
-        // a bound parameter, and hashtext receives it as text).
-        await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${slot.id}))`);
-
-        // Re-read inside the lock to get the authoritative bookings_count.
-        const [locked] = await tx
-          .select({ bookingsCount: timeSlots.bookingsCount })
-          .from(timeSlots)
-          .where(eq(timeSlots.id, slot.id))
-          .limit(1);
-
-        const bookedCount = locked?.bookingsCount ?? slot.bookingsCount;
-        // Clamp: capacity must be at least the current booked count.
-        const effectiveCapacity = Math.max(newCapacity, bookedCount);
-
-        await tx
-          .update(timeSlots)
-          .set({ capacity: effectiveCapacity, updatedAt: now })
-          .where(eq(timeSlots.id, slot.id));
-
-        count++;
-      }
-
-      return count;
-    });
-  } catch (err) {
-    return {
-      error: `No se pudo actualizar la capacidad: ${err instanceof Error ? err.message : "error desconocido"}`,
-    };
-  }
-
-  return { ok: true, slotsUpdated };
-}
 
 /**
  * Org-scoped server action: updates the capacity of a service offering.
@@ -728,14 +262,10 @@ export async function updateOfferingCapacityAction(
   offeringPublicToken: string,
   newCapacity: number,
 ): Promise<UpdateCapacityResult> {
-  const auth = await requireCapability("service_offering.create");
+  // URL-pinned org resolution (confused-deputy guard) — see pauseServiceOfferingAction.
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
-  // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
-  const organization = auth.organization!;
-
-  if (organization.publicToken !== orgToken) {
-    return { error: "No tenés acceso a esta organización." };
-  }
+  const { organization } = auth;
 
   const [offering] = await db
     .select({ id: serviceOfferings.id, status: serviceOfferings.status })
@@ -753,7 +283,7 @@ export async function updateOfferingCapacityAction(
     return { error: "No podés modificar un servicio archivado." };
   }
 
-  const result = await updateOfferingCapacityWriter(offering.id, newCapacity);
+  const result = await updateOfferingCapacityWriterUC(offering.id, newCapacity);
   if ("error" in result) return result;
 
   revalidatePath(`/org/${orgToken}/servicios`);

@@ -54,28 +54,98 @@ import { describe, expect, it } from "vitest";
 // bite.ts was migrated to src/modules/surveillance/actions.ts in WU-5 of
 // hexagonal-lite-surveillance. The flushNotifications() helper pattern is maintained
 // there (same contract, different surface). app/actions/bite.ts was deleted.
-const REFACTORED_FILES = [
-  "admin-decisions.ts",
-  "admin-institutional.ts",
-  "admin-proposals.ts",
-  "admin-revocations.ts",
-  "chip-match.ts",
-  "intake.ts",
-  "profile-self-service.ts",
-  "return-to-owner.ts",
-] as const;
+// return-to-owner.ts was migrated to src/modules/return-to-owner/application/* in the
+// 2026-06-26 strangler pass. The §2.2 post-tx pattern is preserved per use-case
+// (accumulate `pendingNotifications` inside the tx, then `await db.insert(notifications)`
+// after the tx commits, wrapped in try/catch logging "notifications insert failed") —
+// verified across owner/org propose/accept/reject + cancel use-cases.
+// admin-institutional.ts was migrated to
+// src/modules/organizations/application/admin-institutional/* in the 2026-06-29
+// strangler pass (5/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - create-institutional-account.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - deactivate-admin.ts: same pattern (pendingNotificationsAdmin[]).
+//   - deactivate-govt.ts: same pattern (pendingNotificationsGovt[]).
+// The ARCH-P single-insert hardening is preserved in:
+//   - reset-institutional-credentials.ts: try/catch wrapping db.insert(notifications).
+//   - assign-govt-locality.ts: try/catch wrapping db.insert(notifications).
+// app/actions/admin-institutional.ts is now a thin shim — it delegates everything.
+// admin-revocations.ts was migrated to
+// src/modules/organizations/application/revocations/* in the 2026-06-29
+// strangler pass (8/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - revoke-vet-role.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - revoke-org-verification.ts: same pattern.
+//   - revoke-govt-locality.ts: same pattern.
+// app/actions/admin-revocations.ts is now a thin shim — it delegates everything.
+// profile-self-service.ts was migrated to
+// src/modules/pets/application/profile/* in the 2026-06-30
+// strangler pass (9/61). The §2.2 post-tx pattern is preserved in:
+//   - govt-self-deactivate.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+// The ARCH-P single-insert hardening is preserved in:
+//   - vet-self-resign.ts: try/catch wrapping db.insert(notifications).
+// app/actions/profile-self-service.ts is now a thin shim — it delegates everything.
+// intake.ts was migrated to
+// src/modules/pets/application/intake/* in the 2026-06-30
+// strangler pass (11/61). The §2.2 post-tx pattern is preserved in:
+//   - create-intake.ts: pendingNotifications[] accumulated inside the tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+// app/actions/intake.ts is now a thin shim — it delegates everything.
+// admin-decisions.ts was migrated to
+// src/modules/organizations/application/admin-decisions/* in the 2026-06-30
+// strangler pass (17/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - approve-request.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - reject-request.ts: same pattern.
+// app/actions/admin-decisions.ts is now a thin shim — it delegates everything.
+// admin-proposals.ts was migrated to
+// src/modules/organizations/application/admin-proposals/* in the 2026-06-30
+// strangler pass (20/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - propose-vet-upgrade.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - propose-org-verification.ts: same pattern.
+// app/actions/admin-proposals.ts is now a thin shim — it delegates everything.
+// chip-match.ts was migrated to
+// src/modules/pets/application/chip-match/* in the 2026-06-30
+// strangler pass (21/61). The §2.2 post-tx pattern is preserved in each use-case:
+//   - confirm-chip-match-refugio.ts: pendingNotifications[] accumulated inside tx,
+//     flushed post-tx with try/catch logging "notifications insert failed".
+//   - confirm-chip-match-vecino.ts: same pattern.
+// app/actions/chip-match.ts is now a thin shim — it delegates everything.
+const REFACTORED_FILES = [] as const;
 
 // Files that emit a single notification (no pending array) but must still
 // wrap the insert in try/catch so a failure does not propagate to the caller.
 // Added in ARCH-P (2026-06-11) to close the gap the §2.2 review identified.
 const SINGLE_INSERT_HARDENED_FILES = [
-  "admin-institutional.ts", // resetInstitutionalCredentialsForAuthority + assignGovtLocalityForAuthority
-  "profile-self-service.ts", // vetSelfResignForUser
-  "public.ts", // notifyOwnerOfFoundPetAction
-  "pet-sighting.ts", // reportPetSightingAction
+  // admin-institutional.ts migrated to src/modules/organizations/application/admin-institutional/*
+  // (strangler 5/61, 2026-06-29). reset-institutional-credentials.ts and assign-govt-locality.ts
+  // preserve the try/catch hardening. app/actions/admin-institutional.ts is now a thin shim.
+  // profile-self-service.ts migrated to src/modules/pets/application/profile/*
+  // (strangler 9/61, 2026-06-30). vet-self-resign.ts preserves the try/catch hardening.
+  // app/actions/profile-self-service.ts is now a thin shim — it delegates everything.
+  // pet-sighting.ts migrated to src/modules/pets/application/sighting/*
+  // (strangler 29/61, 2026-06-30). report-pet-sighting.ts preserves the try/catch hardening.
+  // app/actions/pet-sighting.ts is now a thin shim — it delegates everything.
+  // public.ts migrated to src/modules/pets/application/public/*
+  // (strangler 44/61, 2026-06-30). notify-owner-of-found-pet.ts preserves the try/catch hardening.
+  // app/actions/public.ts is now a thin shim — it delegates everything.
 ] as const;
 
 describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {
+  // Every action file that once carried the §2.2 post-tx pendingNotifications
+  // pattern has now been migrated to a src/modules/<domain>/application/* use-case
+  // (the pattern is preserved there per use-case — see the header comments above).
+  // No app/actions/ shim should still carry it, so REFACTORED_FILES is empty.
+  // This placeholder keeps the suite valid when the list is empty; the per-file
+  // loop below re-engages automatically if a new pre-migration file is added.
+  if (REFACTORED_FILES.length === 0) {
+    it("all §2.2 action files have been migrated to module use-cases", () => {
+      expect(REFACTORED_FILES).toHaveLength(0);
+    });
+  }
+
   for (const file of REFACTORED_FILES) {
     it(`${file} accumulates pendingNotifications and inserts post-tx with try/catch`, () => {
       const src = readFileSync(join(process.cwd(), "app", "actions", file), "utf8");
@@ -109,6 +179,18 @@ describe("Phase 2.2 — notifications outside transactions (§2.2)", () => {
 });
 
 describe("ARCH-P — single-insert notification hardening", () => {
+  // Every action file that once carried the ARCH-P single-insert hardening
+  // has now been migrated to a src/modules/<domain>/application/* use-case
+  // (the try/catch is preserved there — see the header comments above).
+  // No app/actions/ shim should still carry a bare db.insert(notifications).
+  // This placeholder keeps the suite valid when the list is empty; the per-file
+  // loop below re-engages automatically if a new pre-migration file is added.
+  if (SINGLE_INSERT_HARDENED_FILES.length === 0) {
+    it("all ARCH-P single-insert files migrated to module use-cases", () => {
+      expect(SINGLE_INSERT_HARDENED_FILES).toHaveLength(0);
+    });
+  }
+
   for (const file of SINGLE_INSERT_HARDENED_FILES) {
     it(`${file} wraps every db.insert(notifications) in try/catch with error logging`, () => {
       const src = readFileSync(join(process.cwd(), "app", "actions", file), "utf8");

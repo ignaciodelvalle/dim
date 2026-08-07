@@ -1,8 +1,10 @@
 "use client";
 
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
+import { OpButton } from "@/components/ui/dashboard";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { type AssignFosterFormState, assignFosterAction } from "@/src/modules/foster/actions";
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 
 const initialState: AssignFosterFormState = { error: null };
 
@@ -32,6 +34,14 @@ export function AssignFosterForm({
 }) {
   const action = assignFosterAction.bind(null, orgToken, publicToken);
   const [state, formAction, isPending] = useActionState(action, initialState);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
+
+  // Controlled field state — preserves typed input on validation error.
+  const [expectedWeeks, setExpectedWeeks] = useState("");
+  const [notes, setNotes] = useState("");
 
   return (
     <form action={formAction} className="space-y-4">
@@ -72,6 +82,8 @@ export function AssignFosterForm({
             min={0}
             max={104}
             placeholder="Opcional"
+            value={expectedWeeks}
+            onChange={(e) => setExpectedWeeks(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -86,6 +98,8 @@ export function AssignFosterForm({
             rows={3}
             maxLength={500}
             placeholder="Medicación, dieta especial, comportamientos a tener en cuenta…"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
             aria-describedby={describedBy}
             invalid={invalid}
           />
@@ -93,18 +107,14 @@ export function AssignFosterForm({
       </LnField>
 
       {state.error && (
-        <p className="text-[12px] rounded-[6px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
+        <p className="text-sm rounded-[var(--radius-md)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-ln-op-danger">
           {state.error}
         </p>
       )}
 
-      <button
-        type="submit"
-        disabled={isPending || candidates.length === 0}
-        className="px-4 py-2 rounded-[6px] bg-ln-op-azul text-white text-[13px] font-medium hover:bg-ln-op-azul-700 disabled:opacity-50"
-      >
+      <OpButton type="submit" disabled={isPending || candidates.length === 0}>
         {isPending ? "Asignando…" : "Asignar tránsito"}
-      </button>
+      </OpButton>
     </form>
   );
 }

@@ -3,10 +3,13 @@
 import { describe, expect, test } from "vitest";
 
 import {
+  PROXIMOS_HORIZON_DAYS,
+  countProximosReminders,
   getReminderVariant,
   getReportableVaccines,
+  isReminderProximo,
   isVaccineReportable,
-} from "@/lib/vaccine-reminder-state";
+} from "@/lib/domain/vaccine-reminder-state";
 
 // ---------------------------------------------------------------------------
 // getReminderVariant
@@ -101,5 +104,57 @@ describe("isVaccineReportable", () => {
 
   test('"rabia" + fish → false (especie sin lista reportable)', () => {
     expect(isVaccineReportable("rabia", "fish", "CABA")).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isReminderProximo / countProximosReminders (#45 — vencimientos próximos)
+// ---------------------------------------------------------------------------
+
+describe("isReminderProximo", () => {
+  test("default horizon is 60 días", () => {
+    expect(PROXIMOS_HORIZON_DAYS).toBe(60);
+  });
+
+  test("vencido (daysUntilDue negativo) → próximo (lo más urgente)", () => {
+    expect(isReminderProximo(-5)).toBe(true);
+  });
+
+  test("vence hoy (0) → próximo", () => {
+    expect(isReminderProximo(0)).toBe(true);
+  });
+
+  test("borde del horizonte (60) → próximo", () => {
+    expect(isReminderProximo(60)).toBe(true);
+  });
+
+  test("apenas fuera del horizonte (61) → NO próximo", () => {
+    expect(isReminderProximo(61)).toBe(false);
+  });
+
+  test("dosis anual recién registrada (363) → NO próximo (el bug del QA §2)", () => {
+    expect(isReminderProximo(363)).toBe(false);
+  });
+});
+
+describe("countProximosReminders", () => {
+  test("cuenta sólo los que están dentro del horizonte; excluye los lejanos", () => {
+    const reminders = [
+      { daysUntilDue: -10 }, // vencido → cuenta
+      { daysUntilDue: 5 }, // pronto → cuenta
+      { daysUntilDue: 60 }, // borde → cuenta
+      { daysUntilDue: 120 }, // lejano → no
+      { daysUntilDue: 363 }, // dosis anual → no
+    ];
+    expect(countProximosReminders(reminders)).toBe(3);
+  });
+
+  test("lista vacía → 0", () => {
+    expect(countProximosReminders([])).toBe(0);
+  });
+
+  test("horizonte configurable", () => {
+    const reminders = [{ daysUntilDue: 75 }, { daysUntilDue: 100 }];
+    expect(countProximosReminders(reminders, 90)).toBe(1);
   });
 });

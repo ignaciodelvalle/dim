@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { escapeLike, likeContains } from "@/lib/like-helpers";
+import { escapeLike, likeContains } from "@/lib/utils/like-helpers";
 
 describe("escapeLike", () => {
   it("returns the string unchanged when no special characters are present", () => {

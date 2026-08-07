@@ -15,7 +15,7 @@
 
 import "server-only";
 
-import { and, asc, desc, eq, gte, isNull, lte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, isNull, sql } from "drizzle-orm";
 
 import {
   cases,
@@ -26,10 +26,9 @@ import {
   ownerships,
   petEvents,
   pets,
-  profiles,
 } from "@/db";
 import type { NewPetEvent, PetEvent } from "@/db/schema";
-import { insertEventIdempotent } from "@/lib/event-idempotency";
+import { insertEventIdempotent } from "@/lib/events/event-idempotency";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -197,28 +196,42 @@ export class SurveillanceRepository {
   }
 
   /**
-   * Find all pets currently in rabies observation (status='in_progress').
+   * Find pets currently in rabies observation (status='in_progress').
    * Used by the cron closer to iterate eligible candidates.
+   *
+   * Keyset-paginated (review 23 fleet extension): the previous unordered
+   * `.limit(500)` returned the SAME 500 rows every run, so on a registry with
+   * more than 500 concurrent observations any pet beyond the first page — whose
+   * legal 10-day window had elapsed — could NEVER be auto-closed. Callers now
+   * pass `afterId` (the last id from the prior page) and persist it across runs,
+   * so the whole in_progress set is swept in id order across successive runs and
+   * wraps around when drained. Ordered by id so the cursor is stable.
    */
-  async findPetsInProgress(): Promise<SurveillancePet[]> {
-    return (
-      db
-        .select({
-          id: pets.id,
-          publicToken: pets.publicToken,
-          name: pets.name,
-          species: pets.species,
-          status: pets.status,
-          rabiesObservationStatus: pets.rabiesObservationStatus,
-          jurisdictionProvince: pets.jurisdictionProvince,
-          jurisdictionLocality: pets.jurisdictionLocality,
-        })
-        .from(pets)
-        .where(eq(pets.rabiesObservationStatus, "in_progress"))
-        // Defensive ceiling: the cron drains observations in passes; a pass over
-        // 500 is fine — the next run picks up the rest.
-        .limit(500)
-    );
+  async findPetsInProgress(opts?: {
+    afterId?: string | null;
+    limit?: number;
+  }): Promise<SurveillancePet[]> {
+    const limit = opts?.limit ?? 500;
+    const afterId = opts?.afterId ?? null;
+    return db
+      .select({
+        id: pets.id,
+        publicToken: pets.publicToken,
+        name: pets.name,
+        species: pets.species,
+        status: pets.status,
+        rabiesObservationStatus: pets.rabiesObservationStatus,
+        jurisdictionProvince: pets.jurisdictionProvince,
+        jurisdictionLocality: pets.jurisdictionLocality,
+      })
+      .from(pets)
+      .where(
+        afterId
+          ? and(eq(pets.rabiesObservationStatus, "in_progress"), gt(pets.id, afterId))
+          : eq(pets.rabiesObservationStatus, "in_progress"),
+      )
+      .orderBy(asc(pets.id))
+      .limit(limit);
   }
 
   /**

@@ -11,8 +11,8 @@ import { createClient } from "@supabase/supabase-js";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { withdrawApprovalRequestForUser } from "@/app/actions/approval-requests";
 import { approvalRequests, auditLog, db, profiles } from "@/db";
+import { withdrawApprovalRequestForUser } from "@/src/modules/organizations/application/approval-requests/withdraw-approval-request";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
 const SECRET = "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";

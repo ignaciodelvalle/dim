@@ -1,13 +1,13 @@
 // /turnos/buscar — Libreta Nacional redesign.
 // SearchFiltersForm (client component) unchanged.
 
+import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { SERVICE_KINDS, findServiceKind } from "@/lib/reference/service-kinds";
+import { pluralizeEs } from "@/lib/utils/format";
+import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
-
-import { LnSectionHead } from "@/components/ui/DocElements";
-import { db, organizations, ownerships, pets, profiles, serviceOfferings, timeSlots } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { SERVICE_KINDS, findServiceKind } from "@/lib/service-kinds";
 
 import { SearchFiltersForm } from "./SearchFiltersForm";
 
@@ -25,12 +25,14 @@ export default async function BuscarTurnosPage({
   const { user } = await requireUserOrRedirect();
   const params = await searchParams;
 
-  const serviceKind = params.service_kind?.trim() ?? "";
-  const fechaDesde = params.fecha_desde?.trim() ?? "";
+  // Q1: repeated params (?service_kind=a&service_kind=b) hand Next a
+  // string[], not string — raw `.trim()` on that throws (500).
+  const serviceKind = trimmedSearchParam(params.service_kind) ?? "";
+  const fechaDesde = trimmedSearchParam(params.fecha_desde) ?? "";
   const soloGratis = params.solo_gratis === "true";
 
-  let province = params.province?.trim() ?? "";
-  let locality = params.locality?.trim() ?? "";
+  let province = trimmedSearchParam(params.province) ?? "";
+  let locality = trimmedSearchParam(params.locality) ?? "";
 
   if ((!province || !locality) && serviceKind) {
     const [firstPet] = await db
@@ -52,20 +54,20 @@ export default async function BuscarTurnosPage({
 
   if (!serviceKind) {
     return (
-      <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
-        <div className="mb-[24px]">
-          <h1 className="m-0 font-[var(--font-ln-serif)] text-[30px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
+        <div className="mb-6">
+          <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
             Buscar turno
           </h1>
-          <p className="mt-[5px] text-[14px] text-[var(--color-ln-mute)]">
+          <p className="mt-[5px] text-md text-[var(--color-ln-mute)]">
             Indicá qué servicio buscás.
           </p>
         </div>
         <ServiceKindSelector />
-        <div className="mt-[32px]">
+        <div className="mt-8">
           <Link
             href="/mis-mascotas"
-            className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+            className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
           >
             ← Mis mascotas
           </Link>
@@ -120,8 +122,8 @@ export default async function BuscarTurnosPage({
       .where(
         sql`${timeSlots.serviceOfferingId} = ANY(${sql.raw(`ARRAY[${offeringIds.map((id) => `'${id}'`).join(",")}]::uuid[]`)})
             AND ${timeSlots.status} = 'open'
-            AND ${timeSlots.startsAt} >= ${slotWindowStart}
-            AND ${timeSlots.startsAt} <= ${windowEnd}
+            AND ${timeSlots.startsAt} >= ${slotWindowStart.toISOString()}
+            AND ${timeSlots.startsAt} <= ${windowEnd.toISOString()}
             AND ${timeSlots.bookingsCount} < ${timeSlots.capacity}`,
       )
       .orderBy(timeSlots.startsAt);
@@ -141,21 +143,19 @@ export default async function BuscarTurnosPage({
   const locationLabel = locality ? locality : province ? province : null;
 
   return (
-    <div className="mx-auto max-w-2xl px-[32px] py-[28px] pb-[48px]">
+    <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
       {/* Header */}
-      <div className="mb-[20px]">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[28px] font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+      <div className="mb-5">
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
           {kindDef?.label ?? serviceKind}
         </h1>
         {locationLabel && (
-          <p className="mt-[4px] font-[var(--font-ln-mono)] text-[12px] text-[var(--color-ln-mute)]">
-            {locationLabel}
-          </p>
+          <p className="mt-1 font-ln-mono text-sm text-[var(--color-ln-mute)]">{locationLabel}</p>
         )}
       </div>
 
       {/* Filters */}
-      <div className="mb-[24px]">
+      <div className="mb-6">
         <SearchFiltersForm
           currentServiceKind={serviceKind}
           currentProvince={province}
@@ -167,13 +167,13 @@ export default async function BuscarTurnosPage({
 
       {/* Results */}
       {offeringsWithSlots.length === 0 ? (
-        <p className="py-[24px] text-[13px] text-[var(--color-ln-mute)]">
+        <p className="py-6 text-md text-[var(--color-ln-mute)]">
           {locationLabel
             ? `Sin servicios disponibles en ${locationLabel}. Probá otra localidad.`
             : "No hay turnos disponibles para este servicio en los próximos 7 días."}
         </p>
       ) : (
-        <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+        <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
           {offeringsWithSlots.map(({ offering, org, provider }) => {
             const slots = slotsByOffering.get(offering.id) ?? [];
             const providerLabel =
@@ -187,25 +187,27 @@ export default async function BuscarTurnosPage({
               <Link
                 key={offering.id}
                 href={`/turnos/buscar/${offering.publicToken}`}
-                className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-[16px] py-[14px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+                className="flex items-center justify-between gap-4 border-b border-[var(--color-ln-line-2)] px-4 py-3.5 no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold text-[var(--color-ln-ink)]">
+                  <p className="font-ln-serif text-base font-semibold text-[var(--color-ln-ink)]">
                     {offering.displayName}
                   </p>
-                  <p className="mt-[2px] font-[var(--font-ln-mono)] text-[10.5px] text-[var(--color-ln-mute)]">
+                  <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                     {providerLabel}
                     {offering.priceArs !== null
                       ? ` · $${Number(offering.priceArs).toLocaleString("es-AR")}`
                       : " · Gratuito"}
                     {` · ${offering.durationMinutes} min`}
                   </p>
-                  <p className="mt-[4px] text-[12px] text-[var(--color-ln-ok)]">
-                    {slots.length} turno{slots.length === 1 ? "" : "s"} disponible
-                    {slots.length === 1 ? "" : "s"} en 7 días
+                  <p className="mt-1 text-sm text-[var(--color-ln-ok)]">
+                    {`${slots.length} ${pluralizeEs(slots.length, "turno")} ${pluralizeEs(
+                      slots.length,
+                      "disponible",
+                    )} en 7 días`}
                   </p>
                 </div>
-                <div className="flex flex-shrink-0 items-center gap-[10px]">
+                <div className="flex flex-shrink-0 items-center gap-2.5">
                   {offering.organizationId &&
                     org?.avatarUrl &&
                     org.tier0ShowBranding &&
@@ -217,7 +219,7 @@ export default async function BuscarTurnosPage({
                         className="h-[36px] w-[36px] rounded-full object-cover"
                       />
                     )}
-                  <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+                  <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
                     ›
                   </span>
                 </div>
@@ -227,10 +229,10 @@ export default async function BuscarTurnosPage({
         </div>
       )}
 
-      <div className="mt-[32px]">
+      <div className="mt-8">
         <Link
           href="/mis-mascotas"
-          className="font-[var(--font-ln-mono)] text-[11px] uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
+          className="font-ln-mono text-sm uppercase tracking-[.06em] text-[var(--color-ln-azul)] no-underline hover:underline"
         >
           ← Mis mascotas
         </Link>
@@ -245,15 +247,15 @@ export default async function BuscarTurnosPage({
 
 function ServiceKindSelector() {
   return (
-    <div className="overflow-hidden rounded-[4px] border border-[var(--color-ln-line)]">
+    <div className="overflow-hidden rounded-[var(--radius-sm)] border border-[var(--color-ln-line)]">
       {SERVICE_KINDS.map((kind) => (
         <Link
           key={kind.code}
           href={`/turnos/buscar?service_kind=${kind.code}`}
-          className="flex items-center justify-between border-b border-[var(--color-ln-line-2)] px-[16px] py-[13px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
+          className="flex items-center justify-between border-b border-[var(--color-ln-line-2)] px-4 py-[13px] no-underline last:border-b-0 hover:bg-[var(--color-ln-stripe)] transition-colors"
         >
-          <span className="text-[13.5px] text-[var(--color-ln-ink)]">{kind.label}</span>
-          <span aria-hidden="true" className="text-[16px] text-[var(--color-ln-mute)]">
+          <span className="text-md text-[var(--color-ln-ink)]">{kind.label}</span>
+          <span aria-hidden="true" className="text-base text-[var(--color-ln-mute)]">
             ›
           </span>
         </Link>

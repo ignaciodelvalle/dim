@@ -2,11 +2,11 @@
 // in-memory test style — uses the real rate_limit_buckets table so we
 // catch UPSERT race semantics that a mock wouldn't.
 
-import { eq, like } from "drizzle-orm";
+import { like } from "drizzle-orm";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { db, rateLimitBuckets } from "@/db";
-import { RateLimitError, enforceRateLimit } from "@/lib/rate-limit";
+import { RateLimitError, enforceRateLimit } from "@/lib/infra/rate-limit";
 
 async function clearBucketsByPrefix(prefix: string): Promise<void> {
   await db.delete(rateLimitBuckets).where(like(rateLimitBuckets.bucketKey, `${prefix}%`));

@@ -4,9 +4,11 @@
 
 import { useState, useTransition } from "react";
 
+import { Icon } from "@/components/Icon";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox, LnField, LnInput, LnSelect } from "@/components/ui/Field";
-import { OpCallout } from "@/components/ui/dashboard";
+import { OpButton, OpCallout } from "@/components/ui/dashboard";
+import { notifySaved } from "@/lib/ui/action-feedback";
 import { inviteMemberAction } from "@/src/modules/organizations/actions";
 
 type RoleOption = { value: string; label: string };
@@ -15,16 +17,20 @@ type Props = {
   organizationId: string;
   orgToken: string;
   grantableRoles: RoleOption[];
+  /** Least-privileged grantable role — pre-selected so an unchanged submit
+   *  never invites someone as admin by accident. Falls back to the first
+   *  option if the caller doesn't provide one. */
+  defaultRole?: string;
 };
 
-export function InviteForm({ organizationId, grantableRoles }: Props) {
+export function InviteForm({ organizationId, grantableRoles, defaultRole }: Props) {
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState(grantableRoles[0]?.value ?? "");
+  const [role, setRole] = useState(defaultRole ?? grantableRoles[0]?.value ?? "");
   const [canWritePetEvents, setCanWritePetEvents] = useState(false);
 
   function handleSubmit(e: React.FormEvent) {
@@ -42,6 +48,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
         return;
       }
       setInviteUrl(result.inviteUrl);
+      notifySaved("Invitación creada");
     });
   }
 
@@ -62,28 +69,24 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
         <OpCallout
           title="Invitación creada"
           body="Compartí este link con la persona que querés sumar al equipo."
-          icon="✓"
+          icon={<Icon name="check-circle" decorative />}
         />
-        <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
-          <p className="break-all font-ln-mono text-[12px] text-ln-op-ink">{inviteUrl}</p>
+        <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+          <p className="break-all font-ln-mono text-sm text-ln-op-ink">{inviteUrl}</p>
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1 rounded-[4px] bg-ln-op-azul px-4 py-[7px] text-[12px] font-semibold text-white transition-colors hover:bg-ln-op-azul-700"
-            >
+            <OpButton variant="ghost" size="sm" onClick={handleCopy}>
               {copied ? "¡Copiado!" : "Copiar link"}
-            </button>
+            </OpButton>
             <a
               href={`https://wa.me/?text=${encodeURIComponent(inviteUrl)}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-[4px] border border-ln-op-line px-4 py-[7px] text-[12px] font-semibold text-ln-op-ink transition-colors hover:bg-ln-op-stripe no-underline"
+              className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] border border-ln-op-line px-4 py-[7px] text-sm font-semibold text-ln-op-ink transition-colors hover:bg-ln-op-stripe no-underline"
             >
               WhatsApp
             </a>
           </div>
-          <p className="text-[12px] text-ln-op-mute">
+          <p className="text-sm text-ln-op-mute">
             Este link vence en 14 días. Solo puede ser aceptado por la cuenta con el email indicado.
           </p>
         </div>
@@ -95,7 +98,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
             setInviteUrl(null);
             setCopied(false);
             setEmail("");
-            setRole(grantableRoles[0]?.value ?? "");
+            setRole(defaultRole ?? grantableRoles[0]?.value ?? "");
             setCanWritePetEvents(false);
           }}
         >
@@ -152,7 +155,7 @@ export function InviteForm({ organizationId, grantableRoles }: Props) {
 
       {error && (
         <p
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-[12px] text-ln-op-danger"
+          className="rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
           role="alert"
         >
           {error}

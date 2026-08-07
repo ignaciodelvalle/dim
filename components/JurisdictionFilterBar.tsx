@@ -1,7 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useTransition } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useId } from "react";
 
 // Shared filter bar for /gob/* pages. Drives state via URL search params so
 // refresh, share, and back-button all behave correctly. The pattern matches
@@ -16,6 +16,15 @@ import { useTransition } from "react";
 //
 // Spec: docs/gob-dashboard-plan-2026-05-20.md — Phase 1.
 //
+// Design note (router-drop defect, same cure as components/gob/JurisdictionSwitcher.tsx):
+// Next 15.5.18's App Router can silently drop a client transition's own fetch in
+// production — the RSC request resolves 200 but the URL and UI never update.
+// /gob/page.tsx server-renders the KPI strip from these searchParams on every
+// request, so a `router.replace` transition is exposed to the drop. A full
+// document navigation (`window.location.assign`) is the one mechanism proven
+// immune — the browser's native GET cannot be silently dropped, and it always
+// re-runs the server component with the new searchParams.
+//
 // NOTE: TimeRange, RANGE_ORDER, and readFilterParams live in
 // jurisdiction-filter-params.ts (non-client) so server components can import
 // them without crossing the "use client" boundary. Re-exported here for
@@ -24,6 +33,7 @@ import { useTransition } from "react";
 export type { TimeRange } from "./jurisdiction-filter-params";
 export { RANGE_ORDER, readFilterParams } from "./jurisdiction-filter-params";
 
+import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { RANGE_ORDER, type TimeRange } from "./jurisdiction-filter-params";
 
 export interface JurisdictionOption {
@@ -65,10 +75,8 @@ export function JurisdictionFilterBar({
   localities,
   orgTypes,
 }: Props) {
-  const router = useRouter();
   const pathname = usePathname();
   const search = useSearchParams();
-  const [pending, startTransition] = useTransition();
 
   function navigate(updates: Record<string, string | null>) {
     const params = new URLSearchParams(search.toString());
@@ -79,14 +87,12 @@ export function JurisdictionFilterBar({
     // When province changes, the locality scope is no longer valid.
     if ("province" in updates) params.delete("locality");
     const qs = params.toString();
-    startTransition(() => {
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-    });
+    window.location.assign(qs ? `${pathname}?${qs}` : pathname);
   }
 
   return (
     <fieldset
-      className={`flex flex-wrap items-center gap-2 border-0 p-0 m-0 min-w-0 ${pending ? "opacity-70" : ""}`}
+      className="flex flex-wrap items-center gap-2 border-0 p-0 m-0 min-w-0"
       aria-label="Filtros de jurisdicción y tiempo"
     >
       {/* Time-range chips */}
@@ -153,20 +159,28 @@ function FilterSelect({
   options: JurisdictionOption[];
   onChange: (v: string) => void;
 }) {
+  // Explicit htmlFor/id rather than wrapping the control in the <label>: now
+  // that the select is a component, implicit association is invisible to static
+  // analysis, and the explicit link is the one every AT/browser pair follows.
+  const id = useId();
   return (
-    <label className="inline-flex items-center gap-2 text-xs">
-      <span className="text-ln-op-mute">{label}</span>
-      <select
-        className="rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1 text-xs text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+    <div className="inline-flex items-center gap-2 text-xs">
+      <label className="text-ln-op-mute" htmlFor={id}>
+        {label}
+      </label>
+      <OpSelect
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        size="xs"
+        block={false}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
-      </select>
-    </label>
+      </OpSelect>
+    </div>
   );
 }

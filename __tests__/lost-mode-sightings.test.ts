@@ -11,10 +11,10 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { cases, db, petEvents, pets } from "@/db";
-import { openCase } from "@/lib/case-helpers";
-import { validateEventPayload } from "@/lib/event-schemas";
-import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/lost-mode";
+import { db, petEvents, pets } from "@/db";
+import { validateEventPayload } from "@/lib/events/event-schemas";
+import { openCase } from "@/lib/infra/case-helpers";
+import { fetchLostEpisodeForPet, fetchLostScanEvents } from "@/lib/infra/lost-mode";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 // ---------------------------------------------------------------------------
@@ -62,7 +62,11 @@ beforeAll(async () => {
         kind: "lost_pet_episode",
         primarySubjectKind: "registered_pet",
         primaryPetId: petId,
-        openedReason: "P0c sighting test fixture",
+        openedReason: {
+          code: "pet_marked_lost",
+          petPublicToken: null,
+          ownerNote: "fixture de avistamiento",
+        },
       },
       tx,
     );

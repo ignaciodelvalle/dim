@@ -6,6 +6,13 @@
 import { useState, useTransition } from "react";
 
 import type { AttendanceResult, VaccinationPayload } from "@/app/actions/attendance";
+import {
+  OpFieldHint,
+  OpFieldLabel,
+  OpFormAlert,
+  OpInput,
+  OpSubmitButton,
+} from "@/components/ui/dashboard";
 
 type Props = {
   appointmentToken: string;
@@ -55,99 +62,48 @@ export function VaccinationAttendanceForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {error && (
-        <p
-          role="alert"
-          className="rounded-[4px] border border-ln-op-danger-bd bg-ln-op-danger-bg px-3 py-2 text-sm text-ln-op-danger"
-        >
-          {error}
-        </p>
-      )}
+      {error && <OpFormAlert>{error}</OpFormAlert>}
       <div>
-        <label
-          htmlFor="vacc-vaccine_name"
-          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-        >
+        <OpFieldLabel htmlFor="vacc-vaccine_name">
           Nombre de la vacuna <span className="text-ln-op-danger">*</span>
-        </label>
-        <input
+        </OpFieldLabel>
+        <OpInput
           id="vacc-vaccine_name"
           name="vaccine_name"
           type="text"
           required
           placeholder="Ej: Antirrábica"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label htmlFor="vacc-brand" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-            Marca / laboratorio
-          </label>
-          <input
-            id="vacc-brand"
-            name="brand"
-            type="text"
-            placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-          />
+          <OpFieldLabel htmlFor="vacc-brand">Marca / laboratorio</OpFieldLabel>
+          <OpInput id="vacc-brand" name="brand" type="text" placeholder="Opcional" />
         </div>
         <div>
-          <label htmlFor="vacc-batch" className="block text-xs font-medium text-ln-op-ink-2 mb-1">
-            Lote / número de batch
-          </label>
-          <input
-            id="vacc-batch"
-            name="batch"
-            type="text"
-            placeholder="Opcional"
-            className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-          />
+          <OpFieldLabel htmlFor="vacc-batch">Lote / número de batch</OpFieldLabel>
+          <OpInput id="vacc-batch" name="batch" type="text" placeholder="Opcional" />
         </div>
       </div>
 
       <div>
-        <label
-          htmlFor="vacc-administered_by"
-          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-        >
-          Administrado por
-        </label>
-        <input
+        <OpFieldLabel htmlFor="vacc-administered_by">Administrado por</OpFieldLabel>
+        <OpInput
           id="vacc-administered_by"
           name="administered_by"
           type="text"
           placeholder="Nombre del profesional (opcional)"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
         />
       </div>
 
       <div>
-        <label
-          htmlFor="vacc-next_due_at"
-          className="block text-xs font-medium text-ln-op-ink-2 mb-1"
-        >
-          Próxima dosis (fecha)
-        </label>
-        <input
-          id="vacc-next_due_at"
-          name="next_due_at"
-          type="date"
-          className="w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok"
-        />
-        <p className="text-xs text-ln-op-mute mt-1">
-          Si se completa, se crea un recordatorio automático para el dueño.
-        </p>
+        <OpFieldLabel htmlFor="vacc-next_due_at">Próxima dosis (fecha)</OpFieldLabel>
+        <OpInput id="vacc-next_due_at" name="next_due_at" type="date" />
+        <OpFieldHint>Si se completa, se crea un recordatorio automático para el dueño.</OpFieldHint>
       </div>
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full px-4 py-2 rounded-md bg-ln-op-ok text-white text-sm font-medium hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        {pending ? "Guardando…" : submitLabel}
-      </button>
+      <OpSubmitButton pending={pending}>{submitLabel}</OpSubmitButton>
     </form>
   );
 }

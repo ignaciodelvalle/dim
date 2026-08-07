@@ -15,12 +15,16 @@
 // The single-item RevokeUserActions / RevokeOrgActions remain on the
 // row for one-off revocations; this component is additive.
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { type BulkRevokeKind, bulkRevokeAction } from "@/app/actions/bulk-actions";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
+import { Icon } from "@/components/Icon";
 import { MOTIVO_MIN } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
+import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
+import { OpTextarea } from "@/components/ui/dashboard/OpField";
+import { isPageFullySelected, toggleSelectPage, toggleSelection } from "@/lib/domain/bulk-select";
 import { createClient } from "@/lib/supabase/client";
 
 export interface BulkRevokableItem {
@@ -37,27 +41,40 @@ type UploadedFile = { name: string; attachmentId: string };
 interface Props {
   items: BulkRevokableItem[];
   targetKind: BulkRevokeKind;
-  actorUserId: string;
 }
 
-export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
+export function BulkRevokeList({ items, targetKind }: Props) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [modalOpen, setModalOpen] = useState(false);
 
   function toggle(id: string) {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+    setSelected((prev) => toggleSelection(prev, id));
   }
 
   const selectedItems = items.filter((i) => selected.has(i.id));
-  const hasSelection = selectedItems.length > 0;
+
+  // Header checkbox controls the revocable rows on the page only. "select all N
+  // in query" is intentionally out of scope here — every revoke needs shared
+  // evidence + a ≥30-char motivo, so a query-wide blind revoke would be unsafe.
+  const revocableIds = items.filter((i) => i.revocable).map((i) => i.id);
+  const allPageSelected = isPageFullySelected(selected, revocableIds);
+
+  function handleToggleSelectPage() {
+    setSelected((prev) => toggleSelectPage(prev, revocableIds));
+  }
 
   return (
     <>
+      {revocableIds.length > 0 && (
+        <div className="flex items-center gap-2 px-1">
+          <LnCheckbox
+            checked={allPageSelected}
+            onChange={handleToggleSelectPage}
+            aria-label="Seleccionar todas las filas revocables de esta página"
+          />
+          <span className="text-sm text-ln-op-mute">Seleccionar página</span>
+        </div>
+      )}
       <ul className="space-y-2">
         {items.map((item) => (
           <li key={item.id} className="rounded-lg border border-ln-op-line px-4 py-3">
@@ -78,36 +95,26 @@ export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
         ))}
       </ul>
 
-      {hasSelection && (
-        <div className="sticky bottom-4 z-30 mx-auto mt-6 flex max-w-3xl items-center justify-between gap-3 rounded-2xl border border-ln-op-danger bg-ln-op-card px-4 py-3 shadow-lg">
-          <span className="text-sm text-ln-op-ink-2">
-            {selectedItems.length} seleccionad{selectedItems.length === 1 ? "o" : "os"} para
-            revocación
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setSelected(new Set())}
-              className="rounded-md px-3 py-1.5 text-sm text-ln-op-ink-2 hover:bg-ln-op-stripe"
-            >
-              Limpiar
-            </button>
-            <button
-              type="button"
-              onClick={() => setModalOpen(true)}
-              className="rounded-md bg-ln-op-danger px-4 py-1.5 text-sm font-medium text-white hover:bg-ln-op-danger"
-            >
-              Revocar seleccionados →
-            </button>
-          </div>
-        </div>
-      )}
+      <OpBulkBar
+        count={selectedItems.length}
+        onClear={() => setSelected(new Set())}
+        actions={[
+          {
+            key: "revoke",
+            label: "Revocar seleccionados",
+            tone: "danger",
+            // Opens the evidence+motivo modal rather than a reason-only confirm:
+            // bulkRevokeAction requires ≥1 attachment + a ≥30-char motivo, which
+            // the generic ConfirmDialog reason field cannot collect.
+            onRun: () => setModalOpen(true),
+          },
+        ]}
+      />
 
       {modalOpen && (
         <BulkRevokeModal
           selectedItems={selectedItems}
           targetKind={targetKind}
-          actorUserId={actorUserId}
           onClose={() => setModalOpen(false)}
           onDone={() => {
             setModalOpen(false);
@@ -126,12 +133,11 @@ export function BulkRevokeList({ items, targetKind, actorUserId }: Props) {
 interface ModalProps {
   selectedItems: BulkRevokableItem[];
   targetKind: BulkRevokeKind;
-  actorUserId: string;
   onClose: () => void;
   onDone: () => void;
 }
 
-function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDone }: ModalProps) {
+function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalProps) {
   const [pending, startTransition] = useTransition();
   const [motivo, setMotivo] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -144,6 +150,62 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
   } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const evidenciaInputId = useId();
+  const modalHeadingId = useId();
+  const modalDescId = useId();
+  // RA-9 BR-2 — the panel used to be a plain <div role="dialog" aria-modal="true">:
+  // it TOLD assistive tech the rest of the page was inert while nothing was inert
+  // and nothing trapped, focus never moved in and never restored on close, and the
+  // outcome ("N revocaciones aplicadas · M fallaron") of an irreversible bulk act
+  // replaced the form with no live region and no focus move — announced to nobody.
+  // Native <dialog>.showModal() supplies the top layer, the inertness, the focus
+  // trap and the Escape/`cancel` event; the refs below add the two things the
+  // platform does NOT: initial focus into the modal, and the result announcement.
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const motivoRef = useRef<HTMLTextAreaElement>(null);
+  const resultHeadingRef = useRef<HTMLParagraphElement>(null);
+
+  // Open as a MODAL dialog (top layer + inert background + native focus trap).
+  // jsdom does not implement showModal(); fall back to the `open` attribute there
+  // so tests can still read the tree — production browsers always take the first
+  // branch.
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    // Remember who opened us so focus can go back there on close — the modal is
+    // mounted/unmounted by the parent, so "close" is this effect's cleanup.
+    const opener = document.activeElement as HTMLElement | null;
+    if (!el.open) {
+      if (typeof el.showModal === "function") el.showModal();
+      else el.setAttribute("open", "");
+    }
+    // Initial focus lands on the first control the operator must fill, not on the
+    // dialog box itself — showModal() alone focuses the dialog, which announces
+    // the name but leaves the operator a Tab away from the form.
+    motivoRef.current?.focus();
+    return () => {
+      if (opener?.isConnected) opener.focus();
+    };
+  }, []);
+
+  // Escape (native `cancel`) must sync back to React state, or the dialog closes
+  // in the DOM while the parent still believes it is open.
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    const handleCancel = (e: Event) => {
+      e.preventDefault();
+      onClose();
+    };
+    el.addEventListener("cancel", handleCancel);
+    return () => el.removeEventListener("cancel", handleCancel);
+  }, [onClose]);
+
+  // Move focus onto the outcome sentence once the bulk action reports back. The
+  // <output aria-live="polite"> announces it; the focus move means a keyboard
+  // user's next Tab starts from the result, not from the top of the page.
+  useEffect(() => {
+    if (result) resultHeadingRef.current?.focus();
+  }, [result]);
 
   const motivoTrimmed = motivo.trim();
   const motivoValid = motivoTrimmed.length >= MOTIVO_MIN;
@@ -157,12 +219,25 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
     setUploading(true);
 
     const supabase = createClient();
+
+    // Storage-path namespace: the viewer's own uid from the client session.
+    // The server action re-derives the actor from ITS session — this value
+    // never feeds authorization (authz triage 2026-07-04).
+    const {
+      data: { user: sessionUser },
+    } = await supabase.auth.getUser();
+    if (!sessionUser) {
+      setError("Sesión expirada.");
+      setUploading(false);
+      return;
+    }
+
     const newFiles: UploadedFile[] = [];
 
     for (const file of files) {
       try {
         const ext = file.name.split(".").pop() ?? "bin";
-        const path = `${actorUserId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+        const path = `${sessionUser.id}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
         const { error: storageError } = await supabase.storage
           .from("revocations")
           .upload(path, file, { contentType: file.type });
@@ -171,7 +246,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
           setUploading(false);
           return;
         }
-        const r = await uploadRevocationEvidence(actorUserId, {
+        const r = await uploadRevocationEvidence({
           storagePath: path,
           mimeType: file.type,
           fileSize: file.size,
@@ -206,16 +281,21 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
     });
   }
 
+  // MOT-4a (motion audit Gap 3): `op-dialog-enter` gives this the same
+  // entry-only scale+fade as ConfirmDialog — it is the other native <dialog>
+  // guarding an irreversible act. Entry yes, exit no (audit §5.4).
   return (
-    <div
-      className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4"
-      // biome-ignore lint/a11y/useSemanticElements: native <dialog> requires imperative showModal() which doesn't fit this controlled isOpen pattern; tracked as a follow-up to migrate to a Headless UI modal primitive.
-      role="dialog"
+    <dialog
+      ref={dialogRef}
+      onClose={onClose}
+      aria-labelledby={modalHeadingId}
+      aria-describedby={modalDescId}
       aria-modal="true"
+      className="op-dialog-enter max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl backdrop:bg-black/50"
     >
-      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-ln-op-card p-6 shadow-xl">
+      <div>
         <header className="mb-4 flex items-baseline justify-between gap-3">
-          <h2 className="text-lg font-semibold text-ln-op-danger">
+          <h2 id={modalHeadingId} className="text-lg font-semibold text-ln-op-danger">
             Revocar {selectedItems.length} {targetKindLabel(targetKind, selectedItems.length)}
           </h2>
           <button
@@ -226,10 +306,20 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
             Cerrar
           </button>
         </header>
+        <p id={modalDescId} className="sr-only">
+          Revocación masiva irreversible sobre {selectedItems.length}{" "}
+          {targetKindLabel(targetKind, selectedItems.length)}. Cada afectado recibe una notificación
+          con el motivo. Requiere un motivo de al menos {MOTIVO_MIN} caracteres y al menos un
+          archivo de evidencia.
+        </p>
 
         {result ? (
-          <div className="space-y-3">
-            <p className="text-sm">
+          <output aria-live="polite" className="block space-y-3">
+            <p
+              ref={resultHeadingRef}
+              tabIndex={-1}
+              className="text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul"
+            >
               <strong className="text-ln-op-ok">
                 {result.succeeded.length} revocaciones aplicadas
               </strong>
@@ -257,7 +347,7 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
             >
               Recargar lista
             </button>
-          </div>
+          </output>
         ) : (
           <div className="space-y-4">
             <details className="rounded-lg border border-ln-op-line bg-ln-op-stripe p-3 text-sm">
@@ -279,13 +369,15 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
               >
                 Motivo (mínimo {MOTIVO_MIN} caracteres)
               </label>
-              <textarea
+              <OpTextarea
                 id="bulk-revoke-motivo"
+                ref={motivoRef}
+                aria-required="true"
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
                 rows={4}
-                className="w-full rounded-md border border-ln-op-line bg-ln-op-card p-2 text-sm"
                 placeholder="Describí el motivo común para todas las revocaciones de esta operación."
+                size="xs"
               />
               <p className="mt-1 text-xs text-ln-op-mute">
                 {motivoTrimmed.length}/{MOTIVO_MIN} caracteres
@@ -311,8 +403,8 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
               {uploadedFiles.length > 0 && (
                 <ul className="mt-2 space-y-1 text-xs">
                   {uploadedFiles.map((f) => (
-                    <li key={f.attachmentId} className="text-ln-op-ok">
-                      ✓ {f.name}
+                    <li key={f.attachmentId} className="flex items-center gap-1 text-ln-op-ok">
+                      <Icon name="check" size={14} decorative /> {f.name}
                     </li>
                   ))}
                 </ul>
@@ -329,7 +421,11 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
               recibir una notificación con el motivo.
             </LnCheckbox>
 
-            {error && <p className="text-sm text-ln-op-danger">{error}</p>}
+            {error && (
+              <p role="alert" className="text-sm text-ln-op-danger">
+                {error}
+              </p>
+            )}
 
             <div className="flex justify-end gap-2 border-t border-ln-op-line pt-3">
               <button
@@ -345,13 +441,13 @@ function BulkRevokeModal({ selectedItems, targetKind, actorUserId, onClose, onDo
                 disabled={!canSubmit}
                 className="rounded-md bg-ln-op-danger px-4 py-2 text-sm font-medium text-white hover:bg-ln-op-danger disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {pending ? "Revocando…" : "Confirmar revocación"}
+                {pending ? "Revocando…" : "Revocar seleccionados"}
               </button>
             </div>
           </div>
         )}
       </div>
-    </div>
+    </dialog>
   );
 }
 

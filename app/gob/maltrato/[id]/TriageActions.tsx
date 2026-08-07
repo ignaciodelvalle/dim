@@ -1,8 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   closeWelfareReportAction,
   startWelfareReportAction,
@@ -19,7 +20,6 @@ export function TriageActions({
   welfareReportId: string;
   currentStatus: WelfareReportStatus;
 }) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [mode, setMode] = useState<Mode>("none");
   const [notes, setNotes] = useState("");
@@ -40,7 +40,9 @@ export function TriageActions({
         return;
       }
       reset();
-      router.refresh();
+      // Full document reload so the SSR page reflects the mutation
+      // (router.refresh() is banned - see lib/ui/full-page-action-nav.ts).
+      navigateAfterActionSuccess(window.location.href);
     });
   }
 
@@ -70,28 +72,28 @@ export function TriageActions({
     return (
       <div className="flex flex-wrap gap-2">
         {canTriage && (
-          <ActionButton onClick={() => setMode("triage")} tone="primary">
+          <OpButton type="button" onClick={() => setMode("triage")} variant="primary" size="sm">
             Marcar revisada
-          </ActionButton>
+          </OpButton>
         )}
         {canStart && (
-          <ActionButton onClick={() => setMode("start")} tone="primary">
+          <OpButton type="button" onClick={() => setMode("start")} variant="primary" size="sm">
             Iniciar seguimiento
-          </ActionButton>
+          </OpButton>
         )}
         {canClose && (
-          <ActionButton onClick={() => setMode("close")} tone="success">
+          <OpButton type="button" onClick={() => setMode("close")} variant="ok" size="sm">
             Cerrar con resolución
-          </ActionButton>
+          </OpButton>
         )}
         {canMarkInvalidOrDuplicate && (
           <>
-            <ActionButton onClick={() => setMode("invalid")} tone="muted">
+            <OpButton type="button" onClick={() => setMode("invalid")} variant="ghost" size="sm">
               Sin sustento
-            </ActionButton>
-            <ActionButton onClick={() => setMode("duplicate")} tone="muted">
+            </OpButton>
+            <OpButton type="button" onClick={() => setMode("duplicate")} variant="ghost" size="sm">
               Duplicada
-            </ActionButton>
+            </OpButton>
           </>
         )}
       </div>
@@ -106,6 +108,18 @@ export function TriageActions({
     duplicate: "Marcar como duplicada",
   };
 
+  // The confirm button carries the verb of the act, never "Confirmar" (D.3,
+  // 2026-07-30). One label per mode — the five modes are five different acts
+  // and a single generic word made them indistinguishable at the moment of
+  // committing.
+  const submitLabels: Record<Exclude<Mode, "none">, string> = {
+    triage: "Marcar revisada",
+    start: "Iniciar seguimiento",
+    close: "Cerrar con resolución",
+    invalid: "Cerrar sin sustento",
+    duplicate: "Marcar duplicada",
+  };
+
   const placeholders: Record<Exclude<Mode, "none">, string> = {
     triage: "Notas internas del triage (mínimo 10 caracteres)",
     start: "Notas del inicio del seguimiento (mínimo 10 caracteres)",
@@ -117,61 +131,36 @@ export function TriageActions({
   };
 
   return (
-    <div className="rounded-[6px] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
-      <p className="text-[13px] font-medium text-ln-op-ink">{titles[mode]}</p>
-      <textarea
+    <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
+      <p className="text-md font-medium text-ln-op-ink">{titles[mode]}</p>
+      <OpTextarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholders[mode]}
-        className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-[13px] text-ln-op-ink"
       />
-      <p className="text-[11px] text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
-      {error && <output className="block text-[12px] text-ln-op-danger">{error}</output>}
+      <p className="text-sm text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
+      {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">
-        <button
+        <OpButton
           type="button"
           onClick={submit}
           disabled={pending || notes.trim().length < 10}
-          className="px-4 py-2 rounded-[4px] bg-ln-op-azul text-white text-[13px] font-medium disabled:opacity-50"
+          variant="primary"
+          className="px-4 py-2"
         >
-          {pending ? "Procesando..." : "Confirmar"}
-        </button>
-        <button
+          {pending ? "Procesando..." : submitLabels[mode]}
+        </OpButton>
+        <OpButton
           type="button"
           onClick={reset}
           disabled={pending}
-          className="px-4 py-2 rounded-[4px] border border-ln-op-line text-[13px] text-ln-op-ink-2"
+          variant="ghost"
+          className="px-4 py-2"
         >
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
-  );
-}
-
-function ActionButton({
-  children,
-  onClick,
-  tone,
-}: {
-  children: React.ReactNode;
-  onClick: () => void;
-  tone: "primary" | "success" | "muted";
-}) {
-  const toneClass =
-    tone === "primary"
-      ? "bg-ln-op-azul text-white hover:opacity-90"
-      : tone === "success"
-        ? "bg-ln-op-ok text-white hover:opacity-90"
-        : "border border-ln-op-line text-ln-op-ink-2 hover:bg-ln-op-stripe";
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-[4px] text-[12px] font-medium ${toneClass}`}
-    >
-      {children}
-    </button>
   );
 }

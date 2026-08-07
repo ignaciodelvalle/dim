@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpPill } from "@/components/ui/dashboard";
 import {
   custodyDisputeParties,
   custodyDisputes,
@@ -11,24 +11,24 @@ import {
   pets,
   profiles,
 } from "@/db";
-import { requireAdminOrGovtOrRedirect } from "@/lib/auth-guards";
+import type { EventType } from "@/db/schema";
+import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
+import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
+import { eventTypeLabel, formatDateShort, speciesLabel } from "@/lib/utils/format";
 import { and, desc, eq, inArray } from "drizzle-orm";
 
 import { AddPartyForm } from "./AddPartyForm";
 import { EscalateDisputeForm } from "./EscalateDisputeForm";
 import { ResolveDisputeForm } from "./ResolveDisputeForm";
 import { WithdrawDisputeButton } from "./WithdrawDisputeButton";
+import { partyRoleLabel } from "./_party-roles";
 
-const PARTY_ROLE_LABELS: Record<string, string> = {
-  current_owner: "Dueño actual",
-  claimant_owner: "Reclamante",
-  current_org_custody: "Organizacion en custodia",
-  claimant_org: "Organizacion reclamante",
-  witness: "Testigo",
-};
-
+// "open" must read the same word as the list screen (DisputasScreen.tsx maps
+// dispute.status === "open" into CaseStatus "open" → canonical "Abierto" via
+// CaseStatusBadge). "resolved"/"withdrawn" have no CaseStatus equivalent (the
+// list collapses both into "closed"), so they stay local.
 const STATUS_LABELS: Record<string, string> = {
-  open: "Abierta",
+  open: "Abierto",
   resolved: "Resuelta",
   withdrawn: "Retirada",
 };
@@ -58,11 +58,14 @@ export default async function DisputeDetailPage({
   if (!row) notFound();
   const { dispute, pet } = row;
 
-  // Govt scope guard.
+  // Govt scope guard — subsumption-aware so a whole-province operator (e.g.
+  // whole-CABA) opens a dispute tagged to a barrio in that province, matching
+  // the list clause. See jurisdictionScopeContains / jurisdiction-canonical.
   if (profile.role === "govt") {
-    const inScope = jurisdictions.some(
-      (j) =>
-        j.province === dispute.jurisdictionProvince && j.locality === dispute.jurisdictionLocality,
+    const inScope = jurisdictionScopeContains(
+      jurisdictions,
+      dispute.jurisdictionProvince,
+      dispute.jurisdictionLocality,
     );
     if (!inScope) notFound();
   }
@@ -115,69 +118,60 @@ export default async function DisputeDetailPage({
     <div className="space-y-6 max-w-3xl">
       <header className="space-y-2">
         <Link
-          href="/gob/disputas"
-          className="text-[13px] text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4"
+          href="/gob/casos?expediente=disputas"
+          className="text-md text-ln-op-mute hover:text-ln-op-ink underline underline-offset-4"
         >
-          {"<-"} Volver a la lista
+          {"←"} Volver a la lista
         </Link>
         <div className="flex items-center gap-3">
-          <h1 className="text-[22px] font-semibold text-ln-op-ink">{pet.name}</h1>
+          <h1 className="text-title font-semibold text-ln-op-ink">{pet.name}</h1>
           <OpPill tone={STATUS_TONE[dispute.status] ?? "neutral"}>
             {STATUS_LABELS[dispute.status] ?? dispute.status}
           </OpPill>
         </div>
-        <p className="text-[13px] text-ln-op-mute">
-          {pet.species}
+        <p className="text-md text-ln-op-mute">
+          {speciesLabel(pet.species)}
           {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
           {dispute.jurisdictionProvince}
         </p>
-        <p className="text-[10px] text-ln-op-faint font-mono">{dispute.publicToken}</p>
+        <p className="text-xs text-ln-op-faint font-mono">{dispute.publicToken}</p>
       </header>
 
       {dispute.status === "open" && (
-        <div className="rounded-[6px] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-[13px] text-ln-op-warn">
-          Disputa abierta — la mascota queda bloqueada para transferencias o adopcion hasta que se
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg p-3 text-md text-ln-op-warn">
+          Disputa abierta — la mascota queda bloqueada para transferencias o adopción hasta que se
           resuelva o retire.
         </div>
       )}
 
       {dispute.status === "resolved" && dispute.resolutionSummary && (
-        <section className="rounded-[6px] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
-          <p className="text-[13px] font-medium text-ln-op-ok">Resolucion: {dispute.resolution}</p>
-          <p className="text-[13px] text-ln-op-ok whitespace-pre-wrap">
-            {dispute.resolutionSummary}
-          </p>
+        <section className="rounded-[var(--radius-md)] border border-ln-op-ok-bd bg-ln-op-ok-bg p-4 space-y-2">
+          <p className="text-md font-medium text-ln-op-ok">Resolucion: {dispute.resolution}</p>
+          <p className="text-md text-ln-op-ok whitespace-pre-wrap">{dispute.resolutionSummary}</p>
         </section>
       )}
 
       <section className="space-y-3">
-        <h2 className="text-[16px] font-semibold text-ln-op-ink">Partes</h2>
+        <h2 className="text-base font-semibold text-ln-op-ink">Partes</h2>
         {parties.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">Sin partes registradas todavia.</p>
+          <p className="text-md text-ln-op-mute">Sin partes registradas todavia.</p>
         ) : (
           <ul className="space-y-2">
             {parties.map(({ party, userProfile, org }) => (
               <li key={party.id}>
                 <OpCard>
                   <OpCardBody>
-                    <p className="text-[13px] font-medium text-ln-op-ink">
+                    <p className="text-md font-medium text-ln-op-ink">
                       {userProfile?.displayName ?? org?.displayName ?? "Desconocido"}
-                      <span className="ml-2 text-[12px] text-ln-op-mute font-normal">
-                        {PARTY_ROLE_LABELS[party.partyRole] ?? party.partyRole}
+                      <span className="ml-2 text-sm text-ln-op-mute font-normal">
+                        {partyRoleLabel(party.partyRole)}
                       </span>
                     </p>
                     {party.partyPositionSummary && (
-                      <p className="text-[12px] text-ln-op-mute mt-1">
-                        {party.partyPositionSummary}
-                      </p>
+                      <p className="text-sm text-ln-op-mute mt-1">{party.partyPositionSummary}</p>
                     )}
-                    <p className="text-[10px] text-ln-op-faint mt-1">
-                      Sumada el{" "}
-                      {new Date(party.addedAt).toLocaleDateString("es-AR", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                    <p className="text-xs text-ln-op-faint mt-1">
+                      Sumada el {formatDateShort(party.addedAt)}
                     </p>
                   </OpCardBody>
                 </OpCard>
@@ -189,23 +183,21 @@ export default async function DisputeDetailPage({
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-[16px] font-semibold text-ln-op-ink">Historia de custodia</h2>
+        <h2 className="text-base font-semibold text-ln-op-ink">Historia de custodia</h2>
         {timeline.length === 0 ? (
-          <p className="text-[13px] text-ln-op-mute">Sin eventos de custodia previos.</p>
+          <p className="text-md text-ln-op-mute">Sin eventos de custodia previos.</p>
         ) : (
-          <ul className="space-y-1.5 text-[13px]">
+          <ul className="space-y-1.5 text-md">
             {timeline.map((e) => (
               <li
                 key={e.id}
                 className="flex items-baseline justify-between gap-3 border-l-2 border-ln-op-line pl-3 py-1"
               >
-                <span className="font-mono text-[12px] text-ln-op-ink-2">{e.eventType}</span>
-                <span className="text-[12px] text-ln-op-mute whitespace-nowrap">
-                  {new Date(e.occurredAt).toLocaleDateString("es-AR", {
-                    day: "numeric",
-                    month: "short",
-                    year: "numeric",
-                  })}
+                <span className="font-mono text-sm text-ln-op-ink-2">
+                  {eventTypeLabel(e.eventType as EventType)}
+                </span>
+                <span className="text-sm text-ln-op-mute whitespace-nowrap">
+                  {formatDateShort(e.occurredAt)}
                   {e.authorRole && <span className="ml-2 text-ln-op-faint">· {e.authorRole}</span>}
                 </span>
               </li>
@@ -216,10 +208,10 @@ export default async function DisputeDetailPage({
 
       {canResolve && (
         <section className="space-y-3 pt-2 border-t border-ln-op-line">
-          <h2 className="text-[16px] font-semibold text-ln-op-ink">Resolver disputa</h2>
+          <h2 className="text-base font-semibold text-ln-op-ink">Resolver disputa</h2>
           <ResolveDisputeForm disputeToken={disputeToken} />
           <div className="pt-2 space-y-2">
-            <p className="text-[12px] text-ln-op-mute">Otras acciones</p>
+            <p className="text-sm text-ln-op-mute">Otras acciones</p>
             <EscalateDisputeForm disputeToken={disputeToken} />
             {canWithdraw && <WithdrawDisputeButton disputeToken={disputeToken} />}
           </div>

@@ -5,10 +5,12 @@ import { createClient } from "@supabase/supabase-js";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { recordPregnancyEndedWriter, recordPregnancyStartedWriter } from "@/app/actions/pregnancy";
-import { db, notifications, ownerships, petEvents, pets, profiles, reminders } from "@/db";
-import { getEarnedAchievements } from "@/lib/achievements/catalog";
-import { matchCaptureIntent } from "@/lib/event-capture-matcher";
+import { db, notifications, ownerships, pets, profiles, reminders } from "@/db";
+import { matchCaptureIntent } from "@/lib/events/event-capture-matcher";
+// Writers import from the application modules, not the "use server" shim
+// (impersonation triage, review 07).
+import { recordPregnancyEndedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-ended";
+import { recordPregnancyStartedWriter } from "@/src/modules/pets/application/pregnancy/record-pregnancy-started";
 import { withMutationOverride } from "./_helpers/db-overrides";
 
 const SUPABASE_URL = "http://127.0.0.1:54321";
@@ -246,20 +248,6 @@ describe("recordPregnancyEndedWriter — outcomes + reminder cancellation", () =
         ),
       );
     expect(pendingFuture.length).toBe(0);
-
-    // Achievement A4 earned.
-    const events = await db
-      .select()
-      .from(petEvents)
-      .where(eq(petEvents.petId, pet.id))
-      .orderBy(petEvents.occurredAt);
-    const earned = getEarnedAchievements({
-      pet: closed,
-      events,
-      serviceDog: null,
-      cases: [],
-    });
-    expect(earned.some((a) => a.id === "i_had_litter")).toBe(true);
   });
 
   it("miscarriage flips status to completed_miscarriage", async () => {

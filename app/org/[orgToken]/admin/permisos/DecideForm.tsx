@@ -1,5 +1,6 @@
 "use client";
 
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import {
   type CapabilityActionState,
   decideCapabilityAction,
@@ -26,44 +27,36 @@ export function DecideForm({
     tone: "approve" | "deny",
   ) {
     const isOpen = showReason === decision;
-    const baseClass =
-      tone === "approve"
-        ? "bg-ln-op-ok text-white hover:bg-ln-op-ok/90"
-        : "bg-ln-op-danger text-white hover:bg-ln-op-danger/90";
+    const variant = tone === "approve" ? "ok" : "danger";
     if (!isOpen) {
       return (
-        <button
-          type="button"
-          onClick={() => setShowReason(decision)}
-          className={`text-[12px] px-2 py-1 rounded-[4px] transition-colors ${baseClass}`}
-        >
+        <OpButton variant={variant} size="sm" onClick={() => setShowReason(decision)}>
           {label}
-        </button>
+        </OpButton>
       );
     }
     return (
       <form action={formAction} className="flex flex-col gap-2 w-full">
         <input type="hidden" name="grantId" value={grantId} />
         <input type="hidden" name="decision" value={decision} />
-        <textarea
+        <OpTextarea
           name="reason"
           rows={2}
           maxLength={500}
           placeholder="Motivo (opcional)"
-          className="text-[12px] w-full rounded-[4px] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+          size="xs"
         />
         <div className="flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={isSubmitting}
-            className={`text-[12px] px-2 py-1 rounded-[4px] transition-colors disabled:opacity-50 ${baseClass}`}
-          >
-            {isSubmitting ? "Enviando…" : `Confirmar ${label.toLowerCase()}`}
-          </button>
+          <OpButton type="submit" variant={variant} size="sm" disabled={isSubmitting}>
+            {/* Verb of the act, never "Confirmar <acto>" (D.3, 2026-07-30) —
+                the commit button repeats the trigger's own verb: Aprobar /
+                Denegar / Revocar. */}
+            {isSubmitting ? "Enviando…" : label}
+          </OpButton>
           <button
             type="button"
             onClick={() => setShowReason(null)}
-            className="text-[12px] px-2 py-1 rounded-[4px] text-ln-op-mute hover:underline"
+            className="text-sm px-2 py-1 rounded-[var(--radius-sm)] text-ln-op-mute hover:underline"
           >
             Cancelar
           </button>
@@ -83,7 +76,7 @@ export function DecideForm({
         )}
         {approved && renderAction("revoked", "Revocar", "deny")}
       </div>
-      {state.error && <p className="text-[12px] text-ln-op-danger">{state.error}</p>}
+      {state.error && <p className="text-sm text-ln-op-danger">{state.error}</p>}
     </div>
   );
 }

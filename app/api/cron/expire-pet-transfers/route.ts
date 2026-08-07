@@ -7,10 +7,13 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
-import { authorizeCronRequest } from "@/lib/cron-auth";
+import { authorizeCronRequest } from "@/lib/domain/cron-auth";
+import { withCronRun } from "@/lib/infra/case-cron";
 import { expirePetTransfersAction as expirePetTransfersOnce } from "@/src/modules/transfers/actions";
 
 export const dynamic = "force-dynamic";
+
+const CRON_NAME = "expire_pet_transfers";
 
 export async function GET(req: NextRequest): Promise<NextResponse> {
   const authError = authorizeCronRequest(req);
@@ -20,12 +23,26 @@ export async function GET(req: NextRequest): Promise<NextResponse> {
 
   const start = Date.now();
   try {
-    const stats = await expirePetTransfersOnce();
-    return NextResponse.json({
-      ok: true,
-      ...stats,
-      durationMs: Date.now() - start,
-    });
+    const stats = await withCronRun(
+      CRON_NAME,
+      () => expirePetTransfersOnce(),
+      (s) => ({
+        itemsProcessed: s.expired,
+        // Per-row failures must NOT report success (review 23 fleet extension):
+        // flip the run to failed so it alerts and Vercel retries.
+        failed: s.errors > 0,
+        details: { expired: s.expired, errors: s.errors },
+      }),
+    );
+    const failed = stats.errors > 0;
+    return NextResponse.json(
+      {
+        ok: !failed,
+        ...stats,
+        durationMs: Date.now() - start,
+      },
+      { status: failed ? 500 : 200 },
+    );
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ ok: false, error: message }, { status: 500 });

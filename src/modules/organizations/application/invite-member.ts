@@ -13,6 +13,7 @@
 //   7. Notify org admins (best-effort — queued for post-tx flush).
 //   8. Return inviteUrl.
 
+import { resolveSiteUrl } from "@/lib/infra/site-url";
 import {
   INVITABLE_ROLES,
   type InvitableRole,
@@ -155,7 +156,7 @@ export async function inviteMember(
   }
 
   // 8. Build invite URL.
-  const appBase = input.appBase ?? process.env.NEXT_PUBLIC_SITE_URL ?? "https://mimar.gob.ar";
+  const appBase = input.appBase ?? resolveSiteUrl();
   const inviteUrl = `${appBase}/r/invite/${token}`;
 
   return { ok: true, value: { inviteUrl }, notifications: pendingNotifications };

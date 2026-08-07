@@ -1,0 +1,10 @@
+[
+  {
+    "id": "a-perdida",
+    "pass": false,
+    "entityCodes": {
+      "pet": "DIM-DEMO-0010"
+    },
+    "notes": ["Error: page.goto: Target page, context or browser has been closed"]
+  }
+]

@@ -28,20 +28,24 @@ import {
   generateDoseSchedule,
   intervalHoursForFrequency,
   parseFrequencyFields,
-} from "@/lib/medication-schedule";
+} from "@/lib/reference/medication-schedule";
 
 import { db, profiles } from "@/db";
 import { pets } from "@/db";
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { findDisease } from "@/lib/diseases";
-import { findDrugByLabel } from "@/lib/drugs";
-import { parseDateInput } from "@/lib/format";
-import { requireAlivePetAccess, requirePetAccess } from "@/lib/pet-access";
-import type { SupabaseServerClient } from "@/lib/pet-access";
+import { CoordError, normalizeLocationForWrite } from "@/lib/domain/location-normalize";
+import { parseLocationFromFormData } from "@/lib/domain/location-value";
+import { checkOccurredAtPlausible } from "@/lib/events/plausibility";
+import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
+import { requireAlivePetAccess, requirePetAccess } from "@/lib/infra/pet-access";
+import type { SupabaseServerClient } from "@/lib/infra/pet-access";
+import { getProfileCached } from "@/lib/infra/request-cache";
+import { uploadAttachmentIfPresent } from "@/lib/infra/uploads";
+import { findDisease } from "@/lib/reference/diseases";
+import { findDrugByLabel } from "@/lib/reference/drugs";
 import { createClient } from "@/lib/supabase/server";
-import { uploadAttachmentIfPresent } from "@/lib/uploads";
+import { checkboxOn } from "@/lib/ui/form-checkbox";
+import { parseDateInput } from "@/lib/utils/format";
 import { and, eq } from "drizzle-orm";
-import { redirect } from "next/navigation";
 
 import { enqueueEnoTrigger } from "@/src/modules/surveillance/application/enqueue-eno-trigger";
 import { SurveillanceRepository } from "@/src/modules/surveillance/infrastructure/surveillance-repository";
@@ -54,6 +58,7 @@ import { createNote } from "./application/identity/note-use-case";
 import { createDeathRecord } from "./application/lifecycle/death-record-use-case";
 import { setPetFound } from "./application/lifecycle/set-pet-found-use-case";
 import { setPetLostWriter } from "./application/lifecycle/set-pet-lost-use-case";
+import { updateLostLastSeen } from "./application/lifecycle/update-lost-last-seen-use-case";
 import { createDeworming } from "./application/medical/deworming-use-case";
 import { markMedicationDoseTaken } from "./application/medical/medication-dose-taken-use-case";
 import { createMedicationEnd } from "./application/medical/medication-end-use-case";
@@ -74,6 +79,33 @@ import { EventsRepository } from "./infrastructure/events-repository";
 export type EventFormState = {
   error: string | null;
   ok?: boolean;
+  /**
+   * On success, the URL the calling form must navigate to via a FULL
+   * document navigation (lib/ui/use-action-redirect.ts). Actions in this
+   * module never call next/navigation's redirect(): its post-action
+   * transition is silently dropped by the client router in production
+   * (engram #621/#622, verify-report #650 WARNING-1 — see
+   * lib/ui/full-page-action-nav.ts for the mechanism).
+   */
+  redirectTo?: string;
+  /**
+   * P4 item 4 (2026-07-08): SUSPICIOUS same-day-duplicate warn — set only by
+   * createVaccinationAction / createDewormingAction when the same event type
+   * was already recorded for this pet earlier the same (Argentina-local)
+   * calendar day. Non-blocking: the form re-renders the message with a
+   * confirm affordance and resubmits with a `sameDayOverride=1` hidden field,
+   * mirroring the P2 soft-dedupe duplicatePrompt/duplicateOverride pattern in
+   * src/modules/pets/actions.ts + MinimalNewPetForm.tsx (commit dd1c3f97).
+   */
+  sameDayPrompt?: { message: string };
+  /**
+   * degraded-states (2026-08-06): set ONLY client-side by
+   * lib/ui/use-retryable-action.ts when the action DISPATCH rejected
+   * (503/abort) — the actions in this module never set it. Marks a
+   * recoverable transport failure: the form stays mounted, typed input
+   * survives, and MutationErrorCard offers a same-idempotency-key retry.
+   */
+  transientFailure?: boolean;
 };
 
 async function cleanupAttachment(supabase: SupabaseServerClient, path: string | null) {
@@ -89,6 +121,29 @@ function makeTransaction(): <T>(cb: (tx: unknown) => Promise<T>) => Promise<T> {
   return <T>(cb: (tx: unknown) => Promise<T>) =>
     db.transaction(cb as Parameters<typeof db.transaction>[0]) as Promise<T>;
 }
+
+// ---------------------------------------------------------------------------
+// P4 item 1 (2026-07-08): shared IMPOSSIBLE-date guard for the medical/
+// clinical/identity writers below that parse an occurred-at/date input.
+// Bite actions (src/modules/surveillance/actions.ts) run the same guard at
+// their own edge.
+// ---------------------------------------------------------------------------
+
+// Every caller in this module parses `occurredAt` from a date-only
+// `<input type="date">` via `parseDateInput` (noon-UTC anchor), so the shared
+// checkOccurredAtPlausible (lib/events/plausibility.ts) runs in date-only
+// mode: the future check compares Argentine calendar days, never the noon-UTC
+// instant against the wall clock (which rejected same-day submissions made
+// before 09:05 AR).
+
+// P4 item 2 (2026-07-08): upper bound on weight_recorded.kg. The write path
+// below parses kg as a bare positive float with no upper bound, so a
+// fat-fingered value like "500" persists silently. 120 kg sits comfortably
+// above any dog breed's healthy adult weight (the heaviest recognized
+// breeds — Mastín, San Bernardo — top out well under 100 kg) — generous
+// enough to never block a real entry, tight enough to catch a decimal-point
+// slip or a kg/lb mixup.
+const MAX_WEIGHT_KG = 120;
 
 const surveillanceRepoForEno = new SurveillanceRepository();
 
@@ -140,15 +195,37 @@ export async function createVaccinationAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de aplicación inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
   if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
 
+  const repo = new EventsRepository();
+
+  // P4 item 4 — SUSPICIOUS same-day duplicate warn (non-blocking). Runs
+  // BEFORE the attachment upload so a warn round-trip never orphans storage
+  // (same posture as P2's soft-dedupe in pets/actions.ts).
+  const sameDayOverride = String(formData.get("sameDayOverride") ?? "").trim() === "1";
+  if (!sameDayOverride) {
+    const sameDayDuplicate = await repo.findSameDayEventOfType(
+      pet.id,
+      "vaccination_administered",
+      occurredAt,
+    );
+    if (sameDayDuplicate) {
+      return {
+        error: null,
+        sameDayPrompt: {
+          message: `Ya cargaste ${vaccineName} hoy para ${pet.name}. ¿Registrar otra igual?`,
+        },
+      };
+    }
+  }
+
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
   if (upload.error) return { error: upload.error };
-
-  const repo = new EventsRepository();
 
   try {
     const result = await createVaccination(
@@ -186,7 +263,7 @@ export async function createVaccinationAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -212,9 +289,14 @@ export async function createWeightAction(
 
   const kgNum = Number.parseFloat(kgRaw);
   if (!Number.isFinite(kgNum) || kgNum <= 0) return { error: "Peso inválido." };
+  if (kgNum > MAX_WEIGHT_KG) {
+    return { error: `El peso no puede superar los ${MAX_WEIGHT_KG} kg.` };
+  }
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -254,7 +336,7 @@ export async function createWeightAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -284,15 +366,36 @@ export async function createDewormingAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de aplicación inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const nextDueAt = nextDueAtRaw ? parseDateInput(nextDueAtRaw) : null;
   if (nextDueAtRaw && !nextDueAt) return { error: "Fecha de próxima dosis inválida." };
 
+  const repo = new EventsRepository();
+
+  // P4 item 4 — SUSPICIOUS same-day duplicate warn (non-blocking). Runs
+  // BEFORE the attachment upload so a warn round-trip never orphans storage.
+  const sameDayOverride = String(formData.get("sameDayOverride") ?? "").trim() === "1";
+  if (!sameDayOverride) {
+    const sameDayDuplicate = await repo.findSameDayEventOfType(
+      pet.id,
+      "deworming_administered",
+      occurredAt,
+    );
+    if (sameDayDuplicate) {
+      return {
+        error: null,
+        sameDayPrompt: {
+          message: `Ya cargaste ${product} hoy para ${pet.name}. ¿Registrar otro igual?`,
+        },
+      };
+    }
+  }
+
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
   if (upload.error) return { error: upload.error };
-
-  const repo = new EventsRepository();
 
   try {
     const result = await createDeworming(
@@ -327,7 +430,7 @@ export async function createDewormingAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -355,6 +458,8 @@ export async function createSterilizationAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -395,7 +500,7 @@ export async function createSterilizationAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -424,6 +529,8 @@ export async function createMedicationStartAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de inicio inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const frequencyRaw = String(formData.get("frequency") ?? "").trim();
   const customHoursRaw = String(formData.get("customHours") ?? "").trim() || null;
@@ -442,7 +549,7 @@ export async function createMedicationStartAction(
 
   const { frequency, customHours, durationDays, firstDoseAt } = parsedFreq as {
     error: null;
-    frequency: import("@/lib/drugs").FrequencyKind;
+    frequency: import("@/lib/reference/drugs").FrequencyKind;
     customHours: number | null;
     durationDays: number | null;
     firstDoseAt: Date;
@@ -500,7 +607,7 @@ export async function createMedicationStartAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -527,6 +634,8 @@ export async function createMedicationEndAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha de fin inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -566,7 +675,7 @@ export async function createMedicationEndAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -576,15 +685,25 @@ export async function createMedicationEndAction(
 // Note: this action does NOT follow the useActionState(_previous, formData) pattern
 // because it is invoked from a server-component form (no client-side state). It redirects
 // on success and throws on hard errors (same pattern as deleteVaccineReminderAction).
-export async function markMedicationDoseTakenAction(formData: FormData): Promise<void> {
+export async function markMedicationDoseTakenAction(
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
   const reminderId = String(formData.get("reminderId") ?? "").trim();
-  if (!reminderId) throw new Error("Falta el identificador del recordatorio.");
+  if (!reminderId) return { error: "Falta el identificador del recordatorio." };
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sesión expirada.");
+  if (!user) return { error: "Sesión expirada." };
+
+  // Right-to-erasure lockout (Ley 25.326 art. 16, Wave E2). This reminder-keyed
+  // path resolves the pet via the reminder + userId and bypasses requireAlive-
+  // PetAccess, so it must reject an erased account (still-valid JWT) itself —
+  // otherwise it could append a medication_dose_taken event.
+  const profile = await getProfileCached(user.id);
+  if (profile?.deletedAt != null) return { error: "Tu cuenta fue eliminada." };
 
   const repo = new EventsRepository();
 
@@ -594,10 +713,10 @@ export async function markMedicationDoseTakenAction(formData: FormData): Promise
   );
 
   if (!result.ok) {
-    throw new Error(result.error);
+    return { error: result.error };
   }
 
-  redirect(`/mis-mascotas/${result.value.petPublicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${result.value.petPublicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -626,6 +745,8 @@ export async function createMicrochipAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -634,13 +755,13 @@ export async function createMicrochipAction(
   const repo = new EventsRepository();
 
   // ARCH-S: read canonical chip status (legacy pets.microchipId column dropped).
-  const { fetchActiveIdentifications } = await import("@/lib/pet-identifiers");
+  const { fetchActiveIdentifications } = await import("@/lib/infra/pet-identifiers");
   const existingIds = await fetchActiveIdentifications(pet.id);
 
   try {
     const result = await createMicrochip(
       {
-        pet: { id: pet.id, petHasCanonicalChip: existingIds.microchip !== null },
+        pet: { id: pet.id, canonicalChipNumber: existingIds.microchip?.code ?? null },
         user: { id: user.id },
         eventAuthorship: eventAuthorship as {
           authorRole: string;
@@ -671,7 +792,7 @@ export async function createMicrochipAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -698,6 +819,8 @@ export async function createDangerousBreedAttestationAction(
   if (!attestedAtRaw) return { error: "Falta la fecha de atestación." };
   const attestedAt = parseDateInput(attestedAtRaw);
   if (!attestedAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(attestedAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -736,7 +859,7 @@ export async function createDangerousBreedAttestationAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -763,6 +886,8 @@ export async function createNoteAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const category = (NOTE_CATEGORIES as readonly string[]).includes(categoryRaw)
     ? categoryRaw
@@ -805,7 +930,7 @@ export async function createNoteAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -828,14 +953,27 @@ export async function createVetVisitAction(
   const clinic = String(formData.get("clinic") ?? "").trim() || null;
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  // locality:"none" — canonicalize province only (vet_visit behavior unchanged).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+  const eventJurisdictionProvince = normalizedLoc.province;
+  const eventJurisdictionLocality = normalizedLoc.locality;
 
   if (!reason) return { error: "Falta el motivo de la visita." };
   if (!occurredAtRaw) return { error: "Falta la fecha." };
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -879,7 +1017,7 @@ export async function createVetVisitAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -902,8 +1040,19 @@ export async function createClinicalInfoAction(
   const occurredAtRaw = String(formData.get("occurredAt") ?? "").trim();
   const notes = String(formData.get("notes") ?? "").trim() || null;
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
-  const eventJurisdictionProvince = String(formData.get("provinceCode") ?? "").trim() || null;
-  const eventJurisdictionLocality = String(formData.get("localityName") ?? "").trim() || null;
+  const loc = parseLocationFromFormData(formData);
+  // locality:"none" — canonicalize province only (clinical_info behavior unchanged).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+  const eventJurisdictionProvince = normalizedLoc.province;
+  const eventJurisdictionLocality = normalizedLoc.locality;
 
   if (!(CLINICAL_SUB_KINDS as readonly string[]).includes(subKindRaw)) {
     return { error: "Tipo de información clínica inválido." };
@@ -914,6 +1063,8 @@ export async function createClinicalInfoAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const attachmentFile = formData.get("attachment") as File | null;
   const upload = await uploadAttachmentIfPresent(supabase, attachmentFile, "event-attachments");
@@ -957,7 +1108,7 @@ export async function createClinicalInfoAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -978,6 +1129,9 @@ async function flushNotifications(
   try {
     // biome-ignore lint/suspicious/noExplicitAny: NewNotification is structurally compatible with notifications.$inferInsert
     await db.insert(notifications).values(pending as any[]);
+    // Web Push leg (ADR 2026-07-18 §4): urgent-only, best-effort, never throws.
+    const { sendPushForNotifications } = await import("@/lib/infra/web-push");
+    await sendPushForNotifications(pending);
   } catch (e) {
     console.error("notifications insert failed (action did succeed)", e);
   }
@@ -1005,7 +1159,7 @@ export async function recordDiseaseDiagnosisAction(
   }
 
   const diseaseCode = String(formData.get("diseaseCode") ?? "").trim();
-  const confirmedByLab = formData.get("confirmedByLab") === "on";
+  const confirmedByLab = checkboxOn(formData, "confirmedByLab");
   const labName = String(formData.get("labName") ?? "").trim() || null;
   const labReportRef = String(formData.get("labReportReference") ?? "").trim() || null;
   const diagnosisDateRaw = String(formData.get("diagnosisDate") ?? "").trim();
@@ -1027,6 +1181,9 @@ export async function recordDiseaseDiagnosisAction(
   // Resolve pet by publicToken — NO ownership check (vet can diagnose any pet).
   const [pet] = await db.select().from(pets).where(eq(pets.publicToken, publicToken)).limit(1);
   if (!pet) return { error: "Mascota no encontrada." };
+
+  const plausibility = checkOccurredAtPlausible(diagnosisDate, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const repo = new EventsRepository();
 
@@ -1067,9 +1224,8 @@ export async function recordDiseaseDiagnosisAction(
 
 function parseDisclosurePrefsFromForm(
   formData: FormData,
-  petDefaults: import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput,
 ): import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput {
-  const checked = (name: string) => formData.get(name) === "on";
+  const checked = (name: string) => checkboxOn(formData, name);
   const hasSection = [
     "disclose_first_name_when_lost",
     "disclose_phone_when_lost",
@@ -1078,7 +1234,21 @@ function parseDisclosurePrefsFromForm(
     "allow_finder_form_when_lost",
   ].some((key) => formData.has(key));
 
-  if (!hasSection) return petDefaults;
+  // cursor privacy P4: fail CLOSED. A caller that omits the disclosure section
+  // entirely used to inherit the pet's current (possibly permissive) prefs via
+  // a `petDefaults` fallback — but the only real caller (MarkLostWizard) always
+  // submits all five fields explicitly via hidden inputs, so "section absent"
+  // means no consent was expressed, not "keep whatever was there before".
+  // Every toggle defaults to false rather than silently republishing PII.
+  if (!hasSection) {
+    return {
+      discloseFirstNameWhenLost: false,
+      disclosePhoneWhenLost: false,
+      discloseEmailWhenLost: false,
+      discloseLastLocationWhenLost: false,
+      allowFinderFormWhenLost: false,
+    };
+  }
 
   return {
     discloseFirstNameWhenLost: checked("disclose_first_name_when_lost"),
@@ -1135,6 +1305,8 @@ export type {
 export type SymptomFormState = {
   error: string | null;
   ok?: boolean;
+  /** Same `redirectTo` contract as EventFormState (see its docblock). */
+  redirectTo?: string;
 };
 
 export async function createSymptomObservedAction(
@@ -1158,6 +1330,17 @@ export async function createSymptomObservedAction(
 
   const onsetRaw = String(formData.get("onsetAt") ?? "").trim();
   const onsetAt = onsetRaw.length > 0 ? onsetRaw : null;
+
+  // Guard the optional date-only onset (the writer stamps occurredAt from it;
+  // an unparseable value falls back to "now" inside the use-case, so only a
+  // successfully parsed onset needs the plausibility check).
+  if (onsetAt) {
+    const onsetDate = parseDateInput(onsetAt);
+    if (onsetDate) {
+      const plausibility = checkOccurredAtPlausible(onsetDate, pet.dateOfBirth);
+      if (plausibility) return plausibility;
+    }
+  }
 
   const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
 
@@ -1196,7 +1379,11 @@ export async function createSymptomObservedAction(
 
   const { revalidatePath } = await import("next/cache");
   revalidatePath(`/mis-mascotas/${publicToken}`);
-  redirect(`/mis-mascotas/${publicToken}?evento=sintoma_registrado`);
+  return {
+    error: null,
+    ok: true,
+    redirectTo: `/mis-mascotas/${publicToken}?evento=sintoma_registrado`,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1227,29 +1414,28 @@ export async function setPetLostAction(
   const locationLatRaw = String(formData.get("locationLat") ?? "").trim() || null;
   const locationLngRaw = String(formData.get("locationLng") ?? "").trim() || null;
 
+  // Validate coords through the gate.
+  // - isFinite check preserved from before P2 (user error message unchanged).
+  // - STEP 3 hardening: also reject out-of-range coords (previously not checked).
   if (locationLatRaw && locationLngRaw) {
-    const lat = Number.parseFloat(locationLatRaw);
-    const lng = Number.parseFloat(locationLngRaw);
-    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    const latNum = Number.parseFloat(locationLatRaw);
+    const lngNum = Number.parseFloat(locationLngRaw);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
       return { error: "Coordenadas inválidas. Tocá el mapa de nuevo para marcar el punto." };
+    }
+    if (latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+      return { error: "La ubicación está fuera de rango." };
     }
   }
 
-  // Parse disclosure prefs from FormData (checkbox pattern).
-  const petDefaults: import("./application/lifecycle/set-pet-lost-use-case").DisclosurePrefsInput =
-    {
-      discloseFirstNameWhenLost: pet.discloseFirstNameWhenLost,
-      disclosePhoneWhenLost: pet.disclosePhoneWhenLost,
-      discloseEmailWhenLost: pet.discloseEmailWhenLost,
-      discloseLastLocationWhenLost: pet.discloseLastLocationWhenLost,
-      allowFinderFormWhenLost: pet.allowFinderFormWhenLost,
-    };
-  const disclosurePrefs = parseDisclosurePrefsFromForm(formData, petDefaults);
+  // Parse disclosure prefs from FormData (checkbox pattern). cursor privacy P4:
+  // fails closed when the section is absent — see parseDisclosurePrefsFromForm.
+  const disclosurePrefs = parseDisclosurePrefsFromForm(formData);
   const enrichedDescription = parseEnrichedDescriptionFromForm(formData);
 
   const repo = new EventsRepository();
 
-  const { broadcastLostPet } = await import("@/lib/lost-pet-broadcast");
+  const { broadcastLostPet } = await import("@/lib/infra/lost-pet-broadcast");
 
   const result = await setPetLostWriter(
     {
@@ -1289,17 +1475,91 @@ export async function setPetLostAction(
     return { error: null, ok: true };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
+}
+
+// ---------------------------------------------------------------------------
+// Update lost last-seen (WU-6 lifecycle) — "ACTUALIZAR" on LostCaseBlock
+// ---------------------------------------------------------------------------
+
+// Re-export types only (no value re-exports in "use server" files).
+export type {
+  UpdateLostLastSeenParams,
+  UpdateLostLastSeenResult,
+} from "./application/lifecycle/update-lost-last-seen-use-case";
+
+export async function updateLostLastSeenAction(
+  publicToken: string,
+  _previous: EventFormState,
+  formData: FormData,
+): Promise<EventFormState> {
+  // AUTH: requirePetAccess (accepts non-alive), same as setPetLostAction/
+  // setPetFoundAction — the use-case itself rejects non-'lost' status.
+  const access = await requirePetAccess(publicToken);
+  if (!access.ok) return { error: access.error };
+  const { user, pet, eventAuthorship } = access;
+
+  const locationDescription = String(formData.get("locationAddress") ?? "").trim() || null;
+  const reason = String(formData.get("reason") ?? "").trim() || null;
+  const clientIdempotencyKey = String(formData.get("clientIdempotencyKey") ?? "").trim() || null;
+
+  const loc = parseLocationFromFormData(formData);
+  // locality:"none" — this flow doesn't validate against the INDEC catalog
+  // (parity with setPetLostAction's own last-seen point capture); coords are
+  // optional (an owner may want to log a text-only update with no map pin).
+  let normalizedLoc: Awaited<ReturnType<typeof normalizeLocationForWrite>>;
+  try {
+    normalizedLoc = await normalizeLocationForWrite(loc, { locality: "none" });
+  } catch (err) {
+    if (err instanceof CoordError) {
+      return { error: err.message };
+    }
+    throw err;
+  }
+
+  // Compose the note text from the address/reference + free-text note — the
+  // note_added payload has a single required `text` field (no separate
+  // location_description like status_changed has).
+  const text = [locationDescription, reason].filter(Boolean).join(" — ") || null;
+
+  const repo = new EventsRepository();
+
+  const result = await updateLostLastSeen(
+    {
+      petId: pet.id,
+      petStatus: pet.status,
+      recordedByUserId: user.id,
+      eventAuthorship: eventAuthorship as {
+        authorRole: string;
+        authorOrganizationId: string | null;
+        authorVerified: boolean;
+      },
+      text,
+      locationDescription,
+      locationLat: normalizedLoc.lat != null ? String(normalizedLoc.lat) : null,
+      locationLng: normalizedLoc.lng != null ? String(normalizedLoc.lng) : null,
+      clientIdempotencyKey,
+    },
+    { repo, transaction: makeTransaction() },
+  );
+
+  if (result.error) return { error: result.error };
+
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
 // Set pet found (WU-6 lifecycle)
 // ---------------------------------------------------------------------------
 
-export async function setPetFoundAction(publicToken: string): Promise<void> {
+export async function setPetFoundAction(
+  publicToken: string,
+  _previous: EventFormState,
+  _formData: FormData,
+): Promise<EventFormState> {
   // AUTH: requirePetAccess (accepts non-alive).
   const access = await requirePetAccess(publicToken);
-  if (!access.ok) throw new Error(access.error);
+  if (!access.ok) return { error: access.error };
   const { user, pet, eventAuthorship } = access;
 
   const repo = new EventsRepository();
@@ -1355,7 +1615,7 @@ export async function setPetFoundAction(publicToken: string): Promise<void> {
     },
   );
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }
 
 // ---------------------------------------------------------------------------
@@ -1402,6 +1662,10 @@ export async function createDeathRecordAction(
 
   const occurredAt = parseDateInput(occurredAtRaw);
   if (!occurredAt) return { error: "Fecha inválida." };
+  // A future death date is an impossible record (PO decision 2026-07-16 —
+  // same family as the P4 guard on the medical writers above).
+  const plausibility = checkOccurredAtPlausible(occurredAt, pet.dateOfBirth);
+  if (plausibility) return plausibility;
 
   const dispositionMethod = dispositionMethodRaw === "" ? null : dispositionMethodRaw;
   if (dispositionMethod !== null && !(DM as readonly string[]).includes(dispositionMethod)) {
@@ -1436,7 +1700,7 @@ export async function createDeathRecordAction(
   if (diseaseCode && !findDisease(diseaseCode)) {
     return { error: "Enfermedad no reconocida." };
   }
-  const { isReportable } = await import("@/lib/diseases");
+  const { isReportable } = await import("@/lib/reference/diseases");
   const reportable = isReportable(diseaseCode);
 
   const attachmentFile = formData.get("attachment") as File | null;
@@ -1444,7 +1708,7 @@ export async function createDeathRecordAction(
   if (upload.error) return { error: upload.error };
 
   // Look up custody_episode BEFORE the tx — stamp caseId on the death event.
-  const { findOpenCaseForPetAndKind } = await import("@/lib/case-helpers");
+  const { findOpenCaseForPetAndKind } = await import("@/lib/infra/case-helpers");
   const custodyEpisodeCaseForDeath = await findOpenCaseForPetAndKind(pet.id, "custody_episode");
 
   const repo = new EventsRepository();
@@ -1501,5 +1765,5 @@ export async function createDeathRecordAction(
     };
   }
 
-  redirect(`/mis-mascotas/${publicToken}`);
+  return { error: null, ok: true, redirectTo: `/mis-mascotas/${publicToken}` };
 }

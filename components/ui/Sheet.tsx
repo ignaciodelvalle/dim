@@ -1,6 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import type { ReactNode } from "react";
+
+import { Icon } from "@/components/Icon";
 
 /**
  * Libreta Nacional Sheet frame.
@@ -21,12 +24,12 @@ import type { ReactNode } from "react";
  *   "verde"   #2e7d4f  (vacuna)
  *   "violeta" #6b4ea8  (medicación)
  *   "seal"    #a23a2c  (perdida)
- *   "warn"    #b0771a  (cautionary)
+ *   "warn"    #96600e  (cautionary)
  *
  * Usage:
  *   <LnSheetPage
  *     tone="verde"
- *     icon="💉"
+ *     icon={<Icon name="vacuna" decorative />}
  *     title="Registrar vacuna"
  *     subtitle="Libreta sanitaria"
  *     routeChip="?asiento=vacuna"
@@ -50,7 +53,7 @@ export type LnSheetTone = "azul" | "verde" | "violeta" | "seal" | "warn" | "rosa
 const toneTopBorder: Record<LnSheetTone, string> = {
   azul: "border-t-[var(--color-ln-azul)]",
   verde: "border-t-[var(--color-ln-ok)]",
-  violeta: "border-t-[#6b4ea8]",
+  violeta: "border-t-[var(--color-ln-violeta)]",
   seal: "border-t-[var(--color-ln-seal)]",
   warn: "border-t-[var(--color-ln-warn)]",
   rosa: "border-t-[var(--color-ln-rosa)]",
@@ -59,16 +62,17 @@ const toneTopBorder: Record<LnSheetTone, string> = {
 const toneIconBg: Record<LnSheetTone, string> = {
   azul: "bg-[var(--color-ln-celeste-050)] text-[var(--color-ln-azul)] border-[var(--color-ln-celeste-100)]",
   verde: "bg-[var(--color-ln-ok-050)] text-[var(--color-ln-ok)] border-[var(--color-ln-ok-100)]",
-  violeta: "bg-[#f0ecf8] text-[#6b4ea8] border-[#ddd2f0]",
+  violeta:
+    "bg-[var(--color-ln-violeta-050)] text-[var(--color-ln-violeta)] border-[var(--color-ln-violeta-100)]",
   seal: "bg-[var(--color-ln-err-050)] text-[var(--color-ln-seal)] border-[var(--color-ln-err-100)]",
   warn: "bg-[var(--color-ln-warn-050)] text-[var(--color-ln-warn)] border-[var(--color-ln-warn-100)]",
-  rosa: "bg-[#fbe8f2] text-[var(--color-ln-rosa)] border-[#efbdd8]",
+  rosa: "bg-[var(--color-ln-rosa-050)] text-[var(--color-ln-rosa)] border-[var(--color-ln-rosa-100)]",
 };
 
 const toneCtaClass: Record<LnSheetTone, string> = {
   azul: "bg-[var(--color-ln-azul)] border-[var(--color-ln-azul)] hover:bg-[var(--color-ln-azul-700)] hover:border-[var(--color-ln-azul-700)]",
   verde: "bg-[var(--color-ln-ok)] border-[var(--color-ln-ok)] hover:opacity-90",
-  violeta: "bg-[#6b4ea8] border-[#6b4ea8] hover:opacity-90",
+  violeta: "bg-[var(--color-ln-violeta)] border-[var(--color-ln-violeta)] hover:opacity-90",
   seal: "bg-[var(--color-ln-seal)] border-[var(--color-ln-seal)] hover:opacity-90",
   warn: "bg-[var(--color-ln-warn)] border-[var(--color-ln-warn)] hover:opacity-90",
   rosa: "bg-[var(--color-ln-rosa)] border-[var(--color-ln-rosa)] hover:opacity-90",
@@ -89,6 +93,8 @@ export type LnSheetPageProps = {
   formId?: string;
   /** Whether the form is currently submitting */
   isPending?: boolean;
+  /** Override the pending-state label (default: "Registrando…") */
+  pendingLabel?: string;
   wide?: boolean;
   children: ReactNode;
 };
@@ -103,6 +109,7 @@ export function LnSheetPage({
   ctaLabel = "Guardar",
   formId,
   isPending = false,
+  pendingLabel,
   wide = false,
   children,
 }: LnSheetPageProps) {
@@ -123,6 +130,7 @@ export function LnSheetPage({
           ctaLabel={ctaLabel}
           formId={formId}
           isPending={isPending}
+          pendingLabel={pendingLabel}
           onCancel={onClose}
         />
       </LnSheetCard>
@@ -138,8 +146,8 @@ export function LnSheetWrap({ children }: { children: ReactNode }) {
       className={[
         "relative flex min-h-screen w-full items-start justify-center overflow-auto",
         "bg-[radial-gradient(circle_at_12px_12px,var(--color-ln-line)_1.2px,transparent_1.2px)_0_0_/_22px_22px,var(--color-ln-paper)]",
-        "px-[24px] py-[28px]",
-        "font-[var(--font-ln-sans)] text-[var(--color-ln-ink)]",
+        "px-6 py-7",
+        "font-ln-sans text-[var(--color-ln-ink)]",
       ]
         .filter(Boolean)
         .join(" ")}
@@ -161,7 +169,7 @@ export function LnSheetCard({
   return (
     <div
       className={[
-        "flex flex-col overflow-hidden rounded-[5px]",
+        "flex flex-col overflow-hidden rounded-[var(--radius-md)]",
         "border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)]",
         "shadow-[0_18px_50px_rgba(20,40,60,.14)]",
         "w-full",
@@ -179,7 +187,7 @@ export function LnSheetCard({
 
 export function LnSheetRouteChip({ children }: { children: ReactNode }) {
   return (
-    <div className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-[10px] py-[3px] font-[var(--font-ln-mono)] text-[10px] tracking-[.08em] text-[var(--color-ln-faint)]">
+    <div className="absolute left-[18px] top-[12px] rounded-full border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] px-2.5 py-[3px] font-ln-mono text-xs tracking-[.08em] text-[var(--color-ln-faint)]">
       {children}
     </div>
   );
@@ -205,7 +213,7 @@ export function LnSheetHeader({
   return (
     <div
       className={[
-        "relative flex items-center gap-[13px] border-b border-[var(--color-ln-line)] border-t-[3px] px-[18px] py-[16px]",
+        "relative flex items-center gap-[13px] border-b border-[var(--color-ln-line)] border-t-[3px] px-[18px] py-4",
         toneTopBorder[tone],
       ]
         .filter(Boolean)
@@ -215,7 +223,7 @@ export function LnSheetHeader({
       {icon && (
         <div
           className={[
-            "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[8px] border text-[16px]",
+            "grid h-[38px] w-[38px] flex-shrink-0 place-items-center rounded-[var(--radius-lg)] border text-base",
             toneIconBg[tone],
           ]
             .filter(Boolean)
@@ -228,10 +236,10 @@ export function LnSheetHeader({
 
       {/* Text */}
       <div className="min-w-0 flex-1">
-        <h1 className="m-0 font-[var(--font-ln-serif)] text-[18px] font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
+        <h1 className="m-0 font-ln-serif text-lg font-semibold leading-tight tracking-[-0.01em] text-[var(--color-ln-ink)]">
           {title}
         </h1>
-        {subtitle && <p className="mt-[2px] text-[12px] text-[var(--color-ln-mute)]">{subtitle}</p>}
+        {subtitle && <p className="mt-0.5 text-sm text-[var(--color-ln-mute)]">{subtitle}</p>}
       </div>
 
       {/* Close */}
@@ -240,11 +248,9 @@ export function LnSheetHeader({
           type="button"
           onClick={onClose}
           aria-label="Cerrar"
-          className="grid h-[30px] w-[30px] flex-shrink-0 cursor-pointer place-items-center rounded-[6px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)]"
+          className="grid h-[30px] w-[30px] flex-shrink-0 cursor-pointer place-items-center rounded-[var(--radius-md)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)] text-[var(--color-ln-mute)] transition-colors hover:bg-[var(--color-ln-stripe)]"
         >
-          <span aria-hidden="true" className="text-[18px] leading-none">
-            ×
-          </span>
+          <Icon name="close" size="sm" decorative />
         </button>
       )}
     </div>
@@ -254,7 +260,7 @@ export function LnSheetHeader({
 // ---------- LnSheetBody --------------------------------------------------
 
 export function LnSheetBody({ children }: { children: ReactNode }) {
-  return <div className="flex flex-col gap-[14px] px-[18px] py-[18px]">{children}</div>;
+  return <div className="flex flex-col gap-3.5 px-[18px] py-[18px]">{children}</div>;
 }
 
 // ---------- LnSheetFooter ------------------------------------------------
@@ -267,6 +273,12 @@ export type LnSheetFooterProps = {
   onCancel?: () => void;
   /** Render a custom CTA instead of the default submit button */
   customCta?: ReactNode;
+  /**
+   * Wave 2 Item 9: override the "Registrando…" pending label.
+   * Defaults to "Registrando…" for event-log forms.
+   * Pass "Guardando…" for profile-edit or other non-event contexts.
+   */
+  pendingLabel?: string;
 };
 
 export function LnSheetFooter({
@@ -276,14 +288,19 @@ export function LnSheetFooter({
   isPending = false,
   onCancel,
   customCta,
+  pendingLabel = "Registrando…",
 }: LnSheetFooterProps) {
   return (
-    <div className="flex items-center gap-[10px] border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
+    // Wave 2 Item 9: sticky footer so the primary CTA stays reachable with the
+    // thumb on mobile even with long forms.
+    // pb-safe keeps the CTA above the iOS home indicator in the installed PWA
+    // (viewport-fit=cover; see globals.css safe-area utilities).
+    <div className="pb-safe sticky bottom-0 z-10 flex items-center gap-2.5 border-t border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[18px] py-[13px]">
       {onCancel && (
         <button
           type="button"
           onClick={onCancel}
-          className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-[14px] py-[8px] text-[12.5px] font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3.5 py-2 text-md font-semibold text-[var(--color-ln-ink)] transition-colors hover:bg-[var(--color-ln-stripe)] active:scale-[0.98] active:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Cancelar
         </button>
@@ -296,7 +313,8 @@ export function LnSheetFooter({
           disabled={isPending}
           aria-busy={isPending || undefined}
           className={[
-            "inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[3px] border px-[16px] py-[9px] text-[13px] font-semibold text-white transition-colors",
+            "inline-flex cursor-pointer items-center justify-center gap-[7px] rounded-[var(--radius-pill)] border px-4 py-[9px] text-md font-semibold text-white transition-colors",
+            "active:scale-[0.98] active:opacity-90",
             "disabled:cursor-not-allowed disabled:opacity-60",
             toneCtaClass[tone],
           ]
@@ -309,7 +327,7 @@ export function LnSheetFooter({
                 aria-hidden="true"
                 className="inline-block h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
               />
-              Guardando...
+              {pendingLabel}
             </>
           ) : (
             ctaLabel
@@ -335,28 +353,28 @@ export type LnSheetPetRowProps = {
 
 export function LnSheetPetRow({ name, meta, photoUrl, onChangePet }: LnSheetPetRowProps) {
   return (
-    <div className="flex items-center gap-[12px] rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-[12px] py-[10px]">
+    <div className="flex items-center gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-2.5">
       {/* Photo / placeholder */}
       <div className="h-[38px] w-[38px] flex-shrink-0 overflow-hidden rounded-full border border-[var(--color-ln-line-strong)]">
         {photoUrl ? (
-          <img src={photoUrl} alt={name} className="h-full w-full object-cover" />
+          <Image src={photoUrl} alt={name} fill sizes="38px" className="object-cover" />
         ) : (
-          <div className="h-full w-full bg-[repeating-linear-gradient(135deg,#e7e2d6_0_4px,#f2efe6_4px_8px)]" />
+          <div className="h-full w-full bg-[repeating-linear-gradient(135deg,var(--pattern-no-photo-a)_0_4px,var(--pattern-no-photo-b)_4px_8px)]" />
         )}
       </div>
       {/* Name + meta */}
       <div className="min-w-0 flex-1">
-        <p className="font-[var(--font-ln-serif)] text-[15px] font-semibold leading-tight text-[var(--color-ln-ink)]">
+        <p className="font-ln-serif text-base font-semibold leading-tight text-[var(--color-ln-ink)]">
           {name}
         </p>
-        {meta && <p className="mt-[1px] text-[11.5px] text-[var(--color-ln-mute)]">{meta}</p>}
+        {meta && <p className="mt-px text-sm text-[var(--color-ln-mute)]">{meta}</p>}
       </div>
       {/* Change */}
       {onChangePet && (
         <button
           type="button"
           onClick={onChangePet}
-          className="ml-auto cursor-pointer font-[var(--font-ln-mono)] text-[10px] tracking-[.04em] text-[var(--color-ln-azul)]"
+          className="ml-auto cursor-pointer font-ln-mono text-xs tracking-[.04em] text-[var(--color-ln-azul)]"
         >
           CAMBIAR
         </button>
@@ -380,14 +398,14 @@ export function LnSubCard({ heading, children, className = "" }: LnSubCardProps)
   return (
     <div
       className={[
-        "flex flex-col gap-[12px] rounded-[5px] border border-[var(--color-ln-line)] bg-[#fcfbf7] px-[14px] py-[14px]",
+        "flex flex-col gap-3 rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-paper)] px-3.5 py-3.5",
         className,
       ]
         .filter(Boolean)
         .join(" ")}
     >
       {heading && (
-        <p className="border-b border-[var(--color-ln-line-2)] pb-[7px] font-[var(--font-ln-mono)] text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-azul)]">
+        <p className="border-b border-[var(--color-ln-line-2)] pb-[7px] font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-azul)]">
           {heading}
         </p>
       )}
@@ -400,7 +418,7 @@ export function LnSubCard({ heading, children, className = "" }: LnSubCardProps)
 
 export function LnGroupLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="font-[var(--font-ln-mono)] text-[9.5px] font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
+    <p className="font-ln-mono text-xs font-semibold uppercase tracking-[.12em] text-[var(--color-ln-faint)]">
       {children}
     </p>
   );
@@ -430,21 +448,19 @@ export function LnSheetAccordion({
   return (
     <details
       open={defaultOpen}
-      className="group rounded-[4px] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]"
+      className="op-disclosure group rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-card)]"
     >
-      <summary className="flex cursor-pointer select-none list-none items-center gap-[12px] px-[14px] py-[11px] hover:bg-[var(--color-ln-stripe)]">
+      <summary className="flex cursor-pointer select-none list-none items-center gap-3 px-3.5 py-[11px] hover:bg-[var(--color-ln-stripe)]">
         {/* Number */}
-        <span className="font-[var(--font-ln-mono)] text-[12px] font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
+        <span className="font-ln-mono text-sm font-semibold tracking-[.04em] text-[var(--color-ln-azul)]">
           {num}
         </span>
         {/* Title */}
-        <span className="flex-1 text-[13.5px] font-semibold text-[var(--color-ln-ink)]">
-          {title}
-        </span>
+        <span className="flex-1 text-md font-semibold text-[var(--color-ln-ink)]">{title}</span>
         {/* Complete badge — hidden when open */}
         {complete && (
-          <span className="font-[var(--font-ln-mono)] text-[10px] text-[var(--color-ln-ok)] group-open:hidden">
-            ✓ completo
+          <span className="inline-flex items-center gap-1 font-ln-mono text-xs text-[var(--color-ln-ok)] group-open:hidden">
+            <Icon name="check" size={14} decorative /> completo
           </span>
         )}
         {/* Chevron */}
@@ -455,7 +471,7 @@ export function LnSheetAccordion({
           ›
         </span>
       </summary>
-      <div className="border-t border-[var(--color-ln-line-2)] px-[14px] py-[14px]">{children}</div>
+      <div className="border-t border-[var(--color-ln-line-2)] px-3.5 py-3.5">{children}</div>
     </details>
   );
 }

@@ -20,10 +20,13 @@
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 import Link from "next/link";
 
+import { LnEmptyState } from "@/components/ui/EmptyState";
+import { ResultCount } from "@/components/ui/ResultCount";
 import { OpBreach, OpCard, OpCardBody, OpCrumbs, OpPill } from "@/components/ui/dashboard";
 import { cases, db, organizations, petEvents, pets } from "@/db";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
-import { formatDate } from "@/lib/format";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDate, requestOutcomeLabel } from "@/lib/utils/format";
+import { capRows } from "@/lib/utils/list-pagination";
 
 import { DecomisoHandoffActions } from "./DecomisoHandoffActions";
 import { IncomingTransferActions } from "./IncomingTransferActions";
@@ -48,8 +51,11 @@ const SEIZURE_MOTIVE_LABEL: Record<string, string> = {
   otro: "Otro motivo",
 };
 
+// "open" comes from requestOutcomeLabel — shared with the sender's
+// Transferencias screen so the same case status never reads two different
+// words across the org's own two tabs (copy audit 2026-08-04).
 const STATUS_LABEL: Record<string, string> = {
-  open: "Pendiente de respuesta",
+  open: requestOutcomeLabel("open") ?? "Pendiente",
   closed: "Cerrada",
 };
 
@@ -109,7 +115,7 @@ export default async function OrgTransferenciasEntrantesPage({
       ),
     )
     .orderBy(desc(cases.openedAt))
-    .limit(200);
+    .limit(201);
 
   // -------------------------------------------------------------------------
   // 2. Decomiso handoff proposals (custody_episode opened by sanitary_authority)
@@ -154,12 +160,19 @@ export default async function OrgTransferenciasEntrantesPage({
       and(eq(cases.caseKind, "custody_episode"), eq(cases.receiverOrganizationId, organization.id)),
     )
     .orderBy(desc(cases.openedAt))
-    .limit(200);
+    .limit(201);
 
   // Merge and sort by openedAt desc.
-  const allRows = [...handshakeRows, ...decommissaRows].sort(
+  //
+  // #815 audit finding #7: previously both queries used a bare limit(200)
+  // with no truncation signal — a network with >200 historical transfers
+  // silently lost visibility into the oldest ones. Each query now fetches
+  // one extra row (limit 201, same pattern as adopciones/page.tsx) so the
+  // merged+sorted list can detect truncation before capping at 200.
+  const mergedRows = [...handshakeRows, ...decommissaRows].sort(
     (a, b) => new Date(b.openedAt).getTime() - new Date(a.openedAt).getTime(),
   );
+  const { rows: allRows, truncated } = capRows(mergedRows, 200);
 
   return (
     <div className="space-y-6">
@@ -172,13 +185,13 @@ export default async function OrgTransferenciasEntrantesPage({
       />
 
       <header className="space-y-1">
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Transferencias entrantes</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        <h1 className="text-title font-semibold text-ln-op-ink">Transferencias entrantes</h1>
+        <p className="text-md text-ln-op-mute">
           Propuestas dirigidas a {organization.displayName}.
         </p>
       </header>
 
-      <nav className="flex gap-4 text-[12px]">
+      <nav className="flex gap-4 text-sm">
         <Link
           href={`/org/${orgToken}/transferencias`}
           className="text-ln-op-azul hover:underline no-underline"
@@ -189,99 +202,112 @@ export default async function OrgTransferenciasEntrantesPage({
       </nav>
 
       {allRows.length === 0 ? (
-        <p className="rounded-[6px] border border-dashed border-ln-op-line p-8 text-center text-[13px] text-ln-op-mute">
-          No tenés propuestas de transferencia entrantes.
-        </p>
+        <LnEmptyState
+          icon="transferencia"
+          title="No tenés propuestas de transferencia entrantes."
+        />
       ) : (
-        <OpCard>
-          <OpCardBody className="p-0">
-            <ul className="divide-y divide-ln-op-line">
-              {allRows.map((r) => {
-                const isDecomiso =
-                  r.caseKind === "custody_episode" && r.senderOrgType === "sanitary_authority";
+        <>
+          <OpCard>
+            <OpCardBody className="p-0">
+              <ul className="divide-y divide-ln-op-line">
+                {allRows.map((r) => {
+                  const isDecomiso =
+                    r.caseKind === "custody_episode" && r.senderOrgType === "sanitary_authority";
 
-                const statusLabel =
-                  r.status === "closed" && r.closedReason
-                    ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
-                    : (STATUS_LABEL[r.status] ?? r.status);
+                  const statusLabel =
+                    r.status === "closed" && r.closedReason
+                      ? (CLOSED_REASON_LABEL[r.closedReason] ?? STATUS_LABEL[r.status])
+                      : (STATUS_LABEL[r.status] ?? r.status);
 
-                return (
-                  <li key={r.caseId} className="px-4 py-3 space-y-2">
-                    {isDecomiso && (
-                      <OpBreach
-                        title="DECOMISO — Custodia estatal · Ley 14.346"
-                        detail={
-                          r.status === "open"
-                            ? "Tenés 7 días para aceptar o rechazar esta custodia estatal."
-                            : undefined
-                        }
-                      />
-                    )}
+                  return (
+                    <li key={r.caseId} className="px-4 py-3 space-y-2">
+                      {isDecomiso && (
+                        <OpBreach
+                          title="DECOMISO — Custodia estatal · Ley 14.346"
+                          detail={
+                            r.status === "open"
+                              ? "Tenés 7 días para aceptar o rechazar esta custodia estatal."
+                              : undefined
+                          }
+                        />
+                      )}
 
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 space-y-1">
-                        <p className="text-[13px] font-medium text-ln-op-ink">
-                          {r.petName ?? "(sin pet)"}
-                        </p>
-                        <p className="text-[12px] text-ln-op-mute">
-                          {isDecomiso ? (
-                            <>
-                              Autoridad sanitaria: <strong>{r.senderOrgName ?? "—"}</strong>
-                              {r.seizureMotive
-                                ? ` · Motivo: ${SEIZURE_MOTIVE_LABEL[r.seizureMotive] ?? r.seizureMotive}`
-                                : ""}
-                            </>
-                          ) : (
-                            <>
-                              De <strong>{r.senderOrgName ?? "—"}</strong>
-                              {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
-                            </>
-                          )}
-                        </p>
-                        <p className="text-[12px] text-ln-op-mute">
-                          Recibida el {formatDate(r.openedAt)}
-                          {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
-                        </p>
-                        {!isDecomiso && r.notes ? (
-                          <p className="text-[12px] italic text-ln-op-ink-2">"{r.notes}"</p>
-                        ) : null}
-                        <Link
-                          href={`/casos/${r.publicCode}`}
-                          className="inline-block text-[12px] text-ln-op-azul hover:underline no-underline"
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0 space-y-1">
+                          <p className="text-md font-medium text-ln-op-ink">
+                            {r.petName ?? "(sin pet)"}
+                          </p>
+                          <p className="text-sm text-ln-op-mute">
+                            {isDecomiso ? (
+                              <>
+                                Autoridad sanitaria: <strong>{r.senderOrgName ?? "—"}</strong>
+                                {r.seizureMotive
+                                  ? ` · Motivo: ${SEIZURE_MOTIVE_LABEL[r.seizureMotive] ?? r.seizureMotive}`
+                                  : ""}
+                              </>
+                            ) : (
+                              <>
+                                De <strong>{r.senderOrgName ?? "—"}</strong>
+                                {r.reason ? ` · ${REASON_LABEL[r.reason] ?? r.reason}` : ""}
+                              </>
+                            )}
+                          </p>
+                          <p className="text-sm text-ln-op-mute">
+                            Recibida el {formatDate(r.openedAt)}
+                            {r.closedAt ? ` · Resuelta el ${formatDate(r.closedAt)}` : ""}
+                          </p>
+                          {!isDecomiso && r.notes ? (
+                            <p className="text-sm italic text-ln-op-ink-2">"{r.notes}"</p>
+                          ) : null}
+                          <Link
+                            href={`/casos/${r.publicCode}`}
+                            className="inline-block text-sm text-ln-op-azul hover:underline no-underline"
+                          >
+                            Ver caso →
+                          </Link>
+                        </div>
+                        <OpPill
+                          tone={r.status === "open" ? (isDecomiso ? "danger" : "open") : "neutral"}
                         >
-                          Ver caso →
-                        </Link>
+                          {statusLabel}
+                        </OpPill>
                       </div>
-                      <OpPill
-                        tone={r.status === "open" ? (isDecomiso ? "danger" : "open") : "neutral"}
-                      >
-                        {statusLabel}
-                      </OpPill>
-                    </div>
 
-                    {/* Accept / reject actions — only for open handshake rows */}
-                    {r.status === "open" && !isDecomiso && (
-                      <IncomingTransferActions
-                        receiverOrgToken={orgToken}
-                        casePublicCode={r.publicCode}
-                        petName={r.petName ?? "(sin pet)"}
-                      />
-                    )}
+                      {/* Accept / reject actions — only for open handshake rows */}
+                      {r.status === "open" && !isDecomiso && (
+                        <IncomingTransferActions
+                          receiverOrgToken={orgToken}
+                          casePublicCode={r.publicCode}
+                          petName={r.petName ?? "(sin pet)"}
+                        />
+                      )}
 
-                    {/* Accept / reject custody — only for open decomiso rows */}
-                    {r.status === "open" && isDecomiso && (
-                      <DecomisoHandoffActions
-                        receiverOrgToken={orgToken}
-                        casePublicCode={r.publicCode}
-                        petName={r.petName ?? "(sin pet)"}
-                      />
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </OpCardBody>
-        </OpCard>
+                      {/* Accept / reject custody — only for open decomiso rows */}
+                      {r.status === "open" && isDecomiso && (
+                        <DecomisoHandoffActions
+                          receiverOrgToken={orgToken}
+                          casePublicCode={r.publicCode}
+                          petName={r.petName ?? "(sin pet)"}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </OpCardBody>
+          </OpCard>
+          {truncated && (
+            <p className="text-sm text-ln-op-mute">
+              <ResultCount
+                shown={allRows.length}
+                noun="transferencias"
+                hint="Este listado todavía no tiene filtros."
+                className="text-sm text-ln-op-mute"
+              />
+            </p>
+          )}
+        </>
       )}
     </div>
   );

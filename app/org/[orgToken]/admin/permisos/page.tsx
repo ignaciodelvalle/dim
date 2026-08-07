@@ -2,17 +2,11 @@
 // Lists pending capability requests, recent approvals, and a full matrix of
 // who has what (implicit via role vs explicit grant). Layout gates on capability.grant.
 
-import {
-  OpCard,
-  OpCardBody,
-  OpCardHead,
-  OpCodeBadge,
-  OpCrumbs,
-  OpPill,
-} from "@/components/ui/dashboard";
+import { OpCard, OpCardBody, OpCardHead, OpCodeBadge, OpPill } from "@/components/ui/dashboard";
 import { db, organizationCapabilityGrants, organizationMemberships, profiles } from "@/db";
 import { ORGANIZATION_CAPABILITIES } from "@/db/schema";
-import { requireOrgAccessByToken } from "@/lib/auth-guards";
+import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { formatDateTimeNumericAr } from "@/lib/utils/format";
 import {
   CAPABILITY_CATALOG,
   resolveGrantedCaps,
@@ -50,8 +44,7 @@ const LABEL_BY_CAPABILITY = new Map(
 );
 
 function formatDate(d: Date | string): string {
-  const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" });
+  return formatDateTimeNumericAr(d);
 }
 
 export default async function PermisosPage({
@@ -158,15 +151,17 @@ export default async function PermisosPage({
   return (
     <div className="space-y-6">
       <div className="space-y-1">
-        <OpCrumbs
-          items={[
-            { label: "Panel", href: `/org/${orgToken}` },
-            { label: "Administración" },
-            { label: "Permisos" },
-          ]}
-        />
-        <h1 className="text-[22px] font-semibold text-ln-op-ink">Solicitudes de permisos</h1>
-        <p className="text-[13px] text-ln-op-mute">
+        {/* No page-level OpCrumbs here — the topbar (OrgBreadcrumbs) already
+            renders "Panel > Permisos" for this route (#815 audit finding #4:
+            the two used to disagree, showing 3 conflicting labels at once). */}
+        {/* Org-name eyebrow — standardized identity marker across the
+            Administración section (audit #13: servicios/miembros/permisos now
+            all mark tenancy the same way). */}
+        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+          {organization.displayName}
+        </p>
+        <h1 className="text-title font-semibold text-ln-op-ink">Solicitudes de permisos</h1>
+        <p className="text-md text-ln-op-mute">
           Aprobá o denegá pedidos pendientes. También podés revocar un permiso ya concedido.
         </p>
       </div>
@@ -177,32 +172,30 @@ export default async function PermisosPage({
           title={
             <>
               Pendientes{" "}
-              <span className="text-[12px] text-ln-op-mute font-normal">({pending.length})</span>
+              <span className="text-sm text-ln-op-mute font-normal">({pending.length})</span>
             </>
           }
         />
         <OpCardBody className="p-0">
           {pending.length === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-ln-op-mute">No hay solicitudes pendientes.</p>
+            <p className="px-4 py-4 text-md text-ln-op-mute">No hay solicitudes pendientes.</p>
           ) : (
             <ul className="divide-y divide-ln-op-line">
               {pending.map((row) => (
                 <li key={row.id} className="px-4 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
+                      <p className="text-md font-medium text-ln-op-ink">
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
                         <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} ·{" "}
                         {formatDate(row.requestedAt)}
                       </p>
                       {row.requestedReason && (
-                        <p className="text-[12px] italic text-ln-op-faint">
-                          "{row.requestedReason}"
-                        </p>
+                        <p className="text-sm italic text-ln-op-faint">"{row.requestedReason}"</p>
                       )}
                     </div>
                     <OpPill tone="open">Pendiente</OpPill>
@@ -221,13 +214,13 @@ export default async function PermisosPage({
           title={
             <>
               Concedidos activos{" "}
-              <span className="text-[12px] text-ln-op-mute font-normal">({approved.length})</span>
+              <span className="text-sm text-ln-op-mute font-normal">({approved.length})</span>
             </>
           }
         />
         <OpCardBody className="p-0">
           {approved.length === 0 ? (
-            <p className="px-4 py-4 text-[13px] text-ln-op-mute">
+            <p className="px-4 py-4 text-md text-ln-op-mute">
               Ningún permiso concedido fuera del rol admin.
             </p>
           ) : (
@@ -236,11 +229,11 @@ export default async function PermisosPage({
                 <li key={row.id} className="px-4 py-3 space-y-2">
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0 space-y-1">
-                      <p className="text-[13px] font-medium text-ln-op-ink">
+                      <p className="text-md font-medium text-ln-op-ink">
                         {LABEL_BY_CAPABILITY.get(row.capability) ?? row.capability}{" "}
                         <OpCodeBadge tone="neutral">{row.capability}</OpCodeBadge>
                       </p>
-                      <p className="text-[12px] text-ln-op-mute">
+                      <p className="text-sm text-ln-op-mute">
                         {row.requesterDisplayName} ·{" "}
                         {ROLE_LABELS[row.requesterRole] ?? row.requesterRole} · concedido{" "}
                         {row.decidedAt ? formatDate(row.decidedAt) : "—"}
@@ -261,7 +254,7 @@ export default async function PermisosPage({
         <OpCardHead
           title="Matriz de permisos"
           actions={
-            <span className="text-[11px] font-normal text-ln-op-mute">
+            <span className="text-sm font-normal text-ln-op-mute">
               Solo lectura · los permisos explícitos son revocables
             </span>
           }
@@ -277,7 +270,7 @@ export default async function PermisosPage({
       </OpCard>
 
       <footer className="pt-2">
-        <Link href={`/org/${orgToken}`} className="text-[13px] text-ln-op-azul hover:underline">
+        <Link href={`/org/${orgToken}`} className="text-md text-ln-op-azul hover:underline">
           ← Volver al panel
         </Link>
       </footer>

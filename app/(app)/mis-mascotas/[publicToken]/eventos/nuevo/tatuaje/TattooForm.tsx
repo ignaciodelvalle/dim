@@ -1,10 +1,15 @@
 "use client";
 
 import type { EventFormState } from "@/app/actions/tattoo";
+import { Icon } from "@/components/Icon";
 import { LnField, LnInput, LnSelect, LnTextarea } from "@/components/ui/Field";
 import { LnSheetBody, LnSheetFooter, LnSheetHeader } from "@/components/ui/Sheet";
-import { TATTOO_LOCATIONS } from "@/lib/lookups";
-import { useActionState } from "react";
+import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
+import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { useFormErrorFocus } from "@/lib/ui/use-form-error-focus";
+import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { todayIsoInAr } from "@/lib/utils/format";
+import { useActionState, useState } from "react";
 import { AttachmentField } from "../AttachmentField";
 
 const initialState: EventFormState = { error: null };
@@ -13,18 +18,30 @@ const FORM_ID = "tattoo-form";
 
 export function TattooForm({ action }: { action: FormAction }) {
   const [state, formAction, isPending] = useActionState(action, initialState);
-  const today = new Date().toISOString().slice(0, 10);
+  // N3: the action returns where to go and this navigates. It used to
+  // redirect() server-side, a transition the App Router drops in production —
+  // the write committed and the screen never moved.
+  useActionRedirect(state.redirectTo, state);
+  const errorRef = useFormErrorFocus<HTMLParagraphElement>(state.error);
+  const { key: idempotencyKey } = useIdempotencyKey();
+  const today = todayIsoInAr();
+  const [tattooCode, setTattooCode] = useState("");
+  const [locationOnBody, setLocationOnBody] = useState("");
+  const [description, setDescription] = useState("");
+  const [recordedAt, setRecordedAt] = useState(today);
+  const [recordedBy, setRecordedBy] = useState("");
 
   return (
     <>
       <LnSheetHeader
         tone="azul"
-        icon="🖊️"
+        icon={<Icon name="tatuaje" decorative />}
         title="Registrar tatuaje"
         subtitle="Libreta sanitaria oficial"
       />
       <LnSheetBody>
         <form id={FORM_ID} action={formAction} className="contents">
+          <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
           <LnField label="Código del tatuaje" required>
             {({ id, describedBy, invalid }) => (
               <LnInput
@@ -33,6 +50,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 type="text"
                 required
                 placeholder="Ej: K9-2014-A"
+                value={tattooCode}
+                onChange={(e) => setTattooCode(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
                 mono
@@ -44,7 +63,8 @@ export function TattooForm({ action }: { action: FormAction }) {
               <LnSelect
                 id={id}
                 name="locationOnBody"
-                defaultValue=""
+                value={locationOnBody}
+                onChange={(e) => setLocationOnBody(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               >
@@ -67,6 +87,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 name="description"
                 rows={3}
                 placeholder="Ej: criadero FCA, campaña de castración CABA 2018, refugio…"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -79,7 +101,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 name="recordedAt"
                 type="date"
                 mono
-                defaultValue={today}
+                value={recordedAt}
+                onChange={(e) => setRecordedAt(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -91,6 +114,8 @@ export function TattooForm({ action }: { action: FormAction }) {
                 id={id}
                 name="recordedBy"
                 type="text"
+                value={recordedBy}
+                onChange={(e) => setRecordedBy(e.target.value)}
                 aria-describedby={describedBy}
                 invalid={invalid}
               />
@@ -109,14 +134,16 @@ export function TattooForm({ action }: { action: FormAction }) {
                 type="file"
                 accept="image/*"
                 required
-                className="block w-full cursor-pointer rounded-[3px] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-[12px] py-[10px] font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-mute)] file:mr-3 file:cursor-pointer file:rounded-[3px] file:border file:border-[var(--color-ln-line-strong)] file:bg-[var(--color-ln-card)] file:px-[10px] file:py-[5px] file:text-[11px] file:font-semibold file:text-[var(--color-ln-ink)]"
+                className="block w-full cursor-pointer rounded-[var(--radius-sm)] border border-dashed border-[var(--color-ln-line-strong)] bg-[var(--color-ln-stripe)] px-3 py-2.5 font-ln-mono text-sm text-[var(--color-ln-mute)] file:mr-3 file:cursor-pointer file:rounded-[var(--radius-sm)] file:border file:border-[var(--color-ln-line-strong)] file:bg-[var(--color-ln-card)] file:px-2.5 file:py-[5px] file:text-sm file:font-semibold file:text-[var(--color-ln-ink)]"
               />
             )}
           </LnField>
           {state.error && (
             <p
-              className="font-[var(--font-ln-mono)] text-[11.5px] text-[var(--color-ln-err)]"
+              ref={errorRef}
+              className="font-ln-mono text-sm text-[var(--color-ln-err)]"
               role="alert"
+              tabIndex={-1}
             >
               {state.error}
             </p>

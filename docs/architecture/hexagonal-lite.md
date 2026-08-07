@@ -144,7 +144,49 @@ flowchart LR
     Caller --> Shim --> Mod
 ```
 
-This is the **strangler pattern**: the new implementation grows around the old seam; the old file is reduced to a pass-through and deleted only once every importer is repointed (a low-risk follow-up). The same technique let `app/actions/events.ts` shrink from **2,920 lines to a 142-line shim** while every event form kept working.
+This is the **strangler pattern**: the new implementation grows around the old seam; the old file is reduced to a pass-through and deleted only once every importer is repointed (a low-risk follow-up).
+
+### Strangler migration status — `app/actions/` (as of 2026-06-26)
+
+> **Status: IN PROGRESS — two files are fully migrated (`events`, `decomiso`).**
+
+The `events` module is the completed reference slice: the old `app/actions/events.ts` (≈2,920 lines) has been replaced by a thin shim in `src/modules/events/actions.ts`, and all business logic lives in `src/modules/events/application/`. The shim now lives at `src/modules/events/actions.ts`; the `app/actions/events.ts` path no longer exists.
+
+`decomiso` is a second completed slice, cut differently: `app/actions/decomiso.ts` stayed in place (still the caller-facing path) but shrank from 1,574 to 411 lines — it is now a thin controller (parse → auth → call use-case → redirect) delegating into `src/modules/decomiso/application/` (`validateExecuteDecomiso`, `validateReassignDecomiso`, plus the handoff accept/reject use-cases). No re-export shim needed here since the action file itself never moved.
+
+The remaining **~60 files in `app/actions/`** are still fat actions pending migration. The largest files by line count:
+
+| File | Lines | Notes |
+|---|---|---|
+| `return-to-owner.ts` | 1,929 | Critical flow — needs extra parity coverage + browser QA |
+| `admin-institutional.ts` | 915 | |
+| `service-offerings.ts` | 782 | |
+| `bulk-pet-events.ts` | 752 | |
+| `custody-disputes.ts` | 729 | |
+| `upgrade.ts` | 667 | |
+| `admin-revocations.ts` | 606 | |
+| `profile-self-service.ts` | 510 | |
+| `pet-claim.ts` | 495 | |
+
+The ordered migration backlog and per-file recipe are in
+[`docs/superpowers/plans/2026-06-26-strangler-finish-plan.md`](../superpowers/plans/2026-06-26-strangler-finish-plan.md).
+
+A **CI line-budget ratchet** (`pnpm lint:actions`) prevents existing fat actions from
+growing further and caps new `app/actions/*.ts` files at 150 lines. This stops the
+bleeding while migration proceeds file-by-file.
+
+### Strangler cut (per-file recipe)
+
+The recipe below applies to every file in the backlog:
+
+1. **Scaffold** `src/modules/<domain>/{domain,application,infrastructure}/` if not already present.
+2. **Domain first (test-first):** extract pure rules from the fat action; reuse existing projections and lifecycles.
+3. **Repository:** wrap the Drizzle queries, transaction-threaded, returning domain types. Integration-test against Postgres.
+4. **Use-cases:** one per operation; inject repo + authorized context; orchestrate; collect post-tx notifications.
+5. **Thin actions:** parse → auth → call use-case → flush → redirect. No business rules.
+6. **Parity tests:** verify the new path produces identical side-effects, audit rows, idempotency keys, and cascade closes as the original.
+7. **Delete the fat body** in `app/actions/<file>.ts` — replace with a re-export shim if callers reference the old path, or delete outright if the new `src/modules/` path is the only entry point.
+8. **Verify:** `pnpm lint:actions` must still pass (file shrinks → within budget).
 
 ---
 
@@ -209,17 +251,19 @@ Each migration was independently **verified** against the deleted original for b
 
 ## Module map
 
-| Module | Replaces (old fat actions) | Notes |
+| Module | Replaces (old fat actions) | Migration status |
 |---|---|---|
-| `adoption` | `adoption*.ts` | reference slice |
-| `pets` | `pets.ts` | |
-| `foster` | `foster*.ts` | |
-| `transfers` | `pet-transfer.ts`, `cross-org-transfer.ts`, `transfer.ts` | 3 sub-flows |
-| `cases` | `lib/case-*` | **shared kernel** (shims) |
-| `welfare` | `welfare*.ts` | rate-limit, moderation, escalation |
-| `surveillance` | `bite.ts`, `outbreak-investigation.ts`, ENO | bite / rabies / ENO / outbreak |
-| `organizations` | `org*.ts`, `lib/capabilities.ts` | **auth kernel** (shims) |
-| `events` | `events.ts` (2,919 → 142-line shim) | the event spine |
+| `adoption` | `adoption*.ts` | done — reference slice |
+| `pets` | `pets.ts` | done |
+| `foster` | `foster*.ts` | done |
+| `transfers` | `pet-transfer.ts`, `cross-org-transfer.ts`, `transfer.ts` | done — 3 sub-flows |
+| `cases` | `lib/case-*` | done — **shared kernel** (shims in `lib/`) |
+| `welfare` | `welfare*.ts` | done — rate-limit, moderation, escalation |
+| `surveillance` | `bite.ts`, `outbreak-investigation.ts`, ENO | done — bite / rabies / ENO / outbreak |
+| `organizations` | `org*.ts`, `lib/capabilities.ts` | done — **auth kernel** (shims in `lib/`) |
+| `events` | `events.ts` → `src/modules/events/actions.ts` | **done** — 2,919 → thin shim, only fully-relocated action file |
+| `decomiso` | `decomiso.ts` (stays in place, calls into the module) | **done** — 1,574 → 411 lines, thin controller |
+| _(remaining ~60 files)_ | `app/actions/*.ts` | **pending** — see [strangler plan](../superpowers/plans/2026-06-26-strangler-finish-plan.md) |
 
 ---
 
@@ -228,3 +272,106 @@ Each migration was independently **verified** against the deleted original for b
 - Remove the `lib/*` re-export shims once every importer is repointed (capabilities, case-helpers, eno-*, rabies-*, event-schemas, welfare-moderation).
 - `cases`: extract the read-model query repository (deferred WU).
 - A small number of pre-existing **flaky tests** (DB-state isolation under the full serial suite) predate this work and should be addressed separately.
+
+---
+
+## Pattern B — Population-level aggregate projections (`lib/metrics/`)
+
+> Introduced: metrics-IA Item 0. Canonical foundation for all government dashboard KPIs and charts.
+
+Hexagonal-lite governs the **per-pet event replay** path (Pattern A). A second, orthogonal pattern governs **population-level SQL aggregates** — dashboard KPIs such as vaccination coverage, bites per 10k inhabitants, and locality-grouped case counts. Call it **Pattern B**.
+
+### Why Pattern B is distinct
+
+Pattern A (per-pet event replay) is correct for a single animal's lifecycle but too slow for dashboard aggregates across an entire jurisdiction. Pattern B reads denormalized **pets.status** / **pets.species** columns and issues `COUNT()`/`GROUP BY` SQL directly. This is intentional (invariant D7): at population scale the columnar read is the right tool.
+
+Because Pattern B aggregates skip event replay, their boundary must be clearly owned:
+
+- **All Pattern-B fetchers share one authority on scope, denominators, and suppression.**
+- **Privacy enforcement (k-anonymity, k=5) is mandatory.** AGENTS.md §Aggregation has required it since the beginning; `lib/metrics/anonymity.ts` is now the enforcement boundary.
+
+### `lib/metrics/` structure
+
+```
+lib/metrics/
+├── types.ts        — Cell, SuppressedCells (branded), MetricResult<T>
+├── context.ts      — ProjectionContext, buildProjectionContext, ctxKey
+├── scope.ts        — petsScopeClause, petEventsScopeClause (single source)
+├── period.ts       — resolveAnalyticsPeriod re-export + windows factory
+├── population.ts   — activePetsCondition, dogsInScopeCondition (shared denominators)
+├── anonymity.ts    — suppressSmallCells (k=5 default), suppressedMetric
+├── cache.ts        — React.cache dedup: cachedActivePetCount, cachedDogCount
+└── index.ts        — barrel
+```
+
+### ProjectionContext
+
+Every Pattern-B fetcher takes a **single `ProjectionContext`** argument:
+
+```ts
+type ProjectionContext = {
+  actor:  DashboardActor;   // { role: 'admin' | 'govt' }
+  scope:  ProjectionScope;  // { kind: 'global' } | { kind: 'jurisdictions', jurisdictions[] }
+  period: AnalyticsPeriod;  // { since: Date, until: Date }
+};
+```
+
+Build it **once per page** via `buildProjectionContext(actor, jurisdictions, period)` and pass the same instance to every tile fetcher. This is what makes React.cache dedup work: `cachedActivePetCount(ctx)` and other memoized base-population queries use `ctxKey(ctx)` as the cache surrogate, so multiple tiles sharing the same scope+period issue only one DB round-trip per request.
+
+### K-anonymity invariant
+
+All locality-grouped outputs that expose counts per jurisdiction **must** pass through `suppressSmallCells`:
+
+```ts
+const { visible, suppressedCount } = suppressSmallCells(rows, {
+  count: (r) => r.count,
+  key: (r) => r.locality,
+  // rollup: (suppressed) => ({ locality: 'Otras localidades', count: suppressed.reduce(...) })
+});
+```
+
+`SuppressedCells` is a **branded type** — raw `Cell[]` is NOT assignable to it. The brand is applied only inside `suppressSmallCells`; you cannot accidentally skip suppression and still compile.
+
+### Dependency rule for Pattern B
+
+`lib/metrics/` is **infrastructure-adjacent**: it reads `@/db` (Drizzle) and must not be imported from `domain/` or `application/`. Fetchers in `lib/govt-home-kpis.ts` and `lib/govt-dashboards.ts` are the intended consumers. Items 2/3/4 of the metrics-IA umbrella build their new metric fetchers natively on these exports.
+
+### Testing Pattern B
+
+| Test kind | Location | Needs Postgres? |
+|---|---|---|
+| `suppressSmallCells` / `suppressedMetric` — pure | `lib/metrics/anonymity.test.ts` | no |
+| `resolveAnalyticsPeriod` / `windows` — pure | `lib/metrics/period.test.ts` | no |
+| Scope + population primitives — integration | `__tests__/metrics-scope.test.ts` | yes |
+| KPI fetchers (value-pinning) — integration | `__tests__/govt-home-kpis.test.ts` | yes |
+| Bucketing transforms (`timeseries.ts`) — pure | `lib/metrics/timeseries.test.ts` | no |
+| Trend **projection / forecast** (`forecast.ts`) — pure | `lib/metrics/forecast.test.ts` | no |
+
+### Pure projection → pure forecast (Paquete J)
+
+Pattern B's pure-vs-impure split extends naturally to forecasting. The DB-bound
+trend fetchers (`lib/metrics/trends.ts`) produce the bucketed `{x,y}[]` series;
+the forward **projection** (`lib/metrics/forecast.ts` — `projectSeries`,
+`targetCrossing`) is a **pure transform the page delegates to**, exactly like
+`timeseries.ts` is the pure transform `trends.ts` delegates to. It takes the
+already-bucketed, k-anonymised series and returns a confidence band + an
+estimated target-crossing with **no DB and no Next.js runtime**, so the
+regression math (OLS slope, the horizon-widening interval, the `< MIN_POINTS`
+abstention) is unit-tested in milliseconds. The chart (`ForecastChart`) is the
+presentation edge; the projection itself is framework-free.
+
+### Pure firing domain → DB writer (Paquete K — alert inbox)
+
+The alert-triage feature (`/admin/alertas`) keeps the same pure-vs-impure split.
+The decision logic lives in a **pure domain module** — `lib/metrics/alert-firing.ts`
+(`shouldOpenFiring`, the validated `nextStatus` state machine, `metricOpensInvestigation`,
+`investigationDiseaseCode`) — with **no `@/db`, no `next`**, so the dedup gate and
+every legal/illegal state transition are unit-tested in milliseconds
+(`lib/metrics/alert-firing.test.ts`). The **writer** that turns those decisions into
+rows lives at the edge in `app/actions/alert-firings.ts`: it runs the existing
+`evaluateAlertSubscriptions` evaluator, asks the pure `shouldOpenFiring` whether to
+INSERT an `alert_firings` row (one open firing per subscription — no spam), and the
+triage actions delegate each transition to the pure `nextStatus` before writing the
+`*_at`/`*_by` audit columns. The daily `api/cron/evaluate-alerts` route is just an
+auth-gated trigger over the same writer. The pure core decides; the action/cron edge
+persists — exactly the Pattern-B grain.

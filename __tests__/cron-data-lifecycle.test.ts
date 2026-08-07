@@ -11,7 +11,7 @@
 //   4. runDataLifecyclePurge — composite; returns summed counts.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, like, sql } from "drizzle-orm";
+import { eq, like } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { cronRuns, db, notifications, profiles, rateLimitBuckets } from "@/db";
@@ -21,7 +21,7 @@ import {
   purgeExpiredRateLimitBuckets,
   purgeOldCronRuns,
   runDataLifecyclePurge,
-} from "@/lib/data-lifecycle";
+} from "@/lib/infra/data-lifecycle";
 
 // ---------------------------------------------------------------------------
 // Test auth bootstrap — we need a real user profile because notifications
@@ -203,7 +203,15 @@ describe("purgeExpiredRateLimitBuckets", () => {
     await insertBucket(expiredKey, new Date(Date.now() - 1000)); // past
     await insertBucket(liveKey, new Date(Date.now() + 3_600_000)); // future
 
-    const deleted = await purgeExpiredRateLimitBuckets();
+    // The purge deletes in bounded batches and the caller is expected to
+    // drain (see cleanupExpiredBuckets). Under the full parallel suite,
+    // sibling tests create their own expired buckets that can fill a batch
+    // ahead of ours — drain until empty so the assertion is order-immune.
+    let deleted = 0;
+    for (let batch = await purgeExpiredRateLimitBuckets(); batch > 0; ) {
+      deleted += batch;
+      batch = await purgeExpiredRateLimitBuckets();
+    }
     expect(deleted).toBeGreaterThanOrEqual(1);
 
     // Expired bucket gone.

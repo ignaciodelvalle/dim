@@ -1,59 +1,35 @@
 "use server";
 
-// Ley 25.326 subject-rights actions (compliance handoff PR 1).
+// subject-rights.ts — thin shim (strangler migration 57/61).
 //
-// Thin wrappers over the export_subject_data + erase_subject_data RPCs
-// declared in migration 0059. The RPCs are SECURITY DEFINER and check
-// auth.uid() themselves; this layer guarantees the caller has a valid
-// session before invoking them and shapes the result for UI consumers.
+// Business logic moved to:
+//   src/modules/auth/application/subject-rights/
+//
+// This file re-exports all originally-exported symbols (2 actions + 2 types)
+// with identical signatures so all callers keep working unchanged.
+//
+// CRITICAL: Every runtime export in a "use server" file must be an async
+// function — bare `export { x } from "..."` re-exports are rejected by the
+// Next.js compiler. Types are re-exported with `export type` (erased at runtime).
 
-import { revalidatePath } from "next/cache";
+import { eraseMySubjectDataAction as _eraseMySubjectDataAction } from "@/src/modules/auth/application/subject-rights/erase-subject-data";
+import { exportMySubjectDataAction as _exportMySubjectDataAction } from "@/src/modules/auth/application/subject-rights/export-subject-data";
 
-import { requireUserOrRedirect } from "@/lib/auth-guards";
-import { createClient } from "@/lib/supabase/server";
+export type {
+  ExportSubjectDataResult,
+  EraseSubjectDataResult,
+} from "@/src/modules/auth/application/subject-rights/types";
 
-export type ExportSubjectDataResult =
-  | { ok: true; data: Record<string, unknown> }
-  | { ok: false; error: string };
-
-export async function exportMySubjectDataAction(): Promise<ExportSubjectDataResult> {
-  const { user } = await requireUserOrRedirect();
-  const supabase = await createClient();
-
-  const { data, error } = await supabase.rpc("export_subject_data", {
-    p_user_id: user.id,
-  });
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
-  if (!data) {
-    return { ok: false, error: "El export devolvió vacío." };
-  }
-  return { ok: true, data: data as Record<string, unknown> };
+// @no-auth-required: auth enforced inside the delegated use-case (requireUserOrRedirect() gates the export)
+export async function exportMySubjectDataAction(
+  ...args: Parameters<typeof _exportMySubjectDataAction>
+) {
+  return _exportMySubjectDataAction(...args);
 }
 
-export type EraseSubjectDataResult = { ok: true } | { ok: false; error: string };
-
-export async function eraseMySubjectDataAction(reason: string): Promise<EraseSubjectDataResult> {
-  const { user } = await requireUserOrRedirect();
-  if (!reason || reason.trim().length < 5) {
-    return { ok: false, error: "Indicá brevemente el motivo (mínimo 5 caracteres)." };
-  }
-
-  const supabase = await createClient();
-
-  const { error } = await supabase.rpc("erase_subject_data", {
-    p_user_id: user.id,
-    p_reason: reason.trim(),
-  });
-
-  if (error) {
-    return { ok: false, error: error.message };
-  }
-
-  // Drop the session — the profile row is now soft-deleted + PII hashed.
-  await supabase.auth.signOut();
-  revalidatePath("/");
-  return { ok: true };
+// @no-auth-required: auth enforced inside the delegated use-case (requireUserOrRedirect() gates the erase)
+export async function eraseMySubjectDataAction(
+  ...args: Parameters<typeof _eraseMySubjectDataAction>
+) {
+  return _eraseMySubjectDataAction(...args);
 }

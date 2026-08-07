@@ -70,7 +70,7 @@ vi.mock("./route-outbreak-signal-notifications", () => ({
 }));
 
 // maybeNotifyOwnersOfPublicAlert mock
-vi.mock("@/lib/owner-disease-alerts", () => ({
+vi.mock("@/lib/infra/owner-disease-alerts", () => ({
   maybeNotifyOwnersOfPublicAlert: vi.fn().mockResolvedValue({ delivered: 0 }),
 }));
 

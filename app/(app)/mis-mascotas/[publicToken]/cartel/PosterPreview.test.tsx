@@ -22,12 +22,13 @@ const BASE_PROPS = {
   species: "Perro",
   breed: "Labrador",
   sex: "Hembra",
+  sexRaw: "female",
   age: "3 años",
   color: "dorada",
   distinguishingFeatures: "mancha en la oreja derecha",
   photoUrl: null,
   placeName: "Parque Centenario",
-  lostSince: new Date("2026-05-01T12:00:00Z"),
+  lastSeenAt: new Date("2026-05-01T12:00:00Z"),
   ownerFirstName: "María",
   ownerPhone: "+5491100000000",
   locationDisclosed: true,
@@ -41,9 +42,21 @@ describe("<PosterPreview> — structural invariants", () => {
     expect(html).toContain("Luna");
   });
 
-  it("renders PERDIDA header", () => {
+  it("renders a sex-correct headline (PERDIDA for a female pet)", () => {
     const html = render(<PosterPreview {...BASE_PROPS} />);
     expect(html).toContain("PERDIDA");
+  });
+
+  it("renders PERDIDO for a male pet", () => {
+    const html = render(<PosterPreview {...BASE_PROPS} sex="Macho" sexRaw="male" />);
+    expect(html).toContain("PERDIDO");
+    expect(html).not.toContain("PERDIDA");
+  });
+
+  it("renders SE BUSCA when the sex is not recorded — never a slashed headline", () => {
+    const html = render(<PosterPreview {...BASE_PROPS} sex="No especificado" sexRaw="unknown" />);
+    expect(html).toContain("SE BUSCA");
+    expect(html).not.toContain("PERDIDO/A");
   });
 
   it("renders the QR container (dangerouslySetInnerHTML target)", () => {
@@ -129,5 +142,27 @@ describe("<PosterPreview> — optional fields omitted when null", () => {
     const html = render(<PosterPreview {...BASE_PROPS} photoUrl={null} />);
     // Should show the first letter of the pet name as a fallback.
     expect(html).toContain("L");
+  });
+});
+
+describe("<PosterPreview> — missing-photo pre-print warning (tester fix #3b)", () => {
+  it("warns strongly and links to add a photo when photoUrl is null", () => {
+    const html = render(<PosterPreview {...BASE_PROPS} photoUrl={null} />);
+    expect(html).toContain("Sin foto, el cartel pierde casi todo su valor");
+    expect(html).toContain("Agregar foto");
+    expect(html).toContain("/mis-mascotas/DIM-TEST-1234?sheet=editar-mascota");
+    // Print CTA is demoted (secondary styling), NOT removed — printing stays possible.
+    expect(html).toContain("Imprimir cartel");
+    expect(html).not.toContain(
+      "bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)]",
+    );
+  });
+
+  it("no warning and a primary print CTA when a photo exists", () => {
+    const html = render(<PosterPreview {...BASE_PROPS} photoUrl="https://cdn.test/luna.jpg" />);
+    expect(html).not.toContain("Sin foto, el cartel pierde casi todo su valor");
+    expect(html).toContain(
+      "bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)]",
+    );
   });
 });

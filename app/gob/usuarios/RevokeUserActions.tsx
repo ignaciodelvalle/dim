@@ -20,9 +20,11 @@ import { revokeVetRoleAction } from "@/app/actions/admin-revocations";
 import { uploadRevocationEvidence } from "@/app/actions/revocation-evidence";
 import { MOTIVO_MIN, MotivoField } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
-import { canRevoke } from "@/lib/revocation-scope";
-import type { AdminOrGovtJurisdiction } from "@/lib/revocation-scope";
+import { OpButton } from "@/components/ui/dashboard";
+import { canRevoke } from "@/lib/domain/revocation-scope";
+import type { AdminOrGovtJurisdiction } from "@/lib/domain/revocation-scope";
 import { createClient } from "@/lib/supabase/client";
+import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Target = {
   id: string;
@@ -62,7 +64,7 @@ export function RevokeUserActions({
 
   if (mode === "done") {
     return (
-      <p className="text-[12px] text-ln-op-ok">
+      <p className="text-sm text-ln-op-ok">
         Rol vet revocado. {target.displayName} fue notificado.
       </p>
     );
@@ -80,13 +82,9 @@ export function RevokeUserActions({
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => setMode("confirming")}
-      className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-danger text-ln-op-danger hover:opacity-90 transition-opacity"
-    >
+    <OpButton type="button" onClick={() => setMode("confirming")} variant="danger" size="sm">
       Revocar rol vet
-    </button>
+    </OpButton>
   );
 }
 
@@ -141,7 +139,7 @@ function RevokeVetForm({
           return;
         }
 
-        const result = await uploadRevocationEvidence(actorUserId, {
+        const result = await uploadRevocationEvidence({
           storagePath: path,
           mimeType: file.type,
           fileSize: file.size,
@@ -183,18 +181,24 @@ function RevokeVetForm({
         setError(result.error);
       } else {
         onDone();
+        // Full document reload so the SSR page reflects the revoked role —
+        // mirrors RevokeOrgActions.tsx (audit-3-feedback §C2 asymmetry #4:
+        // this file previously left the page stale after an equally
+        // irreversible action). router.refresh() is banned — see
+        // lib/ui/full-page-action-nav.ts.
+        navigateAfterActionSuccess(window.location.href);
       }
     });
   }
 
   return (
-    <div className="rounded-[6px] border border-ln-op-danger p-3 space-y-3 bg-ln-op-danger-bg">
-      <p className="text-[10px] uppercase tracking-wider text-ln-op-danger">
+    <div className="rounded-[var(--radius-md)] border border-ln-op-danger p-3 space-y-3 bg-ln-op-danger-bg">
+      <p className="text-xs uppercase tracking-wider text-ln-op-danger">
         Revocar rol vet — {target.displayName}
       </p>
-      <p className="text-[10px] text-ln-op-danger">
-        Esta accion es irreversible desde esta interfaz. El usuario quedarapor como dueno y recibira
-        una notificacion con el motivo.
+      <p className="text-xs text-ln-op-danger">
+        Esta acción es irreversible desde esta interfaz. El usuario quedará como dueño y recibirá
+        una notificación con el motivo.
       </p>
 
       <MotivoField value={motivo} onChange={setMotivo} />
@@ -202,7 +206,7 @@ function RevokeVetForm({
       <div className="space-y-1">
         <label
           htmlFor="revoke-user-evidence-files"
-          className="block text-[10px] uppercase tracking-wider text-ln-op-mute"
+          className="block text-xs uppercase tracking-wider text-ln-op-mute"
         >
           Evidencia (al menos 1 archivo)
         </label>
@@ -214,16 +218,13 @@ function RevokeVetForm({
           multiple
           onChange={handleFilesChange}
           disabled={uploading || pending}
-          className="text-[12px] text-ln-op-ink-2"
+          className="text-sm text-ln-op-ink-2"
         />
-        {uploading && <p className="text-[10px] text-ln-op-mute">Subiendo...</p>}
+        {uploading && <p className="text-xs text-ln-op-mute">Subiendo...</p>}
         {uploadedFiles.length > 0 && (
           <ul className="space-y-0.5">
             {uploadedFiles.map((f) => (
-              <li
-                key={f.attachmentId}
-                className="flex items-center gap-2 text-[10px] text-ln-op-ink-2"
-              >
+              <li key={f.attachmentId} className="flex items-center gap-2 text-xs text-ln-op-ink-2">
                 <span className="truncate max-w-[200px]">{f.name}</span>
                 <button
                   type="button"
@@ -243,29 +244,19 @@ function RevokeVetForm({
         onChange={(e) => setConfirm(e.target.checked)}
         labelClassName="text-xs! text-ln-op-danger!"
       >
-        Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta accion genera
+        Confirmo que quiero revocar el rol veterinario de {target.displayName}. Esta acción genera
         un registro permanente en el audit log.
       </LnCheckbox>
 
-      {error && <p className="text-[12px] text-ln-op-danger">{error}</p>}
+      {error && <p className="text-sm text-ln-op-danger">{error}</p>}
 
       <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={submit}
-          disabled={!canSubmit}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] bg-ln-op-danger text-white hover:opacity-90 disabled:opacity-50"
-        >
+        <OpButton type="button" onClick={submit} disabled={!canSubmit} variant="danger" size="sm">
           {pending ? "Revocando..." : "Revocar"}
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={pending}
-          className="text-[12px] px-3 py-1.5 rounded-[6px] border border-ln-op-line hover:bg-ln-op-stripe"
-        >
+        </OpButton>
+        <OpButton type="button" onClick={onCancel} disabled={pending} variant="ghost" size="sm">
           Cancelar
-        </button>
+        </OpButton>
       </div>
     </div>
   );
