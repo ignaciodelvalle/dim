@@ -226,10 +226,12 @@ export async function validateIntakeCsvAction(
 /** Wizard submits confirmed rows in small sequential chunks (design D3). */
 const MAX_CHUNK_ROWS = 20;
 
-// Named type ON PURPOSE (not an inline literal in the signature): the authz
-// fence's body extractor counts braces from the export line, and an inline
-// `{ ... }` param type closes its depth counter before the body's guard call
-// is ever seen — the action reads as unguarded (check-authz-guards.ts).
+// Named type (originally a workaround: the authz fence's body extractor used to
+// count braces from the export line, so an inline `{ … }` param type closed its
+// depth before the body's guard call was seen and the action read as unguarded).
+// The extractor now tracks the parameter list separately — see
+// extractExportedAsyncFunctions in scripts/check-authz-guards.ts — so this is
+// kept for readability, not to dodge the linter.
 type ImportIntakeRowsInput = {
   fileHash: string;
   rows: { index: number; fields: Record<string, string> }[];
@@ -277,6 +279,17 @@ export async function importIntakeRowsAction(
       } else if (result.error) {
         results.push({ index: row.index, outcome: "failed", reason: result.error });
       } else if (result.ok && result.createdPetToken) {
+        // KNOWN REPORT LIMITATION (no data risk, label only): re-importing an
+        // already-committed chunk reports these rows as "imported" even though
+        // nothing was written. createIntake's idempotency short-circuit returns
+        // the ORIGINAL pet in exactly the same success shape as a fresh insert
+        // ({ ok, createdPetToken, createdPetName }) — IntakeFormState carries no
+        // wasNoop/duplicate flag, and `duplicateOf` never leaves the use-case.
+        // So the spine is safe (the advisory lock + pet_registered key check
+        // guarantee one pet per file row); only the wizard's per-row label
+        // overstates what happened. Surfacing "Ya importada" would mean adding
+        // that flag to the use-case shared with the individual intake wizard —
+        // a deliberate non-change here.
         results.push({
           index: row.index,
           outcome: "imported",

@@ -252,7 +252,6 @@ describe("finalizeAdoption", () => {
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         adopterUserId: "existing-user-id",
-        isStubAdopter: false,
       }),
       "fake-tx",
     );
@@ -292,7 +291,6 @@ describe("finalizeAdoption", () => {
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         adopterUserId: "fresh-signup-id",
-        isStubAdopter: false,
       }),
       "fake-tx",
     );
@@ -313,7 +311,6 @@ describe("finalizeAdoption", () => {
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         adopterUserId: "foster-user-1",
-        isStubAdopter: false,
       }),
       "fake-tx",
     );
@@ -334,7 +331,6 @@ describe("finalizeAdoption", () => {
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
       expect.objectContaining({
         adopterUserId: "applicant-user-1",
-        isStubAdopter: false,
         adoptedFromApplicationId: "app-evt-1",
       }),
       "fake-tx",
@@ -466,7 +462,7 @@ describe("finalizeAdoption", () => {
       { repo, actor, transaction: fakeTransaction },
     );
     expect(repo.insertAdoptionFinalized).toHaveBeenCalledWith(
-      expect.objectContaining({ isStubAdopter: false, followupMonths: 6 }),
+      expect.objectContaining({ adopterUserId: "existing-user-id", followupMonths: 6 }),
       "fake-tx",
     );
   });

@@ -16,9 +16,10 @@
 // route handler needs) + the pet must be under this org's active
 // shelter_custody (AdoptionRepository.findShelterPet). NOT a public route.
 //
-// The terms block ships as a VISIBLY MARKED draft placeholder (spec 3.4 — PO
-// gate). Do NOT replace it with real legal language without explicit PO
-// sign-off; that is a separate gate, not an implementation detail.
+// The terms block carries the MODEL clauses (adopción responsable) UNDER a
+// visibly marked draft banner (spec 3.4 — PO gate). The clauses are a model,
+// not approved legal text: the banner stays until the PO signs off, and
+// removing it is a PO decision, not a refactor.
 
 import { and, eq } from "drizzle-orm";
 import { NextResponse } from "next/server";
@@ -30,10 +31,11 @@ import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infras
 
 export const dynamic = "force-dynamic";
 
-// PO-gated placeholder (design D10 wording — supersedes the spec's
+// PO-gated draft marker (design D10 wording — supersedes the spec's
 // illustrative example). The integration test asserts this literal verbatim:
-// changing it is a PO decision, not a refactor. (Not exported — route.ts
-// modules only admit Next's route exports.)
+// changing it is a PO decision, not a refactor. It now banners the model
+// clauses instead of standing in for them. (Not exported — route.ts modules
+// only admit Next's route exports.)
 const CONTRACT_TERMS_PLACEHOLDER = "TEXTO LEGAL PENDIENTE DE APROBACIÓN — BORRADOR";
 
 function htmlEscape(s: string | null | undefined): string {
@@ -179,8 +181,20 @@ export async function POST(
       font-size: 11pt;
       font-weight: 700;
       text-align: center;
-      padding: 22pt 12pt;
+      padding: 14pt 12pt;
       letter-spacing: 0.05em;
+      margin-bottom: 12pt;
+    }
+    /* The clause list is longer than a page block can hold; let it flow across
+       pages instead of being pushed whole onto the next one. */
+    .terms { page-break-inside: auto; }
+    .terms .lead { margin: 0 0 8pt; }
+    .terms ol { margin: 0; padding-left: 16pt; }
+    .terms li { margin-bottom: 6pt; page-break-inside: avoid; }
+    .terms li strong { font-variant: small-caps; }
+    .place-date {
+      margin-top: 34pt;
+      font-size: 10.5pt;
     }
     .signatures {
       display: flex;
@@ -259,14 +273,59 @@ export async function POST(
 
   ${notesClause}
 
-  <section class="block">
-    <h2>Términos y cláusulas</h2>
+  <section class="block terms">
+    <h2>Contrato de adopción responsable (modelo)</h2>
     <div class="terms-placeholder">${htmlEscape(CONTRACT_TERMS_PLACEHOLDER)}</div>
+    <p class="lead">
+      Entre la organización <strong>${orgName}</strong>, representada en este acto, en adelante
+      «la Organización», y <strong>${adopterName}</strong>, DNI ${htmlEscape(adopterDni)}, en
+      adelante «la Persona Adoptante», se acuerda la adopción del animal
+      <strong>${petName}</strong> (credencial ${htmlEscape(pet.publicToken)}), conforme a las
+      siguientes cláusulas:
+    </p>
+    <ol>
+      <li>
+        <strong>Entrega y titularidad.</strong> La Organización entrega en adopción definitiva al
+        animal identificado, y la Persona Adoptante lo recibe aceptando su tenencia responsable.
+        La transferencia de custodia se registra digitalmente en miMAR en este mismo acto.
+      </li>
+      <li>
+        <strong>Tenencia responsable.</strong> La Persona Adoptante se compromete a brindar
+        alimentación adecuada, alojamiento, contención y atención veterinaria, incluyendo el plan
+        sanitario y la vacunación antirrábica conforme a la normativa vigente (Ley 22.953).
+      </li>
+      <li>
+        <strong>Prohibición de maltrato y abandono.</strong> El abandono o maltrato del animal
+        constituye infracción a la Ley 14.346 y habilita a la Organización a iniciar las acciones
+        correspondientes.
+      </li>
+      <li>
+        <strong>Esterilización.</strong> Si el animal no estuviera esterilizado al momento de la
+        entrega, la Persona Adoptante se compromete a realizar la esterilización dentro del plazo
+        acordado con la Organización.
+      </li>
+      <li>
+        <strong>Seguimiento.</strong> La Persona Adoptante acepta los controles post-adopción
+        acordados${followupMonths !== null && followupMonths > 0 ? ` (${followupMonths} ${followupMonths === 1 ? "mes" : "meses"}, según se detalla más arriba)` : ""} y
+        mantener actualizados sus datos de contacto en miMAR.
+      </li>
+      <li>
+        <strong>Imposibilidad de tenencia.</strong> Ante la imposibilidad de continuar con la
+        tenencia, la Persona Adoptante se compromete a NO transferir el animal a terceros sin
+        intervención de la Organización, y a restituirlo a ésta como primera opción.
+      </li>
+      <li>
+        <strong>Veracidad.</strong> La Persona Adoptante declara que los datos aportados son
+        veraces y que ninguna restricción legal le impide la tenencia de animales.
+      </li>
+    </ol>
   </section>
 
+  <p class="place-date">Lugar y fecha: ______________________________________________</p>
+
   <div class="signatures">
-    <div class="line">Firma por ${orgName}</div>
-    <div class="line">Firma de ${adopterName}</div>
+    <div class="line">Firma por ${orgName} (la Organización)</div>
+    <div class="line">Firma de ${adopterName} (la Persona Adoptante)</div>
   </div>
 
   <footer>

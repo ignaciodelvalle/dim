@@ -117,6 +117,46 @@ describe('<DegradedFallback> — "Seguir esperando" key bump', () => {
   });
 });
 
+describe("<DegradedFallback> — unmount at the escalation boundary", () => {
+  // Suspense resolving IS an unmount of the whole fallback tree, and it lands
+  // at an arbitrary point in the escalation — possibly mid-reveal. Today that
+  // is free: the schedule is CSS animation-delay, so there is nothing to clean
+  // up. This test pins that. If someone ever reintroduces a JS timer, the
+  // pending setState after unmount surfaces here as a React console error
+  // instead of as a silent leak in production.
+  it("unmounts mid-escalation with no pending work and no state update after unmount", () => {
+    const errors: unknown[][] = [];
+    const originalError = console.error;
+    console.error = (...args: unknown[]) => {
+      errors.push(args);
+    };
+
+    try {
+      const { unmount } = render(
+        <DegradedFallback>
+          <div data-testid="skeleton">skeleton-content</div>
+        </DegradedFallback>,
+      );
+      // Hydration-gated affordance is mounted: the component has run its
+      // effect, so an unmount now is the "late arrival" shape.
+      expect(screen.getByRole("button", { name: DEGRADED_COPY.keepWaiting })).toBeInTheDocument();
+      // Bump the cycle first — a remounted card wrapper is the state most
+      // likely to hold a handle in a timer-based rewrite.
+      fireEvent.click(screen.getByRole("button", { name: DEGRADED_COPY.keepWaiting }));
+
+      expect(() => unmount()).not.toThrow();
+      expect(document.body.textContent).not.toContain(DEGRADED_COPY.slowText);
+    } finally {
+      console.error = originalError;
+    }
+
+    expect(
+      errors,
+      `React logged during unmount: ${errors.map((a) => String(a[0])).join(" | ")}`,
+    ).toEqual([]);
+  });
+});
+
 describe("reduced-motion coupling (app/globals.css — both ends)", () => {
   const css = readFileSync(GLOBALS_CSS_PATH, "utf8");
 

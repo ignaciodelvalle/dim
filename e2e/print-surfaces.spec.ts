@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { seedFixtureVerdict } from "./_seed-profile";
-import { ACCOUNTS, loginAs } from "./demo/_helpers";
+import { ACCOUNTS, loginAs, resolveOrgToken } from "./demo/_helpers";
 
 /**
  * Print-surface regression armor (print-surfaces audit, 2026-08-04).
@@ -246,5 +246,91 @@ test.describe("print surfaces are not clipped by the operator shell", () => {
     // FOOTER, i.e. exactly the part a one-page truncation ate.
     await expect(informe.getByText("Acerca de las métricas")).toBeVisible();
     await expect(informe.getByText(/Fuente: miMAR/)).toBeVisible();
+  });
+});
+
+/**
+ * The adoption contract — the one print surface these tests can only reach
+ * from the outside.
+ *
+ * WHY THERE IS NO `emulateMedia` ASSERTION HERE, unlike every other test in
+ * this file. The contract is not a page you can navigate to. It is a POST-only
+ * route handler (`/org/[orgToken]/mascotas/[publicToken]/adoption/contrato`)
+ * that renders standalone HTML, and it is POST-only ON PURPOSE: the adopter's
+ * DNI travels in the request BODY so it can never land in a URL, in browser
+ * history, or in an access log. `page.goto` cannot open it, and no assertion
+ * here may put a DNI in a URL to work around that.
+ *
+ * Driving the real trigger instead (the sibling <form> in FinalizeAdoptionForm)
+ * needs a REGISTERED adopter whose `profiles.dni_hash` matches a DNI the spec
+ * knows — the route re-resolves the adopter server-side and refuses anything
+ * else. `pnpm db:bootstrap` never writes a dni_hash (`scripts/seed-test-users.ts`
+ * leaves dni_number NULL on purpose); only `scripts/seed-demo-spine.ts` does.
+ * So on CI's seed profile the rendered contract is unreachable at ANY price,
+ * and hardcoding the demo spine's DNI would both break the "no hardcoded
+ * fixtures" convention and pin PII into this file.
+ *
+ * The ink-level fence therefore lives where it can actually run:
+ * `__tests__/adoption-contract-route.test.ts` asserts the rendered HTML
+ * (draft marker verbatim, org/adopter/pet blocks, `window.print()`) against a
+ * live DB with a seeded dni_hash. What that test CANNOT see is the HTTP wiring
+ * — it imports and calls `POST()` directly. That is exactly the gap below: the
+ * built app really does answer this method at this path, and the refusal path
+ * really does render nothing.
+ */
+test.describe("the adoption contract print surface", () => {
+  test("answers a real browser POST and renders no contract for an unresolvable adopter", async ({
+    page,
+  }) => {
+    await loginAs(page, ACCOUNTS.orgAdmin);
+    const orgToken = await resolveOrgToken(page, /Refugio Test/i);
+
+    await page.goto(`/org/${orgToken}/mascotas`, { waitUntil: "domcontentloaded" });
+    await page.waitForLoadState("networkidle").catch(() => {});
+
+    // Same discovery convention as crisis-seams.spec.ts — the pet segment of a
+    // real org link, never a hardcoded token.
+    const petHrefs = await page
+      .locator(`a[href*="/org/${orgToken}/mascotas/DIM"]`)
+      .evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).getAttribute("href") ?? ""));
+    const candidates = Array.from(
+      new Set(
+        petHrefs
+          .map((h) => h.split("/mascotas/")[1]?.split(/[/?#]/)[0] ?? "")
+          .filter((t) => t.startsWith("DIM")),
+      ),
+    );
+
+    const verdict = seedFixtureVerdict(
+      candidates.length,
+      "pet under the seeded refugio's custody",
+      "the adoption contract print route's HTTP wiring",
+    );
+    test.skip(verdict.verdict === "skip", verdict.verdict === "skip" ? verdict.reason : "");
+    expect(verdict.verdict, verdict.verdict === "fail" ? verdict.reason : "").not.toBe("fail");
+
+    const contractUrl = `/org/${orgToken}/mascotas/${candidates[0]}/adoption/contrato`;
+
+    // `page.request` shares the browser context's cookies, so this POST carries
+    // the orgadmin session the route's capability guard needs.
+    const refused = await page.request.post(contractUrl, {
+      // A syntactically valid DNI that resolves to no registered account: the
+      // route must refuse BEFORE rendering anything.
+      form: { adopterDni: "11111111", followupMonths: "", notes: "" },
+    });
+    const refusedBody = await refused.text();
+    // Status only as a coarse signal — the surface is the assertion (e2e/README:
+    // never pin a refusal on the exact status code).
+    expect(refused.status(), "an unresolvable adopter must not get a contract").not.toBe(200);
+    expect(refusedBody).not.toContain("Contrato de adopción");
+    expect(refusedBody).not.toContain("window.print()");
+    // 405 would mean the handler was never reached (wrong method wiring); the
+    // route answers POST and refuses on its own terms.
+    expect(refused.status(), "the route handler accepts POST").not.toBe(405);
+
+    // GET is not an entry point: the DNI must never be expressible in a URL.
+    const viaGet = await page.request.get(contractUrl);
+    expect(viaGet.status(), "the contract must not be GET-addressable").not.toBe(200);
+    expect(await viaGet.text()).not.toContain("window.print()");
   });
 });

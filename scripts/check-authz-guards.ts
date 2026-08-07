@@ -205,6 +205,21 @@ export type ExportedFn = {
 
 // Walk the file, find every `export async function NAME(` declaration, then
 // brace-match to the closing `}` to capture the body. One entry per export.
+//
+// Braces are counted ONLY inside the body. Counting them from the export line
+// was a real recall bug: an inline object type in the PARAMETER LIST
+// (`input: { fileHash: string; rows: { index: number }[] }`) drove the depth
+// back to zero on the signature's own `}`, so the captured "body" was just the
+// signature and the guard call in the real body was never seen — the action
+// read as UNGUARDED (bit importIntakeRowsAction, 2026-08-06). Object types in
+// the RETURN annotation have the same shape (`Promise<{ ok: boolean }>`), which
+// is why the walk waits for a brace at angle-depth zero instead of taking the
+// first `{` after the parameter list's closing paren.
+//
+// Phases: `signature` (up to the parameter list, including an optional `<T…>`
+// type-parameter list) → `params` (paren-matched) → `returnType` (angle-aware)
+// → `body` (brace-matched). Still line-based and dependency-free, like the rest
+// of this script.
 export function extractExportedAsyncFunctions(src: string): ExportedFn[] {
   const out: ExportedFn[] = [];
   const lines = src.split("\n");
@@ -215,21 +230,52 @@ export function extractExportedAsyncFunctions(src: string): ExportedFn[] {
     if (!m) continue;
     const name = m[1];
 
+    let phase: "signature" | "generics" | "params" | "returnType" | "body" = "signature";
+    let angleDepth = 0;
+    let parenDepth = 0;
     let braceDepth = 0;
-    let started = false;
     let endLine = i;
     let body = "";
     for (let j = i; j < lines.length; j++) {
       for (const ch of lines[j]) {
-        if (ch === "{") {
+        if (phase === "signature") {
+          if (ch === "<") {
+            angleDepth = 1;
+            phase = "generics";
+          } else if (ch === "(") {
+            parenDepth = 1;
+            phase = "params";
+          }
+        } else if (phase === "generics") {
+          if (ch === "<") angleDepth++;
+          else if (ch === ">") {
+            angleDepth--;
+            if (angleDepth === 0) phase = "signature";
+          }
+        } else if (phase === "params") {
+          if (ch === "(") parenDepth++;
+          else if (ch === ")") {
+            parenDepth--;
+            if (parenDepth === 0) phase = "returnType";
+          }
+        } else if (phase === "returnType") {
+          // `async` forces a Promise-shaped return type, so any brace here is
+          // inside `<…>`: track the angle depth and skip those.
+          if (ch === "<") angleDepth++;
+          else if (ch === ">") {
+            if (angleDepth > 0) angleDepth--;
+          } else if (ch === "{" && angleDepth === 0) {
+            braceDepth = 1;
+            phase = "body";
+          }
+        } else if (ch === "{") {
           braceDepth++;
-          started = true;
         } else if (ch === "}") {
           braceDepth--;
         }
       }
       body += `${lines[j]}\n`;
-      if (started && braceDepth === 0) {
+      if (phase === "body" && braceDepth === 0) {
         endLine = j;
         break;
       }

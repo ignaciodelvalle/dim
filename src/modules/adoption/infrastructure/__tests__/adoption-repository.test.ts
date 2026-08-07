@@ -347,15 +347,34 @@ const ORG_DISPLAY_NAME = "Repo Test Refugio";
 // Pet name as inserted in beforeAll.
 const PET_NAME = "RepoTestPet1";
 
+type FinalizeTx = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+/**
+ * Seeds the adopter's profile row.
+ *
+ * The repo does NOT create it: the stub-profile insert was removed once
+ * finalize-adoption started refusing anything but a REGISTERED account, so the
+ * new owner row's FK needs a profile that already exists. Callers seed it in
+ * the SAME transaction, so a rolled-back fixture leaves nothing behind.
+ */
+async function seedAdopterProfile(tx: FinalizeTx, adopterUserId: string): Promise<void> {
+  await tx.insert(profiles).values({
+    id: adopterUserId,
+    displayName: "Test Adoptante",
+    dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
+    dniVerified: false,
+    role: "owner",
+  });
+}
+
 /**
  * Builds a minimal valid InsertAdoptionFinalizedArgs for parity tests.
- * Uses a fresh adopterUserId (stub profile) per call so tests don't conflict.
+ * The caller passes the adopter id it has already seeded (seedAdopterProfile).
  */
 function makeFinalizeArgs(
+  adopterUserId: string,
   overrides: Record<string, unknown> = {},
 ): Parameters<typeof AdoptionRepository.insertAdoptionFinalized>[0] {
-  const adopterUserId = crypto.randomUUID();
-  const dni = `${Math.floor(Math.random() * 90000000 + 10000000)}`;
   return {
     petId: petId1,
     userId: actorUserId,
@@ -363,13 +382,9 @@ function makeFinalizeArgs(
     orgVerified: true,
     custodyOwnershipId: custodyOwnershipId1,
     adopterUserId,
-    isStubAdopter: true,
     fosterRow: null,
     fosterUserId: null,
     custodyCaseId: null,
-    displayName: "Test Adoptante",
-    phone: null,
-    dni,
     contractAttachmentId: null,
     contractStoragePath: null,
     contractMimeType: null,
@@ -395,8 +410,10 @@ describe("W-1 parity: insertAdoptionFinalized inserts attachments row inside tx"
 
     await db
       .transaction(async (tx) => {
+        const adopterUserId = crypto.randomUUID();
+        await seedAdopterProfile(tx, adopterUserId);
         const { eventId } = await AdoptionRepository.insertAdoptionFinalized(
-          makeFinalizeArgs({
+          makeFinalizeArgs(adopterUserId, {
             contractAttachmentId,
             contractStoragePath: storagePath,
             contractMimeType: mimeType,
@@ -444,8 +461,10 @@ describe("W-1 parity: insertAdoptionFinalized inserts attachments row inside tx"
 
     await db
       .transaction(async (tx) => {
+        const adopterUserId = crypto.randomUUID();
+        await seedAdopterProfile(tx, adopterUserId);
         await AdoptionRepository.insertAdoptionFinalized(
-          makeFinalizeArgs({ contractAttachmentId: null }),
+          makeFinalizeArgs(adopterUserId, { contractAttachmentId: null }),
           tx,
         );
         throw new Error("intentional rollback");
@@ -472,24 +491,11 @@ describe("W-2 parity: reminder description uses org displayName and pet name", (
 
     await db
       .transaction(async (tx) => {
-        // Insert a minimal personal profile for the adopter.
-        await tx.insert(profiles).values({
-          id: adopterUserId,
-          displayName: "Adopter W2 Test",
-          dniHash: hashDni(`${Math.floor(Math.random() * 90000000 + 10000000)}`),
-          dniVerified: true,
-          role: "owner",
-        });
+        await seedAdopterProfile(tx, adopterUserId);
 
         await AdoptionRepository.insertAdoptionFinalized(
-          makeFinalizeArgs({
-            // Non-stub adopter with followup months so reminders are inserted.
-            isStubAdopter: false,
-            followupMonths: 1,
-            adopterUserId,
-            // No stub profile insert (isStubAdopter=false, profile already created above).
-            dni: null,
-          }),
+          // Followup months set so the reminder rows are inserted.
+          makeFinalizeArgs(adopterUserId, { followupMonths: 1 }),
           tx,
         );
 
@@ -778,6 +784,9 @@ describe("AdoptionRepository — reversal (findReversibleAdoption / insertAdopti
     // Genuine finalize (committed, via the real repo method) — the fixture
     // the reversal tests need: a real adoption_finalized event + owner row.
     await db.transaction(async (tx) => {
+      // The adopter profile is seeded here, not by the repo: the stub-insert
+      // branch is gone (adopters are always registered accounts).
+      await seedAdopterProfile(tx, adopterUserIdRev);
       const { eventId } = await AdoptionRepository.insertAdoptionFinalized(
         {
           petId: petIdRev,
@@ -786,13 +795,9 @@ describe("AdoptionRepository — reversal (findReversibleAdoption / insertAdopti
           orgVerified: true,
           custodyOwnershipId: custodyOwnershipIdRev,
           adopterUserId: adopterUserIdRev,
-          isStubAdopter: true,
           fosterRow: null,
           fosterUserId: null,
           custodyCaseId: null,
-          displayName: "Reversal Test Adopter",
-          phone: null,
-          dni: `${Math.floor(Math.random() * 90000000 + 10000000)}`,
           contractAttachmentId: null,
           contractStoragePath: null,
           contractMimeType: null,

@@ -11,7 +11,6 @@
 //      lookup against REGISTERED accounts — stub creation removed, org-pilot-pack)
 //   5. Pre-tx: find open custody case
 //   6. Atomic transaction (via repo.insertAdoptionFinalized):
-//      - Stub profile insert (if needed)
 //      - Close shelter_custody
 //      - Close foster + foster_placement case (if any)
 //      - Insert owner row
@@ -133,10 +132,10 @@ export async function finalizeAdoption(
   const validation = validateFinalizationInput(domainInput, fosterRow);
   if (!validation.ok) return { ok: false, error: validation.error };
 
-  // 5. Resolve adopter identity.
+  // 5. Resolve adopter identity. EVERY branch below lands on a REAL registered
+  // account — stub creation is gone (see the manual-DNI branch), so there is no
+  // longer a "stub adopter" mode for downstream writes to special-case.
   let adopterUserId: string;
-  let isStubAdopter: boolean;
-  let dni: string | null = null;
   // Set only on the approved-application path — links the finalization back to
   // the online application in the event log.
   let adoptedFromApplicationId: string | null = null;
@@ -153,7 +152,6 @@ export async function finalizeAdoption(
     );
     if ("error" in approved) return { ok: false, error: approved.error };
     adopterUserId = approved.applicantUserId;
-    isStubAdopter = false;
     adoptedFromApplicationId = input.applicationEventId;
   } else if (input.adopterUserId) {
     // Foster-shortcut: adopterUserId is the foster's profile id.
@@ -174,7 +172,6 @@ export async function finalizeAdoption(
       };
     }
     adopterUserId = adopterProfile.id;
-    isStubAdopter = false;
   } else {
     // Manual DNI path — REGISTERED accounts only (org-pilot-pack).
     //
@@ -183,17 +180,16 @@ export async function finalizeAdoption(
     // walk-in adopter who registered on the spot has dniVerified=false and
     // must still match. A legacy stub profile (matching hash, no auth row)
     // REFUSES: adopting onto an unclaimable profile is the dead-end this
-    // change removes. Stub creation (randomUUID + isStubAdopter=true) is
+    // change removes. Stub creation (randomUUID + a stub-profile insert) is
     // gone for good — the branch is removed, not feature-flagged.
     const rawDni = input.adopterDni ?? "";
-    dni = normalizeDni(rawDni);
+    const dni = normalizeDni(rawDni);
 
     const account = await repo.findAdopterAccountByDni(dni);
     if (!account || !account.hasAuthAccount) {
       return { ok: false, error: ADOPTER_ACCOUNT_REQUIRED_MSG };
     }
     adopterUserId = account.id;
-    isStubAdopter = false;
   }
 
   // 6. Pre-tx: find open custody_episode case (null if never intaked).
@@ -218,18 +214,14 @@ export async function finalizeAdoption(
           orgVerified: organization.verified,
           custodyOwnershipId: petRow.custodyOwnershipId,
           adopterUserId,
-          isStubAdopter,
           fosterRow,
           fosterUserId,
           custodyCaseId,
-          displayName: input.adopterDisplayName,
-          phone: input.adopterPhone,
-          dni,
           contractAttachmentId: input.contractAttachmentId,
           contractStoragePath: input.contractStoragePath,
           contractMimeType: input.contractMimeType,
           contractFileSize: input.contractFileSize,
-          followupMonths: isStubAdopter ? null : followupMonths,
+          followupMonths,
           notes: input.notes,
           adoptedFromApplicationId,
           orgDisplayName: organization.displayName,
@@ -286,19 +278,19 @@ export async function finalizeAdoption(
   }
 
   // 8. Post-tx: collect additional notifications (not flushed here — action does it).
-  if (!isStubAdopter) {
-    pendingNotifications.push({
-      userId: adopterUserId,
-      notificationType: "adoption_finalized",
-      category: "adoption",
-      title: `Adoptaste a ${petRow.name}`,
-      body: `${organization.displayName} te registró como dueño/a de ${petRow.name}. Bienvenida a la familia.`,
-      severity: "success",
-      ctaLabel: "Ver mascota",
-      ctaUrl: "/mis-mascotas",
-      relatedPetId: petRow.id,
-    });
-  }
+  // The adopter always has a real account, so this notification always has a
+  // reachable inbox (it used to be skipped for stub adopters).
+  pendingNotifications.push({
+    userId: adopterUserId,
+    notificationType: "adoption_finalized",
+    category: "adoption",
+    title: `Adoptaste a ${petRow.name}`,
+    body: `${organization.displayName} te registró como dueño/a de ${petRow.name}. Bienvenida a la familia.`,
+    severity: "success",
+    ctaLabel: "Ver mascota",
+    ctaUrl: "/mis-mascotas",
+    relatedPetId: petRow.id,
+  });
 
   if (fosterUserId && fosterUserId !== adopterUserId) {
     pendingNotifications.push({

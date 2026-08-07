@@ -136,6 +136,80 @@ describe("extractExportedAsyncFunctions", () => {
     const fn = extractExportedAsyncFunctions(src).find((f) => f.name === "expireSomethingAction")!;
     expect(fn.hasNoAuthComment).toBe(false);
   });
+
+  // -------------------------------------------------------------------------
+  // Signature-vs-body accounting. The extractor used to count braces from the
+  // export line, so an inline object type ANYWHERE in the signature closed the
+  // depth before the body started: the body was never captured and its guard
+  // call was invisible. A linter that silently stops looking is worse than no
+  // linter, so these are recall fences, not style tests.
+  // -------------------------------------------------------------------------
+
+  it("captures the body past an inline object type in the parameter list", () => {
+    // The exact shape that hid importIntakeRowsAction's guard (2026-08-06):
+    // a nested inline object type in the params.
+    const src = [
+      "export async function importThingAction(",
+      "  orgToken: string,",
+      "  input: { a: { b: string } },",
+      ") {",
+      "  const auth = await requireCapabilityForOrgToken('intake.create', orgToken);",
+      "  return auth;",
+      "}",
+    ].join("\n");
+    const fns = extractExportedAsyncFunctions(src);
+    expect(fns).toHaveLength(1);
+    expect(fns[0].name).toBe("importThingAction");
+    expect(fns[0].body).toContain("requireCapabilityForOrgToken");
+    expect(callsAuthGuard(fns[0].body)).toBe(true);
+  });
+
+  it("captures the body past an inline object type in the RETURN annotation", () => {
+    // `Promise<{ ok: boolean }>` is the same trap one token later.
+    const src = [
+      "export async function fetchThingAction(",
+      "  input: { id: string },",
+      "): Promise<{ ok: boolean; rows: { id: string }[] }> {",
+      "  const { user } = await requireUserOrRedirect();",
+      "  return { ok: true, rows: [{ id: user.id }] };",
+      "}",
+    ].join("\n");
+    const fns = extractExportedAsyncFunctions(src);
+    expect(fns).toHaveLength(1);
+    expect(callsAuthGuard(fns[0].body)).toBe(true);
+    // The closing `}` of the FUNCTION ends the capture, not the type's.
+    expect(fns[0].endLine).toBe(6);
+  });
+
+  it("captures the body of a generic export whose type parameter carries a constraint object", () => {
+    const src = [
+      "export async function mapRowsAction<T extends { id: string }>(",
+      "  rows: T[],",
+      "): Promise<T[]> {",
+      "  await requireUserOrRedirect();",
+      "  return rows;",
+      "}",
+    ].join("\n");
+    const fns = extractExportedAsyncFunctions(src);
+    expect(fns).toHaveLength(1);
+    expect(fns[0].name).toBe("mapRowsAction");
+    expect(callsAuthGuard(fns[0].body)).toBe(true);
+  });
+
+  it("still finds the SECOND export after a multi-line signature (no runaway capture)", () => {
+    const src = [
+      "export async function firstAction(input: { a: string }) {",
+      "  await requireUserOrRedirect();",
+      "  return 1;",
+      "}",
+      "",
+      "export async function secondAction() {",
+      "  return 2;",
+      "}",
+    ].join("\n");
+    const names = extractExportedAsyncFunctions(src).map((f) => f.name);
+    expect(names).toEqual(["firstAction", "secondAction"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

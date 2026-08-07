@@ -26,7 +26,7 @@ import {
   findOpenCaseForPetAndKind,
   openCase,
 } from "@/lib/infra/case-helpers";
-import { dniLast4, hashDni } from "@/lib/utils/dni-hash";
+import { hashDni } from "@/lib/utils/dni-hash";
 
 // ---------------------------------------------------------------------------
 // Type aliases
@@ -133,15 +133,16 @@ type InsertAdoptionFinalizedArgs = {
   orgId: string;
   orgVerified: boolean;
   custodyOwnershipId: string;
+  /**
+   * The adopter's REAL account id. Always a registered account: stub-profile
+   * creation was removed from finalize-adoption (org-pilot-pack), so this
+   * writer never invents a profile row — hence no displayName/phone/dni here.
+   */
   adopterUserId: string;
-  isStubAdopter: boolean;
   fosterRow: { id: string; ownerUserId: string | null } | null;
   fosterUserId: string | null;
   /** Pre-found custody case id, or null if not intaked. */
   custodyCaseId: string | null;
-  displayName: string;
-  phone: string | null;
-  dni: string | null;
   contractAttachmentId: string | null;
   /** Supabase Storage path of the uploaded contract file (null when no file). */
   contractStoragePath: string | null;
@@ -937,7 +938,6 @@ export const AdoptionRepository = {
   /**
    * Composite atomic write for finalizing an adoption. Must be called inside a
    * db.transaction(). Handles:
-   *   - optional stub profile insert
    *   - close shelter_custody ownership
    *   - close foster ownership + foster_placement case (if active foster)
    *   - insert new owner row
@@ -958,13 +958,9 @@ export const AdoptionRepository = {
       orgVerified,
       custodyOwnershipId,
       adopterUserId,
-      isStubAdopter,
       fosterRow,
       fosterUserId,
       custodyCaseId,
-      displayName,
-      phone,
-      dni,
       contractAttachmentId,
       contractStoragePath,
       contractMimeType,
@@ -977,18 +973,9 @@ export const AdoptionRepository = {
       now,
     } = args;
 
-    // Stub profile insert. No plaintext DNI (Wave 5 Item 25a).
-    if (isStubAdopter && dni) {
-      await tx.insert(profiles).values({
-        id: adopterUserId,
-        displayName,
-        phone,
-        dniHash: hashDni(dni),
-        dniLast4: dniLast4(dni),
-        dniVerified: false,
-        role: "owner",
-      });
-    }
+    // No stub-profile insert: the adopter ALWAYS pre-exists as a registered
+    // account (finalize-adoption refuses otherwise), so this writer only ever
+    // moves custody onto a profile someone can actually log into.
 
     // Close shelter_custody.
     await tx.update(ownerships).set({ endedAt: now }).where(eq(ownerships.id, custodyOwnershipId));
@@ -1070,9 +1057,10 @@ export const AdoptionRepository = {
       });
     }
 
-    // Reminder rows for non-stub adopter.
+    // Post-adoption check-in reminders. They land in the adopter's own account,
+    // which always exists (see adopterUserId's contract above).
     const CHECKIN_WINDOWS = [1, 3, 6, 12] as const;
-    if (!isStubAdopter && followupMonths !== null && followupMonths > 0) {
+    if (followupMonths !== null && followupMonths > 0) {
       const dueWindows = CHECKIN_WINDOWS.filter((m) => m <= followupMonths);
       if (dueWindows.length > 0) {
         await tx.insert(reminders).values(
