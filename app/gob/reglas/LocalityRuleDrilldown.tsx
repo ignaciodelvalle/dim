@@ -16,6 +16,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState, useTransition } from "react";
 
 import { searchLocalitiesAction } from "@/app/actions/localities";
+import { OpInput } from "@/components/ui/dashboard/OpField";
 import { buildJurisdictionRulesHref } from "@/lib/domain/jurisdiction-rules-href";
 import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
 
@@ -86,7 +87,7 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName, base }: Prop
       <label htmlFor={inputId} className="block text-sm text-ln-op-mute mb-1">
         Crear/ver regla en una localidad de {provinceName}
       </label>
-      <input
+      <OpInput
         id={inputId}
         type="text"
         value={query}
@@ -102,7 +103,8 @@ export function LocalityRuleDrilldown({ provinceCode, provinceName, base }: Prop
         name={`locality-search-${provinceCode}`}
         aria-autocomplete="list"
         aria-expanded={open}
-        className="w-full max-w-sm text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+        className="max-w-sm"
+        size="sm"
       />
       {open && results.length > 0 && (
         <ul className="absolute z-10 mt-1 max-h-72 w-full max-w-sm overflow-auto rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card shadow-lg">

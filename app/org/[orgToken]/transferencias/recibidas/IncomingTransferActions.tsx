@@ -13,6 +13,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpTextarea } from "@/components/ui/dashboard/OpField";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   acceptCrossOrgTransferAction,
@@ -142,19 +143,17 @@ export function IncomingTransferActions({
         triggerRef={rejectTriggerRef}
       >
         <div className="space-y-2 px-5 pb-1">
-          <textarea
+          <OpTextarea
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             rows={2}
             placeholder="Motivo del rechazo (opcional)"
-            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
           />
-          <textarea
+          <OpTextarea
             value={rejectMessage}
             onChange={(e) => setRejectMessage(e.target.value)}
             rows={2}
             placeholder="Mensaje para la organización remitente (opcional)"
-            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
           />
         </div>
       </ConfirmDialog>

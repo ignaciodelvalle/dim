@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   closeWelfareReportAction,
@@ -133,12 +133,11 @@ export function TriageActions({
   return (
     <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4 space-y-3">
       <p className="text-md font-medium text-ln-op-ink">{titles[mode]}</p>
-      <textarea
+      <OpTextarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholders[mode]}
-        className="w-full px-3 py-2 rounded border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
       />
       <p className="text-sm text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}

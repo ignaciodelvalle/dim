@@ -3,7 +3,7 @@
 import { useActionState, useEffect, useState } from "react";
 
 import { type BusinessRuleFormState, deleteBusinessRuleAction } from "@/app/actions/business-rules";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 const initialState: BusinessRuleFormState = { error: null };
@@ -64,14 +64,14 @@ export function DeleteRuleButton({
         <label htmlFor={`delete-rule-reason-${ruleId}`} className="sr-only">
           Motivo de la eliminación
         </label>
-        <textarea
+        <OpTextarea
           id={`delete-rule-reason-${ruleId}`}
           name="reason"
           rows={2}
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Motivo de la eliminación (queda en el audit log)"
-          className="w-full rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+          size="xs"
         />
         {state.error && (
           <p className="text-sm text-ln-op-danger" role="alert">

@@ -9,7 +9,7 @@ import {
   approveServiceOfferingAction,
   rejectServiceOfferingAction,
 } from "@/app/actions/service-offerings";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Mode = "idle" | "approving" | "rejecting";
@@ -80,12 +80,12 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
     const tooShort = reason.trim().length < 10;
     return (
       <div className="space-y-2">
-        <textarea
+        <OpTextarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Motivo del rechazo (mínimo 10 caracteres). Se envía al proveedor."
           rows={3}
-          className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          size="sm"
         />
         <div className="flex items-center gap-2">
           <OpButton

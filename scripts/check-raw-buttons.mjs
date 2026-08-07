@@ -406,7 +406,7 @@ const OPERATOR_RADIUS_BASELINE = 18;
 // 2026-07-29: citizen lowered 105 → 104 in the same change — LostFiltersBars
 // raw "Buscar" (danger red, --radius-sm) migrated to LnButton primary, and its
 // "Limpiar" Link to LnButton anchor mode.
-const CITIZEN_RADIUS_BASELINE = 102;
+const CITIZEN_RADIUS_BASELINE = 101;
 
 function scanRadii({ label, glob, baseline, scriptName }) {
   const files = globSync(glob, { exclude: (p) => /\.test\.tsx$/.test(p) });

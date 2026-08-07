@@ -23,8 +23,7 @@ import { useState } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { OpButton, OpCheckbox, OpSelect } from "@/components/ui/dashboard";
-import { OpField } from "@/components/ui/dashboard/OpField";
+import { OpButton, OpCheckbox, OpField, OpSelect } from "@/components/ui/dashboard";
 // Value import from "@/db/schema" (NOT "@/db"): this is a "use client"
 // component and @/db carries `import "server-only"` — a value import through
 // the barrel breaks the webpack build (type-only imports would be erased,

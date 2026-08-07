@@ -11,6 +11,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { reassignDecomisoToAnotherReceiverAction } from "@/app/actions/decomiso";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { OpSelect, OpTextarea } from "@/components/ui/dashboard/OpField";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type ReceiverOrgOption = {
@@ -104,12 +105,11 @@ export function ReasignarButton({
             <label htmlFor="newReceiverId" className="block text-sm font-medium text-ln-op-ink">
               Nuevo refugio destinatario
             </label>
-            <select
+            <OpSelect
               id="newReceiverId"
               value={newReceiverId}
               onChange={(e) => setNewReceiverId(e.target.value)}
               disabled={availableReceivers.length === 0}
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
             >
               <option value="">Elegí una organización verificada…</option>
               {availableReceivers.map((r) => (
@@ -117,7 +117,7 @@ export function ReasignarButton({
                   {r.displayName} · {ORG_TYPE_LABEL[r.orgType] ?? r.orgType}
                 </option>
               ))}
-            </select>
+            </OpSelect>
             <p className="text-sm text-ln-op-mute">
               {availableReceivers.length === 0
                 ? "No hay refugios verificados disponibles para reasignar."
@@ -129,13 +129,13 @@ export function ReasignarButton({
             <label htmlFor="reassignReason" className="block text-sm font-medium text-ln-op-ink">
               Motivo de reasignacion (opcional)
             </label>
-            <textarea
+            <OpTextarea
               id="reassignReason"
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               rows={2}
               placeholder="Por ej: el refugio anterior rechazo por falta de espacio."
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+              className="resize-none"
             />
           </div>
 

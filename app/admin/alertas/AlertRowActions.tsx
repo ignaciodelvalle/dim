@@ -27,7 +27,7 @@ import {
   registerFollowupFiringAction,
   resolveFiringAction,
 } from "@/app/actions/alert-firings";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import type { AlertFiringStatus, AlertMetricKey } from "@/db/schema";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
@@ -89,17 +89,18 @@ export function AlertRowActions({ firingId, status, metricKey, hasJurisdiction }
         <label className="text-sm font-semibold text-ln-op-mute" htmlFor={`note-${firingId}`}>
           {title}
         </label>
-        <textarea
+        <OpTextarea
           id={`note-${firingId}`}
           value={noteValue}
           onChange={(e) => setNoteValue(e.target.value)}
           rows={2}
-          className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-sm text-ln-op-ink"
           placeholder={
             prompt === "followup"
               ? "Qué se hizo / a quién se contactó…"
               : "Nota de cierre (opcional)…"
           }
+          size="xs"
+          block={false}
         />
         {error ? <p className="text-sm text-ln-op-danger">{error}</p> : null}
         <div className="flex items-center gap-2">

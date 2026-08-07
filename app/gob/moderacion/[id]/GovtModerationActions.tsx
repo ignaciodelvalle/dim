@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { LnCheckbox } from "@/components/ui/Field";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   approveDenunciaModerationAction,
@@ -126,12 +126,12 @@ export function GovtModerationActions({ welfareReportId }: { welfareReportId: st
         </div>
       )}
 
-      <textarea
+      <OpTextarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={4}
         placeholder={placeholder}
-        className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-sm text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        size="sm"
       />
       <p className="text-sm tabular-nums text-ln-op-mute">{notes.trim().length} caracteres</p>
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}

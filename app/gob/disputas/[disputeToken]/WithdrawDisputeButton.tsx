@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { withdrawDisputeAction } from "@/app/actions/custody-disputes";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }) {
@@ -53,13 +53,17 @@ export function WithdrawDisputeButton({ disputeToken }: { disputeToken: string }
         <label htmlFor="withdraw-reason" className="block text-sm text-ln-op-mute mb-1">
           Motivo del retiro (opcional)
         </label>
-        <textarea
+        {/* The old hand-rolled chrome focused to a RED border because the panel
+            around it is danger-toned. Dropped on purpose: this field is
+            optional and always valid, and red-on-focus is the app's error
+            signal (`aria-[invalid=true]` in OpTextarea's base). The panel
+            already carries the destructive framing. */}
+        <OpTextarea
           id="withdraw-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={2}
           placeholder="Motivo (opcional)."
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-danger"
         />
       </div>
 

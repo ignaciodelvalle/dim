@@ -1,6 +1,6 @@
 import { JurisdictionFilter } from "@/components/JurisdictionFilter";
 import { LnEmptyState } from "@/components/ui/EmptyState";
-import { OpButton, OpCrumbs } from "@/components/ui/dashboard";
+import { OpButton, OpCrumbs, OpSelect } from "@/components/ui/dashboard";
 import { db, ownerships, pets } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { speciesLabel } from "@/lib/utils/format";
@@ -103,17 +103,18 @@ export default async function VoluntariosPage({
           >
             Especie
           </label>
-          <select
+          <OpSelect
             id="filter-species"
             name="species"
             defaultValue={filters.species ?? ""}
-            className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            size="sm"
+            block={false}
           >
             <option value="">Todas</option>
             <option value="dog">Perros</option>
             <option value="cat">Gatos</option>
             <option value="other">Otras</option>
-          </select>
+          </OpSelect>
         </div>
         <JurisdictionFilter
           provinceParam="province"
@@ -130,11 +131,12 @@ export default async function VoluntariosPage({
           >
             Match para
           </label>
-          <select
+          <OpSelect
             id="filter-pet"
             name="pet"
             defaultValue={filters.pet ?? ""}
-            className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            size="sm"
+            block={false}
           >
             <option value="">— sin mascota —</option>
             {orgPets.map((p) => (
@@ -142,7 +144,7 @@ export default async function VoluntariosPage({
                 {p.name} ({speciesLabel(p.species)})
               </option>
             ))}
-          </select>
+          </OpSelect>
         </div>
         <OpButton type="submit" variant="primary" size="sm">
           Filtrar

@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { speciesLabel } from "@/lib/utils/format";
 import { proposeFosterAction } from "@/src/modules/foster/actions";
@@ -129,18 +129,18 @@ export function VolunteerRow({
               >
                 Mascota
               </label>
-              <select
+              <OpSelect
                 id={`propose-pet-${row.userId}`}
                 value={petToken}
                 onChange={(e) => setPetToken(e.target.value)}
-                className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+                size="sm"
               >
                 {orgPets.map((p) => (
                   <option key={p.id} value={p.publicToken}>
                     {p.name} ({speciesLabel(p.species)})
                   </option>
                 ))}
-              </select>
+              </OpSelect>
             </div>
             <div>
               <label
@@ -149,23 +149,23 @@ export function VolunteerRow({
               >
                 Duración (semanas)
               </label>
-              <input
+              <OpInput
                 id={`propose-duration-${row.userId}`}
                 type="number"
                 min={1}
                 value={durationWeeks}
                 onChange={(e) => setDurationWeeks(e.target.value)}
                 placeholder="Opcional"
-                className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+                size="sm"
               />
             </div>
           </div>
-          <textarea
+          <OpTextarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             placeholder="Notas para el voluntario (opcional)"
-            className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-[7px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+            size="sm"
           />
           {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
           <div className="flex gap-2">

@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import {
   approveAdoptionApplicationAction,
@@ -139,12 +139,11 @@ export function ReviewButtons({
     <div className="space-y-3 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-4">
       <p className="text-md font-medium text-ln-op-ink">{labelMap[mode]}</p>
       <p className="text-sm text-ln-op-mute">{hintMap[mode]}</p>
-      <textarea
+      <OpTextarea
         value={notes}
         onChange={(e) => setNotes(e.target.value)}
         rows={3}
         placeholder={placeholderMap[mode]}
-        className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
       />
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">

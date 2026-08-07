@@ -16,7 +16,7 @@
 import { useState } from "react";
 
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import {
   ADOPTION_AGE_BUCKETS,
   ADOPTION_ENERGY_LEVELS,
@@ -171,13 +171,12 @@ export function AdoptionListingForm({
             <label htmlFor="story" className="block text-sm font-medium text-ln-op-ink mb-1">
               Historia
             </label>
-            <textarea
+            <OpTextarea
               id="story"
               value={story}
               onChange={(e) => setStory(e.target.value)}
               rows={5}
               placeholder="Contá quién es esta mascota, cómo llegó al refugio, qué la hace especial."
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
             <p className="text-sm text-ln-op-mute mt-1 tabular-nums">{story.length} / 5000</p>
           </div>
@@ -186,13 +185,12 @@ export function AdoptionListingForm({
             <label htmlFor="requirements" className="block text-sm font-medium text-ln-op-ink mb-1">
               Requisitos para adoptar
             </label>
-            <textarea
+            <OpTextarea
               id="requirements"
               value={requirements}
               onChange={(e) => setRequirements(e.target.value)}
               rows={3}
               placeholder="Mayores de edad, entrevista previa, compromiso de castración, etc."
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
           </div>
 
@@ -201,11 +199,10 @@ export function AdoptionListingForm({
               <label htmlFor="age" className="block text-sm text-ln-op-mute mb-1">
                 Edad
               </label>
-              <select
+              <OpSelect
                 id="age"
                 value={ageBucket}
                 onChange={(e) => setAgeBucket(e.target.value as AgeBucket | "")}
-                className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_AGE_BUCKETS.map((b) => (
@@ -213,17 +210,16 @@ export function AdoptionListingForm({
                     {ageBucketLabel(b, petSex)}
                   </option>
                 ))}
-              </select>
+              </OpSelect>
             </div>
             <div>
               <label htmlFor="size" className="block text-sm text-ln-op-mute mb-1">
                 Talle
               </label>
-              <select
+              <OpSelect
                 id="size"
                 value={sizeEstimate}
                 onChange={(e) => setSizeEstimate(e.target.value as SizeEstimate | "")}
-                className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_SIZE_ESTIMATES.map((s) => (
@@ -231,17 +227,16 @@ export function AdoptionListingForm({
                     {sizeLabel(s)}
                   </option>
                 ))}
-              </select>
+              </OpSelect>
             </div>
             <div>
               <label htmlFor="energy" className="block text-sm text-ln-op-mute mb-1">
                 Energía
               </label>
-              <select
+              <OpSelect
                 id="energy"
                 value={energyLevel}
                 onChange={(e) => setEnergyLevel(e.target.value as EnergyLevel | "")}
-                className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
               >
                 <option value="">Sin definir</option>
                 {ADOPTION_ENERGY_LEVELS.map((e) => (
@@ -249,7 +244,7 @@ export function AdoptionListingForm({
                     {energyLabel(e, petSex)}
                   </option>
                 ))}
-              </select>
+              </OpSelect>
             </div>
           </div>
 
@@ -277,14 +272,15 @@ export function AdoptionListingForm({
             <label htmlFor="fee" className="block text-sm text-ln-op-mute mb-1">
               Aporte de adopción (ARS, opcional)
             </label>
-            <input
+            <OpInput
               id="fee"
               type="number"
               min={0}
               value={feeArs}
               onChange={(e) => setFeeArs(e.target.value)}
               placeholder="Ej: 15000"
-              className="w-40 px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              className="w-40"
+              block={false}
             />
             <p className="text-sm text-ln-op-mute mt-1">
               Para cubrir vacunas, castración, traslado. Dejá vacío si no aplica.

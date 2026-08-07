@@ -8,7 +8,7 @@ import { useRef, useState } from "react";
 import { createInstitutionalAccountAction } from "@/app/actions/admin-institutional";
 import { MagicLinkResultPanel } from "@/app/admin/_components/MagicLinkResultPanel";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import { UNKNOWN_ERROR_FALLBACK } from "@/lib/ui/error-fallback";
 
@@ -124,14 +124,13 @@ export function CreateGovtForm() {
               *
             </span>
           </label>
-          <input
+          <OpInput
             id="email"
             type="email"
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="operador@municipio.gob.ar"
-            className="w-full text-md rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
 
@@ -142,7 +141,7 @@ export function CreateGovtForm() {
               *
             </span>
           </label>
-          <input
+          <OpInput
             id="displayName"
             type="text"
             required
@@ -150,7 +149,6 @@ export function CreateGovtForm() {
             onChange={(e) => setDisplayName(e.target.value)}
             placeholder="Municipalidad de La Plata"
             maxLength={100}
-            className="w-full text-md rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
           />
         </div>
 

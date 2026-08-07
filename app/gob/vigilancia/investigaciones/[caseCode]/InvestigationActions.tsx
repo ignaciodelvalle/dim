@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   type InvestigationNoteEntryType,
@@ -182,18 +182,17 @@ export function InvestigationActions({
           <label htmlFor="entry-type" className="block text-sm font-medium text-ln-op-mute">
             Tipo de registro
           </label>
-          <select
+          <OpSelect
             id="entry-type"
             value={entryType}
             onChange={(e) => setEntryType(e.target.value as InvestigationNoteEntryType)}
-            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
           >
             {ENTRY_TYPES.map((t) => (
               <option key={t.value} value={t.value}>
                 {t.label}
               </option>
             ))}
-          </select>
+          </OpSelect>
         </div>
       )}
 
@@ -203,38 +202,35 @@ export function InvestigationActions({
             <label htmlFor="ext-date" className="block text-sm font-medium text-ln-op-mute">
               Fecha de notificación
             </label>
-            <input
+            <OpInput
               id="ext-date"
               type="date"
               value={extDate}
               onChange={(e) => setExtDate(e.target.value)}
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
             />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="ext-channel" className="block text-sm font-medium text-ln-op-mute">
               Canal
             </label>
-            <input
+            <OpInput
               id="ext-channel"
               type="text"
               value={extChannel}
               onChange={(e) => setExtChannel(e.target.value)}
               placeholder="SNVS / SENASA / zoonosis…"
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
             />
           </div>
           <div className="space-y-1.5">
             <label htmlFor="ext-reference" className="block text-sm font-medium text-ln-op-mute">
               Referencia (opcional)
             </label>
-            <input
+            <OpInput
               id="ext-reference"
               type="text"
               value={extReference}
               onChange={(e) => setExtReference(e.target.value)}
               placeholder="N.º de expediente / acta…"
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
             />
           </div>
         </div>
@@ -245,13 +241,12 @@ export function InvestigationActions({
           <label htmlFor="final-report" className="block text-sm font-medium text-ln-op-mute">
             Informe final (si no lo registraste antes)
           </label>
-          <textarea
+          <OpTextarea
             id="final-report"
             value={finalReport}
             onChange={(e) => setFinalReport(e.target.value)}
             rows={3}
             placeholder="Texto del informe epidemiológico final (opcional si ya existe un registro previo)..."
-            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
           />
         </div>
       )}
@@ -264,7 +259,7 @@ export function InvestigationActions({
               ? "Detalle de la notificación (mínimo 5 caracteres)"
               : "Motivo (mínimo 10 caracteres)"}
         </label>
-        <textarea
+        <OpTextarea
           id="notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
@@ -276,7 +271,6 @@ export function InvestigationActions({
                 ? "A quien y que se notifico por el canal externo..."
                 : "Explica el motivo..."
           }
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
         />
         <p className="text-sm text-ln-op-mute tabular-nums">{notes.trim().length} caracteres</p>
       </div>

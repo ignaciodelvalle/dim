@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useId, useState, useTransition } from "react";
 
 import { proposeVetUpgradeAction } from "@/app/actions/admin-proposals";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpTextarea } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
 
 type Target = { id: string; displayName: string; role: "owner" | "vet" | "govt" | "admin" };
@@ -170,13 +170,13 @@ function Field({
       <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
-      <input
+      <OpInput
         id={id}
         type="text"
         inputMode={inputMode}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        size="xs"
       />
     </div>
   );
@@ -199,12 +199,12 @@ function Textarea({
       <label htmlFor={id} className="block text-xs uppercase tracking-wider text-ln-op-mute">
         {label}
       </label>
-      <textarea
+      <OpTextarea
         id={id}
         rows={rows}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-2 py-1.5 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        size="xs"
       />
     </div>
   );

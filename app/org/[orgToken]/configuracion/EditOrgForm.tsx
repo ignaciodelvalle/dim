@@ -5,6 +5,7 @@ import { useActionState, useState } from "react";
 import { LnAlert } from "@/components/ui/Alert";
 import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox, LnField, LnInput } from "@/components/ui/Field";
+import { OpTextarea } from "@/components/ui/dashboard/OpField";
 import type { Organization } from "@/db";
 import {
   type UpdateOrgFormState,
@@ -144,14 +145,14 @@ export function EditOrgForm({ organization }: Props) {
 
       <LnField label="Descripción pública" hint="Máximo 2000 caracteres.">
         {({ id, describedBy }) => (
-          <textarea
+          <OpTextarea
             id={id}
             name="description"
             rows={4}
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             aria-describedby={describedBy}
-            className="w-full rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2 text-md text-ln-op-ink bg-ln-op-card focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
+            className="resize-y"
           />
         )}
       </LnField>

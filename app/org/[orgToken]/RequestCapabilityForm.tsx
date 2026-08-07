@@ -1,6 +1,6 @@
 "use client";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import {
   type CapabilityActionState,
   requestCapabilityAction,
@@ -30,12 +30,12 @@ export function RequestCapabilityForm({
   return (
     <form action={formAction} className="flex flex-col gap-2 w-full">
       <input type="hidden" name="capability" value={capability} />
-      <textarea
+      <OpTextarea
         name="reason"
         rows={2}
         maxLength={500}
         placeholder={`¿Por qué necesitás "${label}"? (opcional)`}
-        className="text-sm w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+        size="xs"
       />
       <div className="flex items-center gap-2">
         <OpButton type="submit" variant="primary" size="sm" disabled={isPending}>

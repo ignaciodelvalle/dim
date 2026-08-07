@@ -12,7 +12,7 @@ import { MicrochipAttendanceForm } from "@/app/_components/attendance-forms/Micr
 import { SterilizationAttendanceForm } from "@/app/_components/attendance-forms/SterilizationAttendanceForm";
 import { VaccinationAttendanceForm } from "@/app/_components/attendance-forms/VaccinationAttendanceForm";
 import type { AttendancePayload, AttendanceResult } from "@/app/actions/attendance";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 type Props = {
@@ -162,13 +162,18 @@ export function AttendanceFormDispatcher({
             <label htmlFor="noshow-reason" className="block text-sm font-medium text-ln-op-ink">
               Motivo de la ausencia (opcional)
             </label>
-            <input
+            {/* These two fields used to tint their focus ring to the panel tone
+                (warn here, danger below). Dropped on purpose: a focus indicator
+                has to be recognizable as THE focus indicator everywhere, and a
+                warn ring on a warn background is the lowest-contrast pairing on
+                this screen. The panel already carries the tone. */}
+            <OpInput
               id="noshow-reason"
               type="text"
               value={noShowReason}
               onChange={(e) => setNoShowReason(e.target.value)}
               placeholder="Ej: No se presentó sin aviso"
-              className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-warn"
+              size="sm"
             />
             <div className="flex gap-2">
               <OpButton variant="primary" size="sm" onClick={submitNoShow} disabled={pending}>
@@ -186,13 +191,13 @@ export function AttendanceFormDispatcher({
             <label htmlFor="cancel-reason" className="block text-sm font-medium text-ln-op-ink">
               Motivo de la cancelación (opcional)
             </label>
-            <input
+            <OpInput
               id="cancel-reason"
               type="text"
               value={cancelReason}
               onChange={(e) => setCancelReason(e.target.value)}
               placeholder="Ej: Cancelado por el profesional"
-              className="w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-3 py-1.5 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-danger"
+              size="sm"
             />
             <div className="flex gap-2">
               <OpButton variant="danger" size="sm" onClick={submitCancel} disabled={pending}>

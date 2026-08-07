@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { setAdoptionEligibilityAction } from "@/src/modules/adoption/actions";
 
@@ -127,42 +127,40 @@ export function EligibilityForm({
             <label htmlFor="elig-reason" className="block text-sm font-medium text-ln-op-ink mb-1">
               Motivo
             </label>
-            <select
+            <OpSelect
               id="elig-reason"
               value={reason}
               onChange={(e) => setReason(e.target.value as Reason)}
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             >
               {REASONS.map((r) => (
                 <option key={r.value} value={r.value}>
                   {r.label}
                 </option>
               ))}
-            </select>
+            </OpSelect>
           </div>
           <div>
             <label htmlFor="elig-notes" className="block text-sm font-medium text-ln-op-ink mb-1">
               Notas {reason === "other" && <span className="text-ln-op-danger">*</span>}
             </label>
-            <textarea
+            <OpTextarea
               id="elig-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
               placeholder={reason === "other" ? "Describí el motivo" : "Notas (opcional)"}
-              className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
             />
           </div>
           <div>
             <label htmlFor="elig-until" className="block text-sm font-medium text-ln-op-ink mb-1">
               Hasta (opcional)
             </label>
-            <input
+            <OpInput
               id="elig-until"
               type="date"
               value={until}
               onChange={(e) => setUntil(e.target.value)}
-              className="px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+              block={false}
             />
             <p className="text-sm text-ln-op-mute mt-1">
               Si lo dejás vacío, queda no-apta hasta que la marques manualmente otra vez.

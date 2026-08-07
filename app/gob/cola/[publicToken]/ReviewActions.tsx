@@ -8,7 +8,7 @@ import {
   requestInfoAction,
 } from "@/app/actions/admin-decisions";
 import { LnCheckbox } from "@/components/ui/Field";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 import {
@@ -132,12 +132,12 @@ export function ReviewActions({
             )}
           </fieldset>
         )}
-        <textarea
+        <OpTextarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="Notas para el aplicante (opcional)."
           rows={2}
-          className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul text-ln-op-ink placeholder:text-ln-op-faint"
+          size="sm"
         />
         <div className="flex items-center gap-2">
           <OpButton
@@ -162,12 +162,12 @@ export function ReviewActions({
     const tooShort = reason.trim().length < 5;
     return (
       <div className="space-y-2">
-        <textarea
+        <OpTextarea
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           placeholder="Razón del rechazo (mínimo 5 caracteres). Se envía al aplicante."
           rows={3}
-          className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul text-ln-op-ink placeholder:text-ln-op-faint"
+          size="sm"
         />
         <div className="flex items-center gap-2">
           <OpButton
@@ -192,12 +192,12 @@ export function ReviewActions({
     const tooShort = infoMessage.trim().length < 5;
     return (
       <div className="space-y-2">
-        <textarea
+        <OpTextarea
           value={infoMessage}
           onChange={(e) => setInfoMessage(e.target.value)}
           placeholder="Qué información falta (mínimo 5 caracteres). Se envía al aplicante; la solicitud sigue pendiente."
           rows={3}
-          className="w-full text-sm rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ln-op-azul text-ln-op-ink placeholder:text-ln-op-faint"
+          size="sm"
         />
         <div className="flex items-center gap-2">
           <OpButton

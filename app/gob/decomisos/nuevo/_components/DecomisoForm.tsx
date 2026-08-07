@@ -33,7 +33,7 @@
 
 import { Icon } from "@/components/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
@@ -369,7 +369,7 @@ export function DecomisoForm({
                   >
                     Token de la mascota
                   </label>
-                  <input
+                  <OpInput
                     id="petToken"
                     type="text"
                     value={petToken}
@@ -385,7 +385,7 @@ export function DecomisoForm({
                       }
                     }}
                     placeholder="DIM-XXXX-XXXX"
-                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md font-mono text-ln-op-ink placeholder-ln-op-faint focus:outline-none focus:border-ln-op-azul"
+                    className="font-mono"
                   />
                 </div>
                 <OpButton
@@ -463,17 +463,16 @@ export function DecomisoForm({
                   >
                     Especie <span className="text-ln-op-danger">*</span>
                   </label>
-                  <select
+                  <OpSelect
                     id="unownedSpecies"
                     value={unownedSpecies}
                     onChange={(e) => setUnownedSpecies(e.target.value)}
-                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
                   >
                     <option value="">{"— Seleccioná —"}</option>
                     <option value="dog">Perro</option>
                     <option value="cat">Gato</option>
                     <option value="other">Otro</option>
-                  </select>
+                  </OpSelect>
                 </div>
 
                 <div>
@@ -483,16 +482,15 @@ export function DecomisoForm({
                   >
                     Sexo
                   </label>
-                  <select
+                  <OpSelect
                     id="unownedSex"
                     value={unownedSex}
                     onChange={(e) => setUnownedSex(e.target.value as "male" | "female" | "unknown")}
-                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
                   >
                     <option value="unknown">Desconocido</option>
                     <option value="male">Macho</option>
                     <option value="female">Hembra</option>
-                  </select>
+                  </OpSelect>
                 </div>
               </div>
 
@@ -504,13 +502,12 @@ export function DecomisoForm({
                   >
                     Raza (opcional)
                   </label>
-                  <input
+                  <OpInput
                     id="unownedBreed"
                     type="text"
                     value={unownedBreed}
                     onChange={(e) => setUnownedBreed(e.target.value)}
                     placeholder="Mestizo, labrador, etc."
-                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
 
@@ -521,13 +518,12 @@ export function DecomisoForm({
                   >
                     Color (opcional)
                   </label>
-                  <input
+                  <OpInput
                     id="unownedColor"
                     type="text"
                     value={unownedColor}
                     onChange={(e) => setUnownedColor(e.target.value)}
                     placeholder="Negro, blanco y marron, etc."
-                    className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                   />
                 </div>
               </div>
@@ -539,13 +535,12 @@ export function DecomisoForm({
                 >
                   Marcas distintivas (opcional)
                 </label>
-                <input
+                <OpInput
                   id="unownedFeatures"
                   type="text"
                   value={unownedFeatures}
                   onChange={(e) => setUnownedFeatures(e.target.value)}
                   placeholder="Cicatriz en lomo, mancha en ojo derecho, etc."
-                  className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                 />
               </div>
 
@@ -556,7 +551,7 @@ export function DecomisoForm({
                 >
                   Edad aproximada en meses (opcional)
                 </label>
-                <input
+                <OpInput
                   id="unownedAgeMonths"
                   type="number"
                   min="0"
@@ -565,7 +560,6 @@ export function DecomisoForm({
                   value={unownedAgeMonths}
                   onChange={(e) => setUnownedAgeMonths(e.target.value)}
                   placeholder="Ej: 24 (2 anios)"
-                  className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
                 />
               </div>
             </div>
@@ -584,11 +578,10 @@ export function DecomisoForm({
             >
               Motivo <span className="text-ln-op-danger">*</span>
             </label>
-            <select
+            <OpSelect
               id="seizureMotive"
               value={seizureMotive}
               onChange={(e) => setSeizureMotive(e.target.value as SeizureMotive | "")}
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul appearance-none"
             >
               <option value="">{"— Seleccioná un motivo —"}</option>
               {(Object.entries(SEIZURE_MOTIVE_LABELS) as [SeizureMotive, string][]).map(
@@ -598,7 +591,7 @@ export function DecomisoForm({
                   </option>
                 ),
               )}
-            </select>
+            </OpSelect>
           </div>
 
           {seizureMotive === "otro" && (
@@ -609,13 +602,13 @@ export function DecomisoForm({
               >
                 Detalle del motivo <span className="text-ln-op-danger">*</span>
               </label>
-              <textarea
+              <OpTextarea
                 id="seizureMotiveOtherDetail"
                 value={seizureMotiveOtherDetail}
                 onChange={(e) => setSeizureMotiveOtherDetail(e.target.value)}
                 rows={3}
                 placeholder="Describí el motivo específico del decomiso"
-                className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+                className="resize-none"
               />
             </div>
           )}
@@ -624,13 +617,12 @@ export function DecomisoForm({
             <label htmlFor="judicialRef" className="block text-sm font-medium text-ln-op-ink mb-1">
               Expediente judicial (opcional)
             </label>
-            <input
+            <OpInput
               id="judicialRef"
               type="text"
               value={judicialRef}
               onChange={(e) => setJudicialRef(e.target.value)}
               placeholder="Ej: EXP-2025-123456"
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
             />
           </div>
 
@@ -660,13 +652,13 @@ export function DecomisoForm({
             >
               Estado del animal al momento del decomiso (opcional)
             </label>
-            <textarea
+            <OpTextarea
               id="intakeCondition"
               value={intakeCondition}
               onChange={(e) => setIntakeCondition(e.target.value)}
               rows={2}
               placeholder="Descripcion de la condicion fisica / comportamental del animal"
-              className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul resize-none"
+              className="resize-none"
             />
           </div>
         </section>
@@ -705,13 +697,12 @@ export function DecomisoForm({
               <label htmlFor="receiverSearch" className="block text-sm font-medium text-ln-op-ink">
                 Buscar por nombre <span className="text-ln-op-danger">*</span>
               </label>
-              <input
+              <OpInput
                 id="receiverSearch"
                 type="text"
                 value={receiverSearch}
                 onChange={(e) => setReceiverSearch(e.target.value)}
                 placeholder="Escribí para filtrar..."
-                className="block w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
               />
               {receiverOrgs.length === 0 ? (
                 <p className="text-sm text-ln-op-mute py-2">

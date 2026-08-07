@@ -1,6 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
+import { useId } from "react";
 
 // Shared filter bar for /gob/* pages. Drives state via URL search params so
 // refresh, share, and back-button all behave correctly. The pattern matches
@@ -32,6 +33,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 export type { TimeRange } from "./jurisdiction-filter-params";
 export { RANGE_ORDER, readFilterParams } from "./jurisdiction-filter-params";
 
+import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { RANGE_ORDER, type TimeRange } from "./jurisdiction-filter-params";
 
 export interface JurisdictionOption {
@@ -157,20 +159,28 @@ function FilterSelect({
   options: JurisdictionOption[];
   onChange: (v: string) => void;
 }) {
+  // Explicit htmlFor/id rather than wrapping the control in the <label>: now
+  // that the select is a component, implicit association is invisible to static
+  // analysis, and the explicit link is the one every AT/browser pair follows.
+  const id = useId();
   return (
-    <label className="inline-flex items-center gap-2 text-xs">
-      <span className="text-ln-op-mute">{label}</span>
-      <select
-        className="rounded-md border border-ln-op-line bg-ln-op-card px-2 py-1 text-xs text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+    <div className="inline-flex items-center gap-2 text-xs">
+      <label className="text-ln-op-mute" htmlFor={id}>
+        {label}
+      </label>
+      <OpSelect
+        id={id}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        size="xs"
+        block={false}
       >
         {options.map((o) => (
           <option key={o.value} value={o.value}>
             {o.label}
           </option>
         ))}
-      </select>
-    </label>
+      </OpSelect>
+    </div>
   );
 }

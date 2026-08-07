@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { addDisputePartyAction, searchPartyCandidatesAction } from "@/app/actions/custody-disputes";
 import type { PartyCandidate } from "@/app/actions/custody-disputes";
 import { Icon } from "@/components/Icon";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 import type { DisputePartyRole } from "@/src/modules/custody-disputes/domain/types";
@@ -221,7 +221,7 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
         <label htmlFor="party-search" className="block text-sm text-ln-op-mute mb-1">
           {partyKind === "user" ? "Buscar usuario por nombre" : "Buscar organización por nombre"}
         </label>
-        <input
+        <OpInput
           id="party-search"
           type="text"
           role="combobox"
@@ -236,7 +236,6 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
           onBlur={handleInputBlur}
           onKeyDown={handleInputKeyDown}
           placeholder={partyKind === "user" ? "Ej: María Gómez" : "Ej: Refugio Huellas"}
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
 
         {/* role="listbox"/"option" on <ul>/<li> — same APG combobox pattern as
@@ -302,31 +301,29 @@ export function AddPartyForm({ disputeToken }: { disputeToken: string }) {
         <label htmlFor="party-role" className="block text-sm text-ln-op-mute mb-1">
           Rol en la disputa
         </label>
-        <select
+        <OpSelect
           id="party-role"
           value={partyRole}
           onChange={(e) => setPartyRole(e.target.value as RoleValue)}
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {PARTY_ROLE_OPTIONS.map((r) => (
             <option key={r.value} value={r.value}>
               {r.label}
             </option>
           ))}
-        </select>
+        </OpSelect>
       </div>
 
       <div>
         <label htmlFor="party-summary" className="block text-sm text-ln-op-mute mb-1">
           Posicion / nota (opcional)
         </label>
-        <textarea
+        <OpTextarea
           id="party-summary"
           value={positionSummary}
           onChange={(e) => setPositionSummary(e.target.value)}
           rows={2}
           placeholder="Resumen de la posicion de esta parte"
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 

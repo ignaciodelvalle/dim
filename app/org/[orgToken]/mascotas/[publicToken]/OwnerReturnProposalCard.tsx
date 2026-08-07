@@ -6,7 +6,7 @@ import {
   orgAcceptOwnerReturnAction,
   orgRejectOwnerReturnAction,
 } from "@/app/actions/return-to-owner";
-import { OpButton, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashboard";
+import { OpButton, OpCard, OpCardBody, OpCardHead, OpTextarea } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
 
 export function OwnerReturnProposalCard({
@@ -144,12 +144,12 @@ export function OwnerReturnProposalCard({
           <p className="text-md text-ln-op-ink mb-3">
             Rechazar la devolución de <strong>{petName}</strong>.
           </p>
-          <textarea
+          <OpTextarea
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             rows={2}
             placeholder="Motivo del rechazo (requerido)"
-            className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul mb-3"
+            className="mb-3"
           />
           {error && <output className="block text-sm text-ln-op-danger mb-3">{error}</output>}
           <div className="flex gap-2">

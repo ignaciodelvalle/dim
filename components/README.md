@@ -59,7 +59,7 @@ Operator (`components/ui/dashboard/*`):
 | `CaseStatusBadge` | Case-status badge (open/escalated/closed/merged grammar). |
 | `OpRailNav` | Left-rail navigation links inside `OpRail`. |
 | `OpCard` / `OpCardHead` / `OpCardBody` | Dashboard card surface. |
-| `OpField` / `OpInput` / `OpSelect` / `OpTextarea` / `OpSubmitButton` | Operator form field set. |
+| `OpField` / `OpInput` / `OpSelect` / `OpTextarea` / `OpSubmitButton` | Operator form field set — the ONLY source of the `ln-op-*` control chrome (`lint:op-controls` holds hand-rolled copies at zero). Density via `size="md|sm|xs"`, width via `block`. |
 
 ## Rules
 

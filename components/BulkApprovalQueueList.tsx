@@ -34,7 +34,7 @@ import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpBulkResultPanel } from "@/components/ui/dashboard/OpBulkResultPanel";
 import { OpButton, type OpButtonVariant } from "@/components/ui/dashboard/OpButton";
 import { OpCodeBadge } from "@/components/ui/dashboard/OpCodeBadge";
-import { OpCheckbox } from "@/components/ui/dashboard/OpField";
+import { OpCheckbox, OpTextarea } from "@/components/ui/dashboard/OpField";
 import { OpPill } from "@/components/ui/dashboard/OpPill";
 import type { ApprovalRequestType } from "@/db";
 import {
@@ -416,12 +416,12 @@ function ConfirmRow({
     <div className="space-y-2">
       <p className="text-sm font-medium">{title}</p>
       {children}
-      <textarea
+      <OpTextarea
         value={value}
         onChange={(e) => onChange(e.target.value)}
         rows={2}
         placeholder={placeholder}
-        className="w-full px-3 py-2 rounded-lg border border-ln-op-line bg-ln-op-card text-sm"
+        size="sm"
       />
       <div className="flex gap-2 justify-end">
         <OpButton variant="ghost" size="sm" onClick={onCancel} disabled={pending}>

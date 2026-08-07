@@ -4,6 +4,7 @@
 
 import { useState, useTransition } from "react";
 
+import { OpSelect } from "@/components/ui/dashboard/OpField";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import { changeMemberRoleAction } from "@/src/modules/organizations/actions";
 
@@ -50,18 +51,19 @@ export function ChangeRoleSelect({
 
   return (
     <div className="flex flex-col gap-1">
-      <select
+      <OpSelect
         value={selectedRole}
         onChange={handleChange}
         disabled={pending}
-        className="rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-[5px] text-sm text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul disabled:opacity-60"
+        size="xs"
+        block={false}
       >
         {settableRoles.map((r) => (
           <option key={r.value} value={r.value}>
             {r.label}
           </option>
         ))}
-      </select>
+      </OpSelect>
       {error && (
         <p className="text-sm text-ln-op-danger" role="alert">
           {error}

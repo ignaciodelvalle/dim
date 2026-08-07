@@ -9,6 +9,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { createAlertSubscriptionAction } from "@/app/actions/alert-subscriptions";
+import { OpInput, OpSelect } from "@/components/ui/dashboard/OpField";
 // Import the const arrays from the SCHEMA module, NOT "@/db" (the barrel that
 // also exports the postgres client) — this is a client component, and "@/db"
 // would pull the Node `net`/`tls` driver into the client bundle.
@@ -84,11 +85,11 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
         <label htmlFor="alert-metric-key" className="text-sm font-semibold text-ln-op-ink">
           Métrica
         </label>
-        <select
+        <OpSelect
           id="alert-metric-key"
           name="metricKey"
           required
-          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-md text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11"
           aria-required="true"
         >
           <option value="">Seleccioná una métrica…</option>
@@ -97,7 +98,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
               {METRIC_LABELS[key]}
             </option>
           ))}
-        </select>
+        </OpSelect>
       </div>
 
       {/* Direction */}
@@ -105,11 +106,11 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
         <label htmlFor="alert-direction" className="text-sm font-semibold text-ln-op-ink">
           Dirección
         </label>
-        <select
+        <OpSelect
           id="alert-direction"
           name="direction"
           required
-          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-md text-ln-op-ink focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11"
           aria-required="true"
         >
           <option value="">Seleccioná…</option>
@@ -118,7 +119,7 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
               {DIRECTION_LABELS[d]}
             </option>
           ))}
-        </select>
+        </OpSelect>
       </div>
 
       {/* Threshold */}
@@ -126,14 +127,14 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
         <label htmlFor="alert-threshold" className="text-sm font-semibold text-ln-op-ink">
           Umbral
         </label>
-        <input
+        <OpInput
           id="alert-threshold"
           name="threshold"
           type="number"
           step="any"
           required
           placeholder="Ej.: 10"
-          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-md text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11"
           aria-required="true"
         />
       </div>
@@ -149,12 +150,12 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
             — dejá vacío para cobertura nacional
           </span>
         </label>
-        <input
+        <OpInput
           id="alert-jurisdiction-province"
           name="jurisdictionProvince"
           type="text"
           placeholder="Ej.: Buenos Aires"
-          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-md text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11"
         />
         <p className="text-sm text-ln-op-mute">
           Nota: "Días sin atender" siempre es global, independientemente de la provincia.
@@ -166,13 +167,13 @@ export function AlertSubscriptionForm({ onCreated }: Props) {
         <label htmlFor="alert-label" className="text-sm font-semibold text-ln-op-ink">
           Etiqueta (opcional)
         </label>
-        <input
+        <OpInput
           id="alert-label"
           name="label"
           type="text"
           maxLength={120}
           placeholder="Ej.: Zoonosis CABA crítica"
-          className="h-11 w-full rounded-[var(--radius-md)] border border-ln-op-line bg-white px-3 text-md text-ln-op-ink placeholder:text-ln-op-mute focus:outline-none focus:ring-2 focus:ring-ln-op-azul"
+          className="h-11"
         />
       </div>
 

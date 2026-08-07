@@ -1,11 +1,6 @@
 "use client";
 
-import type {
-  InputHTMLAttributes,
-  ReactNode,
-  SelectHTMLAttributes,
-  TextareaHTMLAttributes,
-} from "react";
+import type { ComponentPropsWithRef, InputHTMLAttributes, ReactNode } from "react";
 import { useId } from "react";
 
 import { OpButton } from "@/components/ui/dashboard/OpButton";
@@ -13,9 +8,10 @@ import { OpButton } from "@/components/ui/dashboard/OpButton";
 /**
  * Operator-tier (op) form primitives.
  *
- * These components centralize the ln-op-* token class strings used verbatim
- * across the attendance forms. They emit identical DOM to what the forms
- * previously hand-rolled — pure extraction, zero visual or behavioral change.
+ * These components own the ln-op-* control chrome for the whole operator
+ * surface (/gob, /admin, /org). They started as a pure extraction from the
+ * attendance forms; they are now the single definition that ~155 controls
+ * across app/ and components/ render through.
  *
  * Exports:
  *   OpField        — compound field wrapper (label + required * + hint + error + aria linkage)
@@ -25,6 +21,8 @@ import { OpButton } from "@/components/ui/dashboard/OpButton";
  *   OpInput        — <input> with op control classes
  *   OpSelect       — <select> with op control classes
  *   OpTextarea     — <textarea> with op control classes
+ *   OP_CONTROL_CLASS / OP_CONTROL_CLASS_SM — the same chrome as a class string,
+ *                    for composed controls that cannot render through the above
  *   OpSubmitButton — full-width submit button with pending/idle label
  *   OpCheckbox     — native uncontrolled checkbox with op-tier styling
  */
@@ -184,15 +182,110 @@ export function OpFieldHint({ children }: OpFieldHintProps) {
 // ---------------------------------------------------------------------------
 // Shared control class string (input / select / textarea)
 // ---------------------------------------------------------------------------
+//
+// THE operator control chrome. Before this was the single source of truth, 92
+// raw <input>/<select>/<textarea> elements across app/gob, app/org, app/admin
+// and components/ hand-rolled it in ~35 near-identical spellings (token audit,
+// "biggest structural gap"). Two things the spread had drifted on:
+//
+//  1. FOCUS TRIGGER. ~90 of those sites used `focus:ring-*`, so the ring
+//     flashed on every mouse click. OpButton deliberately uses `focus-visible:`
+//     (OpButton.tsx) — keyboard users get the ring, pointer users don't. Text
+//     controls follow the same rule here. This is NOT the "inputs always show
+//     a ring" exception people expect it to be: browsers already match
+//     :focus-visible on text fields focused by ANY means (the spec's text-entry
+//     heuristic), so switching the selector keeps the keyboard ring on inputs
+//     while dropping it from selects clicked with a mouse — which is the intent.
+//  2. RING COLOUR. This file previously shipped `ring-ln-op-ok` (GREEN) while
+//     every hand-rolled site used `ring-ln-op-azul`. Green is the operator
+//     skin's positive-confirmation tone (see OpSubmitButton's note), never a
+//     focus affordance. Azul wins — it is both the majority and the correct
+//     semantic.
+//
+// Mirrors LN_CONTROL_CLASS / LN_CONTROL_MONO_CLASS in components/ui/Field.tsx
+// (the citizen equivalents) so the two skins stay learnable as one system.
 
-const controlCls =
-  "w-full px-3 py-2 rounded-md border border-ln-op-line bg-ln-op-card text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-ok";
+const controlBase =
+  "rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card " +
+  "text-ln-op-ink placeholder:text-ln-op-faint " +
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ln-op-azul " +
+  "disabled:cursor-not-allowed disabled:opacity-60 " +
+  "aria-[invalid=true]:border-ln-op-danger";
+
+/**
+ * Density steps. LnInput needs none — citizen forms are single-density — but
+ * the operator surface genuinely runs three, and the census of the 92
+ * hand-rolled controls measured them rather than inventing them:
+ *
+ *   md  `px-3 py-2 text-md`     54 sites — the form default
+ *   sm  `px-3 py-1.5 text-sm`   14 sites — panel filters, compact forms
+ *   xs  `px-2 py-1.5 text-sm`    7 sites — inline row/table-cell controls
+ *
+ * (The handful of sites written with arbitrary 5px/7px vertical padding fold
+ * into the step above them, per the round-up convention app/globals.css
+ * documents for the spacing scale.)
+ *
+ * These HAVE to be a prop rather than className extras. `text-md` vs `text-sm`
+ * and `px-3` vs `px-2` are the same Tailwind utility group, so which one wins
+ * is decided by generated-CSS order, not by the order of the class attribute —
+ * this repo deliberately has no `tailwind-merge` (see REGISTRY.md), so a
+ * caller passing `text-sm` would override the base only by luck.
+ */
+const controlSize = {
+  md: "px-3 py-2 text-md",
+  sm: "px-3 py-1.5 text-sm",
+  xs: "px-2 py-1.5 text-sm",
+} as const;
+
+export type OpControlSize = keyof typeof controlSize;
+
+function opControlClass(
+  size: OpControlSize,
+  mono: boolean,
+  block: boolean,
+  className?: string,
+): string {
+  return [block ? "w-full" : "", controlBase, controlSize[size], mono ? "font-mono" : "", className]
+    .filter(Boolean)
+    .join(" ");
+}
+
+/**
+ * The op control chrome as a plain class string, for controls that are NOT a
+ * bare `<input>`/`<select>`/`<textarea>` and therefore cannot render through the
+ * components above — e.g. a composed control owning a visible field plus a
+ * hidden twin. Exported so those call sites wear the IDENTICAL chrome instead
+ * of re-declaring it (a copy drifts — that is exactly how 92 controls ended up
+ * spelling this 35 different ways). Mirrors `LN_CONTROL_CLASS`
+ * (components/ui/Field.tsx).
+ *
+ * Both include `w-full`, matching the components' `block` default.
+ */
+export const OP_CONTROL_CLASS = `w-full ${controlBase} ${controlSize.md}`;
+export const OP_CONTROL_CLASS_SM = `w-full ${controlBase} ${controlSize.sm}`;
+
+/** Props every op control shares. Mirrors LnInputProps' `invalid` / `mono`. */
+type OpControlCommonProps = {
+  /** Sets aria-invalid="true" and applies the danger border. */
+  invalid?: boolean;
+  /** Mono variant — codes, chip/passport numbers, tokens. */
+  mono?: boolean;
+  /** Density step — `md` (default) forms, `sm` panel filters, `xs` inline rows. */
+  size?: OpControlSize;
+  /**
+   * Full-width (default). Pass `block={false}` for a control that should size
+   * to its content — an inline row filter, a select next to a button. Same
+   * reason as `size`: `w-auto` in className cannot reliably beat a `w-full`
+   * baked into the base.
+   */
+  block?: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Input
 // ---------------------------------------------------------------------------
 
-type OpInputProps = InputHTMLAttributes<HTMLInputElement>;
+export type OpInputProps = Omit<ComponentPropsWithRef<"input">, "size"> & OpControlCommonProps;
 
 /**
  * <input> styled with op-tier control tokens.
@@ -201,27 +294,56 @@ type OpInputProps = InputHTMLAttributes<HTMLInputElement>;
  * onChange, required, placeholder, pattern, maxLength, inputMode, …)
  * are forwarded via spread.
  *
- * The className prop is appended after the base classes when provided.
+ * `size` is REDEFINED away from the native HTML `size` attribute (a character
+ * count nobody in this codebase uses) and onto the density step, so the op and
+ * citizen primitives keep one vocabulary. Callers that truly need the HTML
+ * attribute can still set it via a `ref`.
  */
-export function OpInput({ className, ...rest }: OpInputProps) {
-  return <input className={className ? `${controlCls} ${className}` : controlCls} {...rest} />;
+export function OpInput({
+  className,
+  invalid,
+  mono = false,
+  size = "md",
+  block = true,
+  ...rest
+}: OpInputProps) {
+  return (
+    <input
+      aria-invalid={invalid || undefined}
+      className={opControlClass(size, mono, block, className)}
+      {...rest}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Select
 // ---------------------------------------------------------------------------
 
-type OpSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
-  children: ReactNode;
-};
+export type OpSelectProps = Omit<ComponentPropsWithRef<"select">, "size"> &
+  OpControlCommonProps & {
+    children: ReactNode;
+  };
 
 /**
  * <select> styled with op-tier control tokens.
  * Pass <option> elements as children.
  */
-export function OpSelect({ className, children, ...rest }: OpSelectProps) {
+export function OpSelect({
+  className,
+  invalid,
+  mono = false,
+  size = "md",
+  block = true,
+  children,
+  ...rest
+}: OpSelectProps) {
   return (
-    <select className={className ? `${controlCls} ${className}` : controlCls} {...rest}>
+    <select
+      aria-invalid={invalid || undefined}
+      className={opControlClass(size, mono, block, className)}
+      {...rest}
+    >
       {children}
     </select>
   );
@@ -231,13 +353,32 @@ export function OpSelect({ className, children, ...rest }: OpSelectProps) {
 // Textarea
 // ---------------------------------------------------------------------------
 
-type OpTextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement>;
+export type OpTextareaProps = ComponentPropsWithRef<"textarea"> & OpControlCommonProps;
 
 /**
  * <textarea> styled with op-tier control tokens.
+ *
+ * Deliberately sets NO `resize-*` utility: `resize-y` in the base and
+ * `resize-none` from a caller's className are the same Tailwind layer, so which
+ * one won would be decided by generated-CSS order rather than by the caller.
+ * The base leaves the browser default alone and call sites that care pass their
+ * own `resize-none` / `resize-y`, which then has nothing to fight.
  */
-export function OpTextarea({ className, ...rest }: OpTextareaProps) {
-  return <textarea className={className ? `${controlCls} ${className}` : controlCls} {...rest} />;
+export function OpTextarea({
+  className,
+  invalid,
+  mono = false,
+  size = "md",
+  block = true,
+  ...rest
+}: OpTextareaProps) {
+  return (
+    <textarea
+      aria-invalid={invalid || undefined}
+      className={opControlClass(size, mono, block, className)}
+      {...rest}
+    />
+  );
 }
 
 // ---------------------------------------------------------------------------

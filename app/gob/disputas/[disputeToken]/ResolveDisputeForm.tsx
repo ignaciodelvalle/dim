@@ -5,7 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { lookupTransferTargetAction, resolveDisputeAction } from "@/app/actions/custody-disputes";
 import { Icon } from "@/components/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 // The consequence of an ownership_transferred resolution, stated once and used
@@ -155,18 +155,17 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
         <label htmlFor="outcome" className="block text-sm text-ln-op-mute mb-1">
           Resolución
         </label>
-        <select
+        <OpSelect
           id="outcome"
           value={outcome}
           onChange={(e) => setOutcome(e.target.value as Outcome)}
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         >
           {OUTCOMES.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
-        </select>
+        </OpSelect>
       </div>
 
       {outcome === "ownership_transferred" && (
@@ -202,13 +201,14 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
                 : "ID de organización destino (UUID)"}
             </label>
             <div className="flex gap-2">
-              <input
+              <OpInput
                 id="transfer-target"
                 type="text"
                 value={currentTargetId}
                 onChange={(e) => handleTargetChange(e.target.value)}
                 placeholder="00000000-0000-0000-0000-000000000000"
-                className="flex-1 px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md font-mono text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
+                className="flex-1 font-mono"
+                block={false}
               />
               <OpButton
                 type="button"
@@ -245,13 +245,12 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
         <label htmlFor="resolution-summary" className="block text-sm text-ln-op-mute mb-1">
           Resumen de la resolución (mínimo 100 caracteres)
         </label>
-        <textarea
+        <OpTextarea
           id="resolution-summary"
           value={resolutionSummary}
           onChange={(e) => setResolutionSummary(e.target.value)}
           rows={5}
           placeholder="Explicá el fundamento, evidencia considerada y decisión tomada."
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
         <p className="text-sm text-ln-op-mute mt-1 tabular-nums">
           {resolutionSummary.trim().length} / 100
@@ -262,13 +261,12 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
         <label htmlFor="resolution-notes" className="block text-sm text-ln-op-mute mb-1">
           Notas internas (opcional)
         </label>
-        <textarea
+        <OpTextarea
           id="resolution-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={2}
           placeholder="Notas que quedan en el payload del evento"
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
       </div>
 

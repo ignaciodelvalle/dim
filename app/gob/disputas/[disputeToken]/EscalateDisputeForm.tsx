@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 
 import { escalateDisputeAction } from "@/app/actions/custody-disputes";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) {
@@ -56,13 +56,12 @@ export function EscalateDisputeForm({ disputeToken }: { disputeToken: string }) 
         <label htmlFor="escalate-notes" className="block text-sm text-ln-op-mute mb-1">
           Motivo de la escalada (mínimo 20 caracteres)
         </label>
-        <textarea
+        <OpTextarea
           id="escalate-notes"
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder="Describí el motivo para derivar a vía judicial."
-          className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
         />
         <p className="text-sm text-ln-op-mute mt-1 tabular-nums">{notes.trim().length} / 20 mín.</p>
       </div>

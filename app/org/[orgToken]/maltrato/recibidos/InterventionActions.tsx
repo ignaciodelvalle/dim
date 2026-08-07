@@ -16,7 +16,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import {
   addInterventionNoteAction,
@@ -123,7 +123,7 @@ export function InterventionActions({
           ? "Motivo de la devolución (mínimo 10 caracteres)"
           : "Nota de intervención (visible para el gobierno)"}
       </label>
-      <textarea
+      <OpTextarea
         id={`intervention-text-${welfareReportId}`}
         value={text}
         onChange={(e) => setText(e.target.value)}
@@ -133,7 +133,6 @@ export function InterventionActions({
             ? "Explicá por qué la organización no puede intervenir..."
             : "Detalle de la intervención en campo, estado del animal, próximos pasos..."
         }
-        className="w-full px-3 py-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card text-md text-ln-op-ink"
       />
       {error && <output className="block text-sm text-ln-op-danger">{error}</output>}
       <div className="flex gap-2">

@@ -73,6 +73,9 @@ export type { SearchFilterFieldProps } from "./SearchFilterField";
 export { AuditMineToggle } from "./AuditMineToggle";
 export type { AuditMineToggleProps } from "./AuditMineToggle";
 export {
+  OP_CONTROL_CLASS,
+  OP_CONTROL_CLASS_SM,
+  OpField,
   OpFormAlert,
   OpFieldLabel,
   OpFieldHint,
@@ -82,7 +85,15 @@ export {
   OpSubmitButton,
   OpCheckbox,
 } from "./OpField";
-export type { OpCheckboxProps } from "./OpField";
+export type {
+  OpCheckboxProps,
+  OpControlSize,
+  OpFieldProps,
+  OpFieldRenderProps,
+  OpInputProps,
+  OpSelectProps,
+  OpTextareaProps,
+} from "./OpField";
 export { ViewScopeCaption } from "./ViewScopeCaption";
 export { ScreenHeader } from "./ScreenHeader";
 export type { ScreenHeaderProps } from "./ScreenHeader";

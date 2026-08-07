@@ -29,7 +29,13 @@ import {
 import { BULK_INELIGIBLE_REASONS } from "@/app/actions/bulk-vaccinate-types";
 import { Icon } from "@/components/Icon";
 import { LnCheckbox } from "@/components/ui/Field";
-import { OpBulkResultPanel, OpButton, OpStateBadge } from "@/components/ui/dashboard";
+import {
+  OpBulkResultPanel,
+  OpButton,
+  OpInput,
+  OpSelect,
+  OpStateBadge,
+} from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 import { pluralizeEs, speciesLabel, todayIsoInAr } from "@/lib/utils/format";
 import { OrgMascotasPipelineBoard } from "./OrgMascotasPipelineBoard";
@@ -605,13 +611,12 @@ function BulkVaccinationForm({
           <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-name">
             Vacuna <span className="text-ln-op-danger">*</span>
           </label>
-          <input
+          <OpInput
             id="bulk-vax-name"
             type="text"
             value={vaccineName}
             onChange={(e) => setVaccineName(e.target.value)}
             placeholder="Ej. Cuádruple canina"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -619,12 +624,11 @@ function BulkVaccinationForm({
           <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-date">
             Fecha de aplicación <span className="text-ln-op-danger">*</span>
           </label>
-          <input
+          <OpInput
             id="bulk-vax-date"
             type="date"
             value={occurredAt}
             onChange={(e) => setOccurredAt(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -632,13 +636,12 @@ function BulkVaccinationForm({
           <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-brand">
             Marca (opcional)
           </label>
-          <input
+          <OpInput
             id="bulk-vax-brand"
             type="text"
             value={brand}
             onChange={(e) => setBrand(e.target.value)}
             placeholder="Ej. Nobivac"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -646,13 +649,12 @@ function BulkVaccinationForm({
           <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-batch">
             Lote (opcional)
           </label>
-          <input
+          <OpInput
             id="bulk-vax-batch"
             type="text"
             value={batch}
             onChange={(e) => setBatch(e.target.value)}
             placeholder="Ej. L-2024-07"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -660,13 +662,12 @@ function BulkVaccinationForm({
           <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-by">
             Aplicado por (opcional)
           </label>
-          <input
+          <OpInput
             id="bulk-vax-by"
             type="text"
             value={administeredBy}
             onChange={(e) => setAdministeredBy(e.target.value)}
             placeholder="Ej. Dr. Gómez MP 1234"
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
 
@@ -674,12 +675,11 @@ function BulkVaccinationForm({
           <label className="text-sm text-ln-op-mute" htmlFor="bulk-vax-next">
             Próxima dosis (opcional)
           </label>
-          <input
+          <OpInput
             id="bulk-vax-next"
             type="date"
             value={nextDueAt}
             onChange={(e) => setNextDueAt(e.target.value)}
-            className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
           />
         </div>
       </div>
@@ -781,13 +781,12 @@ function BulkEligibilityForm({
             <label className="text-sm text-ln-op-mute" htmlFor="bulk-elig-reason">
               Razón <span className="text-ln-op-danger">*</span>
             </label>
-            <select
+            <OpSelect
               id="bulk-elig-reason"
               value={ineligibleReason}
               onChange={(e) =>
                 setIneligibleReason(e.target.value as (typeof BULK_INELIGIBLE_REASONS)[number] | "")
               }
-              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
             >
               <option value="">Seleccioná una razón</option>
               {BULK_INELIGIBLE_REASONS.map((r) => (
@@ -795,19 +794,18 @@ function BulkEligibilityForm({
                   {INELIGIBLE_REASON_LABELS[r]}
                 </option>
               ))}
-            </select>
+            </OpSelect>
           </div>
 
           <div className="space-y-1">
             <label className="text-sm text-ln-op-mute" htmlFor="bulk-elig-until">
               No apta hasta (opcional)
             </label>
-            <input
+            <OpInput
               id="bulk-elig-until"
               type="date"
               value={ineligibleUntilIso}
               onChange={(e) => setIneligibleUntilIso(e.target.value)}
-              className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
             />
           </div>
 
@@ -816,13 +814,12 @@ function BulkEligibilityForm({
               <label className="text-sm text-ln-op-mute" htmlFor="bulk-elig-notes">
                 Notas <span className="text-ln-op-danger">*</span>
               </label>
-              <input
+              <OpInput
                 id="bulk-elig-notes"
                 type="text"
                 value={ineligibleReasonNotes}
                 onChange={(e) => setIneligibleReasonNotes(e.target.value)}
                 placeholder="Describí la situación"
-                className="w-full px-3 py-1.5 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card text-ln-op-ink text-md"
               />
             </div>
           )}

@@ -1,6 +1,6 @@
 "use client";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import {
   type CapabilityActionState,
   decideCapabilityAction,
@@ -39,12 +39,12 @@ export function DecideForm({
       <form action={formAction} className="flex flex-col gap-2 w-full">
         <input type="hidden" name="grantId" value={grantId} />
         <input type="hidden" name="decision" value={decision} />
-        <textarea
+        <OpTextarea
           name="reason"
           rows={2}
           maxLength={500}
           placeholder="Motivo (opcional)"
-          className="text-sm w-full rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
+          size="xs"
         />
         <div className="flex items-center gap-2">
           <OpButton type="submit" variant={variant} size="sm" disabled={isSubmitting}>

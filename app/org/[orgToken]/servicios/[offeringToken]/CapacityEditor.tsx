@@ -7,7 +7,7 @@
 import { useRef, useState, useTransition } from "react";
 
 import { updateOfferingCapacityAction } from "@/app/actions/service-offerings";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpInput } from "@/components/ui/dashboard";
 import { notifySaved } from "@/lib/ui/action-feedback";
 import { pluralizeEs } from "@/lib/utils/format";
 
@@ -92,7 +92,7 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
         Cupos por turno
       </label>
       <div className="flex items-center gap-2">
-        <input
+        <OpInput
           id="capacity-input"
           ref={inputRef}
           type="number"
@@ -100,7 +100,8 @@ export function CapacityEditor({ orgToken, offeringToken, currentCapacity }: Pro
           step={1}
           defaultValue={capacity}
           disabled={pending}
-          className="w-24 rounded-[var(--radius-sm)] border border-ln-op-line px-2 py-[5px] text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul disabled:opacity-60"
+          className="w-24"
+          block={false}
           onKeyDown={(e) => {
             if (e.key === "Enter") handleSave();
             if (e.key === "Escape") cancel();

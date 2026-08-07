@@ -33,6 +33,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { Icon } from "@/components/Icon";
+import { OpInput } from "@/components/ui/dashboard/OpField";
 import { useSavedViews } from "@/lib/ui/use-saved-views";
 
 export type SavedViewsControlProps = {
@@ -125,7 +126,7 @@ export function SavedViewsControl({
           className="absolute right-0 top-full z-30 mt-2 w-64 space-y-2 rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card p-2 text-ln-op-ink-2 shadow-lg"
         >
           <div className="flex items-center gap-1.5">
-            <input
+            <OpInput
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -134,7 +135,9 @@ export function SavedViewsControl({
               }}
               placeholder="Nombre de la vista"
               aria-label="Nombre de la vista a guardar"
-              className="min-w-0 flex-1 rounded-[var(--radius-sm)] border border-ln-op-line bg-ln-op-card px-2 py-1 text-xs text-ln-op-ink placeholder:text-ln-op-faint focus:border-ln-op-azul focus:outline-none"
+              className="min-w-0 flex-1"
+              size="xs"
+              block={false}
             />
             <button
               type="button"

@@ -23,6 +23,7 @@ import { Icon } from "@/components/Icon";
 import { MOTIVO_MIN } from "@/components/MotivoField";
 import { LnCheckbox } from "@/components/ui/Field";
 import { OpBulkBar } from "@/components/ui/dashboard/OpBulkBar";
+import { OpTextarea } from "@/components/ui/dashboard/OpField";
 import { isPageFullySelected, toggleSelectPage, toggleSelection } from "@/lib/domain/bulk-select";
 import { createClient } from "@/lib/supabase/client";
 
@@ -368,15 +369,15 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
               >
                 Motivo (mínimo {MOTIVO_MIN} caracteres)
               </label>
-              <textarea
+              <OpTextarea
                 id="bulk-revoke-motivo"
                 ref={motivoRef}
                 aria-required="true"
                 value={motivo}
                 onChange={(e) => setMotivo(e.target.value)}
                 rows={4}
-                className="w-full rounded-md border border-ln-op-line bg-ln-op-card p-2 text-sm"
                 placeholder="Describí el motivo común para todas las revocaciones de esta operación."
+                size="xs"
               />
               <p className="mt-1 text-xs text-ln-op-mute">
                 {motivoTrimmed.length}/{MOTIVO_MIN} caracteres

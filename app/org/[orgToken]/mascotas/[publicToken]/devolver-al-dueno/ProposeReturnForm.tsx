@@ -27,7 +27,7 @@ import { useActionState, useState } from "react";
 import { proposeReturnToOwnerFormAction } from "@/app/actions/return-to-owner-form";
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 
 export type ProposeReturnFormState = {
   error: string | null;
@@ -131,13 +131,13 @@ export function ProposeReturnForm({
             <label htmlFor="notes" className="block text-sm font-medium text-ln-op-ink-2">
               Notas para el dueño (opcional)
             </label>
-            <textarea
+            <OpTextarea
               id="notes"
               name="notes"
               rows={4}
               maxLength={1000}
               placeholder="Ej: El animal está en buen estado, coordinamos horario de búsqueda…"
-              className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink placeholder:text-ln-op-faint focus:outline-none focus:ring-1 focus:ring-ln-op-azul resize-y"
+              className="resize-y"
             />
           </div>
 

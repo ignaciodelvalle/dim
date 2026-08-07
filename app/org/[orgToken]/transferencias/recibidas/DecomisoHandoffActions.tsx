@@ -26,7 +26,7 @@ import { useRef, useState, useTransition } from "react";
 
 import { acceptDecomisoHandoffAction, rejectDecomisoHandoffAction } from "@/app/actions/decomiso";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { navigateAfterActionSuccess } from "@/lib/ui/full-page-action-nav";
 
 export function DecomisoHandoffActions({
@@ -134,12 +134,11 @@ export function DecomisoHandoffActions({
         triggerRef={rejectTriggerRef}
       >
         <div className="space-y-2 px-5 pb-1">
-          <textarea
+          <OpTextarea
             value={rejectReason}
             onChange={(e) => setRejectReason(e.target.value)}
             rows={2}
             placeholder="Motivo del rechazo (opcional)"
-            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:border-ln-op-azul"
           />
         </div>
       </ConfirmDialog>

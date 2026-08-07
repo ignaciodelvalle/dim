@@ -39,10 +39,16 @@ import { globSync, readFileSync } from "node:fs";
  *  (+ /admin/org re-export) migrated its bespoke Verificación/Tipo <select>s
  *  to OpFilterBar axes — 2 raw <select>s gone (49 -> 48).
  *  Target: 0, via migration to LnSelect (citizen) / OpSelect (operator).
+ *  Lowered 48 -> 27 (op-control-primitive sweep, 2026-08-07): the operator
+ *  control chrome (border-ln-op-line + bg-ln-op-card on a raw input/select/
+ *  textarea) was hand-rolled at 92 call sites in ~35 spellings; all of them now
+ *  render through OpInput/OpSelect/OpTextarea. 21 of those were raw <select>s.
+ *  The sibling fence lint:op-controls (scripts/check-op-controls.mjs) holds
+ *  that recipe at zero.
  *  Lower this number as files migrate — never raise it without a design
  *  review sign-off (raw <select> reintroduces an inconsistent chevron,
  *  missing mobile focus-scroll, and un-localized native validation bubbles). */
-const BASELINE = 48;
+const BASELINE = 27;
 
 const SCAN_GLOB = "{app,components}/**/*.tsx";
 const RAW_SELECT = /<select\b/g;

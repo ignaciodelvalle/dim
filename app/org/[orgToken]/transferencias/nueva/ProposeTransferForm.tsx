@@ -16,7 +16,7 @@ import { useState, useTransition } from "react";
 
 import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnWizardShell } from "@/components/ui/WizardShell";
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpTextarea } from "@/components/ui/dashboard";
 import { proposeCrossOrgTransferAction } from "@/src/modules/transfers/actions";
 
 interface ReceiverOption {
@@ -201,14 +201,13 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           <label htmlFor="notes" className="mb-1 block text-md font-medium text-ln-op-ink">
             Notas{reasonRequiresNotes ? " (obligatorias)" : " (opcional)"}
           </label>
-          <textarea
+          <OpTextarea
             id="notes"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={4}
             required={reasonRequiresNotes}
             placeholder="Contexto para que el destinatario evalúe — visible al receiver."
-            className="w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul"
           />
         </div>
 
