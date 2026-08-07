@@ -29,6 +29,7 @@ import {
   OpStateBadge,
 } from "@/components/ui/dashboard";
 
+import { ADOPTION_LISTING_LABELS } from "../mascota-ctas";
 import { OrgPetSheetMounter } from "./OrgPetSheetMounter";
 import { OwnerReturnProposalCard } from "./OwnerReturnProposalCard";
 import { ReverseAdoptionAction } from "./ReverseAdoptionAction";
@@ -441,12 +442,12 @@ export default async function OrgPetDetailPage({
                 >
                   {pet.adoptionListedAt && !pet.adoptionListingPausedAt ? (
                     <span className="inline-flex items-center gap-1">
-                      Publicada <Icon name="check" size={13} decorative />
+                      {ADOPTION_LISTING_LABELS.listed} <Icon name="check" size={13} decorative />
                     </span>
                   ) : pet.adoptionListedAt && pet.adoptionListingPausedAt ? (
-                    "Adopción · Pausada"
+                    ADOPTION_LISTING_LABELS.paused
                   ) : (
-                    "Publicar en adopción"
+                    ADOPTION_LISTING_LABELS.unlisted
                   )}
                 </Link>
               )}

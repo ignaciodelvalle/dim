@@ -94,14 +94,24 @@ export function QueueFilterChips({
           >
             {item.label}
             {item.count !== undefined && (
-              <span
-                className={`${COUNT_BASE} ${isActive ? COUNT_ACTIVE : COUNT_INACTIVE}`}
-                // The bare number would be read as part of the chip's name
-                // ("Sin asignar 12"); this says what the 12 counts.
-                aria-label={`${item.count} ${pluralizeEs(item.count, item.countNoun ?? "denuncia")}`}
-              >
-                {item.count}
-              </span>
+              <>
+                {/* The bare number would be read as part of the chip's name
+                    ("Sin asignar 12"); the sr-only twin says what the 12
+                    counts. An `aria-label` on the number span itself is NOT
+                    the way to do it: name-from-author is only guaranteed for
+                    elements with a role that supports naming, and a bare
+                    <span> is role-less — browsers may drop the label entirely
+                    and leave AT with the bare digits again. */}
+                <span
+                  aria-hidden="true"
+                  className={`${COUNT_BASE} ${isActive ? COUNT_ACTIVE : COUNT_INACTIVE}`}
+                >
+                  {item.count}
+                </span>
+                <span className="sr-only">
+                  {`${item.count} ${pluralizeEs(item.count, item.countNoun ?? "denuncia")}`}
+                </span>
+              </>
             )}
           </a>
         );

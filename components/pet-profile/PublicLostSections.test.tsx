@@ -84,7 +84,11 @@ describe("PublicLostSections — owner name disclosure (M1)", () => {
     expect(screen.getByText(/Lo busca Graciela/)).toBeInTheDocument();
   });
 
-  it("name disclosed + phone disclosed: renders both the name line and the call CTA", () => {
+  // The name has exactly ONE carrier, and it is the standalone line. When the
+  // CTA said "Llamar a Graciela" next to "Lo busca Graciela." the row's primary
+  // action became its longest label to repeat the sentence directly above it
+  // (UI review 2026-08-06, N8). The CTA is now the plain verb.
+  it("name disclosed + phone disclosed: the name line carries the name, the CTA stays 'Llamar'", () => {
     render(
       <PublicLostSections
         {...BASE_PROPS}
@@ -94,7 +98,15 @@ describe("PublicLostSections — owner name disclosure (M1)", () => {
     );
 
     expect(screen.getByText(/Lo busca Graciela/)).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /llamar a Graciela/i })).toBeInTheDocument();
+    const call = screen.getByRole("link", { name: /llamar/i });
+    expect(call).toHaveAttribute("href", expect.stringContaining("tel:"));
+    expect(call.textContent).not.toMatch(/Graciela/);
+  });
+
+  it("phone disclosed, name off: the CTA reads the same either way", () => {
+    render(<PublicLostSections {...BASE_PROPS} ownerPhoneE164="+5491155551234" />);
+
+    expect(screen.getByRole("link", { name: /llamar/i }).textContent?.trim()).toBe("Llamar");
   });
 
   it("name not disclosed: no 'Lo busca' line", () => {

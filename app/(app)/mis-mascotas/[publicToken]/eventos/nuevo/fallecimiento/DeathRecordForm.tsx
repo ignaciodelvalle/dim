@@ -408,15 +408,20 @@ export function DeathRecordForm({
               `aria-required` onto the control it renders, but this control is a
               COMPONENT, not a DOM node — the cloned attribute would land on a
               prop DateInputAr does not read. Its own `required` puts the native
-              constraint (and the es-AR bubble) on the visible input instead. */}
+              constraint (and the es-AR bubble) on the visible input instead.
+              `aria-invalid` used to have the same problem and no longer does:
+              DateInputAr accepts the hyphenated prop and merges it with its own
+              inline invalid-date state, so the render prop's `invalid` is wired
+              through explicitly here rather than relying on LnField's clone. */}
           <LnField label="Fecha" required>
-            {({ id, describedBy }) => (
+            {({ id, describedBy, invalid }) => (
               <DateInputAr
                 id={id}
                 name="occurredAt"
                 defaultValue={occurredAtDefault}
                 required
                 ariaDescribedBy={describedBy}
+                aria-invalid={invalid}
                 className={LN_CONTROL_MONO_CLASS}
               />
             )}

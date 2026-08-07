@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { maskArTimeInput, parseArTimeToHm } from "@/lib/utils/date-input-ar";
 
@@ -26,7 +26,10 @@ import { maskArTimeInput, parseArTimeToHm } from "@/lib/utils/date-input-ar";
  * Enter submit does not blur first, so the hidden field must already hold the
  * typed time. Blur normalizes and, for an out-of-range time (25:00, 12:75),
  * clears the hidden value and shows an inline es-AR hint so a wrong hour is
- * never submitted.
+ * never submitted. The invalid blur also calls `setCustomValidity`, so the
+ * hint is a real submit BLOCK rather than paint: the visible input is a plain
+ * TEXT field, and "25:00" satisfies every native constraint a text field has
+ * while the hidden value sits empty (same reasoning as DateInputAr's).
  *
  * A11Y: real text input with `inputMode="numeric"`, associated error via
  * `aria-describedby`/`aria-invalid`, fully keyboard-operable (no clock popup to
@@ -54,6 +57,14 @@ export type TimeInputArProps = {
   ariaDescribedBy?: string;
   /** Classes applied to the visible text input (preserves per-surface styling). */
   className?: string;
+  /**
+   * External invalid flag, merged (OR) with the control's own inline
+   * invalid-time state. Named with the hyphen ON PURPOSE: LnField's `invalid`
+   * clones `"aria-invalid": true` onto its render-prop child, and a component
+   * that doesn't accept the prop silently drops it — the visible input never
+   * hears about a server-side validation error (panel review 2026-08-07, W4).
+   */
+  "aria-invalid"?: boolean;
   /**
    * Fires with the current "HH:mm" value ONLY when it is COMMIT-WORTHY: a
    * complete, in-range time, or the field was fully cleared (empty string).
@@ -84,6 +95,7 @@ export function TimeInputAr({
   ariaLabel,
   ariaDescribedBy,
   className,
+  "aria-invalid": externalInvalid,
   onValueChange,
   onHiddenValueChange,
 }: TimeInputArProps) {
@@ -98,6 +110,7 @@ export function TimeInputAr({
   const [display, setDisplay] = useState(initialHm);
   const [hm, setHm] = useState(initialHm);
   const [invalid, setInvalid] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   /** Single writer for the hidden value, so its mirror callback can never be missed. */
   function writeHm(next: string) {
@@ -105,10 +118,21 @@ export function TimeInputAr({
     onHiddenValueChange?.(next);
   }
 
+  /**
+   * Single writer for the invalid state, so the PAINTED error and the NATIVE
+   * constraint can never disagree — an inline "Hora inválida" next to a form
+   * that submits anyway is the defect this pairing exists to prevent.
+   */
+  function writeInvalid(next: boolean) {
+    setInvalid(next);
+    inputRef.current?.setCustomValidity(next ? INVALID_MESSAGE : "");
+  }
+
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
     const masked = maskArTimeInput(event.target.value);
     setDisplay(masked);
-    if (invalid) setInvalid(false);
+    event.target.setCustomValidity("");
+    if (invalid) writeInvalid(false);
     if (masked === "") {
       writeHm("");
       onValueChange?.("");
@@ -125,30 +149,31 @@ export function TimeInputAr({
     const trimmed = display.trim();
     if (!trimmed) {
       writeHm("");
-      setInvalid(false);
+      writeInvalid(false);
       return;
     }
     const parsed = parseArTimeToHm(trimmed);
     if (!parsed) {
       writeHm("");
-      setInvalid(true);
+      writeInvalid(true);
       return;
     }
     writeHm(parsed);
     setDisplay(parsed);
-    setInvalid(false);
+    writeInvalid(false);
   }
 
   return (
     <>
       <input
+        ref={inputRef}
         type="text"
         id={inputId}
         inputMode="numeric"
         autoComplete="off"
         placeholder={PLACEHOLDER}
         aria-label={ariaLabel}
-        aria-invalid={invalid || undefined}
+        aria-invalid={invalid || externalInvalid || undefined}
         aria-describedby={
           [ariaDescribedBy, invalid ? errorId : null].filter(Boolean).join(" ") || undefined
         }

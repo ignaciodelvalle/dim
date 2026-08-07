@@ -105,9 +105,18 @@ export function OrgMascotasFilterBar({
   // looping: after a commit lands, searchParams changes, the effect re-runs, and
   // the typed text now MATCHES the URL, so nothing is scheduled. It also covers
   // the mount case (arriving on ?q=Rocky must not re-navigate to itself).
+  //
+  // The SECOND guard (against our own last commit) is what makes a commit
+  // CANCELLABLE while it is still pending. The URL lags: "Limpiar filtros"
+  // navigates, but for the rest of this tick `searchParams` still says the old
+  // ?q=, so a URL-only comparison would happily re-schedule the typed text and
+  // land it AFTER the clear — the list comes back filtered by something the
+  // operator just asked to throw away. Resetting `lastCommitted` alongside the
+  // text (see the clear handler) is therefore a real cancel, not a hint.
   useEffect(() => {
     const trimmed = text.trim();
     if (trimmed === (searchParams.get("q") ?? "")) return;
+    if (trimmed === lastCommitted.current) return;
     const timer = setTimeout(() => commitQuery(trimmed), DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [text, searchParams, commitQuery]);
@@ -174,7 +183,22 @@ export function OrgMascotasFilterBar({
         Solo disponibles para adopción
       </label>
       {hasActiveFilter && (
-        <Link href={basePath} className="text-sm text-ln-op-mute underline hover:text-ln-op-ink">
+        <Link
+          href={basePath}
+          onClick={(e) => {
+            // A modified click (ctrl/cmd/shift/alt) opens the clean list in a
+            // NEW tab and leaves this one alone — clearing the field here would
+            // silently eat text the operator is still typing in the tab they
+            // are looking at. Let the browser have those.
+            if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+            // Cancel any query still inside the debounce window. Without this
+            // the timer fires ~300 ms into the navigation and re-adds
+            // ?q=<typed> on top of the freshly cleared URL.
+            setText("");
+            lastCommitted.current = "";
+          }}
+          className="text-sm text-ln-op-mute underline hover:text-ln-op-ink"
+        >
           Limpiar filtros
         </Link>
       )}

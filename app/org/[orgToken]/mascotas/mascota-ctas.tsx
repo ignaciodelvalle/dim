@@ -44,6 +44,24 @@ export type PetCardData = {
 // publicación), which no card CTA is — every one of them only NAVIGATES.
 export type CtaTone = "azul";
 
+/**
+ * The three adoption-listing states, named ONCE. The bulk list said "Pausada"
+ * while the pet detail page said "Adopción · Pausada" for the identical state,
+ * so the operator saw two different names for one thing on two screens of the
+ * same portal. Kept here because this module is dependency-free (no
+ * "use client", no server actions), so the detail page — a Server Component —
+ * can import it without pulling a client boundary across.
+ *
+ * "Publicada" carries a check icon at both call sites, which is why it is the
+ * bare word rather than the whole node: the icon is presentation, the word is
+ * the shared vocabulary.
+ */
+export const ADOPTION_LISTING_LABELS = {
+  listed: "Publicada",
+  paused: "Pausada",
+  unlisted: "Publicar en adopción",
+} as const;
+
 export type CtaCandidate = {
   key: string;
   href: string;
@@ -112,12 +130,12 @@ export function buildMascotaCtas(
       label:
         card.adoptionListedAt && !card.adoptionListingPausedAt ? (
           <span className="inline-flex items-center gap-1">
-            Publicada <Icon name="check" size={13} decorative />
+            {ADOPTION_LISTING_LABELS.listed} <Icon name="check" size={13} decorative />
           </span>
         ) : card.adoptionListedAt && card.adoptionListingPausedAt ? (
-          "Pausada"
+          ADOPTION_LISTING_LABELS.paused
         ) : (
-          "Publicar en adopción"
+          ADOPTION_LISTING_LABELS.unlisted
         ),
       tone: "azul",
     },

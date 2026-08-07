@@ -188,7 +188,10 @@ describe("<FinalizeAdoptionForm> — registered-adopter DNI check (org-pilot-pac
     // would otherwise override the reset and show A's name beside B's number.
     let resolveCheck: (r: { found: true; displayName: string }) => void = () => {};
     checkAccountMock.mockImplementationOnce(
-      () => new Promise((resolve) => (resolveCheck = resolve)),
+      () =>
+        new Promise((resolve) => {
+          resolveCheck = resolve;
+        }),
     );
 
     render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);

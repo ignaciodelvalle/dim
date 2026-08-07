@@ -193,8 +193,12 @@ export function PublicLostSections({
               href={`tel:${normalizePhoneForTel(ownerPhoneE164) ?? ownerPhoneE164}`}
               className="inline-flex min-h-11 items-center gap-2 rounded-full bg-ln-azul px-5 text-sm font-semibold text-white hover:bg-ln-azul-700"
             >
+              {/* Just "Llamar". The name used to ride along here because this
+                  CTA was its ONLY carrier; the standalone "Lo busca X." line
+                  above took that job (M1), so repeating it turns the row's
+                  primary action into the longest label in the row for no new
+                  information. */}
               <Icon name="telefono" size="sm" decorative /> Llamar
-              {ownerFirstName ? ` a ${ownerFirstName}` : ""}
             </a>
           )}
           {ownerEmail && (

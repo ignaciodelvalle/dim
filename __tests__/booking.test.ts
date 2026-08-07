@@ -5,13 +5,27 @@
 //   2. Capacity full — returns "Sin cupo disponible.".
 //   3. Slot in the past — returns "El turno ya pasó.".
 //   4. Pet not owned by user — wrapper returns "Esta mascota no te pertenece.".
+//   5. Deceased pet — wrapper refuses even though the tenencia is active.
 //
 // All DB rows are seeded + cleaned in beforeAll/afterAll.
 
 import { createClient } from "@supabase/supabase-js";
 import { eq, sql } from "drizzle-orm";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+// bookSlotAction derives the user from the auth guard and calls revalidatePath;
+// neither has a Next.js runtime here. The guard is LAZY so it can read the
+// fixture id assigned in beforeAll.
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
+vi.mock("@/lib/infra/auth-guards", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/infra/auth-guards")>();
+  return {
+    ...actual,
+    requireUserOrRedirect: vi.fn(async () => ({ user: { id: ownerUserId } })),
+  };
+});
+
+import { bookSlotAction } from "@/app/actions/booking";
 import {
   appointments,
   db,
@@ -42,10 +56,12 @@ const PASS = "BookingTest_2026!";
 let ownerUserId: string;
 let otherUserId: string;
 let petId: string;
+let deceasedPetId: string;
 let offeringId: string;
 let futureSlotId: string;
 let fullSlotId: string;
 let pastSlotId: string;
+let actionSlotId: string;
 
 // Track inserted appointment public tokens for cleanup.
 const insertedAppointmentTokens: string[] = [];
@@ -118,6 +134,29 @@ beforeAll(async () => {
     role: "owner",
   });
 
+  // A SECOND pet the same user still owns, whose lifecycle ended. Active
+  // tenencia + deceased status is exactly the combination the action has to
+  // refuse — the booking selector already hides it, but a stale tab or a
+  // hand-posted petId never goes through the selector.
+  const [deceasedPet] = await db
+    .insert(pets)
+    .values({
+      publicToken: generatePublicToken(),
+      species: "dog",
+      name: "Turno Test Fallecido",
+      status: "deceased",
+      jurisdictionProvince: "Buenos Aires",
+      jurisdictionLocality: "CABA",
+    })
+    .returning();
+  deceasedPetId = deceasedPet.id;
+
+  await db.insert(ownerships).values({
+    petId: deceasedPetId,
+    ownerUserId,
+    role: "owner",
+  });
+
   // Seed a service offering (status=approved is required by search but writer
   // doesn't check status — that's fine for unit-level isolation).
   const offeringToken = generateOfferingToken();
@@ -178,6 +217,21 @@ beforeAll(async () => {
     })
     .returning();
   pastSlotId = pastSlot.id;
+
+  // Dedicated slot for the action-wrapper tests, so they never race the
+  // writer-level ones over bookings_count.
+  const [actionSlot] = await db
+    .insert(timeSlots)
+    .values({
+      serviceOfferingId: offeringId,
+      startsAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000), // +4 days
+      endsAt: new Date(Date.now() + 4 * 24 * 60 * 60 * 1000 + 30 * 60 * 1000),
+      capacity: 1,
+      bookingsCount: 0,
+      status: "open",
+    })
+    .returning();
+  actionSlotId = actionSlot.id;
 });
 
 // ---------------------------------------------------------------------------
@@ -195,6 +249,8 @@ afterAll(async () => {
   await db.delete(serviceOfferings).where(eq(serviceOfferings.id, offeringId));
   await db.delete(ownerships).where(eq(ownerships.petId, petId));
   await db.execute(sql`DELETE FROM pets WHERE id = ${petId}`);
+  await db.delete(ownerships).where(eq(ownerships.petId, deceasedPetId));
+  await db.execute(sql`DELETE FROM pets WHERE id = ${deceasedPetId}`);
 
   await purgeUserByEmail(OWNER_EMAIL);
   await purgeUserByEmail(OTHER_EMAIL);
@@ -246,5 +302,67 @@ describe("bookSlotWriter", () => {
     const result = await bookSlotWriter(pastSlotId, petId, ownerUserId);
 
     expect(result).toEqual({ error: "El turno ya pasó." });
+  });
+});
+
+// The action wrapper is where the AUTHORIZATION lives — the writer takes a
+// caller-supplied userId and deliberately checks nothing (it is not exported
+// from the "use server" module for that reason). Everything below is about the
+// guard, not the booking mechanics.
+describe("bookSlotAction — server-side guards", () => {
+  it("refuses a pet the user does not own", async () => {
+    const [strangerPet] = await db
+      .insert(pets)
+      .values({
+        publicToken: generatePublicToken(),
+        species: "cat",
+        name: "Turno Test Ajeno",
+        jurisdictionProvince: "Buenos Aires",
+        jurisdictionLocality: "CABA",
+      })
+      .returning();
+
+    try {
+      const result = await bookSlotAction(actionSlotId, strangerPet.id);
+      expect(result).toEqual({ error: "Esta mascota no te pertenece." });
+    } finally {
+      await db.execute(sql`DELETE FROM pets WHERE id = ${strangerPet.id}`);
+    }
+  });
+
+  // The SELECTOR stopped offering deceased pets (Cowork QA v3, B2), but that
+  // filter only shapes a fresh render. A tab opened before the death was
+  // recorded, a Back-button return, or a hand-posted petId all arrive here with
+  // an active tenencia over a pet that no longer has a lifecycle to schedule.
+  it("refuses a deceased pet even though the tenencia is active", async () => {
+    const result = await bookSlotAction(actionSlotId, deceasedPetId);
+
+    expect(result).toEqual({
+      error: "No se puede reservar un turno para una mascota fallecida.",
+    });
+
+    // Nothing was written: no appointment, and the slot is still empty.
+    const [slot] = await db
+      .select({ bookingsCount: timeSlots.bookingsCount })
+      .from(timeSlots)
+      .where(eq(timeSlots.id, actionSlotId))
+      .limit(1);
+    expect(slot!.bookingsCount).toBe(0);
+
+    const booked = await db
+      .select({ id: appointments.id })
+      .from(appointments)
+      .where(eq(appointments.petId, deceasedPetId));
+    expect(booked).toHaveLength(0);
+  });
+
+  // Control: the guard refuses the deceased pet, not every pet. Without this
+  // the test above would still pass if the join had silently emptied the query.
+  it("still books for a live pet the user owns", async () => {
+    const result = await bookSlotAction(actionSlotId, petId);
+
+    expect(result).toMatchObject({ ok: true });
+    if (!("ok" in result) || !result.ok) throw new Error("Expected ok result");
+    insertedAppointmentTokens.push(result.appointmentToken);
   });
 });

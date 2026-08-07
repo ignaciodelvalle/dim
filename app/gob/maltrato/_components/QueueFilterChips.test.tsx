@@ -71,13 +71,31 @@ describe("<QueueFilterChips>", () => {
     expect(screen.getByRole("link", { name: /Mías/ })).toHaveTextContent("0");
   });
 
+  // The counter used to carry an `aria-label` on the bare <span> holding the
+  // digits. Name-from-author is only guaranteed on elements whose role
+  // supports naming, and a role-less <span> is not one — the label can be
+  // dropped, leaving AT with "Sin asignar 12". The number is therefore
+  // aria-hidden decoration and an sr-only twin carries the phrase, so the
+  // link's own ACCESSIBLE NAME is what gets asserted here.
+  //
+  // The `\s*` is a JSDOM artifact, not slack in the contract: accname joins two
+  // INLINE children with no separator, and jsdom applies no stylesheet, so the
+  // `.sr-only` span stays inline here. In a browser that class sets
+  // `position:absolute`, which blockifies the box and gets the separating space
+  // for free. What is being pinned is the phrase, not the whitespace.
   it("names what the counter counts instead of leaving a bare number", () => {
     renderChips();
 
-    const unassigned = screen.getByRole("link", { name: /Sin asignar/ });
-    expect(within(unassigned).getByLabelText("12 denuncias")).toBeInTheDocument();
-    const mine = screen.getByRole("link", { name: /Mías/ });
-    expect(within(mine).getByLabelText("0 denuncias")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Sin asignar\s*12 denuncias$/ })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Mías\s*0 denuncias$/ })).toBeInTheDocument();
+  });
+
+  it("does not depend on name-from-author on a role-less element", () => {
+    const { container } = renderChips();
+    // The visible digits are decoration; nothing in the row leans on an
+    // aria-label to be announced.
+    expect(container.querySelector("[aria-hidden='true']")?.textContent).toBe("12");
+    expect(container.querySelector("span[aria-label]")).toBeNull();
   });
 
   it("pluralizes a single-item counter in es-AR ('1 denuncia', not '1 denuncias')", () => {
@@ -88,6 +106,6 @@ describe("<QueueFilterChips>", () => {
         ariaLabel="Cola de denuncias"
       />,
     );
-    expect(screen.getByLabelText("1 denuncia")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /^Mías\s*1 denuncia$/ })).toBeInTheDocument();
   });
 });

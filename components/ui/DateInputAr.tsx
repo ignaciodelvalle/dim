@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useRef, useState } from "react";
 
 import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "@/lib/utils/date-input-ar";
 
@@ -34,6 +34,14 @@ import { isoToArDateDisplay, maskArDateInput, parseArDateToIso } from "@/lib/uti
  * impossible/incomplete date (32/13/2026), clears the hidden ISO and shows an
  * inline es-AR hint so a wrong range is never submitted.
  *
+ * …and that hint is backed by a NATIVE CONSTRAINT, not just paint. The visible
+ * input is a plain TEXT field, so `required` is satisfied by any non-empty
+ * string — "32/13/2026" passes it while the hidden ISO sits empty, and the
+ * action receives occurredAt="". The invalid blur therefore also calls
+ * `setCustomValidity(INVALID_MESSAGE)`, which is what the native `<input
+ * type="date">` this control replaced got from `badInput` for free. Cleared on
+ * the next edit and on a successful blur, so a corrected date submits again.
+ *
  * A11Y: real text input with `inputMode="numeric"`, associated error via
  * `aria-describedby`/`aria-invalid`, fully keyboard-operable (no calendar
  * popup to trap focus). Provide either an `id` targeted by an external
@@ -64,6 +72,14 @@ export type DateInputArProps = {
    * invalid-date hint when that is showing.
    */
   ariaDescribedBy?: string;
+  /**
+   * External invalid flag, merged (OR) with the control's own inline
+   * invalid-date state. Named with the hyphen ON PURPOSE: LnField's `invalid`
+   * clones `"aria-invalid": true` onto its render-prop child, and a component
+   * that doesn't accept the prop silently drops it — the visible input never
+   * hears about a server-side validation error (panel review 2026-08-07, W4).
+   */
+  "aria-invalid"?: boolean;
   /** Classes applied to the visible text input (preserves per-surface styling). */
   className?: string;
   /**
@@ -110,6 +126,7 @@ export function DateInputAr({
   ariaDescribedBy,
   className,
   required,
+  "aria-invalid": externalInvalid,
   onValueChange,
   onHiddenValueChange,
 }: DateInputArProps) {
@@ -127,11 +144,22 @@ export function DateInputAr({
   const [display, setDisplay] = useState(isoToArDateDisplay(initialIso));
   const [iso, setIso] = useState(initialIso);
   const [invalid, setInvalid] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   /** Single writer for the hidden ISO, so its mirror callback can never be missed. */
   function writeIso(next: string) {
     setIso(next);
     onHiddenValueChange?.(next);
+  }
+
+  /**
+   * Single writer for the invalid state, so the PAINTED error and the NATIVE
+   * constraint can never disagree — the whole defect being fixed is an inline
+   * "Fecha inválida" sitting next to a form that submits happily.
+   */
+  function writeInvalid(next: boolean) {
+    setInvalid(next);
+    inputRef.current?.setCustomValidity(next ? INVALID_MESSAGE : "");
   }
 
   function handleChange(event: React.ChangeEvent<HTMLInputElement>) {
@@ -140,7 +168,7 @@ export function DateInputAr({
     // Clear any custom message so the next validation pass re-evaluates the
     // native constraint from scratch (mirrors Field.tsx's withLocalizedValidity).
     event.target.setCustomValidity("");
-    if (invalid) setInvalid(false);
+    if (invalid) writeInvalid(false);
     // Keep the submitted ISO in sync on EVERY keystroke, not just on blur: an
     // implicit Enter submit does not fire blur, so the hidden field must already
     // hold the typed date. Empty → clear; a complete valid date → its ISO; an
@@ -163,23 +191,24 @@ export function DateInputAr({
     const trimmed = display.trim();
     if (!trimmed) {
       writeIso("");
-      setInvalid(false);
+      writeInvalid(false);
       return;
     }
     const parsed = parseArDateToIso(trimmed);
     if (!parsed) {
       writeIso("");
-      setInvalid(true);
+      writeInvalid(true);
       return;
     }
     writeIso(parsed);
     setDisplay(isoToArDateDisplay(parsed));
-    setInvalid(false);
+    writeInvalid(false);
   }
 
   return (
     <>
       <input
+        ref={inputRef}
         type="text"
         id={inputId}
         inputMode="numeric"
@@ -188,9 +217,15 @@ export function DateInputAr({
         aria-label={ariaLabel}
         required={required}
         onInvalid={(event) => {
-          event.currentTarget.setCustomValidity(REQUIRED_MESSAGE);
+          // Only the EMPTY-field case gets rewritten. An unparseable date has
+          // already set its own custom message (writeInvalid), and validity
+          // reports it as customError — overwriting it here would tell the
+          // operator to "complete" a field they did complete, just wrongly.
+          if (event.currentTarget.validity.valueMissing) {
+            event.currentTarget.setCustomValidity(REQUIRED_MESSAGE);
+          }
         }}
-        aria-invalid={invalid || undefined}
+        aria-invalid={invalid || externalInvalid || undefined}
         aria-describedby={
           [ariaDescribedBy, invalid ? errorId : null].filter(Boolean).join(" ") || undefined
         }

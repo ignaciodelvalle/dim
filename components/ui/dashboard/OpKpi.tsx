@@ -141,7 +141,8 @@ type Props = {
    * visible tag — the ⓘ popover's periodInvariant threading to ProvenanceCard
    * is untouched, so "Ver origen" still tells the truth per-KPI. The caller
    * is responsible for rendering one group-level footnote instead (see
-   * `isKpiPeriodInvariant` from lib/metrics/kpi-catalog to decide when to).
+   * `isKpiPeriodInvariant` from lib/metrics/kpi-period-invariance to decide
+   * when to).
    */
   hideOwnPeriodInvariantTag?: boolean;
   /** v1 href — wraps the whole card in <a> */

@@ -12,10 +12,10 @@
 // CRITICAL: Every runtime export in a "use server" file must be an async
 // function. Types are re-exported with `export type` (erased at runtime).
 
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { db, ownerships } from "@/db";
+import { db, ownerships, pets } from "@/db";
 import { requireUserOrRedirect } from "@/lib/infra/auth-guards";
 import { bookSlotWriter as _bookSlotWriter } from "@/src/modules/events/application/booking/book-slot";
 import { cancelAppointmentByOwner as _cancelAppointmentByOwner } from "@/src/modules/events/application/booking/cancel-appointment-by-owner";
@@ -46,10 +46,12 @@ export async function bookSlotAction(
 ): Promise<Awaited<ReturnType<typeof _bookSlotWriter>>> {
   const { user } = await requireUserOrRedirect();
 
-  // Verify the pet belongs to this user via an active ownership row.
+  // Verify the pet belongs to this user via an active ownership row, and read
+  // its lifecycle status in the same trip.
   const [ownershipRow] = await db
-    .select({ petId: ownerships.petId })
+    .select({ petId: ownerships.petId, petStatus: pets.status })
     .from(ownerships)
+    .innerJoin(pets, eq(pets.id, ownerships.petId))
     .where(
       sql`${ownerships.ownerUserId} = ${user.id}
           AND ${ownerships.petId} = ${petId}
@@ -59,6 +61,16 @@ export async function bookSlotAction(
 
   if (!ownershipRow) {
     return { error: "Esta mascota no te pertenece." };
+  }
+
+  // The booking SELECTOR already hides deceased pets (Cowork QA v3, B2 —
+  // reservar/[slotId]/page.tsx), but that filter is presentational: it only
+  // shapes the options a fresh render offers. A tab opened before the death was
+  // recorded, a Back-button return, or a hand-posted petId all reach this
+  // action with a petId the selector would no longer show. Active tenencia is
+  // not enough — the pet's state counts too, and it has to be checked HERE.
+  if (ownershipRow.petStatus === "deceased") {
+    return { error: "No se puede reservar un turno para una mascota fallecida." };
   }
 
   const result = await _bookSlotWriter(slotId, petId, user.id);

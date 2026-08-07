@@ -85,6 +85,20 @@ export function FinderInPossessionForm({
   const canKeepUntil =
     canKeepUntilDate && canKeepUntilTime ? `${canKeepUntilDate}T${canKeepUntilTime}` : "";
 
+  /**
+   * Toggling "puedo tenerla indefinidamente" UNMOUNTS the date/time block, and
+   * a remount gives DateInputAr/TimeInputAr fresh (empty) internal state — but
+   * THESE two states live in the parent and survived, so unticking showed two
+   * blank fields while the hidden `canKeepUntil` still carried the old,
+   * invisible datetime. Clearing both halves on every toggle keeps what the
+   * finder SEES and what the action RECEIVES the same thing.
+   */
+  function handleCanKeepIndefiniteChange(checked: boolean) {
+    setCanKeepIndefinite(checked);
+    setCanKeepUntilDate("");
+    setCanKeepUntilTime("");
+  }
+
   if (state.ok) {
     return (
       <div className="space-y-4">
@@ -284,7 +298,7 @@ export function FinderInPossessionForm({
               name="canKeepIndefiniteToggle"
               className="accent-[var(--color-ln-azul)]"
               checked={canKeepIndefinite}
-              onChange={(e) => setCanKeepIndefinite(e.target.checked)}
+              onChange={(e) => handleCanKeepIndefiniteChange(e.target.checked)}
             />
             <input type="hidden" name="canKeepIndefinite" value={String(canKeepIndefinite)} />
             Puedo tenerla indefinidamente

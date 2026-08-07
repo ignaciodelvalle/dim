@@ -155,6 +155,82 @@ describe("DateInputAr", () => {
     });
   });
 
+  // `required` alone CANNOT carry this control: the visible input is a plain
+  // TEXT field, so `valueMissing` is satisfied by any non-empty string —
+  // "32/13/2026" passes the constraint while the hidden ISO is empty, and the
+  // action receives occurredAt="". Native `<input type="date">` got the block
+  // from `badInput`; this control has to put it there itself.
+  describe("invalid dates BLOCK submission, not just paint an error", () => {
+    it("marks the input constraint-invalid once an impossible date is left in it", () => {
+      const { container } = render(<DateInputAr name="occurredAt" required />);
+      const input = textbox(container);
+
+      fireEvent.change(input, { target: { value: "32132026" } });
+      fireEvent.blur(input);
+
+      expect(input.checkValidity()).toBe(false);
+      expect(input.validity.customError).toBe(true);
+      expect(input.validationMessage).toBe("Fecha inválida (usá dd/mm/aaaa)");
+      // The garbage never reaches the wire — the submitted field is empty.
+      expect(hidden(container, "occurredAt").value).toBe("");
+    });
+
+    it("blocks a real form submit while the date is unparseable, and allows it once fixed", () => {
+      const { container } = render(
+        <form>
+          <DateInputAr name="occurredAt" required />
+        </form>,
+      );
+      const form = container.querySelector("form") as HTMLFormElement;
+      const input = textbox(container);
+
+      fireEvent.change(input, { target: { value: "32132026" } });
+      fireEvent.blur(input);
+      expect(form.checkValidity()).toBe(false);
+
+      fireEvent.change(input, { target: { value: "03072026" } });
+      fireEvent.blur(input);
+      expect(form.checkValidity()).toBe(true);
+      expect(hidden(container, "occurredAt").value).toBe("2026-07-03");
+    });
+
+    it("blocks on an OPTIONAL field too — a wrong range is wrong with or without required", () => {
+      const { container } = render(<DateInputAr name="from" />);
+      const input = textbox(container);
+
+      fireEvent.change(input, { target: { value: "32132026" } });
+      fireEvent.blur(input);
+      expect(input.checkValidity()).toBe(false);
+
+      // Clearing the field is a legitimate way out of the error, not a trap.
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.blur(input);
+      expect(input.checkValidity()).toBe(true);
+    });
+
+    it("keeps the es-AR REQUIRED message for the genuinely empty case", () => {
+      const { container } = render(<DateInputAr name="occurredAt" required />);
+      const input = textbox(container);
+
+      // An invalid event on an EMPTY required field must not inherit the
+      // date-format wording, and vice versa.
+      fireEvent.invalid(input);
+      expect(input.validationMessage).toBe("Completá este campo.");
+    });
+
+    it("does NOT overwrite the format message with the required one", () => {
+      const { container } = render(<DateInputAr name="occurredAt" required />);
+      const input = textbox(container);
+
+      fireEvent.change(input, { target: { value: "32132026" } });
+      fireEvent.blur(input);
+      // A submit attempt fires `invalid`; the handler must leave the specific
+      // message alone rather than telling the user to fill a filled field.
+      fireEvent.invalid(input);
+      expect(input.validationMessage).toBe("Fecha inválida (usá dd/mm/aaaa)");
+    });
+  });
+
   describe("onValueChange (commit-worthy signal)", () => {
     it("fires with the ISO value once a date becomes complete and valid", () => {
       const onValueChange = vi.fn();
@@ -240,6 +316,18 @@ describe("DateInputAr", () => {
       fireEvent.change(input, { target: { value: "32132026" } });
       fireEvent.blur(input);
       expect(onHiddenValueChange).toHaveBeenLastCalledWith("");
+    });
+  });
+
+  describe("aria-invalid forwarding (LnField clone compatibility)", () => {
+    it("merges an external aria-invalid onto the visible input", () => {
+      const { container } = render(<DateInputAr name="d" aria-invalid />);
+      expect(textbox(container).getAttribute("aria-invalid")).toBe("true");
+    });
+
+    it("without the external flag, aria-invalid still follows internal state only", () => {
+      const { container } = render(<DateInputAr name="d" />);
+      expect(textbox(container).getAttribute("aria-invalid")).toBeNull();
     });
   });
 });

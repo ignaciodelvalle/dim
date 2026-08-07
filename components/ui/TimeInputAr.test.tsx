@@ -197,4 +197,67 @@ describe("TimeInputAr", () => {
       expect(onHiddenValueChange).toHaveBeenLastCalledWith("");
     });
   });
+
+  // Same reasoning as DateInputAr's twin block: the visible input is a plain
+  // TEXT field, so every native constraint a text field has is satisfied by
+  // "25:00" while the hidden value is empty. The inline hint has to be backed
+  // by setCustomValidity or the form submits an emptied hour anyway.
+  describe("out-of-range times BLOCK submission, not just paint an error", () => {
+    it("marks the input constraint-invalid once an impossible time is left in it", () => {
+      const { container } = render(<TimeInputAr name="sightedAtTime" />);
+      const input = textbox(container);
+
+      fireEvent.change(input, { target: { value: "2500" } });
+      fireEvent.blur(input);
+
+      expect(input.checkValidity()).toBe(false);
+      expect(input.validity.customError).toBe(true);
+      expect(input.validationMessage).toBe("Hora inválida (usá hh:mm, 24 h)");
+      expect(hidden(container, "sightedAtTime").value).toBe("");
+    });
+
+    it("blocks a real form submit while the time is unparseable, and allows it once fixed", () => {
+      const { container } = render(
+        <form>
+          <TimeInputAr name="sightedAtTime" />
+        </form>,
+      );
+      const form = container.querySelector("form") as HTMLFormElement;
+      const input = textbox(container);
+
+      fireEvent.change(input, { target: { value: "2500" } });
+      fireEvent.blur(input);
+      expect(form.checkValidity()).toBe(false);
+
+      fireEvent.change(input, { target: { value: "1930" } });
+      fireEvent.blur(input);
+      expect(form.checkValidity()).toBe(true);
+      expect(hidden(container, "sightedAtTime").value).toBe("19:30");
+    });
+
+    it("lets a cleared field out of the error state", () => {
+      const { container } = render(<TimeInputAr name="sightedAtTime" />);
+      const input = textbox(container);
+
+      fireEvent.change(input, { target: { value: "1275" } });
+      fireEvent.blur(input);
+      expect(input.checkValidity()).toBe(false);
+
+      fireEvent.change(input, { target: { value: "" } });
+      fireEvent.blur(input);
+      expect(input.checkValidity()).toBe(true);
+    });
+  });
+
+  describe("aria-invalid forwarding (LnField clone compatibility)", () => {
+    it("merges an external aria-invalid onto the visible input", () => {
+      const { container } = render(<TimeInputAr name="t" aria-invalid />);
+      expect(textbox(container).getAttribute("aria-invalid")).toBe("true");
+    });
+
+    it("without the external flag, aria-invalid still follows internal state only", () => {
+      const { container } = render(<TimeInputAr name="t" />);
+      expect(textbox(container).getAttribute("aria-invalid")).toBeNull();
+    });
+  });
 });

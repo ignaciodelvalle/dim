@@ -472,8 +472,14 @@
   --color-st-info-bg: var(--color-ln-op-viol-bg);
   --color-st-info-bd: var(--color-ln-op-viol-bd);
 
-  /* sk-* neutrals (see the @theme block). Resolved at use-time, so the
-   * panorama dark data-theme wrapper's ln-op-* re-map cascades here free. */
+  /* sk-* neutrals (see the @theme block). NOT resolved at use-time: a custom
+   * property whose value contains var() is substituted at COMPUTED-VALUE time
+   * on the element that DECLARES it — here, the .op-surface root. Descendants
+   * inherit the already-substituted color, so a descendant that re-maps
+   * --color-ln-op-ink does NOT re-resolve --color-sk-ink. That is exactly why
+   * the st-* block below is REDECLARED inside [data-theme="situation-room"]
+   * instead of being inherited from here, and the sk-* set is redeclared there
+   * for the same reason. Add a token here ⇒ add it there too. */
   --color-sk-ink: var(--color-ln-op-ink);
   --color-sk-mute: var(--color-ln-op-mute);
   --color-sk-faint: var(--color-ln-op-faint);
@@ -556,6 +562,17 @@
   --color-st-info: var(--color-ln-op-viol);
   --color-st-info-bg: var(--color-ln-op-viol-bg);
   --color-st-info-bd: var(--color-ln-op-viol-bd);
+
+  /* sk-* re-remap, for the same reason the st-* set above is repeated: the
+     .op-surface declarations were already substituted against the LIGHT
+     ln-op-* values on that ancestor, so without these five a revived dark skin
+     would paint dark-on-dark neutrals (ink #21272b on card #111a2b). Declared
+     here they resolve against the dark values above. */
+  --color-sk-ink: var(--color-ln-op-ink);
+  --color-sk-mute: var(--color-ln-op-mute);
+  --color-sk-faint: var(--color-ln-op-faint);
+  --color-sk-line-strong: var(--color-ln-op-line);
+  --color-sk-warn-wash: var(--color-ln-op-warn-bg);
 }
 
 /* ---- Base ------------------------------------------------------------------ */
