@@ -1,6 +1,6 @@
 "use client";
 
-import { LnCheckbox, LnField, LnInput, LnTextarea } from "@/components/ui/Field";
+import { LnCheckbox, LnField, LnFileInput, LnInput, LnTextarea } from "@/components/ui/Field";
 import { OpButton } from "@/components/ui/dashboard";
 import { ACTION_STALL_COPY, ACTION_STALL_MS } from "@/lib/ui/action-stall";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
@@ -100,6 +100,9 @@ export function FinalizeAdoptionForm({
   // its hidden inputs — the printed document carries the same follow-up and
   // notes the finalize will submit.
   const [followupValue, setFollowupValue] = useState("6");
+  // The native control printed the chosen filename; hiding it (LnFileInput)
+  // moves that feedback here.
+  const [contractFileName, setContractFileName] = useState("");
   const [notesValue, setNotesValue] = useState("");
 
   function verifyAccount() {
@@ -381,13 +384,13 @@ export function FinalizeAdoptionForm({
             hint="Si lo subís, queda enlazado al evento de adopción y al expediente del animal."
           >
             {({ id, describedBy }) => (
-              <input
+              <LnFileInput
                 id={id}
                 name="contract"
-                type="file"
                 accept="application/pdf,image/*"
                 aria-describedby={describedBy}
-                className="block w-full text-sm text-ln-op-ink-2 file:mr-3 file:rounded-[var(--radius-sm)] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-sm"
+                status={contractFileName}
+                onChange={(e) => setContractFileName(e.target.files?.[0]?.name ?? "")}
               />
             )}
           </LnField>

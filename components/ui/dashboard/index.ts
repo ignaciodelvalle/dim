@@ -1,5 +1,7 @@
 export { OpButton } from "./OpButton";
 export { OpIconButton } from "./OpIconButton";
+export { OpFileInput } from "./OpFileInput";
+export type { OpFileInputProps } from "./OpFileInput";
 export type { OpButtonVariant, OpButtonSize } from "./OpButton";
 export { OpRail } from "./OpRail";
 export { OpRailNav } from "./OpRailNav";

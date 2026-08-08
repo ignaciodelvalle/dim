@@ -498,6 +498,80 @@ export function LnTextarea({ invalid = false, className = "", ...rest }: LnTexta
   );
 }
 
+// ---------- File input -----------------------------------------------------
+
+// Citizen twin of OpFileInput (components/ui/dashboard/OpFileInput.tsx) — read
+// the WHY there; it is the same problem in both skins. Short version: the file
+// control is the ONE input whose trigger text and "no file selected" status are
+// drawn by the USER AGENT, in the browser's language, so an es-AR form rendered
+// "Choose File / No file chosen". The `file:` pseudo-element restyles that
+// button's box but never its words, so hiding the native control and driving it
+// from a <label> is the only way to own them.
+//
+// Skin differences from the operator twin, both deliberate: pill radius (see
+// Button.tsx — the citizen tier is pill at every size, the operator tier keeps
+// its 6px institutional rect) and the citizen focus-ring token. The 44px floor
+// is NOT a skin difference — this label is the file field's control surface,
+// and the floor is a field rule (LnButton does not carry it either).
+
+export type LnFileInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "className"> & {
+  /** Visible trigger text. Defaults follow `multiple`. */
+  label?: string;
+  /** Selection summary. Pass `null` when the caller renders its own file list. */
+  status?: string | null;
+  /** Wrapper class — the trigger chrome itself is not overridable by design. */
+  className?: string;
+};
+
+const LN_FILE_TRIGGER_CLASS =
+  // No icon gap here (see the note on OpFileInput's trigger): LnButton's
+  // arbitrary 7px gap separates an icon from a label, and this trigger has one
+  // text child.
+  "inline-flex items-center justify-center font-semibold " +
+  "rounded-[var(--radius-pill)] border transition-colors cursor-pointer select-none " +
+  "px-3.5 py-2 text-md min-h-[44px] " +
+  "bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] border-[var(--color-ln-line-strong)] " +
+  "hover:bg-[var(--color-ln-stripe)] active:scale-[0.98] active:opacity-90 " +
+  "peer-disabled:cursor-not-allowed peer-disabled:opacity-60 " +
+  "peer-focus-visible:outline-none peer-focus-visible:ring-[3px] " +
+  "peer-focus-visible:ring-[var(--color-ln-celeste-050)]";
+
+export function LnFileInput({
+  label,
+  status,
+  className = "",
+  multiple,
+  id,
+  ...rest
+}: LnFileInputProps) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
+  const statusId = `${inputId}-status`;
+
+  return (
+    <div className={`flex flex-wrap items-center gap-3 ${className}`}>
+      {/* Input BEFORE label: `peer-*` only reaches later siblings, so swapping
+          these two silently drops the keyboard focus ring. */}
+      <input
+        {...rest}
+        id={inputId}
+        type="file"
+        multiple={multiple}
+        className="peer sr-only"
+        aria-describedby={status === null ? undefined : statusId}
+      />
+      <label htmlFor={inputId} className={LN_FILE_TRIGGER_CLASS}>
+        {label ?? (multiple ? "Elegir archivos" : "Elegir archivo")}
+      </label>
+      {status !== null && (
+        <span id={statusId} aria-live="polite" className="text-sm text-[var(--color-ln-mute)]">
+          {status || "Ningún archivo elegido"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 // ---------- Row (2-column grid) -------------------------------------------
 
 export function LnRow({ children, className = "" }: { children: ReactNode; className?: string }) {

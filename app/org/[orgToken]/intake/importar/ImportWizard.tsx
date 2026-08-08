@@ -13,7 +13,7 @@
 
 import { useRef, useState } from "react";
 
-import { OpButton } from "@/components/ui/dashboard";
+import { OpButton, OpFileInput } from "@/components/ui/dashboard";
 import { buildFailedRowsCsv } from "@/lib/domain/intake-csv";
 
 import {
@@ -45,6 +45,9 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
   } | null>(null);
   const [progress, setProgress] = useState({ done: 0, total: 0 });
   const [results, setResults] = useState<ImportIntakeRowResult[]>([]);
+  // Hiding the native control also hides the filename it used to print, so the
+  // wizard now owns that feedback (OpFileInput `status`).
+  const [selectedFileName, setSelectedFileName] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validRows = preview?.rows.filter((r) => r.valid) ?? [];
@@ -150,20 +153,27 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
 
       {step === "upload" && (
         <div className="space-y-3">
-          <label className="block space-y-1">
-            <span className="text-md text-ln-op-ink">Archivo CSV</span>
-            <input
+          {/* NOT a wrapping <label>: OpFileInput renders its own htmlFor label,
+              and nesting labels is invalid HTML — the outer one would swallow
+              the click and the picker would never open. Plain span + the
+              component's own `id` association instead. */}
+          <div className="space-y-1">
+            <span id="csv-file-label" className="block text-md text-ln-op-ink">
+              Archivo CSV
+            </span>
+            <OpFileInput
               ref={fileInputRef}
-              type="file"
               accept=".csv,text/csv"
               disabled={validating}
+              aria-labelledby="csv-file-label"
+              status={selectedFileName}
               onChange={(e) => {
                 const file = e.target.files?.[0];
+                setSelectedFileName(file?.name ?? "");
                 if (file) void handleFileSelected(file);
               }}
-              className="block w-full text-sm text-ln-op-ink-2 file:mr-3 file:rounded-[var(--radius-sm)] file:border-0 file:bg-ln-op-azul file:px-3 file:py-1.5 file:text-white file:text-sm"
             />
-          </label>
+          </div>
           {validating && <p className="text-sm text-ln-op-mute">Validando el archivo…</p>}
         </div>
       )}
