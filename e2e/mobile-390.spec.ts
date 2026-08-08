@@ -41,39 +41,63 @@ async function expectNoHorizontalScroll(page: Page, label: string) {
 }
 
 /**
- * Returns interactive controls whose rendered box is under the 44px touch
- * floor, as `tag[name] HxW` strings for a legible failure message.
+ * Returns controls under `floor` px tall, as `tag[name] HxW` strings.
  *
- * Scoped to controls that are actually VISIBLE and inside the main content:
- * an offscreen `sr-only` input (OpFileInput's native control is one) is not a
- * touch target, and flagging it would train people to ignore this test.
+ * TWO FLOORS, ON PURPOSE — matching the rule the design system actually holds
+ * (see the density note in components/ui/dashboard/OpField.tsx):
+ *
+ *  - **Fields** (input/select/textarea) answer to **44px**. That is the rule
+ *    components/ui/Field.tsx has enforced since Wave 2 and that OpField now
+ *    mirrors.
+ *  - **Buttons and links** answer to **24px**, the WCAG 2.5.8 AA target-size
+ *    minimum. Neither LnButton nor OpButton carries a 44px floor, deliberately.
+ *
+ * The first version of this helper asserted 44px on everything and failed on
+ * four topbar controls (40×40 icon buttons, a 25px jurisdiction chip, a 32×32
+ * submit) — all of which clear AA. It was the TEST encoding a stricter rule
+ * than the one we shipped, not a product defect. Keep the two floors separate.
+ *
+ * Only VISIBLE controls count: an offscreen `sr-only` input (OpFileInput's
+ * native control is one) is not a touch target, and flagging it would train
+ * people to ignore this test.
  */
-async function undersizedTouchTargets(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const SELECTOR = "main button, main a[href], main input, main select, main textarea";
+async function undersizedControls(
+  page: Page,
+  scope: string,
+  kind: "fields" | "buttons",
+  floor: number,
+): Promise<string[]> {
+  return page.evaluate(
+    ({ scope, kind, floor }) => {
+      const SELECTOR =
+        kind === "fields"
+          ? `${scope} input, ${scope} select, ${scope} textarea`
+          : `${scope} button, ${scope} a[href]`;
 
-    /** Everything this sweep deliberately does not measure. */
-    const exempt = (el: Element, style: CSSStyleDeclaration, box: DOMRect): boolean => {
-      if (style.display === "none" || style.visibility === "hidden") return true;
-      // sr-only controls are driven by a visible proxy (a <label>), which this
-      // sweep measures on its own.
-      if (style.position === "absolute" && el.clientWidth <= 1) return true;
-      if (box.width === 0 || box.height === 0) return true;
-      // Inline text links inherit the line box and are exempt from 2.5.5 by the
-      // "inline" exception — only measure controls that carry their own box.
-      return el.tagName === "A" && style.display.startsWith("inline");
-    };
+      /** Everything this sweep deliberately does not measure. */
+      const exempt = (el: Element, style: CSSStyleDeclaration, box: DOMRect): boolean => {
+        if (style.display === "none" || style.visibility === "hidden") return true;
+        // sr-only controls are driven by a visible proxy (a <label>), which this
+        // sweep measures on its own.
+        if (style.position === "absolute" && el.clientWidth <= 1) return true;
+        if (box.width === 0 || box.height === 0) return true;
+        // Inline text links inherit the line box and are exempt from 2.5.5 by the
+        // "inline" exception — only measure controls that carry their own box.
+        return el.tagName === "A" && style.display.startsWith("inline");
+      };
 
-    const describe = (el: Element, box: DOMRect): string => {
-      const name = el.getAttribute("name") ?? el.getAttribute("type") ?? "";
-      return `${el.tagName.toLowerCase()}${name ? `[${name}]` : ""} ${Math.round(box.height)}x${Math.round(box.width)}`;
-    };
+      const describe = (el: Element, box: DOMRect): string => {
+        const name = el.getAttribute("name") ?? el.getAttribute("type") ?? "";
+        return `${el.tagName.toLowerCase()}${name ? `[${name}]` : ""} ${Math.round(box.height)}x${Math.round(box.width)}`;
+      };
 
-    return Array.from(document.querySelectorAll(SELECTOR))
-      .map((el) => ({ el, style: getComputedStyle(el), box: el.getBoundingClientRect() }))
-      .filter(({ el, style, box }) => !exempt(el, style, box) && box.height < 44)
-      .map(({ el, box }) => describe(el, box));
-  });
+      return Array.from(document.querySelectorAll(SELECTOR))
+        .map((el) => ({ el, style: getComputedStyle(el), box: el.getBoundingClientRect() }))
+        .filter(({ el, style, box }) => !exempt(el, style, box) && box.height < floor)
+        .map(({ el, box }) => describe(el, box));
+    },
+    { scope, kind, floor },
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -125,8 +149,18 @@ test("el formulario de decomiso respeta el piso táctil de 44px", async ({ page 
   await expect(page.getByRole("heading", { name: /sujeto del decomiso/i })).toBeVisible();
 
   await expectNoHorizontalScroll(page, "decomiso nuevo");
-  const offenders = await undersizedTouchTargets(page);
-  expect(offenders, `controls under the 44px touch floor: ${offenders.join(", ")}`).toEqual([]);
+
+  // Scoped to the form's own sections, not all of `main` — the operator topbar
+  // renders inside main, and its icon buttons are chrome, not form controls.
+  const FORM = "main section";
+
+  const fields = await undersizedControls(page, FORM, "fields", 44);
+  expect(fields, `campos bajo el piso tactil de 44px: ${fields.join(", ")}`).toEqual([]);
+
+  const buttons = await undersizedControls(page, "main", "buttons", 24);
+  expect(buttons, `controles bajo el minimo WCAG 2.5.8 AA de 24px: ${buttons.join(", ")}`).toEqual(
+    [],
+  );
 });
 
 test("el wizard de import CSV muestra el disparador de archivo en es-AR", async ({ page }) => {

@@ -372,3 +372,137 @@ donde un problema duele más. Si sólo hay tiempo para dos sesiones, son esas.
 
 `S6` es la de mayor rendimiento por hora, y su mitad sobre **datos de semilla**
 (Pampa, denuncias y casos ya sembrados) no depende de S1–S5: se puede correr
+
+---
+
+## 10. Corrida desatendida — contrato por sesión
+
+> Aplica cuando las 8 sesiones corren de corrido, sin nadie mirando. El riesgo
+> específico de este modo: **una sesión temprana falla a medias, y las que
+> siguen corren sobre datos que no existen y producen un informe verde que no
+> significa nada.** Todo lo de acá abajo existe para que eso sea imposible.
+
+### 10.0 — Precondición global (antes de S1, una sola vez)
+
+Staging tiene que estar sirviendo el commit `2b3bc9b2` o posterior. Verificalo
+así, y **si no coincide, PARÁ y reportá — no arranques**:
+
+- Abrí `/gob/decomisos/nuevo` (con `govt-local@`). El selector de adjuntos debe
+  decir **"Elegir archivos"**, no "Choose Files".
+- En `/gob`, ningún porcentaje debe tener punto decimal. Todos con coma.
+- `/org/{token}/adopciones/cualquier-cosa-invalida` debe dar la pantalla de
+  **"No encontramos esta página"**, no "Algo salió mal".
+
+Si alguna de las tres falla, staging todavía sirve el build viejo: esperá 5
+minutos y reintentá. A los 3 intentos fallidos, pará y dejá el reporte.
+
+### 10.1 — Puerta de entrada de cada sesión
+
+Antes de revisar nada, cada sesión **verifica que sus insumos existen**. Si no
+existen, la sesión **NO se ejecuta**: escribe un handoff de tipo `ABORTADA` con
+el motivo y pasa a la siguiente.
+
+| Sesión | Antes de empezar, comprobá que… | Si falta |
+|---|---|---|
+| S1 | La precondición 10.0 pasó | PARÁ TODO |
+| S2 | Podés loguear `owner@` y ves `/mis-mascotas` | ABORTADA |
+| S3 | Existe al menos una mascota `CW-` creada por S2 | ABORTADA |
+| S4 | Existe al menos una denuncia `CW-` creada por S1 | ABORTADA |
+| S5 | S4 dejó al menos una denuncia moderada, y `/gob/denuncias` lista algo | ABORTADA |
+| S6 | Tenés los 3 objetos del handoff (mascota, caso, denuncia) con sus tokens | Corré la mitad de SEMILLA igual, y anotá que la mitad `CW-` quedó pendiente |
+| S7 | — (sólo lectura, sin dependencias) | Nunca aborta |
+| S8 | — (sólo lectura); para la pasada de fechas, que sean 21:00–00:00 ART | Hacé impresión igual, dejá fechas pendiente |
+
+**Una sesión ABORTADA no es un fracaso de la corrida** — es el sistema
+funcionando. Un informe que dice "no pude hacer S5 porque S4 no dejó denuncias
+moderadas" vale mucho más que uno que dice "S5 limpio, 0 hallazgos" sobre una
+cola vacía.
+
+### 10.2 — Formato del handoff (obligatorio al cierre de cada sesión)
+
+```
+## HANDOFF S{n} — {ABORTADA | PARCIAL | COMPLETA}
+
+Inicio: {hora ART} · Fin: {hora ART}
+Precondición: {qué comprobaste y qué viste}
+
+### Entidades creadas
+| Tipo | Nombre / token público | Estado en que quedó | Cuenta |
+|---|---|---|---|
+
+### Semilla tocada y restaurada
+| Qué | Cómo estaba | Cómo lo dejé | ¿Verificado? |
+|---|---|---|---|
+
+### Pantallas cubiertas
+{n} de {total} previstas. Las no cubiertas, con motivo.
+
+### Hallazgos
+S{n}-01 … (sólo los títulos; el detalle va en el informe)
+
+### Pendiente para otra sesión
+- {qué} → {a qué sesión se lo pasás} → {por qué no lo hiciste acá}
+```
+
+### 10.3 — Cuándo parar y cuándo seguir
+
+- **BLOQUEANTE** → reportalo de inmediato, dejá de mutar en esa área,
+  **seguí** con el resto de la sesión. No cortes la corrida.
+- **La app deja de cargar en todas partes, o hay 400 en `/_next/static/…`** →
+  PARÁ TODO. Es infraestructura, no producto. Dejá el reporte y no sigas.
+- **Un rate limit te bloquea** → esperá 2 minutos, una sola vez. Si vuelve a
+  bloquear, marcá esa parte como `BLOQUEADO` y seguí con lo que no necesita esa
+  cuenta.
+- **Un flujo no se puede completar por la UI** → es un hallazgo, y la sesión
+  sigue. Nunca busques un atajo por URL directa para "destrabar".
+- **Te quedaste sin saber si algo es bug tuyo o del producto** → LUPA, con la
+  duda escrita. No adivines.
+
+### 10.4 — Presupuesto de tiempo
+
+Ocho sesiones en una noche significa que ninguna puede comerse el presupuesto.
+Orientativo, no rígido:
+
+| Sesión | Presupuesto | Si te pasás |
+|---|---|---|
+| S1, S2 | ~90 min c/u | Cerrá con handoff `PARCIAL` y lo no cubierto listado |
+| S3, S4, S5 | ~75 min c/u | Ídem |
+| S6 | ~60 min | Ídem |
+| S7, S8 | ~45 min c/u | Ídem |
+
+**Preferimos 8 handoffs `PARCIAL` honestos a 3 `COMPLETA` y 5 sesiones que
+nunca corrieron.** Si una sesión se está yendo de tiempo, cerrala bien y pasá a
+la siguiente: la puerta de entrada de 10.1 se encarga de que la siguiente sepa
+qué le falta.
+
+### 10.5 — DoD por sesión (checklist antes de escribir el handoff)
+
+Ninguna sesión se cierra sin poder responder que sí a todo esto:
+
+1. ¿Comprobé mi precondición (10.1) y lo escribí?
+2. ¿Recorrí los flujos **paso a paso**, sin deep-links para saltear pasos?
+3. ¿Probé, en al menos un flujo multi-paso, qué pasa al **recargar** en el
+   medio y al apretar **atrás** del navegador?
+4. ¿Busqué los siete estados (L4) en cada listado y cada detalle que toqué?
+5. ¿Cada hallazgo tiene URL, cuenta, hora ART, valor medido y captura? ¿Los
+   ALTA/BLOQUEANTE tienen pasos numerados de reproducción?
+6. ¿Separé OBSERVACIÓN de HIPÓTESIS de SUGERENCIA en todos?
+7. ¿Escribí la sección de **verificado y limpio**?
+8. ¿Escribí la sección de **no pude verificar**, con el motivo exacto?
+9. ¿Devolví a su estado original todo lo que tomé de la semilla, y lo
+   **verifiqué** volviendo a mirarlo?
+10. ¿El handoff tiene el formato de 10.2, con los tokens públicos escritos?
+
+### 10.6 — Al final de la corrida
+
+Un documento de cierre, además de los 8 informes:
+
+- Tabla de las 8 sesiones con su estado (`COMPLETA` / `PARCIAL` / `ABORTADA`) y
+  una línea de por qué.
+- **Matriz de cobertura consolidada** pantalla × perfil, sin celdas vacías.
+- Ledger completo de hallazgos ordenado por severidad.
+- **Hallazgos sistémicos**: los que aparecieron en 3 o más pantallas. Estos son
+  los más valiosos y los más fáciles de perder entre 8 informes separados.
+- Las 12 lentes con su constancia: hallazgo, o "verificado limpio, así lo
+  comprobé", o "no llegué".
+- Todo lo `CW-` creado, para poder limpiarlo.
