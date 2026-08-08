@@ -7,7 +7,11 @@
 
 import { useState } from "react";
 
-import { LocationFields, type LocationFieldsChange } from "@/components/LocationFields";
+import {
+  LocationFields,
+  type LocationFieldsChange,
+  type LocationFieldsValue,
+} from "@/components/LocationFields";
 import { LnRadioGroup, LnTextarea } from "@/components/ui/Field";
 import { parseDateInput, todayIsoInAr } from "@/lib/utils/format";
 
@@ -66,6 +70,15 @@ type Step3WhereProps = {
   // Lifts LocationFields' derived value into the wizard so it owns the location
   // data (M-followup) instead of reading uncontrolled hidden inputs at submit.
   onLocationChange: (value: LocationFieldsChange) => void;
+  // Restored draft location, if any. Seeds the picker so a reload shows the
+  // point it says it kept — see the note on `locationKey` below.
+  defaultLocation?: LocationFieldsValue | null;
+  // Bumped once when a draft with coordinates is restored. LocationFields reads
+  // `defaultValue` only in its useState initialisers, and the wizard restores
+  // from localStorage in an effect that necessarily runs AFTER this child has
+  // mounted — so without a remount the picker would keep its empty initial
+  // state while the wizard believed a point existed.
+  locationKey?: string | number;
   // We pass the error so the parent can show step-level validation.
   error?: string | null;
 };
@@ -80,6 +93,8 @@ export function Step3Where({
   onDescriptionChange,
   onPointPresenceChange,
   onLocationChange,
+  defaultLocation,
+  locationKey,
   error,
 }: Step3WhereProps) {
   // The exact map point is REQUIRED (FIX #3A): a denuncia can only be routed to
@@ -204,9 +219,11 @@ export function Step3Where({
           </span>
         </p>
         <LocationFields
+          key={locationKey}
           mode="l2"
           allowAnonymous
           useMyLocationVariant="primary"
+          defaultValue={defaultLocation ?? undefined}
           onPointPresenceChange={handlePointPresence}
           onChange={onLocationChange}
         />

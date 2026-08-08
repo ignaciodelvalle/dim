@@ -64,7 +64,10 @@ describe("denuncia-autosave — restore contract", () => {
         lat: -34.588755,
         lng: -58.4301669,
         address: null,
-        source: "geolocation",
+        // 'gps' | 'pin_manual' are the only values LocationFields emits. The
+        // first draft of this test used "geolocation", which the app never
+        // produces — a round-trip proved on data that cannot occur.
+        source: "gps",
       },
     });
     const restored = restoreDraft();

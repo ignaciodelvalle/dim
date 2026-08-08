@@ -112,6 +112,9 @@ export function DenunciaWizard() {
   // here so step 3 cannot advance (and the form cannot submit) without one — the
   // canonical locality is inferred server-side from that point.
   const [hasLocationPoint, setHasLocationPoint] = useState(false);
+  // Bumped once when a draft carrying coordinates is restored, to remount
+  // LocationFields so it re-reads its defaultValue. See the restore effect.
+  const [locationRemountKey, setLocationRemountKey] = useState(0);
   const [stepError, setStepError] = useState<string | null>(null);
   const [isPending, setIsPending] = useState(false);
   // The receipt navigation does not block, so `isPending` alone would re-enable
@@ -153,10 +156,22 @@ export function DenunciaWizard() {
       when: (draft.step3.when as WhenOption | null) ?? null,
       location: restoredLocation,
     }));
-    // Keeps the "a point is set" gate in sync with the restored value; without
-    // it the wizard would hold coordinates while still telling the reporter to
-    // pick a location.
-    setHasLocationPoint(restoredLocation.lat != null && restoredLocation.lng != null);
+    // Remount the picker so it reads the restored coordinates. LocationFields
+    // seeds its map point from `defaultValue` in a useState initialiser, and
+    // this effect necessarily runs after the child has already mounted empty.
+    //
+    // `hasLocationPoint` is NOT set here on purpose. The remounted picker
+    // reports point presence through onPointPresenceChange, so it stays the
+    // single source of that fact. Setting it here as well created a second
+    // truth that could disagree with the screen: the map showed no marker and
+    // the inline "Marcá el lugar exacto" warning while "Continuar" was
+    // unlocked — and typing in the address box then emitted a change with
+    // `point: null`, blanking the coordinates while the gate stayed open. A
+    // denuncia could be filed with no location past a check that had been told
+    // one existed (caught in adversarial review before it reached anyone).
+    if (restoredLocation.lat != null && restoredLocation.lng != null) {
+      setLocationRemountKey((n) => n + 1);
+    }
   }, []);
 
   // UX 3.2 item 3 — Autosave to localStorage whenever relevant state changes.
@@ -502,6 +517,8 @@ export function DenunciaWizard() {
             onDescriptionChange={(description) => updateState({ description })}
             onPointPresenceChange={setHasLocationPoint}
             onLocationChange={(location) => setWizState((prev) => ({ ...prev, location }))}
+            defaultLocation={wizState.location}
+            locationKey={locationRemountKey}
             error={step === 3 ? stepError : null}
           />
           {step === 3 && (
