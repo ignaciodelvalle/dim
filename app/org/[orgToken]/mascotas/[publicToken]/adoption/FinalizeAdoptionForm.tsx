@@ -275,11 +275,18 @@ export function FinalizeAdoptionForm({
                     {/* Submits the SIBLING print form (forms can't nest) — opens
                       the print-ready contract in a new tab. Stateless read:
                       printing writes nothing. */}
+                    {/* Copy realigned 2026-08-08. It still called the contract
+                        a "borrador pendiente de revisión legal" — the wording
+                        from BEFORE the PO approved the 7-clause model as an
+                        orientative template (2026-08-07). The printed document
+                        itself already banners the approved wording, so the
+                        button and the sheet were telling the org two different
+                        things about the same page's legal weight. */}
                     <OpButton type="submit" form="adoption-contract-print" variant="ghost">
-                      Imprimir contrato (borrador)
+                      Imprimir modelo de contrato
                     </OpButton>
                     <p className="text-sm text-ln-op-ok">
-                      El contrato impreso es un borrador pendiente de revisión legal. Una vez
+                      Es un modelo orientativo de miMAR — revisalo con tu organización. Una vez
                       firmado, subilo en «Contrato firmado» antes de finalizar.
                     </p>
                   </div>

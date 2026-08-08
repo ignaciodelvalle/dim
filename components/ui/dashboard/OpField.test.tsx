@@ -55,11 +55,15 @@ describe("op control chrome", () => {
 
 describe("<OpInput>", () => {
   it("merges the caller className instead of replacing the base", () => {
-    render(<OpInput aria-label="Código" className="w-40 font-mono" />);
+    // Two arbitrary caller classes; the point is that BOTH survive alongside
+    // the base chrome. Deliberately not a font utility — this assertion is
+    // about merging, and using `font-mono` here read as an endorsement of a
+    // class the product does not use (see the mono-variant test below).
+    render(<OpInput aria-label="Código" className="w-40 uppercase" />);
     const input = screen.getByLabelText("Código");
 
     expect(input).toHaveClass("w-40");
-    expect(input).toHaveClass("font-mono");
+    expect(input).toHaveClass("uppercase");
     expect(input).toHaveClass("bg-ln-op-card");
   });
 
@@ -102,9 +106,16 @@ describe("<OpInput>", () => {
     expect(dense).not.toHaveClass("text-md");
   });
 
-  it("applies font-mono for the mono variant", () => {
+  // `font-ln-mono`, not Tailwind's bare `font-mono`. The theme never defines
+  // `--font-mono`, so the bare utility resolves to the SYSTEM stack
+  // (ui-monospace / Consolas / SF Mono) — not IBM Plex Mono, which is what
+  // every code in this product (DIM-, CAS-, DEN-) is set in. 83 occurrences
+  // across 56 files had drifted onto the bare utility against 461 correct ones;
+  // the sweep on 2026-08-08 closed that gap and this pins the primitive's end
+  // of it.
+  it("applies the product mono face for the mono variant", () => {
     render(<OpInput aria-label="Chip" mono />);
-    expect(screen.getByLabelText("Chip")).toHaveClass("font-mono");
+    expect(screen.getByLabelText("Chip")).toHaveClass("font-ln-mono");
   });
 
   it("accepts a ref — the props type is ComponentPropsWithRef, not *HTMLAttributes", () => {

@@ -221,7 +221,7 @@ describe("<FinalizeAdoptionForm> — contract print (org-pilot-pack C2)", () => 
   it("print form and button are ABSENT before the DNI check succeeds", () => {
     const { container } = render(<FinalizeAdoptionForm {...MANUAL_DNI_PROPS} />);
     expect(
-      screen.queryByRole("button", { name: "Imprimir contrato (borrador)" }),
+      screen.queryByRole("button", { name: "Imprimir modelo de contrato" }),
     ).not.toBeInTheDocument();
     expect(container.querySelector("#adoption-contract-print")).toBeNull();
   });
@@ -236,7 +236,7 @@ describe("<FinalizeAdoptionForm> — contract print (org-pilot-pack C2)", () => 
       expect(screen.getByText("Cuenta encontrada: Juana Pérez")).toBeInTheDocument();
     });
 
-    const printButton = screen.getByRole("button", { name: "Imprimir contrato (borrador)" });
+    const printButton = screen.getByRole("button", { name: "Imprimir modelo de contrato" });
     expect(printButton).toBeEnabled();
     // The button submits the SIBLING form (forms can't nest).
     expect(printButton).toHaveAttribute("form", "adoption-contract-print");

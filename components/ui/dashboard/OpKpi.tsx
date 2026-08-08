@@ -423,7 +423,7 @@ function InfoButton({
           >
             <p className="font-medium text-ln-ink-2">{info.definition}</p>
             {info.formula && (
-              <p className="rounded bg-ln-stripe px-2 py-1 font-mono text-xs text-ln-ink-3">
+              <p className="rounded bg-ln-stripe px-2 py-1 font-ln-mono text-xs text-ln-ink-3">
                 {info.formula}
               </p>
             )}
@@ -880,7 +880,27 @@ export function OpKpi({
 type SmProps = Pick<Props, "label" | "value" | "tone" | "sub" | "href">;
 
 /**
+ * Longest string that still earns the display treatment.
+ *
+ * The 24px serif value slot is built for NUMBERS — that is what the tabular
+ * figures, the tight negative tracking and the `leading-none` are all for. A
+ * prose value borrows none of that and pays for it: on /gob/maltrato/[id] the
+ * four tiles sit in one row, and "Media — requiere intervención pronto" wrapped
+ * to two lines beside a "1 día" that used half of one, leaving the row visibly
+ * lopsided (QA 2026-08-07).
+ *
+ * 16 keeps everything that reads as a value — "100%", "1.234", "12 días",
+ * "Sin asignar", "Revisada" — in display, and drops only the sentences.
+ */
+const SM_DISPLAY_MAX_CHARS = 16;
+
+/**
  * Compact KPI tile. Smaller value (--text-2xl, 24px), 9px label, optional hint row.
+ *
+ * A long STRING value automatically steps down to body size (see
+ * SM_DISPLAY_MAX_CHARS). Automatic rather than a caller prop on purpose: the
+ * callers that need it are exactly the ones whose value is computed at runtime,
+ * so they cannot know at write time whether this render will be long.
  */
 export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) {
   const cardCls = [
@@ -889,6 +909,8 @@ export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) 
     toneCard[tone],
   ].join(" ");
 
+  const isLongProse = typeof value === "string" && value.length > SM_DISPLAY_MAX_CHARS;
+
   const content = (
     <>
       <div className="mb-1 text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -896,7 +918,11 @@ export function OpKpiSm({ label, value, tone = "neutral", sub, href }: SmProps) 
       </div>
       <div
         className={[
-          "font-ln-serif text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums",
+          isLongProse
+            ? // Body size, normal leading, no tabular figures: this is a
+              // sentence, and none of the numeric affordances apply to it.
+              "font-ln-serif text-md font-semibold leading-snug"
+            : "font-ln-serif text-2xl font-semibold leading-none tracking-[-0.02em] tabular-nums",
           toneValue[tone],
         ].join(" ")}
       >
