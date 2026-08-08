@@ -1,3 +1,4 @@
+import { requireUuidParam } from "@/lib/infra/route-params";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -22,6 +23,8 @@ export default async function AdminDetailPage({
 }) {
   const { user: actorUser } = await requireAdminOrRedirect();
   const { userId } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(userId);
 
   // Load target admin profile
   const [target] = await db

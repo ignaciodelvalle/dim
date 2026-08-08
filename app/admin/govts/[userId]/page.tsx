@@ -1,3 +1,4 @@
+import { requireUuidParam } from "@/lib/infra/route-params";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -30,6 +31,8 @@ import { accountTypeLabel, formatDateShort, formatDateTimeNumericAr } from "@/li
 export default async function GovtDetailPage({ params }: { params: Promise<{ userId: string }> }) {
   await requireAdminOrRedirect();
   const { userId } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(userId);
 
   // Load govt profile
   const [govt] = await db

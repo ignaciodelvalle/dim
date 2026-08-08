@@ -1,3 +1,4 @@
+import { requireUuidParam } from "@/lib/infra/route-params";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -73,6 +74,8 @@ export default async function ModeracionDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(id);
   const { user } = await requireAdminOrRedirect();
 
   const [report] = await db

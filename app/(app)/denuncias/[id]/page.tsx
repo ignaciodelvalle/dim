@@ -1,6 +1,7 @@
 // Welfare report detail — Libreta Nacional redesign.
 // Presentation only; data fetching, actions, ReporterCommentForm, and LocationMap unchanged.
 
+import { requireUuidParam } from "@/lib/infra/route-params";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -86,6 +87,8 @@ export default async function WelfareReportDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(id);
   const supabase = await createClient();
   const {
     data: { user },

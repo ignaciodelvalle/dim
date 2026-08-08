@@ -15,6 +15,7 @@ import { OpBreach, OpCard, OpCardBody, OpCardHead } from "@/components/ui/dashbo
 import { auditLog, db, organizations, ownerships, petEvents, pets, profiles } from "@/db";
 import { upcastPayload } from "@/lib/events/event-upcasters";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { requireUuidParam } from "@/lib/infra/route-params";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { formatDateTime } from "@/lib/utils/format";
 import { isUuid } from "@/lib/utils/uuid";
@@ -51,6 +52,8 @@ export default async function AdoptionReviewDetailPage({
   params: Promise<{ orgToken: string; appEventId: string }>;
 }) {
   const { orgToken, appEventId } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(appEventId);
   const { organization: orgFromToken } = await requireOrgAccessByToken(orgToken);
   const auth = await requireCapability("adoption.review", orgFromToken.id);
   if (auth.error !== null) {

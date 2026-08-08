@@ -56,10 +56,22 @@ vi.mock("@/lib/infra/welfare-location-audit", () => ({
 
 import { loadWelfareInspectorDetail } from "../welfare-inspector-detail";
 
+// BOTH identifiers here must be SHAPES THE PRODUCT CAN ACTUALLY PRODUCE — the
+// loader now decides which branch to take by inspecting them, so an unrealistic
+// fixture silently routes every test down the wrong one.
+//
+// This fixture used to read id "rep-1" / referenceCode "DEN-ABCD-1234", and the
+// second value cannot exist: the reference-code alphabet deliberately drops the
+// ambiguous glyphs 0/O/1/I/L (src/modules/welfare/domain/reference-code.ts:56),
+// so "…-1234" fails `isValidReferenceCodeFormat`. `welfareReportParamCondition`
+// therefore fell through to its uuid branch, and because the db is mocked here
+// the query matched anyway — so "resolves an in-scope report given its DEN-
+// code" passed for years WITHOUT EVER EXERCISING THE DEN- CODE PATH. A real
+// uuid and a real code make each test take the branch its name claims.
 function report(over: Record<string, unknown> = {}) {
   return {
-    id: "rep-1",
-    referenceCode: "DEN-ABCD-1234",
+    id: "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31",
+    referenceCode: "DEN-ABCD-2345",
     kind: "abandono",
     severity: "high",
     status: "triaged",
@@ -115,14 +127,17 @@ beforeEach(() => {
 describe("loadWelfareInspectorDetail — scope 404-no-leak", () => {
   it("out-of-scope govt → { ok:false } and NO audit row written", async () => {
     h.dbState.queue = [[report()]]; // report exists, but in CABA
-    const res = await loadWelfareInspectorDetail(GOVT_SALTA, "rep-1");
+    const res = await loadWelfareInspectorDetail(
+      GOVT_SALTA,
+      "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31",
+    );
     expect(res.ok).toBe(false);
     expect(mockLogAudit).not.toHaveBeenCalled();
   });
 
   it("non-existent report → { ok:false } (identical outcome to out-of-scope)", async () => {
     h.dbState.queue = [[]]; // report query returns nothing
-    const res = await loadWelfareInspectorDetail(GOVT_CABA, "rep-1");
+    const res = await loadWelfareInspectorDetail(GOVT_CABA, "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31");
     expect(res.ok).toBe(false);
     expect(mockLogAudit).not.toHaveBeenCalled();
   });
@@ -131,24 +146,32 @@ describe("loadWelfareInspectorDetail — scope 404-no-leak", () => {
 describe("loadWelfareInspectorDetail — audit-on-open", () => {
   it("in-scope govt with a coordinate → { ok:true } AND audit fires on open", async () => {
     h.dbState.queue = [[report()]];
-    const res = await loadWelfareInspectorDetail(GOVT_CABA, "rep-1");
+    const res = await loadWelfareInspectorDetail(GOVT_CABA, "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31");
     expect(res.ok).toBe(true);
     expect(mockLogAudit).toHaveBeenCalledTimes(1);
-    expect(mockLogAudit).toHaveBeenCalledWith("u-1", "rep-1", "DEN-ABCD-1234");
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      "u-1",
+      "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31",
+      "DEN-ABCD-2345",
+    );
   });
 
   it("does NOT audit when the report has no coordinate", async () => {
     h.dbState.queue = [[report({ locationLat: null, locationLng: null })]];
-    const res = await loadWelfareInspectorDetail(GOVT_CABA, "rep-1");
+    const res = await loadWelfareInspectorDetail(GOVT_CABA, "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31");
     expect(res.ok).toBe(true);
     expect(mockLogAudit).not.toHaveBeenCalled();
   });
 
   it("admin (universal scope) is never scope-blocked and audits on open", async () => {
     h.dbState.queue = [[report({ jurisdictionProvince: "Salta", jurisdictionLocality: "Salta" })]];
-    const res = await loadWelfareInspectorDetail(ADMIN, "rep-1");
+    const res = await loadWelfareInspectorDetail(ADMIN, "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31");
     expect(res.ok).toBe(true);
-    expect(mockLogAudit).toHaveBeenCalledWith("admin-1", "rep-1", "DEN-ABCD-1234");
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      "admin-1",
+      "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31",
+      "DEN-ABCD-2345",
+    );
   });
 });
 
@@ -159,14 +182,37 @@ describe("loadWelfareInspectorDetail — audit-on-open", () => {
 describe("loadWelfareInspectorDetail — addressable by public reference code", () => {
   it("resolves an in-scope report given its DEN- code and still enforces scope + audit", async () => {
     h.dbState.queue = [[report()]];
-    const res = await loadWelfareInspectorDetail(GOVT_CABA, "DEN-ABCD-1234");
+    const res = await loadWelfareInspectorDetail(GOVT_CABA, "DEN-ABCD-2345");
     expect(res.ok).toBe(true);
-    expect(mockLogAudit).toHaveBeenCalledWith("u-1", "rep-1", "DEN-ABCD-1234");
+    expect(mockLogAudit).toHaveBeenCalledWith(
+      "u-1",
+      "3f1c9a02-1b4d-4e77-9a55-2c8d6b0e7a31",
+      "DEN-ABCD-2345",
+    );
   });
 
   it("still 404-no-leaks an out-of-scope report addressed by its DEN- code", async () => {
     h.dbState.queue = [[report()]]; // report is in CABA
-    const res = await loadWelfareInspectorDetail(GOVT_SALTA, "DEN-ABCD-1234");
+    const res = await loadWelfareInspectorDetail(GOVT_SALTA, "DEN-ABCD-2345");
+    expect(res.ok).toBe(false);
+    expect(mockLogAudit).not.toHaveBeenCalled();
+  });
+
+  // A param that is NEITHER shape used to reach the uuid branch of
+  // welfareReportParamCondition, where Postgres rejects the cast ("invalid
+  // input syntax for type uuid") — so a mistyped URL threw instead of 404ing,
+  // and the route answered HTTP 200 with the generic error boundary
+  // (QA 2026-08-07). It must fold into the same { ok:false } as "does not
+  // exist", and must not even reach the database.
+  it.each([
+    ["a bare word", "contrato"],
+    ["a plausible-looking slug", "modelo-contrato"],
+    // Right shape, impossible alphabet: 1 and 0 are not in the code alphabet.
+    ["a DEN- code with ambiguous glyphs", "DEN-ABCD-1234"],
+    ["an empty segment", ""],
+  ])("404s an unresolvable param (%s) without querying", async (_label, param) => {
+    h.dbState.queue = [[report()]]; // would match if the query ever ran
+    const res = await loadWelfareInspectorDetail(GOVT_CABA, param);
     expect(res.ok).toBe(false);
     expect(mockLogAudit).not.toHaveBeenCalled();
   });

@@ -1,5 +1,6 @@
 // Confirmar reserva — Libreta Nacional redesign.
 
+import { requireUuidParam } from "@/lib/infra/route-params";
 import { eq, sql } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -19,6 +20,8 @@ export default async function ReservarTurnoPage({
 }) {
   const { user } = await requireUserOrRedirect();
   const { offeringToken, slotId } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(slotId);
 
   const [offeringRow] = await db
     .select({

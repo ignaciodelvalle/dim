@@ -1,6 +1,7 @@
 // Event detail screen — Libreta Nacional redesign.
 // Presentation only; data fetching and payload rendering logic unchanged.
 
+import { requireUuidParam } from "@/lib/infra/route-params";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -33,6 +34,8 @@ export default async function EventDetailPage({
   params: Promise<{ publicToken: string; eventId: string }>;
 }) {
   const { publicToken, eventId } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(eventId);
   const session = await requireOwnedPetByToken(publicToken);
   const { pet, accessPath } = session;
 

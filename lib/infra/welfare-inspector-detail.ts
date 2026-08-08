@@ -40,6 +40,7 @@ import { readPoint } from "@/lib/domain/location";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { calendarDaysAgoInAr } from "@/lib/utils/format";
+import { isUuid } from "@/lib/utils/uuid";
 import {
   isValidReferenceCodeFormat,
   normalizeReferenceCode,
@@ -63,6 +64,27 @@ export function welfareReportParamCondition(param: string) {
   return isValidReferenceCodeFormat(normalized)
     ? eq(welfareReports.referenceCode, normalized)
     : eq(welfareReports.id, param);
+}
+
+/**
+ * True when `param` is a shape `welfareReportParamCondition` can actually
+ * resolve — a valid DEN-XXXX-XXXX code, or a uuid.
+ *
+ * Callers MUST check this before building the condition. The `else` branch
+ * above falls through to `eq(welfareReports.id, param)`, and `welfare_reports.id`
+ * is a uuid column: a param that is neither shape (a mistyped or stale URL
+ * segment) makes Postgres throw "invalid input syntax for type uuid", which
+ * surfaces as the generic error boundary under HTTP **200** rather than the 404
+ * the product already ships. QA 2026-08-07 found that class of 200-for-missing
+ * on the adoption detail route; these two welfare routes shared it.
+ *
+ * The check lives HERE, beside the condition it guards, because the two are one
+ * contract — a caller cannot know that the uuid branch is the unguarded one.
+ * It is deliberately NOT folded into `welfareReportParamCondition` (which must
+ * keep returning a condition, not null) so the caller decides the 404.
+ */
+export function isResolvableWelfareReportParam(param: string): boolean {
+  return isValidReferenceCodeFormat(normalizeReferenceCode(param)) || isUuid(param);
 }
 
 // Govt detail projection — all PII fields included (govt role is permitted).
@@ -187,6 +209,12 @@ export async function loadWelfareInspectorDetail(
   idOrCode: string,
 ): Promise<WelfareInspectorResult> {
   const { profile, jurisdictions, user } = session;
+
+  // An unresolvable param folds into the SAME { ok: false } as "does not exist"
+  // — the route maps it to 404, so a garbage segment cannot be distinguished
+  // from a real-but-out-of-scope report either. Without this it reached the
+  // uuid branch of welfareReportParamCondition and threw instead of 404ing.
+  if (!isResolvableWelfareReportParam(idOrCode)) return { ok: false };
 
   const [report] = await db
     .select(GOB_WELFARE_DETAIL_SELECT)

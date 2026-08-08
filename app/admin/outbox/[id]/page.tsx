@@ -9,6 +9,7 @@
 // "within 5 minutes" until 2026-08-04, as did the UI: five minutes is
 // BACKOFF_MINUTES[0], the first backoff step, not the drain cadence.
 
+import { requireUuidParam } from "@/lib/infra/route-params";
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -62,6 +63,8 @@ export default async function AdminOutboxDetailPage({
   await requireAdminOrRedirect();
 
   const { id } = await params;
+  // Nonexistent record must answer 404, not a 200 error boundary.
+  requireUuidParam(id);
 
   const [row] = await db
     .select()

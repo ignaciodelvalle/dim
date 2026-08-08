@@ -26,7 +26,10 @@ import { jurisdictionScopeContains } from "@/lib/domain/jurisdiction-canonical";
 import { readPoint } from "@/lib/domain/location";
 import { requireDenunciaModerationPrincipal } from "@/lib/infra/auth-guards";
 import { welfareAttachmentSignedUrl } from "@/lib/infra/storage";
-import { welfareReportParamCondition } from "@/lib/infra/welfare-inspector-detail";
+import {
+  isResolvableWelfareReportParam,
+  welfareReportParamCondition,
+} from "@/lib/infra/welfare-inspector-detail";
 import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { type FlagReason, reasonLabel } from "@/lib/infra/welfare-moderation";
 import { formatDate, formatDateTime } from "@/lib/utils/format";
@@ -90,6 +93,8 @@ export default async function GobModeracionDetailPage({
   // code to the row here — BEFORE the govt scope guard below — keeps authorization
   // byte-for-byte identical to the old uuid path.
   const { id } = await params;
+  // Neither shape → 404, not a uuid-cast throw behind a 200 error boundary.
+  if (!isResolvableWelfareReportParam(id)) notFound();
   const { user, profile, jurisdictions } = await requireDenunciaModerationPrincipal();
 
   const [report] = await db
