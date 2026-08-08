@@ -623,8 +623,23 @@ export default async function GobiernoDashboardPage({
                       metadata, borrowing the anatomy of the "Brechas vs meta"
                       tiles directly below (OpKpiSm's serif value: same font,
                       weight, tracking and tabular-nums) so the page stays one
-                      visual system. Severity keeps riding on the card's accent
-                      border — no second encoding.
+                      visual system.
+
+                      SEVERITY (QA 2026-08-07). This block used to say severity
+                      rode on the accent border alone — "no second encoding".
+                      That is precisely WCAG 1.4.1 Use of Color: a 3px border
+                      tint was the ONLY visual carrier, so the ranking vanished
+                      under CVD, in grayscale print, and on a washed-out
+                      projector — on the one block of the briefing whose entire
+                      job is to rank. The eyebrow below restores the non-colour
+                      channel.
+
+                      It is deliberately in `text-ln-op-mute`, NOT the severity
+                      tone: the original note was right that a second COLOUR
+                      encoding would just double the alarm. Text carries the
+                      rank; colour stays on the border. Same eyebrow spelling as
+                      OpKpi so it reads as classification, not as a badge
+                      competing with the hero number.
 
                       The split comes from the engine (BriefingAlertDisplay),
                       not from parsing the sentence here.
@@ -640,6 +655,15 @@ export default async function GobiernoDashboardPage({
                     {alert.title} · Confianza: {alert.confidence} · n ={" "}
                     {formatCount(alert.evidence.n)}
                     {alert.evidence.resourceLine && ` · ${alert.evidence.resourceLine}`}
+                  </p>
+                  {/* aria-hidden like its siblings — the sr-only line above
+                      already opens with the same words, so making this visible
+                      must not make a screen reader hear the rank twice. */}
+                  <p
+                    aria-hidden="true"
+                    className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute"
+                  >
+                    {alert.severity === "alta" ? "Prioridad alta" : "Prioridad media"}
                   </p>
                   <p aria-hidden="true" className="text-md font-medium text-ln-op-ink">
                     {alert.display.name}
