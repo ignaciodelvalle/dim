@@ -1009,6 +1009,22 @@ export const AdoptionRepository = {
       transferredFromId: custodyOwnershipId,
     });
 
+    // Take the pet OFF the adoption shelf. The listing is shelf-curated
+    // metadata (see setListingStatus), and finalize never cleared it — so a pet
+    // that had just been adopted still carried adoptionListedAt, and the new
+    // owner opened her own credential to an "EN ADOPCIÓN" chip (adversarial
+    // review 2026-08-08, S2-F04, reproduced end to end as S6-F01).
+    //
+    // The public /adoptar list looked correct only because its query ALSO
+    // requires a live shelter ownership; the chip on /mis-mascotas reads
+    // adoptionListedAt directly, so it kept telling the truth of a stale field.
+    // The reversal path at the bottom of this file has always done this — only
+    // the success path forgot.
+    await tx
+      .update(pets)
+      .set({ adoptionListedAt: null, adoptionListingPausedAt: null, updatedAt: now })
+      .where(eq(pets.id, petId));
+
     // Insert adoption_finalized event.
     const payload = validateEventPayload("adoption_finalized", {
       previous_owner_organization_id: orgId,

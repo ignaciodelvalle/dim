@@ -333,5 +333,24 @@ describe("F5.5 auto-rejection cascade in finalizeAdoptionAction", () => {
       );
     const closedRecipients = closedNotifs.map((n) => n.userId).sort();
     expect(closedRecipients).toEqual([applicant2Id, applicant3Id].sort());
+
+    // The pet comes OFF the adoption shelf. This fixture seeds
+    // adoptionListedAt, and finalize used to leave it set: the adopter then
+    // opened her own credential to an "EN ADOPCIÓN" chip, because
+    // /mis-mascotas reads this field directly (adversarial review 2026-08-08,
+    // S2-F04 / S6-F01, reproduced end to end in two minutes).
+    //
+    // The public /adoptar list hid the problem — its query also demands a live
+    // shelter ownership, so it dropped the pet for a second reason while the
+    // field itself stayed stale. Assert the FIELD, not the list.
+    const [afterFinalize] = await db
+      .select({
+        listedAt: pets.adoptionListedAt,
+        pausedAt: pets.adoptionListingPausedAt,
+      })
+      .from(pets)
+      .where(eq(pets.id, petId));
+    expect(afterFinalize.listedAt, "the pet is still listed for adoption").toBeNull();
+    expect(afterFinalize.pausedAt).toBeNull();
   });
 });
