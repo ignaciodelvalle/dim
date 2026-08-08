@@ -28,7 +28,8 @@ import {
 
 const BASE_INPUT: OrgSetupInput = {
   orgType: "shelter",
-  hasAnimals: false,
+  hasEverHeldAnimal: false,
+  hasSignedEvent: false,
   hasCoverage: false,
   memberCount: 1,
   canCreateServices: false,
@@ -104,12 +105,12 @@ describe("deriveSetupSteps — firstAnimal step", () => {
   );
 
   it("marks firstAnimal done when the org already holds an animal", () => {
-    const steps = deriveSetupSteps(makeInput({ orgType: "shelter", hasAnimals: true }));
+    const steps = deriveSetupSteps(makeInput({ orgType: "shelter", hasEverHeldAnimal: true }));
     expect(steps.find((s) => s.key === "firstAnimal")?.done).toBe(true);
   });
 
   it("marks firstAnimal pending for an empty roster", () => {
-    const steps = deriveSetupSteps(makeInput({ orgType: "shelter", hasAnimals: false }));
+    const steps = deriveSetupSteps(makeInput({ orgType: "shelter", hasEverHeldAnimal: false }));
     expect(steps.find((s) => s.key === "firstAnimal")?.done).toBe(false);
   });
 
@@ -312,7 +313,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
-        hasAnimals: true,
+        hasEverHeldAnimal: true,
         hasCoverage: true,
         memberCount: 2,
         canCreateServices: false,
@@ -327,6 +328,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "clinic",
+        hasSignedEvent: true,
         hasCoverage: true,
         memberCount: 3,
         canCreateServices: false,
@@ -340,7 +342,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
-        hasAnimals: true,
+        hasEverHeldAnimal: true,
         hasCoverage: true,
         memberCount: 2,
         canCreateServices: true,
@@ -359,7 +361,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
-        hasAnimals: true,
+        hasEverHeldAnimal: true,
         hasCoverage: true,
         memberCount: 2,
         hasCapacityDeclared: true,
@@ -380,7 +382,7 @@ describe("isSetupComplete", () => {
       const steps = deriveSetupSteps(
         makeInput({
           orgType: "shelter",
-          hasAnimals: true,
+          hasEverHeldAnimal: true,
           hasCoverage: false,
           memberCount: 2,
           hasCapacityDeclared: true,
@@ -401,7 +403,7 @@ describe("isSetupComplete", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
-        hasAnimals: true,
+        hasEverHeldAnimal: true,
         hasCoverage: true,
         memberCount: 2,
         canCreateServices: true,
@@ -422,7 +424,7 @@ describe("firstPendingStep", () => {
   it("returns the first pending step when some are done", () => {
     // firstAnimal + coverage done, members still pending
     const steps = deriveSetupSteps(
-      makeInput({ hasAnimals: true, hasCoverage: true, memberCount: 1 }),
+      makeInput({ hasEverHeldAnimal: true, hasCoverage: true, memberCount: 1 }),
     );
     const first = firstPendingStep(steps);
     expect(first?.key).toBe("members");
@@ -436,16 +438,32 @@ describe("firstPendingStep", () => {
     expect(firstPendingStep(steps)?.key).toBe("firstAnimal");
   });
 
-  it("returns coverage as first for an org type with no intake step", () => {
-    const steps = deriveSetupSteps(makeInput({ orgType: "clinic" }));
+  // `sanitary_authority`, not `clinic`: a clinic now leads with its own first
+  // act (firstSignedEvent — see CLINICAL_ORG_TYPES), so it is no longer an
+  // example of "no leading step". An authority still is, and using it here
+  // keeps the original intent AND pins that the new step did not leak past its
+  // allowlist onto every non-custody type.
+  it("returns coverage as first for an org type with no leading step", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "sanitary_authority" }));
     const first = firstPendingStep(steps);
     expect(first?.key).toBe("coverage");
+  });
+
+  it("a clinic leads with its first signed event, not with configuration", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "clinic" }));
+    expect(firstPendingStep(steps)?.key).toBe("firstSignedEvent");
+  });
+
+  it("marks the clinic's first act done once it has signed anything", () => {
+    const steps = deriveSetupSteps(makeInput({ orgType: "clinic", hasSignedEvent: true }));
+    expect(steps.find((s) => s.key === "firstSignedEvent")?.done).toBe(true);
   });
 
   it("returns null when all steps are done", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "clinic",
+        hasSignedEvent: true,
         hasCoverage: true,
         memberCount: 2,
         isVerified: true,
@@ -464,6 +482,7 @@ describe("firstPendingStep", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "clinic",
+        hasSignedEvent: true,
         hasCoverage: true,
         memberCount: 2,
         isVerified: false,
@@ -490,7 +509,7 @@ describe("auto-hide behavior", () => {
     const steps = deriveSetupSteps(
       makeInput({
         orgType: "shelter",
-        hasAnimals: true,
+        hasEverHeldAnimal: true,
         hasCoverage: true,
         memberCount: 5,
         canCreateServices: false,

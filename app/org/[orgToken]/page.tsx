@@ -12,7 +12,7 @@
 // Spec: docs/superpowers/specs/2026-06-18-wave3-org-ops-handoff.md (Items 17, 19)
 // Depends on Item 16: lib/org-census.ts (fetchOrgCensus, computeOccupancyBreakdown)
 
-import { and, count, desc, eq, isNull } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
@@ -33,6 +33,7 @@ import {
   organizationCoverage,
   organizationMemberships,
   ownerships,
+  petEvents,
   serviceOfferings,
 } from "@/db";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
@@ -241,35 +242,51 @@ export default async function OrgDashboardPage({
   // list is both cheaper and the one that matches what the operator will see.
   // `isRehoming` (above) is the same shelter|rescue_network custody gate the
   // checklist applies to its own firstAnimal step — one predicate, one meaning.
-  const [coverageCountRow, memberCountRow, servicesCountRow, firstAnimalRow] = await Promise.all([
-    db
-      .select({ n: count() })
-      .from(organizationCoverage)
-      .where(eq(organizationCoverage.organizationId, organization.id)),
-    db
-      .select({ n: count() })
-      .from(organizationMemberships)
-      .where(eq(organizationMemberships.organizationId, organization.id)),
-    canCreateServices
-      ? db
-          .select({ n: count() })
-          .from(serviceOfferings)
-          .where(eq(serviceOfferings.organizationId, organization.id))
-      : Promise.resolve([{ n: 0 }]),
-    isRehoming
-      ? db
-          .select({ id: ownerships.id })
-          .from(ownerships)
-          .where(
-            and(eq(ownerships.ownerOrganizationId, organization.id), isNull(ownerships.endedAt)),
-          )
-          .limit(1)
-      : Promise.resolve([]),
-  ]);
+  const [coverageCountRow, memberCountRow, servicesCountRow, firstAnimalRow, firstSignedEventRow] =
+    await Promise.all([
+      db
+        .select({ n: count() })
+        .from(organizationCoverage)
+        .where(eq(organizationCoverage.organizationId, organization.id)),
+      db
+        .select({ n: count() })
+        .from(organizationMemberships)
+        .where(eq(organizationMemberships.organizationId, organization.id)),
+      canCreateServices
+        ? db
+            .select({ n: count() })
+            .from(serviceOfferings)
+            .where(eq(serviceOfferings.organizationId, organization.id))
+        : Promise.resolve([{ n: 0 }]),
+      // NO `isNull(endedAt)` — see OrgSetupInput.hasEverHeldAnimal. That one
+      // clause was the S3-F04 bug: it made the checklist ask "do you hold an
+      // animal RIGHT NOW?" to answer "did you register your first animal?", so a
+      // shelter that adopted out its last animal got the whole checklist back.
+      // Ownership rows survive a transfer with `endedAt` set, so the unfiltered
+      // query is the record of what happened.
+      isRehoming
+        ? db
+            .select({ id: ownerships.id })
+            .from(ownerships)
+            .where(eq(ownerships.ownerOrganizationId, organization.id))
+            .limit(1)
+        : Promise.resolve([]),
+      // Non-custody orgs (clinic, sanitary authority) lead with their first
+      // SIGNED EVENT instead. Straight off the spine via
+      // pet_events.authorOrganizationId, which carries its own partial index.
+      isRehoming
+        ? Promise.resolve([])
+        : db
+            .select({ id: petEvents.id })
+            .from(petEvents)
+            .where(eq(petEvents.authorOrganizationId, organization.id))
+            .limit(1),
+    ]);
 
   const setupSteps = deriveSetupSteps({
     orgType: organization.orgType,
-    hasAnimals: firstAnimalRow.length > 0,
+    hasEverHeldAnimal: firstAnimalRow.length > 0,
+    hasSignedEvent: firstSignedEventRow.length > 0,
     hasCoverage: (coverageCountRow[0]?.n ?? 0) > 0,
     memberCount: memberCountRow[0]?.n ?? 1,
     canCreateServices,

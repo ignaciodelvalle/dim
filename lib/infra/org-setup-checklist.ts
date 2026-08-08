@@ -64,6 +64,7 @@
 
 export type SetupStepKey =
   | "firstAnimal"
+  | "firstSignedEvent"
   | "coverage"
   | "members"
   | "services"
@@ -80,6 +81,19 @@ export type SetupStepKey =
  * module cards (app/org/[orgToken]/page.tsx).
  */
 const CUSTODY_ORG_TYPES: readonly string[] = ["shelter", "rescue_network"];
+
+/**
+ * Org types whose first meaningful act is SIGNING a clinical event rather than
+ * taking in an animal. Same explicit-allowlist discipline as CUSTODY_ORG_TYPES,
+ * and for the same reason: a new org_type must opt in deliberately.
+ *
+ * Only `clinic`. A `sanitary_authority` holds no patients and signs no
+ * consultations — its work is oversight — and `other` is by definition
+ * unspecified. Both keep today's behaviour: no leading step at all. Writing
+ * this as `else` (everything that is not custody) was the first attempt and it
+ * silently handed a veterinaria's onboarding step to an authority.
+ */
+const CLINICAL_ORG_TYPES: readonly string[] = ["clinic"];
 
 /**
  * Who has to act for a step to become done.
@@ -111,11 +125,36 @@ export type SetupStep = {
 export type OrgSetupInput = {
   orgType: string;
   /**
-   * True when the org holds at least one animal under an ACTIVE ownership row
-   * (any custody role — the same population the custody list shows). Only read
-   * for custody org types; see CUSTODY_ORG_TYPES.
+   * True when the org has EVER held an animal — any ownership row, ended or
+   * not. Only read for custody org types; see CUSTODY_ORG_TYPES.
+   *
+   * "Ever", not "now", and the distinction is the whole point. This used to be
+   * `hasAnimals`, filtered on `endedAt IS NULL`: a shelter that adopted out its
+   * last animal flipped back to false, the step un-completed, and the entire
+   * checklist REAPPEARED (it auto-hides only while everything is done). The
+   * product handed a refugio homework for having succeeded at its job
+   * (QA 2026-08-08, S3-F04).
+   *
+   * The bug underneath was a category error: the step asks a HISTORICAL
+   * question — "did you register your first animal?" — and it was answering
+   * with a CACHE OF THE PRESENT. That is invariant 3 of this project read
+   * backwards. Ownership rows are not deleted on transfer, they get `endedAt`,
+   * so dropping that one clause turns the same cheap query into the record of
+   * what happened.
+   *
+   * Consequence accepted by the PO (2026-08-08): once true it stays true, even
+   * if the roster empties and the org starts over. The checklist is a
+   * PUT-INTO-SERVICE guide, not a status panel — an org with an empty roster
+   * does not need to be taught again how to register an animal.
    */
-  hasAnimals: boolean;
+  hasEverHeldAnimal: boolean;
+  /**
+   * True when the org has EVER authored a clinical event — the non-custody
+   * equivalent of `hasEverHeldAnimal`, derived from
+   * `pet_events.authorOrganizationId` (the spine, via its own partial index).
+   * Only read for non-custody org types.
+   */
+  hasSignedEvent: boolean;
   /** True when at least one coverage zone exists for the org. */
   hasCoverage: boolean;
   /**
@@ -165,7 +204,41 @@ export function deriveSetupSteps(input: OrgSetupInput): SetupStep[] {
       hint: "Registrá tu primer animal — o importá tu planilla completa por CSV desde la misma pantalla.",
       href: "intake",
       cta: "Registrar animal",
-      done: input.hasAnimals,
+      done: input.hasEverHeldAnimal,
+      waitingOn: "org",
+    });
+  } else if (CLINICAL_ORG_TYPES.includes(input.orgType)) {
+    // The same idea for a clinic: lead with the one act
+    // that turns miMAR into a working system FOR THEM.
+    //
+    // A clinic used to get no leading step at all — `firstAnimal` is gated on
+    // CUSTODY_ORG_TYPES, correctly, because a clinic never holds a patient. But
+    // nothing replaced it, so a brand-new veterinaria's guided path opened with
+    // coverage zones and inviting members: precisely the "configuration around
+    // an empty roster" this file's header calls out and claims to have fixed —
+    // fixed for refugios only. The clinic half was never written (found while
+    // preparing the vet pilot, 2026-08-08).
+    //
+    // Signing a clinical event is a clinic's equivalent of a shelter's first
+    // intake: the moment the libreta, the professional seal and the owner's
+    // timeline stop being empty shells. It is also the one thing only they can
+    // do, and the reason a matriculated vet is on the platform at all.
+    //
+    // Unlike the intake step it is not fully self-serve — it needs a patient to
+    // walk in with a DIM code. Accepted by the PO (2026-08-08): in a working
+    // veterinaria that is hours, not weeks, and a step that teaches the core
+    // loop beats one they can tick without learning anything.
+    steps.push({
+      key: "firstSignedEvent",
+      label: "Primera atención",
+      // "el código de la credencial", not "el código DIM": DIM is the internal
+      // codename and never appears in copy a user reads (lint:brand). It also
+      // matches what the destination screen itself says — CodeEntryForm's own
+      // hint is "Ingresá el código de la credencial que te muestra el dueño".
+      hint: "Atendé tu primera mascota: pedí el código de la credencial que te muestra el dueño y firmá el acto con tu matrícula.",
+      href: "atender",
+      cta: "Atender mascota",
+      done: input.hasSignedEvent,
       waitingOn: "org",
     });
   }

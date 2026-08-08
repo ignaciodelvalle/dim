@@ -23,7 +23,8 @@ function render(node: React.ReactElement): string {
 function unverifiedShelterSteps(): SetupStep[] {
   return deriveSetupSteps({
     orgType: "shelter",
-    hasAnimals: false,
+    hasEverHeldAnimal: false,
+    hasSignedEvent: false,
     hasCoverage: false,
     memberCount: 1,
     canCreateServices: false,
@@ -50,7 +51,8 @@ describe("<OrgSetupChecklist> — the verification row is a status, not a task",
     // copy assertion can see that; counting anchors can.
     const steps = deriveSetupSteps({
       orgType: "clinic",
-      hasAnimals: false,
+      hasEverHeldAnimal: false,
+      hasSignedEvent: true,
       hasCoverage: true,
       memberCount: 2,
       canCreateServices: false,
@@ -127,7 +129,8 @@ describe("<OrgSetupChecklist> — the verification row is a status, not a task",
     // dead end for a keyboard user.
     const steps = deriveSetupSteps({
       orgType: "clinic",
-      hasAnimals: false,
+      hasEverHeldAnimal: false,
+      hasSignedEvent: true,
       hasCoverage: true,
       memberCount: 2,
       canCreateServices: false,
