@@ -38,10 +38,20 @@ the named tip does.
 
 ## Working-norm methodology (validated 2026-07-11)
 
-- **Cursor as fresh reviewer is a standard pre-push step.** Before pushing a
-  commit range, run a read-only adversarial pass with a fresh-context reviewer
-  (cursor) over the range. Independent judgment on the diff, not token saving —
-  it catches what the writer's context normalized away.
+- **A fresh-context reviewer is a standard pre-push step.** Before pushing a
+  commit range, run a read-only adversarial pass over the range with a reviewer
+  that did NOT write the code. Independent judgment on the diff, not token
+  saving — it catches what the writer's context normalized away.
+  - **Instrument (PO decision 2026-08-08):** a read-only subagent, spawned per
+    commit range. This replaces cursor-agent, which the project no longer has.
+    Point it at the range and at the specific claims the writer is least able to
+    audit — its own new tests and fences.
+  - `/code-review ultra` stays available for a deeper pass, but it is billed and
+    only Ignacio can launch it, so it is a pre-deploy step and not this one.
+  - The gate is not a substitute. `pnpm verify` + the suite prove the code does
+    what its author believed; they cannot tell you the author's belief was
+    wrong. Three of the fences in this repo were written and validated by the
+    same agent in the same session — exactly the case this step exists for.
 - **Parallel-writer model.** N read-only agents in parallel is free and
   encouraged. A SECOND writer runs ONLY in its own git worktree with disjoint
   file territory + its own targeted tests (local Supabase is shared, so schema/
