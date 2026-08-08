@@ -1,7 +1,7 @@
 // Tests the server action wrapper. We mock requireUserOrRedirect so the test
 // can drive the auth-gate path without spinning up a Next.js runtime.
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/infra/auth-guards", () => ({
   requireUserOrRedirect: vi.fn(),
@@ -17,8 +17,29 @@ const mockAs = (userId: string) =>
     user: { id: userId } as never,
   } as never);
 
+// Freeze the clock so every call in a test lands in the same minute window.
+// The limiter buckets by CALENDAR minute (`Math.floor(now / 60_000)` in
+// lib/infra/rate-limit.ts), not by a sliding window, so a run that straddles
+// :59 → :00 gets a fresh budget mid-test: the "61st call is throttled"
+// assertion then reads a bucket that was never filled and returns results.
+// The same straddle splits the persistence test's single bucket row into two.
+//
+// This is not hypothetical — it failed under full-suite load on 2026-08-08
+// while passing in 5s in isolation. The sibling suites (tag-actions-rate-limit,
+// scan-log-rate-limit) already carry this guard with the same mid-minute :30
+// timestamp; this file had missed it.
+//
+// ONLY Date is faked. Those siblings mock the bucket store, but this suite
+// drives the real limiter through postgres.js, which needs live
+// setTimeout/setInterval for its connection timeouts.
 beforeEach(async () => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-08-08T12:00:30.000Z"));
   await __resetRateLimitForTests();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("searchLocalitiesAction", () => {
