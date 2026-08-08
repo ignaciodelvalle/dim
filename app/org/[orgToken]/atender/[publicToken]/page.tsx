@@ -96,6 +96,43 @@ export default async function AtenderSignPage({
               “verificado por profesional” requiere un firmante con matrícula validada.
             </p>
           )}
+          {/* REPORTED LOST — the whole reason this belongs here.
+              `resolveAtenderPet` has always SELECTed pets.status and only ever
+              branched on "deceased"; the lost state was fetched and thrown away
+              (QA 2026-08-08 S3-F03). Meanwhile the person reading this screen is
+              the best-placed human in the entire system to end the search: the
+              animal is physically in front of them and somebody just carried it
+              in. The North Star's second clause is "lost pets find their
+              owners" — and this was the one screen where that could happen and
+              nobody was told.
+              The CTA is the existing anonymous finder flow, which already
+              notifies the owner instantly with the finder's message and
+              contact. Nothing new was built; a discarded field is now shown
+              next to a door that was already open. */}
+          {pet.status === "lost" && (
+            /* Warn tokens rather than OpCallout: that primitive is navy/info,
+               and its only other tone ("no-signal") is a MUTED warn for empty
+               states. This is the shape DecomisoForm already uses for a
+               consequential fact the operator must see before acting. */
+            <div
+              role="alert"
+              className="rounded-[var(--radius-md)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-4 py-3 space-y-1"
+            >
+              <p className="text-md font-semibold text-ln-op-warn">
+                Esta mascota está reportada como perdida
+              </p>
+              <p className="text-sm text-ln-op-warn">
+                Su familia la está buscando. Si el animal está con vos, avisales ahora — les llega
+                al instante.
+              </p>
+              <Link
+                href={`/p/${pet.publicToken}/encontre`}
+                className="inline-block text-sm font-semibold text-ln-op-warn underline"
+              >
+                Avisar que lo tenés →
+              </Link>
+            </div>
+          )}
           <div className="pt-1">
             <OpCodeBadge tone="neutral">{pet.publicToken}</OpCodeBadge>
           </div>
