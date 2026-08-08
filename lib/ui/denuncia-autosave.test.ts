@@ -51,6 +51,40 @@ describe("denuncia-autosave — restore contract", () => {
     expect(restored?.step3.when).toBe("now");
   });
 
+  it("round-trips the incident location", () => {
+    // S1-F03 (2026-08-08): the draft restored the description, the severity and
+    // the step, so a reload put the reporter back on step 4 with the location
+    // silently blanked — past the step where they would have noticed.
+    saveDraft({
+      ...FULL_DRAFT,
+      location: {
+        provinceCode: "AR-C",
+        provinceName: "CABA",
+        localityName: "Palermo",
+        lat: -34.588755,
+        lng: -58.4301669,
+        address: null,
+        source: "geolocation",
+      },
+    });
+    const restored = restoreDraft();
+    expect(restored?.location?.lat).toBe(-34.588755);
+    expect(restored?.location?.lng).toBe(-58.4301669);
+    expect(restored?.location?.provinceName).toBe("CABA");
+    expect(restored?.location?.localityName).toBe("Palermo");
+  });
+
+  it("restores a draft written before location was persisted", () => {
+    // The key is not versioned per field, so drafts already in someone's
+    // browser have no `location`. They must still restore everything else
+    // instead of being discarded as malformed.
+    saveDraft(FULL_DRAFT);
+    const restored = restoreDraft();
+    expect(restored).not.toBeNull();
+    expect(restored?.step3.description).toBe("Perro atado sin agua bajo el sol.");
+    expect(restored?.location ?? null).toBeNull();
+  });
+
   it("returns null when there is no draft", () => {
     expect(restoreDraft()).toBeNull();
     expect(hasDraft()).toBe(false);

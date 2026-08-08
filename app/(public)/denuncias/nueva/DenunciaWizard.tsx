@@ -142,13 +142,21 @@ export function DenunciaWizard() {
     const draft = restoreDraft();
     if (!draft) return;
     setStep(Math.min(draft.step, TOTAL_STEPS));
+    const restoredLocation: LocationFieldsChange = draft.location
+      ? { ...EMPTY_LOCATION, ...(draft.location as Partial<LocationFieldsChange>) }
+      : EMPTY_LOCATION;
     setWizState((prev) => ({
       ...prev,
       kind: (draft.step1.kind as WelfareReportKind | null) ?? null,
       severity: (draft.step2.severity as WizardSeverity | null) ?? null,
       description: draft.step3.description ?? "",
       when: (draft.step3.when as WhenOption | null) ?? null,
+      location: restoredLocation,
     }));
+    // Keeps the "a point is set" gate in sync with the restored value; without
+    // it the wizard would hold coordinates while still telling the reporter to
+    // pick a location.
+    setHasLocationPoint(restoredLocation.lat != null && restoredLocation.lng != null);
   }, []);
 
   // UX 3.2 item 3 — Autosave to localStorage whenever relevant state changes.
@@ -159,8 +167,16 @@ export function DenunciaWizard() {
       step1: { kind: wizState.kind },
       step2: { severity: wizState.severity },
       step3: { description: wizState.description, when: wizState.when },
+      location: wizState.location,
     });
-  }, [step, wizState.kind, wizState.severity, wizState.description, wizState.when]);
+  }, [
+    step,
+    wizState.kind,
+    wizState.severity,
+    wizState.description,
+    wizState.when,
+    wizState.location,
+  ]);
 
   // UX 3.2 item 3 — beforeunload warning when the reporter has entered any data.
   useEffect(() => {

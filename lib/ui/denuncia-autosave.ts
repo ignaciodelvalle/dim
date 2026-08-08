@@ -20,12 +20,38 @@ export type DraftStep2 = {
   severity: string | null;
 };
 
-// Step 3 stores only the controlled text fields (description + when).
-// LocationFields uncontrolled inputs are NOT persisted here — they are DOM-bound
-// and would require a separate strategy (deferred TODO).
 export type DraftStep3 = {
   description: string;
   when: string | null;
+};
+
+/**
+ * Where the incident happened, as the wizard holds it.
+ *
+ * This used to be excluded, with the note "LocationFields uncontrolled inputs
+ * are NOT persisted here — they are DOM-bound and would require a separate
+ * strategy (deferred TODO)". That stopped being true when the wizard lifted the
+ * value out of the hidden inputs and into its own state
+ * (DenunciaWizard.tsx: "the wizard owns the location value instead of reading
+ * uncontrolled hidden inputs at submit"). The blocker was gone; the deferred
+ * work was never revisited, and the stale comment kept anyone from noticing.
+ *
+ * The cost was silent: a reload restored the description, the severity and the
+ * step, so the reporter landed back on step 4 with the location blanked and no
+ * sign that anything had been lost (adversarial review 2026-08-08, S1-F03).
+ *
+ * Privacy: this is the INCIDENT's location, which the reporter typed or picked
+ * on purpose — the same class as the description. Contact email/phone stay out
+ * of the draft, as before.
+ */
+export type DraftLocation = {
+  provinceCode: string | null;
+  provinceName: string | null;
+  localityName: string | null;
+  lat: number | null;
+  lng: number | null;
+  address: string | null;
+  source: string | null;
 };
 
 export type DraftData = {
@@ -33,6 +59,8 @@ export type DraftData = {
   step1: DraftStep1;
   step2: DraftStep2;
   step3: DraftStep3;
+  /** Optional: drafts written before this field existed restore without it. */
+  location?: DraftLocation | null;
   savedAt: number; // Unix ms — used for TTL check
 };
 
