@@ -84,8 +84,15 @@ export function AdoptionListingCard({
                   {sterilizedText}
                 </span>
               )}
+              {/* The chip fill is ln-azul, not ln-celeste: white on celeste is
+                  3.15:1 and fails WCAG AA (4.5:1) at this 12px size, while the
+                  sterilized chip beside it clears at 5.05:1 on ln-ok. Same row,
+                  same size, same treatment — only the blue was failing. A solid
+                  fill is required here (the chip sits over the photo), so the
+                  remedy is a darker fill, not a translucent one: white on
+                  ln-azul is 7.14:1. */}
               {item.hasMicrochip && (
-                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-celeste text-white">
+                <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-ln-azul text-white">
                   Con chip
                 </span>
               )}

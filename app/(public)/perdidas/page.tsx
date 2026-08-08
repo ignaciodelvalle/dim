@@ -410,8 +410,13 @@ function LostListingCard({ item }: { item: LostListingItem }) {
 
           {/* Footer */}
           <div className="flex items-center gap-2 pt-2 border-t border-[var(--color-ln-line)] text-sm text-[var(--color-ln-mute)]">
+            {/* "Con chip" is ln-azul, not ln-celeste: 3.15:1 on white fails
+                WCAG AA, while the "Castrado/a" label right beside it clears at
+                5.05:1 on ln-ok. ln-celeste is a BRAND colour — fine as a fill,
+                a border or an icon; it was only ever failing as small text.
+                ln-azul is 7.14:1 (adversarial review 2026-08-08, S7-F02). */}
             {item.hasMicrochip && (
-              <span className="text-[var(--color-ln-celeste)] font-medium">Con chip</span>
+              <span className="text-[var(--color-ln-azul)] font-medium">Con chip</span>
             )}
             {item.isSterilized && (
               <span className="text-[var(--color-ln-ok)] font-medium">{sterilizedText}</span>
