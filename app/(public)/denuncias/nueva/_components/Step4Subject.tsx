@@ -277,14 +277,12 @@ function PetLookupPreview({ query }: { query: string }) {
     <div className="rounded-[var(--radius-sm)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-3 py-2 text-xs text-[var(--color-ln-ink)]">
       <p>
         <Icon name="check" size="sm" decorative className="inline align-text-bottom mr-1" />
+        {/* Confirms the CODE matched a registered pet — nothing about who owns
+            it. The owner's initials used to render here; see types.ts for why
+            they are gone. This box is read by an anonymous person filing a
+            mistreatment complaint, holding a tag they can read off the animal. */}
         Esta mascota está registrada como <span className="font-semibold">{result.petName}</span>{" "}
         <span className="text-[var(--color-ln-mute)]">({statusLabel})</span>
-        {result.ownerInitials && (
-          <>
-            . Dueño:{" "}
-            <span style={{ fontFamily: "var(--font-ln-mono)" }}>{result.ownerInitials}</span>
-          </>
-        )}
       </p>
     </div>
   );

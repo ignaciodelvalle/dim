@@ -13,7 +13,7 @@
 import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
-import { db, ownerships, pets, profiles } from "@/db";
+import { db, pets } from "@/db";
 import { DIM_TOKEN_PATTERN } from "@/lib/domain/dim-token";
 import { lookupByChip } from "@/lib/infra/chip-lookup";
 import { RateLimitError, callerIp, enforceRateLimit } from "@/lib/infra/rate-limit";
@@ -31,20 +31,12 @@ async function callerIpAddress(): Promise<string> {
   }
 }
 
-function deriveInitials(displayName: string | null): string | null {
-  if (!displayName) return null;
-  const parts = displayName.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return null;
-  return parts
-    .slice(0, 2)
-    .map((p) => `${p[0]?.toUpperCase() ?? ""}.`)
-    .join("");
-}
-
 // @no-auth-required: public lookup for the denuncia anon wizard.
-// Returns ONLY {found, petName, petStatus, ownerInitials} — never the
-// full pet record, owner email, address, etc. Rate-limited per IP
-// (60/min, 200/hour) to prevent enumeration scraping.
+// Returns ONLY {found, petName, petStatus} — nothing about the owner at all,
+// and nothing else about the pet. Rate-limited per IP (60/min, 200/hour) to
+// slow enumeration scraping — though note the rate limit was never the real
+// defence here: the token is printed on the tag, so the attacker who matters
+// is standing next to the animal and needs exactly one lookup.
 export async function lookupPetForDenuncia(query: string): Promise<PublicLookupResult> {
   const trimmed = query.trim().toUpperCase();
   if (!trimmed) return { found: false };
@@ -58,6 +50,8 @@ export async function lookupPetForDenuncia(query: string): Promise<PublicLookupR
   }
 
   // Microchip path — uses the existing helper with the partial index.
+  // `lookupByChip` also resolves the owner; this projection deliberately drops
+  // everything it returns about them (see types.ts).
   if (MICROCHIP_PATTERN.test(trimmed)) {
     const result = await lookupByChip(trimmed);
     if (!result) return { found: false };
@@ -65,21 +59,23 @@ export async function lookupPetForDenuncia(query: string): Promise<PublicLookupR
       found: true,
       petName: result.pet.name,
       petStatus: result.pet.status,
-      ownerInitials: deriveInitials(result.ownerFirstName),
     };
   }
 
-  // Token path — direct query against pets.public_token + leftJoin owner.
+  // Token path — direct query against pets.public_token.
+  //
+  // NO JOIN TO THE OWNER. This used to leftJoin `ownerships` → `profiles` to
+  // read `displayName` for the initials. With the initials gone the joins have
+  // no purpose, and removing them makes the privacy property STRUCTURAL rather
+  // than a matter of remembering not to return a field: an anonymous caller
+  // cannot be leaked what the query never selects.
   if (DIM_TOKEN_PATTERN.test(trimmed)) {
     const [row] = await db
       .select({
         petName: pets.name,
         petStatus: pets.status,
-        ownerDisplayName: profiles.displayName,
       })
       .from(pets)
-      .leftJoin(ownerships, eq(ownerships.petId, pets.id))
-      .leftJoin(profiles, eq(profiles.id, ownerships.ownerUserId))
       .where(eq(pets.publicToken, trimmed))
       .limit(1);
     if (!row) return { found: false };
@@ -87,7 +83,6 @@ export async function lookupPetForDenuncia(query: string): Promise<PublicLookupR
       found: true,
       petName: row.petName,
       petStatus: row.petStatus as "active" | "lost" | "deceased",
-      ownerInitials: deriveInitials(row.ownerDisplayName),
     };
   }
 
