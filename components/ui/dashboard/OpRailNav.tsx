@@ -111,10 +111,21 @@ function NavLink({
       // self-DoS is gone.
       prefetch={false}
       aria-current={active ? "page" : undefined}
-      // Pending affordance (useLinkStatus, Next 15.5): announces + visually
-      // dims the link while ITS OWN target route is loading — state-only, no
-      // keyframe/spinner animation. `undefined` (not `false`) when idle so the
-      // attribute is absent rather than printing `aria-busy="false"`.
+      // Pending affordance (useLinkStatus, Next 15.5): announces while ITS OWN
+      // target route is loading — state-only, no keyframe/spinner animation
+      // (deliberate: nothing here needs a reduced-motion escape hatch).
+      // `undefined` (not `false`) when idle so the attribute is absent rather
+      // than printing `aria-busy="false"`.
+      //
+      // The VISUAL half used to be `opacity-60`, and QA 2026-08-07 reported
+      // seeing no pending state at all on a 30s-delayed navigation. The state
+      // was firing; it just could not be read. Dimming an item on a dark navy
+      // rail makes it RECEDE — the vocabulary of "disabled", not of "working" —
+      // and 40% off an already-muted rail label is near-invisible. It now
+      // ADVANCES instead: the same lift the active item uses, plus cursor-wait.
+      // Same reason the deferred item above spells "Próximamente" instead of
+      // just grey: on this rail, absence of contrast reads as absence of
+      // meaning.
       aria-busy={pending || undefined}
       onPointerEnter={prefetchOnIntent}
       onFocus={prefetchOnIntent}
@@ -136,7 +147,7 @@ function NavLink({
         active
           ? activeClasses
           : "border-l-2 border-transparent text-[var(--color-ln-op-rail-text)] hover:bg-[rgba(255,255,255,0.05)]",
-        pending ? "cursor-wait opacity-60" : "",
+        pending ? "cursor-wait bg-[rgba(255,255,255,0.12)] text-white" : "",
       ].join(" ")}
     >
       <RailLinkPendingSignal onChange={setPending} />
