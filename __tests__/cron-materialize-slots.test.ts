@@ -18,7 +18,10 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { db, organizations, serviceOfferings, serviceScheduleRules, timeSlots } from "@/db";
 import { generatePrefixedToken, generatePublicToken } from "@/lib/infra/publicToken";
-import { materializeAllActiveSlots } from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
+import {
+  materializeAllActiveSlots,
+  materializeSlotsForOffering,
+} from "@/src/modules/service-offerings/application/slot-materialization/materialize-slots";
 
 // ---------------------------------------------------------------------------
 // Fixture IDs collected during setup so afterAll can clean up.
@@ -198,6 +201,55 @@ describe("materializeAllActiveSlots", () => {
     // offerings in the DB and can be non-zero due to other offerings or a
     // day-boundary insertion, causing false failures.
     expect(countAfterSecond.n).toBe(slotsAfterFirst);
+  });
+
+  // S3-F02 (2026-08-08): "Materializar ahora" reported "Turnos nuevos: 0" and
+  // the operator then found the slots on the public page. The counter read
+  // `(result as { rowCount?: number }).rowCount ?? 0`, under a comment claiming
+  // "rowCount is available on the pg query result" — but this repo runs
+  // postgres-js, whose RowList exposes `count`, not `rowCount`. The cast hid the
+  // mismatch from the compiler and `?? 0` turned the undefined into a
+  // believable zero.
+  //
+  // Every existing test here counts ROWS IN THE DATABASE, deliberately (see the
+  // note in the idempotency case above). That is exactly why this survived: the
+  // suite proved the work happened and nobody checked that the number reported
+  // back was true. This one compares the two.
+  it("reports the number of slots it actually inserted, not zero", async () => {
+    const { offeringId } = await makeOfferingWithRule({
+      effectiveFrom: dateOffset(0),
+      effectiveUntil: null,
+    });
+
+    // Per-offering (not the global cron path) so the count is deterministic
+    // regardless of what else lives in the local DB.
+    const result = await materializeSlotsForOffering(offeringId);
+
+    const [persisted] = await db
+      .select({ n: count() })
+      .from(timeSlots)
+      .where(eq(timeSlots.serviceOfferingId, offeringId));
+
+    expect(persisted.n).toBeGreaterThan(0);
+    expect(result.slotsInserted, "the reported count must match the rows actually written").toBe(
+      persisted.n,
+    );
+  });
+
+  it("reports 0 on a re-run that inserts nothing", async () => {
+    // The other direction: a counter hard-wired to `candidates.length` would
+    // pass the test above and then claim it created slots it only conflicted
+    // with. 0 here is the honest idempotency signal.
+    const { offeringId } = await makeOfferingWithRule({
+      effectiveFrom: dateOffset(0),
+      effectiveUntil: null,
+    });
+
+    const first = await materializeSlotsForOffering(offeringId);
+    expect(first.slotsInserted).toBeGreaterThan(0);
+
+    const second = await materializeSlotsForOffering(offeringId);
+    expect(second.slotsInserted).toBe(0);
   });
 
   it("recovery — partial deletion of materialized slots is fully repaired on the next run", async () => {

@@ -35,6 +35,27 @@ function rollingWindow(): { windowStart: Date; windowEnd: Date } {
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
+ * Rows an INSERT … ON CONFLICT DO NOTHING actually wrote.
+ *
+ * postgres-js resolves an INSERT to a RowList — an array (empty here, there is
+ * no RETURNING) carrying a `count` of affected rows. It has NO `rowCount`; that
+ * is node-postgres's shape. Both call sites read
+ * `(result as { rowCount?: number }).rowCount ?? 0` under a comment asserting
+ * "rowCount is available on the pg query result". It was not: the cast made the
+ * mismatch invisible to the compiler, the property was always undefined, and
+ * `?? 0` turned that into a believable zero. "Materializar ahora" therefore
+ * reported "Turnos nuevos: 0" while writing real slots (adversarial review
+ * 2026-08-08, S3-F02), and the cron under-reported the same way.
+ *
+ * `count` is 0 on a pure conflict, which is exactly the idempotency signal the
+ * caller wants to surface. Verified against the live driver, not inferred.
+ */
+function insertedRowCount(result: unknown): number {
+  const count = (result as { count?: unknown }).count;
+  return typeof count === "number" ? count : 0;
+}
+
+/**
  * Materializes slots for all approved offerings with active schedule rules.
  * Safe to call in a cron — idempotent via onConflictDoNothing on the
  * (service_offering_id, starts_at) unique index.
@@ -99,8 +120,7 @@ export async function materializeAllActiveSlots(opts?: {
           .insert(timeSlots)
           .values(candidates)
           .onConflictDoNothing({ target: [timeSlots.serviceOfferingId, timeSlots.startsAt] });
-        // rowCount is available on the pg query result.
-        slotsInserted += (result as { rowCount?: number }).rowCount ?? 0;
+        slotsInserted += insertedRowCount(result);
       }
       cursor = rule.id;
       rulesProcessed += 1;
@@ -158,7 +178,7 @@ export async function materializeSlotsForOffering(offeringId: string): Promise<{
       .values(candidates)
       .onConflictDoNothing({ target: [timeSlots.serviceOfferingId, timeSlots.startsAt] });
 
-    slotsInserted += (result as { rowCount?: number }).rowCount ?? 0;
+    slotsInserted += insertedRowCount(result);
   }
 
   return { rulesProcessed: rows.length, slotsInserted };
