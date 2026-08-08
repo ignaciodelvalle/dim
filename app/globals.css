@@ -48,7 +48,14 @@
   --color-ln-ink: #1b2a33;
   --color-ln-ink-2: #3c4b55;
   --color-ln-mute: #616e77; /* darkened from #6e7b84 — 5.02:1 on ln-paper (was 4.16:1, WCAG AA-normal fail) */
-  --color-ln-faint: #67747d; /* darkened from #9aa4ab — 4.60:1 on ln-paper (was 2.54:1, WCAG AA fail at all sizes) */
+  /* Darkened twice. #9aa4ab -> #67747d fixed it against ln-paper (2.54 -> 4.60)
+     but left it at 4.37 on ln-stripe, the cream the credential card uses, where
+     the photo markers live (adversarial review 2026-08-08, S7-F03). #646f78
+     clears every surface: 5.14 card / 4.92 paper / 4.67 stripe.
+     The band is narrow ON PURPOSE — it must stay LIGHTER than ln-mute (4.76 on
+     stripe) or the hierarchy inverts and "faint" reads stronger than "mute".
+     __tests__/token-contrast.test.ts holds both ends. */
+  --color-ln-faint: #646f78;
 
   --color-ln-paper: #fbfaf5;
   --color-ln-card: #ffffff;
@@ -622,6 +629,19 @@ h6 {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);
   border-radius: 2px;
+}
+
+/* Card-style radios hide their input with .sr-only and let a <label> carry the
+   whole visual. The rule above still fires — onto a 1×1 clipped box — so the
+   ring is drawn where nobody can see it and the card shows NOTHING on keyboard
+   focus (adversarial review 2026-08-08, S7-F01, measured: outline/box-shadow/
+   border all identical before and after focus).
+   Fixed here rather than in the component because five files share the pattern:
+   the three denuncia steps, OrgBiteForm and RulesWizard. Ley 26.653 — and the
+   denuncia flow is the anonymous one, the most exposed of the set. */
+label:has(input.sr-only:focus-visible) {
+  outline: var(--focus-ring-width) solid var(--focus-ring-color);
+  outline-offset: var(--focus-ring-offset);
 }
 
 /* ---- Utilidades de movimiento --------------------------------------------- */
