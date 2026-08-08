@@ -87,6 +87,26 @@ export function staleBandLabel(minutes: number): string {
 export const STALE_BAND_ACTION = "Actualizar";
 
 /**
+ * DOM id of the top-of-shell slot the stale band portals into.
+ *
+ * WHY A SLOT AND NOT A MOVE. The band is mounted inside
+ * DashboardFreshnessFooter so every dashboard gains it with zero call-site
+ * edits — that property is worth keeping, because a per-page mount is a thing
+ * each new dashboard forgets. But the footer sits at the BOTTOM: QA 2026-08-07
+ * measured the band rendering at 79% of the main scroll height, above the
+ * "Calculado al…" line. On an empty screen you see it; on a loaded briefing —
+ * alerts, gaps, sparklines — the operator reads the entire stale dashboard and
+ * only learns it was stale at the very end. A warning that arrives after the
+ * data it warns about has already done its damage.
+ *
+ * So the band stays mounted where it is and PORTALS to the top of the shell.
+ * AppShell renders this slot in both the citizen and operator variants; when it
+ * is absent (a dashboard outside a shell) the band falls back to rendering in
+ * place, which is strictly the old behaviour.
+ */
+export const STALE_BAND_SLOT_ID = "ln-stale-band-slot";
+
+/**
  * Mutation-retry copy (MutationErrorCard). `exhausted` is deliberately
  * D.12-shaped (see ACTION_STALL_COPY): after RETRY_MAX_ATTEMPTS the honest
  * instruction is to go LOOK at the record before acting again, because under

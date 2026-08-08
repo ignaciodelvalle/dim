@@ -19,8 +19,14 @@
 // "Actualizar" is a plain `<a href="">` — a full-document GET of the current
 // URL, same fence-free mechanism as DegradedFallback's Reintentar.
 
-import { STALE_BAND_ACTION, STALE_BAND_AFTER_MS, staleBandLabel } from "@/lib/ui/degraded-states";
+import {
+  STALE_BAND_ACTION,
+  STALE_BAND_AFTER_MS,
+  STALE_BAND_SLOT_ID,
+  staleBandLabel,
+} from "@/lib/ui/degraded-states";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 // One tick per minute: the copy has minute granularity, so a finer interval
 // would only burn battery.
@@ -37,6 +43,14 @@ function StaleAnchor() {
 
 export function FreshnessStaleBand({ refreshSignal }: { refreshSignal: string }) {
   const [elapsedMs, setElapsedMs] = useState(0);
+  // Resolved after mount: `document` does not exist during SSR, and the slot is
+  // rendered by AppShell higher up the tree. Null → render in place, which is
+  // exactly the pre-portal behaviour (see STALE_BAND_SLOT_ID).
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+
+  useEffect(() => {
+    setSlot(document.getElementById(STALE_BAND_SLOT_ID));
+  }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies(refreshSignal): refreshSignal is a DELIBERATE extra dependency — it is not read inside the effect; its only job is restarting the elapsed clock when the parent RSC re-renders with fresh data (same convention as lib/ui/use-action-redirect.ts's fireKey).
   useEffect(() => {
@@ -54,9 +68,17 @@ export function FreshnessStaleBand({ refreshSignal }: { refreshSignal: string })
   const minutes = Math.floor(elapsedMs / 60_000);
   // <output> is the semantic element for role="status" (same convention as the
   // loading.tsx skeletons; Biome useSemanticElements enforces it).
-  return (
-    <output className="mt-1 inline-block rounded-[var(--radius-sm)] border border-[var(--color-st-warn-bd)] bg-[var(--color-sk-warn-wash)] px-2 py-1 text-xs text-[var(--color-st-warn)]">
+  //
+  // Full-width band rather than the old `inline-block` chip: at the top of the
+  // shell it is a page-level notice about everything below it, and a chip
+  // floating at the left edge of a full-width row reads as decoration. Bottom
+  // border instead of a box — it separates itself from the content it qualifies
+  // without drawing a second card.
+  const band = (
+    <output className="block w-full border-b border-[var(--color-st-warn-bd)] bg-[var(--color-sk-warn-wash)] px-6 py-1.5 text-xs text-[var(--color-st-warn)]">
       {staleBandLabel(minutes)} · <StaleAnchor />
     </output>
   );
+
+  return slot ? createPortal(band, slot) : band;
 }

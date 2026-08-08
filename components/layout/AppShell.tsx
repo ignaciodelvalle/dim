@@ -1,3 +1,4 @@
+import { STALE_BAND_SLOT_ID } from "@/lib/ui/degraded-states";
 import type { ReactNode } from "react";
 
 import { AppFooter } from "./AppFooter";
@@ -128,6 +129,9 @@ function CitizenShell({ masthead, footer, maxWidth, tabBar, banner, children }: 
       {/* Thin Argentina institutional stripe (D7). */}
       <GobStripe />
       {banner}
+      {/* Top-of-shell slot the stale band portals into — see
+          STALE_BAND_SLOT_ID. Empty (and zero-height) until data goes stale. */}
+      <div id={STALE_BAND_SLOT_ID} />
       {masthead}
       {/* pb-safe: keep the last content row clear of the iOS home indicator
           now that viewport-fit=cover lets the PWA draw under it. */}
@@ -175,6 +179,11 @@ function OperatorShell({ rail, topbar, banner, maxWidth, children }: OperatorPro
         Saltar al contenido
       </a>
       {banner}
+      {/* Top-of-shell slot the stale band portals into — see
+          STALE_BAND_SLOT_ID. Outside `op-shell-row` on purpose: as a sibling of
+          the rail+main row it spans the full width and pushes the row down
+          instead of scrolling away with the content. */}
+      <div id={STALE_BAND_SLOT_ID} />
       <div className="op-shell-row flex min-h-0 flex-1 overflow-hidden">
         {rail}
         <main
@@ -208,7 +217,15 @@ function LandingShell({ returnSlot, banner, children }: LandingProps) {
       {/* pt-safe: QR-scan landings open full-screen in the installed PWA too —
           keep the trust header clear of the notch/status bar. */}
       <header className="pt-safe flex items-center gap-3 border-b border-ln-line bg-white px-4 py-3 md:px-6">
-        <span className="text-lg font-bold text-ln-azul">miMAR</span>
+        {/* font-ln-serif: the wordmark is IBM Plex Serif everywhere else in the
+            product — the citizen masthead, the credential card, the landing —
+            and this header sits ~50px above the card's own "miMAR" on /p, so
+            the two rendered the SAME word in two families a glance apart
+            (QA 2026-08-07). Without a family declared it fell through to
+            Tailwind's `font-sans`, which this app maps to Encode Sans: the
+            SITE CHROME face, not the brand's. PO decision 2026-08-08: the
+            credential's serif is the one that wins. */}
+        <span className="font-ln-serif text-lg font-bold text-ln-azul">miMAR</span>
         {/* "registrada", not "verificada" — the token resolving in the registry
             is the only claim this chrome can honestly make for EVERY /p page,
             regardless of the credential's verification provenance. */}

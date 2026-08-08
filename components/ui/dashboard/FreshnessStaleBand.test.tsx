@@ -14,7 +14,7 @@ import "@testing-library/jest-dom/vitest";
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { STALE_BAND_AFTER_MS } from "@/lib/ui/degraded-states";
+import { STALE_BAND_AFTER_MS, STALE_BAND_SLOT_ID } from "@/lib/ui/degraded-states";
 import { FreshnessStaleBand } from "./FreshnessStaleBand";
 
 const MINUTE = 60_000;
@@ -94,5 +94,51 @@ describe("<FreshnessStaleBand>", () => {
     expect(screen.queryByRole("status")).toBeNull();
     advance(6 * MINUTE);
     expect(screen.getByRole("status")).toHaveTextContent("hace 11 min");
+  });
+});
+
+// The band is MOUNTED at the bottom (inside DashboardFreshnessFooter, so every
+// dashboard gains it with no call-site edit) but must RENDER at the top: QA
+// 2026-08-07 measured it at 79% of the main scroll height, so on a loaded
+// briefing the operator read the whole stale dashboard and found out last.
+// AppShell provides the slot; these pin both halves of that contract.
+describe("<FreshnessStaleBand> — top-of-shell portal", () => {
+  afterEach(() => {
+    document.getElementById(STALE_BAND_SLOT_ID)?.remove();
+  });
+
+  it("renders into the shell slot when one exists, not where it is mounted", () => {
+    const slot = document.createElement("div");
+    slot.id = STALE_BAND_SLOT_ID;
+    document.body.appendChild(slot);
+
+    const { container } = render(<FreshnessStaleBand refreshSignal="t0" />);
+    advance(12 * MINUTE);
+
+    const band = screen.getByRole("status");
+    expect(slot.contains(band)).toBe(true);
+    // ...and NOT in the subtree where the component was mounted.
+    expect(container.contains(band)).toBe(false);
+  });
+
+  it("falls back to rendering in place when there is no slot", () => {
+    // A dashboard outside an AppShell keeps the pre-portal behaviour rather
+    // than silently losing its staleness warning.
+    const { container } = render(<FreshnessStaleBand refreshSignal="t0" />);
+    advance(12 * MINUTE);
+
+    expect(container.contains(screen.getByRole("status"))).toBe(true);
+  });
+
+  it("still renders nothing inside the threshold, slot or no slot", () => {
+    const slot = document.createElement("div");
+    slot.id = STALE_BAND_SLOT_ID;
+    document.body.appendChild(slot);
+
+    render(<FreshnessStaleBand refreshSignal="t0" />);
+    advance(5 * MINUTE);
+
+    expect(screen.queryByRole("status")).toBeNull();
+    expect(slot.childElementCount).toBe(0);
   });
 });
