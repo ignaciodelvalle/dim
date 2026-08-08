@@ -384,7 +384,7 @@ donde un problema duele más. Si sólo hay tiempo para dos sesiones, son esas.
 
 ### 10.0 — Precondición global (antes de S1, una sola vez)
 
-Staging tiene que estar sirviendo el build de esta tanda. Verificalo así, y
+Staging tiene que estar sirviendo `aed50d41` o posterior. Verificalo así, y
 **si no coincide, PARÁ y reportá — no arranques**:
 
 1. **El título de la pestaña.** Abrí `/gob` y `/admin` en dos pestañas. Los
@@ -401,11 +401,32 @@ Staging tiene que estar sirviendo el build de esta tanda. Verificalo así, y
 Si alguna falla, staging todavía sirve un build anterior: esperá 5 minutos y
 reintentá. A los 3 intentos fallidos, pará y dejá el reporte.
 
-> **Lo de arriba ya se arregló — no lo reportes como hallazgo.** Si ves alguno
-> de esos cuatro síntomas, es que estás en el build viejo, y todo lo que midas
-> a partir de ahí es ruido. Lo mismo con: acentos faltantes en el formulario de
-> decomiso, "Asignado a: Derivada a {org}" en el detalle de denuncia, y `...` de
-> tres puntos en placeholders.
+5. En `/gob`, cada tarjeta de alerta abre con un rótulo visible **"PRIORIDAD
+   ALTA"** / **"PRIORIDAD MEDIA"**. Si la severidad sólo se ve en el borde de
+   color, es build viejo.
+
+> **Nada de lo de abajo se reporta como hallazgo — ya está arreglado.** Si lo
+> ves, estás en un build anterior y todo lo que midas a partir de ahí es ruido:
+>
+> - títulos de pestaña idénticos entre portales
+> - "Choose File / No file chosen" en cualquier selector de archivos
+> - porcentajes con punto decimal
+> - `200` con "Algo salió mal" en vez del 404 real
+> - severidad de alertas sólo por color
+> - acentos faltantes en el formulario de decomiso
+> - "Asignado a: Derivada a {org}" en el detalle de denuncia
+> - `...` de tres puntos en placeholders
+> - "Fila N" del wizard CSV sin decir "de la planilla"
+> - los contadores "Válidas / Con errores" sin filtrar
+> - "Imprimir contrato (borrador)" en finalizar adopción
+> - dos wordmarks "miMAR" en dos familias en `/p`
+> - la banda ámbar de datos viejos al pie en vez de arriba
+> - códigos (DIM-, CAS-, DEN-) en la mono del sistema en vez de IBM Plex Mono
+>
+> **Sí queremos que mires si alguno quedó a medias.** Que esté arreglado no
+> quiere decir que esté bien: si el rótulo de prioridad estorba, si el filtro
+> del wizard confunde, si la banda arriba tapa algo — eso es hallazgo nuevo y
+> lo queremos.
 
 ### 10.1 — Puerta de entrada de cada sesión
 
