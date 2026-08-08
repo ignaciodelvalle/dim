@@ -19,12 +19,27 @@ export const dynamic = "force-dynamic";
 // not-found.tsx only catches an explicit notFound() thrown within its segment.
 // Without this root file, unmatched URLs fell to Next's black English default
 // ("This page could not be found"). Admin fresh-sweep A1 / dashboards deep-dive D7.
+// The <main id="main-content"> lives HERE and not inside BrandedNotFound.
+//
+// app/layout.tsx renders the "Ir al contenido principal" skip link on every
+// page, unconditionally, pointing at #main-content. This is the ONE not-found
+// that renders with no shell above it — an unmatched URL bypasses the route
+// groups entirely (see the note above) — so the link had no target and the page
+// had no main landmark at all (adversarial review 2026-08-08, S6-F05).
+//
+// The other four not-found.tsx files ((app), admin, gob, (public)) only catch an
+// explicit notFound() inside their segment, so they render INSIDE their group's
+// AppShell, which already owns the single #main-content. Putting the landmark
+// in the shared component would give those four a duplicate <main> and a
+// duplicate id — the exact defect AppShell.landing.test.tsx guards against.
 export default function RootNotFound() {
   return (
-    <BrandedNotFound
-      title="No encontramos esta página"
-      body="La dirección que buscás no existe o cambió de lugar. Revisá el enlace o volvé al inicio."
-      primary={{ href: "/", label: "Volver al inicio" }}
-    />
+    <main id="main-content">
+      <BrandedNotFound
+        title="No encontramos esta página"
+        body="La dirección que buscás no existe o cambió de lugar. Revisá el enlace o volvé al inicio."
+        primary={{ href: "/", label: "Volver al inicio" }}
+      />
+    </main>
   );
 }
