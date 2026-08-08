@@ -518,6 +518,31 @@ describe("deriveComplianceState — PPP indeterminado (dog missing breed/weight)
     expect(state.summary.ok).toBe(0);
   });
 
+  it("marks the card dataUnknown so no summary stamp says 'por vencer' over it", () => {
+    // S2-F06 (2026-08-08): the tone is `due` on purpose — it ranks the card
+    // first and keeps it out of the "al día" count — but the credential stamp
+    // rendered `due`'s word and told the reader something was expiring on a pet
+    // that has no dates at all. The tone ranks; dataUnknown says what KIND.
+    const state = deriveComplianceState(baseInput({ species: "dog" }));
+    expect(state.cards.find((c) => c.key === "ppp")?.dataUnknown).toBe(true);
+    expect(state.worstTone).toBe("due");
+    expect(state.worstIsUnknown).toBe(true);
+  });
+
+  it("stops being the unknown case as soon as something genuinely dated outranks it", () => {
+    // Non-vacuity in the direction that matters: worstIsUnknown must not become
+    // a permanent flag on every dog. An overdue rabies dose sorts ahead of the
+    // PPP card, and the stamp has to go back to speaking about time.
+    const state = deriveComplianceState(
+      baseInput({
+        species: "dog",
+        events: [vaccination("Antirrábica", "2026-01-01T00:00:00Z", VET)],
+      }),
+    );
+    expect(state.worstTone).toBe("over");
+    expect(state.worstIsUnknown).toBe(false);
+  });
+
   it("dog with a breed but no weight → hint names ONLY the weight, never the breed (C1)", () => {
     // Adversarial-citizen C1 (2026-07-06): a Boxer (breed visible in the header)
     // with no weight must NOT read "completá la raza" — that contradicts the

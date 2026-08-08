@@ -103,6 +103,19 @@ export type ObligationCard = {
    * moment it differs from the caller's `now`).
    */
   currencyUntil?: string | null;
+  /**
+   * True when the card reports a missing FACT rather than a deadline: nothing
+   * is expiring, something is simply not known yet.
+   *
+   * `tone` cannot carry this. It ranks urgency — the PPP "Faltan datos" card is
+   * deliberately `due` so it ranks high and never counts as "al día" — and the
+   * credential stamp then rendered `due`'s word, "POR VENCER", over a card
+   * where nothing has a date at all (adversarial review 2026-08-08, S2-F06).
+   *
+   * Distinct from `currencyKnown`, which is scoped to a DOSE whose vigencia is
+   * unknowable; an obligation with no currency dimension leaves that undefined.
+   */
+  dataUnknown?: boolean;
   // Dual honest vaccine state — see ComplianceDual. Rabies-only, declared-dose-only.
   dual?: ComplianceDual;
 };
@@ -111,6 +124,13 @@ export type ComplianceState = {
   cards: ObligationCard[]; // ordered worst-state first
   summary: { total: number; ok: number; label: string }; // "3 de 4 al día"
   worstTone: ComplianceTone; // mirrored by the panel header chip
+  /**
+   * True when the single most urgent card is a missing FACT, so a summary stamp
+   * must say SIN DATO rather than borrow a temporal word. False as soon as
+   * something genuinely dated outranks it — a rabies dose actually due sorts
+   * ahead of the PPP card and the stamp correctly reads POR VENCER again.
+   */
+  worstIsUnknown: boolean;
 };
 
 export type ComplianceInput = {
@@ -612,6 +632,9 @@ function derivePpp(input: ComplianceInput): ObligationCard | null {
     label: "Régimen PPP",
     state: "Faltan datos",
     tone: "due",
+    // The tone ranks it; this says what KIND of problem it is. Nothing here has
+    // a date, so no summary stamp above it may say "por vencer".
+    dataUnknown: true,
     detail: null,
     legalFootnote: FOOTNOTE.ppp,
     hint: pppIndeterminadoHint(breedKnown, weightKnown),
@@ -697,10 +720,14 @@ export function deriveComplianceState(input: ComplianceInput): ComplianceState {
   // had (C5, external design review).
   const ok = cards.filter((c) => c.tone === "ok" && c.currencyKnown !== false).length;
   const worstTone = cards.length > 0 ? cards[0].tone : "ok";
+  // Read off the SAME card the tone comes from, so the two can never disagree
+  // about which obligation the summary is describing.
+  const worstIsUnknown = cards.length > 0 && cards[0].dataUnknown === true;
 
   return {
     cards,
     summary: { total, ok, label: `${ok} de ${total} al día` },
     worstTone,
+    worstIsUnknown,
   };
 }

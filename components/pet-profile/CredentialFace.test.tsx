@@ -273,6 +273,38 @@ describe("CredentialFace — unified pill vocabulary (PO 2026-08-06)", () => {
     const html = render(state);
     expect(html).toContain("AL DÍA");
   });
+
+  it("stamps SIN DATO, not POR VENCER, when the worst obligation is a missing fact", () => {
+    // S2-F06 (2026-08-08): a dog with no breed and no weight surfaces the PPP
+    // "Faltan datos" card, whose tone is deliberately `due` so it ranks first
+    // and never counts as "al día". The stamp then rendered `due`'s default
+    // word and the credential announced POR VENCER over a pet with no dates at
+    // all. Nothing is expiring — the fact is simply not known.
+    const state = deriveComplianceState(complianceInput({ species: "dog" }));
+    expect(state.worstIsUnknown).toBe(true);
+
+    const html = render(state);
+    expect(html).toContain("SIN DATO");
+    expect(html).not.toContain("POR VENCER");
+  });
+
+  it("still stamps POR VENCER when a dose genuinely is due", () => {
+    // Non-vacuity: a stamp that NEVER says POR VENCER would pass the test above
+    // while silencing every real deadline. The `due` tone comes from the rabies
+    // reminder variant, not from a date this module re-derives — and the dog
+    // carries breed and weight so the PPP card never appears to outrank it.
+    const state = deriveComplianceState(
+      complianceInput({
+        species: "dog",
+        breed: "Boxer",
+        estimatedWeightKg: 30,
+        rabiesReminder: { variant: "due_soon", dueAt: new Date("2026-07-15T00:00:00Z") },
+      }),
+    );
+    expect(state.worstTone).toBe("due");
+    expect(state.worstIsUnknown).toBe(false);
+    expect(render(state)).toContain("POR VENCER");
+  });
 });
 
 describe("CredentialFace — In-Memoriam skin (ADR-15)", () => {

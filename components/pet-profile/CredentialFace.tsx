@@ -161,10 +161,21 @@ export function CredentialFace({
   // see pet-compliance.ts's `declarado` vs genuinely-absent split — so no
   // information is lost by dropping the tail here).
   const complianceSummary = complianceState.summary.label;
-  const complianceStamp =
-    complianceState.worstTone === "ok" ||
-    complianceState.worstTone === "due" ||
-    complianceState.worstTone === "over"
+  // A missing FACT is stamped SIN DATO, never with a temporal word. The PPP
+  // "Faltan datos" card is deliberately `due` so it ranks first and never
+  // counts as "al día" — but rendering `due`'s default word put "POR VENCER"
+  // on a pet with nothing expiring (adversarial review 2026-08-08, S2-F06).
+  //
+  // The vocabulary was already here: LnVstamp's "unknown" variant, which
+  // ComplianceObligationsPanel uses for a dose whose vigencia is unknowable.
+  // The panel asked and this stamp did not — the same fix failing to reach its
+  // sibling for the third time in two days (the others: the 44px floor and the
+  // iOS zoom between Field and OpField).
+  const complianceStamp = complianceState.worstIsUnknown
+    ? "unknown"
+    : complianceState.worstTone === "ok" ||
+        complianceState.worstTone === "due" ||
+        complianceState.worstTone === "over"
       ? complianceState.worstTone
       : null;
   // The summary stamp is a COMPLIANCE claim, not a vaccine-currency one: "ok"
