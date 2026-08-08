@@ -40,14 +40,40 @@ import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "
  * not the same question as "cannot open this page". Caught in review before it
  * reached anyone; kept written down so it is not re-derived.
  */
-const PET_LINK_DEAD_FOR_RECIPIENT: ReadonlySet<string> = new Set([
+export const PET_LINK_DEAD_FOR_RECIPIENT: ReadonlySet<string> = new Set([
+  // --- Custody left the recipient -----------------------------------------
   // Sender side of a citizen-to-citizen transfer: the receiver accepted.
   "pet_transfer_accepted",
-  // Sender side of an org-to-org transfer.
+  // Sender side of an org-to-org transfer (the gaining org gets its own type).
   "cross_org_transfer_accepted_sender",
-  // The foster's placement ended because the pet moved on.
+  // A foster placement ended; the writer closes the foster ownership first.
   "foster_ended_by_transfer",
+  "foster_ended",
+  "foster_ended_by_adoption",
+  "foster_ended_by_death",
+  // The former adopter, after the shelter reversed the adoption.
+  "adoption_reversed",
+
+  // --- The recipient never held the pet ------------------------------------
+  // Proposals and cancellations aimed at a prospective holder. The writer of
+  // pet_transfer_cancelled says it outright — "the recipient never gained the
+  // pet and there is no transfer/pet surface to open" — and deliberately ships
+  // no ctaUrl, while the card handed them a "Ver …" button anyway.
+  "pet_transfer_cancelled",
+  "pet_transfer_received",
+  "cross_org_transfer_proposed_receiver",
+  "cross_org_transfer_cancelled_receiver",
+  "decomiso_handoff_proposed_receiver",
+  // Rival applicants auto-rejected when someone else's adoption finalised.
+  "adoption_application_closed",
 ]);
+
+// NOT in the list, and the reason is worth keeping: `decomiso_owner_lost_custody`
+// goes to the immediate former owner while the custody_episode is OPEN, and
+// getFormerOwnerReadAccess grants exactly that person a purpose-built read-only
+// view of the pet. Their link works. "Lost custody" is not the same question as
+// "cannot open the page" — the mistake the first version of this fix made at the
+// query layer, generalised from one finding to everyone.
 
 export function NotificationCard({
   notification,

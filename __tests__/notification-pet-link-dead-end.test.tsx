@@ -16,6 +16,9 @@
 // requirePetAccess. The regression never shipped; this file exists so the
 // reasoning is not re-derived from scratch.
 
+import { readFileSync, readdirSync, statSync } from "node:fs";
+import { extname, join } from "node:path";
+
 import type React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -25,7 +28,9 @@ vi.mock("@/app/actions/notifications", () => ({
   markNotificationReadAction: vi.fn(),
 }));
 
-import { NotificationCard } from "@/components/NotificationCard";
+// Imported, never re-declared: the list under test must be the one the product
+// renders from.
+import { NotificationCard, PET_LINK_DEAD_FOR_RECIPIENT } from "@/components/NotificationCard";
 import type { Notification, Pet } from "@/db";
 
 const PET = {
@@ -60,12 +65,57 @@ function render(notificationType: string): string {
   );
 }
 
+/** Every `notificationType: "…"` literal any writer under src/ or lib/ emits. */
+function notificationTypesWithWriters(): Set<string> {
+  const found = new Set<string>();
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(dir)) {
+      if (entry === "node_modules" || entry === ".next") continue;
+      const full = join(dir, entry);
+      if (statSync(full).isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (![".ts", ".tsx"].includes(extname(full))) continue;
+      if (/\.(test|spec)\.tsx?$/.test(full)) continue;
+      for (const m of readFileSync(full, "utf8").matchAll(
+        /notificationType:\s*["']([a-z0-9_]+)["']/g,
+      )) {
+        found.add(m[1]);
+      }
+    }
+  };
+  for (const dir of ["src", "lib", "app"]) walk(join(__dirname, "..", dir));
+  return found;
+}
+
+describe("PET_LINK_DEAD_FOR_RECIPIENT — every entry names a real writer", () => {
+  it("no denylisted type has lost its writer", () => {
+    // The rendering tests below build notifications from string literals typed
+    // into THIS file, so they can only ever prove that the card agrees with the
+    // test. Rename a type in its writer and nowhere else and the product
+    // regresses to a dead link while they all stay green — the same "a test
+    // that re-declares the thing only proves the copy works" failure this batch
+    // already hit once. This assertion is the part that actually fails.
+    const writers = notificationTypesWithWriters();
+    const orphaned = [...PET_LINK_DEAD_FOR_RECIPIENT].filter((t) => !writers.has(t)).sort();
+    expect(
+      orphaned,
+      `These types are on the denylist but no writer emits them any more — either they were renamed (update the denylist) or removed (drop them):\n  ${orphaned.join("\n  ")}`,
+    ).toEqual([]);
+  });
+
+  it("is not vacuous — the writer scan finds types", () => {
+    // A broken walk would return an empty set and make the assertion above
+    // pass by finding nothing to compare against.
+    const writers = notificationTypesWithWriters();
+    expect(writers.size).toBeGreaterThan(20);
+    expect(writers.has("pet_transfer_accepted")).toBe(true);
+  });
+});
+
 describe("NotificationCard — pet link on custody-left notifications", () => {
-  for (const type of [
-    "pet_transfer_accepted",
-    "cross_org_transfer_accepted_sender",
-    "foster_ended_by_transfer",
-  ]) {
+  for (const type of PET_LINK_DEAD_FOR_RECIPIENT) {
     it(`renders no pet link for ${type}`, () => {
       const html = render(type);
       expect(html).not.toContain(`/mis-mascotas/${PET.publicToken}`);
