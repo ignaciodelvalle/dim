@@ -208,7 +208,27 @@ export function LocationFields({
   const [geocodeFoundLabel, setGeocodeFoundLabel] = useState<string | null>(null);
   // Suppress forward effect when address text was filled by a result pick
   // or by reverse geocoding (prevents infinite loops).
-  const skipNextForward = useRef(false);
+  //
+  // PRIMED AT MOUNT when defaultValue arrives with BOTH an address and a point.
+  // That pairing means the coordinates are already authoritative — a pin the
+  // user placed, whose address came back from REVERSE geocoding — so running
+  // the forward geocode would take the address and move the pin to whatever
+  // Nominatim matches, flipping `source` to "geocodificada" and rewriting the
+  // jurisdiction with it. A pin dropped on a vacant lot jumps to the street
+  // number across the road, and if that crosses a boundary the denuncia routes
+  // to the wrong authority — the exact guarantee the exact-point requirement
+  // exists to protect.
+  //
+  // Latent until 2026-08-08: no caller passed a defaultValue carrying both, so
+  // this effect had never run against a seeded address. The denuncia draft
+  // restore became the first (adversarial review, second pass).
+  const skipNextForward = useRef(
+    Boolean(
+      (defaultValue?.address ?? defaultValue?.description ?? "").trim() &&
+        defaultValue?.lat != null &&
+        defaultValue?.lng != null,
+    ),
+  );
 
   const addressInputName = inputNames?.description ?? "locationAddress";
   const latInputName = inputNames?.lat ?? "locationLat";

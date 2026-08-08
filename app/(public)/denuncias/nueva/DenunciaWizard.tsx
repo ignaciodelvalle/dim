@@ -169,7 +169,17 @@ export function DenunciaWizard() {
     // `point: null`, blanking the coordinates while the gate stayed open. A
     // denuncia could be filed with no location past a check that had been told
     // one existed (caught in adversarial review before it reached anyone).
-    if (restoredLocation.lat != null && restoredLocation.lng != null) {
+    // Remount for an address OR a point, not only a point. A reporter whose
+    // free-text address the geocoder could not resolve ("detrás del club, Ruta
+    // 8 km 42") has text in the draft and no coordinates; keying only on
+    // coordinates left the picker unmounted, so the address box came back
+    // EMPTY while the wizard still held the text. The value still reached the
+    // server, so it was trust rather than data loss — the reporter sees what
+    // they typed vanish and retypes it.
+    if (
+      (restoredLocation.lat != null && restoredLocation.lng != null) ||
+      (restoredLocation.address ?? "").trim() !== ""
+    ) {
       setLocationRemountKey((n) => n + 1);
     }
   }, []);
