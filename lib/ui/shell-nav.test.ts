@@ -197,8 +197,19 @@ describe("resolveShellNav — operator", () => {
     expect(r.variant).toBe("operator");
     expect(r.nav).toBe(GOB_NAV);
     expect(r.showReturn).toBe(true);
-    // operator escape hatch returns to the citizen world, not /inicio
-    expect(r.returnHref).toBe("/mis-mascotas");
+    // The return points at the operator's OWN portal, not at the citizen world.
+    // This asserted "/mis-mascotas" — the destination the comment in the source
+    // called a "personal escape hatch" — while app/(app)/layout.tsx redirects
+    // govt straight back to /gob. The link advertised a page the product
+    // refuses to serve, so clicking it cost a redirect and landed you where you
+    // started. The assertion encoded that.
+    expect(r.returnHref).toBe("/gob");
+  });
+
+  it("an admin's return goes to /admin, for the same reason", () => {
+    const r = resolveShellNav(admin("/adoptar"));
+    expect(r.showReturn).toBe(true);
+    expect(r.returnHref).toBe("/admin");
   });
 
   it("org member on /org/ORG-1/mascotas → operator + the built (flat) org nav", () => {

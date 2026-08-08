@@ -228,12 +228,25 @@ export function resolveShellNav(input: ShellNavInput): ShellNavResult {
       return { variant: "operator", nav, showReturn: false, switcher };
     }
     // Operator stranded on a public surface → keep operator chrome, offer a
-    // return to the citizen world (their personal escape hatch).
+    // return to THEIR app.
+    //
+    // `roleHome(role)`, not "/mis-mascotas". This used to point at the citizen
+    // world and call it "their personal escape hatch" — but an institutional
+    // role has no citizen world to escape to: app/(app)/layout.tsx redirects
+    // govt to /gob and admin to /admin before /mis-mascotas ever renders. So
+    // the link advertised a destination the product refuses to serve, and a
+    // funcionario clicking it on /adoptar landed back on /gob after a pointless
+    // redirect (measured 2026-08-08). The href now says where you will actually
+    // end up, and the hop is gone.
+    //
+    // The label "Volver a mi app" needs no change — for these roles their app
+    // IS the portal. Line ~204 already resolved this correctly through the same
+    // helper; this branch was the one that hardcoded.
     return {
       variant: "operator",
       nav,
       showReturn: true,
-      returnHref: "/mis-mascotas",
+      returnHref: roleHome(role),
       switcher,
     };
   }
