@@ -61,8 +61,12 @@ describe("OpKpi — Fase 0 full-prop contract", () => {
 
   it("renders the deltaV2 value with sign and period label", () => {
     const html = renderToStaticMarkup(FASE0_KPI);
-    // Positive delta: rendered as "+5.3%"
-    expect(html).toContain("+5.3%");
+    // Positive delta, es-AR: "+5,3%". This read "+5.3%" — an English decimal
+    // point — for as long as the delta row interpolated `{delta.value}` as a
+    // raw JS number instead of going through the es-AR formatters every other
+    // figure in the tile uses. On /gob that put "-99.8%" beside eleven
+    // comma-formatted numbers (QA 2026-08-07).
+    expect(html).toContain("+5,3%");
     expect(html).toContain("vs mes anterior");
   });
 
@@ -81,8 +85,12 @@ describe("OpKpi — Fase 0 full-prop contract", () => {
         deltaV2={{ value: -3.0, period: "vs mes anterior" }}
       />,
     );
-    // Negative delta: rendered as "-3%" (no plus sign).
-    expect(html).toContain("-3%");
+    // Negative delta, no plus sign, es-AR separator and a FIXED 1 decimal:
+    // "-3,0%". The precision is uniform on purpose — `computeDeltaPct` rounds
+    // to one decimal (lib/metrics/targets.ts:348) and the delta row is
+    // `tabular-nums`, which only buys digit alignment if every value has the
+    // same width. Previously this rendered a bare "-3%".
+    expect(html).toContain("-3,0%");
     expect(html).toContain("↓");
   });
 

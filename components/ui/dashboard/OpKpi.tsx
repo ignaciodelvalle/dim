@@ -18,7 +18,7 @@ import {
   guardRatioTone,
   shouldSuppressDelta,
 } from "@/lib/metrics/presentation-guards";
-import { formatPercent, pluralizeEs } from "@/lib/utils/format";
+import { formatDelta, formatPercent, pluralizeEs } from "@/lib/utils/format";
 
 /**
  * OpKpi v2 — backward-compatible KPI tile with optional new props.
@@ -666,9 +666,16 @@ function DeltaV2Row({
         </>
       )}
       <span>
-        {delta.value >= 0 ? "+" : ""}
-        {delta.value}
-        {delta.unit === "count" ? "" : "%"}{" "}
+        {/* The delta was the ONE number in this tile printed as a raw JS
+            number — hand-rolled sign, English decimal point, no thousands
+            separator. On /gob that put "-99.8%" beside eleven comma-formatted
+            figures (QA 2026-08-07). `formatDelta` already owns es-AR signed
+            output, and `signDisplay: "exceptZero"` replaces the manual "+".
+            Precision is fixed at 1 decimal — `computeDeltaPct` rounds to that
+            (lib/metrics/targets.ts:348), and uniform precision is the whole
+            point of the `tabular-nums` on the row above: mixed "139%" /
+            "-99,8%" widths defeat the digit alignment it buys. */}
+        {formatDelta(delta.value, { unit: delta.unit === "count" ? "" : "%" })}{" "}
         <span className="font-normal text-ln-op-mute">
           {delta.period}
           {/* Track B: name the BASE the percentage is computed over. A bare

@@ -211,7 +211,13 @@ describe("OpKpi — an order-of-magnitude delta loses its verdict, not its numbe
       />,
     );
     const text = container.textContent ?? "";
-    expect(text).toContain("99.6");
+    // es-AR separator. This assertion used to read "99.6" — an English decimal
+    // point, which was the delta row printing `{delta.value}` as a raw JS
+    // number while every other figure in the tile went through the es-AR
+    // formatters. The file's own header describes this very case as "−99,6%
+    // desde 274", so the test contradicted its source. Asserting the comma is
+    // what keeps the raw-interpolation regression from coming back.
+    expect(text).toContain("-99,6%");
     expect(text).toContain("desde 274");
     expect(screen.getByText("↓")).toBeTruthy();
   });
