@@ -180,3 +180,50 @@ describe("<OpTextarea>", () => {
     expect(textarea).not.toHaveClass("resize-y");
   });
 });
+
+// The citizen sibling (components/ui/Field.tsx) has enforced a 44px control
+// height since Wave 2, and this file's header claims the two skins are one
+// system — but the operator `md` step shipped at 38px (8+8 padding, 20px line
+// box, 2px border) until QA 2026-08-07 measured it on the two longest operator
+// forms. `sm`/`xs` are excluded on purpose: they exist to sit inside table rows
+// and queue toolbars, where a 44px floor would break the row rhythm.
+//
+// The floor is a FIELD rule, not a control-chrome rule: neither OpButton nor
+// LnButton carries it, so nothing here should assert it on a button.
+describe("touch-target floor", () => {
+  it("puts the 44px floor on the form density and NOT on the compact steps", () => {
+    render(
+      <>
+        <OpInput aria-label="Forma" />
+        <OpInput aria-label="Panel" size="sm" />
+        <OpInput aria-label="Fila" size="xs" />
+      </>,
+    );
+
+    expect(screen.getByLabelText("Forma")).toHaveClass("min-h-[44px]");
+    expect(screen.getByLabelText("Panel")).not.toHaveClass("min-h-[44px]");
+    expect(screen.getByLabelText("Fila")).not.toHaveClass("min-h-[44px]");
+  });
+
+  it("carries the floor on selects and textareas too, not just inputs", () => {
+    render(
+      <>
+        <OpSelect aria-label="Motivo">
+          <option value="a">A</option>
+        </OpSelect>
+        <OpTextarea aria-label="Detalle" />
+      </>,
+    );
+
+    expect(screen.getByLabelText("Motivo")).toHaveClass("min-h-[44px]");
+    expect(screen.getByLabelText("Detalle")).toHaveClass("min-h-[44px]");
+  });
+
+  it("keeps the exported class strings in step with the components", () => {
+    // Composed controls (a visible field plus a hidden twin) wear these instead
+    // of rendering through the components, so a floor that lived only in the
+    // components would silently skip them.
+    expect(OP_CONTROL_CLASS).toContain("min-h-[44px]");
+    expect(OP_CONTROL_CLASS_SM).not.toContain("min-h-[44px]");
+  });
+});

@@ -33,7 +33,7 @@
 
 import { Icon } from "@/components/Icon";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
-import { OpButton, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
+import { OpButton, OpFileInput, OpInput, OpSelect, OpTextarea } from "@/components/ui/dashboard";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 
@@ -187,18 +187,18 @@ export function DecomisoForm({
     const combined = [...attachments.map((e) => e.file), ...newFiles];
 
     if (combined.length > MAX_ATTACHMENTS) {
-      setAttachmentError(`Maximo ${MAX_ATTACHMENTS} archivos en total.`);
+      setAttachmentError(`Máximo ${MAX_ATTACHMENTS} archivos en total.`);
       if (fileInputRef.current) fileInputRef.current.value = "";
       return;
     }
     for (const f of newFiles) {
       if (!ALLOWED_MIME.has(f.type)) {
-        setAttachmentError(`Tipo no permitido: "${f.name}". Aceptamos imagenes, videos y PDF.`);
+        setAttachmentError(`Tipo no permitido: "${f.name}". Aceptamos imágenes, videos y PDF.`);
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
       if (f.size > MAX_ATTACHMENT_BYTES) {
-        setAttachmentError(`"${f.name}" supera el limite de 25 MB.`);
+        setAttachmentError(`"${f.name}" supera el límite de 25 MB.`);
         if (fileInputRef.current) fileInputRef.current.value = "";
         return;
       }
@@ -393,7 +393,11 @@ export function DecomisoForm({
                   onClick={lookupPet}
                   disabled={petLookupPending || !petToken.trim()}
                   variant="primary"
-                  className="self-end"
+                  // Matches the token field it sits beside. OpField's `md` step
+                  // carries a 44px touch floor and OpButton deliberately does
+                  // not (see the note on its `sizes`), so the pairing states
+                  // the height here rather than moving every console button.
+                  className="self-end min-h-[44px]"
                 >
                   {petLookupPending ? "Buscando..." : "Buscar"}
                 </OpButton>
@@ -435,7 +439,7 @@ export function DecomisoForm({
                     <p className="text-sm text-ln-op-warn mt-1">
                       Esta mascota tiene un dueño registrado
                       {petPreview.ownerDisplayName ? ` (${petPreview.ownerDisplayName})` : ""}. Al
-                      continuar, se le quitara la custodia legal.
+                      continuar, se le quitará la custodia legal.
                     </p>
                   ) : (
                     <p className="text-sm text-ln-op-mute mt-1">
@@ -523,7 +527,7 @@ export function DecomisoForm({
                     type="text"
                     value={unownedColor}
                     onChange={(e) => setUnownedColor(e.target.value)}
-                    placeholder="Negro, blanco y marron, etc."
+                    placeholder="Negro, blanco y marrón, etc."
                   />
                 </div>
               </div>
@@ -559,7 +563,7 @@ export function DecomisoForm({
                   step="1"
                   value={unownedAgeMonths}
                   onChange={(e) => setUnownedAgeMonths(e.target.value)}
-                  placeholder="Ej: 24 (2 anios)"
+                  placeholder="Ej: 24 (2 años)"
                 />
               </div>
             </div>
@@ -657,7 +661,7 @@ export function DecomisoForm({
               value={intakeCondition}
               onChange={(e) => setIntakeCondition(e.target.value)}
               rows={2}
-              placeholder="Descripcion de la condicion fisica / comportamental del animal"
+              placeholder="Descripción de la condición física / comportamental del animal"
               className="resize-none"
             />
           </div>
@@ -669,7 +673,7 @@ export function DecomisoForm({
             3. Refugio destinatario
           </h2>
           <p className="text-sm text-ln-op-mute">
-            Solo refugios y redes de rescate verificados. El refugio tiene 7 dias para aceptar o
+            Solo refugios y redes de rescate verificados. El refugio tiene 7 días para aceptar o
             rechazar el handoff.
           </p>
 
@@ -702,7 +706,7 @@ export function DecomisoForm({
                 type="text"
                 value={receiverSearch}
                 onChange={(e) => setReceiverSearch(e.target.value)}
-                placeholder="Escribí para filtrar..."
+                placeholder="Escribí para filtrar…"
               />
               {receiverOrgs.length === 0 ? (
                 <p className="text-sm text-ln-op-mute py-2">
@@ -762,13 +766,14 @@ export function DecomisoForm({
             judicial). Hasta {MAX_ATTACHMENTS} archivos, 25 MB cada uno.
           </p>
 
-          <input
+          {/* `status={null}` — the attachment list right below already names
+              every selected file, so a second summary would say it twice. */}
+          <OpFileInput
             ref={fileInputRef}
-            type="file"
             multiple
             accept="image/*,video/mp4,video/webm,video/quicktime,image/heic,image/heif,application/pdf"
             onChange={(e) => handleFilesSelected(e.target.files)}
-            className="block w-full text-sm text-ln-op-mute file:mr-3 file:px-3 file:py-1.5 file:rounded-[var(--radius-md)] file:border-0 file:bg-ln-op-stripe file:text-ln-op-ink file:cursor-pointer"
+            status={null}
           />
 
           {attachmentError && (

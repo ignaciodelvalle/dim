@@ -82,6 +82,18 @@ const base =
   "disabled:cursor-not-allowed disabled:opacity-60 " +
   "focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-[var(--color-ln-op-celeste-050)]";
 
+// NO touch floor here, deliberately — mirroring LnButton (Button.tsx), which
+// has none either. The 44px floor in this design system lives on FIELDS
+// (Field.tsx, and now OpField): a form control is what a user aims at while
+// reading and typing, and it is the surface WCAG 2.5.5 was measured against
+// here. Buttons keep their padding-derived height in both tiers.
+//
+// This was briefly changed and reverted (2026-08-07): `md` is the DEFAULT size,
+// so a floor here silently grows every unsized OpButton across /gob, /admin and
+// /org — a console-wide visual change with no measurement behind it, and one
+// that would have broken the very citizen/operator parity used to justify the
+// field floor. A button that must match a field's height says so at its own
+// call site (see DecomisoForm's "Buscar").
 const sizes: Record<OpButtonSize, string> = {
   sm: "px-[11px] py-1.5 text-sm",
   md: "px-3.5 py-2 text-md",

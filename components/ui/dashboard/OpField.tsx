@@ -225,6 +225,24 @@ const controlBase =
  * into the step above them, per the round-up convention app/globals.css
  * documents for the spacing scale.)
  *
+ * TOUCH FLOOR. `md` carries `min-h-[44px]`; `sm`/`xs` deliberately do not.
+ * The citizen sibling has enforced this since Wave 2 (Field.tsx:364-366,
+ * "min-h-[44px] ensures touch targets meet WCAG 2.5.5"), and the header note
+ * below claims this file mirrors it — but the mirror was broken on exactly the
+ * accessibility property: `md` rendered 38px (8+8 padding + 20px line box + 2px
+ * border). QA 2026-08-07 measured it on the two longest operator forms
+ * (DecomisoForm, org intake). The floor lands on `md` only because `sm` and
+ * `xs` exist to sit INSIDE table rows and queue toolbars, where 44px would
+ * break the row rhythm; both clear WCAG 2.5.8 AA (24px) on their own. `lg`
+ * takes it too, so the steps stay monotonic (its 41px would otherwise render
+ * SHORTER than `md`).
+ *
+ * OpButton does NOT get this floor, and neither does LnButton: in both tiers
+ * the 44px rule is a FIELD rule. A button that must match a field's height
+ * states it at its own call site (DecomisoForm's "Buscar"), because `md` is
+ * OpButton's default size — a floor there would silently grow every unsized
+ * button in the console.
+ *
  * These HAVE to be a prop rather than className extras. `text-md` vs `text-sm`
  * and `px-3` vs `px-2` are the same Tailwind utility group, so which one wins
  * is decided by generated-CSS order, not by the order of the class attribute —
@@ -232,7 +250,7 @@ const controlBase =
  * caller passing `text-sm` would override the base only by luck.
  */
 const controlSize = {
-  md: "px-3 py-2 text-md",
+  md: "px-3 py-2 text-md min-h-[44px]",
   sm: "px-3 py-1.5 text-sm",
   xs: "px-2 py-1.5 text-sm",
 } as const;
