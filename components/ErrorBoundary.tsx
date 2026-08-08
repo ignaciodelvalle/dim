@@ -58,7 +58,21 @@ export function ErrorBoundary({
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center p-6 bg-[var(--color-ln-card)]">
+    // TYPOGRAPHY IS DECLARED, NOT INHERITED (QA 2026-08-07).
+    //
+    // This screen used to take whatever families its ancestor happened to set,
+    // and rendered its body in Encode Sans — the SITE CHROME face, not the
+    // product's IBM Plex Sans — because an error can bubble past the layout
+    // that would have set the portal font. It also used Tailwind's bare
+    // `font-mono`, i.e. the system `ui-monospace` stack, for the error code,
+    // while every other code in the product (DIM-, CAS-, DEN-) is IBM Plex
+    // Mono.
+    //
+    // That is exactly backwards: this is the moment the user most needs to feel
+    // they are still inside the same product. Both families are stated
+    // explicitly here, and they hold in BOTH skins — the citizen and operator
+    // tiers both sit on Plex (globals.css `--font-ln-sans` / `--font-ln-mono`).
+    <main className="font-ln-sans min-h-screen flex items-center justify-center p-6 bg-[var(--color-ln-card)]">
       <div className="max-w-md w-full text-center space-y-4">
         <div
           className="mx-auto inline-flex h-16 w-16 items-center justify-center rounded-full bg-[var(--color-ln-warn)]/15 text-[var(--color-ln-warn)]"
@@ -72,7 +86,7 @@ export function ErrorBoundary({
           necesita ver:
         </p>
         <div className="flex items-center justify-center gap-2">
-          <p className="font-mono text-xs text-[var(--color-ln-mute)] break-all">
+          <p className="font-ln-mono text-xs text-[var(--color-ln-mute)] break-all">
             Código de error: {code}
           </p>
           <LnButton variant="ghost" size="sm" onClick={copyCode} className="shrink-0 text-xs">
@@ -93,7 +107,7 @@ export function ErrorBoundary({
         {!isProd && (
           <details className="text-left text-xs text-[var(--color-ln-mute)] mt-4 pt-4 border-t border-[var(--color-ln-line)]">
             <summary className="cursor-pointer font-medium">Stack trace (solo dev)</summary>
-            <pre className="mt-2 whitespace-pre-wrap break-words font-mono text-xs">
+            <pre className="mt-2 whitespace-pre-wrap break-words font-ln-mono text-xs">
               {error.message}
               {"\n\n"}
               {error.stack ?? "(sin stack)"}

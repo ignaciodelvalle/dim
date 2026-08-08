@@ -135,7 +135,9 @@ export function AppFooter({ columns = DEFAULT_COLUMNS, collapsed = false }: Prop
           >
             {/* Marca + tagline */}
             <div>
-              <p className="text-lg font-bold text-ln-azul">{BRANDING.appName}</p>
+              {/* One family for the wordmark — see the note in AppShell's
+                  LandingShell. */}
+              <p className="font-ln-serif text-lg font-bold text-ln-azul">{BRANDING.appName}</p>
               <p className="mt-1 text-sm text-ln-mute">
                 {BRANDING.appNameLong} · {BRANDING.tagline}.
               </p>
