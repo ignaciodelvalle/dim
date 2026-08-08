@@ -27,7 +27,17 @@ export default async function BuscarTurnosPage({
 
   // Q1: repeated params (?service_kind=a&service_kind=b) hand Next a
   // string[], not string — raw `.trim()` on that throws (500).
-  const serviceKind = trimmedSearchParam(params.service_kind) ?? "";
+  // An unrecognized service_kind is treated as ABSENT, never echoed. The <h1>
+  // below is the service's name, so an unvalidated param let whoever wrote the
+  // URL choose this page's heading: QA 2026-08-08 (S3-F07) loaded
+  // ?service_kind=spay_female_dog and got a 200 whose first line read
+  // "spay_female_dog". React escapes the markup, so this is not injection —
+  // it is the page asserting a service that does not exist.
+  //
+  // Falling through to the picker is what the app already does for a missing
+  // param, and an unknown service is exactly that: no service chosen yet.
+  const requestedKind = trimmedSearchParam(params.service_kind) ?? "";
+  const serviceKind = findServiceKind(requestedKind) ? requestedKind : "";
   const fechaDesde = trimmedSearchParam(params.fecha_desde) ?? "";
   const soloGratis = params.solo_gratis === "true";
 
@@ -139,6 +149,9 @@ export default async function BuscarTurnosPage({
     (r) => (slotsByOffering.get(r.offering.id)?.length ?? 0) > 0,
   );
 
+  // Non-null by construction: serviceKind was validated above, and an empty
+  // one already returned the picker. No `?? serviceKind` fallback here — that
+  // is the very shape that printed the raw param as a heading.
   const kindDef = findServiceKind(serviceKind);
   const locationLabel = locality ? locality : province ? province : null;
 
@@ -147,7 +160,7 @@ export default async function BuscarTurnosPage({
       {/* Header */}
       <div className="mb-5">
         <h1 className="m-0 font-ln-serif text-3xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          {kindDef?.label ?? serviceKind}
+          {kindDef?.label}
         </h1>
         {locationLabel && (
           <p className="mt-1 font-ln-mono text-sm text-[var(--color-ln-mute)]">{locationLabel}</p>
