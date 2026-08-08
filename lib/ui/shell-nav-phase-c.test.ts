@@ -85,7 +85,12 @@ describe("Phase C — operator wandering onto a public surface keeps a return", 
     // Resolver keeps them in the operator variant with an escape hatch…
     expect(r.variant).toBe("operator");
     expect(r.showReturn).toBe(true);
-    expect(r.returnHref).toBe("/mis-mascotas");
+    // The return goes to the operator's OWN portal (roleHome), not to the
+    // citizen tree: app/(app)/layout.tsx redirects govt to /gob before
+    // /mis-mascotas can render, so the old "/mis-mascotas" here asserted a
+    // destination the product refuses to serve — clicking it cost a redirect
+    // and landed you back where you started (fixed 2026-08-08).
+    expect(r.returnHref).toBe("/gob");
     // …and the (public) top-bar falls back to PUBLIC_NAV (no operator hrefs in a
     // citizen masthead), never silently dropping the return.
     expect(mastheadNavFor(r)).toBe(PUBLIC_NAV);
