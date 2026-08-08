@@ -384,7 +384,7 @@ donde un problema duele más. Si sólo hay tiempo para dos sesiones, son esas.
 
 ### 10.0 — Precondición global (antes de S1, una sola vez)
 
-Staging tiene que estar sirviendo `aed50d41` o posterior. Verificalo así, y
+Staging tiene que estar sirviendo `18c354c8` o posterior. Verificalo así, y
 **si no coincide, PARÁ y reportá — no arranques**:
 
 1. **El título de la pestaña.** Abrí `/gob` y `/admin` en dos pestañas. Los
@@ -427,6 +427,36 @@ reintentá. A los 3 intentos fallidos, pará y dejá el reporte.
 > quiere decir que esté bien: si el rótulo de prioridad estorba, si el filtro
 > del wizard confunde, si la banda arriba tapa algo — eso es hallazgo nuevo y
 > lo queremos.
+
+También arreglado el 2026-08-08, y verificado sobre staging: un **admin que va
+a Gobierno** ve el rail de Gobierno (antes veía el de Admin y cada click lo
+devolvía), y el **"Volver a mi app"** del operador en una superficie pública
+apunta a su portal en vez de rebotar por `/mis-mascotas`.
+
+### 10.0 bis — el estado del ambiente, para que no lo diagnostiques vos
+
+Dos cosas medidas el 2026-08-08 que te ahorran horas:
+
+**La suite e2e contra staging tiene un rojo permanente.** El nightly de esa
+mañana cerró 8 failed / 136 passed, y una corrida ad-hoc el mismo día dio 9 /
+157. Varias de esas fallas son de AMBIENTE, no de producto: falta un secreto
+(`NEXT_PUBLIC_SUPABASE_ANON_KEY`), y hay cuentas que existen en el seed de CI
+pero no en staging (`zero-pets@dim.test`). **No es tu trabajo reproducirlas ni
+explicarlas.**
+
+Pero dos de las que fallan son journeys de traspaso de propiedad —
+**finalizar una adopción** y **aceptar una transferencia**— y ésas SÍ podrían
+ser producto. Si al recorrerlas encontrás algo, es hallazgo legítimo: dale
+prioridad y evidencia dura. Si no encontrás nada, decilo también — cierra la
+duda.
+
+**Cuatro flujos no tienen NINGÚN spec e2e detrás**: turnos, disputas, ejecución
+de decomiso e intake individual. Están construidos y se verificó el
+2026-08-08 que las cuatro superficies son alcanzables con el rol correcto (no
+caen al error boundary ni al 404) — pero nadie probó nunca que el flujo
+COMPLETE. Es el territorio menos pisado del producto, así que es donde más vale
+tu tiempo, y también donde más probable es que te trabes. Si te trabás ahí,
+**es un hallazgo, no un problema de ambiente** — ya lo descartamos.
 
 ### 10.1 — Puerta de entrada de cada sesión
 

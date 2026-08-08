@@ -644,6 +644,17 @@ The two never conflate. A leaked `publicToken` exposes Tier-0 (minimal). A leake
 
 ### Code conventions
 
+#### Killing a flow: grep for its name first (2026-08-08)
+
+A conditional whose justification NAMES a specific flow becomes wrong the day that flow is removed — silently, with nobody touching the file. Two live bugs on 2026-08-08, both found by the PO rather than by CI:
+
+- `app/gob/layout.tsx` swapped the ADMIN rail in for an admin viewer, because an admin used to arrive via `/admin/moderacion`'s **redirect**. The F1 fusion (2026-07-22) removed that redirect. What was left: the switcher offered "Ir a Gobierno" and the layout then served 19 links back to `/admin`, so the sections never changed and every click bounced. A door the product opened and then refused.
+- `lib/ui/shell-nav.ts` pointed the operator's "Volver a mi app" at `/mis-mascotas`, calling it a "personal escape hatch" — while `app/(app)/layout.tsx` redirects govt→`/gob` and admin→`/admin` before that page renders. The link advertised a destination the product refuses to serve.
+
+**The rule**: when you delete or reroute a flow, `rg` its name (route, redirect, entry point) across **comments**, not just code. The justification for someone else's `if` is written in prose, so it will not show up in a type error, a test, or any of the 45 fences.
+
+**The tell**: two pieces of the product disagreeing about whether a state is reachable. One offers it, the other denies it. When you find that, one of the two is stale — establish which before picking a side. Both bugs above also had the correct helper sitting in the same file (`roleHome()`), already used by a sibling branch.
+
 - `lib/infra/libreta-sanitaria.ts` owns `LIBRETA_SANITARIA_EVENT_TYPES`, `isLibretaSanitariaEvent(eventType)`, and a Drizzle clause helper for filtering queries.
 - The component formerly used as `<EventTimeline>` remains the rendering primitive but the canonical mount on the pet profile is `<LibretaSanitaria>` — a thin wrapper applying the filter and Libreta-specific empty-state copy.
 - User-facing strings consistently use *"libreta sanitaria"*, *"tu libreta"*, *"registrar en la libreta"*, *"quedó en la libreta de Negrita"* — never *"evento"* outside admin/debug surfaces.
@@ -1318,7 +1329,7 @@ Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/han
 `components/layout/AppShell.tsx` is the **only** application chrome. The historical three chrome systems (`LnOwnerNav`, `AppHeader`, `OpShell`) have been deleted (Item 7, Phase D — PRs #630–#634). Do not reintroduce per-surface chrome wrappers.
 
 - **Nav source is `components/layout/nav-presets.ts`** — `OWNER_NAV`, `PUBLIC_NAV`, `GOB_NAV(_SECTIONS)`, `ADMIN_NAV(_SECTIONS)`, `buildOrgNav`. Do not introduce per-component nav literals. `OWNER_NAV` is **2 items** — Mis mascotas→`/mis-mascotas`, Denuncias→`/denuncias/mias` (PO ronda 4, 2026-07-15). The former "Inicio" tab was REMOVED: `/inicio` is only a server-redirect into the most-urgent pet's credential, so the tab never highlighted (the carousel marks "Mis mascotas" active) and it bypassed the vet gate. The `/inicio` route stays (post-login landing + bookmarks + Asentar fallback); only the nav entry died. Supersedes the 2026-07-02 three-item split (decision #645). Each item owns a single, disjoint `matchPrefix`.
-- **The variant + nav decision is auth-aware, not route-group-based** — `lib/ui/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end). The separate "Volver a mi app" return chip only renders where the active nav has no equivalent destination of its own — token-landing surfaces (no nav at all) and the operator variant stranded on a public page (ADMIN_NAV/GOB_NAV/org nav have no pets-home link). For the citizen+owner/vet case, OWNER_NAV's own "Mis mascotas" item already IS the guaranteed ≤1-click return, so `showReturn` is never set there (the return chip used to duplicate it on every citizen page).
+- **The variant + nav decision is auth-aware, not route-group-based** — `lib/ui/shell-nav.ts` `resolveShellNav(input)` is the single decision (pure, tested). Anonymous on a public surface → `citizen` + `PUBLIC_NAV`; a logged-in user on any surface (including public) keeps their **role** nav. A public surface must NEVER replace the role nav (fixes the stranded-logged-in-user dead-end). The separate "Volver a mi app" return chip only renders where the active nav has no equivalent destination of its own — token-landing surfaces (no nav at all) and the operator variant stranded on a public page (ADMIN_NAV/GOB_NAV/org nav have no pets-home link). **For an institutional role that chip goes to `roleHome(role)` — `/gob` or `/admin` — never `/mis-mascotas`**: `app/(app)/layout.tsx` redirects govt and admin away from the citizen tree, so pointing there advertised a destination the product refuses to serve (fixed 2026-08-08; see "Killing a flow" under Code conventions). The vet/owner-in-org branch keeps `/mis-mascotas`, which is correct — those roles are not redirected. For the citizen+owner/vet case, OWNER_NAV's own "Mis mascotas" item already IS the guaranteed ≤1-click return, so `showReturn` is never set there (the return chip used to duplicate it on every citizen page).
 - **Three variants:**
   - `citizen` — top masthead with Argentina stripe + footer. Owner portal, public surfaces, marketing landing.
   - `operator` — left navy rail + topbar, no stripe/footer. gob / admin / org portals. **Exception — the situational console** (`/gob|admin/panorama`): a viewport-locked "fixed console" (`100dvh`, no page scroll; the map is fixed like the rail and fills everything except slim bars, with floating overlay chrome + a bottom dock). It is the one operator surface that never page-scrolls (v2C, `#21`).
@@ -1327,6 +1338,23 @@ Updated by the pet-profile "two-face" redesign (2026-07-01; spec docs/design/han
 - **`#main-content`** (skip-link target) is preserved in every variant — do not drop it.
 
 Spec: `docs/superpowers/specs/archive/2026-06-18-unified-app-shell-design.md`. Plan: `docs/superpowers/plans/archive/2026-06-18-unified-app-shell.md`.
+
+### 8. "Limpiar todo" ≠ "Limpiar filtros" — they are different mechanisms (2026-08-08)
+
+Both strings live on the same screen and a QA pass read that as an inconsistency. It is not, and unifying them would erase a real distinction:
+
+- **"Limpiar todo"** sits on the active-filter chip row and clears **every axis at once** — period + action + actor in one click (`app/gob/historial/page.tsx`, `components/ui/dashboard/CasoEstadoFilter.tsx`).
+- **"Limpiar filtros"** is the **empty-state's** action: the list came back empty *because of* a filter, so the way out is offered where the dead end is (`components/ui/EmptyState.tsx`, `CaseQueue.tsx`).
+
+One is a control in a toolbar; the other is a recovery in an empty state. A screen can legitimately show both. Do not "fix" this.
+
+### 9. The 44px touch floor is a FIELD rule, not a control rule (2026-08-08)
+
+`components/ui/Field.tsx` and `components/ui/dashboard/OpField.tsx` put `min-h-[44px]` on their **`md`** density — the form default. `sm`/`xs` are deliberately exempt: they exist to sit inside table rows and queue toolbars, where 44px breaks the row rhythm, and both clear WCAG 2.5.8 AA (24px) on their own.
+
+**Neither `LnButton` nor `OpButton` carries the floor**, on purpose. `md` is OpButton's default size, so a floor there silently grows every unsized button across `/gob`, `/admin` and `/org`. A button that must match a field's height says so at its own call site (see `DecomisoForm`'s "Buscar"). The file-input triggers (`OpFileInput`, `LnFileInput`) DO carry it — they are the file field's control surface, not buttons.
+
+`e2e/mobile-390.spec.ts` asserts both floors separately; do not collapse them into one threshold.
 
 ### Drift policy
 
