@@ -27,14 +27,14 @@ Definidos en `app/globals.css` `@theme` (líneas 41-65):
 | `--color-ln-ink` | `#1b2a33` | Texto cuerpo principal |
 | `--color-ln-ink-2` | `#3c4b55` | Texto secundario (breed line, subtítulos) |
 | `--color-ln-mute` | `#616e77` | Help text / labels mono |
-| `--color-ln-faint` | `#67747d` | Texto terciario ("opcional", hints) |
+| `--color-ln-faint` | `#646f78` | Texto terciario ("opcional", hints) |
 | `--color-ln-paper` | `#fbfaf5` | Bg superficie (papel) |
 | `--color-ln-card` | `#ffffff` | Bg tarjeta |
 | `--color-ln-azul` | `#0e5a99` | CTAs, links, tabs activos, texto "info" normal |
 | `--color-ln-azul-900` | `#0a3556` | Bg masthead / drawer (banda navy) |
 | `--color-ln-celeste` | `#4e97d1` | Chrome / iconos / rings / **texto grande únicamente** |
 | `--color-ln-celeste-100` | `#dcebf7` | Texto claro sobre bandas navy (azul-900) |
-| `--color-ln-ok` | `#2e7d4f` | Confirmaciones / éxito |
+| `--color-ln-ok` | `#2b7449` | Confirmaciones / éxito |
 | `--color-ln-err` | `#c0392b` | Errores / destructivo |
 | `--color-ln-warn` | `#96600e` | Advertencias (ver actualización 2026-06-11) |
 | `--color-ln-seal` | `#a23a2c` | Asterisco requerido, acentos seal |
@@ -46,9 +46,9 @@ Definidos en `app/globals.css` `@theme` (líneas 41-65):
 | `#1b2a33` (ink) sobre `#fbfaf5` (paper) — cuerpo principal | **14.1 : 1** | ✅ AAA |
 | `#3c4b55` (ink-2) sobre `#fbfaf5` (paper) — texto secundario | **8.6 : 1** | ✅ AAA |
 | `#616e77` (mute) sobre `#fbfaf5` (paper) — help / labels | **5.0 : 1** | ✅ AA |
-| `#67747d` (faint) sobre `#fbfaf5` (paper) — terciario | **4.6 : 1** | ✅ AA |
+| `#646f78` (faint) sobre `#fbfaf5` (paper) — terciario | **4.92 : 1** | ✅ AA |
 | `#0e5a99` (azul) sobre `#fbfaf5` (paper) — CTA / link / tab activo | **6.8 : 1** | ✅ AA |
-| `#2e7d4f` (ok) sobre `#fbfaf5` (paper) — éxito | **4.8 : 1** | ✅ AA |
+| `#2b7449` (ok) sobre `#fbfaf5` (paper) — éxito | **5.44 : 1** | ✅ AA |
 | `#c0392b` (err) sobre `#fbfaf5` (paper) — error | **5.2 : 1** | ✅ AA |
 | `#a23a2c` (seal) sobre `#fbfaf5` (paper) — asterisco requerido | **6.3 : 1** | ✅ AA |
 | `#96600e` (warn) sobre `#ffffff` — advertencia | **5.28 : 1** | ✅ AA (ver 2026-06-11) |

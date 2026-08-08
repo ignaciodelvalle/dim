@@ -114,7 +114,7 @@
   --color-muted-foreground: #3c4b55; /* → ln-ink-2 */
   --color-accent: #0e5a99; /* → ln-azul */
   --color-primary: #0e5a99; /* → ln-azul */
-  --color-success: #2e7d4f; /* → ln-ok */
+  --color-success: #2b7449; /* → ln-ok (keep in step: this alias drifted once already) */
   --color-danger: #a23a2c; /* → ln-seal */
   --color-warning: #e0a93e; /* warm amber */
   --color-info: #4e97d1; /* → ln-celeste */

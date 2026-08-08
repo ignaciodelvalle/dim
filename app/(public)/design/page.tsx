@@ -46,7 +46,7 @@ const warmSwatches: Swatch[] = [
     name: "ln-ok",
     varName: "--color-ln-ok",
     tailwindClass: "bg-ln-ok",
-    hex: "#2e7d4f",
+    hex: "#2b7449",
     onColor: "light",
     note: "Success / advance",
   },

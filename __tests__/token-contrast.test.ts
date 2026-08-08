@@ -78,20 +78,45 @@ const TEXT_ON_LIGHT = [
 // Solid chips print white on a saturated fill — the inverse pairing, same floor.
 const WHITE_ON_FILL = ["ln-ok", "ln-azul", "ln-err"] as const;
 
-// A status token's OWN tint. This is where those tokens actually live — the
-// provenance stamp (.ln-prov, 8.5px uppercase mono) and .lp-ph-ok (13px bold,
-// which is NOT WCAG "large text") both print ln-ok on ln-ok-bg.
-//
-// The first version of this file checked only the three page surfaces above and
-// was therefore GREEN over a live 4.44:1 failure on exactly this pair — the same
-// "the colour was never the problem, the unchecked PAIR was" mistake its own
-// header claims to close, reproduced one tier down. Found in adversarial review
-// 2026-08-08, not by this fence.
-const TEXT_ON_OWN_TINT = [
-  { text: "ln-ok", tints: ["ln-ok-bg", "ln-ok-050"] },
-  { text: "ln-warn", tints: ["ln-warn-050"] },
-  { text: "ln-err", tints: ["ln-err-bg", "ln-err-050"] },
-] as const;
+/**
+ * Every `--color-X` that has a `--color-X-050` / `-bg` / `-025` tint, paired
+ * with each of its own tints — DISCOVERED from globals.css, not listed here.
+ *
+ * Two rounds of this file got the scope wrong by hand. The first checked only
+ * the three page surfaces and was green over ln-ok at 4.44:1 on its own tint.
+ * The second added three tints by hand and still missed ln-rosa (4.25) and the
+ * whole `ln-op-*` operator palette. Enumerating is the only version that closes
+ * "the unchecked PAIR", which is what the file claims to be for.
+ */
+function ownTintPairs(): Array<{ text: string; tint: string }> {
+  const hexes = new Map<string, string>();
+  for (const m of CSS.matchAll(/--color-(ln-[a-z0-9-]+):\s*(#[0-9a-fA-F]{6})/g)) {
+    if (!hexes.has(m[1])) hexes.set(m[1], m[2].toLowerCase());
+  }
+  const pairs: Array<{ text: string; tint: string }> = [];
+  for (const base of hexes.keys()) {
+    for (const suffix of ["-050", "-bg", "-025"]) {
+      if (hexes.has(base + suffix)) pairs.push({ text: base, tint: base + suffix });
+    }
+  }
+  return pairs;
+}
+
+/**
+ * Pairs that are NOT a text-on-background pair, with the reason. Everything
+ * else discovered above must clear AA.
+ *
+ * Adding an entry here is a claim that the token is never printed as text on
+ * that tint. It is not a way to silence a failure.
+ */
+const NOT_A_TEXT_PAIR: Record<string, string> = {
+  "ln-celeste on ln-celeste-050":
+    "ln-celeste is a brand FILL (2.89:1). Printing it as small text is the S7-F02 defect; the guard for that is the white-on-fill block below.",
+  "ln-op-celeste on ln-op-celeste-050": "Operator-palette twin of the above, same hex, same rule.",
+  "ln-rosa on ln-rosa-050":
+    "4.25:1 — used only as toneIconBg (an icon container, Sheet.tsx), never as text. If a surface ever prints ln-rosa as text on its tint, darken the token instead of extending this list.",
+  "ln-rosa on ln-rosa-bg": "4.27:1 — same container-only use as ln-rosa-050.",
+};
 
 describe("token contrast — text on light surfaces", () => {
   for (const text of TEXT_ON_LIGHT) {
@@ -107,18 +132,32 @@ describe("token contrast — text on light surfaces", () => {
   }
 });
 
-describe("token contrast — status text on its own tint", () => {
-  for (const { text, tints } of TEXT_ON_OWN_TINT) {
-    for (const tint of tints) {
-      it(`${text} on ${tint} clears AA`, () => {
-        const ratio = contrast(token(text), token(tint));
-        expect(
-          Number(ratio.toFixed(2)),
-          `--color-${text} on --color-${tint} is ${ratio.toFixed(2)}:1, below the ${AA_NORMAL}:1 WCAG AA floor. The status tokens live on these tinted backgrounds, not only on the page surfaces.`,
-        ).toBeGreaterThanOrEqual(AA_NORMAL);
-      });
-    }
+describe("token contrast — every token on its own tint", () => {
+  for (const { text, tint } of ownTintPairs()) {
+    const key = `${text} on ${tint}`;
+    if (key in NOT_A_TEXT_PAIR) continue;
+    it(`${key} clears AA`, () => {
+      const ratio = contrast(token(text), token(tint));
+      expect(
+        Number(ratio.toFixed(2)),
+        `--color-${text} on --color-${tint} is ${ratio.toFixed(2)}:1, below the ${AA_NORMAL}:1 WCAG AA floor. Status tokens live on these tinted backgrounds, not only on the page surfaces.`,
+      ).toBeGreaterThanOrEqual(AA_NORMAL);
+    });
   }
+
+  it("finds pairs at all", () => {
+    // A regex regression would empty the list and turn the whole block above
+    // into zero assertions — green, and meaningless.
+    expect(ownTintPairs().length).toBeGreaterThan(10);
+  });
+
+  it("every exemption still corresponds to a real pair", () => {
+    // Keeps NOT_A_TEXT_PAIR honest: a renamed or deleted token would otherwise
+    // leave a permanent excuse behind for a pair that no longer exists.
+    const discovered = new Set(ownTintPairs().map((p) => `${p.text} on ${p.tint}`));
+    const stale = Object.keys(NOT_A_TEXT_PAIR).filter((k) => !discovered.has(k));
+    expect(stale, `stale entries in NOT_A_TEXT_PAIR: ${stale.join(", ")}`).toEqual([]);
+  });
 });
 
 describe("token contrast — white on solid fills", () => {

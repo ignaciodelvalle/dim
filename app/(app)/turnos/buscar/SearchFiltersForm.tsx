@@ -66,12 +66,7 @@ export function SearchFiltersForm({
               own padding and rendered at 31px, while the locality picker in the
               same row — which does go through the primitive — sat at 44px
               (adversarial review 2026-08-08, S1-F07 / S3-F08). */}
-          <LnSelect
-            id="service_kind_sel"
-            name="service_kind"
-            defaultValue={currentServiceKind}
-            className="w-auto"
-          >
+          <LnSelect id="service_kind_sel" name="service_kind" defaultValue={currentServiceKind}>
             {SERVICE_KINDS.map((k) => (
               <option key={k.code} value={k.code}>
                 {k.label}
@@ -108,12 +103,15 @@ export function SearchFiltersForm({
         <input type="hidden" name="locality" value={pickedLocality} />
         <input type="hidden" name="province" value={pickedProvince} />
 
-        {/* size="lg" so the primary action matches the 44px controls beside it.
-            At 29px this was the SHORTEST control on the screen and also the one
-            that submits the search. LnButton carries no height floor by design
-            (buttons answer to WCAG 2.5.8 AA, 24px), so this is the call site's
-            job, not the primitive's. */}
-        <LnButton type="submit" variant="primary" size="lg">
+        {/* size="lg" + self-stretch. At 29px this was the SHORTEST control on
+            the screen and also the one that submits the search.
+            lg alone is 43px (21px line + 20px padding + 2px border), NOT the
+            44px the fields use — measured, after the first version of this
+            comment simply asserted they matched. The row is `items-end`, so
+            `self-stretch` is what actually makes it agree with its neighbours.
+            LnButton carries no height floor by design (buttons answer to WCAG
+            2.5.8 AA, 24px); this is the call site's job, not the primitive's. */}
+        <LnButton type="submit" variant="primary" size="lg" className="self-stretch">
           Buscar
         </LnButton>
       </div>
@@ -129,7 +127,6 @@ export function SearchFiltersForm({
             name="fecha_desde"
             type="date"
             defaultValue={currentFechaDesde}
-            className="w-auto"
           />
         </div>
         <LnCheckbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>
