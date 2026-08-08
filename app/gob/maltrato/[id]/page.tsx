@@ -61,7 +61,7 @@ import { logWelfareLocationViewed } from "@/lib/infra/welfare-location-audit";
 import { createClient } from "@/lib/supabase/server";
 import { calendarDaysAgoInAr, formatDate, formatDateTime } from "@/lib/utils/format";
 import {
-  welfareAssignmentLabel,
+  welfareAssignmentField,
   welfareReportKindLabel,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
@@ -338,10 +338,9 @@ export default async function GobMaltratoDetailPage({
         />
         <OpKpiSm label="Gravedad" value={welfareReportSeverityLabel(report.severity)} />
         <OpKpiSm label="Estado" value={welfareReportStatusLabel(report.status)} />
-        <OpKpiSm
-          label="Asignado a"
-          value={welfareAssignmentLabel(assignedToName, derivedOrgInfo?.orgDisplayName)}
-        />
+        {/* Label and value move together — under a fixed "Asignado a" the
+            derived case read "Asignado a: Derivada a Refugio Test". */}
+        <OpKpiSm {...welfareAssignmentField(assignedToName, derivedOrgInfo?.orgDisplayName)} />
       </div>
 
       {/* Assignment actions */}
@@ -402,7 +401,7 @@ export default async function GobMaltratoDetailPage({
               <div className="print:hidden">
                 <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
               </div>
-              <p className="text-xs text-ln-op-mute font-mono">
+              <p className="text-xs text-ln-op-mute font-ln-mono">
                 {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
               </p>
             </>
@@ -417,7 +416,7 @@ export default async function GobMaltratoDetailPage({
             <ul className="space-y-1.5 text-md">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="font-mono text-sm truncate text-ln-op-ink-2">
+                  <span className="font-ln-mono text-sm truncate text-ln-op-ink-2">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (

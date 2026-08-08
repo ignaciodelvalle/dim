@@ -159,7 +159,7 @@ export function ReturnAcceptanceCard({
               rows={3}
               required
               maxLength={500}
-              placeholder="Explicá por qué rechazás la propuesta..."
+              placeholder="Explicá por qué rechazás la propuesta…"
               className="w-full rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 text-sm resize-y outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
             />
           </div>

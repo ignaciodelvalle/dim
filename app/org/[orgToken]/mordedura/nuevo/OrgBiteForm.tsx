@@ -197,7 +197,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
               value={petPublicToken}
               onChange={(e) => setPetPublicToken(e.target.value)}
               placeholder="DIM-XXXX-XXXX"
-              className="font-mono uppercase tracking-wider"
+              className="font-ln-mono uppercase tracking-wider"
               aria-describedby={describedBy}
               aria-invalid={invalid || undefined}
             />
@@ -305,7 +305,7 @@ export function OrgBiteForm({ action, orgToken }: { action: FormAction; orgToken
             }}
           />
           {point && (
-            <p className="font-mono text-xs text-ln-op-mute">
+            <p className="font-ln-mono text-xs text-ln-op-mute">
               {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
             </p>
           )}

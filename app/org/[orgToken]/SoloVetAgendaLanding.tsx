@@ -88,7 +88,7 @@ export function SoloVetAgendaLanding({
                       href={`/org/${orgToken}/agenda/turnos/${appointment.appointmentToken}`}
                       className="flex items-center gap-4 px-4 py-3 no-underline transition-colors hover:bg-ln-op-stripe"
                     >
-                      <span className="font-mono text-sm font-semibold tabular-nums text-ln-op-ink">
+                      <span className="font-ln-mono text-sm font-semibold tabular-nums text-ln-op-ink">
                         {formatTime(appointment.startsAt)}
                       </span>
                       <span className="min-w-0 flex-1">

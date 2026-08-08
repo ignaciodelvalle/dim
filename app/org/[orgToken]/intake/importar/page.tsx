@@ -27,7 +27,7 @@ export default async function ImportIntakePage({
           <h1 className="text-title font-semibold text-ln-op-ink">Permiso requerido</h1>
           <p className="text-md text-ln-op-mute">
             Para importar ingresos necesitás el permiso{" "}
-            <code className="text-sm font-mono">intake.create</code>. Pedíselo a un administrador
+            <code className="text-sm font-ln-mono">intake.create</code>. Pedíselo a un administrador
             desde el panel.
           </p>
           <Link

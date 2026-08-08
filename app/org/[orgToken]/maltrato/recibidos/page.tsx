@@ -262,7 +262,7 @@ export default async function OrgMaltratoRecibidosPage({
                           ? ` · ${r.subjectDescription.slice(0, 60)}`
                           : ""}
                       </p>
-                      <p className="text-sm font-mono text-ln-op-mute">
+                      <p className="text-sm font-ln-mono text-ln-op-mute">
                         {r.referenceCode} ·{" "}
                         {activeTab === "recibidos" && r.derivedAt
                           ? `derivada el ${formatDate(r.derivedAt)}`

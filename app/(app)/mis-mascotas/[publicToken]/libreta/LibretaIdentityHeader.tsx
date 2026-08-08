@@ -49,13 +49,13 @@ export function LibretaIdentityHeader({ pet, photoUrl, ownerFirstName }: Props) 
           {` · ${sexLabel(pet.sex)}`}
         </p>
         {pet.microchipId && (
-          <p className="text-xs font-mono text-[var(--color-ln-mute)]">
+          <p className="text-xs font-ln-mono text-[var(--color-ln-mute)]">
             <span className="sr-only">Microchip: </span>
             Microchip {pet.microchipId}
           </p>
         )}
         {pet.tattooCode && (
-          <p className="text-xs font-mono text-[var(--color-ln-mute)]">
+          <p className="text-xs font-ln-mono text-[var(--color-ln-mute)]">
             <span className="sr-only">Código de tatuaje: </span>
             Tatuaje {pet.tattooCode}
             {tattooLocLabel && ` · ${tattooLocLabel}`}
@@ -64,7 +64,7 @@ export function LibretaIdentityHeader({ pet, photoUrl, ownerFirstName }: Props) 
         {ownerFirstName && (
           <p className="text-xs text-[var(--color-ln-mute)]">Dueño/a: {ownerFirstName}</p>
         )}
-        <p className="text-xs font-mono text-[var(--color-ln-mute)] tracking-wider pt-1">
+        <p className="text-xs font-ln-mono text-[var(--color-ln-mute)] tracking-wider pt-1">
           {pet.publicToken}
         </p>
         <Link

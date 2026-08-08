@@ -79,7 +79,7 @@ export function OpenInvestigationForm({
           rows={4}
           required
           minLength={10}
-          placeholder="Describí la situación epidemiológica que motiva la apertura..."
+          placeholder="Describí la situación epidemiológica que motiva la apertura…"
         />
         <p className="text-sm text-ln-op-mute tabular-nums">{reason.trim().length} caracteres</p>
       </div>
@@ -94,7 +94,7 @@ export function OpenInvestigationForm({
           value={signalId}
           onChange={(e) => setSignalId(e.target.value)}
           placeholder="ID del outbreak_signal event (si existe)"
-          className="font-mono"
+          className="font-ln-mono"
         />
       </div>
 

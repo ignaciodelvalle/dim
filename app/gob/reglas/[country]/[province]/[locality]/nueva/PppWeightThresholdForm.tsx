@@ -116,8 +116,8 @@ export function PppWeightThresholdForm({
         onChange={(e) => setAppliesIfBreedNotPPP(e.target.checked)}
       >
         Aplicar el threshold incluso a razas NO listadas en{" "}
-        <span className="font-mono text-sm">ppp_breed_list</span>. Si esta desactivado, el threshold
-        solo agrega una segunda condicion a las razas ya consideradas PPP.
+        <span className="font-ln-mono text-sm">ppp_breed_list</span>. Si esta desactivado, el
+        threshold solo agrega una segunda condicion a las razas ya consideradas PPP.
       </LnCheckbox>
 
       {/* Impact preview — shown before submission. C9: thread the result up

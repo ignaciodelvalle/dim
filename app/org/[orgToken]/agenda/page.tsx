@@ -232,7 +232,7 @@ export default async function OrgAgendaPage({
                       const canBlock = slot.bookingsCount === 0 && slot.status === "open";
                       return (
                         <li key={slot.id} className="flex items-center gap-4 px-4 py-3">
-                          <div className="shrink-0 text-sm font-mono text-ln-op-mute w-28">
+                          <div className="shrink-0 text-sm font-ln-mono text-ln-op-mute w-28">
                             {startStr}–{endStr}
                           </div>
                           <div className="flex-1 flex items-center gap-2 min-w-0">
@@ -280,7 +280,7 @@ export default async function OrgAgendaPage({
 
                 return (
                   <li key={appointment.id} className="flex items-start gap-4 px-4 py-3">
-                    <div className="shrink-0 text-sm font-mono text-ln-op-mute w-14 pt-0.5">
+                    <div className="shrink-0 text-sm font-ln-mono text-ln-op-mute w-14 pt-0.5">
                       {slotTime}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">

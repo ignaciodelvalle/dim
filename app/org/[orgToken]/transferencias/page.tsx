@@ -131,7 +131,7 @@ export default async function OrgTransferenciasSalientesPage({
                         <div className="min-w-0 space-y-1">
                           <p className="text-md font-medium text-ln-op-ink">
                             {r.petName ?? "(sin pet)"}{" "}
-                            <span className="font-mono text-sm text-ln-op-mute">
+                            <span className="font-ln-mono text-sm text-ln-op-mute">
                               · {r.publicCode}
                             </span>
                           </p>

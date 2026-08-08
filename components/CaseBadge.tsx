@@ -61,7 +61,7 @@ export function CaseBadge({ publicCode, caseKind, status, size = "md" }: Props) 
       className={`inline-flex items-center rounded-full bg-ln-card ring-1 ring-ln-line transition hover:bg-ln-stripe    ${sizeClasses}`}
     >
       <Icon name={KIND_ICON[caseKind]} size="sm" decorative />
-      <span className="font-mono font-semibold text-ln-ink ">{publicCode}</span>
+      <span className="font-ln-mono font-semibold text-ln-ink ">{publicCode}</span>
       <span className="text-ln-mute ">·</span>
       <span className="text-ln-ink ">{caseKindLabel(caseKind)}</span>
       <span

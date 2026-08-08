@@ -58,7 +58,7 @@ export function VetVisitForm({
                 name="reason"
                 type="text"
                 required
-                placeholder="Control general, urgencia, vacunación..."
+                placeholder="Control general, urgencia, vacunación…"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 aria-describedby={describedBy}

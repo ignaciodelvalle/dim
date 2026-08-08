@@ -55,7 +55,7 @@ export default function CookiesPage() {
               </thead>
               <tbody>
                 <tr className="border-b border-[var(--color-ln-line)]">
-                  <td className="px-4 py-2 font-mono">sb-*-auth-token</td>
+                  <td className="px-4 py-2 font-ln-mono">sb-*-auth-token</td>
                   <td className="px-4 py-2">
                     Mantiene la sesión de usuario autenticado (token de acceso y refresh token de
                     Supabase Auth). Solo se crea cuando iniciás sesión.

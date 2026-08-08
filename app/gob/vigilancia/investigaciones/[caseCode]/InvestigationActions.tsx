@@ -246,7 +246,7 @@ export function InvestigationActions({
             value={finalReport}
             onChange={(e) => setFinalReport(e.target.value)}
             rows={3}
-            placeholder="Texto del informe epidemiológico final (opcional si ya existe un registro previo)..."
+            placeholder="Texto del informe epidemiológico final (opcional si ya existe un registro previo)…"
           />
         </div>
       )}

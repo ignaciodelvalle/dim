@@ -31,7 +31,7 @@ export function ReporterCommentForm({ action }: { action: CommentFormAction }) {
             rows={4}
             required
             maxLength={2000}
-            placeholder="Escribí tu comentario..."
+            placeholder="Escribí tu comentario…"
             value={text}
             onChange={(e) => setText(e.target.value)}
             aria-describedby={describedBy}

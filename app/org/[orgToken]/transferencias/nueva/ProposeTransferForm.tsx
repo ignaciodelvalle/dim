@@ -125,7 +125,7 @@ export function ProposeTransferForm({ senderOrgToken, petPublicToken, petName, r
           <p className="text-sm uppercase tracking-wider text-ln-op-mute">Vas a transferir</p>
           <p className="mt-1 text-base font-semibold text-ln-op-ink">{petName}</p>
           <p className="mt-2 text-sm text-ln-op-mute">
-            Token: <span className="font-mono">{petPublicToken}</span>
+            Token: <span className="font-ln-mono">{petPublicToken}</span>
           </p>
         </div>
         <p className="text-md text-ln-op-ink-2">

@@ -335,7 +335,7 @@ function BulkRevokeModal({ selectedItems, targetKind, onClose, onDone }: ModalPr
               <ul className="space-y-1 rounded-lg border border-ln-op-danger-bd bg-ln-op-danger-bg p-3 text-xs">
                 {result.failed.map((f) => (
                   <li key={f.id} className="text-ln-op-danger">
-                    <span className="font-mono">{f.id.slice(0, 8)}…</span> — {f.reason}
+                    <span className="font-ln-mono">{f.id.slice(0, 8)}…</span> — {f.reason}
                   </li>
                 ))}
               </ul>

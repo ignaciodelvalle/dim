@@ -548,9 +548,13 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
               {estimatedWeightKg ? `${estimatedWeightKg} kg` : "—"}
             </dd>
             <dt className="text-ln-op-mute">Microchip</dt>
-            <dd className="col-span-2 font-mono text-ln-op-ink">{microchipId || "(sin chip)"}</dd>
+            <dd className="col-span-2 font-ln-mono text-ln-op-ink">
+              {microchipId || "(sin chip)"}
+            </dd>
             <dt className="text-ln-op-mute">Tatuaje</dt>
-            <dd className="col-span-2 font-mono text-ln-op-ink">{tattooCode || "(sin tatuaje)"}</dd>
+            <dd className="col-span-2 font-ln-mono text-ln-op-ink">
+              {tattooCode || "(sin tatuaje)"}
+            </dd>
             <dt className="text-ln-op-mute">Motivo</dt>
             <dd className="col-span-2 text-ln-op-ink">
               {INTAKE_REASONS.find((r) => r.value === intakeReason)?.label ?? "—"}

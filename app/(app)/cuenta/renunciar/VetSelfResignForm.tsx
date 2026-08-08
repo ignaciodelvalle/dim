@@ -90,7 +90,7 @@ export function VetSelfResignForm() {
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           rows={3}
-          placeholder="Contanos por qué renunciás..."
+          placeholder="Contanos por qué renunciás…"
           className="w-full text-sm rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2 outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)] resize-none"
         />
       </div>

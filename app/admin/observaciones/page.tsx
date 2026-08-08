@@ -381,7 +381,7 @@ export default async function ObservacionesPage({
                           ? ` · Cierre estimado: ${formatDateShort(started.observationUntil)}`
                           : null}
                       </p>
-                      <p className="font-mono text-xs text-ln-op-faint">{r.petPublicToken}</p>
+                      <p className="font-ln-mono text-xs text-ln-op-faint">{r.petPublicToken}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5 whitespace-nowrap">
                       <OpPill tone={STATUS_PILL[status]}>{STATUS_LABEL[status]}</OpPill>

@@ -123,7 +123,7 @@ export default async function InvestigacionDetailPage({
             {STATUS_LABEL[detail.status] ?? detail.status}
           </OpPill>
         </div>
-        <p className="text-sm font-mono text-ln-op-mute">
+        <p className="text-sm font-ln-mono text-ln-op-mute">
           {detail.publicCode} · abierta {formatDateTime(detail.openedAt)}
         </p>
       </header>
@@ -194,7 +194,7 @@ export default async function InvestigacionDetailPage({
                       </span>
                     </div>
                     {externalDetail && (
-                      <p className="text-sm font-mono text-ln-op-ink-2">{externalDetail}</p>
+                      <p className="text-sm font-ln-mono text-ln-op-ink-2">{externalDetail}</p>
                     )}
                     {n.notes && (
                       <p className="text-md text-ln-op-ink-2 whitespace-pre-wrap">{n.notes}</p>

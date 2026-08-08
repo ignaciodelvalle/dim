@@ -44,7 +44,7 @@ export function Timeline({ events }: TimelineProps) {
             aria-hidden="true"
           />
           <div className="space-y-0.5">
-            <p className="text-xs text-ln-op-mute tabular-nums font-mono">
+            <p className="text-xs text-ln-op-mute tabular-nums font-ln-mono">
               {formatDateTime(event.occurredAt)}
               {event.actorName && (
                 <span className="ml-1 text-ln-op-faint">· {event.actorName}</span>

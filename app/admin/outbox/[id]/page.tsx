@@ -266,7 +266,7 @@ export default async function AdminOutboxDetailPage({
                   {sourceEvent.authorOrganizationId && (
                     <>
                       <dt className="text-sm text-ln-op-mute">Organización</dt>
-                      <dd className="font-mono text-xs text-ln-op-mute break-all">
+                      <dd className="font-ln-mono text-xs text-ln-op-mute break-all">
                         {sourceEvent.authorOrganizationId}
                       </dd>
                     </>
@@ -274,17 +274,19 @@ export default async function AdminOutboxDetailPage({
                   {sourceEvent.recordedByUserId && (
                     <>
                       <dt className="text-sm text-ln-op-mute">Usuario</dt>
-                      <dd className="font-mono text-xs text-ln-op-mute break-all">
+                      <dd className="font-ln-mono text-xs text-ln-op-mute break-all">
                         {sourceEvent.recordedByUserId}
                       </dd>
                     </>
                   )}
                   <dt className="text-sm text-ln-op-mute">Pet ID</dt>
-                  <dd className="font-mono text-xs text-ln-op-mute break-all">
+                  <dd className="font-ln-mono text-xs text-ln-op-mute break-all">
                     {sourceEvent.petId}
                   </dd>
                   <dt className="text-sm text-ln-op-mute">Event ID</dt>
-                  <dd className="font-mono text-xs text-ln-op-mute break-all">{sourceEvent.id}</dd>
+                  <dd className="font-ln-mono text-xs text-ln-op-mute break-all">
+                    {sourceEvent.id}
+                  </dd>
                 </dl>
               </details>
 

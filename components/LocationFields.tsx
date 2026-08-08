@@ -587,7 +587,7 @@ export function LocationFields({
               </p>
             )}
             {point && (
-              <p className="text-xs text-ln-mute  font-mono">
+              <p className="text-xs text-ln-mute  font-ln-mono">
                 {point.lat.toFixed(6)}, {point.lng.toFixed(6)}
               </p>
             )}

@@ -67,7 +67,7 @@ export function OpBulkResultPanel({
         <ul className="text-sm text-ln-op-danger space-y-0.5">
           {result.failed.map((f) => (
             <li key={f.id}>
-              <span className="font-mono">
+              <span className="font-ln-mono">
                 {truncateFailedIdsTo ? `${f.id.slice(0, truncateFailedIdsTo)}…` : f.id}
               </span>{" "}
               — {f.reason}
@@ -75,7 +75,7 @@ export function OpBulkResultPanel({
           ))}
         </ul>
       )}
-      <p className="text-xs text-ln-op-mute font-mono">bulk: {result.bulkActionId}</p>
+      <p className="text-xs text-ln-op-mute font-ln-mono">bulk: {result.bulkActionId}</p>
     </output>
   );
 }

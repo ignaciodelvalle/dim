@@ -134,7 +134,7 @@ export default async function DisputeDetailPage({
           {pet.breed && ` · ${pet.breed}`} · {dispute.jurisdictionLocality},{" "}
           {dispute.jurisdictionProvince}
         </p>
-        <p className="text-xs text-ln-op-faint font-mono">{dispute.publicToken}</p>
+        <p className="text-xs text-ln-op-faint font-ln-mono">{dispute.publicToken}</p>
       </header>
 
       {dispute.status === "open" && (
@@ -193,7 +193,7 @@ export default async function DisputeDetailPage({
                 key={e.id}
                 className="flex items-baseline justify-between gap-3 border-l-2 border-ln-op-line pl-3 py-1"
               >
-                <span className="font-mono text-sm text-ln-op-ink-2">
+                <span className="font-ln-mono text-sm text-ln-op-ink-2">
                   {eventTypeLabel(e.eventType as EventType)}
                 </span>
                 <span className="text-sm text-ln-op-mute whitespace-nowrap">

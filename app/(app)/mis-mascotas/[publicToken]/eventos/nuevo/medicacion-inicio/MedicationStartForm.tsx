@@ -113,7 +113,7 @@ export function MedicationStartForm({
                 type="text"
                 list="drug-options"
                 required
-                placeholder="Amoxicilina, Metronidazol..."
+                placeholder="Amoxicilina, Metronidazol…"
                 value={drugName}
                 onChange={handleDrugNameChange}
                 autoComplete="off"
@@ -150,7 +150,7 @@ export function MedicationStartForm({
                   enterKeyHint="next"
                   value={doseValue}
                   onChange={(e) => setDoseValue(e.target.value)}
-                  placeholder="10 mg/kg, 1 comp..."
+                  placeholder="10 mg/kg, 1 comp…"
                   aria-describedby={describedBy}
                   invalid={invalid}
                 />

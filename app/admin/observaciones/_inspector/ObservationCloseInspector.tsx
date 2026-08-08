@@ -132,7 +132,7 @@ export function ObservationCloseInspector({ rows }: { rows: ObservationCloseRow[
                 </div>
                 <div className="sm:col-span-2">
                   <dt className="text-sm text-ln-op-mute">{"Token público"}</dt>
-                  <dd className="font-mono text-sm text-ln-op-mute">{row.publicToken}</dd>
+                  <dd className="font-ln-mono text-sm text-ln-op-mute">{row.publicToken}</dd>
                 </div>
               </dl>
               <CloseObservationForm action={row.closeAction} />

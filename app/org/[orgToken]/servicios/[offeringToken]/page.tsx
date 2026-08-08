@@ -294,7 +294,7 @@ function Row({
   return (
     <div className="flex items-baseline gap-3 px-4 py-3 flex-wrap">
       <dt className="text-sm text-ln-op-mute shrink-0 w-36">{label}</dt>
-      <dd className={`text-md text-ln-op-ink flex-1 ${mono ? "font-mono" : ""}`}>{value}</dd>
+      <dd className={`text-md text-ln-op-ink flex-1 ${mono ? "font-ln-mono" : ""}`}>{value}</dd>
     </div>
   );
 }

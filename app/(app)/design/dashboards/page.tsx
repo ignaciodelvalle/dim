@@ -115,7 +115,7 @@ export default async function DashboardPrimitivasPage() {
             <p className="text-xs text-[var(--color-ln-mute)] mb-4">
               3 provincias de muestra (CABA, Buenos Aires, Córdoba). Tiles vía demotiles MapLibre
               (v1 placeholder — E-D1). GeoJSON en{" "}
-              <code className="font-mono text-xs bg-[var(--color-ln-stripe)] px-1 rounded">
+              <code className="font-ln-mono text-xs bg-[var(--color-ln-stripe)] px-1 rounded">
                 /geo/ar-provinces.geojson
               </code>
               .

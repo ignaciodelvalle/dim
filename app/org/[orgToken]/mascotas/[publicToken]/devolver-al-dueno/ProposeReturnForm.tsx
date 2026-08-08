@@ -90,7 +90,7 @@ export function ProposeReturnForm({
             <p className="text-sm uppercase tracking-wider text-ln-op-mute">Vas a devolver</p>
             <p className="mt-1 text-lg font-semibold text-ln-op-ink">{petName ?? "Esta mascota"}</p>
             <p className="mt-2 text-sm text-ln-op-mute">
-              Token: <span className="font-mono">{petPublicToken}</span>
+              Token: <span className="font-ln-mono">{petPublicToken}</span>
             </p>
           </div>
           <p className="text-md text-ln-op-ink-2">

@@ -97,7 +97,7 @@ export function MedicationEndForm({
                 id={id}
                 name="reason"
                 type="text"
-                placeholder="Tratamiento completo, efectos adversos..."
+                placeholder="Tratamiento completo, efectos adversos…"
                 value={reason}
                 onChange={(e) => setReason(e.target.value)}
                 aria-describedby={describedBy}

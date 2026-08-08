@@ -84,7 +84,7 @@ export function PetStatusDriftCard({ data }: { data: PetStatusDrift }) {
                     return (
                       <li key={s.publicToken} className="flex flex-col gap-0.5 text-sm">
                         <div className="flex items-baseline justify-between gap-3">
-                          <span className="font-mono text-ln-op-ink">{s.publicToken}</span>
+                          <span className="font-ln-mono text-ln-op-ink">{s.publicToken}</span>
                           <span className="text-ln-op-mute">{fieldLabel}</span>
                         </div>
                         {statusDrifted && (

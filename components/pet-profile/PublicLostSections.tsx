@@ -396,7 +396,7 @@ export function PublicLostSections({
       {tattooCode && (
         <section className="border-t border-ln-line-2 px-4 py-3">
           <p className="text-xs font-semibold uppercase tracking-wider text-ln-mute">Tatuaje</p>
-          <p className="mt-1 font-mono text-sm font-medium text-ln-ink">
+          <p className="mt-1 font-ln-mono text-sm font-medium text-ln-ink">
             {tattooCode}
             {tattooLocLabel && (
               <span className="ml-2 font-sans text-xs text-ln-mute">· {tattooLocLabel}</span>

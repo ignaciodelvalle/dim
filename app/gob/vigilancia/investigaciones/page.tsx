@@ -145,7 +145,7 @@ export default async function GobInvestigacionesPage({
                 >
                   <div className="flex-1 min-w-0 space-y-0.5">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-sm text-ln-op-mute">{inv.publicCode}</span>
+                      <span className="font-ln-mono text-sm text-ln-op-mute">{inv.publicCode}</span>
                       <OpPill tone={STATUS_PILL_TONE[inv.status] ?? "neutral"}>
                         {STATUS_LABEL[inv.status] ?? inv.status}
                       </OpPill>

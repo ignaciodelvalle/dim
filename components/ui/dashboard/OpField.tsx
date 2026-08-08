@@ -263,7 +263,13 @@ function opControlClass(
   block: boolean,
   className?: string,
 ): string {
-  return [block ? "w-full" : "", controlBase, controlSize[size], mono ? "font-mono" : "", className]
+  return [
+    block ? "w-full" : "",
+    controlBase,
+    controlSize[size],
+    mono ? "font-ln-mono" : "",
+    className,
+  ]
     .filter(Boolean)
     .join(" ");
 }

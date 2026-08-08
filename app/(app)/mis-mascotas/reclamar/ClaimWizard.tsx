@@ -106,7 +106,7 @@ export function ClaimWizard() {
           Una autoridad local va a revisar tu reclamo por {state.petName}. Te avisaremos cuando haya
           una resolución.
         </p>
-        <p className="mt-3 font-mono text-xs text-[var(--color-ln-ok)]">
+        <p className="mt-3 font-ln-mono text-xs text-[var(--color-ln-ok)]">
           Referencia: {state.disputeToken}
         </p>
         <Link

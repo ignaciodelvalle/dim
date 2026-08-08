@@ -145,7 +145,7 @@ export default async function ModeracionDetailPage({
           </h1>
           <OpPill tone={severityTone}>{welfareReportSeverityLabel(report.severity)}</OpPill>
         </div>
-        <p className="font-mono text-xs text-ln-op-faint">
+        <p className="font-ln-mono text-xs text-ln-op-faint">
           {report.referenceCode}
           {" · creada "}
           {formatDateTime(report.createdAt)}
@@ -189,7 +189,7 @@ export default async function ModeracionDetailPage({
             {report.subjectPetId && subjectPetPublicToken && (
               <Link
                 href={`/p/${subjectPetPublicToken}`}
-                className="ml-2 font-mono text-sm text-ln-op-azul underline underline-offset-4 hover:opacity-80"
+                className="ml-2 font-ln-mono text-sm text-ln-op-azul underline underline-offset-4 hover:opacity-80"
               >
                 {subjectPetPublicToken}
               </Link>
@@ -238,7 +238,7 @@ export default async function ModeracionDetailPage({
             <ul className="space-y-1.5">
               {attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate font-mono text-sm text-ln-op-mute">
+                  <span className="truncate font-ln-mono text-sm text-ln-op-mute">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (

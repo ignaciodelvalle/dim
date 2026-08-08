@@ -196,13 +196,13 @@ export function OutboxTable({
                   {petToken ? (
                     <Link
                       href={`/p/${petToken}`}
-                      className="font-mono text-sm text-ln-op-azul underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
+                      className="font-ln-mono text-sm text-ln-op-azul underline underline-offset-2 hover:opacity-80 whitespace-nowrap"
                     >
                       {row.sourceEventId.slice(0, 8)}
                       {"…"}
                     </Link>
                   ) : (
-                    <span className="font-mono text-sm text-ln-op-mute">
+                    <span className="font-ln-mono text-sm text-ln-op-mute">
                       {row.sourceEventId.slice(0, 8)}
                       {"…"}
                     </span>

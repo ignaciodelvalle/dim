@@ -51,7 +51,7 @@ export function ReplaceMicrochipForm({
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="clientIdempotencyKey" value={idempotencyKey} />
       <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe px-4 py-3 text-md text-ln-op-ink-2">
-        Chip actual: <span className="font-mono font-medium text-ln-op-ink">{currentChip}</span>
+        Chip actual: <span className="font-ln-mono font-medium text-ln-op-ink">{currentChip}</span>
       </div>
 
       <div className="space-y-1.5">

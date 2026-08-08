@@ -12,6 +12,8 @@
 // Strangler note: this drops LnOwnerNav + LnOwnerSubBar usage. Those files are
 // NOT deleted here — Phase D removes them.
 
+import { BRANDING } from "@/lib/ui/branding";
+import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
@@ -35,6 +37,22 @@ import {
   getUnreadCountCached,
 } from "@/lib/infra/request-cache";
 import { type ShellRole, resolveShellNav } from "@/lib/ui/shell-nav";
+
+// A funcionario works with three portals open at once, and all four of them
+// returned the ROOT title verbatim — "miMAR — Mi Mascota Argentina" — so the
+// browser tabs were indistinguishable (QA 2026-08-07). The public routes were
+// already fine; only the authenticated portals inherited.
+//
+// `template` rather than a flat string: a page that sets its own title gets
+// "Denuncias · Gobierno — miMAR", and one that sets none falls back to
+// `default`. The portal name is the part that has to survive truncation in a
+// narrow tab, so it goes before the brand.
+export const metadata: Metadata = {
+  title: {
+    default: `Mis mascotas — ${BRANDING.appName}`,
+    template: `%s · Mis mascotas — ${BRANDING.appName}`,
+  },
+};
 
 export default async function AuthenticatedLayout({
   children,

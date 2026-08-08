@@ -217,7 +217,7 @@ export async function ServiciosScreen({
                                 {location ? ` · ${location}` : ""}
                                 {` · Capacidad: ${offering.slotCapacity}`}
                               </p>
-                              <p className="text-xs text-ln-op-mute font-mono">
+                              <p className="text-xs text-ln-op-mute font-ln-mono">
                                 {offering.publicToken} · {formatDateShort(offering.submittedAt)}
                               </p>
                             </div>

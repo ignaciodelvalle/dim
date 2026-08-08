@@ -245,7 +245,7 @@ export function PanoramaInformeSituacion({ model }: Props) {
           {model.viewUrl && (
             <p className="break-all">
               Vista reproducible (requiere acceso al sistema):{" "}
-              <span className="font-mono">{model.viewUrl}</span>
+              <span className="font-ln-mono">{model.viewUrl}</span>
             </p>
           )}
           {/* "Citar esta vista" v1 — the provenance disclosure sits WITH the
@@ -267,9 +267,9 @@ export function PanoramaInformeSituacion({ model }: Props) {
                 <span className="font-semibold">Alcance verificable</span> — mandato:{" "}
                 {model.scopeDescriptor.mandate}
                 {model.scopeDescriptor.narrowed && <> · vista: {model.scopeDescriptor.narrowed}</>}{" "}
-                · id de vista: <span className="font-mono">{model.scopeDescriptor.viewId}</span>
+                · id de vista: <span className="font-ln-mono">{model.scopeDescriptor.viewId}</span>
               </p>
-              <p className="break-all font-mono text-xs leading-tight">
+              <p className="break-all font-ln-mono text-xs leading-tight">
                 {model.scopeDescriptor.json}
               </p>
             </div>

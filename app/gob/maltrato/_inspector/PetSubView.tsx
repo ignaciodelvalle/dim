@@ -43,7 +43,7 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
         <OpCardHead title="Microchip" />
         <OpCardBody>
           {pet.microchipCode ? (
-            <p className="font-mono text-sm text-ln-op-ink">{pet.microchipCode}</p>
+            <p className="font-ln-mono text-sm text-ln-op-ink">{pet.microchipCode}</p>
           ) : (
             <p className="text-sm text-ln-op-mute">Sin microchip activo registrado.</p>
           )}
@@ -74,7 +74,7 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
                     className="flex items-baseline justify-between gap-3 rounded-[var(--radius-md)] border border-ln-op-line px-3 py-2 hover:bg-ln-op-stripe"
                   >
                     <span className="min-w-0">
-                      <span className="font-mono text-xs text-ln-op-ink-2">{c.publicCode}</span>
+                      <span className="font-ln-mono text-xs text-ln-op-ink-2">{c.publicCode}</span>
                       <span className="ml-2 text-sm text-ln-op-ink">
                         {caseKindLabel(c.caseKind)}
                       </span>
@@ -95,7 +95,7 @@ function Field({ label, value, mono = false }: { label: string; value: string; m
   return (
     <div className="space-y-0.5">
       <p className="text-xs uppercase tracking-wider text-ln-op-mute">{label}</p>
-      <p className={`text-sm text-ln-op-ink ${mono ? "font-mono" : ""}`}>{value}</p>
+      <p className={`text-sm text-ln-op-ink ${mono ? "font-ln-mono" : ""}`}>{value}</p>
     </div>
   );
 }

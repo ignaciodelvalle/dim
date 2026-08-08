@@ -158,7 +158,7 @@ export function AlertInboxTable({ rows }: { rows: AlertInboxRow[] }) {
                 <td className="py-2.5 pr-4">
                   <span className="font-medium text-ln-op-ink">{metricLabel}</span>
                   {row.investigationCode ? (
-                    <span className="ml-2 font-mono text-xs text-ln-op-viol">
+                    <span className="ml-2 font-ln-mono text-xs text-ln-op-viol">
                       {row.investigationCode}
                     </span>
                   ) : null}

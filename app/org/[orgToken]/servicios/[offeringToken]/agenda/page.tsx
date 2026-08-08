@@ -161,7 +161,7 @@ export default async function AgendaPage({
                         <td className="px-4 py-3 text-md text-ln-op-ink">
                           {formatDays(rule.daysOfWeek as number[])}
                         </td>
-                        <td className="px-4 py-3 font-mono text-sm text-ln-op-ink-2">
+                        <td className="px-4 py-3 font-ln-mono text-sm text-ln-op-ink-2">
                           {rule.startTimeLocal} – {rule.endTimeLocal}
                         </td>
                         <td className="px-4 py-3 text-md text-ln-op-mute">

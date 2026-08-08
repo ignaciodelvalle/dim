@@ -175,10 +175,13 @@ export default async function GobOutboxPage({
         title="Bandeja de salida — tu jurisdicción"
         subtitle={
           <>
+            {/* Subtítulo ESTABLE: filtrar no lo reemplaza. Antes el conteo lo
+                pisaba con "N filas con los filtros aplicados" — reintroducía la
+                voz de debug ("filas") que ya habíamos sacado, y decía algo que
+                el estado vacío de abajo ya dice. El encabezado explica QUÉ es
+                esta pantalla; cuántas filas quedaron lo cuenta la tabla. */}
             <p className="text-md text-ln-op-ink-2">
-              {hasFilters
-                ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
-                : "Envíos a autoridades y sistemas desde tu jurisdicción."}
+              Envíos a autoridades y sistemas desde tu jurisdicción.
             </p>
             <ViewScopeCaption scope={narrowedView} />
           </>

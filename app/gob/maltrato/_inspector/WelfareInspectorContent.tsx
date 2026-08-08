@@ -16,7 +16,7 @@ import type { WelfareInspectorDetail } from "@/lib/infra/welfare-inspector-detai
 import { formatDate, formatDateTime } from "@/lib/utils/format";
 import {
   type WelfareReportStatus,
-  welfareAssignmentLabel,
+  welfareAssignmentField,
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
   welfareReportSubjectKindLabel,
@@ -123,12 +123,10 @@ function ResumenTab({
         <Chip label="Edad del caso" value={ageLabel(detail.ageInDays)} />
         <Chip label="Gravedad" value={welfareReportSeverityLabel(detail.severity)} />
         <Chip label="Estado" value={welfareReportStatusLabel(detail.status)} />
+        {/* Label and value move together — under a fixed "Asignado a" the
+            derived case read "Asignado a: Derivada a Refugio Test". */}
         <Chip
-          label="Asignado a"
-          value={welfareAssignmentLabel(
-            detail.assignedToName,
-            detail.derivedOrgInfo?.orgDisplayName,
-          )}
+          {...welfareAssignmentField(detail.assignedToName, detail.derivedOrgInfo?.orgDisplayName)}
         />
       </div>
 
@@ -185,7 +183,7 @@ function ResumenTab({
                 Ubicación exacta — uso oficial (Ley 14.346)
               </p>
               <LocationMap lat={locationPoint.lat} lng={locationPoint.lng} />
-              <p className="font-mono text-xs text-ln-op-mute">
+              <p className="font-ln-mono text-xs text-ln-op-mute">
                 {locationPoint.lat.toFixed(6)}, {locationPoint.lng.toFixed(6)}
               </p>
             </>
@@ -200,7 +198,7 @@ function ResumenTab({
             <ul className="space-y-1.5 text-sm">
               {detail.attachments.map((a) => (
                 <li key={a.id} className="flex items-baseline justify-between gap-3">
-                  <span className="truncate font-mono text-xs text-ln-op-ink-2">
+                  <span className="truncate font-ln-mono text-xs text-ln-op-ink-2">
                     {a.originalFilename ?? a.storagePath.split("/").pop()}
                   </span>
                   {a.signedUrl ? (

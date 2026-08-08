@@ -18,12 +18,31 @@ import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { countOutboxBreaches } from "@/lib/infra/outbox-queries";
 import { getProfileCached } from "@/lib/infra/request-cache";
 import { countOpenAlertFirings } from "@/lib/metrics/alert-firing-inbox";
+import { BRANDING } from "@/lib/ui/branding";
 import type { ShellSession } from "@/lib/ui/shell-nav";
 import { roleLabel } from "@/lib/utils/format";
+import type { Metadata } from "next";
 
 // Gate the /admin/* segment. Admin-only — govt and everyone else gets sent
 // to / (root). Uses the strict requireAdminOrRedirect guard which also rejects
 // deactivated admins (Fase 5 invariant).
+
+// A funcionario works with three portals open at once, and all four of them
+// returned the ROOT title verbatim — "miMAR — Mi Mascota Argentina" — so the
+// browser tabs were indistinguishable (QA 2026-08-07). The public routes were
+// already fine; only the authenticated portals inherited.
+//
+// `template` rather than a flat string: a page that sets its own title gets
+// "Denuncias · Gobierno — miMAR", and one that sets none falls back to
+// `default`. The portal name is the part that has to survive truncation in a
+// narrow tab, so it goes before the brand.
+export const metadata: Metadata = {
+  title: {
+    default: `Admin — ${BRANDING.appName}`,
+    template: `%s · Admin — ${BRANDING.appName}`,
+  },
+};
+
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
   // rail/topbar data exists yet, so the screen renders full-page, unwrapped.

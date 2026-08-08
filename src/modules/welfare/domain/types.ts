@@ -147,6 +147,30 @@ export function welfareAssignmentLabel(
   return "Sin asignar";
 }
 
+/**
+ * The same fact as a LABEL + VALUE pair, for the stat cards on the denuncia
+ * detail and the inspector.
+ *
+ * `welfareAssignmentLabel` bakes the relation into the value ("Derivada a
+ * Refugio Test") because a queue cell has no label beside it to carry it. Under
+ * a fixed "Asignado a" heading that same string says the relation twice and
+ * answers a question nobody asked: the label promises a PERSON and the value
+ * names a derivation (QA 2026-08-07). Here the heading moves with the fact, so
+ * the value stays a bare name.
+ *
+ * Same precedence as the function above — a named operator always wins, the
+ * derivation only surfaces when there is no assignee — because it must: two
+ * places deciding "who owns this case" differently is the ambiguity G0b closed.
+ */
+export function welfareAssignmentField(
+  assignedToName: string | null | undefined,
+  derivedOrgName: string | null | undefined,
+): { label: string; value: string } {
+  if (assignedToName) return { label: "Asignado a", value: assignedToName };
+  if (derivedOrgName) return { label: "Derivada a", value: derivedOrgName };
+  return { label: "Asignado a", value: "Sin asignar" };
+}
+
 // ---------------------------------------------------------------------------
 // Subject kind
 // ---------------------------------------------------------------------------

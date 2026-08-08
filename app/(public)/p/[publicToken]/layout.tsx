@@ -53,7 +53,7 @@ export default async function PublicCredentialLandingLayout({
     shell.showReturn && shell.returnHref ? (
       <Link
         href={shell.returnHref}
-        className="text-xs font-medium text-ln-azul no-underline hover:underline"
+        className="whitespace-nowrap text-xs font-medium text-ln-azul no-underline hover:underline"
       >
         ← Volver a mi app
       </Link>

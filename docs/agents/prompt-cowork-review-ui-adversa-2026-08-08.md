@@ -384,17 +384,28 @@ donde un problema duele más. Si sólo hay tiempo para dos sesiones, son esas.
 
 ### 10.0 — Precondición global (antes de S1, una sola vez)
 
-Staging tiene que estar sirviendo el commit `2b3bc9b2` o posterior. Verificalo
-así, y **si no coincide, PARÁ y reportá — no arranques**:
+Staging tiene que estar sirviendo el build de esta tanda. Verificalo así, y
+**si no coincide, PARÁ y reportá — no arranques**:
 
-- Abrí `/gob/decomisos/nuevo` (con `govt-local@`). El selector de adjuntos debe
-  decir **"Elegir archivos"**, no "Choose Files".
-- En `/gob`, ningún porcentaje debe tener punto decimal. Todos con coma.
-- `/org/{token}/adopciones/cualquier-cosa-invalida` debe dar la pantalla de
-  **"No encontramos esta página"**, no "Algo salió mal".
+1. **El título de la pestaña.** Abrí `/gob` y `/admin` en dos pestañas. Los
+   títulos tienen que ser **distintos** y nombrar su portal (*"Gobierno —
+   miMAR"*, *"Admin — miMAR"*). Si los dos dicen *"miMAR — Mi Mascota
+   Argentina"*, es el build viejo. **Esta es la señal más rápida: chequeala
+   primero.**
+2. `/gob/decomisos/nuevo` (con `govt-local@`): el selector de adjuntos dice
+   **"Elegir archivos"**, no "Choose Files".
+3. En `/gob`, ningún porcentaje con punto decimal. Todos con coma.
+4. `/org/{token}/adopciones/cualquier-cosa-invalida` da **"No encontramos esta
+   página"**, no "Algo salió mal".
 
-Si alguna de las tres falla, staging todavía sirve el build viejo: esperá 5
-minutos y reintentá. A los 3 intentos fallidos, pará y dejá el reporte.
+Si alguna falla, staging todavía sirve un build anterior: esperá 5 minutos y
+reintentá. A los 3 intentos fallidos, pará y dejá el reporte.
+
+> **Lo de arriba ya se arregló — no lo reportes como hallazgo.** Si ves alguno
+> de esos cuatro síntomas, es que estás en el build viejo, y todo lo que midas
+> a partir de ahí es ruido. Lo mismo con: acentos faltantes en el formulario de
+> decomiso, "Asignado a: Derivada a {org}" en el detalle de denuncia, y `...` de
+> tres puntos en placeholders.
 
 ### 10.1 — Puerta de entrada de cada sesión
 

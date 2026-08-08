@@ -16,15 +16,34 @@ import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import { getProfileCached } from "@/lib/infra/request-cache";
+import { BRANDING } from "@/lib/ui/branding";
 import { describeMandate } from "@/lib/ui/scope-chrome";
 import type { ShellSession } from "@/lib/ui/shell-nav";
 import { roleLabel } from "@/lib/utils/format";
+import type { Metadata } from "next";
 
 // Gate the /gob/* segment. Both admin and govt can access this surface.
 // Admin has universal scope; govt is scoped to their assigned localities.
 // requireAdminOrGovtOrRedirect rejects deactivated accounts (deactivated_at IS
 // NOT NULL) by redirecting to /, so a deactivated govt/admin cannot reach any
 // /gob surface or invoke its server actions.
+
+// A funcionario works with three portals open at once, and all four of them
+// returned the ROOT title verbatim — "miMAR — Mi Mascota Argentina" — so the
+// browser tabs were indistinguishable (QA 2026-08-07). The public routes were
+// already fine; only the authenticated portals inherited.
+//
+// `template` rather than a flat string: a page that sets its own title gets
+// "Denuncias · Gobierno — miMAR", and one that sets none falls back to
+// `default`. The portal name is the part that has to survive truncation in a
+// narrow tab, so it goes before the brand.
+export const metadata: Metadata = {
+  title: {
+    default: `Gobierno — ${BRANDING.appName}`,
+    template: `%s · Gobierno — ${BRANDING.appName}`,
+  },
+};
+
 export default async function GobiernoLayout({ children }: { children: React.ReactNode }) {
   // Maintenance kill-switch short-circuits BEFORE any auth/data fetch — no
   // rail/topbar data exists yet, so the screen renders full-page, unwrapped.

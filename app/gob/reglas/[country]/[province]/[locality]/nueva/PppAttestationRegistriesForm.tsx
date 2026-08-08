@@ -102,7 +102,7 @@ export function PppAttestationRegistriesForm({
             <div className="flex-1 text-md">
               <p className="font-medium text-ln-op-ink">{r.label}</p>
               <p className="text-sm text-ln-op-mute">
-                <span className="font-mono">{r.id}</span> {"·"}{" "}
+                <span className="font-ln-mono">{r.id}</span> {"·"}{" "}
                 {r.required ? "Required" : "Optional"}
               </p>
             </div>
@@ -130,7 +130,7 @@ export function PppAttestationRegistriesForm({
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
           <LnInput
             type="text"
-            placeholder="ID (caba_4078, prov_14107...)"
+            placeholder="ID (caba_4078, prov_14107…)"
             value={newId}
             onChange={(e) => setNewId(e.target.value)}
           />

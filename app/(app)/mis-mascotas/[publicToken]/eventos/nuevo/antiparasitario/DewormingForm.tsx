@@ -87,7 +87,7 @@ export function DewormingForm({
                 required
                 value={product}
                 onChange={(e) => setProduct(e.target.value)}
-                placeholder="Frontline, Advocate, Milbemax..."
+                placeholder="Frontline, Advocate, Milbemax…"
                 aria-describedby={describedBy}
                 invalid={invalid}
               />

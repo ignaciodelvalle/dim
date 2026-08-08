@@ -361,7 +361,7 @@ export async function ModeracionQueueScreen({
                                       </li>
                                     ))}
                                   </ul>
-                                  <p className="font-mono text-xs text-ln-op-faint">
+                                  <p className="font-ln-mono text-xs text-ln-op-faint">
                                     {r.referenceCode}
                                     {" · "}
                                     {[r.jurisdictionLocality, r.jurisdictionProvince]

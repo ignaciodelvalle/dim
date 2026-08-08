@@ -105,12 +105,12 @@ function HistorialRow({
           (token ? (
             <Link
               href={`/gob/cola/${token}`}
-              className="font-mono text-sm text-ln-op-azul underline underline-offset-2 hover:opacity-80"
+              className="font-ln-mono text-sm text-ln-op-azul underline underline-offset-2 hover:opacity-80"
             >
               Ver solicitud →
             </Link>
           ) : (
-            <p className="font-mono text-sm text-ln-op-mute">
+            <p className="font-ln-mono text-sm text-ln-op-mute">
               req: {entry.approvalRequestId.slice(0, 8)}…
             </p>
           ))}

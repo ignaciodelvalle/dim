@@ -385,7 +385,7 @@ export function DecomisoForm({
                       }
                     }}
                     placeholder="DIM-XXXX-XXXX"
-                    className="font-mono"
+                    className="font-ln-mono"
                   />
                 </div>
                 <OpButton
@@ -434,7 +434,7 @@ export function DecomisoForm({
                       {statusLabel(petPreview.status)}
                     </span>
                   </div>
-                  <p className="text-sm font-mono text-ln-op-mute">{petPreview.publicToken}</p>
+                  <p className="text-sm font-ln-mono text-ln-op-mute">{petPreview.publicToken}</p>
                   {petPreview.hasOwner ? (
                     <p className="text-sm text-ln-op-warn mt-1">
                       Esta mascota tiene un dueño registrado
@@ -636,7 +636,7 @@ export function DecomisoForm({
             </span>
             {prefillWelfareReportRef ? (
               <div className="rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-stripe/40 px-3 py-2">
-                <p className="text-md font-mono text-ln-op-ink">{prefillWelfareReportRef}</p>
+                <p className="text-md font-ln-mono text-ln-op-ink">{prefillWelfareReportRef}</p>
                 <p className="text-sm text-ln-op-mute mt-1">
                   Vinculada desde la denuncia de maltrato.
                 </p>

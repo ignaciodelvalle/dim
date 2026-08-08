@@ -155,7 +155,7 @@ export function Step4Subject({
               placeholder="Ej: DIM-XXXX-XXXX o 15 dígitos del chip"
               value={subjectPetToken}
               onChange={(e) => onSubjectPetTokenChange(e.target.value)}
-              className="font-mono uppercase"
+              className="font-ln-mono uppercase"
               autoCapitalize="characters"
             />
             <p className="text-xs text-[var(--color-ln-mute)]">

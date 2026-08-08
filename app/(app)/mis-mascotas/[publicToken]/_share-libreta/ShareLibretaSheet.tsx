@@ -80,7 +80,7 @@ export function ShareLibretaSheet({
           <p className="text-xs uppercase tracking-wider font-semibold text-[var(--color-ln-ok)]">
             Link generado
           </p>
-          <p className="text-sm font-mono break-all text-[var(--color-ln-ink)]">{shareUrl}</p>
+          <p className="text-sm font-ln-mono break-all text-[var(--color-ln-ink)]">{shareUrl}</p>
           <button
             type="button"
             onClick={() => navigator.clipboard.writeText(shareUrl)}

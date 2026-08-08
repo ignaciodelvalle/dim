@@ -230,7 +230,7 @@ export function DeathRecordForm({
                 id={id}
                 name="vetName"
                 type="text"
-                placeholder="Dra. López, Dr. García..."
+                placeholder="Dra. López, Dr. García…"
                 value={vetName}
                 onChange={(e) => setVetName(e.target.value)}
                 aria-describedby={describedBy}

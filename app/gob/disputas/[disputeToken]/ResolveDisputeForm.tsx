@@ -207,7 +207,7 @@ export function ResolveDisputeForm({ disputeToken }: { disputeToken: string }) {
                 value={currentTargetId}
                 onChange={(e) => handleTargetChange(e.target.value)}
                 placeholder="00000000-0000-0000-0000-000000000000"
-                className="flex-1 font-mono"
+                className="flex-1 font-ln-mono"
                 block={false}
               />
               <OpButton

@@ -210,7 +210,7 @@ export function SharesManager({ petPublicToken, shares, onShareCreated }: Props)
                 <input
                   readOnly
                   value={buildShareUrl(newShareToken)}
-                  className="flex-1 text-xs font-mono rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-1.5"
+                  className="flex-1 text-xs font-ln-mono rounded-[var(--radius-sm)] border border-[var(--color-ln-line)] bg-[var(--color-ln-stripe)] px-3 py-1.5"
                 />
                 <button
                   type="button"

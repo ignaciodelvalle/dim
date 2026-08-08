@@ -139,7 +139,7 @@ export function ServiceDogForm({
           <p className="text-sm font-medium text-[var(--color-ln-ink)]">Banner público de acceso</p>
           <p className="text-xs text-[var(--color-ln-ink-2)]">
             Cuando lo activás, el banner aparece en{" "}
-            <code className="font-mono">/p/{petPublicToken}</code> con el texto del derecho de
+            <code className="font-ln-mono">/p/{petPublicToken}</code> con el texto del derecho de
             acceso (Arts. 1 y 7, Ley 26.858). Podés mostrarlo en la puerta de un local o transporte.
           </p>
           <div className="flex gap-2">
@@ -255,7 +255,7 @@ export function ServiceDogForm({
                 value={rupgaCredential}
                 onChange={(e) => setRupgaCredential(e.target.value)}
                 placeholder="Si ya tenés"
-                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm font-mono outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+                className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm font-ln-mono outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
               />
             </div>
           </div>

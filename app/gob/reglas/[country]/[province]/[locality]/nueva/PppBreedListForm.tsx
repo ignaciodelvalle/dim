@@ -143,7 +143,7 @@ export function PppBreedListForm({
             type="text"
             value={customBreed}
             onChange={(e) => setCustomBreed(e.target.value)}
-            placeholder="Boxer, Cimarrón Uruguayo..."
+            placeholder="Boxer, Cimarrón Uruguayo…"
             className="flex-1"
           />
           <OpButton type="button" onClick={addCustom} variant="ghost">

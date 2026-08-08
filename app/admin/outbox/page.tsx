@@ -109,11 +109,12 @@ export default async function AdminOutboxPage({
       <ScreenHeader
         eyebrow="Admin"
         title="Bandeja de salida de notificaciones"
+        // Subtítulo ESTABLE, y sin voz de debug en ninguna de sus ramas: las dos
+        // hablaban de "filas" y una además reemplazaba la descripción de la
+        // pantalla por un conteo que la tabla ya muestra.
         subtitle={
           <p className="text-md text-ln-op-ink-2">
-            {hasFilters
-              ? `${rows.length} ${pluralizeEs(rows.length, "fila")} con los filtros aplicados.`
-              : `Últimas ${rows.length} filas de la bandeja de salida de eventos de notificación ENO/govt.`}
+            Envíos a autoridades y sistemas de toda la plataforma.
           </p>
         }
       />

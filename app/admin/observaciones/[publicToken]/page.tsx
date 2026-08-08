@@ -136,7 +136,7 @@ export default async function ObservationDetailPage({
             )}
             <div>
               <dt className="text-sm text-ln-op-mute">{"Token público"}</dt>
-              <dd className="font-mono text-sm text-ln-op-mute">{pet.publicToken}</dd>
+              <dd className="font-ln-mono text-sm text-ln-op-mute">{pet.publicToken}</dd>
             </div>
           </dl>
         </OpCardBody>
