@@ -4,7 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AppShellDrawer } from "@/components/layout/AppShellDrawer";
 import { ContextSwitcher } from "@/components/layout/ContextSwitcher";
 import { GovtJurisdictionsChip } from "@/components/layout/GovtJurisdictionsChip";
-import { ADMIN_NAV_SECTIONS, GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
+import { GOB_NAV_SECTIONS } from "@/components/layout/nav-presets";
 import { DemoModeBanner } from "@/components/ui/DemoModeBanner";
 import { OpMaintenanceScreen } from "@/components/ui/dashboard/OpMaintenanceScreen";
 import { OpOfflineBanner } from "@/components/ui/dashboard/OpOfflineBanner";
@@ -64,15 +64,31 @@ export default async function GobiernoLayout({ children }: { children: React.Rea
   // narrows below this mandate discloses that separately (ViewScopeCaption).
   const scopeCode = profile.role === "admin" ? "Nacional" : describeMandate(jurisdictions);
 
-  // red-team-admin-2 P2.1 (PO: chrome role-aware en la cola): an admin reaches
-  // this shared segment via /admin/moderacion's redirect and used to see the
-  // full "miMAR GOBIERNO" chrome (brand + gob rail) — reading as "I left my
-  // portal / a permissions bug". Render ADMIN brand + rail for an admin viewer
-  // so they stay oriented in their own portal while working the shared queue.
-  // The scope chip, omnibox scope, and context switcher were already role-aware.
-  const isAdmin = profile.role === "admin";
-  const navSections = isAdmin ? ADMIN_NAV_SECTIONS : GOB_NAV_SECTIONS;
-  const brandSubtitle = isAdmin ? "Administración" : "Gobierno";
+  // The gob portal shows the GOB rail — to everyone who is in it, admins
+  // included.
+  //
+  // This used to swap in the ADMIN rail + brand for an admin viewer
+  // (red-team-admin-2 P2.1, a891f111): back then an admin reached this segment
+  // through /admin/moderacion's REDIRECT, so they landed on "miMAR GOBIERNO"
+  // without having asked, and it read as "I left my portal / a permissions
+  // bug". Right fix for that entry path.
+  //
+  // That entry path no longer exists. The F1 fusion (2026-07-22) turned
+  // Moderación into a stage of the Denuncias hub, /admin/moderacion is its own
+  // page again, and nothing under app/admin — nav preset, link or omnibox
+  // result — points into /gob any more. The only remaining way in is the
+  // switcher's explicit "Ir a Gobierno" (lib/ui/shell-nav.ts).
+  //
+  // So the override had inverted: the product opened a door and then refused
+  // to let you through it. An admin who chose Gobierno got the Admin rail —
+  // 19 links back to /admin — so the sections never changed and every click
+  // bounced them home (PO report 2026-08-08). PO decision: honour the hop.
+  //
+  // "You are an admin here" is still said, twice, by chrome that was already
+  // role-aware and stays that way: the scope chip reads SUPERADMIN / Nacional,
+  // and the switcher offers "Volver a Admin" from anywhere under /gob.
+  const navSections = GOB_NAV_SECTIONS;
+  const brandSubtitle = "Gobierno";
 
   // getProfileCached is already warmed by requireAdminOrGovtOrRedirect above —
   // this call is a memoized hit, not a second DB round-trip.
