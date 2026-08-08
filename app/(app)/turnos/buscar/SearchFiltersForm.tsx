@@ -11,7 +11,8 @@
 import { useState } from "react";
 
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { LnCheckbox } from "@/components/ui/Field";
+import { LnButton } from "@/components/ui/Button";
+import { LnCheckbox, LnInput, LnSelect } from "@/components/ui/Field";
 import type { LocalitySearchResult } from "@/lib/infra/ar-localidades";
 import { SERVICE_KINDS } from "@/lib/reference/service-kinds";
 
@@ -61,18 +62,22 @@ export function SearchFiltersForm({
           <label htmlFor="service_kind_sel" className="text-xs text-[var(--color-ln-mute)]">
             Servicio
           </label>
-          <select
+          {/* LnSelect, not a hand-painted <select>: the recipe here carried its
+              own padding and rendered at 31px, while the locality picker in the
+              same row — which does go through the primitive — sat at 44px
+              (adversarial review 2026-08-08, S1-F07 / S3-F08). */}
+          <LnSelect
             id="service_kind_sel"
             name="service_kind"
             defaultValue={currentServiceKind}
-            className="text-sm border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="w-auto"
           >
             {SERVICE_KINDS.map((k) => (
               <option key={k.code} value={k.code}>
                 {k.label}
               </option>
             ))}
-          </select>
+          </LnSelect>
         </div>
 
         {/* Locality autocomplete — replaces the two plain text inputs.
@@ -103,12 +108,14 @@ export function SearchFiltersForm({
         <input type="hidden" name="locality" value={pickedLocality} />
         <input type="hidden" name="province" value={pickedProvince} />
 
-        <button
-          type="submit"
-          className="text-sm px-4 py-1.5 rounded-[var(--radius-pill)] bg-[var(--color-ln-azul)] text-white hover:bg-[var(--color-ln-azul-700)] transition-colors"
-        >
+        {/* size="lg" so the primary action matches the 44px controls beside it.
+            At 29px this was the SHORTEST control on the screen and also the one
+            that submits the search. LnButton carries no height floor by design
+            (buttons answer to WCAG 2.5.8 AA, 24px), so this is the call site's
+            job, not the primitive's. */}
+        <LnButton type="submit" variant="primary" size="lg">
           Buscar
-        </button>
+        </LnButton>
       </div>
 
       {/* Fase 10: additional filters — fecha_desde + solo_gratis */}
@@ -117,12 +124,12 @@ export function SearchFiltersForm({
           <label htmlFor="fecha_desde_inp" className="text-xs text-[var(--color-ln-mute)]">
             Desde
           </label>
-          <input
+          <LnInput
             id="fecha_desde_inp"
             name="fecha_desde"
             type="date"
             defaultValue={currentFechaDesde}
-            className="text-sm border border-[var(--color-ln-line)] rounded-[var(--radius-sm)] px-2 py-1.5 bg-[var(--color-ln-card)] text-[var(--color-ln-ink)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
+            className="w-auto"
           />
         </div>
         <LnCheckbox name="solo_gratis" value="true" defaultChecked={currentSoloGratis}>

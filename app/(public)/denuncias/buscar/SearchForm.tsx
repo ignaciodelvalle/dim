@@ -1,5 +1,7 @@
 "use client";
 
+import { LnButton } from "@/components/ui/Button";
+import { LnInput } from "@/components/ui/Field";
 import {
   isValidReferenceCodeFormat,
   normalizeReferenceCode,
@@ -36,28 +38,34 @@ export function SearchForm() {
         >
           Código de seguimiento
         </label>
-        <div className="flex gap-2">
-          <input
+        {/* LnInput / LnButton instead of a hand-painted input and button. The
+            hand-rolled pair measured 39px because it carried its own padding and
+            never met the 44px floor Field.tsx has enforced since Wave 2
+            (adversarial review 2026-08-08, S1-F07). `mono` is the primitive's
+            own prop for a code field, replacing the inline fontFamily.
+            The button takes size="lg" so the primary action matches the height
+            of the field beside it — LnButton has no height floor, deliberately
+            (buttons answer to WCAG 2.5.8 AA, 24px), so this is about the two
+            controls in one row agreeing, not about compliance. */}
+        <div className="flex items-stretch gap-2">
+          <LnInput
             id="code"
             name="code"
             type="text"
+            mono
             placeholder="DEN-XXXX-XXXX"
             value={value}
             onChange={(e) => {
               setValue(e.target.value);
               if (error) setError(null);
             }}
-            className="flex-1 min-w-0 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] px-3 py-2.5 text-sm tracking-wide text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)] outline-none focus:border-[var(--color-ln-azul)] focus:shadow-[0_0_0_3px_var(--color-ln-celeste-050)]"
-            style={{ fontFamily: "var(--font-ln-mono)" }}
+            className="flex-1 min-w-0 tracking-wide"
             autoComplete="off"
             spellCheck={false}
           />
-          <button
-            type="submit"
-            className="flex-shrink-0 rounded-[var(--radius-sm)] bg-[var(--color-ln-azul)] text-white text-sm font-semibold px-4 py-2.5 hover:bg-[var(--color-ln-azul-700)] transition-colors"
-          >
+          <LnButton type="submit" variant="primary" size="lg" className="flex-shrink-0">
             Buscar
-          </button>
+          </LnButton>
         </div>
         {error && (
           <p className="text-sm text-[var(--color-ln-seal)]" role="alert">

@@ -42,8 +42,20 @@ const INTAKE_REASONS = [
 const TOTAL_STEPS = 4;
 const STEP_LABELS = ["Identificación", "Identidad", "Estado", "Confirmar"];
 
+// min-h-[44px] is the field floor Field.tsx has enforced since Wave 2 and that
+// OpField mirrors. Without it this recipe rendered at 38px — the longest form in
+// the org portal, and the only one measurably below the floor while
+// servicios/nuevo and mascotas/…/adoptar sat at 44px (adversarial review
+// 2026-08-08, S3-F08).
+//
+// DEBT, stated plainly: the real fix is to route these 16 controls through
+// OpField, the primitive db16c8a6 introduced precisely to kill hand-rolled
+// operator input recipes — it migrated 92 and this form was left behind. Adding
+// the floor here fixes the measured defect without pretending the recipe should
+// exist. Tracked separately; do not treat this comment as approval to add a
+// 94th recipe.
 const inputCls =
-  "w-full rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
+  "w-full min-h-[44px] rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card px-3 py-2 text-md text-ln-op-ink focus:outline-none focus:ring-1 focus:ring-ln-op-azul";
 
 /** Fields the action reads. Always sent, even when empty. */
 const REQUIRED_KEYS = [
@@ -338,17 +350,14 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
         <fieldset className="space-y-1">
           <legend className="text-md text-ln-op-ink">Sexo</legend>
           <div className="flex flex-wrap gap-3 text-md">
+            {/* LnRadio, not a raw input: the bare control renders at the
+                browser default (~13px) while "Rol de la organización" below
+                uses LnRadio at 16px — two radio sizes in one form
+                (adversarial review 2026-08-08, S3-F08). */}
             {(["unknown", "male", "female"] as const).map((v) => (
-              <label key={v} className="flex items-center gap-1 text-ln-op-ink">
-                <input
-                  type="radio"
-                  name="sex"
-                  value={v}
-                  checked={sex === v}
-                  onChange={() => setSex(v)}
-                />{" "}
+              <LnRadio key={v} name="sex" value={v} checked={sex === v} onChange={() => setSex(v)}>
                 {v === "unknown" ? "Desconocido" : v === "male" ? "Macho" : "Hembra"}
-              </label>
+              </LnRadio>
             ))}
           </div>
         </fieldset>
@@ -444,16 +453,15 @@ export function IntakeForm({ orgToken }: { orgToken: string }) {
           <legend className="text-md text-ln-op-ink">Motivo del ingreso *</legend>
           <div className="flex flex-col gap-1 text-md">
             {INTAKE_REASONS.map((r) => (
-              <label key={r.value} className="flex items-center gap-2 text-ln-op-ink">
-                <input
-                  type="radio"
-                  name="intakeReason"
-                  value={r.value}
-                  checked={intakeReason === r.value}
-                  onChange={() => setIntakeReason(r.value)}
-                />{" "}
+              <LnRadio
+                key={r.value}
+                name="intakeReason"
+                value={r.value}
+                checked={intakeReason === r.value}
+                onChange={() => setIntakeReason(r.value)}
+              >
                 {r.label}
-              </label>
+              </LnRadio>
             ))}
           </div>
         </fieldset>
