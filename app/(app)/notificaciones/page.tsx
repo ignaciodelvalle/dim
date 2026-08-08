@@ -24,7 +24,6 @@ import { decodeCursor, keysetWhere, newerHref, olderHref } from "@/lib/utils/key
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { groupNotifications, sortNotificationsForDisplay } from "./notification-ordering";
-import { petVisibleToReader } from "./visible-pet";
 
 // Maximum notifications rendered per page (PERF-5 keyset pagination).
 // We fetch LIMIT+1 to detect hasMore; render only LIMIT rows.
@@ -123,12 +122,10 @@ export default async function NotificacionesPage({
   const whereClause = and(...(baseClauses as Parameters<typeof and>));
 
   // Fetch limit+1 to detect whether a next page exists.
-  // The joined pet becomes a "Ver {nombre}" button on the OWNER surface, so it
-  // only appears while this reader still owns the pet — see visible-pet.ts.
   const rawRows = await db
     .select({ notification: notifications, pet: pets })
     .from(notifications)
-    .leftJoin(pets, petVisibleToReader(notifications.relatedPetId, user.id))
+    .leftJoin(pets, eq(notifications.relatedPetId, pets.id))
     .where(whereClause)
     .orderBy(desc(notifications.createdAt), desc(notifications.id))
     .limit(NOTIFICATIONS_PAGE_LIMIT + 1);

@@ -19,6 +19,36 @@ import { notificationSeverityLabel, notificationTypeLabel, relativeTime } from "
 // full ctaUrl button above is untouched and stays as the direct fallback
 // (works even if the owner's free text doesn't match anything).
 
+/**
+ * Notification types whose whole point is that custody LEFT the recipient.
+ *
+ * The "Ver {nombre}" button below aims at /mis-mascotas/{token}. For these
+ * types the recipient is, by construction, the party that no longer holds the
+ * pet, so the button is a guaranteed dead end — the notification confirming you
+ * handed your pet over offered, as its only action, a link to a page that
+ * answered "No encontramos esta página" (adversarial review 2026-08-08,
+ * S6-F02). The body and its own ctaUrl still explain what happened.
+ *
+ * A DENYLIST BY TYPE, and deliberately not an ownership check on the join.
+ * The first attempt at this required a live `ownerships.ownerUserId` row for the
+ * reader, which looked principled and was wrong: `ownerships` is polymorphic
+ * (ownerUserId XOR ownerOrganizationId, db/schema.ts), so it hid the pet from
+ * every member of a holding ORGANISATION — people `requirePetAccess` grants the
+ * page to via its org-mediated path — and from a former owner reading during an
+ * open custody episode, who has a purpose-built view (PO 2026-07-18).
+ * /mis-mascotas/{token} is not owner-only, so "no live personal ownership" is
+ * not the same question as "cannot open this page". Caught in review before it
+ * reached anyone; kept written down so it is not re-derived.
+ */
+const PET_LINK_DEAD_FOR_RECIPIENT: ReadonlySet<string> = new Set([
+  // Sender side of a citizen-to-citizen transfer: the receiver accepted.
+  "pet_transfer_accepted",
+  // Sender side of an org-to-org transfer.
+  "cross_org_transfer_accepted_sender",
+  // The foster's placement ended because the pet moved on.
+  "foster_ended_by_transfer",
+]);
+
 export function NotificationCard({
   notification,
   relatedPet,
@@ -26,6 +56,9 @@ export function NotificationCard({
   notification: Notification;
   relatedPet: Pet | null;
 }) {
+  const petLinkTarget = PET_LINK_DEAD_FOR_RECIPIENT.has(notification.notificationType)
+    ? null
+    : relatedPet;
   const unread = !notification.readAt;
   const tone = severityClasses(notification.severity);
   const markRead = markNotificationReadAction.bind(null, notification.id);
@@ -75,12 +108,12 @@ export function NotificationCard({
               {notification.ctaUrl.startsWith("http") && " ↗"}
             </a>
           )}
-          {relatedPet && (
+          {petLinkTarget && (
             <Link
-              href={`/mis-mascotas/${relatedPet.publicToken}`}
+              href={`/mis-mascotas/${petLinkTarget.publicToken}`}
               className="px-3 py-1.5 rounded-lg border border-ln-line-strong  text-xs text-ln-ink-2  hover:bg-ln-stripe  transition-colors"
             >
-              Ver {relatedPet.name}
+              Ver {petLinkTarget.name}
             </Link>
           )}
           {unread && (
