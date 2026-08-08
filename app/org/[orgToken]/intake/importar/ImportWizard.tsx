@@ -35,6 +35,24 @@ function chunkRows<T>(rows: T[], size: number): T[][] {
   return chunks;
 }
 
+/**
+ * Row number AS THE OPERATOR SEES IT IN THEIR SPREADSHEET.
+ *
+ * `index` is 0-based over DATA rows, so the wizard reported "Fila 1…4" while
+ * Excel showed those same rows as 2…5 — row 1 is the header. Someone opening
+ * the file to fix an error was sent to the wrong line every time, and the more
+ * errors the file had the more the off-by-one cost (QA 2026-08-07).
+ *
+ * +2: one for the 0-based index, one for the header row. The label says "de la
+ * planilla" at the call sites so the number is unambiguous about WHICH
+ * numbering it belongs to — the wizard's own ordinal and the spreadsheet's are
+ * genuinely different things, and naming the frame is cheaper than expecting
+ * the reader to infer it.
+ */
+function spreadsheetRow(index: number): number {
+  return index + 2;
+}
+
 export function ImportWizard({ orgToken }: { orgToken: string }) {
   const [step, setStep] = useState<WizardStep>("upload");
   const [error, setError] = useState<string | null>(null);
@@ -48,10 +66,17 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
   // Hiding the native control also hides the filename it used to print, so the
   // wizard now owns that feedback (OpFileInput `status`).
   const [selectedFileName, setSelectedFileName] = useState("");
+  const [rowFilter, setRowFilter] = useState<"todas" | "validas" | "errores">("todas");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const validRows = preview?.rows.filter((r) => r.valid) ?? [];
   const invalidRows = preview?.rows.filter((r) => !r.valid) ?? [];
+  const shownRows =
+    rowFilter === "validas"
+      ? validRows
+      : rowFilter === "errores"
+        ? invalidRows
+        : (preview?.rows ?? []);
 
   async function handleFileSelected(file: File) {
     setError(null);
@@ -186,20 +211,60 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
 
       {step === "preview" && preview && (
         <div className="space-y-4">
-          <div className="flex flex-wrap items-center gap-3 text-md">
-            <span className="rounded-[var(--radius-sm)] border border-ln-op-ok-bd bg-ln-op-ok-bg px-2 py-1 font-medium text-ln-op-ok">
-              Válidas ({validRows.length})
-            </span>
-            <span className="rounded-[var(--radius-sm)] border border-ln-op-danger-bd bg-ln-op-danger-bg px-2 py-1 font-medium text-ln-op-danger">
-              Con errores ({invalidRows.length})
-            </span>
-          </div>
+          {/* These counters USED to be inert <span>s wearing the same rounded,
+              tinted shape as the queue chips on /gob — which do filter. A
+              control that looks pressable and does nothing teaches the operator
+              to distrust every chip in the product (QA 2026-08-07). PO decided
+              to keep the affordance and honour it: they filter now.
+
+              SHAPE COMES FROM THE HOUSE PATTERN, not from this file. The first
+              version hand-rolled <button className="rounded-… border …"> and
+              the raw-button fence caught it — correctly. CaseQueue's sort
+              toggle already solves the identical problem (a LOCAL multi-state
+              toggle over the same list, no URL to reflect into) with
+              OpButton size="sm" + primary/ghost + aria-pressed inside a
+              fieldset. Same problem, same answer: no third spelling.
+
+              No ok/danger tint on the chips either — the per-row list right
+              below already says which rows are valid, and colouring the filter
+              as well states it twice. */}
+          <fieldset className="flex flex-wrap items-center gap-3 text-md">
+            <legend className="sr-only">Filtrar filas del archivo</legend>
+            {(
+              [
+                ["todas", `Todas (${preview.rows.length})`],
+                ["validas", `Válidas (${validRows.length})`],
+                ["errores", `Con errores (${invalidRows.length})`],
+              ] as const
+            ).map(([value, label]) => {
+              const active = rowFilter === value;
+              return (
+                <OpButton
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={active ? "primary" : "ghost"}
+                  aria-pressed={active}
+                  onClick={() => setRowFilter(value)}
+                >
+                  {label}
+                </OpButton>
+              );
+            })}
+          </fieldset>
 
           <ul className="divide-y divide-ln-op-line rounded-[var(--radius-md)] border border-ln-op-line">
-            {preview.rows.map((row) => (
+            {shownRows.length === 0 && (
+              <li className="px-3 py-4 text-md text-ln-op-mute">
+                No hay filas {rowFilter === "validas" ? "válidas" : "con errores"} en este archivo.
+              </li>
+            )}
+            {shownRows.map((row) => (
               <li key={row.index} className="px-3 py-2 text-md space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-sm text-ln-op-mute">Fila {row.index + 1}</span>
+                  <span className="font-ln-mono text-sm text-ln-op-mute">
+                    Fila {spreadsheetRow(row.index)} de la planilla
+                  </span>
                   <span className="font-medium text-ln-op-ink">
                     {row.record["nombre*"] ?? row.record.nombre ?? "(sin nombre)"}
                   </span>
@@ -289,7 +354,9 @@ export function ImportWizard({ orgToken }: { orgToken: string }) {
                 className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-md"
               >
                 <div className="min-w-0 space-y-0.5">
-                  <span className="font-mono text-sm text-ln-op-mute">Fila {result.index + 1}</span>{" "}
+                  <span className="font-ln-mono text-sm text-ln-op-mute">
+                    Fila {spreadsheetRow(result.index)} de la planilla
+                  </span>{" "}
                   {result.outcome === "imported" && (
                     <span className="text-ln-op-ok">Importada — {result.petName}</span>
                   )}
