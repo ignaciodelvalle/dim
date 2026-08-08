@@ -100,9 +100,17 @@ export function BulkApprovalQueueList({
   items,
   detailUrlPrefix,
   historyHref,
+  servicesHref,
 }: {
   items: QueueItem[];
   detailUrlPrefix: string;
+  /**
+   * Link to the OTHER place approvals happen — Directorio's services registry.
+   * Portal-aware, so the caller supplies it (same reason as `historyHref`).
+   * Without it the empty state still names its scope in prose; with it the
+   * operator gets one click to the work this queue cannot show.
+   */
+  servicesHref?: string;
   /**
    * Link to the portal's decision history (e.g. `${base}/historial`). Shown
    * as the empty-state CTA — there is nothing to "create" on a review queue,
@@ -185,18 +193,40 @@ export function BulkApprovalQueueList({
     });
   }
 
+  // THE EMPTY STATE NAMES ITS SCOPE. This screen is titled "Aprobaciones" but
+  // only ever holds three approval_request types (matrículas, organizaciones,
+  // RUPGA). Service offerings are approved in Directorio and are not
+  // approval_requests at all — so this list is STRUCTURALLY incapable of
+  // knowing whether one is waiting, and it used to say "No hay solicitudes
+  // pendientes" as if it were.
+  //
+  // QA 2026-08-08 (S5-F01) measured both surfaces in the same minute: this one
+  // said nothing was pending while Directorio showed "1 servicio pendiente".
+  // Meanwhile the org had been promised, on sending it, that "la autoridad
+  // competente lo revisa y aprueba". The operator who trusts the screen named
+  // after the job never approves it.
+  //
+  // Same class as the outbox subtitle fixed 2026-08-08: an empty state claiming
+  // more scope than it has.
   if (items.length === 0) {
     return (
       <LnEmptyState
         icon="solicitud"
-        title="No hay solicitudes pendientes"
-        description="No hay solicitudes pendientes en tu jurisdicción. Cuando lleguen nuevas solicitudes las vas a ver acá."
+        title="No hay solicitudes de registro pendientes"
+        description="Matrículas veterinarias, verificación de organizaciones y credenciales RUPGA están al día en tu jurisdicción. Los servicios se aprueban por separado, en Directorio."
         action={
-          historyHref ? (
-            <Link href={historyHref} className="text-sm text-ln-op-azul hover:underline">
-              Ver historial de decisiones
-            </Link>
-          ) : undefined
+          <span className="flex flex-wrap items-center gap-3">
+            {servicesHref ? (
+              <Link href={servicesHref} className="text-sm text-ln-op-azul hover:underline">
+                Ver servicios pendientes
+              </Link>
+            ) : null}
+            {historyHref ? (
+              <Link href={historyHref} className="text-sm text-ln-op-azul hover:underline">
+                Ver historial de decisiones
+              </Link>
+            ) : null}
+          </span>
         }
       />
     );

@@ -142,6 +142,9 @@ export default async function ColaPage({
       <BulkApprovalQueueList
         detailUrlPrefix={`${base}/cola`}
         historyHref={`${base}/historial`}
+        // The fourth kind of approval work, which this queue cannot hold:
+        // service offerings are not approval_requests (see TYPE_LABELS above).
+        servicesHref={`${base}/directorio?registro=servicios`}
         items={pending.map((req) => ({
           publicToken: req.publicToken,
           type: req.type,
