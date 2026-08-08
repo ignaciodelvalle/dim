@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { speciesLabel } from "@/lib/utils/format";
+import { speciesLabel, speciesLabelPlural } from "@/lib/utils/format";
 
 // Canonical species set (pets.species): db/schema.ts comment + additional-species
 // design (2026-05-17). Every value the app writes must render in es-AR.
@@ -38,5 +38,39 @@ describe("speciesLabel — es-AR map", () => {
 
   it("falls back to the raw value only for genuinely unknown input", () => {
     expect(speciesLabel("unknown_freetext")).toBe("unknown_freetext");
+  });
+});
+
+// The plural map serves surfaces that name a SET of species — filter dropdowns
+// and the service eligibility rows. It gets the same exhaustiveness guard as
+// the singular, because the failure mode is identical: add a species to one
+// number, forget the other, and the forgotten one renders the English token.
+const EXPECTED_PLURAL: Record<(typeof SPECIES)[number], string> = {
+  dog: "Perros",
+  cat: "Gatos",
+  rabbit: "Conejos",
+  guinea_pig: "Cobayos",
+  ferret: "Hurones",
+  other: "Otras",
+};
+
+describe("speciesLabelPlural — es-AR map", () => {
+  it("maps every known species to its es-AR plural", () => {
+    for (const s of SPECIES) {
+      expect(speciesLabelPlural(s)).toBe(EXPECTED_PLURAL[s]);
+    }
+  });
+
+  it("never leaks the raw English enum token for a known species", () => {
+    for (const s of SPECIES) {
+      expect(speciesLabelPlural(s)).not.toBe(s);
+    }
+  });
+
+  it("covers exactly the same species as the singular map", () => {
+    // A species added to one map and not the other is the defect this pair of
+    // suites exists to prevent; asserting the key sets match catches it at the
+    // dictionary instead of at whichever screen happens to render it first.
+    expect(Object.keys(EXPECTED_PLURAL).sort()).toEqual([...SPECIES].sort());
   });
 });

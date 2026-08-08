@@ -336,6 +336,34 @@ export function speciesLabel(species: string): string {
   }
 }
 
+// Plural counterpart of speciesLabel, for surfaces that name a SET of species
+// rather than one animal: filter dropdowns ("Perros", "Gatos") and the service
+// eligibility rows ("Especies: Perros, Gatos").
+//
+// It lives here, next to the singular, because the alternative already failed
+// twice. The 2026-07-08 QA found a local dog/cat map on /mis-mascotas and the
+// org pipeline board; the 2026-08-08 adversarial review found four more — two
+// of them duplicated inside a single file, and one a ternary that rendered
+// EVERY non-dog species as "Gatos". Both numbers now have exactly one source.
+export function speciesLabelPlural(species: string): string {
+  switch (species) {
+    case "dog":
+      return "Perros";
+    case "cat":
+      return "Gatos";
+    case "rabbit":
+      return "Conejos";
+    case "guinea_pig":
+      return "Cobayos";
+    case "ferret":
+      return "Hurones";
+    case "other":
+      return "Otras";
+    default:
+      return species;
+  }
+}
+
 export function sexLabel(sex: string): string {
   switch (sex) {
     case "male":

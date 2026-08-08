@@ -8,18 +8,19 @@ import { LnButton } from "@/components/ui/Button";
 import { LnCheckbox } from "@/components/ui/Field";
 import { LOST_TIME_BUCKETS, type LostListingFilters } from "@/lib/infra/lost-listing";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { speciesLabelPlural } from "@/lib/utils/format";
 
 // URL-driven filters bar — every change submits a GET form so the URL
 // stays the source of truth (D11). No client state, no hydration mismatch.
 // Visual idiom mirrors AdoptionFiltersBar.tsx: LN tokens, same grid layout.
 
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perros" },
-  { value: "cat", label: "Gatos" },
-  { value: "rabbit", label: "Conejos" },
-  { value: "guinea_pig", label: "Cobayos" },
-  { value: "ferret", label: "Hurones" },
-] as const;
+// Same split as AdoptionFiltersBar: the value set is a product choice, the
+// spelling comes from the shared map.
+const SPECIES_VALUES = ["dog", "cat", "rabbit", "guinea_pig", "ferret"] as const;
+const SPECIES_OPTIONS = SPECIES_VALUES.map((value) => ({
+  value,
+  label: speciesLabelPlural(value),
+}));
 
 const VISTO_LABELS: Record<string, string> = {
   today: "Hoy",

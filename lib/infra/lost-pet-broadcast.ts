@@ -17,6 +17,7 @@
 import { type db, organizationCoverage, organizationMemberships, organizations } from "@/db";
 import type * as schema from "@/db/schema";
 import { createNotificationsBulk } from "@/lib/infra/notification-service";
+import { speciesLabel } from "@/lib/utils/format";
 import { and, eq, inArray, isNull, or } from "drizzle-orm";
 import type { PostgresJsDatabase } from "drizzle-orm/postgres-js";
 
@@ -70,7 +71,7 @@ export type BroadcastResult = {
 // The CTA goes to the public credential where the owner controls exposure.
 function buildBroadcastBody(pet: PetForBroadcast): string {
   const parts: string[] = [
-    `${pet.name} — ${pet.species ?? "mascota"}${pet.breed ? `, ${pet.breed}` : ""}.`,
+    `${pet.name} — ${pet.species ? speciesLabel(pet.species) : "mascota"}${pet.breed ? `, ${pet.breed}` : ""}.`,
   ];
   if (pet.color) parts.push(`Color: ${pet.color}.`);
   parts.push(`Tocá "Ver credencial" para detalles y contacto.`);

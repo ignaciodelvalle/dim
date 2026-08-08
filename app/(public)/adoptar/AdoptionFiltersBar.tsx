@@ -16,17 +16,19 @@ import {
   buildSearchParams,
 } from "@/lib/infra/adoption-listing";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
+import { speciesLabelPlural } from "@/lib/utils/format";
 
 // URL-driven filters bar — every change submits a GET form so the URL
 // stays the source of truth (D11). No client state, no hydration mismatch.
 
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perros" },
-  { value: "cat", label: "Gatos" },
-  { value: "rabbit", label: "Conejos" },
-  { value: "guinea_pig", label: "Cobayos" },
-  { value: "ferret", label: "Hurones" },
-] as const;
+// Which species are browsable here is a product choice (no "other" bucket);
+// how each one is SPELLED is not — that comes from the shared map, so the
+// dropdown and the active-filter chip below can never drift apart.
+const SPECIES_VALUES = ["dog", "cat", "rabbit", "guinea_pig", "ferret"] as const;
+const SPECIES_OPTIONS = SPECIES_VALUES.map((value) => ({
+  value,
+  label: speciesLabelPlural(value),
+}));
 
 const AGE_LABELS: Record<string, string> = {
   puppy: "Cachorra/o",
@@ -58,10 +60,7 @@ function urlWithout(filters: AdoptionListingFilters, key: keyof AdoptionListingF
 
 // Visible label for each active filter chip.
 const CHIP_LABELS: Partial<Record<keyof AdoptionListingFilters, (v: unknown) => string>> = {
-  species: (v) =>
-    ({ dog: "Perros", cat: "Gatos", rabbit: "Conejos", guinea_pig: "Cobayos", ferret: "Hurones" })[
-      v as string
-    ] ?? String(v),
+  species: (v) => speciesLabelPlural(String(v)),
   province: (v) => `Provincia: ${v}`,
   locality: (v) => `Localidad: ${v}`,
   ageBucket: (v) =>

@@ -36,6 +36,7 @@ import {
   permanentConditionLabel,
 } from "@/lib/reference/permanent-conditions";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { speciesLabel } from "@/lib/utils/format";
 import type { NewPetFormState } from "@/src/modules/pets/domain/types";
 import { useActionState, useMemo, useRef, useState } from "react";
 import { LocationFields } from "./LocationFields";
@@ -817,19 +818,6 @@ function SensitiveFields({
 // ============================================================================
 // Helpers
 // ============================================================================
-
-const SPECIES_LABELS: Record<string, string> = {
-  dog: "Perro",
-  cat: "Gato",
-  rabbit: "Conejo",
-  guinea_pig: "Cobayo",
-  ferret: "Hurón",
-  other: "Otra",
-};
-
-function speciesLabel(species: string): string {
-  return SPECIES_LABELS[species] ?? species;
-}
 
 /**
  * Read-only display for a locked field (FULL-LOCK: species, jurisdiction).

@@ -17,6 +17,7 @@ import {
   formatDateTimeNumericAr,
   pluralizeEs,
   serviceOfferingStatusLabel,
+  speciesLabelPlural,
 } from "@/lib/utils/format";
 
 import { OfferingReviewActions } from "./OfferingReviewActions";
@@ -156,7 +157,9 @@ export default async function GobServicioDetailPage({
           {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
             <div className="flex gap-3">
               <dt className="text-sm text-ln-op-mute w-32 shrink-0">Especies</dt>
-              <dd className="text-md text-ln-op-ink">{offering.eligibilitySpecies.join(", ")}</dd>
+              <dd className="text-md text-ln-op-ink">
+                {offering.eligibilitySpecies.map(speciesLabelPlural).join(", ")}
+              </dd>
             </div>
           )}
           {(offering.eligibilityAgeMinMonths !== null ||

@@ -21,7 +21,7 @@
 import { PDFDocument, type PDFFont, type PDFPage, PageSizes, StandardFonts, rgb } from "pdf-lib";
 
 import { PPP_AUTHENTICITY_NOTE, documentAttributionLine } from "@/lib/analytics/export-attribution";
-import { formatDate } from "@/lib/utils/format";
+import { formatDate, speciesLabel } from "@/lib/utils/format";
 
 export const PPP_EXPORT_SCHEMA_VERSION = "2026-05-21";
 
@@ -240,7 +240,7 @@ export async function generatePppCabaPdf(dto: PppCabaDto): Promise<Uint8Array> {
   }
   y = drawPppField(page, {
     label: "Especie",
-    value: dto.petSpecies === "dog" ? "Perro" : dto.petSpecies,
+    value: speciesLabel(dto.petSpecies),
     x: margin,
     y,
     boldFont,

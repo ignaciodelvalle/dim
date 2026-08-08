@@ -10,7 +10,7 @@ import { OpCard, OpCardBody, OpCardHead, OpKpiSm, OpPill } from "@/components/ui
 import { appointments, db, organizations, serviceOfferings, timeSlots } from "@/db";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { findServiceKind } from "@/lib/reference/service-kinds";
-import { AR_TIME_ZONE, pluralizeEs } from "@/lib/utils/format";
+import { AR_TIME_ZONE, pluralizeEs, speciesLabelPlural } from "@/lib/utils/format";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { CapacityEditor } from "./CapacityEditor";
@@ -199,9 +199,7 @@ export default async function OfferingDetailPage({
             {offering.eligibilitySpecies && offering.eligibilitySpecies.length > 0 && (
               <Row
                 label="Especies"
-                value={offering.eligibilitySpecies
-                  .map((s) => (s === "dog" ? "Perros" : "Gatos"))
-                  .join(", ")}
+                value={offering.eligibilitySpecies.map(speciesLabelPlural).join(", ")}
               />
             )}
             {(offering.eligibilityAgeMinMonths !== null ||
