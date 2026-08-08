@@ -40,7 +40,7 @@ export async function GET(request: NextRequest): Promise<Response> {
   try {
     ({ profile, jurisdictions, user } = await requireAdminOrGovtOrRedirect());
   } catch {
-    return NextResponse.redirect(new URL("/login", request.url));
+    return NextResponse.redirect(new URL("/iniciar-sesion", request.url));
   }
 
   const hasAccess =

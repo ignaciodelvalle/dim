@@ -4,7 +4,7 @@
 // on this route rendered a 404 instead of redirecting to login. The page treated
 // EVERY requirePetAccess !ok as notFound(), conflating "no session" with "no
 // permission". The fix branches on the structural `reason` discriminator:
-//   - reason "no-session"            → redirect(/login?returnTo=<this path>)
+//   - reason "no-session"            → redirect(/iniciar-sesion?returnTo=<this path>)
 //   - reason "not-found-or-forbidden" → notFound()  (unchanged, no info leak)
 //
 // Strategy mirrors eventos-nuevo-redirect.test.ts: mock next/navigation to
@@ -55,7 +55,7 @@ describe("pet profile — no-session vs no-permission (audit 2026-07)", () => {
     mockRequirePetAccess.mockReset();
   });
 
-  it("redirects an expired/absent session to /login carrying returnTo", async () => {
+  it("redirects an expired/absent session to /iniciar-sesion carrying returnTo", async () => {
     mockRequirePetAccess.mockResolvedValue({ ok: false, reason: "no-session" });
 
     await expect(
@@ -68,7 +68,7 @@ describe("pet profile — no-session vs no-permission (audit 2026-07)", () => {
     expect(mockNotFound).not.toHaveBeenCalled();
     expect(mockRedirect).toHaveBeenCalledTimes(1);
     const target = mockRedirect.mock.calls[0]?.[0] as string;
-    expect(target.startsWith("/login?returnTo=")).toBe(true);
+    expect(target.startsWith("/iniciar-sesion?returnTo=")).toBe(true);
     const returnTo = new URL(target, "http://x").searchParams.get("returnTo");
     expect(returnTo).toBe(`/mis-mascotas/${TOKEN}`);
   });

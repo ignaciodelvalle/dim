@@ -91,19 +91,19 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 describe("requireUserOrRedirect", () => {
-  it("redirects to /login when there is no session", async () => {
+  it("redirects to /iniciar-sesion when there is no session", async () => {
     mockGetUser.mockResolvedValue(noSession());
-    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
-    expect(mockRedirect).toHaveBeenCalledWith("/login");
+    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/iniciar-sesion");
+    expect(mockRedirect).toHaveBeenCalledWith("/iniciar-sesion");
   });
 
-  it("preserves returnTo on the /login redirect when no session and a path is given", async () => {
+  it("preserves returnTo on the /iniciar-sesion redirect when no session and a path is given", async () => {
     mockGetUser.mockResolvedValue(noSession());
     await expect(requireUserOrRedirect("/mis-mascotas/DIM-ABCD-1234")).rejects.toThrow(
-      "NEXT_REDIRECT:/login?returnTo=",
+      "NEXT_REDIRECT:/iniciar-sesion?returnTo=",
     );
     expect(mockRedirect).toHaveBeenCalledWith(
-      `/login?returnTo=${encodeURIComponent("/mis-mascotas/DIM-ABCD-1234")}`,
+      `/iniciar-sesion?returnTo=${encodeURIComponent("/mis-mascotas/DIM-ABCD-1234")}`,
     );
   });
 
@@ -126,9 +126,9 @@ describe("requireUserOrRedirect", () => {
 
   // Wave D2 (Ley 25.326 art. 16 — finding 27-#1): an erased account keeps a
   // valid Supabase session until the token expires. requireUserOrRedirect must
-  // treat a non-null profiles.deleted_at as "no access" and bounce to /login,
+  // treat a non-null profiles.deleted_at as "no access" and bounce to /iniciar-sesion,
   // which renders the "cuenta eliminada" notice instead of looping back in.
-  it("redirects to /login when the profile has been erased (deletedAt set)", async () => {
+  it("redirects to /iniciar-sesion when the profile has been erased (deletedAt set)", async () => {
     mockGetUser.mockResolvedValue(userSession("user-erased", "erased@dim.local"));
     mockGetProfileCached.mockResolvedValue({
       id: "user-erased",
@@ -138,14 +138,14 @@ describe("requireUserOrRedirect", () => {
       deactivatedAt: null,
       deletedAt: new Date("2026-07-04"),
     });
-    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
-    expect(mockRedirect).toHaveBeenCalledWith("/login");
+    await expect(requireUserOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/iniciar-sesion");
+    expect(mockRedirect).toHaveBeenCalledWith("/iniciar-sesion");
   });
 
   // An erased account can never come back, so returnTo is intentionally dropped:
-  // it bounces to plain /login (which renders the "cuenta eliminada" notice),
+  // it bounces to plain /iniciar-sesion (which renders the "cuenta eliminada" notice),
   // NOT to a returnTo that would loop it back into a surface it can't reach.
-  it("ignores returnTo for an erased account and redirects to plain /login", async () => {
+  it("ignores returnTo for an erased account and redirects to plain /iniciar-sesion", async () => {
     mockGetUser.mockResolvedValue(userSession("user-erased", "erased@dim.local"));
     mockGetProfileCached.mockResolvedValue({
       id: "user-erased",
@@ -156,9 +156,9 @@ describe("requireUserOrRedirect", () => {
       deletedAt: new Date("2026-07-04"),
     });
     await expect(requireUserOrRedirect("/mis-mascotas/DIM-ABCD-1234")).rejects.toThrow(
-      "NEXT_REDIRECT:/login",
+      "NEXT_REDIRECT:/iniciar-sesion",
     );
-    expect(mockRedirect).toHaveBeenCalledWith("/login");
+    expect(mockRedirect).toHaveBeenCalledWith("/iniciar-sesion");
   });
 
   it("does not redirect an active (non-erased) account with a session", async () => {
@@ -182,10 +182,10 @@ describe("requireUserOrRedirect", () => {
 // ---------------------------------------------------------------------------
 
 describe("requireAdminOrGovtOrRedirect", () => {
-  it("redirects to /login when no session", async () => {
+  it("redirects to /iniciar-sesion when no session", async () => {
     mockGetUser.mockResolvedValue(noSession());
-    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
-    expect(mockRedirect).toHaveBeenCalledWith("/login");
+    await expect(requireAdminOrGovtOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/iniciar-sesion");
+    expect(mockRedirect).toHaveBeenCalledWith("/iniciar-sesion");
   });
 
   // A4: a personal-role account hitting /gob lands on the explained access-denied
@@ -369,9 +369,9 @@ describe("requireDecomisoPrincipal", () => {
 // ---------------------------------------------------------------------------
 
 describe("requireAdminOrRedirect", () => {
-  it("redirects to /login when no session", async () => {
+  it("redirects to /iniciar-sesion when no session", async () => {
     mockGetUser.mockResolvedValue(noSession());
-    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(requireAdminOrRedirect()).rejects.toThrow("NEXT_REDIRECT:/iniciar-sesion");
   });
 
   it("redirects to / when profile is null", async () => {
@@ -471,9 +471,11 @@ describe("requireOrgAccessByToken", () => {
     joinedAt: new Date("2026-01-02"),
   };
 
-  it("redirects to /login when no session", async () => {
+  it("redirects to /iniciar-sesion when no session", async () => {
     mockGetUser.mockResolvedValue(noSession());
-    await expect(requireOrgAccessByToken(ORG_TOKEN)).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(requireOrgAccessByToken(ORG_TOKEN)).rejects.toThrow(
+      "NEXT_REDIRECT:/iniciar-sesion",
+    );
   });
 
   it("calls notFound() when the org does not exist or user has no membership", async () => {

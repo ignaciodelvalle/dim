@@ -83,7 +83,7 @@ test("segmento 01 — publico", async ({ page }) => {
 
   // 8. Auth screens (no submit)
   await visit(page, "/login");
-  await visit(page, "/signup");
+  await visit(page, "/registro");
   await visit(page, "/recuperar");
 
   await expect(page.locator("body")).toBeVisible();

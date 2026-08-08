@@ -4,7 +4,7 @@
 // When an anonymous visitor clicks "Postularme para adoptar a {name}", the
 // server signs a short-lived token that binds the intent to a specific pet
 // token, then sets it as an httpOnly cookie and redirects the visitor to
-// `/signup?intent=apply&returnTo=/adoptar/{petToken}/postular`. After the
+// `/registro?intent=apply&returnTo=/adoptar/{petToken}/postular`. After the
 // signup callback returns the user to the postular page, the page verifies
 // the cookie's signature + expiry + petToken match before showing the form.
 //

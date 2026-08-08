@@ -27,7 +27,7 @@ export default async function PostAdoptionCheckinPage({
   const sp = await searchParams;
   const access = await requirePetAccess(publicToken);
   if (!access.ok) {
-    if (access.error === "Sesión expirada.") redirect("/login");
+    if (access.error === "Sesión expirada.") redirect("/iniciar-sesion");
     notFound();
   }
   // Check-in is owner-self only. Org-mediated access (refugios cohabiting

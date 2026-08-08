@@ -14,7 +14,7 @@ import { requirePetAccess } from "@/lib/infra/pet-access";
 export async function requireOwnedPetByToken(publicToken: string) {
   const access = await requirePetAccess(publicToken);
   if (!access.ok) {
-    if (access.error === "Sesión expirada.") redirect("/login");
+    if (access.error === "Sesión expirada.") redirect("/iniciar-sesion");
     notFound();
   }
   return {

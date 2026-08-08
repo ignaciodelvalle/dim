@@ -43,7 +43,7 @@ export function IdentityPendingBanner({ pending, returnTo }: IdentityPendingBann
         quien mira la credencial de tu mascota.
       </span>
       <Link
-        href={`/signup?returnTo=${encodeURIComponent(returnTo)}`}
+        href={`/registro?returnTo=${encodeURIComponent(returnTo)}`}
         className="font-semibold underline underline-offset-2"
       >
         Completar mi perfil

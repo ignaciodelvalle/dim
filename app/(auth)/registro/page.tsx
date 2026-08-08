@@ -64,10 +64,10 @@ export default async function SignupPage({
   // Build the login link — preserve intent + returnTo.
   const loginHref =
     rawIntent && returnTo
-      ? `/login?intent=${encodeURIComponent(rawIntent)}&returnTo=${encodeURIComponent(returnTo)}`
+      ? `/iniciar-sesion?intent=${encodeURIComponent(rawIntent)}&returnTo=${encodeURIComponent(returnTo)}`
       : rawIntent
-        ? `/login?intent=${encodeURIComponent(rawIntent)}`
-        : "/login";
+        ? `/iniciar-sesion?intent=${encodeURIComponent(rawIntent)}`
+        : "/iniciar-sesion";
 
   return (
     <main

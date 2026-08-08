@@ -47,7 +47,7 @@ export default async function PostularPage({
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    redirect(`/login?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
+    redirect(`/iniciar-sesion?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
   }
 
   // 2) Institutional reject.

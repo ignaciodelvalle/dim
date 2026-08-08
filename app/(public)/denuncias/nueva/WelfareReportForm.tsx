@@ -167,7 +167,7 @@ export function WelfareReportForm({
       {isAnonymous && (
         <p className="text-sm text-ln-ink-2 bg-ln-stripe rounded-lg px-4 py-3">
           Estás denunciando de forma anónima. Si querés seguimiento, podés{" "}
-          <Link href="/login" className="underline underline-offset-2 hover:text-ln-ink">
+          <Link href="/iniciar-sesion" className="underline underline-offset-2 hover:text-ln-ink">
             iniciar sesión
           </Link>{" "}
           o dejar un contacto opcional abajo.

@@ -82,10 +82,10 @@ export default async function LoginPage({
   // doesn't lose context if the visitor switches from login to signup.
   const signupHref =
     intent && returnTo
-      ? `/signup?intent=${encodeURIComponent(intent)}&returnTo=${encodeURIComponent(returnTo)}`
+      ? `/registro?intent=${encodeURIComponent(intent)}&returnTo=${encodeURIComponent(returnTo)}`
       : intent
-        ? `/signup?intent=${encodeURIComponent(intent)}`
-        : "/signup";
+        ? `/registro?intent=${encodeURIComponent(intent)}`
+        : "/registro";
 
   return (
     <main

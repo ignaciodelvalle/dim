@@ -159,7 +159,7 @@ export default async function InviteAcceptPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const loginHref = `/login?returnTo=${encodeURIComponent(`/r/invite/${token}`)}`;
+  const loginHref = `/iniciar-sesion?returnTo=${encodeURIComponent(`/r/invite/${token}`)}`;
 
   // State 1: no session.
   if (!user) {
@@ -185,7 +185,7 @@ export default async function InviteAcceptPage({
             Iniciar sesión
           </a>
           <a
-            href={`/signup?returnTo=${encodeURIComponent(`/r/invite/${token}`)}`}
+            href={`/registro?returnTo=${encodeURIComponent(`/r/invite/${token}`)}`}
             className="block w-full rounded-[var(--radius-pill)] border border-[var(--color-ln-line-strong)] px-5 py-2.5 text-center text-sm font-semibold text-[var(--color-ln-ink)] hover:bg-[var(--color-ln-stripe)] transition-colors"
           >
             Crear cuenta

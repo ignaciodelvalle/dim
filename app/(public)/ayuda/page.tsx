@@ -26,7 +26,7 @@ export default function AyudaPage() {
             <li>
               Creá tu cuenta en{" "}
               <Link
-                href="/login"
+                href="/iniciar-sesion"
                 className="text-[var(--color-ln-azul)] no-underline hover:underline"
               >
                 /login

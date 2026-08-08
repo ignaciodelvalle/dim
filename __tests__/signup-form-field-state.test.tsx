@@ -45,7 +45,7 @@ vi.mock("@/components/LocationFields", () => ({
   LocationFields: () => React.createElement("div", { "data-testid": "location-fields" }),
 }));
 
-import { SignupForm } from "@/app/(auth)/signup/SignupForm";
+import { SignupForm } from "@/app/(auth)/registro/SignupForm";
 import { completeIdentityAction, signupAction } from "@/app/actions/auth";
 
 const noopAction = () => {};

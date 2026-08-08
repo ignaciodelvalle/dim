@@ -24,7 +24,7 @@ export default function RecuperarPage() {
     >
       <div className="w-full max-w-sm mb-2">
         <Link
-          href="/login"
+          href="/iniciar-sesion"
           className="inline-flex items-center gap-1 text-sm text-[var(--color-ln-ink-2)] no-underline hover:text-[var(--color-ln-azul)]"
         >
           ← Volver al inicio de sesión

@@ -47,10 +47,13 @@ export function LandingNav() {
             ghost. Copy audit 2026-07-21: this was the one file saying
             "Ingresar" while 7 others say "Iniciar sesión" for the same
             destination — reconciled to the dominant/canonical verb. */}
-        <Link href="/login" className="lp-btn lp-btn--ghost lp-btn--nav lp-btn--nav-secondary">
+        <Link
+          href="/iniciar-sesion"
+          className="lp-btn lp-btn--ghost lp-btn--nav lp-btn--nav-secondary"
+        >
           Iniciar sesión
         </Link>
-        <Link href="/signup" className="lp-btn lp-btn--primary lp-btn--nav">
+        <Link href="/registro" className="lp-btn lp-btn--primary lp-btn--nav">
           Crear mi miMAR
         </Link>
       </div>

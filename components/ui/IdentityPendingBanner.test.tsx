@@ -34,7 +34,7 @@ describe("<IdentityPendingBanner>", () => {
   it("links to the signup resume surface carrying the current page as returnTo", () => {
     const html = render(<IdentityPendingBanner pending returnTo="/mis-mascotas" />);
 
-    expect(html).toContain('href="/signup?returnTo=%2Fmis-mascotas"');
+    expect(html).toContain('href="/registro?returnTo=%2Fmis-mascotas"');
   });
 
   it("percent-encodes a returnTo that carries a query string", () => {
@@ -42,7 +42,7 @@ describe("<IdentityPendingBanner>", () => {
     // /mis-mascotas after completing their profile.
     const html = render(<IdentityPendingBanner pending returnTo="/mis-mascotas?tab=inbox" />);
 
-    expect(html).toContain('href="/signup?returnTo=%2Fmis-mascotas%3Ftab%3Dinbox"');
+    expect(html).toContain('href="/registro?returnTo=%2Fmis-mascotas%3Ftab%3Dinbox"');
   });
 
   it("offers no way to dismiss itself", () => {

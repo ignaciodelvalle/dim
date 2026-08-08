@@ -18,7 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 // importing it at runtime would pull the whole server graph into the test.
 vi.mock("@/app/actions/auth", () => ({ loginAction: vi.fn() }));
 
-import { LoginFormView } from "@/app/(auth)/login/LoginForm";
+import { LoginFormView } from "@/app/(auth)/iniciar-sesion/LoginForm";
 
 const noopAction = () => {};
 

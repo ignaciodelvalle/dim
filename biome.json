@@ -424,7 +424,7 @@
         "app/(app)/mis-mascotas/[publicToken]/eventos/[eventId]/AmendEventForm.tsx",
         "app/(app)/mis-mascotas/[publicToken]/page.tsx",
         "app/(app)/transferencias/page.tsx",
-        "app/(auth)/signup/SignupForm.tsx",
+        "app/(auth)/registro/SignupForm.tsx",
         "app/(public)/denuncias/nueva/_components/Step3Where.tsx",
         "app/_components/attendance-forms/DewormingAttendanceForm.tsx",
         "app/_components/attendance-forms/GenericAttendanceForm.tsx",

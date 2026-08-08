@@ -195,7 +195,7 @@ export function AppCitizenMasthead({
           <CitizenUserMenu user={user} />
         ) : (
           <Link
-            href="/login"
+            href="/iniciar-sesion"
             className="inline-flex min-h-11 items-center justify-center rounded-full bg-white px-[18px] text-md font-semibold text-[var(--color-ln-azul-900)] no-underline transition-opacity hover:opacity-90 active:opacity-80"
           >
             Iniciar sesión

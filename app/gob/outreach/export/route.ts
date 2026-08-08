@@ -51,7 +51,7 @@ export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     ({ user, profile, jurisdictions } = await requireAdminOrGovtOrRedirect());
   } catch {
-    return NextResponse.redirect("/login");
+    return NextResponse.redirect("/iniciar-sesion");
   }
 
   const hasAccess =

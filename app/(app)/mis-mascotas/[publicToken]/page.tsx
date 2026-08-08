@@ -241,7 +241,7 @@ export default async function PetDetailPage({
   const access = await requirePetAccess(publicToken);
   if (!access.ok) {
     if (access.reason === "no-session") {
-      redirect(`/login?returnTo=${encodeURIComponent(`/mis-mascotas/${publicToken}`)}`);
+      redirect(`/iniciar-sesion?returnTo=${encodeURIComponent(`/mis-mascotas/${publicToken}`)}`);
     }
     // Former-owner READ-ONLY fallback (PO decision 2026-07-18): a session
     // that resolved but has no write-side access might still be the

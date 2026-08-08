@@ -118,7 +118,7 @@ describe("AppCitizenMasthead — 44px masthead controls (native-mobile audit §9
 
   it("anonymous login CTA is min-h-11, no longer min-h-[36px]", () => {
     const html = renderToStaticMarkup(<AppCitizenMasthead nav={[]} user={null} />);
-    const login = html.match(/<a[^>]*href="\/login"[^>]*>/)?.[0];
+    const login = html.match(/<a[^>]*href="\/iniciar-sesion"[^>]*>/)?.[0];
     expect(login).toBeDefined();
     expect(login).toContain("min-h-11");
     expect(html).not.toContain("min-h-[36px]");

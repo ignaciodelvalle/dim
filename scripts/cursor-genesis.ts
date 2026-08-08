@@ -581,7 +581,7 @@ ${rubrics.map((r) => `| ${r.act} | ${r.ok ? "✅" : "❌"} | ${r.sufficiency} | 
 
 ## Hallazgo producto (signup paso 2)
 
-Tras \`Continuar\` en signup paso 1, \`app/(auth)/signup/page.tsx\` redirige usuarios autenticados a \`/mis-mascotas\` **antes** del paso 2 identidad ("Contanos quién sos"). El cold-start funciona, pero la identidad (nombre/apellido) queda vacía hasta edición manual.
+Tras \`Continuar\` en signup paso 1, \`app/(auth)/registro/page.tsx\` redirige usuarios autenticados a \`/mis-mascotas\` **antes** del paso 2 identidad ("Contanos quién sos"). El cold-start funciona, pero la identidad (nombre/apellido) queda vacía hasta edición manual.
 
 ## Cold-start verdict
 

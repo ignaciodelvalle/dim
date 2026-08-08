@@ -221,7 +221,7 @@ describe("empezar — two doors only", () => {
     expect(html).toContain("Soy dueño");
     expect(html).toContain("Soy organización");
     expect(html).not.toContain("Soy gobierno");
-    expect(html).toContain('href="/signup"');
+    expect(html).toContain('href="/registro"');
   });
 });
 

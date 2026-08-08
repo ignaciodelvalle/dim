@@ -50,10 +50,13 @@ export async function requireUserOrRedirect(returnTo?: string): Promise<Authenti
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect(returnTo ? `/login?returnTo=${encodeURIComponent(returnTo)}` : "/login");
+  if (!user)
+    redirect(
+      returnTo ? `/iniciar-sesion?returnTo=${encodeURIComponent(returnTo)}` : "/iniciar-sesion",
+    );
 
   const profile = await getProfileCached(user.id);
-  if (profile?.deletedAt != null) redirect("/login");
+  if (profile?.deletedAt != null) redirect("/iniciar-sesion");
 
   return { supabase, user };
 }

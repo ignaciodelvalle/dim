@@ -430,9 +430,9 @@ export const ROLES: LandingRole[] = [
     title: "miMAR para tu mascota",
     body: "Identidad pública con QR, historial sanitario y modo perdido. Gratis.",
     cta: "Crear cuenta",
-    ctaHref: "/signup",
+    ctaHref: "/registro",
     cta2: "Ya tengo cuenta",
-    cta2Href: "/login",
+    cta2Href: "/iniciar-sesion",
   },
   {
     tone: "org",
@@ -441,9 +441,9 @@ export const ROLES: LandingRole[] = [
     title: "Solicitá acceso verificado",
     body: "Refugios, veterinarias, redes de rescate: custodia, adopciones y eventos sanitarios firmados.",
     cta: "Solicitar acceso",
-    ctaHref: "/signup",
+    ctaHref: "/registro",
     cta2: "Ya tengo cuenta",
-    cta2Href: "/login",
+    cta2Href: "/iniciar-sesion",
   },
 ];
 
@@ -455,7 +455,7 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
   [
     "Ciudadanía",
     [
-      ["Crear mi miMAR", "/signup"],
+      ["Crear mi miMAR", "/registro"],
       ["Mascotas perdidas", "/perdidas"],
       ["Adoptar", "/adoptar"],
       ["Denunciar maltrato", "/denuncias/nueva"],
@@ -466,9 +466,9 @@ export const FOOTER_NAV: Array<[string, Array<[string, string]>]> = [
   [
     "Operadores",
     [
-      ["Organizaciones", "/signup"],
+      ["Organizaciones", "/registro"],
       ["Refugios", "/refugios"],
-      ["Iniciar sesión", "/login"],
+      ["Iniciar sesión", "/iniciar-sesion"],
     ],
   ],
   [

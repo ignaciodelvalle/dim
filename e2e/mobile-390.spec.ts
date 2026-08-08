@@ -115,7 +115,24 @@ const PUBLIC_ROUTES: ReadonlyArray<{ path: string; label: string }> = [
 
 for (const route of PUBLIC_ROUTES) {
   test(`${route.label} no scrollea horizontal a 390px`, async ({ page }) => {
-    await page.goto(route.path);
+    const response = await page.goto(route.path);
+
+    // THE PAGE HAS TO EXIST FIRST. This spec originally listed
+    // `/iniciar-sesion` — a route that did not exist at the time — and PASSED,
+    // because a 404 page has no horizontal scroll either. It asserted layout on
+    // a page that was never rendered (found by QA 2026-08-08, S1-F06; the route
+    // now exists, and the guard stays so the next dead path fails loudly).
+    //
+    // Status alone is not enough on this app: streaming routes flush the shell
+    // before a scoped lookup resolves, so a not-found can answer 200 with the
+    // branded boundary (e2e/README.md). Assert BOTH — a non-error status and
+    // the absence of the not-found surface.
+    expect(response?.status(), `${route.path} no respondió OK`).toBeLessThan(400);
+    await expect(
+      page.getByText(/no encontramos esta página/i),
+      `${route.path} cayó en el 404`,
+    ).toHaveCount(0);
+
     await expectNoHorizontalScroll(page, route.label);
   });
 }

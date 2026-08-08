@@ -35,7 +35,7 @@ export function HelpPanel({ org, isAuthed }: Props) {
   // the UX correct; anon users get bounced through /login first.
   const fosterHref = isAuthed
     ? "/cuenta/ofrecerme-como-transito"
-    : `/login?intent=foster&returnTo=${encodeURIComponent("/cuenta/ofrecerme-como-transito")}`;
+    : `/iniciar-sesion?intent=foster&returnTo=${encodeURIComponent("/cuenta/ofrecerme-como-transito")}`;
 
   const cards: HelpCard[] = [
     {

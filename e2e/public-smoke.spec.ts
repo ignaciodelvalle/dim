@@ -48,7 +48,7 @@ const PUBLIC_ROUTES = [
   { path: "/refugios", landmark: "main" },
   { path: "/denuncias", landmark: "main" },
   { path: "/login", landmark: "main" },
-  { path: "/signup", landmark: "main" },
+  { path: "/registro", landmark: "main" },
 ] as const;
 
 for (const { path, landmark } of PUBLIC_ROUTES) {

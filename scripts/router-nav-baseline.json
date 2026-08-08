@@ -6,7 +6,7 @@
     "app/(app)/mis-mascotas/_components/PetSearchInput.tsx": 1,
     "app/(app)/mis-mascotas/nueva/match/[matchedPetToken]/MatchConfirmationCardVecino.tsx": 3,
     "app/(auth)/recuperar/actualizar/UpdatePasswordForm.tsx": 1,
-    "app/(auth)/signup/SignupForm.tsx": 2,
+    "app/(auth)/registro/SignupForm.tsx": 2,
     "app/(public)/denuncias/buscar/SearchForm.tsx": 1,
     "app/gob/decomisos/nuevo/_components/DecomisoForm.tsx": 1,
     "app/gob/reglas/LocalityRuleDrilldown.tsx": 1,

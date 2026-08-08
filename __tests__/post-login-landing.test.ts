@@ -209,16 +209,16 @@ describe("resolveUserLanding", () => {
 
   // Task #39 regression: a deactivated institutional account must never be
   // auto-redirected into its portal — the guard bounces it back to `/` and the
-  // two redirects loop forever (ERR_TOO_MANY_REDIRECTS). /login renders the
+  // two redirects loop forever (ERR_TOO_MANY_REDIRECTS). /iniciar-sesion renders the
   // deactivated notice + logout instead.
-  it("(f) deactivated institutional admin → /login (never the portal)", async () => {
+  it("(f) deactivated institutional admin → /iniciar-sesion (never the portal)", async () => {
     await db
       .update(profiles)
       .set({ deactivatedAt: new Date() })
       .where(eq(profiles.id, adminUserId));
     try {
       const path = await resolveUserLanding(adminUserId);
-      expect(path).toBe("/login");
+      expect(path).toBe("/iniciar-sesion");
     } finally {
       await db.update(profiles).set({ deactivatedAt: null }).where(eq(profiles.id, adminUserId));
     }

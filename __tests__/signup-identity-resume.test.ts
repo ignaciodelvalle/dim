@@ -54,7 +54,7 @@ vi.mock("@/lib/infra/request-cache", () => ({
   getProfileCached: (userId: string) => mockGetProfileCached(userId),
 }));
 
-import SignupPage from "@/app/(auth)/signup/page";
+import SignupPage from "@/app/(auth)/registro/page";
 
 const EMAIL = "ignaciodelvalle2014+cursor-owner2@gmail.com";
 const PROVISIONAL = "ignaciodelvalle2014+cursor-owner2";

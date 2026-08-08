@@ -165,11 +165,11 @@ export async function resolveUserLanding(userId: string): Promise<string> {
     .limit(1);
 
   // Erased (right-to-erasure) → never into a portal. /login renders the notice.
-  if (isErasedAccount(profile)) return "/login";
+  if (isErasedAccount(profile)) return "/iniciar-sesion";
 
   // Deactivated institutional → never into a portal (guards bounce it back
   // to `/` and the redirects loop). /login renders the deactivated notice.
-  if (isDeactivatedInstitutional(profile)) return "/login";
+  if (isDeactivatedInstitutional(profile)) return "/iniciar-sesion";
 
   const role = profile?.role ?? "owner";
 

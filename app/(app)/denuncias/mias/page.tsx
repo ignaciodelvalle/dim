@@ -44,7 +44,10 @@ export default async function MisDenunciasPage() {
     return (
       <div className="mx-auto max-w-2xl px-8 py-7 pb-12">
         <LnCallout tone="warn" title="Necesitás iniciar sesión">
-          <Link href="/login" className="text-[var(--color-ln-azul)] no-underline hover:underline">
+          <Link
+            href="/iniciar-sesion"
+            className="text-[var(--color-ln-azul)] no-underline hover:underline"
+          >
             Iniciar sesión →
           </Link>
         </LnCallout>

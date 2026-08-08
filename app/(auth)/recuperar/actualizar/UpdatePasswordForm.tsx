@@ -14,7 +14,7 @@ export function UpdatePasswordForm() {
   // Redirect to login on success so the user starts a fresh session.
   useEffect(() => {
     if (state.ok) {
-      router.replace("/login");
+      router.replace("/iniciar-sesion");
     }
   }, [state.ok, router]);
 

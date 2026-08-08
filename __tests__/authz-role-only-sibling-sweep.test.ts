@@ -109,7 +109,7 @@ describe("uploadRevocationEvidence — action-boundary gate", () => {
   it("rejects an ERASED (soft-deleted) admin whose session is still valid", async () => {
     mockGetUser.mockResolvedValue(session(ERASED_ADMIN.id));
     mockGetProfileCached.mockResolvedValue(ERASED_ADMIN);
-    await expect(uploadRevocationEvidence(input)).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(uploadRevocationEvidence(input)).rejects.toThrow("NEXT_REDIRECT:/iniciar-sesion");
     expect(mockUploadEvidence).not.toHaveBeenCalled();
   });
 
@@ -145,7 +145,9 @@ describe("createAlertSubscriptionAction — action-boundary gate", () => {
   it("rejects an ERASED (soft-deleted) admin whose session is still valid", async () => {
     mockGetUser.mockResolvedValue(session(ERASED_ADMIN.id));
     mockGetProfileCached.mockResolvedValue(ERASED_ADMIN);
-    await expect(createAlertSubscriptionAction(fd())).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(createAlertSubscriptionAction(fd())).rejects.toThrow(
+      "NEXT_REDIRECT:/iniciar-sesion",
+    );
     expect(mockCreateSub).not.toHaveBeenCalled();
   });
 

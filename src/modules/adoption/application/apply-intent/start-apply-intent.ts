@@ -105,7 +105,7 @@ export async function startApplyIntentAction(petToken: string): Promise<StartApp
     maxAge: Math.floor(APPLY_INTENT_TTL_MS / 1000),
   });
   const returnTo = `/adoptar/${petToken}/postular`;
-  redirect(`/signup?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
+  redirect(`/registro?intent=apply&returnTo=${encodeURIComponent(returnTo)}`);
 }
 
 // Form-action wrapper so the adoption CTA works without client JS.

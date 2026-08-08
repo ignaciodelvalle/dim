@@ -10,7 +10,7 @@
 //   1. The CTA is VISIBLE at 390px (the most common width in Argentina) and
 //      at 1440px, and carries a proper accessible name (role=button +
 //      aria-label that CONTAINS the visible "Continuar" — WCAG 2.5.3).
-//   2. It NEVER intersects the sticky nav's /login and /signup CTAs. The
+//   2. It NEVER intersects the sticky nav's auth CTAs. The
 //      landing's hardest-won guarantee is the 320–561px sign-in entry point
 //      (e2e/landing-signin-reachable.spec.ts, defect D.7) — a new floating
 //      control must be provably incapable of sitting on top of it. The CTA is
@@ -122,7 +122,7 @@ for (const width of [390, 1440]) {
     ).toBeGreaterThanOrEqual(44);
 
     // Never on top of the nav's sign-in / signup CTAs (the D.7 guarantee).
-    for (const sel of ['header a[href="/login"]', 'header a[href="/signup"]']) {
+    for (const sel of ['header a[href="/iniciar-sesion"]', 'header a[href="/registro"]']) {
       const navBox = await page.locator(sel).first().boundingBox();
       expect(navBox, `${sel} has no bounding box at ${width}px`).not.toBeNull();
       if (!ctaBox || !navBox) continue;

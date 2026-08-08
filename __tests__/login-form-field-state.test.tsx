@@ -19,7 +19,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 // whole server graph out of the test (same guard as login-form.test.tsx).
 vi.mock("@/app/actions/auth", () => ({ loginAction: vi.fn() }));
 
-import { LoginFormView } from "@/app/(auth)/login/LoginForm";
+import { LoginFormView } from "@/app/(auth)/iniciar-sesion/LoginForm";
 import type { AuthFormState } from "@/app/actions/auth";
 
 const noopAction = () => {};

@@ -96,7 +96,7 @@ export async function resetInstitutionalCredentialsForAuthority(
       body: "Un administrador generó un nuevo link de acceso para tu cuenta. Usalo para ingresar.",
       severity: "info",
       ctaLabel: "Acceder",
-      ctaUrl: "/login",
+      ctaUrl: "/iniciar-sesion",
     });
   } catch (e) {
     console.error(

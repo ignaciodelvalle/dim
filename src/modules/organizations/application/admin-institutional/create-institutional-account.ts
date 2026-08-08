@@ -200,7 +200,7 @@ export async function createInstitutionalAccountForAuthority(
         body: "Un administrador te creó una cuenta. Usá el link de acceso que te compartió para entrar.",
         severity: "info",
         ctaLabel: "Acceder",
-        ctaUrl: "/login",
+        ctaUrl: "/iniciar-sesion",
       });
     });
   } catch (txErr) {

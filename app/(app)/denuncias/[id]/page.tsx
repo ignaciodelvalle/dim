@@ -93,7 +93,7 @@ export default async function WelfareReportDetailPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect("/login");
+  if (!user) redirect("/iniciar-sesion");
 
   const [report] = await db
     .select()
