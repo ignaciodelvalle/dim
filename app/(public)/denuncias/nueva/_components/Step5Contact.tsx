@@ -325,7 +325,14 @@ export function Step5Contact({
                   type="button"
                   onClick={() => removeEvidence(i)}
                   aria-label={`Quitar ${entry.file.name}`}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-[var(--color-ln-ink)] text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                  // Always visible, 24px. It used to be opacity-0 until hover,
+                  // which on a touch screen means it never appears at all —
+                  // `(hover: none)` never fires `:hover`, so the only way to
+                  // detach a file was a keyboard focus no phone has. At 20px it
+                  // was also under the 24px WCAG 2.5.8 AA target-size floor this
+                  // repo holds buttons to (adversarial review 2026-08-08,
+                  // S1-F04; same markup in WelfareReportForm and DecomisoForm).
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-[var(--color-ln-ink)] text-white text-xs leading-none flex items-center justify-center"
                 >
                   <Icon name="close" size="sm" decorative />
                 </button>

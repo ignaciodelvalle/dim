@@ -363,7 +363,10 @@ export function WelfareReportForm({
                         type="button"
                         onClick={() => removeEvidence(i)}
                         aria-label={`Quitar ${entry.file.name}`}
-                        className="absolute top-1 right-1 w-5 h-5 rounded-full bg-ln-azul text-white text-xs leading-none flex items-center justify-center opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                        // Always visible, 24px — see Step5Contact.tsx for the
+                        // full reasoning. Hover-only reveal is unreachable on
+                        // touch, and 20px is under the 24px AA target floor.
+                        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-ln-azul text-white text-xs leading-none flex items-center justify-center"
                       >
                         ×
                       </button>

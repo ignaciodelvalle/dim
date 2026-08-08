@@ -813,7 +813,12 @@ export function DecomisoForm({
                     type="button"
                     onClick={() => removeAttachment(i)}
                     aria-label={`Quitar ${entry.file.name}`}
-                    className="flex-shrink-0 w-5 h-5 rounded-full bg-ln-op-stripe text-ln-op-mute hover:bg-ln-op-line hover:text-ln-op-ink transition-colors inline-flex items-center justify-center"
+                    // 24px, the WCAG 2.5.8 AA target floor. This one was always
+                    // VISIBLE (unlike its two denuncia twins) but shared their
+                    // 20px size. e2e/mobile-390.spec.ts checks that floor on
+                    // this very page and passed anyway — it never attaches a
+                    // file, so the button does not exist when it measures.
+                    className="flex-shrink-0 w-6 h-6 rounded-full bg-ln-op-stripe text-ln-op-mute hover:bg-ln-op-line hover:text-ln-op-ink transition-colors inline-flex items-center justify-center"
                   >
                     <Icon name="close" size={14} decorative />
                   </button>
