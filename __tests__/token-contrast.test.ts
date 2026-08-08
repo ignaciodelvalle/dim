@@ -78,6 +78,21 @@ const TEXT_ON_LIGHT = [
 // Solid chips print white on a saturated fill — the inverse pairing, same floor.
 const WHITE_ON_FILL = ["ln-ok", "ln-azul", "ln-err"] as const;
 
+// A status token's OWN tint. This is where those tokens actually live — the
+// provenance stamp (.ln-prov, 8.5px uppercase mono) and .lp-ph-ok (13px bold,
+// which is NOT WCAG "large text") both print ln-ok on ln-ok-bg.
+//
+// The first version of this file checked only the three page surfaces above and
+// was therefore GREEN over a live 4.44:1 failure on exactly this pair — the same
+// "the colour was never the problem, the unchecked PAIR was" mistake its own
+// header claims to close, reproduced one tier down. Found in adversarial review
+// 2026-08-08, not by this fence.
+const TEXT_ON_OWN_TINT = [
+  { text: "ln-ok", tints: ["ln-ok-bg", "ln-ok-050"] },
+  { text: "ln-warn", tints: ["ln-warn-050"] },
+  { text: "ln-err", tints: ["ln-err-bg", "ln-err-050"] },
+] as const;
+
 describe("token contrast — text on light surfaces", () => {
   for (const text of TEXT_ON_LIGHT) {
     for (const surface of LIGHT_SURFACES) {
@@ -86,6 +101,20 @@ describe("token contrast — text on light surfaces", () => {
         expect(
           Number(ratio.toFixed(2)),
           `--color-${text} on --color-${surface} is ${ratio.toFixed(2)}:1, below the ${AA_NORMAL}:1 WCAG AA floor for normal text`,
+        ).toBeGreaterThanOrEqual(AA_NORMAL);
+      });
+    }
+  }
+});
+
+describe("token contrast — status text on its own tint", () => {
+  for (const { text, tints } of TEXT_ON_OWN_TINT) {
+    for (const tint of tints) {
+      it(`${text} on ${tint} clears AA`, () => {
+        const ratio = contrast(token(text), token(tint));
+        expect(
+          Number(ratio.toFixed(2)),
+          `--color-${text} on --color-${tint} is ${ratio.toFixed(2)}:1, below the ${AA_NORMAL}:1 WCAG AA floor. The status tokens live on these tinted backgrounds, not only on the page surfaces.`,
         ).toBeGreaterThanOrEqual(AA_NORMAL);
       });
     }

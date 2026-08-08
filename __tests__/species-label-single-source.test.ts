@@ -72,7 +72,15 @@ function sourceFiles(): string[] {
   return out;
 }
 
-/** Regexes for the three shapes a hand-rolled map takes in this codebase. */
+/**
+ * Regexes for the shapes a hand-rolled map takes in this codebase.
+ *
+ * The `switch` case is the important one and was missing: it is the shape
+ * `speciesLabel` ITSELF is written in (lib/utils/format.ts), so the single most
+ * likely way a rival map gets born — copy the exempt file's body into a
+ * component — was invisible to this fence (adversarial review 2026-08-08).
+ * Nothing hits it today; a fence exists precisely for the prospective case.
+ */
 function mapShapes(token: string, labels: readonly string[]): RegExp[] {
   const label = `(?:${labels.join("|")})`;
   return [
@@ -80,8 +88,11 @@ function mapShapes(token: string, labels: readonly string[]): RegExp[] {
     new RegExp(`["']?${token}["']?\\s*:\\s*["']${label}["']`),
     // s === "dog" ? "Perros" : …
     new RegExp(`===\\s*["']${token}["']\\s*\\?\\s*["']${label}["']`),
-    // { value: "dog", label: "Perros" }
+    // { value: "dog", label: "Perros" } — and the same pair written label-first.
     new RegExp(`value\\s*:\\s*["']${token}["']\\s*,\\s*label\\s*:\\s*["']${label}["']`),
+    new RegExp(`label\\s*:\\s*["']${label}["']\\s*,\\s*value\\s*:\\s*["']${token}["']`),
+    // case "dog": return "Perro";  — the canonical implementation's own shape.
+    new RegExp(`case\\s*["']${token}["']\\s*:[\\s\\S]{0,80}?return\\s*["']${label}["']`),
   ];
 }
 
@@ -140,6 +151,10 @@ describe("species labels — a single dictionary", () => {
 
     const option = `{ value: "dog", label: "Perros" }`;
     expect(mapShapes("dog", ["Perro", "Perros"]).some((re) => re.test(option))).toBe(true);
+
+    // The shape speciesLabel itself uses — the most likely way a copy is born.
+    const switchCase = `switch (s) {\n  case "dog":\n    return "Perro";\n}`;
+    expect(mapShapes("dog", ["Perro", "Perros"]).some((re) => re.test(switchCase))).toBe(true);
   });
 
   it("does not fire on ordinary Spanish copy that merely says Perro", () => {

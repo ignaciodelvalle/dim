@@ -1414,13 +1414,15 @@ export const AdoptionRepository = {
    *   - close the adopter's `owner` ownership row
    *   - insert a fresh `shelter_custody` ownership row for the finalizing org
    *   - force the pet UN-LISTED (adoption_listed_at / paused_at → null) — PO
-   *     semantics: reversal never auto-relists. Without this, restoring an
-   *     active shelter_custody row would silently resurrect whatever
-   *     adoption_listed_at value predates the original finalize (finalize
-   *     never clears it — see insertAdoptionFinalized above), and the pet
-   *     would reappear on /adoptar the moment shelter_custody becomes active
-   *     again (queryAdoptionListing's D-guards only check listedAt + active
-   *     shelter_custody, nothing else stops that).
+   *     semantics: reversal never auto-relists.
+   *
+   *     This used to be load-bearing: finalize did NOT clear the field, so
+   *     restoring an active shelter_custody row would resurrect whatever
+   *     adoption_listed_at predated the finalize and the pet would reappear on
+   *     /adoptar (queryAdoptionListing's D-guards only check listedAt + active
+   *     shelter_custody). Finalize now clears it — see insertAdoptionFinalized
+   *     — so this write is DEFENSIVE, not load-bearing. Keep it: it also covers
+   *     a re-list that happened between finalize and reversal.
    *   - insert the adoption_reversed event, referencing the finalize event id
    */
   async insertAdoptionReversed(

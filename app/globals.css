@@ -65,7 +65,14 @@
   --color-ln-line-strong: #cfc8b8;
 
   --color-ln-seal: #a23a2c;
-  --color-ln-ok: #2e7d4f;
+  /* Darkened from #2e7d4f: it cleared white/paper/stripe but sat at 4.44:1 on
+     its OWN tint, --color-ln-ok-bg, where two real surfaces print it as small
+     text — the "verified" provenance stamp (.ln-prov, 8.5px uppercase mono) and
+     .lp-ph-ok (13px bold, which is not WCAG "large text"). The status tokens
+     live on the tinted status backgrounds; a fence that only checked the page
+     surfaces was green over both. #2b7449 → 4.99 on ok-bg, 5.68 on white, and
+     white-on-ok improves to 5.68 for the solid chips. */
+  --color-ln-ok: #2b7449;
   --color-ln-warn: #96600e; /* darkened from #b0771a — 5.28:1 on white (was 3.82:1, WCAG AA fail) */
   --color-ln-err: #c0392b;
   --color-ln-rosa: #b5497e;
@@ -636,9 +643,14 @@ h6 {
    ring is drawn where nobody can see it and the card shows NOTHING on keyboard
    focus (adversarial review 2026-08-08, S7-F01, measured: outline/box-shadow/
    border all identical before and after focus).
-   Fixed here rather than in the component because five files share the pattern:
-   the three denuncia steps, OrgBiteForm and RulesWizard. Ley 26.653 — and the
-   denuncia flow is the anonymous one, the most exposed of the set. */
+   Fixed here rather than in the component because EIGHT files share the shape
+   (pinned by name in __tests__/sr-only-radio-focus-ring.test.ts): the four
+   denuncia steps, BiteForm, OrgBiteForm, ApplicationForm and RulesWizard.
+   Ley 26.653 — and the denuncia flow is the anonymous one, the most exposed.
+
+   Only reaches inputs NESTED inside the label. The sibling shape this repo also
+   uses (input outside the label, `peer-focus-visible`) carries its own focus
+   treatment and is not covered here. */
 label:has(input.sr-only:focus-visible) {
   outline: var(--focus-ring-width) solid var(--focus-ring-color);
   outline-offset: var(--focus-ring-offset);

@@ -27,8 +27,45 @@ import { describe, expect, it } from "vitest";
 const ROOT = join(__dirname, "..");
 const CSS = readFileSync(join(ROOT, "app", "globals.css"), "utf8");
 
-/** `<label> … <input type="radio" … sr-only`, the card-radio shape. */
-const CARD_RADIO = /<label[\s\S]{0,600}?type="radio"[\s\S]{0,400}?sr-only/;
+/**
+ * `<label> … <input type="radio" … sr-only`, the card-radio shape.
+ *
+ * The caps were 600/400 and missed three real files whose label className
+ * template plus an intervening <span> ran past them — including Step3Where, in
+ * the anonymous denuncia flow this fence singles out as the most exposed
+ * (adversarial review 2026-08-08). Widened to 2000/800 and pinned by an explicit
+ * file list below, because an under-counting detector is worse than none: this
+ * file's own maintenance contract says "if the count drops to zero the CSS rule
+ * is dead weight", so a silent undercount could talk someone into deleting a
+ * rule that three unseen surfaces depend on.
+ */
+const CARD_RADIO = /<label[\s\S]{0,2000}?type="radio"[\s\S]{0,800}?sr-only/;
+
+/**
+ * The files that use this shape, as of 2026-08-08.
+ *
+ * Pinned rather than merely counted so a regex regression shows up as a NAMED
+ * diff. Add a file here when you write a new card radio; the CSS rule covers it
+ * automatically because the input is a descendant of the label.
+ *
+ * NOT covered by the `:has()` rule, and deliberately out of this list: the
+ * sibling shape this repo also uses (`<label htmlFor=x>` … `<input id=x
+ * className="sr-only">` OUTSIDE the label, styled with `peer-focus-visible` —
+ * see components/ui/Field.tsx and OpFileInput.tsx). Those carry their own focus
+ * treatment. A new card radio written that way would match the regex above but
+ * NOT the CSS selector, so if one ever appears, give it `peer-focus-visible`
+ * rather than assuming this rule reaches it.
+ */
+const KNOWN_CARD_RADIO_FILES: readonly string[] = [
+  "app/(app)/mis-mascotas/[publicToken]/eventos/nuevo/mordedura/BiteForm.tsx",
+  "app/(public)/adoptar/[petToken]/postular/ApplicationForm.tsx",
+  "app/(public)/denuncias/nueva/_components/Step1Kind.tsx",
+  "app/(public)/denuncias/nueva/_components/Step2Severity.tsx",
+  "app/(public)/denuncias/nueva/_components/Step3Where.tsx",
+  "app/(public)/denuncias/nueva/_components/Step4Subject.tsx",
+  "app/gob/reglas/nueva/RulesWizard.tsx",
+  "app/org/[orgToken]/mordedura/nuevo/OrgBiteForm.tsx",
+];
 
 function componentsUsingCardRadios(): string[] {
   const hits: string[] = [];
@@ -67,13 +104,20 @@ describe("card-style radios — the focus ring reaches the card", () => {
     expect(rule?.[1]).toMatch(/outline:\s*var\(--focus-ring-width\)/);
   });
 
-  it("is still needed — the pattern is in use", () => {
-    // If this ever drops to zero, the rule above is dead weight and should go.
-    // It also documents the real blast radius: the finding named one screen.
-    const users = componentsUsingCardRadios();
-    expect(
-      users.length,
-      "no card-style radios left; the globals.css rule can be removed",
-    ).toBeGreaterThan(0);
+  it("covers exactly the files known to use the shape", () => {
+    // Named, not counted. The previous version asserted `length > 0`, which the
+    // detector satisfied while silently missing three files — and the fence
+    // reported "five files" in a comment that was simply wrong. A regex that
+    // stops matching now names what it dropped.
+    expect(componentsUsingCardRadios()).toEqual([...KNOWN_CARD_RADIO_FILES].sort());
+  });
+
+  it("the focus-ring width is not zero", () => {
+    // The three assertions above all pass if --focus-ring-width is set to 0px:
+    // the selector exists, its body references the var, the files are found, and
+    // every card shows nothing. Pin the one value that makes the rule visible.
+    const width = CSS.match(/--focus-ring-width:\s*([^;]+);/)?.[1]?.trim();
+    expect(width, "--focus-ring-width is missing from globals.css").toBeTruthy();
+    expect(width).not.toMatch(/^0(px|rem|em)?$/);
   });
 });
