@@ -514,13 +514,26 @@ jobs:
         # `verify`, add it here or to `check` — the parity is the whole point.
         run: pnpm lint:rls && pnpm lint:scope-authz && pnpm lint:spine && pnpm lint:locality
 
-      - name: Run tests with coverage (vitest)
+      - name: Run tests with coverage (vitest) + suite verdict
         # Coverage-threshold enforcement (V1-9). The thresholds in
         # vitest.config.ts are RATCHET FLOORS set just under current coverage —
         # they prevent regression below today's level. vitest exits non-zero if
         # any glob drops below its floor. Raise the floors incrementally
         # post-launch as coverage improves.
-        run: pnpm test:coverage
+        #
+        # `test:verified` (not `test:coverage`) since 2026-08-09: it runs the
+        # SAME vitest with `--coverage` passed through, and then runs
+        # scripts/check-suite-coverage.ts — the check that asks "did every
+        # discovered test file actually REPORT?".
+        #
+        # Why that matters here: vitest's exit code lies in both directions. A
+        # worker that dies takes its files with it and the run still exits 0. It
+        # happened locally the same day this line changed — 338 of 1225 files
+        # reported and the command was "green". CI never had the check at all:
+        # `test:coverage` runs vitest alone, so the only thing standing between
+        # a dead worker and a green build was the coverage thresholds noticing
+        # the drop — an accidental guard, not a designed one.
+        run: pnpm test:verified -- --coverage
 
       - name: Stop Supabase local stack
         if: always()

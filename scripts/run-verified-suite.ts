@@ -47,8 +47,23 @@ const REPORT = ".vitest-report.json";
 const VITEST_ENTRY = "node_modules/vitest/vitest.mjs";
 const TSX_ENTRY = "node_modules/tsx/dist/cli.mjs";
 
-// Extra args after `--` are forwarded to vitest (e.g. a file filter).
-const passthrough = process.argv.slice(2);
+// Extra args after `--` are forwarded to vitest. `--coverage` is the one CI
+// passes; a bare path is a file filter.
+//
+// A bare `--` survives some shells' argument handling; drop it so it never
+// reaches vitest as a positional.
+const passthrough = process.argv.slice(2).filter((a) => a !== "--");
+
+// A FILTERED run cannot be graded by the verdict, and that is not a bug in
+// either of them: check-suite-coverage asks "did every DISCOVERED test file
+// report?", and a filtered run discovers 1225 while reporting 1. Running it
+// anyway prints 1224 filenames under "a worker died and took them with it",
+// which is both false and terrifying.
+//
+// So: flags (--coverage, --reporter=…) keep the verdict; a positional filter
+// skips it, loudly. Found by running `pnpm test:verified -- <one file>` while
+// wiring this command into CI.
+const hasFileFilter = passthrough.some((a) => !a.startsWith("-"));
 
 // A stale report from a previous run must never be graded as this one's: the
 // checker reads a file, and a crashed vitest leaves the old one in place.
@@ -69,6 +84,16 @@ const suite = spawnSync(
   ],
   { stdio: "inherit" },
 );
+
+if (hasFileFilter) {
+  console.error(
+    "\n! Corrida FILTRADA: se omite el veredicto de cobertura de la suite.\n" +
+      "  check-suite-coverage compara reportados contra DESCUBIERTOS, y un filtro\n" +
+      "  descubre 1225 archivos reportando unos pocos. Para el veredicto real,\n" +
+      "  corré `pnpm test:verified` sin filtro.",
+  );
+  process.exit(suite.status ?? 0);
+}
 
 // DELIBERATELY IGNORED HERE. `suite.status` is the number the verdict below
 // exists to check, not a reason to skip it. It is folded back in at the end so
