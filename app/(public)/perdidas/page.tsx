@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   type LostListingFilters,
   type LostListingItem,
@@ -68,12 +69,37 @@ export default async function PerdidasPage({
 
   // Fetch the catalog + the KPI counts in parallel. The counts ignore
   // the user's current filters so the strip always reflects the universe.
-  const [{ items, nextCursor }, totalActive, last24h, last7d] = await Promise.all([
-    queryLostListing(filters, cursor, 24),
-    countAllLost(),
-    countLostInWindow(ONE_DAY_MS),
-    countLostInWindow(SEVEN_DAYS_MS),
+  //
+  // BOUNDED, and under TWO budgets rather than one (2026-08-09 resilience
+  // pass). This is a public, force-dynamic, `no-store` route — nothing shields
+  // it from a degraded DB, and unbounded it was one of the few unauthenticated
+  // pages that could hang outright. The split is not cosmetic: the listing IS
+  // the page, so it gets the full deadline and an honest error card; the three
+  // counts are decoration over the whole universe (three sitewide aggregates),
+  // so they get a short one and simply do not render when they miss it. A
+  // visitor looking for their dog gets the grid without the stat strip, which
+  // is strictly better than getting neither.
+  //
+  // Both races start together, so the split costs no wall-clock.
+  const [listingLoad, countsLoad] = await Promise.all([
+    loadWithTimeout(queryLostListing(filters, cursor, 24)),
+    loadWithTimeout(
+      Promise.all([
+        countAllLost(),
+        countLostInWindow(ONE_DAY_MS),
+        countLostInWindow(SEVEN_DAYS_MS),
+      ]),
+      3_000,
+    ),
   ]);
+
+  const listing = listingLoad.ok ? listingLoad.value : null;
+  const items = listing?.items ?? [];
+  const nextCursor = listing?.nextCursor ?? null;
+  // null = the counts missed their deadline. Every consumer below checks, so a
+  // missing count is ABSENT, never rendered as a zero — "0 activas ahora" on
+  // this page would read as good news and be a lie.
+  const [totalActive, last24h, last7d] = countsLoad.ok ? countsLoad.value : [null, null, null];
 
   const hasActiveFilters = Object.values(filters).some((v) => v !== undefined);
 
@@ -81,7 +107,7 @@ export default async function PerdidasPage({
     <main className="bg-[var(--color-ln-paper)]">
       {/* Red urgency band — only rendered when there is at least one critical
           pet to announce. Stays out of the way on a quiet day. */}
-      {last24h > 0 && (
+      {last24h != null && last24h > 0 && (
         <div className="bg-[var(--color-ln-err)]">
           <div className="max-w-6xl mx-auto px-6 py-2.5 text-sm flex items-center gap-3 flex-wrap text-white">
             <span className="font-semibold">
@@ -116,11 +142,13 @@ export default async function PerdidasPage({
             "Nuevas en …" stops "0 / 0" from reading as a contradiction next to
             "Activas ahora" when the active pool is older than the window
             (Cowork B5). */}
-        <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
-          <KpiCard label="Activas ahora" value={totalActive} tone="err" />
-          <KpiCard label="Nuevas en 24h" value={last24h} tone="warn" />
-          <KpiCard label="Nuevas en 7 días" value={last7d} tone="mute" />
-        </section>
+        {totalActive != null && last24h != null && last7d != null && (
+          <section className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            <KpiCard label="Activas ahora" value={totalActive} tone="err" />
+            <KpiCard label="Nuevas en 24h" value={last24h} tone="warn" />
+            <KpiCard label="Nuevas en 7 días" value={last7d} tone="mute" />
+          </section>
+        )}
 
         <LostFiltersBar filters={filters} />
 
@@ -129,7 +157,25 @@ export default async function PerdidasPage({
             the rest of the active filters. */}
         <QuickFilterRow filters={filters} />
 
-        {items.length === 0 ? (
+        {listing === null ? (
+          // The listing missed its deadline. Say so — the empty state below
+          // would claim "no hay mascotas perdidas en este momento", which on
+          // this page is the single most harmful thing we could get wrong.
+          <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-line)] border-l-[3px] border-l-[var(--color-ln-err)] bg-[var(--color-ln-card)] px-6 py-10 text-center space-y-2">
+            <p className="text-sm font-medium text-[var(--color-ln-ink)]">
+              No pudimos cargar el listado en este momento.
+            </p>
+            <p className="text-xs text-[var(--color-ln-mute)]">
+              Es un problema nuestro, no de tu búsqueda. Probá de nuevo en unos segundos.
+            </p>
+            <Link
+              href={`/perdidas?${buildSearchParams(filters, null).toString()}`}
+              className="inline-block text-sm text-[var(--color-ln-err)] underline"
+            >
+              Reintentar
+            </Link>
+          </div>
+        ) : items.length === 0 ? (
           // UX 3.5 item 3 (same class /adoptar already solved): distinguish
           // true-empty from filter-empty. The primary line used to say "con
           // esos filtros" unconditionally — hasActiveFilters only gated the
@@ -172,7 +218,9 @@ export default async function PerdidasPage({
                   ? `Mostrando las ${items.length} más recientes`
                   : `${items.length} ${pluralizeEs(items.length, "mascota")}`}
               </strong>
-              {nextCursor && !hasActiveFilters ? ` de ${totalActive} activas en total` : ""}
+              {nextCursor && !hasActiveFilters && totalActive != null
+                ? ` de ${totalActive} activas en total`
+                : ""}
             </p>
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[18px]">
               {items.map((item) => (

@@ -22,7 +22,9 @@ import {
   OpFilterBar,
   OpKpi,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { DEFAULT_DASHBOARD_PRESET } from "@/lib/analytics/analytics-period";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
@@ -69,55 +71,12 @@ export default async function AdminAdopcionesPage({
 
   const ctx = buildProjectionContext({ role: "admin" }, [], period);
 
-  // fetchPrevAdoptionCount adds ONE new query (same scope, shifted one period
-  // back) purely to power the "Adopciones" deltaV2 chip — mirrors
-  // campaign-metrics.ts' fetchPrevTotals pattern (same as /gob/adopciones).
-  //
-  // species narrows funnel/timeInState/returnRate/adoptionTrend/
-  // prevAdoptionCount identically (twin of /gob/adopciones' domain-axes
-  // work). fosterPool and shelterOccupancy deliberately do NOT take species —
-  // same reasoning as /gob/adopciones: fosterPool's counts are volunteer-level
-  // (no species dimension) and shelterOccupancy's capacity denominator is
-  // org-level config that can't be split by species.
-  const [
-    funnel,
-    timeInState,
-    returnRateValue,
-    fosterPool,
-    shelterOccupancy,
-    adoptionTrend,
-    prevAdoptionCount,
-  ] = await Promise.all([
-    fetchCustodyFunnel(ctx, { species }),
-    fetchTimeInState(ctx, { species }),
-    fetchReturnRate(ctx, { species }),
-    fetchFosterPoolUtilization(ctx),
-    fetchShelterOccupancyNational(ctx),
-    fetchAdoptionTrend(ctx, { species }),
-    fetchPrevAdoptionCount(ctx, { species }),
-  ]);
-
-  const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
-
-  const fPct = funnelBarWidths(funnel);
-
-  const hasFunnel = funnel.intake > 0 || funnel.foster > 0 || funnel.adoption > 0;
-  const hasTrend = adoptionTrend.points.length > 0;
-
-  const returnRatePct = returnRateValue != null ? Math.round(returnRateValue * 1000) / 10 : null;
-
-  // Shelter custody + foster active placements as KPI values.
-  const shelterCustodyRow = timeInState.find((r) => r.role === "shelter_custody");
-  const fosterRow = timeInState.find((r) => r.role === "foster");
-
-  const panelFunnelId = "admin-panel-adopciones-embudo-titulo";
-  const panelTimeId = "admin-panel-adopciones-tiempo-titulo";
-  const panelOccupancyId = "admin-panel-adopciones-ocupacion-titulo";
-  const panelFosterPoolId = "admin-panel-adopciones-pool-titulo";
-  const panelTrendId = "admin-panel-adopciones-tendencia-titulo";
-
-  return (
-    <div className="space-y-6">
+  // Header + filter bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx): neither depends on the fetchers
+  // below, and the period/species controls are what would narrow a query that
+  // timed out.
+  const shell = (
+    <>
       {/* Page header */}
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -147,6 +106,81 @@ export default async function AdminAdopcionesPage({
           ] satisfies OpFilterAxis[]
         }
       />
+    </>
+  );
+
+  // fetchPrevAdoptionCount adds ONE new query (same scope, shifted one period
+  // back) purely to power the "Adopciones" deltaV2 chip — mirrors
+  // campaign-metrics.ts' fetchPrevTotals pattern (same as /gob/adopciones).
+  //
+  // species narrows funnel/timeInState/returnRate/adoptionTrend/
+  // prevAdoptionCount identically (twin of /gob/adopciones' domain-axes
+  // work). fosterPool and shelterOccupancy deliberately do NOT take species —
+  // same reasoning as /gob/adopciones: fosterPool's counts are volunteer-level
+  // (no species dimension) and shelterOccupancy's capacity denominator is
+  // org-level config that can't be split by species.
+  //
+  // BOUNDED (2026-08-09, second resilience pass). This is the same seven-fetcher
+  // set as /gob/adopciones — at UNIVERSAL scope, so strictly heavier — and it
+  // was the only half left bare when its gob twin was wrapped. That twin-gets-
+  // missed pattern is now on its third occurrence, which is why the fence below
+  // stopped trusting a hardcoded page list (see scripts/check-db-budget.ts).
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchCustodyFunnel(ctx, { species }),
+      fetchTimeInState(ctx, { species }),
+      fetchReturnRate(ctx, { species }),
+      fetchFosterPoolUtilization(ctx),
+      fetchShelterOccupancyNational(ctx),
+      fetchAdoptionTrend(ctx, { species }),
+      fetchPrevAdoptionCount(ctx, { species }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {shell}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/admin/adopciones", sp)}
+        />
+      </div>
+    );
+  }
+  const [
+    funnel,
+    timeInState,
+    returnRateValue,
+    fosterPool,
+    shelterOccupancy,
+    adoptionTrend,
+    prevAdoptionCount,
+  ] = load.value;
+
+  const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
+
+  const fPct = funnelBarWidths(funnel);
+
+  const hasFunnel = funnel.intake > 0 || funnel.foster > 0 || funnel.adoption > 0;
+  const hasTrend = adoptionTrend.points.length > 0;
+
+  const returnRatePct = returnRateValue != null ? Math.round(returnRateValue * 1000) / 10 : null;
+
+  // Shelter custody + foster active placements as KPI values.
+  const shelterCustodyRow = timeInState.find((r) => r.role === "shelter_custody");
+  const fosterRow = timeInState.find((r) => r.role === "foster");
+
+  const panelFunnelId = "admin-panel-adopciones-embudo-titulo";
+  const panelTimeId = "admin-panel-adopciones-tiempo-titulo";
+  const panelOccupancyId = "admin-panel-adopciones-ocupacion-titulo";
+  const panelFosterPoolId = "admin-panel-adopciones-pool-titulo";
+  const panelTrendId = "admin-panel-adopciones-tendencia-titulo";
+
+  return (
+    <div className="space-y-6">
+      {/* Header + filter bar — hoisted above the load so the degraded branch
+          keeps them (see the `shell` definition). */}
+      {shell}
 
       {/* KPI row */}
       <section

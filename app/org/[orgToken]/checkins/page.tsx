@@ -10,7 +10,9 @@ import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { OpCard, OpCardBody } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { db, petEvents, pets, profiles, reminders } from "@/db";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { formatDateTimeNumericAr } from "@/lib/utils/format";
 import { requireCapability } from "@/src/modules/organizations/infrastructure/authz-resolver";
@@ -59,16 +61,41 @@ export default async function CheckinsPage({
   // event's previous_owner_organization_id was denormalized there at
   // adoption time precisely so this query stays simple (no ownerships
   // history scan).
-  const adoptedPetRows = await db
-    .select({ petId: petEvents.petId })
-    .from(petEvents)
-    .where(
-      and(
-        eq(petEvents.eventType, "adoption_finalized"),
-        sql`${petEvents.payload}->>'previous_owner_organization_id' = ${organization.id}`,
+  //
+  // BOUNDED (2026-08-09 resilience pass), and DISTINCT in SQL. The predicate is
+  // a JSON extraction on pet_events.payload, so it cannot use a plain index —
+  // and it carried no LIMIT and no deadline, which made this the heaviest
+  // unbounded await in the org portal. The dedup that was happening in JS
+  // (`new Set`) now happens in Postgres, so a pet adopted out twice stops
+  // costing a row on the wire.
+  //
+  // Deliberately NOT capped with a LIMIT: a cap here would silently drop
+  // adoptions from the check-in list with nothing on screen to say so. A
+  // deadline bounds the failure honestly; a LIMIT would hide it.
+  const adoptedLoad = await loadWithTimeout(
+    db
+      .selectDistinct({ petId: petEvents.petId })
+      .from(petEvents)
+      .where(
+        and(
+          eq(petEvents.eventType, "adoption_finalized"),
+          sql`${petEvents.payload}->>'previous_owner_organization_id' = ${organization.id}`,
+        ),
       ),
+  );
+  if (!adoptedLoad.ok) {
+    return (
+      <div className="max-w-3xl space-y-8">
+        <PageHeader orgName={organization.displayName} />
+        <AnalyticsLoadFallback
+          reason={adoptedLoad.reason}
+          retryHref={`/org/${orgToken}/checkins`}
+        />
+        <BackLink orgToken={orgToken} />
+      </div>
     );
-  const petIds = Array.from(new Set(adoptedPetRows.map((r) => r.petId)));
+  }
+  const petIds = adoptedLoad.value.map((r) => r.petId);
 
   // If nothing has been adopted out yet, there's nothing to dashboard. The
   // page still renders so the user has a stable entry point — the empty
@@ -89,49 +116,69 @@ export default async function CheckinsPage({
   // Recent check-ins received from adopters. Joined to pets for the name +
   // public token (CTA target) and to profiles via recordedByUserId for the
   // adopter display name.
-  const recentCheckins = await db
-    .select({
-      eventId: petEvents.id,
-      petId: petEvents.petId,
-      petName: pets.name,
-      publicToken: pets.publicToken,
-      occurredAt: petEvents.occurredAt,
-      notes: sql<string | null>`${petEvents.payload}->>'notes'`,
-      adopterName: profiles.displayName,
-    })
-    .from(petEvents)
-    .innerJoin(pets, eq(pets.id, petEvents.petId))
-    .leftJoin(profiles, eq(profiles.id, petEvents.recordedByUserId))
-    .where(and(eq(petEvents.eventType, "post_adoption_checkin"), inArray(petEvents.petId, petIds)))
-    .orderBy(desc(petEvents.occurredAt))
-    .limit(CHECKIN_CAP + 1);
+  // BOUNDED, and PARALLEL. These two lists share only `petIds`, which is
+  // already resolved — running them one after the other only added latency,
+  // and on a degraded DB it added it twice.
+  const listsLoad = await loadWithTimeout(
+    Promise.all([
+      db
+        .select({
+          eventId: petEvents.id,
+          petId: petEvents.petId,
+          petName: pets.name,
+          publicToken: pets.publicToken,
+          occurredAt: petEvents.occurredAt,
+          notes: sql<string | null>`${petEvents.payload}->>'notes'`,
+          adopterName: profiles.displayName,
+        })
+        .from(petEvents)
+        .innerJoin(pets, eq(pets.id, petEvents.petId))
+        .leftJoin(profiles, eq(profiles.id, petEvents.recordedByUserId))
+        .where(
+          and(eq(petEvents.eventType, "post_adoption_checkin"), inArray(petEvents.petId, petIds)),
+        )
+        .orderBy(desc(petEvents.occurredAt))
+        .limit(CHECKIN_CAP + 1),
+      // Open reminders. Reminder.userId is the adopter; join to profiles gives
+      // the display name. Split into overdue vs upcoming at render time.
+      db
+        .select({
+          reminderId: reminders.id,
+          petId: reminders.petId,
+          petName: pets.name,
+          publicToken: pets.publicToken,
+          dueAt: reminders.dueAt,
+          title: reminders.title,
+          adopterName: profiles.displayName,
+        })
+        .from(reminders)
+        .innerJoin(pets, eq(pets.id, reminders.petId))
+        .leftJoin(profiles, eq(profiles.id, reminders.userId))
+        .where(
+          and(
+            eq(reminders.reminderType, "post_adoption_checkin"),
+            inArray(reminders.petId, petIds),
+            isNull(reminders.completedAt),
+          ),
+        )
+        .orderBy(asc(reminders.dueAt))
+        .limit(CHECKIN_CAP + 1),
+    ]),
+  );
+  if (!listsLoad.ok) {
+    return (
+      <div className="max-w-3xl space-y-8">
+        <PageHeader orgName={organization.displayName} />
+        <AnalyticsLoadFallback reason={listsLoad.reason} retryHref={`/org/${orgToken}/checkins`} />
+        <BackLink orgToken={orgToken} />
+      </div>
+    );
+  }
+  const [recentCheckins, openReminders] = listsLoad.value;
+
   const checkinsTruncated = recentCheckins.length > CHECKIN_CAP;
   const displayCheckins = checkinsTruncated ? recentCheckins.slice(0, CHECKIN_CAP) : recentCheckins;
 
-  // Open reminders. Reminder.userId is the adopter; join to profiles gives
-  // the display name. Split into overdue vs upcoming at render time.
-  const openReminders = await db
-    .select({
-      reminderId: reminders.id,
-      petId: reminders.petId,
-      petName: pets.name,
-      publicToken: pets.publicToken,
-      dueAt: reminders.dueAt,
-      title: reminders.title,
-      adopterName: profiles.displayName,
-    })
-    .from(reminders)
-    .innerJoin(pets, eq(pets.id, reminders.petId))
-    .leftJoin(profiles, eq(profiles.id, reminders.userId))
-    .where(
-      and(
-        eq(reminders.reminderType, "post_adoption_checkin"),
-        inArray(reminders.petId, petIds),
-        isNull(reminders.completedAt),
-      ),
-    )
-    .orderBy(asc(reminders.dueAt))
-    .limit(CHECKIN_CAP + 1);
   const remindersTruncated = openReminders.length > CHECKIN_CAP;
   const displayReminders = remindersTruncated ? openReminders.slice(0, CHECKIN_CAP) : openReminders;
 

@@ -8,17 +8,19 @@
 // can be wired with useState/useTransition.
 
 import { db, ownerships, pets } from "@/db";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
 import { pluralizeEs } from "@/lib/utils/format";
 import { capRows } from "@/lib/utils/list-pagination";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
-import { and, eq, ilike, inArray, isNull, notInArray, sql } from "drizzle-orm";
+import { and, countDistinct, desc, eq, ilike, inArray, isNull, notInArray, sql } from "drizzle-orm";
 import Link from "next/link";
 
 import { Icon } from "@/components/Icon";
 import { CopyButton } from "@/components/ui/CopyButton";
 import { OpCallout, OpCrumbs } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 
 import { OrgMascotasBulkList } from "./OrgMascotasBulkList";
 import { OrgMascotasFilterBar } from "./OrgMascotasFilterBar";
@@ -37,6 +39,19 @@ const ROLE_PRIORITY: Record<string, number> = {
 // scrolling an unbounded one, and the truncated banner tells them when rows
 // are being hidden by the cap.
 const CUSTODY_LIST_CAP = 200;
+
+// SQL-side bound on the custody join (2026-08-09 resilience pass). The cap
+// above was applied in JS *after* fetching every active ownership row, so a
+// large shelter still paid for the whole set on every page load — the query was
+// unbounded, only the rendering was capped. The fetch now takes the newest
+// FETCH_CAP rows; the dedup + sort + cap below are unchanged, and because the
+// order matches the one the JS applies, the 200 rows that survive are the same
+// ones as before for any org under this ceiling.
+//
+// The headline count does NOT come from this slice — it is its own COUNT
+// (see totalActiveCustody), so an org above the ceiling still reads its true
+// size instead of the fetch limit.
+const CUSTODY_FETCH_CAP = CUSTODY_LIST_CAP * 5;
 
 export default async function OrgMascotasPage({
   params,
@@ -114,11 +129,43 @@ export default async function OrgMascotasPage({
   // (fetchAvailableForAdoption: active custody pets with adoption_eligible=true).
   if (adoptionEligibleFilter) whereConditions.push(eq(pets.adoptionEligible, true));
 
-  const orgRows = await db
-    .select({ pet: pets, ownershipRole: ownerships.role, startedAt: ownerships.startedAt })
-    .from(pets)
-    .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-    .where(and(...whereConditions));
+  // BOUNDED. Rows and the true total run together: the slice is what gets
+  // rendered, the count is what the subtitle claims, and separating them is
+  // what lets the fetch have a ceiling without the page lying about its size.
+  const listLoad = await loadWithTimeout(
+    Promise.all([
+      db
+        .select({ pet: pets, ownershipRole: ownerships.role, startedAt: ownerships.startedAt })
+        .from(pets)
+        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+        .where(and(...whereConditions))
+        .orderBy(desc(ownerships.startedAt))
+        .limit(CUSTODY_FETCH_CAP),
+      db
+        .select({ n: countDistinct(pets.id) })
+        .from(pets)
+        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+        .where(and(...whereConditions)),
+    ]),
+  );
+  if (!listLoad.ok) {
+    return (
+      <main className="min-h-screen bg-ln-op-page p-6">
+        <div className="max-w-3xl mx-auto space-y-6">
+          <OpCrumbs
+            items={[
+              { label: "Panel", href: `/org/${orgToken}` },
+              { label: "Mascotas en custodia" },
+            ]}
+          />
+          <h1 className="text-title font-semibold text-ln-op-ink">Mascotas en custodia</h1>
+          <AnalyticsLoadFallback reason={listLoad.reason} retryHref={`/org/${orgToken}/mascotas`} />
+        </div>
+      </main>
+    );
+  }
+  const [orgRows, totalRow] = listLoad.value;
+  const totalActiveCustody = totalRow[0]?.n ?? 0;
 
   // Collapse multi-custody rows: keep the highest-priority role per pet.
   const byPetId = new Map<string, (typeof orgRows)[number]>();
@@ -233,10 +280,12 @@ export default async function OrgMascotasPage({
             {/* Title matches the nav-rail item "Mascotas" (QA 2026-07-03:
                 sidebar said Mascotas, page said Animales en custodia). */}
             <h1 className="text-title font-semibold text-ln-op-ink">Mascotas en custodia</h1>
+            {/* The count is the org's TRUE size (its own COUNT), not the size
+                of the fetched slice — see CUSTODY_FETCH_CAP. */}
             <p className="text-md text-ln-op-ink-2">
-              {allCards.length === 0
+              {totalActiveCustody === 0
                 ? "Todavía no hay animales registrados a nombre de la organización."
-                : `${allCards.length} ${pluralizeEs(allCards.length, "animal")} bajo custodia activa.`}
+                : `${totalActiveCustody} ${pluralizeEs(totalActiveCustody, "animal")} bajo custodia activa.`}
             </p>
           </div>
           <div className="flex items-center gap-4">
@@ -252,7 +301,7 @@ export default async function OrgMascotasPage({
                 a filter active a 0-row screen says nothing about the roster, and
                 hiding the exit ramp there would be a lie about what miMAR
                 holds. */}
-            {(allCards.length > 0 || hasActiveFilters) && (
+            {(totalActiveCustody > 0 || hasActiveFilters) && (
               <a
                 href={`/org/${orgToken}/mascotas/exportar`}
                 className="text-md text-ln-op-azul hover:underline"
@@ -286,7 +335,10 @@ export default async function OrgMascotasPage({
 
         {truncated && (
           <p className="text-sm text-ln-op-mute">
-            Mostrando las primeras {CUSTODY_LIST_CAP} de {allCards.length}. Hay más — usá el
+            {/* The denominator is the org's true total, not the fetched slice —
+                citing allCards here would understate it for an org above
+                CUSTODY_FETCH_CAP, i.e. exactly the org this banner is for. */}
+            Mostrando las primeras {CUSTODY_LIST_CAP} de {totalActiveCustody}. Hay más — usá el
             buscador o el filtro de especie para acotar la lista.
           </p>
         )}

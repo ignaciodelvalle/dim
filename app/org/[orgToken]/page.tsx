@@ -26,6 +26,7 @@ import {
   OpKpi,
   OpPill,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import {
   type OrganizationCapability,
   db,
@@ -36,6 +37,7 @@ import {
   petEvents,
   serviceOfferings,
 } from "@/db";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
 import {
   type OrgQueueKey,
@@ -231,6 +233,60 @@ export default async function OrgDashboardPage({
 
   const canCreateServices = granted.has("service_offering.create");
 
+  // Header renders in BOTH the data and the degraded branches below. It reads
+  // only `organization` / `membership` / `userRole`, all resolved by the auth
+  // guard before any dashboard query runs, so a degraded DB still leaves the
+  // operator a titled page (and the org nav rail, which lives in the layout)
+  // instead of a bare error.
+  const header = (
+    <header className="space-y-1">
+      <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
+        Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
+      </p>
+      <h1 className="text-title font-semibold text-ln-op-ink">{organization.displayName}</h1>
+      <p className="text-md text-ln-op-mute">
+        Actuando como{" "}
+        <strong className="text-ln-op-ink-2">
+          {ROLE_LABELS[membership.role] ?? membership.role}
+        </strong>
+        {membership.title ? ` — ${membership.title}` : ""}
+        {/* Portal links are gated on userRole below — each link carries its
+            own leading separator so a plain org member never sees a dangling
+            "·" with nothing after it. */}
+        {userRole === "admin" && (
+          <>
+            {" · "}
+            <Link href="/admin" className="text-ln-op-azul hover:underline">
+              Admin
+            </Link>
+          </>
+        )}
+        {(userRole === "govt" || userRole === "admin") && (
+          <>
+            {" · "}
+            <Link href="/gob" className="text-ln-op-azul hover:underline">
+              Gobierno
+            </Link>
+          </>
+        )}
+      </p>
+      {!organization.verified && (
+        <OpBreach
+          title="Verificación pendiente"
+          detail="Los eventos que registres se marcarán como no verificados hasta que la documentación sea aprobada."
+        />
+      )}
+    </header>
+  );
+
+  /** Degraded panel: the header stays, the body says so honestly. */
+  const degradedPanel = (reason: "timeout" | "error") => (
+    <div className="space-y-6">
+      {header}
+      <AnalyticsLoadFallback reason={reason} retryHref={`/org/${orgToken}`} />
+    </div>
+  );
+
   // Setup checklist inputs (Item 19) — run in parallel with dashboard projections.
   //
   // `firstAnimalRow` is an EXISTENCE probe, not a count: the checklist only asks
@@ -242,8 +298,13 @@ export default async function OrgDashboardPage({
   // list is both cheaper and the one that matches what the operator will see.
   // `isRehoming` (above) is the same shelter|rescue_network custody gate the
   // checklist applies to its own firstAnimal step — one predicate, one meaning.
-  const [coverageCountRow, memberCountRow, servicesCountRow, firstAnimalRow, firstSignedEventRow] =
-    await Promise.all([
+  //
+  // BOUNDED (2026-08-09 resilience pass). This is the first of three SEQUENTIAL
+  // stages on the org panel, none of which had a deadline: unbounded, a
+  // degraded pooler left an organization's landing page hanging with no error
+  // and nothing in the logs — the same failure the /gob portal was fixed for.
+  const setupLoad = await loadWithTimeout(
+    Promise.all([
       db
         .select({ n: count() })
         .from(organizationCoverage)
@@ -281,7 +342,11 @@ export default async function OrgDashboardPage({
             .from(petEvents)
             .where(eq(petEvents.authorOrganizationId, organization.id))
             .limit(1),
-    ]);
+    ]),
+  );
+  if (!setupLoad.ok) return degradedPanel(setupLoad.reason);
+  const [coverageCountRow, memberCountRow, servicesCountRow, firstAnimalRow, firstSignedEventRow] =
+    setupLoad.value;
 
   const setupSteps = deriveSetupSteps({
     orgType: organization.orgType,
@@ -321,12 +386,17 @@ export default async function OrgDashboardPage({
     (memberCountRow[0]?.n ?? 0) === 1 &&
     granted.has("appointment.manage")
   ) {
-    const todayAgenda = await fetchTodayAgenda(organization.id);
+    // BOUNDED — this landing IS today's agenda, so an unbounded fetch here
+    // hangs the one screen a solo clinic opens every morning. Degrading is not
+    // an option worth faking: an empty agenda would read as "no tenés turnos
+    // hoy", which is the opposite of the truth.
+    const agendaLoad = await loadWithTimeout(fetchTodayAgenda(organization.id));
+    if (!agendaLoad.ok) return degradedPanel(agendaLoad.reason);
     return (
       <SoloVetAgendaLanding
         orgToken={orgToken}
         orgName={organization.displayName}
-        appointments={todayAgenda}
+        appointments={agendaLoad.value}
         checklistSteps={showChecklist && isAdmin ? setupSteps : null}
       />
     );
@@ -353,20 +423,26 @@ export default async function OrgDashboardPage({
   // getOrgQueueCountsCached itself never rejects on an individual counter
   // failure — a bad query degrades just that key to `null` (HIGH 4) — so it
   // can safely sit inside this Promise.all without risking the whole panel.
-  const [queueCounts, census, actionItems] = await Promise.all([
-    getOrgQueueCountsCached(organization.id, orgQueueCacheKey(orgQueues.map((q) => q.key))),
-    isShelter ? fetchOrgCensus(organization.id) : Promise.resolve(null),
-    isShelter ? fetchRequiresAction(organization.id) : Promise.resolve([]),
-  ]);
-
-  // Shelter-only KPIs run in parallel.
-  const [intakesLastWeek, availableForAdopt, activeAdoptions] = isShelter
-    ? await Promise.all([
-        fetchIntakesLastWeek(organization.id),
-        fetchAvailableForAdoption(organization.id),
-        fetchActiveAdoptions(organization.id),
-      ])
-    : [0, 0, 0];
+  //
+  // BOUNDED, and MERGED with the shelter KPI batch that used to follow it as a
+  // third sequential stage. Nothing in that batch consumed a result from this
+  // one — `isShelter` is known well before either — so the serialization only
+  // ever added latency, and on a slow DB it added it twice over.
+  const dashboardLoad = await loadWithTimeout(
+    Promise.all([
+      getOrgQueueCountsCached(organization.id, orgQueueCacheKey(orgQueues.map((q) => q.key))),
+      isShelter ? fetchOrgCensus(organization.id) : Promise.resolve(null),
+      isShelter ? fetchRequiresAction(organization.id) : Promise.resolve([]),
+      // Shelter-only KPIs. Non-shelters resolve to 0 without touching the DB —
+      // the tiles that read them are not rendered for those org types.
+      isShelter ? fetchIntakesLastWeek(organization.id) : Promise.resolve(0),
+      isShelter ? fetchAvailableForAdoption(organization.id) : Promise.resolve(0),
+      isShelter ? fetchActiveAdoptions(organization.id) : Promise.resolve(0),
+    ]),
+  );
+  if (!dashboardLoad.ok) return degradedPanel(dashboardLoad.reason);
+  const [queueCounts, census, actionItems, intakesLastWeek, availableForAdopt, activeAdoptions] =
+    dashboardLoad.value;
 
   // Occupancy breakdown — only meaningful for shelters with capacity columns.
   const occupancyBreakdown =
@@ -424,45 +500,8 @@ export default async function OrgDashboardPage({
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <header className="space-y-1">
-        <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
-          Panel de {ORG_TYPE_LABELS[organization.orgType] ?? "organización"}
-        </p>
-        <h1 className="text-title font-semibold text-ln-op-ink">{organization.displayName}</h1>
-        <p className="text-md text-ln-op-mute">
-          Actuando como{" "}
-          <strong className="text-ln-op-ink-2">
-            {ROLE_LABELS[membership.role] ?? membership.role}
-          </strong>
-          {membership.title ? ` — ${membership.title}` : ""}
-          {/* Portal links are gated on userRole below — each link carries its
-              own leading separator so a plain org member never sees a dangling
-              "·" with nothing after it. */}
-          {userRole === "admin" && (
-            <>
-              {" · "}
-              <Link href="/admin" className="text-ln-op-azul hover:underline">
-                Admin
-              </Link>
-            </>
-          )}
-          {(userRole === "govt" || userRole === "admin") && (
-            <>
-              {" · "}
-              <Link href="/gob" className="text-ln-op-azul hover:underline">
-                Gobierno
-              </Link>
-            </>
-          )}
-        </p>
-        {!organization.verified && (
-          <OpBreach
-            title="Verificación pendiente"
-            detail="Los eventos que registres se marcarán como no verificados hasta que la documentación sea aprobada."
-          />
-        )}
-      </header>
+      {/* Page header — hoisted above the loads so the degraded branches keep it. */}
+      {header}
 
       {/* Role-first lead (critique §4): a non-admin member's primary job, up top. */}
       {primaryJob && (

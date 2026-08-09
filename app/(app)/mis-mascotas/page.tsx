@@ -34,7 +34,9 @@ import type { LnPetStatus } from "@/components/ui/Chip";
 import { LnSectionHead } from "@/components/ui/DocElements";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { LnRegRow, LnRegistry } from "@/components/ui/RegRow";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { attachments, db, ownerships, pets } from "@/db";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   countOutgoingPendingTransfers,
   countPendingApplications,
@@ -111,6 +113,55 @@ export default async function MisMascotasPage({
     nameFilter,
   );
 
+  // BOUNDED (2026-08-09 resilience pass). Eight aggregates on the page an owner
+  // opens first, awaited bare: on a degraded pooler this hung with no error and
+  // nothing in the logs — the same shape as the /gob outage, on the citizen
+  // side, where nobody is watching a dashboard to notice.
+  const load = await loadWithTimeout(
+    Promise.all([
+      db
+        .select({
+          pet: PET_CARD_SELECT,
+          photo: PET_CARD_PHOTO_SELECT,
+          ownershipRole: ownerships.role,
+        })
+        .from(pets)
+        .innerJoin(ownerships, eq(ownerships.petId, pets.id))
+        .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
+        .where(ownedWhere)
+        // Deterministic order so WHICH rows survive the cap isn't DB-order luck —
+        // newest first, the same tiebreak fetchPetsForOwner uses. Final display
+        // order is re-derived by urgency (sortedActivePets) below.
+        .orderBy(desc(pets.createdAt))
+        // Hard cap: prevents loading thousands of pet rows into JS for high-volume
+        // owners. Full pagination is tracked as a follow-up improvement.
+        .limit(MIS_MASCOTAS_LIMIT),
+      // Count matching the SAME filter — so the cap notice reads honestly whether
+      // or not a search is active ("showing N of M matching").
+      db
+        .select({ n: count() })
+        .from(ownerships)
+        .innerJoin(pets, eq(pets.id, ownerships.petId))
+        .where(ownedWhere)
+        .then((r) => Number(r[0]?.n ?? 0)),
+      countPendingApplications(user.id),
+      countPendingTransfers(user.id, userEmail),
+      countOutgoingPendingTransfers(user.id),
+      fetchOpenWorkflows(user.id),
+      fetchPreviousWorkflows(user.id),
+      fetchActiveReminders(user.id),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
+        <h1 className="m-0 mb-6 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+          Mis mascotas
+        </h1>
+        <AnalyticsLoadFallback reason={load.reason} retryHref="/mis-mascotas" />
+      </div>
+    );
+  }
   const [
     ownedPets,
     matchingTotal,
@@ -120,39 +171,7 @@ export default async function MisMascotasPage({
     openWorkflows,
     previousWorkflows,
     reminders,
-  ] = await Promise.all([
-    db
-      .select({
-        pet: PET_CARD_SELECT,
-        photo: PET_CARD_PHOTO_SELECT,
-        ownershipRole: ownerships.role,
-      })
-      .from(pets)
-      .innerJoin(ownerships, eq(ownerships.petId, pets.id))
-      .leftJoin(attachments, eq(attachments.id, pets.primaryPhotoId))
-      .where(ownedWhere)
-      // Deterministic order so WHICH rows survive the cap isn't DB-order luck —
-      // newest first, the same tiebreak fetchPetsForOwner uses. Final display
-      // order is re-derived by urgency (sortedActivePets) below.
-      .orderBy(desc(pets.createdAt))
-      // Hard cap: prevents loading thousands of pet rows into JS for high-volume
-      // owners. Full pagination is tracked as a follow-up improvement.
-      .limit(MIS_MASCOTAS_LIMIT),
-    // Count matching the SAME filter — so the cap notice reads honestly whether
-    // or not a search is active ("showing N of M matching").
-    db
-      .select({ n: count() })
-      .from(ownerships)
-      .innerJoin(pets, eq(pets.id, ownerships.petId))
-      .where(ownedWhere)
-      .then((r) => Number(r[0]?.n ?? 0)),
-    countPendingApplications(user.id),
-    countPendingTransfers(user.id, userEmail),
-    countOutgoingPendingTransfers(user.id),
-    fetchOpenWorkflows(user.id),
-    fetchPreviousWorkflows(user.id),
-    fetchActiveReminders(user.id),
-  ]);
+  ] = load.value;
 
   // Split into active (ok/registered/lost/pregnant) and deceased.
   const activePets = ownedPets.filter(({ pet }) => pet.status !== "deceased");
@@ -160,10 +179,20 @@ export default async function MisMascotasPage({
 
   // Same compliance projection the pet-profile header + carousel derive — the
   // card chip must agree with the detail header (one pet, one status truth).
-  const complianceByPet = await fetchComplianceStatesForPets(
-    user.id,
-    activePets.map(({ pet }) => pet.id),
+  // BOUNDED separately: it genuinely depends on activePets, so it cannot join
+  // the batch above. Its budget is short and its failure is soft — an absent
+  // compliance map falls through to statusForPet's existing no-compliance
+  // branch (lost / pregnant / registered), which is the same thing a pet with
+  // no compliance record already renders. Losing a freshness chip beats losing
+  // the page.
+  const complianceLoad = await loadWithTimeout(
+    fetchComplianceStatesForPets(
+      user.id,
+      activePets.map(({ pet }) => pet.id),
+    ),
+    3_000,
   );
+  const complianceByPet = complianceLoad.ok ? complianceLoad.value : new Map();
 
   // Single status mapper shared with the carousel + pet profile
   // (lnPetStatusFromCompliance). The no-compliance fallback mirrors the
