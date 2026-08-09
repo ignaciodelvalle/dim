@@ -23,8 +23,10 @@ import {
   OpKpi,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -146,6 +148,28 @@ export default async function GobAdopcionesPage({
   // config that can't be split by species — narrowing only the numerator
   // would reproduce the exact mixed-scope-ratio dishonesty this page already
   // fences off for local operators (see the "escala nacional" comment below).
+  // BOUNDED — eight population-scale aggregates, the biggest fan-out in the
+  // portal after panorama, awaited bare until the 2026-08-09 outage pass.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchCustodyFunnel(ctx, { species }),
+      fetchTimeInState(ctx, { species }),
+      fetchReturnRate(ctx, { species }),
+      fetchFosterPoolUtilization(ctx),
+      fetchShelterOccupancyNational(ctx),
+      fetchAdoptionTrend(ctx, { species }),
+      fetchAdoptionApplicationFunnel(ctx, { species }),
+      fetchPrevAdoptionCount(ctx, { species }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/adopciones", sp)}
+      />
+    );
+  }
   const [
     funnel,
     timeInState,
@@ -155,16 +179,7 @@ export default async function GobAdopcionesPage({
     adoptionTrend,
     appFunnel,
     prevAdoptionCount,
-  ] = await Promise.all([
-    fetchCustodyFunnel(ctx, { species }),
-    fetchTimeInState(ctx, { species }),
-    fetchReturnRate(ctx, { species }),
-    fetchFosterPoolUtilization(ctx),
-    fetchShelterOccupancyNational(ctx),
-    fetchAdoptionTrend(ctx, { species }),
-    fetchAdoptionApplicationFunnel(ctx, { species }),
-    fetchPrevAdoptionCount(ctx, { species }),
-  ]);
+  ] = load.value;
 
   const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
 

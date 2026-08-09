@@ -29,8 +29,10 @@ import {
   OpKpiSm,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import {
@@ -192,12 +194,24 @@ export default async function GobMortalidadPage({
   // event-type trend helper models; the sparkline is a decorative secondary
   // signal, not the headline tile, so this is an accepted minor inconsistency
   // when a cause filter is active.
-  const [m, causesTrend, deathSparkline, prevTotal] = await Promise.all([
-    fetchMortalityDisposition(ctx, { species, cause }),
-    fetchDeathCausesTrend(ctx, { species, cause }),
-    fetchKpiTrend("death_recorded", ctx, { species }),
-    fetchPrevMortalityTotal(ctx, { species, cause }),
-  ]);
+  // BOUNDED (outage pass 2026-08-09).
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchMortalityDisposition(ctx, { species, cause }),
+      fetchDeathCausesTrend(ctx, { species, cause }),
+      fetchKpiTrend("death_recorded", ctx, { species }),
+      fetchPrevMortalityTotal(ctx, { species, cause }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/mortalidad", sp)}
+      />
+    );
+  }
+  const [m, causesTrend, deathSparkline, prevTotal] = load.value;
 
   const deathsDelta = formatDelta(m.total, prevTotal, "vs período anterior");
 

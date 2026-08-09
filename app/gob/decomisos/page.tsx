@@ -29,9 +29,11 @@ import {
   OpKpi,
   OpPill,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { cases, db, organizations, pets } from "@/db";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchSeizures } from "@/lib/analytics/compliance-metrics";
 import { requireDecomisoPrincipal } from "@/lib/infra/auth-guards";
 import { buildProjectionContext } from "@/lib/metrics";
@@ -212,7 +214,17 @@ export default async function DecomisosDashboardPage({
     session.jurisdictions,
     period,
   );
-  const seizures = await fetchSeizures(seizuresCtx);
+  // BOUNDED (outage pass 2026-08-09) — a GROUP BY over the seizure ledger.
+  const load = await loadWithTimeout(fetchSeizures(seizuresCtx));
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/decomisos")}
+      />
+    );
+  }
+  const seizures = load.value;
 
   return (
     <div className="space-y-6">

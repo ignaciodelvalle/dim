@@ -7,7 +7,9 @@ import {
   OpFilterBar,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchSurveillanceSignals } from "@/lib/analytics/govt-dashboards";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { computeConfidence, isAtLeast } from "@/lib/events/event-confidence";
@@ -77,10 +79,20 @@ export default async function GobVigilanciaBrotesPage({
   const diseaseCode =
     sp.diseaseCode && DISEASES.some((d) => d.code === sp.diseaseCode) ? sp.diseaseCode : undefined;
 
-  const allSignals = await fetchSurveillanceSignals(actor, filteredJurisdictions, {
-    since,
-    diseaseCode,
-  });
+  // BOUNDED (outage pass 2026-08-09). /gob/vigilancia bounds this same fetcher;
+  // the brotes sub-route did not.
+  const load = await loadWithTimeout(
+    fetchSurveillanceSignals(actor, filteredJurisdictions, { since, diseaseCode }),
+  );
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/vigilancia/brotes", sp)}
+      />
+    );
+  }
+  const allSignals = load.value;
 
   // A.5: tier-based filter — "Solo verificados institucionalmente"
   // When the checkbox is active, filter to signals where tier >= professional_verified.

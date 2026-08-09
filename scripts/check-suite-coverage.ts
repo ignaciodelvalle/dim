@@ -112,9 +112,7 @@ if (failed > 0) {
   }
   if (suspect.length > 0) {
     console.error(
-      `\n${suspect.length} test(s) carry the DEAD-WORKER signature (STACK_TRACE_ERROR, no assertion).` +
-        "\nThat is usually a worker fork dying, not a defect. Re-run these files together in" +
-        "\nisolation before believing them — and if they pass, say so rather than calling the gate green:\n",
+      `\n${suspect.length} test(s) carry the DEAD-WORKER signature (STACK_TRACE_ERROR, no assertion).\nThat is usually a worker fork dying, not a defect. Re-run these files together in\nisolation before believing them — and if they pass, say so rather than calling the gate green:\n`,
     );
     for (const t of suspect) console.error(`   ${t}`);
   }

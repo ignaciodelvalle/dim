@@ -18,8 +18,10 @@ import {
   OpKpi,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { fetchQueueHealthScoped } from "@/lib/analytics/admin-metrics";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { fetchEnoSla } from "@/lib/analytics/surveillance-metrics";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -98,10 +100,23 @@ export default async function GobSistemaPage({
     adminLocality,
   });
 
-  const [enoSla, queue] = await Promise.all([
-    fetchEnoSla(ctx),
-    fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
-  ]);
+  // BOUNDED (outage pass 2026-08-09). /admin/sistema was already in the
+  // db-budget fence; its gob twin never was.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchEnoSla(ctx),
+      fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/sistema", sp)}
+      />
+    );
+  }
+  const [enoSla, queue] = load.value;
 
   return (
     <div className="space-y-6">

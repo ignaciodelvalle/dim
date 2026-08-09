@@ -53,6 +53,7 @@ import {
   OpFilterBar,
   parseCasoEstado,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { CaseQueue, type CaseQueueRow } from "@/components/ui/dashboard/CaseQueue";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { ViewScopeCaption } from "@/components/ui/dashboard/ViewScopeCaption";
@@ -61,6 +62,7 @@ import {
   caseQueueCsvOrderNote,
   caseQueueCsvRows,
 } from "@/components/ui/dashboard/case-queue-csv";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
@@ -186,9 +188,11 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   // mandatory jurisdiction-membership predicate — this branch is the ONLY
   // place scope diverges.
   const offset = (page - 1) * GOVT_CASOS_PAGE_LIMIT;
-  const [rawItems, totalCount] =
+  // BOUNDED (outage pass 2026-08-09). The branch stays — admin and govt read
+  // through different scoping helpers — and one deadline covers both arms.
+  const load = await loadWithTimeout(
     scope.role === "admin"
-      ? await Promise.all([
+      ? Promise.all([
           listCasesForAdmin({
             limit: GOVT_CASOS_PAGE_LIMIT + 1,
             cursor: rawCursor,
@@ -198,7 +202,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
           }),
           countCasesForAdmin(filters),
         ])
-      : await Promise.all([
+      : Promise.all([
           listCasesForGovt(scope.jurisdictions, {
             limit: GOVT_CASOS_PAGE_LIMIT + 1,
             cursor: rawCursor,
@@ -207,7 +211,15 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
             filters,
           }),
           countCasesForGovt(scope.jurisdictions, filters),
-        ]);
+        ]),
+  );
+  // loadCasosForViewer returns DATA, not JSX, so the degraded state travels back
+  // as a flag and the component renders the notice. Returning a fallback element
+  // from here would widen this function's return type to `Element | {...}` and
+  // break every consumer of its fields — which is exactly what the first
+  // attempt did.
+  const degradedReason = load.ok ? null : load.reason;
+  const [rawItems, totalCount] = load.ok ? load.value : [[], 0];
   const hasMore = rawItems.length > GOVT_CASOS_PAGE_LIMIT;
   const items = hasMore ? rawItems.slice(0, GOVT_CASOS_PAGE_LIMIT) : rawItems;
 
@@ -285,6 +297,7 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
           : "Sin casos en tu jurisdicción por ahora.";
 
   return {
+    degradedReason,
     activeStatus,
     casoEstado,
     kindFilter,
@@ -365,6 +378,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
     totalCount,
     emptyMessage,
     hasFilters,
+    degradedReason,
   } = await loadCasosForViewer(sp, scope);
 
   // Q1 (CSV export parity) — the shared CaseQueue CSV projection: exactly the
@@ -381,6 +395,12 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
 
   return (
     <div className="space-y-6">
+      {degradedReason && (
+        <AnalyticsLoadFallback
+          reason={degradedReason}
+          retryHref={analyticsRetryHref("/gob/casos", sp)}
+        />
+      )}
       <ScreenHeader
         underHub={underHub}
         className="mb-6 space-y-1"

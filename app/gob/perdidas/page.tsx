@@ -15,8 +15,10 @@ import {
   SearchFilterField,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { aggregateChoroplethData, scopedChoroplethProps } from "@/lib/analytics/choropleth-data";
 import { fetchReunificationRate } from "@/lib/analytics/compliance-metrics";
 import {
@@ -170,56 +172,75 @@ export default async function GobPerdidasPage({
   // Scope: filteredJurisdictions for govt (no-op for admin, whose
   // jurisdictions is already []), plus the admin province/locality drill-down
   // predicate.
-  const lostPets = await fetchLostPets(actor, filteredJurisdictions, {
-    since: listSince,
-    species,
-    status: statusFilter,
-    q,
-    adminProvince,
-    adminLocality,
-  });
+  // BOUNDED (outage pass 2026-08-09). Four SEQUENTIAL awaits — metrics and
+  // caseCodesByPet genuinely depend on lostPets, so the order stays exactly as
+  // it was; what was missing is a deadline over the chain. Sequential means the
+  // latencies ADD, which is precisely why an unbounded version of this page was
+  // among the slowest to give up on a degraded pooler.
+  const load = await loadWithTimeout(
+    (async () => {
+      const lostPets = await fetchLostPets(actor, filteredJurisdictions, {
+        since: listSince,
+        species,
+        status: statusFilter,
+        q,
+        adminProvince,
+        adminLocality,
+      });
 
-  // avgDaysActive must be computed over the UNFILTERED in-scope lost pets
-  // (the full set of currently-lost pets, not just the display slice). When
-  // no display filters are active the fetched list already represents that
-  // full set, so we can pass it to avoid a second DB round-trip. When any
-  // filter is active (q, species, or a non-"lost" status tab) the pre-fetched
-  // rows are a filtered subset — passing them would silently scope
-  // avgDaysActive to that subset instead of the whole population. In that
-  // case, omit opts.lostPets so fetchPerdidasMetrics fetches the unfiltered
-  // scope internally.
-  //
-  // "No display filters" = q absent, species absent, statusFilter the default
-  // "lost" (there's no period window — listSince is always undefined, the
-  // full stock). Only then are the fetched rows the unfiltered set
-  // fetchPerdidasMetrics needs. Same scope as fetchLostPets above
-  // (filteredJurisdictions + admin drill-down) so the reused `lostPets` rows
-  // and this KPI's own internal queries agree on what "in scope" means — a
-  // jurisdiction selection NARROWS the scope itself, it is not a display
-  // filter, so the reused rows remain the full in-scope population
-  // avgDaysActive requires.
-  const noDisplayFilters = !q && !species && statusFilter === "lost" && listSince === undefined;
-  const metrics = await fetchPerdidasMetrics(actor, filteredJurisdictions, {
-    lostPets: noDisplayFilters ? lostPets : undefined,
-    adminProvince,
-    adminLocality,
-  });
+      // avgDaysActive must be computed over the UNFILTERED in-scope lost pets
+      // (the full set of currently-lost pets, not just the display slice). When
+      // no display filters are active the fetched list already represents that
+      // full set, so we can pass it to avoid a second DB round-trip. When any
+      // filter is active (q, species, or a non-"lost" status tab) the pre-fetched
+      // rows are a filtered subset — passing them would silently scope
+      // avgDaysActive to that subset instead of the whole population. In that
+      // case, omit opts.lostPets so fetchPerdidasMetrics fetches the unfiltered
+      // scope internally.
+      //
+      // "No display filters" = q absent, species absent, statusFilter the default
+      // "lost" (there's no period window — listSince is always undefined, the
+      // full stock). Only then are the fetched rows the unfiltered set
+      // fetchPerdidasMetrics needs. Same scope as fetchLostPets above
+      // (filteredJurisdictions + admin drill-down) so the reused `lostPets` rows
+      // and this KPI's own internal queries agree on what "in scope" means — a
+      // jurisdiction selection NARROWS the scope itself, it is not a display
+      // filter, so the reused rows remain the full in-scope population
+      // avgDaysActive requires.
+      const noDisplayFilters = !q && !species && statusFilter === "lost" && listSince === undefined;
+      const metrics = await fetchPerdidasMetrics(actor, filteredJurisdictions, {
+        lostPets: noDisplayFilters ? lostPets : undefined,
+        adminProvince,
+        adminLocality,
+      });
 
-  // D4 reunification rate (Item 4) — lost episodes returned to active within a
-  // fixed trailing 30d window, plus median days-to-recovery. No period control
-  // on this page (PO decision 2026-07-19): `period` above is always
-  // windows.trailing30d(), jurisdiction-scoped via ProjectionContext. Same
-  // scope as above: filteredJurisdictions for govt, admin drill-down opts for admin.
-  const reunificationCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
-    adminProvince,
-    adminLocality,
-  });
-  const reunification = await fetchReunificationRate(reunificationCtx);
+      // D4 reunification rate (Item 4) — lost episodes returned to active within a
+      // fixed trailing 30d window, plus median days-to-recovery. No period control
+      // on this page (PO decision 2026-07-19): `period` above is always
+      // windows.trailing30d(), jurisdiction-scoped via ProjectionContext. Same
+      // scope as above: filteredJurisdictions for govt, admin drill-down opts for admin.
+      const reunificationCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
+        adminProvince,
+        adminLocality,
+      });
+      const reunification = await fetchReunificationRate(reunificationCtx);
 
-  // Surface the CAS- case code for each lost pet. Keyed lookup over the already
-  // jurisdiction-scoped lostPets (no new nationwide query) — each row links to
-  // its lost_pet_episode case at /gob/casos/{code}.
-  const caseCodesByPet = await fetchLostEpisodeCaseCodesForPets(lostPets.map((p) => p.petId));
+      // Surface the CAS- case code for each lost pet. Keyed lookup over the already
+      // jurisdiction-scoped lostPets (no new nationwide query) — each row links to
+      // its lost_pet_episode case at /gob/casos/{code}.
+      const caseCodesByPet = await fetchLostEpisodeCaseCodesForPets(lostPets.map((p) => p.petId));
+      return { lostPets, metrics, reunification, reunificationCtx, caseCodesByPet };
+    })(),
+  );
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/perdidas", sp)}
+      />
+    );
+  }
+  const { lostPets, metrics, reunification, reunificationCtx, caseCodesByPet } = load.value;
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 

@@ -5,6 +5,7 @@ import { AdminKpiStrip } from "@/components/admin/AdminKpiStrip";
 import { CronsDownBanner } from "@/components/admin/CronsDownBanner";
 import { QueueHealthCockpit } from "@/components/admin/QueueHealthCockpit";
 import { NovedadesCard } from "@/components/operator/NovedadesCard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import {
@@ -13,6 +14,7 @@ import {
   fetchQueueCockpit,
   fetchUserMetrics,
 } from "@/lib/analytics/admin-metrics";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
 import { buildProjectionContext, decisionsDeltaPct } from "@/lib/metrics";
 import { fetchNovedadesGroupedFeed } from "@/lib/metrics/novedades-feed";
@@ -28,19 +30,28 @@ export default async function AdminDashboardPage() {
   // per-user watermark, not the ctx period.
   const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
-  const [users, cockpit, decisions, novedades, failedCronNames] = await Promise.all([
-    fetchUserMetrics(),
-    // Epic D: every operational queue counted (approvals broken out per type)
-    // for the cockpit — replaces the old lumped fetchQueueHealth number.
-    fetchQueueCockpit(),
-    fetchDecisionsMetrics(),
-    // Session-start orientation feed (universal scope for admin), grouped by
-    // type + locality with a distinct-subject count (Cowork M2).
-    fetchNovedadesGroupedFeed(adminCtx, user.id),
-    // Crons-down banner (operator-trust T3): any background job whose latest run
-    // failed. One DISTINCT ON query — cheap enough for the dashboard hot path.
-    fetchFailedCronNames(),
-  ]);
+  // BOUNDED (outage pass 2026-08-09) — the admin landing page's five
+  // aggregates. Unbounded, a degraded pooler made the first screen an operator
+  // sees hang with nothing in the logs.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchUserMetrics(),
+      // Epic D: every operational queue counted (approvals broken out per type)
+      // for the cockpit — replaces the old lumped fetchQueueHealth number.
+      fetchQueueCockpit(),
+      fetchDecisionsMetrics(),
+      // Session-start orientation feed (universal scope for admin), grouped by
+      // type + locality with a distinct-subject count (Cowork M2).
+      fetchNovedadesGroupedFeed(adminCtx, user.id),
+      // Crons-down banner (operator-trust T3): any background job whose latest run
+      // failed. One DISTINCT ON query — cheap enough for the dashboard hot path.
+      fetchFailedCronNames(),
+    ]),
+  );
+  if (!load.ok) {
+    return <AnalyticsLoadFallback reason={load.reason} retryHref={analyticsRetryHref("/admin")} />;
+  }
+  const [users, cockpit, decisions, novedades, failedCronNames] = load.value;
 
   // deltaV2 for decisions: compare 7d vs the approximated prior 7d window.
   // Shared helper (decisionsDeltaPct) is the single source of truth — same

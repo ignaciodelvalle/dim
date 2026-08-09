@@ -110,6 +110,22 @@ export const DASHBOARD_PAGES = [
   // works in unbounded, which is worse than fixing neither.
   "app/admin/layout.tsx",
   "app/gob/maltrato/MaltratoQueueScreen.tsx",
+  // The remaining eight the second review named. Same outage, same rule:
+  // registered in the pass that wrapped them. gob/perdidas was the worst of the
+  // set — four SEQUENTIAL awaits, so its latencies added; the chain's order is
+  // preserved (metrics and caseCodesByPet genuinely depend on lostPets) and one
+  // deadline now covers it. gob/sistema and vigilancia/brotes are the twins of
+  // pages already in this list: /admin/sistema was enforced and its gob
+  // counterpart was not, and /gob/vigilancia bounds the same fetcher its own
+  // sub-route left bare.
+  "app/gob/perdidas/page.tsx",
+  "app/gob/adopciones/page.tsx",
+  "app/gob/mortalidad/page.tsx",
+  "app/gob/casos/CasosScreen.tsx",
+  "app/gob/decomisos/page.tsx",
+  "app/gob/sistema/page.tsx",
+  "app/gob/vigilancia/brotes/page.tsx",
+  "app/admin/page.tsx",
 ] as const;
 
 // The route-handler globs scanned.
