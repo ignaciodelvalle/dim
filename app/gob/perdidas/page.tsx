@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import { MapChoroplethDynamic } from "@/components/charts/MapChoroplethDynamic";
 import { LnEmptyState } from "@/components/ui/EmptyState";
@@ -167,80 +167,186 @@ export default async function GobPerdidasPage({
     adminLocality,
   });
 
-  // Fetch the display list with all active display filters applied. `listSince`
-  // is always undefined (no period control — full currently-lost stock).
-  // Scope: filteredJurisdictions for govt (no-op for admin, whose
-  // jurisdictions is already []), plus the admin province/locality drill-down
-  // predicate.
-  // BOUNDED (outage pass 2026-08-09). Four SEQUENTIAL awaits — metrics and
-  // caseCodesByPet genuinely depend on lostPets, so the order stays exactly as
-  // it was; what was missing is a deadline over the chain. Sequential means the
-  // latencies ADD, which is precisely why an unbounded version of this page was
-  // among the slowest to give up on a degraded pooler.
+  // Header + filter bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx). Neither depends on the fetchers
+  // below: the bar is built from allowedProvinces/localities, resolved by the
+  // already-awaited resolveJurisdictionScope. Dropping it on timeout took away
+  // the one control that could have narrowed the query that timed out, and
+  // "Reintentar" re-issues the identical one — an operator with no province
+  // selected had no way back except editing the URL by hand.
+  const header = (
+    <ScreenHeader
+      className="space-y-2"
+      eyebrow="Pérdidas"
+      title="Mascotas perdidas"
+      subtitle={
+        <>
+          {/* The universal claim yields to the narrowed-view caption (never both). */}
+          {profile.role === "admin" ? (
+            narrowedView ? null : (
+              <p className="text-md text-ln-op-mute">Vista universal — todas las jurisdicciones.</p>
+            )
+          ) : (
+            <p className="text-md text-ln-op-mute">
+              Mascotas marcadas como perdidas dentro de tu cobertura.
+            </p>
+          )}
+          <ViewScopeCaption scope={narrowedView} />
+        </>
+      }
+    />
+  );
+
+  // Unified filter bar — jurisdiction + species axis + free-text search +
+  // active-filter chips. Status keeps its own UrlTabs control below (a
+  // queue-style tab set, not an OpFilterBar axis). Search (q) migrated
+  // into the bar's children slot via the shared SearchFilterField
+  // (gob-perdidas-search-migration, 2026-07-21) — same pattern as
+  // /gob/organizaciones and /gob/usuarios: q is a plain searchParam
+  // fetchLostPets already applies server-side, not a client-side map
+  // filter, so folding it in is a pure UI consistency move (the map's
+  // choroplethData is built FROM the already-q-filtered `lostPets`, so
+  // its scope is unchanged either way). Period is OMITTED: perdidas is a
+  // currently-lost STOCK view (PO decision 2026-07-19), not a
+  // period-scoped report — a date filter conceptually doesn't apply,
+  // mirrors /gob/maltrato's showPeriod={false}.
+  //
+  // `actions` is a parameter, not a constant: the CSV link is the one part of
+  // this bar that DOES depend on the fetched rows, so the degraded branch
+  // renders the bar without it rather than offering an export of nothing.
+  const filtersRow = (actions?: ReactNode) => (
+    <OpFilterBar
+      showPeriod={false}
+      jurisdiction={{ allowedProvinces, localities }}
+      savedViewsKey="op-saved-views:perdidas:v1"
+      actions={actions}
+      axes={
+        [
+          {
+            id: "species",
+            label: "Especie",
+            paramKey: "species",
+            options: SPECIES_OPTIONS,
+            current: sp.species ?? null,
+          },
+        ] satisfies OpFilterAxis[]
+      }
+    >
+      <SearchFilterField
+        paramKey="q"
+        value={q}
+        label="Buscar"
+        placeholder="Buscar por nombre de mascota o dueño/a"
+      />
+    </OpFilterBar>
+  );
+
+  // D4 reunification rate (Item 4) — lost episodes returned to active within a
+  // fixed trailing 30d window, plus median days-to-recovery. No period control
+  // on this page (PO decision 2026-07-19): `period` above is always
+  // windows.trailing30d(), jurisdiction-scoped via ProjectionContext. Same
+  // scope as every fetcher below: filteredJurisdictions for govt, admin
+  // drill-down opts for admin. Built out here because the freshness footer
+  // needs the context too.
+  const reunificationCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
+    adminProvince,
+    adminLocality,
+  });
+
+  // avgDaysActive must be computed over the UNFILTERED in-scope lost pets (the
+  // full set of currently-lost pets, not just the display slice). When no
+  // display filters are active the fetched list already represents that full
+  // set, so it can be handed over to avoid a second DB round-trip. When any
+  // filter is active (q, species, or a non-"lost" status tab) the fetched rows
+  // are a subset — passing them would silently scope avgDaysActive to it — so
+  // opts.lostPets is omitted and fetchPerdidasMetrics resolves the unfiltered
+  // scope itself.
+  //
+  // "No display filters" = q absent, species absent, statusFilter the default
+  // "lost" (there's no period window — listSince is always undefined, the full
+  // stock). A jurisdiction selection NARROWS the scope itself, it is not a
+  // display filter, so it does not disqualify the reuse.
+  const noDisplayFilters = !q && !species && statusFilter === "lost" && listSince === undefined;
+
+  // Fetch the display list with all active display filters applied, plus every
+  // aggregate derived from it, under ONE deadline. `listSince` is always
+  // undefined (no period control — full currently-lost stock). Scope:
+  // filteredJurisdictions for govt (no-op for admin, whose jurisdictions is
+  // already []), plus the admin province/locality drill-down predicate.
+  //
+  // BOUNDED in the 2026-08-09 outage pass, then CORRECTED by the review after
+  // it. That first version ran all four fetchers SEQUENTIALLY, justified by a
+  // comment claiming "metrics and caseCodesByPet depend on lostPets". Only
+  // caseCodesByPet always does:
+  //   - reunification NEVER does — reunificationCtx above is built from actor /
+  //     filteredJurisdictions / period alone;
+  //   - metrics depends CONDITIONALLY — only in the noDisplayFilters branch.
+  // The serialization was a real regression, not just wasted time: four trips
+  // that used to be individually unbounded now had to fit COLLECTIVELY inside
+  // 10s, so a merely slow DB (~4s a query) would miss the deadline and drop the
+  // operator into the degraded branch. The chain is now two rounds at worst —
+  // its true dependency depth.
   const load = await loadWithTimeout(
     (async () => {
-      const lostPets = await fetchLostPets(actor, filteredJurisdictions, {
-        since: listSince,
-        species,
-        status: statusFilter,
-        q,
-        adminProvince,
-        adminLocality,
-      });
+      const [lostPets, reunification, metricsWhenFiltered] = await Promise.all([
+        fetchLostPets(actor, filteredJurisdictions, {
+          since: listSince,
+          species,
+          status: statusFilter,
+          q,
+          adminProvince,
+          adminLocality,
+        }),
+        fetchReunificationRate(reunificationCtx),
+        // Independent of lostPets in this branch — the fetcher resolves the
+        // unfiltered in-scope population itself, so it need not wait.
+        noDisplayFilters
+          ? null
+          : fetchPerdidasMetrics(actor, filteredJurisdictions, { adminProvince, adminLocality }),
+      ]);
 
-      // avgDaysActive must be computed over the UNFILTERED in-scope lost pets
-      // (the full set of currently-lost pets, not just the display slice). When
-      // no display filters are active the fetched list already represents that
-      // full set, so we can pass it to avoid a second DB round-trip. When any
-      // filter is active (q, species, or a non-"lost" status tab) the pre-fetched
-      // rows are a filtered subset — passing them would silently scope
-      // avgDaysActive to that subset instead of the whole population. In that
-      // case, omit opts.lostPets so fetchPerdidasMetrics fetches the unfiltered
-      // scope internally.
-      //
-      // "No display filters" = q absent, species absent, statusFilter the default
-      // "lost" (there's no period window — listSince is always undefined, the
-      // full stock). Only then are the fetched rows the unfiltered set
-      // fetchPerdidasMetrics needs. Same scope as fetchLostPets above
-      // (filteredJurisdictions + admin drill-down) so the reused `lostPets` rows
-      // and this KPI's own internal queries agree on what "in scope" means — a
-      // jurisdiction selection NARROWS the scope itself, it is not a display
-      // filter, so the reused rows remain the full in-scope population
-      // avgDaysActive requires.
-      const noDisplayFilters = !q && !species && statusFilter === "lost" && listSince === undefined;
-      const metrics = await fetchPerdidasMetrics(actor, filteredJurisdictions, {
-        lostPets: noDisplayFilters ? lostPets : undefined,
-        adminProvince,
-        adminLocality,
-      });
+      const [metrics, caseCodesByPet, subregionData] = await Promise.all([
+        metricsWhenFiltered ??
+          fetchPerdidasMetrics(actor, filteredJurisdictions, {
+            lostPets,
+            adminProvince,
+            adminLocality,
+          }),
+        // Surface the CAS- case code for each lost pet. Keyed lookup over the
+        // already jurisdiction-scoped lostPets (no new nationwide query) — each
+        // row links to its lost_pet_episode case at /gob/casos/{code}.
+        fetchLostEpisodeCaseCodesForPets(lostPets.map((p) => p.petId)),
+        // Scope-aware choropleth drill (design/scoped-choropleth-drill): when a
+        // province is selected, fold the SAME (already filtered/scoped) lostPets
+        // into department cells — auto-drilling the map to department/barrio
+        // grain. It queries ar_localities (lib/analytics/subregion-aggregate.ts),
+        // so it is a real DB round-trip and belongs INSIDE the deadline. It sat
+        // outside it until this pass, which left the page able to hang on
+        // exactly the common operator path: a province selected.
+        selectedProvince
+          ? aggregateRowsByDepartment(
+              selectedProvince.code,
+              lostPets.map((p) => ({ locality: p.locality, value: 1 })),
+            )
+          : null,
+      ]);
 
-      // D4 reunification rate (Item 4) — lost episodes returned to active within a
-      // fixed trailing 30d window, plus median days-to-recovery. No period control
-      // on this page (PO decision 2026-07-19): `period` above is always
-      // windows.trailing30d(), jurisdiction-scoped via ProjectionContext. Same
-      // scope as above: filteredJurisdictions for govt, admin drill-down opts for admin.
-      const reunificationCtx = buildProjectionContext(actor, filteredJurisdictions, period, {
-        adminProvince,
-        adminLocality,
-      });
-      const reunification = await fetchReunificationRate(reunificationCtx);
-
-      // Surface the CAS- case code for each lost pet. Keyed lookup over the already
-      // jurisdiction-scoped lostPets (no new nationwide query) — each row links to
-      // its lost_pet_episode case at /gob/casos/{code}.
-      const caseCodesByPet = await fetchLostEpisodeCaseCodesForPets(lostPets.map((p) => p.petId));
-      return { lostPets, metrics, reunification, reunificationCtx, caseCodesByPet };
+      return { lostPets, metrics, reunification, caseCodesByPet, subregionData };
     })(),
   );
   if (!load.ok) {
     return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/perdidas", sp)}
-      />
+      <div className="space-y-6">
+        {header}
+        {filtersRow()}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/perdidas", sp)}
+        />
+      </div>
     );
   }
-  const { lostPets, metrics, reunification, reunificationCtx, caseCodesByPet } = load.value;
+  const { lostPets, metrics, reunification, caseCodesByPet, subregionData } = load.value;
 
   const noScope = profile.role === "govt" && jurisdictions.length === 0;
 
@@ -280,44 +386,16 @@ export default async function GobPerdidasPage({
     () => 1,
   );
 
-  // Scope-aware choropleth drill (design/scoped-choropleth-drill): when a
-  // province is selected, fold the SAME (already filtered/scoped) lostPets
-  // into department cells — auto-drilling the map to department/barrio grain.
-  const subregionData = selectedProvince
-    ? await aggregateRowsByDepartment(
-        selectedProvince.code,
-        lostPets.map((p) => ({ locality: p.locality, value: 1 })),
-      )
-    : null;
+  // subregionData is resolved inside the bounded block above (it is a DB
+  // round-trip); folding it into the map props is pure computation.
   const mapProps = scopedChoroplethProps(choroplethData, selectedProvince?.code, subregionData);
 
   const panelMapId = "panel-perdidas-mapa-titulo";
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <ScreenHeader
-        className="space-y-2"
-        eyebrow="Pérdidas"
-        title="Mascotas perdidas"
-        subtitle={
-          <>
-            {/* The universal claim yields to the narrowed-view caption (never both). */}
-            {profile.role === "admin" ? (
-              narrowedView ? null : (
-                <p className="text-md text-ln-op-mute">
-                  Vista universal — todas las jurisdicciones.
-                </p>
-              )
-            ) : (
-              <p className="text-md text-ln-op-mute">
-                Mascotas marcadas como perdidas dentro de tu cobertura.
-              </p>
-            )}
-            <ViewScopeCaption scope={narrowedView} />
-          </>
-        }
-      />
+      {/* Page header — hoisted above the load so the degraded branch keeps it. */}
+      {header}
 
       {/* No-scope warning */}
       {noScope && (
@@ -334,50 +412,16 @@ export default async function GobPerdidasPage({
         </div>
       )}
 
-      {/* Unified filter bar — jurisdiction + species axis + free-text search +
-          active-filter chips. Status keeps its own UrlTabs control below (a
-          queue-style tab set, not an OpFilterBar axis). Search (q) migrated
-          into the bar's children slot via the shared SearchFilterField
-          (gob-perdidas-search-migration, 2026-07-21) — same pattern as
-          /gob/organizaciones and /gob/usuarios: q is a plain searchParam
-          fetchLostPets already applies server-side, not a client-side map
-          filter, so folding it in is a pure UI consistency move (the map's
-          choroplethData is built FROM the already-q-filtered `lostPets`, so
-          its scope is unchanged either way). Period is OMITTED: perdidas is a
-          currently-lost STOCK view (PO decision 2026-07-19), not a
-          period-scoped report — a date filter conceptually doesn't apply,
-          mirrors /gob/maltrato's showPeriod={false}. */}
-      <OpFilterBar
-        showPeriod={false}
-        jurisdiction={{ allowedProvinces, localities }}
-        savedViewsKey="op-saved-views:perdidas:v1"
-        actions={
-          <CsvExportLink
-            filename={`perdidas-${todayIsoInAr()}`}
-            columns={csvColumns}
-            rows={csvRows}
-            contextLines={csvContextLines}
-          />
-        }
-        axes={
-          [
-            {
-              id: "species",
-              label: "Especie",
-              paramKey: "species",
-              options: SPECIES_OPTIONS,
-              current: sp.species ?? null,
-            },
-          ] satisfies OpFilterAxis[]
-        }
-      >
-        <SearchFilterField
-          paramKey="q"
-          value={q}
-          label="Buscar"
-          placeholder="Buscar por nombre de mascota o dueño/a"
-        />
-      </OpFilterBar>
+      {/* Same bar the degraded branch renders — only the CSV action, which is
+          built from the fetched rows, is added here. */}
+      {filtersRow(
+        <CsvExportLink
+          filename={`perdidas-${todayIsoInAr()}`}
+          columns={csvColumns}
+          rows={csvRows}
+          contextLines={csvContextLines}
+        />,
+      )}
 
       {/* KPI cards — pérdidas (activas/recuperados/antigüedad) + reunificación (D4) */}
       <section
