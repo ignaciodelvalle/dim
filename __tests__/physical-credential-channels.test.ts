@@ -67,10 +67,16 @@ beforeAll(async () => {
 
 afterEach(async () => {
   if (!dbConstraintAllowsNewType) return;
+  // BORRA SOLO LO QUE ESTE TEST CREO — por autoria, no por tipo de regla.
+  // El predicado anterior (`rule_type = 'physical_credential_channels' and
+  // jurisdiction_country = 'AR'`) se llevaba puesta cualquier regla de canales
+  // que hubiera en la base local compartida, sin importar quien la creo. Misma
+  // clase que el afterEach de business-rules-resolver.test.ts, encontrada en la
+  // misma pasada (2026-08-09), cuando una regla cargada por UI desaparecio al
+  // correr el gate. Todos los fixtures de acá llevan createdByUserId: ACTOR_ID.
   await db.execute(sql`
     delete from govt_business_rules
-    where rule_type = 'physical_credential_channels'
-      and jurisdiction_country = 'AR'
+    where created_by_user_id = ${ACTOR_ID}::uuid
   `);
 });
 

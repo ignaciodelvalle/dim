@@ -35,11 +35,25 @@ beforeAll(async () => {
 });
 
 afterEach(async () => {
+  // BORRA SOLO LO QUE ESTE TEST CREO.
+  //
+  // Antes era `where jurisdiction_country = 'AR' and (jurisdiction_province =
+  // 'Buenos Aires' or jurisdiction_province is null)`: un predicado por
+  // JURISDICCION, no por autoria. El proyecto "db" de vitest corre contra el
+  // Postgres local REAL y compartido, asi que ese afterEach borraba toda regla
+  // de Buenos Aires que hubiera en la base — incluidas las cargadas a mano.
+  //
+  // Encontrado el 2026-08-09: se cargo por UI la primera regla real de
+  // `AR / Buenos Aires / La Matanza` (la jurisdiccion del piloto), se corrio el
+  // gate, y la regla habia desaparecido. Sin error, sin aviso. Las reglas de
+  // CABA sobrevivieron, que es lo que delato el predicado.
+  //
+  // Cada fixture de este archivo se inserta con createdByUserId: ACTOR_ID, asi
+  // que la autoria es un filtro exacto Y completo: no deja nada atras y no se
+  // lleva nada ajeno.
   await db.execute(sql`
     delete from govt_business_rules
-    where jurisdiction_country = 'AR'
-      and (jurisdiction_province = 'Buenos Aires'
-        or jurisdiction_province is null)
+    where created_by_user_id = ${ACTOR_ID}::uuid
   `);
 });
 
