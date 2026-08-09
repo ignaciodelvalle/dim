@@ -94,7 +94,7 @@
     "backfill:eno": "node --conditions=react-server --import tsx scripts/backfill-eno-trigger.ts",
     "probe:load": "tsx scripts/load-probe.ts",
     "test": "vitest run",
-    "test:verified": "vitest run --reporter=json --outputFile=.vitest-report.json; tsx scripts/check-suite-coverage.ts .vitest-report.json",
+    "test:verified": "tsx scripts/run-verified-suite.ts",
     "check:suite-coverage": "tsx scripts/check-suite-coverage.ts",
     "test:unit": "vitest run --project unit",
     "test:db": "vitest run --project db",
