@@ -35,11 +35,16 @@ import { extname, join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { stripComments } from "@/scripts/lib/strip-comments.mjs";
+
 const ROOT = join(__dirname, "..");
 const SCAN_DIRS = ["app", "components", "lib", "src"];
 
 // The single legitimate home. Paths are compared with forward slashes.
-const DICTIONARY_FILE = "lib/utils/format.ts";
+// El diccionario se separo de lib/utils/format.ts el 2026-08-09 (ese modulo
+// volvio a cruzar el fence de 1500 lineas). format.ts lo RE-EXPORTA, asi que no
+// contiene ningun switch y no necesita exencion; la unica casa del mapa es esta.
+const DICTIONARY_FILE = "lib/utils/species.ts";
 
 // Canonical species set (pets.species) with both es-AR numbers, mirroring
 // lib/utils/format.ts. Kept literal so a species added there without a plural
@@ -82,17 +87,38 @@ function sourceFiles(): string[] {
  * Nothing hits it today; a fence exists precisely for the prospective case.
  */
 function mapShapes(token: string, labels: readonly string[]): RegExp[] {
+  // El `[^"']*` después de la etiqueta acepta las variantes de prosa —
+  // "perro/a", "otra especie"— que son mapas rivales igual.
   const label = `(?:${labels.join("|")})`;
+  // INSENSIBLE A MAYÚSCULAS (2026-08-09). Las etiquetas de arriba están
+  // capitalizadas, así que un mapa en MINÚSCULAS para prosa mid-sentence
+  // —`{ dog: "perro/a", cat: "gato/a" }`— era invisible para este fence. Y
+  // había uno vivo, en el mismo archivo que ya tenía otros dos: el baseline
+  // llegó a quedar en CERO mientras ese sobrevivía por una diferencia de
+  // capitalización.
+  //
+  // Es la misma familia que el resto de los fences que se corrigieron hoy:
+  // declaraban una propiedad más angosta que la que su nombre prometía.
+  const flags = "i";
   return [
-    // { dog: "Perro" } / { "dog": "Perro" }
-    new RegExp(`["']?${token}["']?\\s*:\\s*["']${label}["']`),
+    // { dog: "Perro" } / { "dog": "Perro" } / { dog: "perro/a" }
+    new RegExp(`["']?${token}["']?\\s*:\\s*["']${label}[^"']*["']`, flags),
     // s === "dog" ? "Perros" : …
-    new RegExp(`===\\s*["']${token}["']\\s*\\?\\s*["']${label}["']`),
+    new RegExp(`===\\s*["']${token}["']\\s*\\?\\s*["']${label}[^"']*["']`, flags),
     // { value: "dog", label: "Perros" } — and the same pair written label-first.
-    new RegExp(`value\\s*:\\s*["']${token}["']\\s*,\\s*label\\s*:\\s*["']${label}["']`),
-    new RegExp(`label\\s*:\\s*["']${label}["']\\s*,\\s*value\\s*:\\s*["']${token}["']`),
+    new RegExp(
+      `value\\s*:\\s*["']${token}["']\\s*,\\s*label\\s*:\\s*["']${label}[^"']*["']`,
+      flags,
+    ),
+    new RegExp(
+      `label\\s*:\\s*["']${label}[^"']*["']\\s*,\\s*value\\s*:\\s*["']${token}["']`,
+      flags,
+    ),
     // case "dog": return "Perro";  — the canonical implementation's own shape.
-    new RegExp(`case\\s*["']${token}["']\\s*:[\\s\\S]{0,80}?return\\s*["']${label}["']`),
+    new RegExp(
+      `case\\s*["']${token}["']\\s*:[\\s\\S]{0,80}?return\\s*["']${label}[^"']*["']`,
+      flags,
+    ),
   ];
 }
 
@@ -103,7 +129,13 @@ function findOffenders(): string[] {
     const rel = relative(ROOT, file).replace(/\\/g, "/");
     if (rel === DICTIONARY_FILE) continue;
 
-    const source = readFileSync(file, "utf8");
+    // COMENTARIOS FUERA. Este fence leía el archivo crudo, así que el propio
+    // comentario que explica un arreglo —"antes era { dog: 'Perro', cat:
+    // 'Gato' }"— lo volvía a marcar como ofensor. Documentar por qué se sacó un
+    // mapa no puede ser lo que reinstale la falla. Es la misma lección que
+    // check-db-budget (un substring no es una llamada) y check-confused-deputy,
+    // que ya usan este mismo stripper compartido.
+    const source = stripComments(readFileSync(file, "utf8"));
     if (
       SPECIES.some(({ token, labels }) => mapShapes(token, labels).some((re) => re.test(source)))
     ) {

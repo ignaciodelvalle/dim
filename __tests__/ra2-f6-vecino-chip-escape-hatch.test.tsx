@@ -187,7 +187,7 @@ function makeLocality(): LocalitySearchResult {
 /** Drive paso 1 exactly as a user does — nombre, especie, provincia, localidad. */
 async function completeStep1() {
   fireEvent.change(screen.getByLabelText(/^nombre/i), { target: { value: "Encontrado" } });
-  fireEvent.click(screen.getByRole("button", { name: /perro\/a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^perro$/i }));
   fireEvent.change(screen.getByLabelText(/Provincia/), { target: { value: "AR-C" } });
   fireEvent.change(screen.getByLabelText(/Localidad o barrio/), { target: { value: "Bel" } });
   fireEvent.mouseDown(await screen.findByText("Belgrano"));

@@ -65,7 +65,7 @@ import type { ProvinceSterlizationRow } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatPercent, formatRate, pluralizeEs } from "@/lib/utils/format";
+import { formatPercent, formatRate, pluralizeEs, speciesOptions } from "@/lib/utils/format";
 
 /**
  * A cell whose value the D.10 disclosure rule withheld. An em dash for sighted
@@ -149,11 +149,8 @@ function ProvinceCoverageRow({ row, rank }: { row: ProvinceSterlizationRow; rank
 // (twin port, Fase B "regalos olvidados"). pets.species is free text ('dog' |
 // 'cat' | 'other' in practice); "other" is the exact stored value the
 // fetchers honor as-is (no query change).
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perro" },
-  { value: "cat", label: "Gato" },
-  { value: "other", label: "Otra" },
-];
+// Valores: decisión de esta pantalla. Ortografía: speciesLabel, fuente única.
+const SPECIES_OPTIONS = speciesOptions(["dog", "cat", "other"]);
 
 export type AdminPoblacionScreenProps = {
   searchParams: { period?: string; from?: string; to?: string; species?: string };

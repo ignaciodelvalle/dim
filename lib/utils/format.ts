@@ -317,52 +317,11 @@ export function formatDateArOmitCurrentYear(
 // maskArDateInput) live in ./date-input-ar — split out when this module hit
 // the 1500-line fence (2026-08-06).
 
-export function speciesLabel(species: string): string {
-  switch (species) {
-    case "dog":
-      return "Perro";
-    case "cat":
-      return "Gato";
-    case "rabbit":
-      return "Conejo";
-    case "guinea_pig":
-      return "Cobayo";
-    case "ferret":
-      return "Hurón";
-    case "other":
-      return "Otra";
-    default:
-      return species;
-  }
-}
-
-// Plural counterpart of speciesLabel, for surfaces that name a SET of species
-// rather than one animal: filter dropdowns ("Perros", "Gatos") and the service
-// eligibility rows ("Especies: Perros, Gatos").
-//
-// It lives here, next to the singular, because the alternative already failed
-// twice. The 2026-07-08 QA found a local dog/cat map on /mis-mascotas and the
-// org pipeline board; the 2026-08-08 adversarial review found four more — two
-// of them duplicated inside a single file, and one a ternary that rendered
-// EVERY non-dog species as "Gatos". Both numbers now have exactly one source.
-export function speciesLabelPlural(species: string): string {
-  switch (species) {
-    case "dog":
-      return "Perros";
-    case "cat":
-      return "Gatos";
-    case "rabbit":
-      return "Conejos";
-    case "guinea_pig":
-      return "Cobayos";
-    case "ferret":
-      return "Hurones";
-    case "other":
-      return "Otras";
-    default:
-      return species;
-  }
-}
+// El diccionario de especies vive en ./species — separado el 2026-08-09,
+// cuando este modulo volvio a cruzar el limite de 1500 lineas del fence de
+// tamano. Se re-exporta para que los 76 archivos que ya lo importaban de aca
+// sigan funcionando sin tocarse.
+export { speciesLabel, speciesLabelPlural, speciesOptions } from "./species";
 
 export function sexLabel(sex: string): string {
   switch (sex) {
@@ -651,14 +610,40 @@ export function foundReportPrompt(sex: string | null | undefined): string {
  * the roleLabel "Dueño/a" convention.
  */
 export function markLostActionLabel(sex: string | null | undefined): string {
+  return `Marcar como ${lostAdjective(sex)}`;
+}
+
+/**
+ * El adjetivo solo — la ÚNICA decisión de género de esta familia.
+ *
+ * Existe porque la pasada de 2026-07-16 arregló las tres etiquetas peladas y se
+ * le escapó una cuarta: el `<h1>` de MarkLostWizard interpola el nombre
+ * (`Marcar ${petName} como perdida`), así que no era el label pelado y ningún
+ * barrido por texto exacto lo encontró. Con el adjetivo aparte, las dos formas
+ * salen de un único switch y no puede volver a pasar.
+ */
+function lostAdjective(sex: string | null | undefined): string {
   switch (normalizeSex(sex)) {
     case "male":
-      return "Marcar como perdido";
+      return "perdido";
     case "female":
-      return "Marcar como perdida";
+      return "perdida";
     default:
-      return "Marcar como perdido/a";
+      // El "/a" neutro sigue la convención de roleLabel ("Dueño/a").
+      return "perdido/a";
   }
+}
+
+/**
+ * Igual que `markLostActionLabel` pero con el nombre de la mascota adentro:
+ * "Marcar Tero como perdido".
+ *
+ * El wizard tenía este título fijo en FEMENINO mientras su `<h2>` y su `<p>`
+ * estaban fijos en MASCULINO, así que siempre había uno mal — fuera macho o
+ * hembra (hallazgo S2-F07).
+ */
+export function markLostTitleForPet(petName: string, sex: string | null | undefined): string {
+  return `Marcar ${petName} como ${lostAdjective(sex)}`;
 }
 
 /** Sighting-form question, e.g. "¿Cuándo lo viste?" / "¿Cuándo la viste?".

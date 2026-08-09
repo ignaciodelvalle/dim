@@ -24,6 +24,7 @@ import type {
   TravelSemaforo,
 } from "@/lib/projections/travel-compliance";
 import { TRAVEL_DISCLAIMER } from "@/lib/reference/cross-border-corridors";
+import { speciesInProse } from "@/lib/utils/species";
 
 export const TRAVEL_EXPORT_SCHEMA_VERSION = "2026-07-04";
 
@@ -91,7 +92,13 @@ export function buildTravelExportSections(dto: TravelExportDto): TravelExportSec
     kind: "summary",
     heading: "RESUMEN DE VIAJE",
     lines: [
-      `Mascota: ${dto.petName} (${dto.petSpecies === "dog" ? "perro" : dto.petSpecies})`,
+      // Antes: `petSpecies === "dog" ? "perro" : petSpecies` — un ternario que
+      // escribía "perro" para perro y el ENUM CRUDO para todo lo demás, así que
+      // el PDF de viaje de un gato decía "Mascota: Michi (cat)". Es la misma
+      // clase que el ternario que renderizaba toda especie no-perro como
+      // "Gatos" (revisión adversa 2026-08-08), y sobrevivió invisible porque su
+      // etiqueta estaba en minúscula y el fence era sensible a mayúsculas.
+      `Mascota: ${dto.petName} (${speciesInProse(dto.petSpecies)})`,
       `Identificador público (token miMAR): ${dto.petPublicToken}`,
       `Tenedor/propietario: ${dto.ownerDisplayName}`,
       `Semáforo: ${SEMAFORO_LABELS[dto.semaforo]}`,

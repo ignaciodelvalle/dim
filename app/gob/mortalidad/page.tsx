@@ -53,7 +53,7 @@ import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { formatMetricLegalBasis, resolveMetricLegalBasis } from "@/lib/metrics/metric-legal-basis";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { deathCauseLabel, formatPercent, pluralizeEs } from "@/lib/utils/format";
+import { deathCauseLabel, formatPercent, pluralizeEs, speciesOptions } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -68,11 +68,8 @@ const BUCKET_LABELS: Record<string, string> = {
 // Species domain axis — mirrors /gob/perdidas' SPECIES_OPTIONS exactly.
 // pets.species is free text ('dog' | 'cat' | 'other' in practice); "other" is
 // the exact stored value the fetchers honor as-is (no query change).
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perro" },
-  { value: "cat", label: "Gato" },
-  { value: "other", label: "Otra" },
-];
+// Valores: decisión de esta pantalla. Ortografía: speciesLabel, fuente única.
+const SPECIES_OPTIONS = speciesOptions(["dog", "cat", "other"]);
 
 // Death-cause domain axis — the deathRecorded event schema's `cause` enum
 // (lib/events/event-schemas.ts) is a closed set; fetchMortalityDisposition

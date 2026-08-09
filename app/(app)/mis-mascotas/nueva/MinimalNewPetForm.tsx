@@ -43,18 +43,15 @@ import { LnWizardShell } from "@/components/ui/WizardShell";
 import { breedsForSpecies, isPotentiallyDangerousBreed } from "@/lib/reference/breeds";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
 import { useIdempotencyKey } from "@/lib/ui/use-idempotency-key";
+import { speciesLabel, speciesOptions } from "@/lib/utils/format";
+import { speciesInProse } from "@/lib/utils/species";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 
-// es-AR labels for the soft-dedupe confirmation (gate P2). Mirrors the species
-// options offered in paso 1; falls back to the raw value for anything else.
-const SPECIES_LABEL: Record<string, string> = {
-  dog: "perro/a",
-  cat: "gato/a",
-  rabbit: "conejo/a",
-  guinea_pig: "cobayo",
-  ferret: "hurón",
-  other: "otra especie",
-};
+// TERCER mapa de especies que vivía en este archivo — en minúsculas, para la
+// confirmación de dedupe (gate P2). El fence no lo veía: sus etiquetas están
+// capitalizadas y sus regex eran sensibles a mayúsculas, así que el baseline
+// quedó en CERO mientras éste seguía vivo, desdoblando "perro/a" justo después
+// de que el selector de arriba dejara de hacerlo. Ahora sale de speciesInProse.
 
 const SEX_LABEL: Record<string, string> = {
   female: "hembra",
@@ -69,12 +66,12 @@ type FormAction = (prev: NewPetFormState, formData: FormData) => Promise<NewPetF
 // Species values accepted by parsePetForm.
 // "dog" and "cat" map directly; for the "other" branch the sub-select
 // value IS the stored species (rabbit, guinea_pig, ferret, other).
-const OTHER_SPECIES = [
-  { value: "rabbit", label: "Conejo/a" },
-  { value: "guinea_pig", label: "Cobayo / Cuy" },
-  { value: "ferret", label: "Hurón" },
-  { value: "other", label: "Otro" },
-] as const;
+// Decisión del PO (2026-08-09): sin desdoblamiento y sin variante regional.
+// "Conejo/a" y "Perro/a" desdoblaban en un selector de ESPECIE, que es un error
+// de categoría —ahí no se habla de personas, y el sexo del animal tiene su
+// propio campo— y "Cobayo / Cuy" duplicaba el término que ya usa SENASA.
+// La ortografía sale de speciesLabel, la única fuente.
+const OTHER_SPECIES = speciesOptions(["rabbit", "guinea_pig", "ferret", "other"]);
 
 type SpeciesPick = "dog" | "cat" | "other" | null;
 
@@ -537,9 +534,8 @@ function DuplicateOwnerPrompt({
     <div className="mt-4" role="alert">
       <LnCallout tone="azul" title="¿Es la misma mascota?">
         <p className="m-0">
-          Ya tenés registrada a <strong>{prompt.name}</strong> (
-          {SPECIES_LABEL[prompt.species] ?? prompt.species}, {SEX_LABEL[prompt.sex] ?? prompt.sex}).
-          ¿Es la misma?
+          Ya tenés registrada a <strong>{prompt.name}</strong> ({speciesInProse(prompt.species)},{" "}
+          {SEX_LABEL[prompt.sex] ?? prompt.sex}). ¿Es la misma?
         </p>
         <div className="mt-3 flex flex-col gap-2">
           <Link
@@ -805,9 +801,10 @@ function SpeciesField({
       <div className="grid grid-cols-3 gap-2">
         {(
           [
-            { value: "dog", icon: "perro", label: "Perro/a" },
-            { value: "cat", icon: "gato", label: "Gato/a" },
-            { value: "other", icon: "huella", label: "Otra" },
+            // Etiquetas desde speciesLabel — ver OTHER_SPECIES arriba.
+            { value: "dog", icon: "perro", label: speciesLabel("dog") },
+            { value: "cat", icon: "gato", label: speciesLabel("cat") },
+            { value: "other", icon: "huella", label: speciesLabel("other") },
           ] as const
         ).map(({ value, icon, label }) => (
           <button

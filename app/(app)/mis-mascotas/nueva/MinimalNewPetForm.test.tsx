@@ -64,7 +64,7 @@ function makeResult(
 /** Fill nombre + especie(dog) + a resolved localidad so paso 1 can advance. */
 async function completeStep1() {
   fireEvent.change(screen.getByLabelText(/^nombre/i), { target: { value: "Pampa" } });
-  fireEvent.click(screen.getByRole("button", { name: /perro\/a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^perro$/i }));
 
   fireEvent.change(screen.getByLabelText(/Provincia/), { target: { value: "AR-C" } });
   fireEvent.change(screen.getByLabelText(/Localidad o barrio/), { target: { value: "Bel" } });
@@ -105,7 +105,7 @@ describe("MinimalNewPetForm — paso 1 gating", () => {
   it("blocks advancing when a locality is TYPED but no suggestion is picked (Cowork B9)", async () => {
     render(<MinimalNewPetForm action={noopAction} />);
     fireEvent.change(screen.getByLabelText(/^nombre/i), { target: { value: "Pampa" } });
-    fireEvent.click(screen.getByRole("button", { name: /perro\/a/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^perro$/i }));
     fireEvent.change(screen.getByLabelText(/Provincia/), { target: { value: "AR-C" } });
     // Type a locality but NEVER pick a suggestion → provinceCode stays empty, the
     // same "unresolved" signal the server rejects on. Step 1 must not advance.
@@ -133,7 +133,7 @@ describe("MinimalNewPetForm — paso 1 gating", () => {
 describe("MinimalNewPetForm — PPP notice (paso 1, live)", () => {
   it("shows the PPP notice the moment a canonical PPP dog breed is picked", () => {
     render(<MinimalNewPetForm action={noopAction} />);
-    fireEvent.click(screen.getByRole("button", { name: /perro\/a/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^perro$/i }));
 
     expect(screen.queryByText(/razas potencialmente peligrosas/i)).not.toBeInTheDocument();
 
@@ -143,7 +143,7 @@ describe("MinimalNewPetForm — PPP notice (paso 1, live)", () => {
 
   it("hides the PPP notice again when the breed changes to a non-PPP one", () => {
     render(<MinimalNewPetForm action={noopAction} />);
-    fireEvent.click(screen.getByRole("button", { name: /perro\/a/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^perro$/i }));
 
     const breed = screen.getByLabelText(/^raza/i);
     fireEvent.change(breed, { target: { value: "Rottweiler" } });
@@ -155,7 +155,7 @@ describe("MinimalNewPetForm — PPP notice (paso 1, live)", () => {
 
   it("does not show the PPP notice for a cat, even with a matching name", () => {
     render(<MinimalNewPetForm action={noopAction} />);
-    fireEvent.click(screen.getByRole("button", { name: /gato\/a/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^gato$/i }));
 
     fireEvent.change(screen.getByLabelText(/^raza/i), { target: { value: "Rottweiler" } });
     expect(screen.queryByText(/razas potencialmente peligrosas/i)).not.toBeInTheDocument();
@@ -245,7 +245,7 @@ async function reachStalePromptWithChangedSpecies() {
   await screen.findByText(/¿es la misma\?/i);
 
   fireEvent.click(screen.getByRole("button", { name: /paso anterior/i }));
-  fireEvent.click(screen.getByRole("button", { name: /gato\/a/i }));
+  fireEvent.click(screen.getByRole("button", { name: /^gato$/i }));
   fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
 }
 
@@ -312,7 +312,9 @@ describe("MinimalNewPetForm — stale duplicatePrompt (PO bug 2026-07-18)", () =
     await waitFor(() => expect(calls).toHaveLength(2));
     // The fresh prompt (cat) renders and gates again.
     expect(await screen.findByText(/¿es la misma\?/i)).toBeInTheDocument();
-    expect(screen.getByText(/gato\/a, sexo sin especificar/i)).toBeInTheDocument();
+    // "gato", no "gato/a": la prosa sale de speciesInProse desde la decisión
+    // del PO del 2026-08-09 (sin desdoblamiento en especies).
+    expect(screen.getByText(/gato, sexo sin especificar/i)).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /^crear mascota$/i })).not.toBeInTheDocument();
   });
 
@@ -404,7 +406,7 @@ describe("MinimalNewPetForm — photo survives a duplicate-prompt round-trip", (
     await screen.findByText(/¿es la misma\?/i);
 
     fireEvent.click(screen.getByRole("button", { name: /paso anterior/i }));
-    fireEvent.click(screen.getByRole("button", { name: /gato\/a/i }));
+    fireEvent.click(screen.getByRole("button", { name: /^gato$/i }));
     fireEvent.click(screen.getByRole("button", { name: /continuar/i }));
     fireEvent.click(screen.getByRole("button", { name: /registrar mascota/i }));
 

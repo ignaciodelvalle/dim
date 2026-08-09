@@ -43,7 +43,7 @@ import {
 } from "@/lib/metrics";
 import { KPI_CATALOG, getKpiInfo } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
-import { formatPercent, formatRate } from "@/lib/utils/format";
+import { formatPercent, formatRate, speciesOptions } from "@/lib/utils/format";
 
 export const dynamic = "force-dynamic";
 
@@ -51,11 +51,8 @@ export const dynamic = "force-dynamic";
 // (twin port, Fase B "regalos olvidados"). pets.species is free text ('dog' |
 // 'cat' | 'other' in practice); "other" is the exact stored value the
 // fetchers honor as-is (no query change).
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perro" },
-  { value: "cat", label: "Gato" },
-  { value: "other", label: "Otra" },
-];
+// Valores: decisión de esta pantalla. Ortografía: speciesLabel, fuente única.
+const SPECIES_OPTIONS = speciesOptions(["dog", "cat", "other"]);
 
 export default async function AdminAdopcionesPage({
   searchParams,

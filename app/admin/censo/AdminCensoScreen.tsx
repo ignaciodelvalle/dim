@@ -54,7 +54,7 @@ import {
 import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { windows } from "@/lib/metrics/period";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatPercent } from "@/lib/utils/format";
+import { formatPercent, speciesOptions } from "@/lib/utils/format";
 
 /**
  * A cell whose value the D.10 disclosure rule withheld. An em dash for sighted
@@ -76,11 +76,8 @@ function SuppressedCellText() {
 // port, Fase B "regalos olvidados"). pets.species is free text ('dog' | 'cat'
 // | 'other' in practice); "other" is the exact stored value the fetchers
 // honor as-is (no query change).
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perro" },
-  { value: "cat", label: "Gato" },
-  { value: "other", label: "Otra" },
-];
+// Valores: decisión de esta pantalla. Ortografía: speciesLabel, fuente única.
+const SPECIES_OPTIONS = speciesOptions(["dog", "cat", "other"]);
 
 export type AdminCensoScreenProps = {
   searchParams: { period?: string; from?: string; to?: string; species?: string };

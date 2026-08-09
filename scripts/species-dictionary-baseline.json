@@ -1,16 +1,4 @@
 {
-  "_comment": "Files that translate a species enum to es-AR themselves instead of importing speciesLabel / speciesLabelPlural from lib/utils/format.ts. This is DEBT, not approval: the same pattern shipped a raw-enum leak on 2026-07-08 and, on 2026-08-08, a ternary that rendered every non-dog species as 'Gatos'. The list may only SHRINK — the fence fails both on a NEW entry and on a stale one, so fixing a file means deleting its line here. Most of what is left are filter option lists whose VALUE set is a deliberate product choice (dog/cat/other) but whose spelling should still come from the shared map; two are deliberate register variants ('Perro/a', 'Cobayo / Cuy') that need a wording decision before they move. Guarded by __tests__/species-label-single-source.test.ts.",
-  "files": [
-    "app/(app)/mis-mascotas/[publicToken]/corregir-especie/CorrectSpeciesForm.tsx",
-    "app/(app)/mis-mascotas/nueva/MinimalNewPetForm.tsx",
-    "app/admin/adopciones/page.tsx",
-    "app/admin/censo/AdminCensoScreen.tsx",
-    "app/admin/poblacion/AdminPoblacionScreen.tsx",
-    "app/gob/adopciones/page.tsx",
-    "app/gob/censo/CensoScreen.tsx",
-    "app/gob/maltrato/_inspector/PetSubView.tsx",
-    "app/gob/mortalidad/page.tsx",
-    "app/gob/perdidas/page.tsx",
-    "app/gob/poblacion/PoblacionScreen.tsx"
-  ]
+  "_comment": "VACIO desde 2026-08-09. Este archivo listaba los 11 archivos que traducian el enum de especie por su cuenta en vez de importar speciesLabel / speciesLabelPlural de lib/utils/format.ts. Los once se canalizaron por speciesOptions()/speciesLabel(): los valores siguen siendo la decision de producto de cada pantalla, la ortografia ya no. Dos esperaban criterio del PO y ahora lo tienen: sin desdoblamiento (Perro, no Perro/a) y sin variante regional (Cobayo, no Cobayo / Cuy). El fence falla tanto ante una entrada NUEVA como ante una obsoleta, asi que esta lista solo puede quedarse vacia. Guardado por __tests__/species-label-single-source.test.ts.",
+  "files": []
 }

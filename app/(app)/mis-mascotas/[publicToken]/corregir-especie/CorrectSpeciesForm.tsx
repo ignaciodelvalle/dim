@@ -7,6 +7,7 @@
 
 import { LnField, LnSelect } from "@/components/ui/Field";
 import { useActionRedirect } from "@/lib/ui/use-action-redirect";
+import { speciesOptions } from "@/lib/utils/format";
 import type { NewPetFormState } from "@/src/modules/pets/actions";
 import { useActionState } from "react";
 
@@ -14,14 +15,9 @@ const initialState: NewPetFormState = { error: null };
 
 type FormAction = (prev: NewPetFormState, formData: FormData) => Promise<NewPetFormState>;
 
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perro" },
-  { value: "cat", label: "Gato" },
-  { value: "rabbit", label: "Conejo" },
-  { value: "guinea_pig", label: "Cobayo" },
-  { value: "ferret", label: "Hurón" },
-  { value: "other", label: "Otra" },
-] as const;
+// Las seis especies del dominio. Los valores son el enum; la ortografía sale de
+// speciesLabel, que es la única fuente.
+const SPECIES_OPTIONS = speciesOptions(["dog", "cat", "rabbit", "guinea_pig", "ferret", "other"]);
 
 export function CorrectSpeciesForm({
   action,

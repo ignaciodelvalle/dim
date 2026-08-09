@@ -54,16 +54,13 @@ import { KPI_CATALOG } from "@/lib/metrics/kpi-catalog";
 import { resolveAnalyticsPeriod } from "@/lib/metrics/period";
 import { GOB_MAP_HEIGHT } from "@/lib/ui/map-bounds";
 import { describeNarrowedView } from "@/lib/ui/view-scope-caption";
-import { formatPercent } from "@/lib/utils/format";
+import { formatPercent, speciesOptions } from "@/lib/utils/format";
 
 // Species domain axis — mirrors /gob/perdidas' SPECIES_OPTIONS exactly.
 // pets.species is free text ('dog' | 'cat' | 'other' in practice); "other" is
 // the exact stored value the fetchers honor as-is (no query change).
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perro" },
-  { value: "cat", label: "Gato" },
-  { value: "other", label: "Otra" },
-];
+// Valores: decisión de esta pantalla. Ortografía: speciesLabel, fuente única.
+const SPECIES_OPTIONS = speciesOptions(["dog", "cat", "other"]);
 
 export type CensoScreenProps = {
   searchParams: {

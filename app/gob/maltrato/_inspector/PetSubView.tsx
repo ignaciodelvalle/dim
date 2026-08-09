@@ -11,10 +11,14 @@ import Link from "next/link";
 
 import { OpCard, OpCardBody, OpCardHead, OpPill } from "@/components/ui/dashboard";
 import type { GobPetSubView } from "@/lib/infra/gob-pet-subview";
-import { formatDate, situationLabelForSex, statusLabel } from "@/lib/utils/format";
+import { formatDate, situationLabelForSex, speciesLabel, statusLabel } from "@/lib/utils/format";
 import { caseKindLabel } from "@/src/modules/cases/domain/case-kinds";
 
-const SPECIES_LABEL: Record<string, string> = { dog: "Perro", cat: "Gato" };
+// Antes: `{ dog: "Perro", cat: "Gato" }` con `?? pet.species` de fallback. Ese
+// mapa cubría DOS de las seis especies, así que un conejo, un cobayo, un hurón
+// o una "otra" llegaban a la pantalla del inspector como el enum crudo —
+// exactamente la fuga que el fence de especies existe para prevenir.
+// speciesLabel cubre las seis y es la única fuente.
 const SEX_LABEL: Record<string, string> = { male: "Macho", female: "Hembra", unknown: "Sin dato" };
 
 export function PetSubView({ pet }: { pet: GobPetSubView }) {
@@ -25,7 +29,7 @@ export function PetSubView({ pet }: { pet: GobPetSubView }) {
         <OpCardBody className="space-y-3">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Field label="Token" value={pet.publicToken} mono />
-            <Field label="Especie" value={SPECIES_LABEL[pet.species] ?? pet.species} />
+            <Field label="Especie" value={speciesLabel(pet.species)} />
             <Field label="Sexo" value={SEX_LABEL[pet.sex] ?? pet.sex} />
             <Field label="Estado" value={situationLabelForSex(statusLabel(pet.status), pet.sex)} />
             {pet.breed && <Field label="Raza" value={pet.breed} />}

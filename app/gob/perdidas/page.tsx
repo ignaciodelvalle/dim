@@ -50,6 +50,7 @@ import {
   formatPercent,
   pluralizeEs,
   speciesLabel,
+  speciesOptions,
   todayIsoInAr,
 } from "@/lib/utils/format";
 import { trimmedSearchParam } from "@/lib/utils/search-params";
@@ -78,11 +79,9 @@ const STATUS_TABS: UrlTabItem[] = [
 // applies `eq(pets.species, species)`; this surfaces the previously-hidden
 // control. dog/cat match a single stored species; "other" is the exact value
 // `pets.species='other'` the fetcher honors as-is (no query change).
-const SPECIES_OPTIONS = [
-  { value: "dog", label: "Perro" },
-  { value: "cat", label: "Gato" },
-  { value: "other", label: "Otra" },
-];
+// Los VALORES son la decisión de producto de esta pantalla; la ORTOGRAFÍA sale
+// de speciesLabel, que es la única fuente (ver speciesOptions).
+const SPECIES_OPTIONS = speciesOptions(["dog", "cat", "other"]);
 
 export default async function GobPerdidasPage({
   searchParams,
