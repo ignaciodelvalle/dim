@@ -7,7 +7,7 @@ import Link from "next/link";
 import { searchLocalitiesPublicAction } from "@/app/actions/localities";
 import { Icon } from "@/components/Icon";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
-import { LnCheckbox } from "@/components/ui/Field";
+import { LnCheckbox, LnInput, LnSelect } from "@/components/ui/Field";
 import {
   ADOPTION_AGE_BUCKETS,
   ADOPTION_ENERGY_LEVELS,
@@ -111,14 +111,13 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
           >
             Buscar por nombre o raza
           </label>
-          <input
+          <LnInput
             id="q"
             type="search"
             name="q"
             maxLength={100}
             defaultValue={filters.searchQuery ?? ""}
             placeholder='Ej: "Laika" o "Labrador"'
-            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
           />
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
@@ -129,19 +128,14 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             >
               Especie
             </label>
-            <select
-              id="species"
-              name="species"
-              defaultValue={filters.species ?? ""}
-              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-            >
+            <LnSelect id="species" name="species" defaultValue={filters.species ?? ""}>
               <option value="">Todas</option>
               {SPECIES_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
                 </option>
               ))}
-            </select>
+            </LnSelect>
           </div>
 
           <div>
@@ -151,12 +145,11 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             >
               Provincia
             </label>
-            <select
+            <LnSelect
               id="provincia"
               name="provincia"
               value={provinceName}
               onChange={(e) => setProvinceName(e.target.value)}
-              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
             >
               <option value="">Todas</option>
               {PROVINCES.map((p) => (
@@ -164,7 +157,7 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
                   {p.name}
                 </option>
               ))}
-            </select>
+            </LnSelect>
           </div>
 
           <div>
@@ -196,19 +189,14 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             >
               Edad
             </label>
-            <select
-              id="edad"
-              name="edad"
-              defaultValue={filters.ageBucket ?? ""}
-              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-            >
+            <LnSelect id="edad" name="edad" defaultValue={filters.ageBucket ?? ""}>
               <option value="">Cualquiera</option>
               {ADOPTION_AGE_BUCKETS.map((b) => (
                 <option key={b} value={b}>
                   {AGE_LABELS[b]}
                 </option>
               ))}
-            </select>
+            </LnSelect>
           </div>
 
           <div>
@@ -218,19 +206,14 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             >
               Talle
             </label>
-            <select
-              id="talle"
-              name="talle"
-              defaultValue={filters.sizeEstimate ?? ""}
-              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-            >
+            <LnSelect id="talle" name="talle" defaultValue={filters.sizeEstimate ?? ""}>
               <option value="">Cualquiera</option>
               {ADOPTION_SIZE_ESTIMATES.map((s) => (
                 <option key={s} value={s}>
                   {SIZE_LABELS[s]}
                 </option>
               ))}
-            </select>
+            </LnSelect>
           </div>
 
           <div>
@@ -240,19 +223,14 @@ export function AdoptionFiltersBar({ filters }: { filters: AdoptionListingFilter
             >
               Energía
             </label>
-            <select
-              id="energia"
-              name="energia"
-              defaultValue={filters.energyLevel ?? ""}
-              className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-            >
+            <LnSelect id="energia" name="energia" defaultValue={filters.energyLevel ?? ""}>
               <option value="">Cualquiera</option>
               {ADOPTION_ENERGY_LEVELS.map((e) => (
                 <option key={e} value={e}>
                   {ENERGY_LABELS[e]}
                 </option>
               ))}
-            </select>
+            </LnSelect>
           </div>
         </div>
 

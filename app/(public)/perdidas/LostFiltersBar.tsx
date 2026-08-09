@@ -5,7 +5,7 @@ import { useState } from "react";
 import { searchLocalitiesPublicAction } from "@/app/actions/localities";
 import { LocalityPickerAcross } from "@/components/LocalityPickerAcross";
 import { LnButton } from "@/components/ui/Button";
-import { LnCheckbox } from "@/components/ui/Field";
+import { LnCheckbox, LnInput, LnSelect } from "@/components/ui/Field";
 import { LOST_TIME_BUCKETS, type LostListingFilters } from "@/lib/infra/lost-listing";
 import { PROVINCES } from "@/lib/reference/ar-provincias";
 import { speciesLabelPlural } from "@/lib/utils/format";
@@ -47,19 +47,14 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
           >
             Especie
           </label>
-          <select
-            id="species"
-            name="species"
-            defaultValue={filters.species ?? ""}
-            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-          >
+          <LnSelect id="species" name="species" defaultValue={filters.species ?? ""}>
             <option value="">Todas</option>
             {SPECIES_OPTIONS.map((o) => (
               <option key={o.value} value={o.value}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </LnSelect>
         </div>
 
         <div>
@@ -69,12 +64,11 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
           >
             Provincia
           </label>
-          <select
+          <LnSelect
             id="provincia"
             name="provincia"
             value={provinceName}
             onChange={(e) => setProvinceName(e.target.value)}
-            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
           >
             <option value="">Todas</option>
             {PROVINCES.map((p) => (
@@ -82,7 +76,7 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
                 {p.name}
               </option>
             ))}
-          </select>
+          </LnSelect>
         </div>
 
         <div>
@@ -114,13 +108,12 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
           >
             Color
           </label>
-          <input
+          <LnInput
             id="color"
             type="text"
             name="color"
             defaultValue={filters.color ?? ""}
             placeholder="Ej: negro, atigrado"
-            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)] placeholder:text-[var(--color-ln-faint)]"
           />
         </div>
 
@@ -131,19 +124,14 @@ export function LostFiltersBar({ filters }: { filters: LostListingFilters }) {
           >
             ¿Cuándo se perdió?
           </label>
-          <select
-            id="visto"
-            name="visto"
-            defaultValue={filters.visto ?? ""}
-            className="w-full px-3 py-2 rounded-[var(--radius-sm)] border border-[var(--color-ln-line-strong)] bg-[var(--color-ln-card)] text-sm text-[var(--color-ln-ink)]"
-          >
+          <LnSelect id="visto" name="visto" defaultValue={filters.visto ?? ""}>
             <option value="">Cualquier momento</option>
             {LOST_TIME_BUCKETS.map((b) => (
               <option key={b} value={b}>
                 {VISTO_LABELS[b]}
               </option>
             ))}
-          </select>
+          </LnSelect>
         </div>
       </div>
 
