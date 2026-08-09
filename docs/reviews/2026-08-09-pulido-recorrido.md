@@ -212,11 +212,28 @@ Y en la forma de registros de atestación, tres más:
 
 **Por rol, no en general.** La primera pasada la corrí sólo como admin y las 37 rutas de ciudadano **rebotaron a `/admin`** — separación de roles deliberada, pero significa que no se habían cargado. Contarlas como verdes habría sido contar un rebote como una carga. Por eso la segunda pasada como `owner@`.
 
-**Lo que este barrido NO cubre**, dicho explícitamente:
+### Segunda pasada — rutas dinámicas, con sujetos reales de la base
 
-- Las rutas **dinámicas** (`[publicToken]`, `[id]`, `[orgToken]`…), que son la mayoría de las 246 `page.tsx` del repo. Necesitan sujetos reales y son el siguiente escalón.
-- El rol **`govt`** y el portal **`/org`** más allá de su índice.
-- Que la página **diga la verdad**: esto verifica que devuelve 200 y a tiempo, no que su contenido sea correcto. Un dashboard mostrando ceros falsos devuelve 200 igual.
+Tokens tomados de la base (una mascota activa, una perdida, una org verificada, una oferta aprobada, un caso, una denuncia) y sustituidos en las rutas dinámicas:
+
+| Grupo | Rutas | Resultado |
+|---|---|---|
+| Credencial pública, `/adoptar`, casos gob+admin, servicios, reglas por jurisdicción, refugios, código de denuncia | 12 | **200 todas** |
+| Portal `/org` — 28 sub-rutas reales × 2 organizaciones donde el actor ES miembro | 56 | **200 todas, en su lugar** |
+
+**Control negativo, que es la mitad que importa:** `/org/<token-de-una-org-donde-NO-soy-miembro>` da **404**, no 403. Correcto: un 403 confirmaría que la organización existe.
+
+**Total del día: ~189 cargas de ruta verificadas** entre `admin`, `owner` y un miembro de organización. Cero errores reales, ninguna sobre 2,5 s.
+
+**Lo que sigue sin cubrir:** el rol `govt` con sus jurisdicciones, las rutas dinámicas de detalle más profundas (`/gob/maltrato/[id]`, `/mis-mascotas/[token]/eventos/...`), y —lo más importante— que la página **diga la verdad**. Esto verifica que devuelve 200 a tiempo, no que su contenido sea correcto: un dashboard mostrando ceros falsos devuelve 200 igual.
+
+### El mismo error mío, dos veces
+
+En la primera tanda inventé `/admin/mordeduras`. En la segunda inventé **cuatro** sub-rutas de organización —`/equipo`, `/permisos`, `/maltrato`, `/mordeduras`— porque el nav mostraba esas ETIQUETAS y asumí las URLs. Las reales son `/miembros`, `/admin/permisos`, `/maltrato/recibidos` y `/mordedura/nuevo`. Los cuatro 404 eran míos.
+
+Dos veces en un día, y las dos por lo mismo: **tipear una lista en vez de generarla.** La segunda además tuvo un obstáculo propio — `globSync("app/org/[orgToken]/**")` devuelve vacío, porque `[orgToken]` es una CLASE DE CARACTERES en glob, no un literal. `vitest.config.ts` documenta esa misma trampa con su helper `escapeGlob`. Un cero inesperado siempre es sospechoso, nunca una respuesta.
+
+Las tres listas de este barrido salieron de `globSync` + filtro en JS. Ninguna se tipeó.
 
 ### Un error mío, que vale más que el barrido
 
