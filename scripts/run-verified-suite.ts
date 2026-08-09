@@ -34,6 +34,19 @@ import { rmSync } from "node:fs";
 
 const REPORT = ".vitest-report.json";
 
+// Run the JS entrypoints under the CURRENT node, with no shell.
+//
+// `spawnSync("vitest", …, { shell: true })` works, but Node emits DEP0190
+// ("Passing args to a child process with shell option true…") on every run.
+// The args here are constants plus this process's own argv, so there is nothing
+// to escape — but a gate that prints a warning on every green run teaches
+// everyone to skim its output, which is the same failure mode as a smoke test
+// that cries wolf. Resolving the entrypoints and running them under
+// process.execPath removes the shell, the warning, and the platform-specific
+// `.CMD` shim question in one move.
+const VITEST_ENTRY = "node_modules/vitest/vitest.mjs";
+const TSX_ENTRY = "node_modules/tsx/dist/cli.mjs";
+
 // Extra args after `--` are forwarded to vitest (e.g. a file filter).
 const passthrough = process.argv.slice(2);
 
@@ -45,18 +58,26 @@ rmSync(REPORT, { force: true });
 // The old one-liner emitted json ONLY, which meant the readable output was the
 // price of the verdict — a bad trade that discourages running the safe command.
 const suite = spawnSync(
-  "vitest",
-  ["run", "--reporter=default", "--reporter=json", `--outputFile.json=${REPORT}`, ...passthrough],
-  { stdio: "inherit", shell: true },
+  process.execPath,
+  [
+    VITEST_ENTRY,
+    "run",
+    "--reporter=default",
+    "--reporter=json",
+    `--outputFile.json=${REPORT}`,
+    ...passthrough,
+  ],
+  { stdio: "inherit" },
 );
 
 // DELIBERATELY IGNORED HERE. `suite.status` is the number the verdict below
 // exists to check, not a reason to skip it. It is folded back in at the end so
 // a genuine test failure still fails the command.
-const verdict = spawnSync("tsx", ["scripts/check-suite-coverage.ts", REPORT], {
-  stdio: "inherit",
-  shell: true,
-});
+const verdict = spawnSync(
+  process.execPath,
+  [TSX_ENTRY, "scripts/check-suite-coverage.ts", REPORT],
+  { stdio: "inherit" },
+);
 
 if (verdict.status !== 0) process.exit(verdict.status ?? 1);
 if (suite.status !== 0) {

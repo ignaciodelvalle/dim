@@ -2,6 +2,13 @@
 # Checks Supabase containers, build freshness, starts the production server,
 # smoke-tests key routes, and verifies seed accounts exist.
 # Usage: pwsh scripts/qa-up.ps1 [-Port 3000]
+#        powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/qa-up.ps1
+#
+# BOTH invocations must work. PowerShell 7 (`pwsh`) is not installed on every
+# machine that runs this — on 2026-08-09 the documented `pwsh` form died with
+# exit 127 on the PO's box and the fallback to Windows PowerShell 5.1 then
+# failed the smoke below on a perfectly healthy app. Keep this script
+# 5.1-compatible; do not reach for pwsh-only syntax.
 param([int]$Port = 3000)
 
 $ErrorActionPreference = "Stop"
@@ -142,18 +149,45 @@ Check for a leftover process on the port, then re-run:
 Write-Host "Serving the on-disk build ($diskBuildId) - verified after start."
 
 # 4b. Smoke-test key routes
+#
+# A STATUS CODE IS A RESPONSE. This loop used to treat any thrown request as
+# "no answer" and retry 30 times, which made it fail on a healthy app: /login
+# is a 308 to /iniciar-sesion, and Windows PowerShell 5.1 does NOT auto-follow
+# 308 (its HttpWebRequest only follows 301/302/303/307) — it throws, the catch
+# swallowed the throw, and the smoke reported the server as dead. pwsh 7
+# follows it and passes, so the failure only appeared on machines without
+# PowerShell 7, which is exactly where the fallback invocation is needed.
+#
+# A gate that cries wolf is worse than no gate: it trains everyone to ignore
+# the one time it is right. So redirects are now followed manually and only a
+# CONNECTION failure (no status at all) or a 4xx/5xx counts as a failure.
 $routes = @("/", "/login", "/perdidas")
 foreach ($route in $routes) {
     $ok = $false
     for ($i = 0; $i -lt 30; $i++) {
+        $status = $null
         try {
-            $resp = Invoke-WebRequest -Uri "http://localhost:$Port$route" -UseBasicParsing -TimeoutSec 5
-            Write-Host ("smoke {0} -> {1}" -f $route, $resp.StatusCode)
+            # -MaximumRedirection 0 so both shells behave the same: we grade the
+            # redirect itself rather than depending on either one's auto-follow.
+            $resp = Invoke-WebRequest -Uri "http://localhost:$Port$route" -UseBasicParsing -TimeoutSec 5 -MaximumRedirection 0 -ErrorAction Stop
+            $status = [int]$resp.StatusCode
+        } catch {
+            # 5.1 throws on every non-2xx; the status still rides on the response.
+            if ($_.Exception.PSObject.Properties.Name -contains "Response" -and $_.Exception.Response) {
+                $status = [int]$_.Exception.Response.StatusCode
+            }
+        }
+        if ($null -ne $status -and $status -lt 400) {
+            Write-Host ("smoke {0} -> {1}" -f $route, $status)
             $ok = $true
             break
-        } catch {
-            Start-Sleep -Seconds 2
         }
+        if ($null -ne $status) {
+            Write-Error ("smoke FAILED: {0} answered {1} on port {2}" -f $route, $status, $Port)
+            $ok = $true
+            break
+        }
+        Start-Sleep -Seconds 2
     }
     if (-not $ok) { Write-Error "smoke FAILED: $route never responded on port $Port" }
 }
