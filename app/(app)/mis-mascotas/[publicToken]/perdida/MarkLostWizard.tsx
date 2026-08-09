@@ -24,7 +24,7 @@ import { LnSuccessScreen } from "@/components/ui/SuccessScreen";
 import { LnToggleGroup } from "@/components/ui/Toggle";
 import { TATTOO_LOCATIONS } from "@/lib/reference/lookups";
 import { useStepFocus } from "@/lib/ui/use-step-focus";
-import { markLostActionLabel } from "@/lib/utils/format";
+import { markLostActionLabel, markLostTitleForPet } from "@/lib/utils/format";
 import type { EventFormState } from "@/src/modules/events/actions";
 
 type FormAction = (prev: EventFormState, formData: FormData) => Promise<EventFormState>;
@@ -70,7 +70,10 @@ const DISCLOSURE_ROWS: Array<{
   {
     key: "allow_finder_form_when_lost",
     label: "Formulario para avisarte",
-    description: "Quien la encuentre puede avisarte sin ver tus datos.",
+    // Sin pronombre: esta constante es de módulo y no ve `petSex`, y el
+    // producto ya prefiere reescribir la frase antes que emitir "lo/la"
+    // (ver los helpers de género en lib/utils/format.ts).
+    description: "Quien encuentre a tu mascota puede avisarte sin ver tus datos.",
   },
 ];
 
@@ -124,9 +127,13 @@ export function MarkLostWizard({
   // disclosure (affirmative consent) step is ALWAYS the final step.
   const showDetailsStep = !petHasMicrochip && !petHasTattoo;
   const totalSteps = showDetailsStep ? 3 : 2;
+  // Etiquetas de paso sin pronombre: el cuerpo de esta hoja estaba fijo en
+  // femenino ("¿Dónde la viste?", "reconocerla") mientras el título ya
+  // concuerda con petSex, así que para un macho la mitad de la pantalla no
+  // coincidía. Reescritas en vez de desdobladas, como el resto del producto.
   const stepLabels = showDetailsStep
-    ? ["¿Dónde la viste?", "Datos para reconocerla", "Qué se muestra al público"]
-    : ["¿Dónde la viste?", "Qué se muestra al público"];
+    ? ["¿Dónde fue la última vez?", "Señas particulares", "Qué se muestra al público"]
+    : ["¿Dónde fue la última vez?", "Qué se muestra al público"];
   const disclosureStep = totalSteps;
 
   const [step, setStep] = useState(1);
@@ -203,7 +210,10 @@ export function MarkLostWizard({
         <LnSheetHeader
           tone="seal"
           icon={<Icon name="lupa" decorative />}
-          title={`Marcar ${petName} como perdida`}
+          // El género sale de petSex, como el botón de abajo. Estaba fijo en
+          // femenino mientras el <h2>/<p> estaban fijos en masculino: siempre
+          // había uno mal (S2-F07).
+          title={markLostTitleForPet(petName, petSex)}
           subtitle={`Paso ${step} de ${totalSteps} · ${stepLabels[step - 1]}`}
         />
       </div>
@@ -292,7 +302,7 @@ export function MarkLostWizard({
               inert={step !== 2 ? true : undefined}
             >
               <LnCallout tone="azul" title="Sin chip ni tatuaje, estos detalles son clave">
-                Cualquiera que la encuentre sin documentación va a depender de cómo se ve.
+                Quien encuentre a tu mascota sin documentación va a depender de cómo se ve.
               </LnCallout>
 
               <LnSubCard heading="Identidad">

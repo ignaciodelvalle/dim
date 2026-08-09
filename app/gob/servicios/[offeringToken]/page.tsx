@@ -137,7 +137,11 @@ export default async function GobServicioDetailPage({
       <DetailSection title="Detalles">
         <dl className="space-y-1">
           <div className="flex gap-3">
-            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Duracion</dt>
+            {/* "Duración" — en esta misma pantalla "Capacidad", "Precio" y
+                "Especies" están bien, y el formulario que da de alta el
+                servicio escribe "Duración (minutos)". La versión sin tilde era
+                local a este <dt>. */}
+            <dt className="text-sm text-ln-op-mute w-32 shrink-0">Duración</dt>
             <dd className="text-md text-ln-op-ink">{offering.durationMinutes} min</dd>
           </div>
           <div className="flex gap-3">

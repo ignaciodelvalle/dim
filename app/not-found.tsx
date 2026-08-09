@@ -37,7 +37,10 @@ export default function RootNotFound() {
     <main id="main-content">
       <BrandedNotFound
         title="No encontramos esta página"
-        body="La dirección que buscás no existe o cambió de lugar. Revisá el enlace o volvé al inicio."
+        // Los sustantivos estaban intercambiados contra las otras tres 404 del
+        // producto ((app), gob y admin dicen "La página … Revisá la dirección").
+        // Tres de cuatro coincidían; ésta era la que se salía.
+        body="La página que buscás no existe o cambió de lugar. Revisá la dirección o volvé al inicio."
         primary={{ href: "/", label: "Volver al inicio" }}
       />
     </main>

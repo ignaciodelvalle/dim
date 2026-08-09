@@ -181,6 +181,21 @@ export default async function WelfareReportByCodePage({
 
   const hasContact = report.reporterContactEmail || report.reporterContactPhone;
 
+  // S8-F03. El flag `?nueva=1` declara una INTENCIÓN —lo pone el redirect que
+  // sigue al envío— pero una URL la escribe cualquiera. El banner de abajo
+  // afirma un HECHO ("tu denuncia fue registrada", en presente), así que se
+  // comprueba contra el dato y no contra el query string: con sólo pegarle
+  // `?nueva=1` a una denuncia de hace tres meses, el comprobante decía que
+  // acababa de enviarse.
+  //
+  // Misma clase que el `service_kind` ya corregido: un parámetro de URL no
+  // puede ser la única prueba de algo que pasó del lado del servidor. La
+  // ventana es generosa (10 min) porque sólo tiene que cubrir un envío lento
+  // más su redirect, no una sesión.
+  const JUST_SUBMITTED_WINDOW_MS = 10 * 60 * 1000;
+  const justSubmitted =
+    nueva === "1" && Date.now() - new Date(report.createdAt).getTime() < JUST_SUBMITTED_WINDOW_MS;
+
   return (
     <div id="comprobante-root" className="p-6 bg-[var(--color-ln-paper)]">
       {/* Print styles: print the full comprobante (header + all report
@@ -217,7 +232,7 @@ export default async function WelfareReportByCodePage({
             block that the header renders right below — same actions shown
             twice on first load. The banner now only confirms the submission;
             the header owns the single código/action block. */}
-        {nueva === "1" && (
+        {justSubmitted && (
           <div className="rounded-[var(--radius-md)] border border-[var(--color-ln-ok-100)] bg-[var(--color-ln-ok-050)] px-5 py-5 space-y-2">
             <p className="text-sm font-semibold text-[var(--color-ln-ok)]">
               Tu denuncia fue registrada.
