@@ -60,8 +60,13 @@ Llena `time_slots` futuros **y** `appointments`, y ejercita la cadena completa o
 ### Fase 2 — recorrido del funcionario *(desbloquea reglas)*
 Como `govt-local@` (CABA/Palermo): cargar reglas reales por los seis formularios. Llena `govt_business_rules`, apaga la amplificación de consultas y hace que la columna "origen" diga algo distinto de sí misma.
 
-### Fase 3 — volumen donde la mano no llega
-Perdidas a una tasa realista, por script.
+### Fase 3 — volumen donde la mano no llega · ~~perdidas~~ **DESCARTADA POR EL PO**
+
+> **DECISIÓN (PO, 2026-08-09): no se tocan las perdidas hoy.** Quedan 41 sobre 32.430. El tiempo va al barrido de carga y a consistencia, que tocan más pantallas.
+>
+> **Consecuencia a manejar en la demo:** la tasa de reunificación se calcula sobre 41 episodios. **No citarla.**
+
+Si en algún momento se hace, la forma correcta está identificada y **no es SQL**: `setPetLostWriter` (`src/modules/events/application/lifecycle/set-pet-lost-use-case.ts:108`) está exportado justamente para llamarse fuera del contexto de Next. Un `UPDATE pets SET status='lost'` crearía la fila de caché **sin** su evento `pet_lost`, violando el invariante #3 y haciendo que la tasa de reunificación corra sobre una población falsa. El writer además necesita un `broadcastLostPet` no-op, o serían miles de notificaciones.
 
 ### Fase 4 — barrido de carga por rol
 Que **todo** cargue. El manifiesto cubre 50 rutas y arrastra 42 en baseline; el universo real es 246. Mecánico, automatizable, y queda como red permanente en vez de como un chequeo de una tarde.

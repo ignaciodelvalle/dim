@@ -228,6 +228,65 @@ Lo detecté al verificar contra el archivo generado. Y el chequeo que casi me co
 
 ---
 
+## R9 — `capitalize` de CSS sobre texto ya correcto · MEDIA (P3)
+
+**Dónde:** 8 sitios. Fechas: `turnos/buscar/[offeringToken]/page.tsx:148`, `…/reservar/[slotId]/page.tsx:121`, `mis-turnos/[appointmentToken]/page.tsx:130`, `org/[orgToken]/agenda/turnos/[appointmentToken]/page.tsx:106`, `SoloVetAgendaLanding.tsx:63`, `AppointmentCard.tsx:87`. Nombres propios: `DecomisoForm.tsx:684,728`, `buscar-hogar/page.tsx:147`.
+
+`text-transform: capitalize` sube la inicial de **cada palabra**, no la de la frase. De ahí `Sábado, 8 De Agosto`.
+
+**La convención correcta ya existía y estaba testeada**: `components/panorama/__tests__/context-bar-model.test.ts:88` dice literalmente *"capitalizes the período in CSS, never by forking the string"* y afirma `first-letter:uppercase`. El context-bar de panorama lo hace bien; estos ocho quedaron con el viejo.
+
+**Dos eran peores de lo que P3 decía.** En `DecomisoForm` y `buscar-hogar` el contenido es `"Red de rescate"` más una localidad — strings **ya correctos**. Ahí `capitalize` no era inútil, era **dañino**: renderizaba **"Red De Rescate"**. En esos dos la clase se elimina, no se reemplaza.
+
+**Uno tenía dos transformaciones peleándose:** `turnos/buscar/[offeringToken]/page.tsx:148` llevaba `uppercase` **y** `capitalize` en la misma clase, con el resultado dependiendo del orden del CSS generado. Gana `uppercase` (es un encabezado en versalitas) y `capitalize` se va.
+
+**Detalle de CSS que importa, y que medí en el navegador en vez de razonarlo.** Sonda: `::first-letter { font-size: 60px }` sobre texto de 12px, y se mide la altura de la caja — sólo crece donde el pseudo-elemento aplica.
+
+| Contexto | `display` computado | Altura | ¿Aplica? |
+|---|---|---|---|
+| `<span>` suelto | `inline` | 15px | **NO** |
+| `<span style="inline-block">` | `inline-block` | 60px | sí |
+| `<p>` | `block` | 60px | sí |
+| `<span>` hijo de un flex / inline-flex | `block` (blockificado) | 60px | sí |
+
+Por eso los tres `<span>` llevan además `inline-block`: un reemplazo mecánico de `capitalize` por `first-letter:uppercase` en ellos **no habría hecho nada**, y habría quedado verde.
+
+**Y por eso NO reporté a panorama.** `ContextBar.tsx:166` aplica `first-letter:uppercase` a un `<span>` que, leído aislado, parece inline — pero su padre es un `<button className="inline-flex …">`, así que el hijo se blockifica y el pseudo-elemento sí aplica. Estuve a punto de anotarlo como "test que afirma que la clase está, no que renderice". La medición lo desmintió.
+
+Verificado: `rg '\bcapitalize\b'` sobre `app/` y `components/` no devuelve ninguna clase viva.
+
+---
+
+## R10 — `pnpm test:verified` con filtro de archivo mentía · BAJA (bug mío, del mismo día)
+
+Al cablear el comando en CI probé `pnpm test:verified -- <un archivo>` y el veredicto imprimió **1224 archivos** bajo *"a worker died and took them with it"*. Falso y aterrador.
+
+No es un bug de `check-suite-coverage`: compara **reportados contra DESCUBIERTOS**, y una corrida filtrada descubre 1225 reportando uno. Es un bug del passthrough que yo mismo agregué esta mañana.
+
+Ahora un **flag** (`--coverage`, `--reporter=…`) conserva el veredicto y un **filtro posicional** lo omite, ruidosamente, diciendo cómo obtener el veredicto real.
+
+Y explicó un cuelgue que me había costado 10 minutos: pnpm pasa `"--" "--help"` al script — **verificado, no razonado** — así que antes de filtrar el `--` suelto, éste llegaba a vitest y le rompía el filtro de archivos, que entonces corría la suite entera en modo serie.
+
+---
+
+## REFUTADO — el `·` que "pierde el espacio en tres componentes"
+
+El handoff de resiliencia listaba, dentro de P3, que *"el `·` pierde el espacio en tres componentes"*. **No reproduce.**
+
+Los tres únicos `<span>·</span>` sin margen propio del producto están los tres dentro de un contenedor que sí espacia:
+
+| Componente | Contenedor |
+|---|---|
+| `org/[orgToken]/voluntarios/VolunteerRow.tsx:82,86,96` | `<p className="… space-x-2">` |
+| `gob/cola/[publicToken]/page.tsx:150,154` | `<p className="… flex flex-wrap gap-x-2 …">` |
+| `(public)/perdidas/page.tsx:119` | `<div className="… flex items-center gap-3 …">` |
+
+El resto de los aciertos del barrido son `<span className="mx-1">·</span>` (margen propio) o `· {valor}` (espacio en el texto).
+
+**No inventé un arreglo para algo que no está roto.** Si el síntoma existió, fue en un estado anterior o en un componente que ya no está. Queda registrado como refutado para que nadie lo persiga de nuevo.
+
+---
+
 ## R2 — El build en disco estaba viejo respecto de HEAD · informativo
 
 `qa-up.ps1` lo detectó y lo dijo bien: *"Build is OLDER than HEAD (c678f0a4)"*, y siguió sirviendo el build viejo en vez de mentir. Ese chequeo funciona como debe — se anota como contraste con R1, no como defecto.
