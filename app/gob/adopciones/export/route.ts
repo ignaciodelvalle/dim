@@ -4,6 +4,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   buildSectionedCsv,
   csvDownloadResponse,
@@ -71,13 +72,31 @@ export async function GET(request: NextRequest): Promise<Response> {
   // deliberately do NOT take species — same honest skip as the page (foster
   // pool is volunteer-level with no species dimension; shelter occupancy's
   // capacity denominator is org-level and can't be split by species).
-  const [funnel, timeInState, returnRateValue, fosterPool, shelterOccupancy] = await Promise.all([
-    fetchCustodyFunnel(ctx, { species }),
-    fetchTimeInState(ctx, { species }),
-    fetchReturnRate(ctx, { species }),
-    fetchFosterPoolUtilization(ctx),
-    fetchShelterOccupancyNational(ctx),
-  ]);
+  //
+  // BOUNDED (2026-08-09, discovery scan). Same five population-scale aggregates
+  // the page runs, and the page has been bounded since the outage pass while
+  // this route — reachable by the same click, from the same bar — was not. An
+  // export that hangs holds a connection with no UI to show for it; 503 tells
+  // the operator to retry instead of leaving the download spinning.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchCustodyFunnel(ctx, { species }),
+      fetchTimeInState(ctx, { species }),
+      fetchReturnRate(ctx, { species }),
+      fetchFosterPoolUtilization(ctx),
+      fetchShelterOccupancyNational(ctx),
+    ]),
+  );
+  if (!load.ok) {
+    return new Response(
+      "No pudimos generar el export en este momento. Reintentá en unos minutos.",
+      {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "60" },
+      },
+    );
+  }
+  const [funnel, timeInState, returnRateValue, fosterPool, shelterOccupancy] = load.value;
 
   const returnRatePct = returnRateValue != null ? Math.round(returnRateValue * 1000) / 10 : "";
 

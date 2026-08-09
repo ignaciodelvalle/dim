@@ -11,6 +11,7 @@
 
 import { type NextRequest, NextResponse } from "next/server";
 
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   buildSectionedCsv,
   csvDownloadResponse,
@@ -81,14 +82,30 @@ export async function GET(request: NextRequest): Promise<Response> {
   // species narrows every fetcher identically to the page (domain-axes export
   // parity fix) so the exported summary + per-province coverage match the
   // on-screen KPI row/ratio/trend/map exactly under the same filter.
-  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio] =
-    await Promise.all([
+  //
+  // BOUNDED (2026-08-09, discovery scan). PoblacionScreen has been bounded
+  // since the outage pass; this route runs the same five aggregates from the
+  // same screen's export button and was not. An export that hangs holds a
+  // connection with no UI to show for it.
+  const load = await loadWithTimeout(
+    Promise.all([
       fetchSterilizationCoverage(ctx, { species }),
       fetchActivePregnancies(ctx, { species }),
       fetchReproductiveOutcomes(ctx, { species }),
       fetchNetGrowth(ctx, { species }),
       fetchSterilizationNatalidadRatio(ctx, { species }),
-    ]);
+    ]),
+  );
+  if (!load.ok) {
+    return new Response(
+      "No pudimos generar el export en este momento. Reintentá en unos minutos.",
+      {
+        status: 503,
+        headers: { "content-type": "text/plain; charset=utf-8", "retry-after": "60" },
+      },
+    );
+  }
+  const [coverage, activePregnancies, outcomes, netGrowth, sterilNatalidadRatio] = load.value;
 
   // RA-3 C1 / RA-1 C1c — THE RESUMEN OBEYS THE SAME VERDICT AS THE ROWS. This
   // file used to print `cobertura_esterilizacion_pct` and `mascotas_total`

@@ -75,6 +75,7 @@ import {
   PetSwitcherAvatars,
 } from "@/components/pet-profile/PetSwitcherAvatars";
 import { DegradedFallback } from "@/components/ui/DegradedFallback";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import {
   appointments,
   attachments,
@@ -88,6 +89,7 @@ import {
   serviceOfferings,
   timeSlots,
 } from "@/db";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   fetchActiveRemindersForPet,
   fetchComplianceStatesForPets,
@@ -468,6 +470,99 @@ export default async function PetDetailPage({
   //     across episodes) stays sequential INSIDE the unit. Runs for both owner and
   //     org viewers (LostCaseBlock needs it for both roles).
   //   - reminders / canonicalIds / rabies turno: the compliance-projection reads.
+  //
+  // BOUNDED (2026-08-09, discovery scan). Seven concurrent reads — the widest
+  // fan-out outside the dashboards — on the screen an owner opens to check
+  // their own animal, and on the screen a vet will open during the pilot. It
+  // had no deadline: a degraded pooler left it hanging with nothing logged.
+  const profileLoad = await loadWithTimeout(
+    Promise.all([
+      resolveBusinessRule("ppp_breed_list", {
+        province: pet.jurisdictionProvince,
+        locality: pet.jurisdictionLocality,
+      }),
+      resolveBusinessRule("microchip_required", {
+        province: pet.jurisdictionProvince,
+        locality: pet.jurisdictionLocality,
+      }),
+      fetchPetEventsForProfileV2(pet.id),
+      (async (): Promise<{
+        lostEpisode: Awaited<ReturnType<typeof fetchLostEpisodeForPet>>;
+        lostScans: Awaited<ReturnType<typeof fetchLostScanEvents>>;
+        /** A5 — a found-pet report on this pet also alerts its origin shelter. */
+        alertsOriginShelter: boolean;
+      }> => {
+        // A5 disclosure input — the SAME predicate the notifier runs, so the
+        // profile never promises an alert that will not fire (and never stays
+        // silent about one that will). Resolved for EVERY pet, not just lost
+        // ones: the "Qué se muestra si se pierde" sheet is reachable at any time,
+        // and that is precisely when a titular reads it to decide.
+        const alertsOriginShelter = await petAlertsOriginShelter(pet.id);
+        if (pet.status !== "lost") return { lostEpisode: null, lostScans: [], alertsOriginShelter };
+        // Fetch episode first so we can scope the scan feed to the current episode.
+        const lostEpisode = await fetchLostEpisodeForPet(pet.id);
+        const rawScans = await fetchLostScanEvents(pet.id, undefined, lostEpisode?.id ?? undefined);
+        // P0g: sighting/finder items in a private bucket need short-lived signed URLs.
+        const lostScans = await Promise.all(
+          rawScans.map(async (item) => {
+            if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
+              const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
+              return { ...item, photoUrl: url };
+            }
+            return item;
+          }),
+        );
+        return { lostEpisode, lostScans, alertsOriginShelter };
+      })(),
+      // Vaccine reminders for owner path only.
+      accessPath === "owner"
+        ? fetchActiveRemindersForPet(user.id, pet.id)
+        : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
+      // Canonical chip/tattoo identifiers (ARCH-Q).
+      fetchActiveIdentifications(pet.id),
+      // WS-2: the pet's next confirmed rabies appointment (service_kind =
+      // vaccination_rabies), if any — drives the "Turno reservado" compliance
+      // state. Left-joins the provider (org or individual vet) for the label.
+      db
+        .select({
+          slotStartsAt: timeSlots.startsAt,
+          orgName: organizations.displayName,
+          vetName: profiles.displayName,
+        })
+        .from(appointments)
+        .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
+        .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
+        .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
+        .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
+        .where(
+          and(
+            eq(appointments.petId, pet.id),
+            eq(appointments.status, "confirmed"),
+            eq(serviceOfferings.serviceKind, "vaccination_rabies"),
+            gt(timeSlots.startsAt, new Date()),
+          ),
+        )
+        .orderBy(asc(timeSlots.startsAt))
+        .limit(1),
+    ]),
+  );
+  if (!profileLoad.ok) {
+    // Degraded profile. `pet` came from requirePetAccess, before any of this
+    // ran, so the owner still gets the name they navigated for and a way back
+    // — instead of a spinner that never resolves.
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-10 space-y-4">
+        <Link href="/mis-mascotas" className="text-sm text-ln-azul hover:underline">
+          ← Mis mascotas
+        </Link>
+        <h1 className="m-0 font-ln-serif text-3xl font-semibold text-ln-ink">{pet.name}</h1>
+        <AnalyticsLoadFallback
+          reason={profileLoad.reason}
+          retryHref={`/mis-mascotas/${pet.publicToken}`}
+        />
+      </div>
+    );
+  }
   const [
     pppBreedRule,
     microchipRule,
@@ -476,75 +571,7 @@ export default async function PetDetailPage({
     petActiveReminders,
     canonicalIds,
     reservedRabiesTurnoRows,
-  ] = await Promise.all([
-    resolveBusinessRule("ppp_breed_list", {
-      province: pet.jurisdictionProvince,
-      locality: pet.jurisdictionLocality,
-    }),
-    resolveBusinessRule("microchip_required", {
-      province: pet.jurisdictionProvince,
-      locality: pet.jurisdictionLocality,
-    }),
-    fetchPetEventsForProfileV2(pet.id),
-    (async (): Promise<{
-      lostEpisode: Awaited<ReturnType<typeof fetchLostEpisodeForPet>>;
-      lostScans: Awaited<ReturnType<typeof fetchLostScanEvents>>;
-      /** A5 — a found-pet report on this pet also alerts its origin shelter. */
-      alertsOriginShelter: boolean;
-    }> => {
-      // A5 disclosure input — the SAME predicate the notifier runs, so the
-      // profile never promises an alert that will not fire (and never stays
-      // silent about one that will). Resolved for EVERY pet, not just lost
-      // ones: the "Qué se muestra si se pierde" sheet is reachable at any time,
-      // and that is precisely when a titular reads it to decide.
-      const alertsOriginShelter = await petAlertsOriginShelter(pet.id);
-      if (pet.status !== "lost") return { lostEpisode: null, lostScans: [], alertsOriginShelter };
-      // Fetch episode first so we can scope the scan feed to the current episode.
-      const lostEpisode = await fetchLostEpisodeForPet(pet.id);
-      const rawScans = await fetchLostScanEvents(pet.id, undefined, lostEpisode?.id ?? undefined);
-      // P0g: sighting/finder items in a private bucket need short-lived signed URLs.
-      const lostScans = await Promise.all(
-        rawScans.map(async (item) => {
-          if ((item.kind === "sighting" || item.kind === "finder") && item.photoStoragePath) {
-            const url = await eventAttachmentSignedUrl(supabase, item.photoStoragePath);
-            return { ...item, photoUrl: url };
-          }
-          return item;
-        }),
-      );
-      return { lostEpisode, lostScans, alertsOriginShelter };
-    })(),
-    // Vaccine reminders for owner path only.
-    accessPath === "owner"
-      ? fetchActiveRemindersForPet(user.id, pet.id)
-      : Promise.resolve([] as Awaited<ReturnType<typeof fetchActiveRemindersForPet>>),
-    // Canonical chip/tattoo identifiers (ARCH-Q).
-    fetchActiveIdentifications(pet.id),
-    // WS-2: the pet's next confirmed rabies appointment (service_kind =
-    // vaccination_rabies), if any — drives the "Turno reservado" compliance
-    // state. Left-joins the provider (org or individual vet) for the label.
-    db
-      .select({
-        slotStartsAt: timeSlots.startsAt,
-        orgName: organizations.displayName,
-        vetName: profiles.displayName,
-      })
-      .from(appointments)
-      .innerJoin(timeSlots, eq(timeSlots.id, appointments.slotId))
-      .innerJoin(serviceOfferings, eq(serviceOfferings.id, appointments.serviceOfferingId))
-      .leftJoin(organizations, eq(organizations.id, serviceOfferings.organizationId))
-      .leftJoin(profiles, eq(profiles.id, serviceOfferings.providerUserId))
-      .where(
-        and(
-          eq(appointments.petId, pet.id),
-          eq(appointments.status, "confirmed"),
-          eq(serviceOfferings.serviceKind, "vaccination_rabies"),
-          gt(timeSlots.startsAt, new Date()),
-        ),
-      )
-      .orderBy(asc(timeSlots.startsAt))
-      .limit(1),
-  ]);
+  ] = profileLoad.value;
   const { lostEpisode, lostScans, alertsOriginShelter } = lostData;
 
   // Derive owner first name from displayName (first word only) — feeds

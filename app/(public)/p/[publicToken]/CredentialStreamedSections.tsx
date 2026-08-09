@@ -27,6 +27,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { db, petEvents } from "@/db";
 import type { Pet } from "@/db";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { computeVaccinationSummary, hasAnyVaccineRecord } from "@/lib/domain/libreta-health-status";
 import { overlayAmendments } from "@/lib/infra/amendment";
 import { resolveBusinessRule } from "@/lib/infra/business-rules-resolver";
@@ -72,11 +73,21 @@ export async function CredentialTier2Medical({
   // shell flushed — an uncaught throw here would swap the WHOLE page for the
   // error boundary client-side. A DB failure instead renders an honest
   // degraded strip; the credential shell the finder needs stays up.
-  let tier2Queries: Awaited<ReturnType<typeof runTier2Queries>>;
-  try {
-    tier2Queries = await runTier2Queries(petId, jurisdictionProvince, jurisdictionLocality);
-  } catch (err) {
-    reportError("public-credential/tier2-medical", err, { petId });
+  //
+  // BOUNDED as well as caught (2026-08-09). The try/catch covered the axis that
+  // throws and left the one that HANGS wide open — which is the axis the
+  // staging outage actually used. A hung await here never reaches the catch: it
+  // just leaves the Suspense skeleton spinning forever on the single most
+  // important public surface in the product, and writes nothing to the logs.
+  // 6s: a finder who scanned a collar in the street is the reader here.
+  const tier2Load = await loadWithTimeout(
+    runTier2Queries(petId, jurisdictionProvince, jurisdictionLocality),
+    6_000,
+  );
+  if (!tier2Load.ok) {
+    if (tier2Load.reason === "error") {
+      reportError("public-credential/tier2-medical", new Error("tier2 queries failed"), { petId });
+    }
     return (
       <output
         data-section="tier2-degraded"
@@ -91,7 +102,7 @@ export async function CredentialTier2Medical({
       </output>
     );
   }
-  const [vaccineEvents, sterilRows, medRows, amendmentEvents, dueSoonWindowRule] = tier2Queries;
+  const [vaccineEvents, sterilRows, medRows, amendmentEvents, dueSoonWindowRule] = tier2Load.value;
 
   // SINGLE SHARED DERIVATION (bug 3): the exact function + inputs the owner
   // libreta uses — corrections folded first, then catalog/due-date classification.
@@ -228,13 +239,19 @@ export async function CredentialOriginOrg({ petId }: { petId: string }) {
   // Fail-soft: streamed after the shell — a throw would swap the whole page
   // for the error boundary. The badge is optional decoration (absent for most
   // pets), so on DB failure it logs and stays absent; nothing real is faked.
-  let originOrg: Awaited<ReturnType<typeof resolveOriginOrg>>;
-  try {
-    originOrg = await resolveOriginOrg(petId);
-  } catch (err) {
-    reportError("public-credential/origin-org", err, { petId });
+  //
+  // BOUNDED too, and tightly: resolveOriginOrg walks up to three rows for a
+  // decorative badge below the fold. There is no version of this credential
+  // where waiting on it is worth a held stream. 3s, then it is simply absent —
+  // which is what it already is for most pets.
+  const originLoad = await loadWithTimeout(resolveOriginOrg(petId), 3_000);
+  if (!originLoad.ok) {
+    if (originLoad.reason === "error") {
+      reportError("public-credential/origin-org", new Error("origin org lookup failed"), { petId });
+    }
     return null;
   }
+  const originOrg = originLoad.value;
   if (!shouldShowOriginOrgBadge(originOrg) || !originOrg) return null;
 
   return (
