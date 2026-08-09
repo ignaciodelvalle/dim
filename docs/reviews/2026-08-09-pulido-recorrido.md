@@ -201,6 +201,33 @@ Y en la forma de registros de atestación, tres más:
 
 ---
 
+## ✅ Barrido de carga — 121 cargas de ruta, cero errores
+
+`scripts/list-static-routes.ts` (nuevo) enumera las **130 rutas estáticas** del App Router (las dinámicas quedan afuera: necesitan un sujeto real). El barrido se corrió con `fetch` desde la sesión viva del navegador, así que las cookies viajan solas y no hay que extraer nada.
+
+| Rol | Rutas | Resultado |
+|---|---|---|
+| `admin@` | 73 (todo `/admin` + `/gob`) | **200 todas.** Cero redirecciones inesperadas, ninguna sobre 2,5 s |
+| `owner@` | 48 (ciudadano + público) | **45 en su lugar**, 3 redirigen y las tres bien: `/` e `/inicio` → perfil de la mascota (role landing), `/adopciones` → `/adoptar` (canónica) |
+
+**Por rol, no en general.** La primera pasada la corrí sólo como admin y las 37 rutas de ciudadano **rebotaron a `/admin`** — separación de roles deliberada, pero significa que no se habían cargado. Contarlas como verdes habría sido contar un rebote como una carga. Por eso la segunda pasada como `owner@`.
+
+**Lo que este barrido NO cubre**, dicho explícitamente:
+
+- Las rutas **dinámicas** (`[publicToken]`, `[id]`, `[orgToken]`…), que son la mayoría de las 246 `page.tsx` del repo. Necesitan sujetos reales y son el siguiente escalón.
+- El rol **`govt`** y el portal **`/org`** más allá de su índice.
+- Que la página **diga la verdad**: esto verifica que devuelve 200 y a tiempo, no que su contenido sea correcto. Un dashboard mostrando ceros falsos devuelve 200 igual.
+
+### Un error mío, que vale más que el barrido
+
+En la primera tanda tipeé la lista de rutas **a mano** desde un `head -20`, e inventé `/admin/mordeduras`. Dio 404 y estuve a punto de reportarlo como hallazgo. **Esa ruta no existe en el producto ni en la lista generada** — la fabriqué.
+
+Lo detecté al verificar contra el archivo generado. Y el chequeo que casi me confirma el error fue otra trampa: `rg '^/admin' archivo` devolvió **cero** por el mangling de paths de Git Bash con patrones que empiezan en `/` — algo que está anotado en mi propia memoria. Dos fallas encadenadas que casi producen un hallazgo falso.
+
+**Regla que queda:** la lista de rutas se genera, no se tipea. Por eso `list-static-routes.ts` existe como script y no como comando de una vez.
+
+---
+
 ## R2 — El build en disco estaba viejo respecto de HEAD · informativo
 
 `qa-up.ps1` lo detectó y lo dijo bien: *"Build is OLDER than HEAD (c678f0a4)"*, y siguió sirviendo el build viejo en vez de mentir. Ese chequeo funciona como debe — se anota como contraste con R1, no como defecto.
