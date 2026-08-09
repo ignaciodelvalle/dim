@@ -77,11 +77,17 @@ El comentario en `app/gob/perdidas/page.tsx:175-179` (y su copia en `check-db-bu
 
 ---
 
-## Bloqueado esperando al PO
+## RESUELTO — `programa` y `padron`
 
-**`programa` y `padron` no cargan en staging** — reportado, sin explicación confirmada. Sus cuatro pantallas (`AnalyticsScreen`, `ProgramaResumenScreen`, `CensoScreen`, `PoblacionScreen`) **sí** están acotadas a 10s vía `loadWithTimeout`, así que deberían degradar a "tardando… reintentar", no colgar.
+**Cargan desde ambos portales** (verificado por el PO, 2026-08-09, sobre `ca6f7213`).
 
-**Una sola observación lo resuelve:** ¿se ve un esqueleto girando para siempre, o el cartel de degradado? Si es el cartel, el problema no es código sino la base de staging — que viene de una actualización a Postgres 17.6.1.141 (prod está en 17.6.1.121) y cuyos `57P01` del 2026-08-08 son de esa ventana.
+La explicación que mejor encaja con la evidencia es **S1: el `DashboardFreshnessFooter` sin cota**. Las cuatro pantallas de esos hubs (`AnalyticsScreen`, `ProgramaResumenScreen`, `CensoScreen`, `PoblacionScreen`) ya estaban acotadas a 10s vía `loadWithTimeout` y volvían bien; el pie —un `max()` sobre todo el spine, sin deadline y sin Suspense— colgaba el stream RSC después.
+
+Eso explica el detalle que no cerraba durante el diagnóstico: **por qué estas páginas nunca aparecieron en los runtime errors mientras `/gob/denuncias` sí.** Denuncias lanzaba `57P01` (excepción → se loguea); programa y padron colgaban (no se loguea nada). Un hueco de observabilidad, no una diferencia de gravedad.
+
+**Salvedad:** la ventana de actualización de Postgres en staging (17.6.1.141) también pasó en el medio, así que las dos causas cambiaron a la vez y no se pueden separar a posteriori. Pero el pie era una causa **estructural** — habría colgado igual con la base sana bajo suficiente carga — y ya no existe.
+
+**Lo que esto deja probado:** el arreglo efectivo fue el hallazgo de la tercera revisión de contexto fresco, el mismo que invalidó el commit anterior del autor. Se habían declarado ocho páginas acotadas; seis seguían colgando por un componente compartido que ninguna fence miraba, porque `check-db-budget` lee el archivo de la página y el `await` vivía en otro lado. Ese punto ciego es S8 y sigue abierto.
 
 ---
 
