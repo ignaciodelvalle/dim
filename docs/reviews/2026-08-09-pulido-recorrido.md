@@ -145,15 +145,23 @@ Verificado después: `rg '"[^"]*->"' app components --glob '*.tsx'` (excluyendo 
 
 ---
 
-## R8 — "Crear regla" clickeable que no hace nada · BAJA
+## R8 — REFUTADO. El botón sí hace algo; yo leí mal.
 
 **Dónde:** asistente de nueva regla, paso 4
 
 Al elegir `microchip_required` para La Matanza, el paso final muestra —correctamente— *"Esta configuración es idéntica al default — no se requiere override."* El sistema **se niega a crear una regla redundante**, que es la decisión correcta: evita llenar la tabla de overrides que no cambian nada.
 
-El problema es la affordance: el botón "Crear regla" queda **habilitado**, se puede clickear, y no pasa nada. Un operador no sabe si falló, si se guardó, o si el click no registró. Debería deshabilitarse (con el motivo ya visible al lado, que ya está) o confirmar explícitamente.
+**Lo reporté como defecto de affordance —"el botón queda habilitado y no pasa nada"— y estaba equivocado.** Al ir a arreglarlo, el código lo desmintió:
 
-No lo arreglé: es un cambio de comportamiento en un asistente que no recorrí entero, y prefiero que lo mire alguien con el flujo completo en la cabeza.
+1. `create-business-rule.ts:29` detecta el no-op y devuelve `{ ok: true, ruleId: null, noOp: true, reason }`.
+2. `app/actions/business-rules.ts:125` lo convierte en `{ error: null, warning: result.reason }`.
+3. El formulario renderiza `state.warning`.
+
+`state.warning` es estado de `useActionState`: **sólo puede existir después de un submit**. O sea que el mensaje que yo leí como "no pasó nada" apareció **por** mi click. El botón envió, el servidor evaluó, y el sistema me contestó que la regla era redundante. Comportamiento correcto, y de los buenos: evita llenar la tabla de overrides que no cambian nada.
+
+Mi error fue leer el snapshot posterior al click sin haber mirado el anterior, y atribuir a un no-op lo que era una respuesta.
+
+Queda, si acaso, una observación de diseño —no un defecto—: tras el no-op el operador se queda en el formulario con un aviso y sin próximo paso sugerido. Eso es criterio de producto, y no invento trabajo sobre una lectura que ya me falló una vez.
 
 ---
 
@@ -332,6 +340,125 @@ delete from govt_business_rules where created_by_user_id = ${ACTOR_ID}::uuid
 **Verificado por comportamiento, no por aserción:** con las reglas de La Matanza en la base, corrí los dos archivos de test (25 pasan, 3 skip) y volví a consultar. Siguen ahí.
 
 **El tercero se deja como está.** `business-rules-flow.test.ts:100` también filtra por provincia, pero lleva `and notes = 'test rule'` — un marcador deliberado y documentado, y es un self-heal que corre ANTES del test para limpiar restos de una corrida muerta, donde no hay ids que rastrear.
+
+---
+
+## Lote chico — hecho, y dónde freno a propósito
+
+**Decisiones del PO (2026-08-09):** especies sin desdoblamiento ni variante regional; lote chico completo.
+
+### Especies — baseline vacío
+
+Los **11 archivos** de `scripts/species-dictionary-baseline.json` se canalizaron por `speciesOptions()` / `speciesLabel()`. Los VALORES siguen siendo la decisión de producto de cada pantalla; la ORTOGRAFÍA ya no.
+
+- `"Perro/a"`, `"Conejo/a"`, `"Cobayo / Cuy"`, `"Gato/a"`, `"Otro"` → la forma canónica. El desdoblamiento en un selector de ESPECIE es un error de categoría: ahí no se habla de personas, y el sexo del animal tiene su propio campo. `speciesLabel` **ya** escribía "Perro" y "Cobayo"; faltaba que las pantallas la usaran.
+- **Un defecto latente de paso:** `gob/maltrato/_inspector/PetSubView.tsx` mapeaba sólo `{dog, cat}` con `?? pet.species` de fallback, así que un conejo, un cobayo, un hurón o una "otra" llegaban a la pantalla del inspector **como el enum crudo**. Es la fuga exacta que el fence existe para prevenir, viviendo dentro de un archivo que el propio fence tenía en su baseline.
+- **El fence se arregló a sí mismo:** leía el archivo crudo, así que el comentario que explica un arreglo —"antes era `{ dog: 'Perro' }`"— lo volvía a marcar como ofensor. Ahora pasa por el `stripComments` compartido, como sus dos hermanos. Documentar por qué se sacó un mapa no puede ser lo que reinstale la falla.
+
+`scripts/species-dictionary-baseline.json` queda en **`[]`**. El trinquete falla tanto ante una entrada nueva como ante una obsoleta, así que sólo puede quedarse vacío.
+
+### S8-F03 — el comprobante que se podía falsificar desde la URL · era el único defecto real del lote
+
+`?nueva=1` era la ÚNICA compuerta del banner "Tu denuncia fue registrada". Pegándoselo a una denuncia de hace tres meses, el comprobante público decía que acababa de enviarse.
+
+El flag declara una INTENCIÓN (lo pone el redirect posterior al envío); el banner afirma un HECHO. Ahora se comprueba contra `report.createdAt` con una ventana de 10 minutos — generosa para cubrir un envío lento más su redirect, corta para que no se pueda falsificar. Misma clase que el `service_kind` ya corregido.
+
+### S5-F03, S6-F04, S2-F07 — copy de verdad, hechos
+
+| | |
+|---|---|
+| **S5-F03** | `"Duracion"` sin tilde en `/gob/servicios/[token]`, en la misma pantalla donde "Capacidad", "Precio" y "Especies" están bien. La otra mitad —`"Confirmar aprobacion"`— ya estaba hecha como R4 |
+| **S6-F04** | El 404 global intercambiaba los sustantivos: *"La **dirección** … Revisá **el enlace**"* contra *"La **página** … Revisá **la dirección**"* de las otras tres. Tres de cuatro coincidían; se unificó la que se salía |
+| **S2-F07** | El `<h1>` de la hoja de pérdida estaba fijo en **femenino** mientras el `<h2>`/`<p>` salen de `markLostActionLabel(petSex)`: para un macho, siempre había uno mal. Ahora los tres concuerdan |
+
+Sobre S2-F07, el detalle que explica por qué se había escapado: la pasada de 2026-07-16 arregló las tres etiquetas peladas, pero **este string interpola el nombre** (`Marcar ${petName} como perdida`), así que ningún barrido por texto exacto lo encontraba. Se extrajo `lostAdjective()` como única decisión de género y las dos formas —con y sin nombre— salen de ese único switch.
+
+El cuerpo de la hoja también estaba fijo en femenino ("¿Dónde **la** viste?", "reconocer**la**"). Se **reescribió** en vez de desdoblar, que es la convención que el producto ya sigue: tres helpers de género en `format.ts` dicen literalmente *"sidesteps the lo/la pronoun"*.
+
+### Los cinco de diseño — decididos (PO delegó el criterio, 2026-08-09)
+
+El PO revirtió el freno de abajo y pidió decidir directamente. Cada uno se investigó en el código antes de decidir, y **dos de los cinco cambiaron de diagnóstico al hacerlo**.
+
+#### S1-F09 — tres formas de marcar "obligatorio"
+
+El wizard de denuncia usa "(obligatorio)" en los pasos 1-2, un asterisco pelado en el 3, y en un campo **las dos juntas**. Ningún lugar explica el asterisco. En el paso 4, de dos campos opcionales sólo uno dice "(opcional)".
+
+**Decisión: una sola convención, "(obligatorio)", y el asterisco se va.** Un asterisco necesita leyenda; una palabra no. El resto del producto usa `*` en formularios de operador, pero éste es un wizard público que alguien completa desde el celular, posiblemente alterado, después de ver un animal maltratado — ahí la palabra gana. Y los dos campos opcionales del paso 4 se marcan igual, porque marcar uno solo sugiere que el otro no lo es.
+
+#### S1-F10 — el contador no cambia de estado en el techo
+
+Medido por el revisor: `rgb(103,116,125)` idéntico en 100/2000, 1990/2000 y 2000/2000. El campo invita a un relato largo y, al llegar al tope, las letras dejan de aparecer **sin que nada en pantalla cambie**.
+
+**Decisión: el contador cambia de estado al llegar al límite** — color de advertencia y texto que nombra el hecho. No es decoración: la persona está contando un episodio de maltrato y necesita saber que la dejaron de escuchar.
+
+*(El revisor además desestimó su propia observación previa de "2100 / 2000" porque la había forzado por JS evadiendo el `maxlength` nativo. Bien desestimada.)*
+
+#### S1-F13 — los glifos de salud · **el diagnóstico creció al mirar el código**
+
+El revisor lo reportó como "glifos sin leyenda". Es más que eso. `HealthRow` recibe un **booleano**, y los tres valores que lo alimentan son `Boolean(fila)` — **presencia de registro**:
+
+```
+const hasVaccinations = Boolean(vaccinationsRow);
+const isSterilized    = Boolean(sterilizationRow);
+const hasMicrochip    = await hasActiveMicrochip(pet.id);
+```
+
+O sea que `false` no significa "no": significa **"no hay registro"**. Un refugio que todavía no cargó la castración se ve **idéntico** a una mascota que seguro no está castrada. Y el guión que representa a las dos no afirma nada mientras parece afirmar algo.
+
+**Decisión: nombrar el estado en vez de dibujarlo.** Donde no hay registro, dice **"Sin dato"**. No hace falta leyenda si el estado está escrito, y es lo único honesto que se puede decir con los datos que hay. Se conserva el tono neutro que el PO ya había decidido el 2026-08-06 (no es una falta, es una ausencia).
+
+#### S2-F09 — la hoja "Anotar" · **el diagnóstico era incorrecto**
+
+El hallazgo dice "el mismo menú dos veces" y cuenta 8 chips contra 6 ítems de lista. **La lista tiene 23**, agrupados por categoría: el revisor contó una categoría. `CaptureOptionsList` está documentada como *"Full discoverability list — ALL loggable events, driven by ALL_CAPTURE_OPTIONS so it stays in sync automatically"*.
+
+Así que no es una duplicación accidental: son **dos niveles deliberados** — 8 atajos a los eventos más comunes, y la lista completa de 23. La estructura está bien.
+
+**Pero el síntoma es real**, y es de etiquetas: los dos conectores dicen casi lo mismo —*"o cargá directamente"* y *"o elegí directamente"*— así que dos cosas distintas parecen la misma repetida, y hay que comparar las listas para descubrir que no lo son.
+
+**Decisión: no se borra nada; se nombran los niveles.** Los conectores pasan a decir qué es cada bloque. Y "Antiparasit." —única etiqueta abreviada con punto de todo el conjunto— se escribe entera.
+
+#### S6-F03 — el paso siguiente después de aprobar
+
+Aprobada la postulación, la pantalla queda en *"Esta postulación ya fue resuelta: aprobada"* y ofrece un solo camino: "Ver ficha de X". Finalizar la adopción vive en `/org/{org}/mascotas/{token}/adoption`, que se alcanza **desde adentro** de esa ficha.
+
+**Decisión: se acepta la sugerencia del revisor.** Botón "Finalizar adopción →" en el detalle de la postulación aprobada, condicionado a que la mascota **no** esté ya finalizada (esa variable ya existe en la pantalla). Un operador que acaba de aprobar no debería tener que adivinar que la acción vive dentro de la mascota y no dentro de la postulación que está mirando.
+
+---
+
+#### Lo que apareció al implementarlos — dos mapas de especies más
+
+Al arreglar especies, los tests del alta fallaron porque fijaban la redacción vieja (`/perro\/a/i`). Al actualizarlos apareció un **TERCER mapa** dentro de `MinimalNewPetForm`, en minúsculas para prosa: `{ dog: "perro/a", cat: "gato/a", … }`.
+
+**El fence no lo veía.** Sus etiquetas están capitalizadas (`"Perro"`) y sus regex eran sensibles a mayúsculas, así que declaró **baseline cero** mientras ese mapa seguía vivo — desdoblando "perro/a" justo debajo del selector que acababa de dejar de hacerlo.
+
+Se lo hizo insensible a mayúsculas y se le agregó `[^"']*` después de la etiqueta, para que las variantes de prosa ("perro/a", "otra especie") cuenten como los mapas rivales que son. Con la red más ancha cayó **uno más**:
+
+```ts
+// lib/analytics/travel-exports.ts — ANTES
+`Mascota: ${dto.petName} (${dto.petSpecies === "dog" ? "perro" : dto.petSpecies})`
+```
+
+Un ternario que escribe "perro" para perro y **el enum crudo para todo lo demás**: el PDF de export de viaje de un gato decía literalmente *"Mascota: Michi (cat)"*. Misma clase que el ternario que renderizaba toda especie no-perro como "Gatos" (revisión adversa 2026-08-08), escondido dos días por una diferencia de capitalización.
+
+Se agregó `speciesInProse()` a `lib/utils/species.ts` como el registro mid-sentence, con `other → "otra especie"` como única excepción de prosa.
+
+#### Y el fence de acentos me atrapó a mí
+
+`check-ui-invariants` marcó **mi propio comentario** en `HealthRow`: escribí "todavia" y "tambien" sin tilde, después de pasarme el día arreglando tildes ajenas.
+
+Aprovechando, la pregunta obvia: **¿por qué ese fence no atrapó `tamano`, `dueno`, `vacio` ni `condicion`?** No está roto — está deliberadamente angosto, y su docstring dice exactamente por qué:
+
+> *"El listón para esta lista es absoluto: un adverbio, una preposición o una forma verbal/adjetiva que no pueda nombrar un símbolo en ninguna convención de este repo. **Los sustantivos no califican, por tentador que sea** — así entraron los falsos positivos. Si querés agregar un sustantivo, hacé que la regla escanee literales de texto primero."*
+
+Los cuatro que encontré a mano son sustantivos, y `dueno`/`condicion` son claves de payload reales en este repo. La mejora está especificada por el propio fence: **escanear literales de texto y JSX primero, y recién entonces admitir sustantivos.** Es la mejora de fence de mayor rendimiento que queda pendiente — cerraría de raíz la clase entera de R6.
+
+---
+
+### La razón por la que había frenado (ya superada)
+
+`S1-F09`, `S1-F10`, `S1-F13`, `S2-F09` y `S6-F03` están catalogados como "copy" pero **no lo son**: tres formas de marcar "obligatorio" sin leyenda, un contador que no cambia de estado en el tope, glifos médicos sin leyenda, un menú duplicado en dos formatos, y una pantalla que no nombra el paso siguiente. Son decisiones de **diseño de interacción**.
+
+Y caen sobre las mismas pantallas que el revisor externo está por evaluar. Pre-empanar su juicio con mi criterio de diseño sería reemplazar la opinión que fuimos a buscar por la mía. Quedan explícitamente para después de su informe — no por falta de tiempo, sino porque el orden importa.
 
 ---
 
