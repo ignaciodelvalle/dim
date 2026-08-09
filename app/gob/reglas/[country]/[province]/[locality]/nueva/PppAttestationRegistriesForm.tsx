@@ -79,17 +79,19 @@ export function PppAttestationRegistriesForm({
       <input type="hidden" name="jurisdictionLocality" value={locality ?? ""} />
       <input type="hidden" name="portalBase" value={base} />
 
+      {/* es-AR: "dueño" con ñ, voseo, y sin el identificador inglés `required`
+          suelto en una frase en castellano. */}
       <p className="text-md text-ln-op-ink-2">
-        Lista de registros oficiales en los que el dueno debe registrar (atestar) a su mascota PPP.
-        Marca required en los obligatorios.
+        Lista de registros oficiales en los que el dueño debe registrar (atestar) a su mascota PPP.
+        Marcá como obligatorios los que lo sean.
       </p>
 
       <fieldset className="space-y-3">
         <legend className="text-md font-medium text-ln-op-ink">Registros configurados</legend>
         {registries.length === 0 && (
           <p className="text-sm text-ln-op-mute">
-            Aun no agregaste registros. Sin registros la regla equivale al default (ninguno
-            requerido).
+            Aún no agregaste registros. Sin registros, la regla equivale al default nacional
+            (ninguno requerido).
           </p>
         )}
         {/* Serialize registries as a single JSON value — reorder-safe. */}

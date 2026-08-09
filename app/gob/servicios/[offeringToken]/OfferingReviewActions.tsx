@@ -57,7 +57,10 @@ export function OfferingReviewActions({ publicToken }: { publicToken: string }) 
         </p>
         <div className="flex items-center gap-2">
           <OpButton type="button" onClick={approve} disabled={pending} variant="ok" size="sm">
-            {pending ? "Aprobando..." : "Confirmar aprobacion"}
+            {/* "aprobación" — es-AR. components/BulkApprovalQueueList.tsx
+                spells the same confirmation correctly; this one was the odd
+                one out (found by clicking through it, 2026-08-09). */}
+            {pending ? "Aprobando…" : "Confirmar aprobación"}
           </OpButton>
           <OpButton
             type="button"

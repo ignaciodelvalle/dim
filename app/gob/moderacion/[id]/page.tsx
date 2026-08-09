@@ -282,7 +282,7 @@ export default async function GobModeracionDetailPage({
                       rel="noreferrer"
                       className="text-sm font-semibold text-ln-op-azul underline underline-offset-4"
                     >
-                      {"Abrir ->"}
+                      {"Abrir →"}
                     </a>
                   ) : (
                     <span className="text-sm text-ln-op-faint">(no disponible)</span>

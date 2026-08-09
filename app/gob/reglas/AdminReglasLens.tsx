@@ -11,7 +11,7 @@
 // step-by-step wizard at `${base}/reglas/nueva` (RulesWizard.tsx) instead of
 // drilling through the old provincia→localidad grid; the deep per-jurisdiction
 // detail route ([country]/[province]/[locality]/page.tsx) stays reachable
-// from every card's "Ver detalle ->" link (and from the wizard's own
+// from every card's "Ver detalle →" link (and from the wizard's own
 // post-create redirect) — nothing that used to work stops working, only the
 // ENTRY point simplified.
 import Link from "next/link";
@@ -186,7 +186,7 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
       <details className="group rounded-[var(--radius-md)] border border-ln-op-line bg-ln-op-card">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-md font-semibold text-ln-op-ink">
           <span>Defaults nacionales (referencia)</span>
-          <span className="text-sm font-normal text-ln-op-mute">{"Ver ->"}</span>
+          <span className="text-sm font-normal text-ln-op-mute">{"Ver →"}</span>
         </summary>
         <div className="space-y-3 border-t border-ln-op-line-2 px-4 py-3">
           <p className="text-sm text-ln-op-ink-2">
@@ -208,7 +208,7 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
               href={buildJurisdictionRulesHref({ country: "AR", base })}
               className="font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
             >
-              {"Configurala acá ->"}
+              {"Configurala acá →"}
             </Link>
           </p>
         </div>
@@ -266,7 +266,7 @@ export async function AdminReglasLens({ base, kind = "" }: Props) {
                           })}
                           className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
                         >
-                          {"Ver detalle ->"}
+                          {"Ver detalle →"}
                         </Link>
                       }
                     />

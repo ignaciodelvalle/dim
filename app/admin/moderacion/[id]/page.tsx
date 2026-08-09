@@ -248,7 +248,7 @@ export default async function ModeracionDetailPage({
                       rel="noreferrer"
                       className="text-sm font-semibold text-ln-op-azul underline underline-offset-4"
                     >
-                      {"Abrir ->"}
+                      {"Abrir →"}
                     </a>
                   ) : (
                     // Honest empty state (Cowork M3): the signed URL is null when

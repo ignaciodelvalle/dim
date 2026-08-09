@@ -48,18 +48,26 @@ export default async function NewRulePage({
     return (
       <div className="max-w-2xl space-y-4">
         <OpCrumbs items={[{ label: "Reglas", href: `${base}/reglas` }, { label: "Nueva regla" }]} />
+        {/* Operator-facing, not developer-facing. This used to read "Falta
+            ?ruleType= en la URL." — a query-string name shown to whoever
+            lands here, which is an admin, not us. The page IS reachable with
+            no rule type (by hand, or from a stale link), so the state is real;
+            what it says about it was the problem. */}
         <OpBreach
           title={
             !ruleType || !(GOVT_BUSINESS_RULE_TYPES as readonly string[]).includes(ruleType)
-              ? "Falta ?ruleType= en la URL."
+              ? "No elegiste qué tipo de regla crear."
               : "Configuración de este tipo de regla no disponible aún."
           }
+          detail="Volvé al listado de la jurisdicción y elegí el tipo desde ahí."
         />
         <Link
           href={backHref}
           className="text-sm font-semibold text-ln-op-azul no-underline underline-offset-4 hover:underline"
         >
-          {"<- Volver"}
+          {/* "←", like the other 70 back links in the app. This was the one
+              place still writing the ASCII arrow. */}
+          {"← Volver"}
         </Link>
       </div>
     );
