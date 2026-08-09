@@ -22,10 +22,7 @@ import { revalidatePath } from "next/cache";
 
 import { db, serviceOfferings } from "@/db";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
-import {
-  requireCapability,
-  requireCapabilityForOrgToken,
-} from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { approveServiceOfferingForAuthority as approveServiceOfferingForAuthorityUC } from "@/src/modules/service-offerings/application/approve-service-offering";
 import { createServiceOfferingForOrg as createServiceOfferingForOrgUC } from "@/src/modules/service-offerings/application/create-service-offering";
@@ -71,15 +68,32 @@ export async function createServiceOfferingAction(
   _prev: ServiceOfferingFormState,
   formData: FormData,
 ): Promise<ServiceOfferingFormState> {
-  const auth = await requireCapability("service_offering.create");
+  // SCOPED TO THE URL's ORGANIZATION, like every sibling in this file.
+  //
+  // This used to be a bare `requireCapability("service_offering.create")`, which
+  // resolves the caller's SESSION-DEFAULT (most-recently-joined) membership and
+  // ignores the organization whose page the form was submitted from. The
+  // sibling actions below were migrated to requireCapabilityForOrgToken for
+  // exactly this reason — the comment three functions down says so — and create
+  // was left behind.
+  //
+  // Found by clicking through it (2026-08-09): a service published from the
+  // Clínica Veterinaria Recoleta panel was written to Mascotas BA Centro, a
+  // sanitary authority the same admin also belongs to, and the post-submit
+  // redirect landed on that other organization's page. Not an authorization
+  // hole — the capability was checked against the org it wrote to — but a
+  // tenant-integrity one, which for an org-scoped product is bad enough: a
+  // clinic's service appears in a government body's catalogue.
+  const orgToken = String(formData.get("orgToken") ?? "").trim();
+  if (!orgToken) return { error: "No pudimos determinar la organización." };
+
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
   // auth.error === null narrows to RequireCapabilitySuccess; all fields non-null.
   // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const user = auth.user!;
   // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const organization = auth.organization!;
-
-  const orgToken = organization.publicToken;
 
   const priceRaw = formData.get("priceArs");
   const priceArs =

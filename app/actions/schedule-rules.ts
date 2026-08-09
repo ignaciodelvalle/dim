@@ -18,10 +18,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import {
-  requireCapability,
-  requireCapabilityForOrgToken,
-} from "@/src/modules/organizations/infrastructure/authz-resolver";
+import { requireCapabilityForOrgToken } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 import { createScheduleRuleForOrg as _createScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/create-schedule-rule";
 import { deleteScheduleRuleForOrg as _deleteScheduleRuleForOrg } from "@/src/modules/service-offerings/application/schedule-rules/delete-schedule-rule";
@@ -47,7 +44,17 @@ export async function createScheduleRuleAction(
   _prev: ScheduleRuleFormState,
   formData: FormData,
 ): Promise<ScheduleRuleFormState> {
-  const auth = await requireCapability("service_offering.create");
+  // SCOPED TO THE URL's ORGANIZATION. `orgToken` was already in this form's
+  // payload — it was read below, but only to revalidate a path — while the
+  // capability check resolved the caller's SESSION-DEFAULT membership instead.
+  // For a member of several organizations those are different, so a vet
+  // building an agenda inside their clinic was authorized against, and scoped
+  // to, whichever org they happened to join last. Same defect as
+  // createServiceOfferingAction; found in the same sweep (2026-08-09).
+  const orgToken = String(formData.get("orgToken") ?? "").trim();
+  if (!orgToken) return { error: "No pudimos determinar la organización." };
+
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
   // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const user = auth.user!;
@@ -75,8 +82,7 @@ export async function createScheduleRuleAction(
 
   // Revalidate so the agenda page reflects the new rule.
   const offeringToken = String(formData.get("offeringPublicToken") ?? "").trim();
-  const orgToken = String(formData.get("orgToken") ?? "").trim();
-  if (orgToken && offeringToken) {
+  if (offeringToken) {
     revalidatePath(`/org/${orgToken}/servicios/${offeringToken}/agenda`);
   }
 
@@ -87,7 +93,14 @@ export async function updateScheduleRuleAction(
   _prev: ScheduleRuleFormState,
   formData: FormData,
 ): Promise<ScheduleRuleFormState> {
-  const auth = await requireCapability("service_offering.create");
+  // SCOPED TO THE URL's ORGANIZATION — same fix and same reason as the create
+  // wrapper above. deleteScheduleRuleAction below already took this shape and
+  // calls it "URL-pinned org resolution (confused-deputy guard)"; create and
+  // update were the two that never got it.
+  const orgToken = String(formData.get("orgToken") ?? "").trim();
+  if (!orgToken) return { error: "No pudimos determinar la organización." };
+
+  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);
   if (auth.error !== null) return { error: auth.error };
   // biome-ignore lint/style/noNonNullAssertion: narrowed by auth.error === null check above.
   const user = auth.user!;
@@ -114,8 +127,7 @@ export async function updateScheduleRuleAction(
   if ("error" in result) return { error: result.error };
 
   const offeringToken = String(formData.get("offeringPublicToken") ?? "").trim();
-  const orgToken = String(formData.get("orgToken") ?? "").trim();
-  if (orgToken && offeringToken) {
+  if (offeringToken) {
     revalidatePath(`/org/${orgToken}/servicios/${offeringToken}/agenda`);
   }
 

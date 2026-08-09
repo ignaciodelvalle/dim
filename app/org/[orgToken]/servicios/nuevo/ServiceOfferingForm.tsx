@@ -48,6 +48,13 @@ export function ServiceOfferingForm({
 
   return (
     <form action={formAction}>
+      {/* WHICH organization this service belongs to. The form knew it all along
+          (it is in the URL, and the Cancelar link below uses it) but never SENT
+          it, so the action fell back to the session-default membership — for a
+          member of several organizations, that is a different one. Same hidden
+          field AgendaRuleForm already carries. See the action for the full
+          story. */}
+      <input type="hidden" name="orgToken" value={orgToken} />
       <LnWizardShell
         currentStep={step}
         totalSteps={TOTAL_STEPS}

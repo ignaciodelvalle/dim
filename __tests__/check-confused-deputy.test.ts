@@ -17,6 +17,7 @@ import {
   findConfusedDeputyOffenders,
   hasOrgTokenParam,
   isConfusedDeputyOffender,
+  readsOrgTokenFromFormData,
   signatureParamList,
 } from "@/scripts/check-confused-deputy";
 
@@ -157,6 +158,45 @@ describe("isConfusedDeputyOffender", () => {
     expect(isConfusedDeputyOffender(only(src))).toBe(false);
   });
 
+  // R3 (2026-08-09) — the SECOND lane. The heuristic used to read only the
+  // typed signature, so an org token arriving through FormData was invisible;
+  // this file's header called that a KNOWN BLIND SPOT and named the three
+  // actions it covered for. It stopped being latent when a service published
+  // from a clinic's panel was written to a sanitary authority the same admin
+  // also belongs to.
+  it("FLAGS an action that reads orgToken from FormData and still gates bare (R3 pre-fix)", () => {
+    const src = [
+      "export async function createServiceOfferingAction(_prev: State, formData: FormData) {",
+      '  const auth = await requireCapability("service_offering.create");',
+      '  const orgToken = String(formData.get("orgToken") ?? "").trim();',
+      "  return run();",
+      "}",
+    ].join("\n");
+    expect(isConfusedDeputyOffender(only(src))).toBe(true);
+  });
+
+  it("does NOT flag the R3 post-fix form (FormData token, pinned check)", () => {
+    const src = [
+      "export async function createServiceOfferingAction(_prev: State, formData: FormData) {",
+      '  const orgToken = String(formData.get("orgToken") ?? "").trim();',
+      '  const auth = await requireCapabilityForOrgToken("service_offering.create", orgToken);',
+      "  return run();",
+      "}",
+    ].join("\n");
+    expect(isConfusedDeputyOffender(only(src))).toBe(false);
+  });
+
+  it("does NOT flag a FormData read of some OTHER field", () => {
+    const src = [
+      "export async function someAction(_prev: State, formData: FormData) {",
+      '  const ruleId = String(formData.get("ruleId") ?? "").trim();',
+      '  const auth = await requireCapability("service_offering.create");',
+      "  return run();",
+      "}",
+    ].join("\n");
+    expect(isConfusedDeputyOffender(only(src))).toBe(false);
+  });
+
   it("does NOT flag a two-arg call whose docstring mentions the bare form (chip-match pattern)", () => {
     // Regression: the fix comment literally writes requireCapability("intake.create")
     // to explain why it pins the check. Comment text must not count as a call.
@@ -227,6 +267,15 @@ describe("findConfusedDeputyOffenders", () => {
 // ---------------------------------------------------------------------------
 
 describe("guard helpers", () => {
+  it("readsOrgTokenFromFormData matches only an org-token field", () => {
+    expect(readsOrgTokenFromFormData('formData.get("orgToken")')).toBe(true);
+    expect(readsOrgTokenFromFormData("formData.get('senderOrgToken')")).toBe(true);
+    expect(readsOrgTokenFromFormData('formData.get( "receiverOrgToken" )')).toBe(true);
+    expect(readsOrgTokenFromFormData('formData.get("ruleId")')).toBe(false);
+    // publicToken is the PET token in this codebase — never an org scope.
+    expect(readsOrgTokenFromFormData('formData.get("publicToken")')).toBe(false);
+  });
+
   it("callsBareRequireCapability / callsRequireCapabilityForOrgToken discriminate", () => {
     expect(callsBareRequireCapability('await requireCapability("x")')).toBe(true);
     expect(callsRequireCapabilityForOrgToken('await requireCapabilityForOrgToken("x", t)')).toBe(

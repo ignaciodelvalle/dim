@@ -37,12 +37,16 @@
 //     (3) its body does NOT call requireCapabilityForOrgToken.
 //   Inner writers (`*ForOrg`/… suffixes) are skipped, as in the sibling linters.
 //
-//   KNOWN BLIND SPOT: an org token delivered via FormData (not a typed param) is
-//   invisible to this signature-based check — e.g. createServiceOfferingAction /
-//   create/updateScheduleRuleAction read `orgToken` from formData only for
-//   revalidatePath and scope their write to the session org.id in the use-case.
-//   Those are UX-latent (a multi-org member acts under their last-joined org) but
-//   not a privilege escalation. Converting them is tracked separately.
+//   CLOSED 2026-08-09 — an org token delivered via FormData used to be invisible
+//   to this signature-based check. The header called that "UX-latent... tracked
+//   separately" and named the three actions it covered for
+//   (createServiceOfferingAction, create/updateScheduleRuleAction). It stopped
+//   being latent the day someone clicked through the vet flow: a service
+//   published from a clinic's panel was written to a SANITARY AUTHORITY the same
+//   admin also belongs to. Not a privilege escalation — the capability was
+//   checked against the org it wrote to — but for an org-scoped product,
+//   writing one tenant's data into another's catalogue is bad enough. The three
+//   are pinned and the check now covers both lanes: signature AND FormData.
 //
 // DOCUMENTED-SAFE EXCEPTIONS (CONFUSED_DEPUTY_ALLOWLIST): a real offender kept
 // out of the current lane, listed with a reason so the exception is visible.
@@ -79,6 +83,22 @@ export const BARE_REQUIRE_CAPABILITY_RE = /requireCapability\s*\(\s*(["'])[^"']*
 export const FOR_ORG_TOKEN_RE = /requireCapabilityForOrgToken\s*\(/;
 
 const ORG_TOKEN_PARAM_RE = new RegExp(`\\b(?:${ORG_TOKEN_PARAMS.join("|")})\\b`);
+
+// An org token that arrives through FormData instead of a typed param. The
+// signature check above cannot see it, and that blind spot was documented in
+// this file's header as "UX-latent... tracked separately" — naming
+// createServiceOfferingAction and create/updateScheduleRuleAction explicitly.
+//
+// It stopped being latent on 2026-08-09. Clicking through the vet flow,
+// a service published from the Clínica Veterinaria Recoleta panel was written
+// to Mascotas BA Centro — a sanitary authority the same admin also belongs to —
+// and the post-submit redirect landed on that other organization's page. The
+// three named actions are now pinned, so the exception is closed rather than
+// carried: an action that READS an org token from its form must AUTHORIZE
+// against it.
+const ORG_TOKEN_FORMDATA_RE = new RegExp(
+  `formData\\s*\\.\\s*get\\s*\\(\\s*(["'])(?:${ORG_TOKEN_PARAMS.join("|")})\\1\\s*\\)`,
+);
 
 // Comments are stripped so a bare `requireCapability("cap")` written in a doc
 // comment (e.g. "requireCapability(...) alone resolves the session default — so
@@ -131,6 +151,11 @@ export function hasOrgTokenParam(paramList: string): boolean {
   return ORG_TOKEN_PARAM_RE.test(paramList);
 }
 
+/** True when the body pulls an org token out of FormData (the second lane). */
+export function readsOrgTokenFromFormData(body: string): boolean {
+  return ORG_TOKEN_FORMDATA_RE.test(body);
+}
+
 export function callsBareRequireCapability(body: string): boolean {
   return BARE_REQUIRE_CAPABILITY_RE.test(body);
 }
@@ -139,12 +164,15 @@ export function callsRequireCapabilityForOrgToken(body: string): boolean {
   return FOR_ORG_TOKEN_RE.test(body);
 }
 
-// The full heuristic: org-token signature + bare requireCapability + no
-// requireCapabilityForOrgToken. Inner writers are exempt (guarded upstream).
+// The full heuristic: the action names an org token — in its SIGNATURE or in
+// its FormData — and still gates with bare requireCapability. Inner writers are
+// exempt (guarded upstream).
 export function isConfusedDeputyOffender(fn: ExportedFn): boolean {
   if (isInnerWriter(fn.name)) return false;
   const code = stripComments(fn.body);
-  if (!hasOrgTokenParam(signatureParamList(code))) return false;
+  const namesOrgToken =
+    hasOrgTokenParam(signatureParamList(code)) || readsOrgTokenFromFormData(code);
+  if (!namesOrgToken) return false;
   if (callsRequireCapabilityForOrgToken(code)) return false;
   return callsBareRequireCapability(code);
 }
