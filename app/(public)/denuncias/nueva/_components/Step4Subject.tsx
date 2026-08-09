@@ -143,10 +143,12 @@ export function Step4Subject({
               className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
               style={{ fontFamily: "var(--font-ln-mono)" }}
             >
-              Código miMAR o microchip{" "}
-              <span className="text-[var(--color-ln-faint)] normal-case tracking-normal font-normal">
-                (opcional)
-              </span>
+              {/* S1-F09 — sin "(opcional)" por campo. TODO este paso lo es, y
+                  su encabezado ya lo dice ("Esto es opcional, pero ayuda a la
+                  investigación"). Marcarlo acá y no en los tres campos de
+                  descripción sugería que esos SÍ eran obligatorios. Una sola
+                  declaración, a nivel de paso. */}
+              Código miMAR o microchip
             </label>
             <LnInput
               id="subjectPetToken"

@@ -194,7 +194,14 @@ export function CaptureBox({
 
       <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
         <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
-        <span>o cargá directamente</span>
+        {/* S2-F09. Decía "o cargá directamente" mientras la lista completa que
+            viene abajo decía "o elegí directamente": dos conectores casi
+            iguales sobre dos cosas DISTINTAS —8 atajos acá, 23 opciones
+            agrupadas allá— así que parecían el mismo menú repetido y había que
+            comparar las listas para descubrir que no lo eran. La estructura de
+            dos niveles está bien; lo que faltaba era que cada nivel dijera qué
+            es. */}
+        <span>Atajos a lo más común</span>
         <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
       </div>
 

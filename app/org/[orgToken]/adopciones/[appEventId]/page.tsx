@@ -274,6 +274,25 @@ export default async function AdoptionReviewDetailPage({
               {formatDateTime(decision[0].decided_at)}
               {decision[0].notes && ` · ${decision[0].notes}`}
             </p>
+
+            {/* S6-F03. Aprobada la postulación, esta pantalla ofrecía como
+                único camino "Ver ficha de X" — y finalizar la adopción vive
+                DENTRO de esa ficha. Un operador que acaba de aprobar tenía que
+                adivinar que la acción está en la mascota y no en la
+                postulación que está mirando.
+                Sólo cuando queda algo por hacer: si la mascota ya fue
+                adoptada, el circuito está cerrado y el botón sería una promesa
+                falsa. */}
+            {decision[0].outcome === "approved" && !petAlreadyFinalized && (
+              <p className="mt-3">
+                <Link
+                  href={`/org/${orgToken}/mascotas/${pet.publicToken}/adoption`}
+                  className="inline-flex items-center rounded-[var(--radius-md)] bg-ln-op-azul px-3 py-1.5 text-md font-medium text-white no-underline transition-colors hover:bg-ln-op-azul-700"
+                >
+                  Finalizar adopción →
+                </Link>
+              </p>
+            )}
           </OpCardBody>
         </OpCard>
       ) : petAlreadyFinalized ? (

@@ -240,7 +240,9 @@ export function SheetMounter({
           />
           <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
             <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
-            <span>o elegí directamente</span>
+            {/* Ver S2-F09 en CaptureBox: este bloque es el CATÁLOGO COMPLETO
+                (23 opciones agrupadas), no una repetición de los atajos. */}
+            <span>Todos los tipos de registro</span>
             <div className="h-px flex-1 bg-[var(--color-ln-stripe)]" />
           </div>
           <CaptureOptionsList petPublicToken={petToken} />

@@ -37,7 +37,10 @@ export function buildAnotarUrl(
 // frequency of use.
 export const QUICK_ACTIONS: Array<{ eventType: EventType; label: string }> = [
   { eventType: "vaccination_administered", label: "Vacuna" },
-  { eventType: "deworming_administered", label: "Antiparasit." },
+  // "Antiparasitario", entero: era la única etiqueta abreviada con punto de
+  // todo el conjunto (S2-F09). La grilla es de 2 columnas en celular y 4 en
+  // escritorio; que envuelva es mejor que una abreviatura que sólo aparece acá.
+  { eventType: "deworming_administered", label: "Antiparasitario" },
   { eventType: "weight_recorded", label: "Peso" },
   { eventType: "vet_visit_logged", label: "Visita al vet" },
   { eventType: "sterilization_performed", label: "Castración" },

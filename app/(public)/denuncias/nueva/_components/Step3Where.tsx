@@ -127,10 +127,14 @@ export function Step3Where({
           className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)]"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
-          Contanos lo que viste{" "}
-          <span className="text-[var(--color-ln-seal)] ml-0.5" aria-hidden="true">
-            *
-          </span>
+          {/* S1-F09 — SIN ASTERISCO. Era `aria-hidden`, o sea decoración pura:
+              la obligatoriedad ya viaja a lectores de pantalla por el sr-only
+              "(obligatorio)". Visualmente, en cambio, los pasos 1 y 2 no
+              mostraban nada y el 3 mostraba asteriscos sin leyenda en ningún
+              lado — y en "¿Cuándo pasó?" convivían las DOS marcas.
+              Una sola convención: lo obligatorio no se marca, lo OPCIONAL sí.
+              Es el conjunto chico y se explica solo, sin leyenda. */}
+          Contanos lo que viste
         </label>
         <LnTextarea
           id="description"
@@ -143,12 +147,29 @@ export function Step3Where({
           aria-required="true"
           aria-describedby="description-hint"
         />
+        {/* S1-F10 — EL CONTADOR CAMBIA DE ESTADO EN EL TECHO.
+            Medido: el mismo gris en 100/2000, 1990/2000 y 2000/2000. Con el
+            `maxLength` nativo, al llegar al límite las letras simplemente dejan
+            de aparecer y NADA en pantalla lo explica. Este campo invita a un
+            relato largo ("qué pasó, cómo estaba el animal, dónde exactamente")
+            y lo escribe alguien que acaba de ver un animal maltratado: que se
+            le corte el texto sin aviso es lo peor que puede hacer la pantalla.
+            `aria-live="polite"` para que el aviso llegue también a quien no lo
+            ve — el <p> ya es el `aria-describedby` del textarea. */}
         <p
           id="description-hint"
-          className="text-sm text-right text-[var(--color-ln-faint)]"
+          aria-live="polite"
+          className={`text-sm text-right ${
+            description.length >= DESCRIPTION_MAX
+              ? "font-semibold text-[var(--color-ln-warn)]"
+              : "text-[var(--color-ln-faint)]"
+          }`}
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
           {description.length} / {DESCRIPTION_MAX}
+          {description.length >= DESCRIPTION_MAX && (
+            <span className="ml-1">· llegaste al máximo</span>
+          )}
           {description.length < 20 && description.length > 0 && (
             <span className="text-[var(--color-ln-warn)] ml-1">(mínimo 20)</span>
           )}
@@ -213,10 +234,8 @@ export function Step3Where({
           className="block text-xs font-semibold uppercase tracking-[.08em] text-[var(--color-ln-mute)] mb-2"
           style={{ fontFamily: "var(--font-ln-mono)" }}
         >
-          Marcá el lugar exacto en el mapa{" "}
-          <span className="text-[var(--color-ln-seal)] ml-0.5" aria-hidden="true">
-            *
-          </span>
+          {/* Sin asterisco — ver S1-F09 arriba. */}
+          Marcá el lugar exacto en el mapa
         </p>
         <LocationFields
           key={locationKey}

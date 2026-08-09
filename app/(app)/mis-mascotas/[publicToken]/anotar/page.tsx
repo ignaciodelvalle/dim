@@ -57,7 +57,8 @@ export default async function CapturePage({
       <div className="mt-10 space-y-7">
         <div className="flex items-center gap-3 text-xs text-[var(--color-ln-mute)]">
           <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
-          <span>o elegí directamente</span>
+          {/* Ver S2-F09 en CaptureBox: catálogo completo, no repetición. */}
+          <span>Todos los tipos de registro</span>
           <div className="flex-1 h-px bg-[var(--color-ln-stripe)]" />
         </div>
 

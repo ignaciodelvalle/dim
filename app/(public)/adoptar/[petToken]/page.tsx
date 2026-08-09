@@ -491,11 +491,10 @@ export default async function AdoptarFichaPage({
             style={{ listStyle: "none", padding: 0, margin: 0 }}
           >
             <HealthRow label="Vacunación al día" ok={hasVaccinations} />
-            <HealthRow
-              label="Castración"
-              ok={isSterilized}
-              detail={isSterilized ? undefined : undefined}
-            />
+            {/* `detail` era `isSterilized ? undefined : undefined` — las dos
+                ramas iguales, o sea codigo muerto. El estado ausente ahora lo
+                dice HealthRow. */}
+            <HealthRow label="Castración" ok={isSterilized} />
             <HealthRow label="Microchip miMAR" ok={hasMicrochip} />
           </ul>
           <p className="mt-3.5 text-sm" style={{ color: "var(--color-ln-mute)" }}>
@@ -691,6 +690,21 @@ function HealthRow({
         <span className="text-md font-semibold" style={{ color: "var(--color-ln-ink)" }}>
           {label}
         </span>
+        {/* S1-F13 — EL ESTADO SE NOMBRA, NO SE DIBUJA.
+            `ok` es un booleano y los tres valores que lo alimentan son
+            `Boolean(fila)`: PRESENCIA DE REGISTRO. Así que `false` no significa
+            "no", significa "no hay registro" — y el guión representaba las dos
+            cosas sin decir ninguna. Un refugio que todavía no cargó la
+            castración se veía idéntico a una mascota que seguro no está
+            castrada, y quien decide si adopta necesita esa diferencia.
+            Escribirlo también vuelve innecesaria la leyenda que el glifo pedía.
+            El tono neutro es decisión del PO (2026-08-06): es una ausencia, no
+            una falta. */}
+        {!ok && (
+          <span className="block text-sm" style={{ color: "var(--color-ln-mute)" }}>
+            Sin dato
+          </span>
+        )}
         {detail && (
           <span className="block text-sm" style={{ color: "var(--color-ln-mute)" }}>
             {detail}
