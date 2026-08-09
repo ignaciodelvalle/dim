@@ -12,6 +12,7 @@ import { OpOmnibox } from "@/components/ui/dashboard/OpOmnibox";
 import { OpRail } from "@/components/ui/dashboard/OpRail";
 import { OpScopeChip } from "@/components/ui/dashboard/OpScopeChip";
 import { OperatorBreadcrumbs } from "@/components/ui/dashboard/OperatorBreadcrumbs";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { shouldShowDemoBanner } from "@/lib/domain/demo-mode";
 import { isMaintenanceMode } from "@/lib/domain/maintenance-mode";
 import { requireAdminOrRedirect } from "@/lib/infra/auth-guards";
@@ -63,16 +64,28 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   // bypass app/admin/error.tsx entirely and fall through to the fullscreen
   // root boundary (error-path audit 2026-07-04, finding E4). Default to 0 and
   // log instead of letting the whole admin shell go down over a badge count.
-  const [breachCount, openAlertCount] = await Promise.all([
-    countOutboxBreaches().catch((err) => {
-      console.error("[AdminLayout] countOutboxBreaches failed", err);
-      return 0;
-    }),
-    countOpenAlertFirings().catch((err) => {
-      console.error("[AdminLayout] countOpenAlertFirings failed", err);
-      return 0;
-    }),
-  ]);
+  // …and the `.catch`es below guard a REJECTION, which is not the failure that
+  // took staging down. A degraded pooler does not reject — it HANGS, and this
+  // await is in the layout of every /admin/* route, so a hung badge count hangs
+  // the entire portal with (as the note above establishes) no error boundary to
+  // land in. The deadline is what closes that second mode; 4s because these are
+  // nav badges and nothing on the page waits on them for meaning.
+  const badges = await loadWithTimeout(
+    Promise.all([
+      countOutboxBreaches().catch((err) => {
+        console.error("[AdminLayout] countOutboxBreaches failed", err);
+        return 0;
+      }),
+      countOpenAlertFirings().catch((err) => {
+        console.error("[AdminLayout] countOpenAlertFirings failed", err);
+        return 0;
+      }),
+    ]),
+    4_000,
+  );
+  // Same 0-on-failure convention the catches above already chose, now covering
+  // the timeout too.
+  const [breachCount, openAlertCount] = badges.ok ? badges.value : [0, 0];
 
   // getProfileCached is already warmed by requireAdminOrRedirect above —
   // this call is a memoized hit, not a second DB round-trip.

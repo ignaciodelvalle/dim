@@ -24,12 +24,15 @@ import {
   OpKpi,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { db, profiles, welfareReports } from "@/db";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   type MaltratoQueue,
   type WelfareMetrics,
+  type WelfareMetricsFilters,
   buildMaltratoListConditions,
   fetchWelfareMetrics,
 } from "@/lib/analytics/govt-dashboards";
@@ -51,7 +54,7 @@ import {
   welfareReportSeverityLabel,
   welfareReportStatusLabel,
 } from "@/src/modules/welfare/domain/types";
-import { and, asc, count, inArray, sql } from "drizzle-orm";
+import { type SQL, and, asc, count, inArray, sql } from "drizzle-orm";
 
 import { csvPageDisclosure } from "@/lib/ui/csv-export";
 import { formatCount, formatDateTime, todayIsoInAr } from "@/lib/utils/format";
@@ -304,6 +307,92 @@ export type MaltratoQueueScreenProps = {
   underHub?: boolean;
 };
 
+/**
+ * The screen's three-way fetch, BOUNDED and lifted out of the component.
+ *
+ * Bounded because this screen renders as the Triage tab INSIDE /gob/denuncias,
+ * whose badge counts were bounded in the same outage pass while this body — the
+ * part an operator actually works in — was left unbounded. Fixing the
+ * decoration and leaving the queue able to hang is worse than fixing neither:
+ * the hub would look healthy while its main surface never painted.
+ *
+ * Lifted out because adding the guard pushed the component past the
+ * cognitive-complexity fence. Extracting the fetch is the honest way to pay
+ * that down — the branch stays, the component just stops also owning the query
+ * construction.
+ */
+/**
+ * Display names for the assignees on this page, or an empty map when there are
+ * none.
+ *
+ * Extracted for the same reason as TriagePeriodInvariantFootnote and
+ * QueuePaginationNav above: its branch and loop now live in their own
+ * cognitive-complexity budget instead of the screen's. That budget is real —
+ * the screen sits just under the 25 limit, and adding ONE guard (the
+ * loadWithTimeout degrade path) tipped it over.
+ */
+async function fetchAssigneeNames(assigneeIds: string[]): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (assigneeIds.length === 0) return names;
+  const rows = await db
+    .select({ id: profiles.id, displayName: profiles.displayName })
+    .from(profiles)
+    .where(inArray(profiles.id, assigneeIds));
+  for (const a of rows) names.set(a.id, a.displayName);
+  return names;
+}
+
+/** The keyset "Ver más" href, or null when this is the last page. */
+function buildOlderLink(
+  lastRow: { severity: WelfareReportSeverity; createdAt: Date; id: string } | undefined,
+  filterParams: Record<string, string | undefined>,
+): string | null {
+  if (!lastRow) return null;
+  const params = new URLSearchParams();
+  for (const [k, v] of Object.entries(filterParams)) {
+    if (v !== undefined) params.set(k, v);
+  }
+  params.set(
+    "cursor",
+    encodeRiskCursor(severityRank(lastRow.severity), lastRow.createdAt, lastRow.id),
+  );
+  return `/gob/denuncias?${params.toString()}`;
+}
+
+async function loadTriageData(args: {
+  actor: Parameters<typeof fetchWelfareMetrics>[0];
+  filteredJurisdictions: Parameters<typeof fetchWelfareMetrics>[1];
+  userId: string;
+  filters: WelfareMetricsFilters;
+  rowsWhereCondition: SQL | undefined;
+  whereCondition: SQL | undefined;
+  severityRankSql: SQL;
+}) {
+  return loadWithTimeout(
+    Promise.all([
+      fetchWelfareMetrics(args.actor, args.filteredJurisdictions, args.userId, args.filters),
+      db
+        .select()
+        .from(welfareReports)
+        .where(args.rowsWhereCondition)
+        // Deterministic ORDER BY matches the 3-part risk keyset.
+        .orderBy(
+          sql`${args.severityRankSql} DESC`,
+          asc(welfareReports.createdAt),
+          asc(welfareReports.id),
+        )
+        // limit+1 probe row detects hasMore without a second query.
+        .limit(PAGE_SIZE + 1),
+      // Total count still reflects ALL filtered rows (not just this page),
+      // kept for the "(N denuncias)" header.
+      db
+        .select({ n: count() })
+        .from(welfareReports)
+        .where(args.whereCondition),
+    ]),
+  );
+}
+
 export async function MaltratoQueueScreen({
   searchParams: sp,
   underHub = false,
@@ -391,30 +480,32 @@ export async function MaltratoQueueScreen({
   // via buildMaltratoListConditions — never the `queue` workflow lens — so a
   // filtered list and its "totals" tiles always agree (filter-honesty fix
   // 2026-07).
-  const [metrics, rawRows, [totalRow]] = await Promise.all([
-    fetchWelfareMetrics(actor, filteredJurisdictions, user.id, {
+  // BOUNDED — see loadTriageData below.
+  const load = await loadTriageData({
+    actor,
+    filteredJurisdictions,
+    userId: user.id,
+    filters: {
       kind: activeKind,
       severity: activeSeverity,
       status: activeStatus,
       selectedProvince: adminSelectedProvince,
       selectedLocality: adminSelectedLocality,
-    }),
-    db
-      .select()
-      .from(welfareReports)
-      .where(rowsWhereCondition)
-      // Deterministic ORDER BY matches the 3-part risk keyset above.
-      .orderBy(sql`${severityRankSql} DESC`, asc(welfareReports.createdAt), asc(welfareReports.id))
-      // limit+1 probe row detects hasMore without a second query.
-      .limit(PAGE_SIZE + 1),
-    // Total count still reflects ALL filtered rows (not just this page) —
-    // unrelated to the OFFSET cost this migration removes, kept for the
-    // "(N denuncias)" header.
-    db
-      .select({ n: count() })
-      .from(welfareReports)
-      .where(whereCondition),
-  ]);
+    },
+    rowsWhereCondition,
+    whereCondition,
+    severityRankSql,
+  });
+
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/denuncias", { ...sp, etapa: "triage" })}
+      />
+    );
+  }
+  const [metrics, rawRows, [totalRow]] = load.value;
 
   const totalCount = totalRow?.n ?? 0;
   const hasMore = rawRows.length > PAGE_SIZE;
@@ -427,14 +518,7 @@ export async function MaltratoQueueScreen({
   const assigneeIds = [
     ...new Set(rows.map((r) => r.assignedToUserId).filter((id): id is string => id !== null)),
   ];
-  const assigneeNames = new Map<string, string>();
-  if (assigneeIds.length > 0) {
-    const assigneeRows = await db
-      .select({ id: profiles.id, displayName: profiles.displayName })
-      .from(profiles)
-      .where(inArray(profiles.id, assigneeIds));
-    for (const a of assigneeRows) assigneeNames.set(a.id, a.displayName);
-  }
+  const assigneeNames = await fetchAssigneeNames(assigneeIds);
 
   // Filter params preserved across cursor links — never includes `cursor`
   // itself, which olderHref/newerHref set/strip. Points at the HUB route
@@ -450,19 +534,7 @@ export async function MaltratoQueueScreen({
     province: sp.province,
     locality: sp.locality,
   };
-  const lastRow = rows.at(-1);
-  let olderLink: string | null = null;
-  if (hasMore && lastRow) {
-    const params = new URLSearchParams();
-    for (const [k, v] of Object.entries(filterParams)) {
-      if (v !== undefined) params.set(k, v);
-    }
-    params.set(
-      "cursor",
-      encodeRiskCursor(severityRank(lastRow.severity), lastRow.createdAt, lastRow.id),
-    );
-    olderLink = `/gob/denuncias?${params.toString()}`;
-  }
+  const olderLink = buildOlderLink(hasMore ? rows.at(-1) : undefined, filterParams);
   const newerLink = sp.cursor ? newerHref("/gob/denuncias", filterParams) : null;
 
   const queueChips = buildQueueChips(sp, metrics);

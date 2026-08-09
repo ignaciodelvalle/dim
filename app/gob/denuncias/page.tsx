@@ -24,10 +24,8 @@
 // guard, its own query logic, byte-identical to the former standalone pages
 // (see ModeracionQueueScreen / MaltratoQueueScreen).
 
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { Suspense } from "react";
-
-import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
-import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 
 import Link from "next/link";
 
@@ -131,19 +129,16 @@ export default async function GobDenunciasPage({
     ]),
   );
 
-  if (!load.ok) {
-    return (
-      <div className="space-y-6">
-        <AnalyticsLoadFallback
-          reason={load.reason}
-          retryHref={analyticsRetryHref("/gob/denuncias", sp)}
-        />
-      </div>
-    );
-  }
-
-  const [moderationRows, triage, casosCount] = load.value;
-  const moderationCount = moderationRows[0]?.n ?? 0;
+  // DEGRADE THE BADGES, NOT THE HUB. Everything this fan-out feeds is
+  // decoration: two optional tab badges and one KPI on a static link-out card.
+  // The first version of this guard returned only the fallback, which threw
+  // away the header, BOTH stage tabs and the Casos link — none of which depend
+  // on these counts, and the stage screens carry their own guards. An operator
+  // would have lost the triage queue because a badge count timed out.
+  const counts = load.ok ? load.value : null;
+  const moderationCount = counts?.[0]?.[0]?.n;
+  const triageCount = counts?.[1]?.count;
+  const casosCount = counts?.[2];
 
   const tabs: UrlTabItem[] = [
     { value: "moderacion", label: "Moderación", badge: moderationCount, badgeTone: "neutral" },
@@ -152,7 +147,7 @@ export default async function GobDenunciasPage({
       // Just "Triage" — the hub subtitle and the stage's own header already
       // name Ley 14.346; repeating it in the tab label was noise (PO 2026-07-22).
       label: "Triage",
-      badge: triage.count,
+      badge: triageCount,
       badgeTone: "neutral",
     },
   ];
@@ -170,6 +165,14 @@ export default async function GobDenunciasPage({
           pantalla, con seguimiento formal.
         </p>
       </header>
+
+      {/* Says the counters are missing rather than letting empty badges read
+          as zero. The queues themselves are below and unaffected. */}
+      {!load.ok && (
+        <output className="block rounded-[var(--radius-sm)] border border-ln-op-warn-bd bg-ln-op-warn-bg px-3 py-2 text-sm text-ln-op-warn">
+          No pudimos calcular los contadores de cada etapa. Las colas de abajo funcionan igual.
+        </output>
+      )}
 
       <Suspense>
         <UrlTabs
@@ -228,7 +231,10 @@ export default async function GobDenunciasPage({
                 descriptorId is explicitly written as undefined (not omitted)
                 so the metric-contract fence (lint:metric-contract) recognizes
                 this as an intentional bare tile, not a newly-introduced gap. */}
-            <OpKpi label="Abiertos" value={casosCount} descriptorId={undefined} />
+            {/* "—" and not 0 when the count is unavailable: a zero here would
+                claim there are no escalated cases, which is a different
+                statement from "we could not count them". */}
+            <OpKpi label="Abiertos" value={casosCount ?? "—"} descriptorId={undefined} />
             <Link
               href="/gob/casos"
               className="inline-flex text-sm font-semibold text-ln-op-azul no-underline hover:underline"

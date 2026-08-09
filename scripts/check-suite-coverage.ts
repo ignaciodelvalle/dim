@@ -35,8 +35,35 @@ import { discoverTestFiles } from "../__tests__/db-reachability";
 
 type VitestJson = {
   numFailedTests?: number;
-  testResults?: { name: string }[];
+  testResults?: {
+    name: string;
+    assertionResults?: { status: string; fullName: string; failureMessages?: string[] }[];
+  }[];
 };
+
+/**
+ * A "failure" that is really a dead worker.
+ *
+ * When a worker fork dies, vitest marks every test it was holding as FAILED and
+ * fills the message with the `STACK_TRACE_ERROR` placeholder plus a stack that
+ * lands only inside vitest's own runner — no assertion, no user frame. On
+ * 2026-08-09 that turned six file-walking fitness tests red in a full run; all
+ * 44 of their assertions passed when the same five files ran together in
+ * isolation seconds later.
+ *
+ * This is the THIRD face of one problem. The same worker death has also shown
+ * up as a silently missing file (a false GREEN) and as a non-zero exit with
+ * everything passing (a false RED). Naming the signature is what stops an
+ * overnight run from either chasing ghosts or trusting a hollow pass.
+ */
+function looksLikeDeadWorker(messages: string[]): boolean {
+  return (
+    messages.length > 0 &&
+    messages.every(
+      (m) => m.includes("STACK_TRACE_ERROR") && !m.includes("AssertionError") && !m.includes("→"),
+    )
+  );
+}
 
 const jsonPath = process.argv[2];
 if (!jsonPath) {
@@ -62,15 +89,35 @@ console.log(
 const missing = expected.filter((f) => !reported.has(f));
 if (missing.length > 0) {
   console.error(
-    `\n${missing.length} test file(s) never reported — a worker died and took them with it.\n` +
-      "The run is NOT green, whatever the summary said:\n",
+    `\n${missing.length} test file(s) never reported — a worker died and took them with it.\nThe run is NOT green, whatever the summary said:\n`,
   );
   for (const m of missing) console.error(`   ${m}`);
   process.exit(1);
 }
 
 if (failed > 0) {
-  console.error(`\n${failed} failing test(s).`);
+  const suspect: string[] = [];
+  const real: string[] = [];
+  for (const file of report.testResults ?? []) {
+    for (const a of file.assertionResults ?? []) {
+      if (a.status !== "failed") continue;
+      const where = `${toRepoRelative(file.name)} › ${a.fullName}`;
+      (looksLikeDeadWorker(a.failureMessages ?? []) ? suspect : real).push(where);
+    }
+  }
+
+  if (real.length > 0) {
+    console.error(`\n${real.length} genuinely failing test(s):\n`);
+    for (const t of real) console.error(`   ${t}`);
+  }
+  if (suspect.length > 0) {
+    console.error(
+      `\n${suspect.length} test(s) carry the DEAD-WORKER signature (STACK_TRACE_ERROR, no assertion).` +
+        "\nThat is usually a worker fork dying, not a defect. Re-run these files together in" +
+        "\nisolation before believing them — and if they pass, say so rather than calling the gate green:\n",
+    );
+    for (const t of suspect) console.error(`   ${t}`);
+  }
   process.exit(1);
 }
 

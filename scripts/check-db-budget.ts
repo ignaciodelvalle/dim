@@ -101,6 +101,15 @@ export const DASHBOARD_PAGES = [
   "app/gob/reglas/page.tsx",
   "app/gob/campanas/CampanasScreen.tsx",
   "app/gob/outreach/AlcanceScreen.tsx",
+  // Second review pass, same outage. admin/layout.tsx awaits its nav-badge
+  // counts in the LAYOUT of every /admin/* route: its .catch guards a
+  // rejection, and a degraded pooler hangs instead — with no error boundary,
+  // because Next does not wrap a segment's own layout in its sibling error.tsx.
+  // MaltratoQueueScreen is the Triage tab body inside /gob/denuncias: the pass
+  // above bounded that hub's badges and left the surface an operator actually
+  // works in unbounded, which is worse than fixing neither.
+  "app/admin/layout.tsx",
+  "app/gob/maltrato/MaltratoQueueScreen.tsx",
 ] as const;
 
 // The route-handler globs scanned.
