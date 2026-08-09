@@ -11,7 +11,7 @@
 // parent route), same auth guard, same query logic, same C6c workqueue
 // grammar (TomarButton/ActuarButton, tomar/actuar/cerrar).
 
-import { Suspense } from "react";
+import { type ReactNode, Suspense } from "react";
 
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import {
@@ -475,6 +475,93 @@ export async function MaltratoQueueScreen({
     : undefined;
   const rowsWhereCondition = cursorClause ? and(whereCondition, cursorClause) : whereCondition;
 
+  // Header, no-scope warning and filter bar render in BOTH the data and the
+  // degraded branch (same shape as app/gob/censo/CensoScreen.tsx). None of them
+  // depends on loadTriageData: the bar is built from allowedProvinces/
+  // localities, already resolved above. This is the surface an operator
+  // actually works in, so a bare fallback left them with no way to narrow the
+  // query that timed out — and "Reintentar" re-issues the identical one.
+  //
+  // `actions` is a parameter because the CSV link is the one part that DOES
+  // depend on the fetched rows; the degraded branch renders the bar without it
+  // rather than offering an export of nothing.
+  const shell = (actions?: ReactNode) => (
+    <>
+      {/* Page header */}
+      <ScreenHeader
+        underHub={underHub}
+        title="Denuncias de maltrato"
+        subtitle={
+          <>
+            <p className="text-md text-ln-op-mute">
+              Cola de triage bajo Ley Nacional 14.346.{" "}
+              {/* The universal claim yields to the narrowed-view caption (never both). */}
+              {profile.role === "admin"
+                ? narrowedView
+                  ? null
+                  : "Vista universal — todas las jurisdicciones."
+                : "Filtradas por tu jurisdicción."}
+            </p>
+            <ViewScopeCaption scope={narrowedView} />
+          </>
+        }
+      />
+
+      {/* No-scope warning */}
+      {noScope && (
+        <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-sm text-ln-op-warn">
+          Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
+          una.
+        </div>
+      )}
+
+      {/* Unified filter bar — jurisdiction + kind/severity/status axes +
+          active-filter chips. Period is OMITTED: /gob/maltrato is a
+          period-agnostic live triage queue (PO decision 2026-07) — the
+          period param drove nothing downstream, so the control is dropped
+          rather than left as a dead affordance. The kind/severity/status
+          axes were always wired (buildMaltratoListConditions applies them)
+          but had no visible control. A filter change drops the keyset
+          `cursor` (page 1). The queue TABS are a separate concept (workflow
+          lens) and keep their own control below. */}
+      <OpFilterBar
+        showPeriod={false}
+        jurisdiction={{ allowedProvinces, localities }}
+        resetParamsOnChange={["cursor"]}
+        savedViewsKey="op-saved-views:maltrato:v1"
+        actions={actions}
+        axes={
+          [
+            {
+              id: "kind",
+              label: "Tipo",
+              paramKey: "kind",
+              options: KIND_OPTIONS,
+              current: activeKind,
+              allLabel: "Todos",
+            },
+            {
+              id: "severity",
+              label: "Severidad",
+              paramKey: "severity",
+              options: SEVERITY_OPTIONS,
+              current: activeSeverity,
+              allLabel: "Todas",
+            },
+            {
+              id: "status",
+              label: "Estado",
+              paramKey: "status",
+              options: STATUS_OPTIONS,
+              current: activeStatus,
+              allLabel: "Todos",
+            },
+          ] satisfies OpFilterAxis[]
+        }
+      />
+    </>
+  );
+
   // Fetch metrics and paginated report list in parallel. The KPI tiles mirror
   // the SAME domain filters (kind/severity/status + scope) the list applies
   // via buildMaltratoListConditions — never the `queue` workflow lens — so a
@@ -499,10 +586,13 @@ export async function MaltratoQueueScreen({
 
   if (!load.ok) {
     return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/denuncias", { ...sp, etapa: "triage" })}
-      />
+      <div className="space-y-6">
+        {shell()}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/denuncias", { ...sp, etapa: "triage" })}
+        />
+      </div>
     );
   }
   const [metrics, rawRows, [totalRow]] = load.value;
@@ -572,85 +662,17 @@ export async function MaltratoQueueScreen({
     <div className="flex flex-col gap-6 lg:h-full lg:min-h-0">
       {/* Top section — pinned above the master/detail split (full width) */}
       <div className="space-y-6 lg:flex-shrink-0">
-        {/* Page header */}
-        <ScreenHeader
-          underHub={underHub}
-          title="Denuncias de maltrato"
-          subtitle={
-            <>
-              <p className="text-md text-ln-op-mute">
-                Cola de triage bajo Ley Nacional 14.346.{" "}
-                {/* The universal claim yields to the narrowed-view caption (never both). */}
-                {profile.role === "admin"
-                  ? narrowedView
-                    ? null
-                    : "Vista universal — todas las jurisdicciones."
-                  : "Filtradas por tu jurisdicción."}
-              </p>
-              <ViewScopeCaption scope={narrowedView} />
-            </>
-          }
-        />
-
-        {/* No-scope warning */}
-        {noScope && (
-          <div className="rounded-[var(--radius-md)] border border-ln-op-warn-bd border-l-[4px] border-l-ln-op-warn bg-ln-op-warn-bg px-4 py-3 text-sm text-ln-op-warn">
-            Tu cuenta no tiene localidades asignadas. Pedí a un administrador que te asigne al menos
-            una.
-          </div>
+        {/* Header, no-scope warning and filter bar — hoisted above the load so
+            the degraded branch keeps them (see the `shell` definition). Only
+            the CSV action, built from the fetched rows, is added here. */}
+        {shell(
+          <CsvExportLink
+            filename={`denuncias-maltrato-${todayIsoInAr()}`}
+            columns={csvColumns}
+            rows={csvRows}
+            contextLines={csvContextLines}
+          />,
         )}
-
-        {/* Unified filter bar — jurisdiction + kind/severity/status axes +
-            active-filter chips. Period is OMITTED: /gob/maltrato is a
-            period-agnostic live triage queue (PO decision 2026-07) — the
-            period param drove nothing downstream, so the control is dropped
-            rather than left as a dead affordance. The kind/severity/status
-            axes were always wired (buildMaltratoListConditions applies them)
-            but had no visible control. A filter change drops the keyset
-            `cursor` (page 1). The queue TABS are a separate concept (workflow
-            lens) and keep their own control below. */}
-        <OpFilterBar
-          showPeriod={false}
-          jurisdiction={{ allowedProvinces, localities }}
-          resetParamsOnChange={["cursor"]}
-          savedViewsKey="op-saved-views:maltrato:v1"
-          actions={
-            <CsvExportLink
-              filename={`denuncias-maltrato-${todayIsoInAr()}`}
-              columns={csvColumns}
-              rows={csvRows}
-              contextLines={csvContextLines}
-            />
-          }
-          axes={
-            [
-              {
-                id: "kind",
-                label: "Tipo",
-                paramKey: "kind",
-                options: KIND_OPTIONS,
-                current: activeKind,
-                allLabel: "Todos",
-              },
-              {
-                id: "severity",
-                label: "Severidad",
-                paramKey: "severity",
-                options: SEVERITY_OPTIONS,
-                current: activeSeverity,
-                allLabel: "Todas",
-              },
-              {
-                id: "status",
-                label: "Estado",
-                paramKey: "status",
-                options: STATUS_OPTIONS,
-                current: activeStatus,
-                allLabel: "Todos",
-              },
-            ] satisfies OpFilterAxis[]
-          }
-        />
 
         {/* 4 metric KPI tiles. S5 (copy audit 2026-08-06): 3 of the 4
             descriptors are "now" stocks (isKpiPeriodInvariant), so each tile

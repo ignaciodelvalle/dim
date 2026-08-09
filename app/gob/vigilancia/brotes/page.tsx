@@ -79,49 +79,18 @@ export default async function GobVigilanciaBrotesPage({
   const diseaseCode =
     sp.diseaseCode && DISEASES.some((d) => d.code === sp.diseaseCode) ? sp.diseaseCode : undefined;
 
-  // BOUNDED (outage pass 2026-08-09). /gob/vigilancia bounds this same fetcher;
-  // the brotes sub-route did not.
-  const load = await loadWithTimeout(
-    fetchSurveillanceSignals(actor, filteredJurisdictions, { since, diseaseCode }),
-  );
-  if (!load.ok) {
-    return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/vigilancia/brotes", sp)}
-      />
-    );
-  }
-  const allSignals = load.value;
-
-  // A.5: tier-based filter — "Solo verificados institucionalmente"
-  // When the checkbox is active, filter to signals where tier >= professional_verified.
+  // A.5: tier-based filter — "Solo verificados institucionalmente".
+  // Read before the load because the filter bar (which renders in both
+  // branches) needs it; the filtering itself happens after.
   const soloVerificados = sp.soloVerificados === "1";
-  const signals = soloVerificados
-    ? allSignals.filter((s) =>
-        isAtLeast(
-          computeConfidence({
-            authorRole: s.authorRole,
-            authorVerified: s.authorVerified,
-            authorOrganizationId: s.authorOrganizationId,
-            payload: s.payload,
-          }),
-          "professional_verified",
-        ),
-      )
-    : allSignals;
 
-  // Deep-link target (?signalId=): highlight + scroll the matching row into
-  // view. Only activates when the requested signal is actually present in the
-  // current (filtered) result set — a stale or out-of-window id is a no-op.
-  const targetSignalId = sp.signalId ?? null;
-  const hasSignalTarget =
-    targetSignalId != null && signals.some((s) => s.signalEventId === targetSignalId);
-
-  const panelId = "panel-brotes-titulo";
-
-  return (
-    <div className="space-y-6">
+  // Header + filter bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx). Nothing here depends on the
+  // fetcher below, and dropping the bar on timeout removed the period, the
+  // jurisdiction and the disease axis — the only controls that could have
+  // narrowed the query that timed out, while "Reintentar" re-issues it as is.
+  const shell = (
+    <>
       <ScreenHeader
         className="space-y-2"
         eyebrow="Vigilancia · Brotes"
@@ -170,6 +139,56 @@ export default async function GobVigilanciaBrotesPage({
       >
         <VerifiedFilterCheckbox defaultChecked={soloVerificados} />
       </OpFilterBar>
+    </>
+  );
+
+  // BOUNDED (outage pass 2026-08-09). /gob/vigilancia bounds this same fetcher;
+  // the brotes sub-route did not.
+  const load = await loadWithTimeout(
+    fetchSurveillanceSignals(actor, filteredJurisdictions, { since, diseaseCode }),
+  );
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {shell}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/vigilancia/brotes", sp)}
+        />
+      </div>
+    );
+  }
+  const allSignals = load.value;
+
+  // When the checkbox is active, filter to signals where tier >= professional_verified.
+  const signals = soloVerificados
+    ? allSignals.filter((s) =>
+        isAtLeast(
+          computeConfidence({
+            authorRole: s.authorRole,
+            authorVerified: s.authorVerified,
+            authorOrganizationId: s.authorOrganizationId,
+            payload: s.payload,
+          }),
+          "professional_verified",
+        ),
+      )
+    : allSignals;
+
+  // Deep-link target (?signalId=): highlight + scroll the matching row into
+  // view. Only activates when the requested signal is actually present in the
+  // current (filtered) result set — a stale or out-of-window id is a no-op.
+  const targetSignalId = sp.signalId ?? null;
+  const hasSignalTarget =
+    targetSignalId != null && signals.some((s) => s.signalEventId === targetSignalId);
+
+  const panelId = "panel-brotes-titulo";
+
+  return (
+    <div className="space-y-6">
+      {/* Header + filter bar — hoisted above the load so the degraded branch
+          keeps them (see the `shell` definition). */}
+      {shell}
 
       <OpCard aria-labelledby={panelId}>
         <OpCardHead

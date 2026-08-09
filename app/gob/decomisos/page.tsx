@@ -214,20 +214,14 @@ export default async function DecomisosDashboardPage({
     session.jurisdictions,
     period,
   );
-  // BOUNDED (outage pass 2026-08-09) — a GROUP BY over the seizure ledger.
-  const load = await loadWithTimeout(fetchSeizures(seizuresCtx));
-  if (!load.ok) {
-    return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/decomisos")}
-      />
-    );
-  }
-  const seizures = load.value;
-
-  return (
-    <div className="space-y-6">
+  // Header + period bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx). Neither depends on fetchSeizures,
+  // so the bare fallback was taking away the period control that would have
+  // narrowed the query that timed out — and, worse here, the "+ Nuevo decomiso"
+  // action, which does not read the DB at all and is the whole point of the
+  // screen for an operator in the field.
+  const shell = (
+    <>
       <div className="flex items-center justify-between">
         <ScreenHeader
           eyebrow="Ley 14.346"
@@ -253,6 +247,29 @@ export default async function DecomisosDashboardPage({
           the only period-aware element on this screen). Default preset "30d"
           matches the pre-existing hardcoded windows.trailing30d() behavior. */}
       <OpFilterBar period={{ defaultPreset: "30d" }} />
+    </>
+  );
+
+  // BOUNDED (outage pass 2026-08-09) — a GROUP BY over the seizure ledger.
+  const load = await loadWithTimeout(fetchSeizures(seizuresCtx));
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {shell}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/decomisos")}
+        />
+      </div>
+    );
+  }
+  const seizures = load.value;
+
+  return (
+    <div className="space-y-6">
+      {/* Header + filter bar — hoisted above the load so the degraded branch
+          keeps them (see the `shell` definition). */}
+      {shell}
 
       {/* D5 — seizures this period (default trailing 30d) + by-motive breakdown (Ley 14.346). */}
       <section aria-label="Decomisos del período seleccionado" className="space-y-3">

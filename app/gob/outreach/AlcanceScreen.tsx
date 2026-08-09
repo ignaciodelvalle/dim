@@ -403,6 +403,25 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
   const ctx12m = buildProjectionContext({ role: profile.role }, jurisdictions, period12m);
   const ctx30d = buildProjectionContext({ role: profile.role }, jurisdictions, period30d);
 
+  // The header renders in BOTH the data and the degraded branch. It depends on
+  // none of the three pipelines below, and this screen is one of the two halves
+  // of /gob/operativos — a bare fallback made the whole hub look broken rather
+  // than one slow tab. (No filter bar here: this screen has none.)
+  const header = (
+    <ScreenHeader
+      underHub={underHub}
+      className="space-y-2"
+      eyebrow="Alcance comunitario"
+      title="Pipelines de alcance comunitario"
+      subtitle={
+        <p className="text-md text-ln-op-mute">
+          Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
+          campañas de contacto. Las consultas quedan registradas en el audit log.
+        </p>
+      }
+    />
+  );
+
   // Fetch all three pipelines concurrently, BOUNDED. Awaited bare, these three
   // population-scale aggregates had no deadline: on a degraded DB the screen
   // hung inside its Suspense boundary, which renders as an endless skeleton
@@ -417,13 +436,16 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
   );
   if (!load.ok) {
     return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/operativos", {
-          ...(searchParams ?? {}),
-          vista: "alcance",
-        })}
-      />
+      <div className="space-y-6">
+        {header}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/operativos", {
+            ...(searchParams ?? {}),
+            vista: "alcance",
+          })}
+        />
+      </div>
     );
   }
   const [overdueResult, strayResult, sterilResult] = load.value;
@@ -473,19 +495,8 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
 
   return (
     <div className="space-y-6">
-      {/* Page header */}
-      <ScreenHeader
-        underHub={underHub}
-        className="space-y-2"
-        eyebrow="Alcance comunitario"
-        title="Pipelines de alcance comunitario"
-        subtitle={
-          <p className="text-md text-ln-op-mute">
-            Del dato a la acción: cada pipeline convierte un indicador en una lista objetivo para
-            campañas de contacto. Las consultas quedan registradas en el audit log.
-          </p>
-        }
-      />
+      {/* Page header — hoisted above the load so the degraded branch keeps it. */}
+      {header}
 
       {/* Summary KPIs */}
       {/* Stacked below sm (mobile-polish 2026-07): 3-across at 390px crushed

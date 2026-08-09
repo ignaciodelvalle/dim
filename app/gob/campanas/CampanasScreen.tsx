@@ -149,68 +149,14 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
     adminProvince,
     adminLocality,
   });
-  // serviceKind narrows resolveOfferingIds' offering list, which cascades to
-  // every downstream sub-fetch (offerings, outcomes, geo reach, sparkline,
-  // prevTotals) — the whole dashboard stays internally consistent.
-  // BOUNDED. fetchCampaignDashboard fans out to offerings, outcomes, geo reach,
-  // sparkline and prevTotals; it was awaited bare while every analytics screen
-  // in this portal (censo, poblacion, programa, analytics) already races the
-  // same class of fan-out against a deadline. This screen and AlcanceScreen are
-  // the TWO halves of /gob/operativos, so with neither bounded that hub had no
-  // net at all: a degraded DB left it loading forever with nothing in the logs.
-  const load = await loadWithTimeout(fetchCampaignDashboard(ctx, { serviceKind }));
-  if (!load.ok) {
-    return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/operativos", { ...sp, vista: "campanas" })}
-      />
-    );
-  }
-  const dashboard = load.value;
-
-  // Q4 (URL sort) — ?orden=&dir= re-sorts the Alcance geográfico rows
-  // SERVER-SIDE before render. geoReach is the complete k-anon-suppressed
-  // rollup (no pagination; withheld localities are already OUT of `rows` and
-  // declared via suppressedCount), so the URL's claimed order covers the
-  // whole published set. Default keeps the fetcher's own volume order.
-  const geoSort = parseUrlSort(sp, ["localidad", "provincia", "asistencias"] as const, {
-    key: "asistencias",
-    dir: "desc",
-  });
-  const geoRows = sortRowsByUrlSort(dashboard.geoReach.rows, geoSort, {
-    localidad: (a, b) => a.locality.localeCompare(b.locality, "es"),
-    provincia: (a, b) => (a.province ?? "").localeCompare(b.province ?? "", "es"),
-    asistencias: (a, b) => a.attendedCount - b.attendedCount,
-  });
-
-  // Determine the "period label" string for delta display.
-  const periodLabel = "vs período anterior";
-
-  const enrollmentDelta = formatDelta(
-    dashboard.totals.enrollment,
-    dashboard.prevTotals.enrollment,
-    periodLabel,
-  );
-  const completionDelta = formatDelta(
-    dashboard.totals.completion,
-    dashboard.prevTotals.completion,
-    periodLabel,
-  );
-  const noShowDelta = formatDelta(
-    dashboard.totals.noShow,
-    dashboard.prevTotals.noShow,
-    periodLabel,
-  );
-
-  const hasData = dashboard.offerings.length > 0;
-
-  const panelKpiId = "panel-kpis-campanias";
-  const panelOfferingsId = "panel-ofertas-campanias";
-  const panelGeoId = "panel-alcance-geografico-campanias";
-
-  return (
-    <div className="space-y-6">
+  // Header + filter bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx). Neither depends on the fan-out
+  // below — the bar comes from allowedProvinces/localities, resolved earlier —
+  // and the bare fallback was taking away the period, jurisdiction and service
+  // axis, i.e. every control that could have narrowed the query that timed out,
+  // while "Reintentar" re-issues the identical one.
+  const shell = (
+    <>
       {/* Page header */}
       <ScreenHeader
         underHub={underHub}
@@ -260,6 +206,77 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
           </a>
         }
       />
+    </>
+  );
+
+  // serviceKind narrows resolveOfferingIds' offering list, which cascades to
+  // every downstream sub-fetch (offerings, outcomes, geo reach, sparkline,
+  // prevTotals) — the whole dashboard stays internally consistent.
+  // BOUNDED. fetchCampaignDashboard fans out to offerings, outcomes, geo reach,
+  // sparkline and prevTotals; it was awaited bare while every analytics screen
+  // in this portal (censo, poblacion, programa, analytics) already races the
+  // same class of fan-out against a deadline. This screen and AlcanceScreen are
+  // the TWO halves of /gob/operativos, so with neither bounded that hub had no
+  // net at all: a degraded DB left it loading forever with nothing in the logs.
+  const load = await loadWithTimeout(fetchCampaignDashboard(ctx, { serviceKind }));
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {shell}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/operativos", { ...sp, vista: "campanas" })}
+        />
+      </div>
+    );
+  }
+  const dashboard = load.value;
+
+  // Q4 (URL sort) — ?orden=&dir= re-sorts the Alcance geográfico rows
+  // SERVER-SIDE before render. geoReach is the complete k-anon-suppressed
+  // rollup (no pagination; withheld localities are already OUT of `rows` and
+  // declared via suppressedCount), so the URL's claimed order covers the
+  // whole published set. Default keeps the fetcher's own volume order.
+  const geoSort = parseUrlSort(sp, ["localidad", "provincia", "asistencias"] as const, {
+    key: "asistencias",
+    dir: "desc",
+  });
+  const geoRows = sortRowsByUrlSort(dashboard.geoReach.rows, geoSort, {
+    localidad: (a, b) => a.locality.localeCompare(b.locality, "es"),
+    provincia: (a, b) => (a.province ?? "").localeCompare(b.province ?? "", "es"),
+    asistencias: (a, b) => a.attendedCount - b.attendedCount,
+  });
+
+  // Determine the "period label" string for delta display.
+  const periodLabel = "vs período anterior";
+
+  const enrollmentDelta = formatDelta(
+    dashboard.totals.enrollment,
+    dashboard.prevTotals.enrollment,
+    periodLabel,
+  );
+  const completionDelta = formatDelta(
+    dashboard.totals.completion,
+    dashboard.prevTotals.completion,
+    periodLabel,
+  );
+  const noShowDelta = formatDelta(
+    dashboard.totals.noShow,
+    dashboard.prevTotals.noShow,
+    periodLabel,
+  );
+
+  const hasData = dashboard.offerings.length > 0;
+
+  const panelKpiId = "panel-kpis-campanias";
+  const panelOfferingsId = "panel-ofertas-campanias";
+  const panelGeoId = "panel-alcance-geografico-campanias";
+
+  return (
+    <div className="space-y-6">
+      {/* Header + filter bar — hoisted above the load so the degraded branch
+          keeps them (see the `shell` definition). */}
+      {shell}
 
       {!hasData ? (
         // Empty state — jurisdiction with no active campaigns.

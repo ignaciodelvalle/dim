@@ -181,65 +181,14 @@ export default async function GobMortalidadPage({
     adminProvince,
     adminLocality,
   });
-  // Snapshot projection + the D1 cause-by-period trend + death sparkline run in
-  // parallel over the same scoped death_recorded population. fetchPrevMortalityTotal
-  // adds ONE new query (same scope, shifted one period back) purely to power the
-  // "Muertes (período)" deltaV2 chip — mirrors campaign-metrics.ts' fetchPrevTotals.
-  //
-  // species + cause narrow every fetcher below identically (fetchMortalityDisposition
-  // shares ONE `where` across all its sub-queries) so the KPI row, disposition bars,
-  // context splits, causes-by-week chart, and locality breakdown all agree. The
-  // death sparkline (fetchKpiTrend) only takes species — "cause" is a
-  // death_recorded-payload-specific field, not something the generic
-  // event-type trend helper models; the sparkline is a decorative secondary
-  // signal, not the headline tile, so this is an accepted minor inconsistency
-  // when a cause filter is active.
-  // BOUNDED (outage pass 2026-08-09).
-  const load = await loadWithTimeout(
-    Promise.all([
-      fetchMortalityDisposition(ctx, { species, cause }),
-      fetchDeathCausesTrend(ctx, { species, cause }),
-      fetchKpiTrend("death_recorded", ctx, { species }),
-      fetchPrevMortalityTotal(ctx, { species, cause }),
-    ]),
-  );
-  if (!load.ok) {
-    return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/mortalidad", sp)}
-      />
-    );
-  }
-  const [m, causesTrend, deathSparkline, prevTotal] = load.value;
-
-  const deathsDelta = formatDelta(m.total, prevTotal, "vs período anterior");
-
-  const maxBucket = m.byBucket.reduce((acc, b) => Math.max(acc, b.count), 0);
-  // Segregate the k-anon rollup bucket(s) (qa-triage-2026-07-23, finding #14):
-  // sort them LAST regardless of count so a large aggregate (many small
-  // localities folded together — "Santiago del Estero (otras localidades)"
-  // hit 1.965 in live seed data) never visually reads as "the #1 locality" —
-  // it isn't one. Real, individually-identified localities keep their
-  // original (DB-returned) order among themselves.
-  const localityCells = sortLocalityCellsRollupLast(m.byLocality.value);
-  const maxLocality = localityCells.reduce((acc, c) => Math.max(acc, c.count), 0);
-  const showBreach = m.unknownRate > TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT;
-  const hasDeaths = m.total > 0;
-
-  const panelDispId = "panel-disposicion-titulo";
-  const panelCtxId = "panel-contexto-titulo";
-  const panelCauseId = "panel-causas-titulo";
-  const panelLocId = "panel-localidad-titulo";
-
-  // D1 — "Causas por semana" is now a stacked time-series. The bucket unit
-  // follows the selected period (week for short windows, month for long ones).
-  const causeBucketWord = causesTrend.granularity === "month" ? "mes" : "semana";
-  const causesCardTitle = `Causas por ${causeBucketWord}`;
-  const hasCausesTrend = causesTrend.series.points.length > 0;
-
-  return (
-    <div className="space-y-6">
+  // Header + filter bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx). Neither depends on the fetchers
+  // below — the bar is built from allowedProvinces/localities, already resolved
+  // by resolveJurisdictionScope — and dropping them on timeout removed the very
+  // controls (province, period) that would have narrowed the query that timed
+  // out, while "Reintentar" re-issues the identical one.
+  const shell = (
+    <>
       {/* Page header */}
       <ScreenHeader
         className="space-y-2"
@@ -293,6 +242,74 @@ export default async function GobMortalidadPage({
           ] satisfies OpFilterAxis[]
         }
       />
+    </>
+  );
+
+  // Snapshot projection + the D1 cause-by-period trend + death sparkline run in
+  // parallel over the same scoped death_recorded population. fetchPrevMortalityTotal
+  // adds ONE new query (same scope, shifted one period back) purely to power the
+  // "Muertes (período)" deltaV2 chip — mirrors campaign-metrics.ts' fetchPrevTotals.
+  //
+  // species + cause narrow every fetcher below identically (fetchMortalityDisposition
+  // shares ONE `where` across all its sub-queries) so the KPI row, disposition bars,
+  // context splits, causes-by-week chart, and locality breakdown all agree. The
+  // death sparkline (fetchKpiTrend) only takes species — "cause" is a
+  // death_recorded-payload-specific field, not something the generic
+  // event-type trend helper models; the sparkline is a decorative secondary
+  // signal, not the headline tile, so this is an accepted minor inconsistency
+  // when a cause filter is active.
+  // BOUNDED (outage pass 2026-08-09).
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchMortalityDisposition(ctx, { species, cause }),
+      fetchDeathCausesTrend(ctx, { species, cause }),
+      fetchKpiTrend("death_recorded", ctx, { species }),
+      fetchPrevMortalityTotal(ctx, { species, cause }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {shell}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/mortalidad", sp)}
+        />
+      </div>
+    );
+  }
+  const [m, causesTrend, deathSparkline, prevTotal] = load.value;
+
+  const deathsDelta = formatDelta(m.total, prevTotal, "vs período anterior");
+
+  const maxBucket = m.byBucket.reduce((acc, b) => Math.max(acc, b.count), 0);
+  // Segregate the k-anon rollup bucket(s) (qa-triage-2026-07-23, finding #14):
+  // sort them LAST regardless of count so a large aggregate (many small
+  // localities folded together — "Santiago del Estero (otras localidades)"
+  // hit 1.965 in live seed data) never visually reads as "the #1 locality" —
+  // it isn't one. Real, individually-identified localities keep their
+  // original (DB-returned) order among themselves.
+  const localityCells = sortLocalityCellsRollupLast(m.byLocality.value);
+  const maxLocality = localityCells.reduce((acc, c) => Math.max(acc, c.count), 0);
+  const showBreach = m.unknownRate > TARGETS.DISPOSAL_UNKNOWN_BREACH_PCT;
+  const hasDeaths = m.total > 0;
+
+  const panelDispId = "panel-disposicion-titulo";
+  const panelCtxId = "panel-contexto-titulo";
+  const panelCauseId = "panel-causas-titulo";
+  const panelLocId = "panel-localidad-titulo";
+
+  // D1 — "Causas por semana" is now a stacked time-series. The bucket unit
+  // follows the selected period (week for short windows, month for long ones).
+  const causeBucketWord = causesTrend.granularity === "month" ? "mes" : "semana";
+  const causesCardTitle = `Causas por ${causeBucketWord}`;
+  const hasCausesTrend = causesTrend.series.points.length > 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Header + filter bar — hoisted above the load so the degraded branch
+          keeps them (see the `shell` definition). */}
+      {shell}
 
       {/* Conditional breach banner — low disposal traceability */}
       {showBreach && (

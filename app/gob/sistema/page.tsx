@@ -100,26 +100,12 @@ export default async function GobSistemaPage({
     adminLocality,
   });
 
-  // BOUNDED (outage pass 2026-08-09). /admin/sistema was already in the
-  // db-budget fence; its gob twin never was.
-  const load = await loadWithTimeout(
-    Promise.all([
-      fetchEnoSla(ctx),
-      fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
-    ]),
-  );
-  if (!load.ok) {
-    return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/sistema", sp)}
-      />
-    );
-  }
-  const [enoSla, queue] = load.value;
-
-  return (
-    <div className="space-y-6">
+  // Header + filter bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx). Neither depends on the two
+  // fetchers below, so dropping them on timeout only removed the period and
+  // jurisdiction controls that could have narrowed the query that timed out.
+  const shell = (
+    <>
       {/* Page header */}
       <header className="space-y-2">
         <p className="text-xs font-bold uppercase tracking-[0.12em] text-ln-op-mute">
@@ -146,6 +132,35 @@ export default async function GobSistemaPage({
         period={{ defaultPreset: "30d" }}
         jurisdiction={{ allowedProvinces, localities }}
       />
+    </>
+  );
+
+  // BOUNDED (outage pass 2026-08-09). /admin/sistema was already in the
+  // db-budget fence; its gob twin never was.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchEnoSla(ctx),
+      fetchQueueHealthScoped(filteredJurisdictions, { adminProvince, adminLocality }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {shell}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/sistema", sp)}
+        />
+      </div>
+    );
+  }
+  const [enoSla, queue] = load.value;
+
+  return (
+    <div className="space-y-6">
+      {/* Header + filter bar — hoisted above the load so the degraded branch
+          keeps them (see the `shell` definition). */}
+      {shell}
 
       {/* Top KPI strip */}
       <section

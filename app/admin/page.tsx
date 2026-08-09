@@ -30,6 +30,27 @@ export default async function AdminDashboardPage() {
   // per-user watermark, not the ctx period.
   const adminCtx = buildProjectionContext({ role: "admin" }, [], windows.trailing12m());
 
+  // The header renders in BOTH the data and the degraded branch. It depends on
+  // none of the aggregates below, and this is the FIRST screen an admin sees
+  // after signing in — a bare "no pudimos cargar" with no title and no chrome
+  // reads like a broken app rather than one slow strip. (The nav rail survives
+  // regardless: it lives in app/admin/layout.tsx, itself bounded.)
+  const header = (
+    <ScreenHeader
+      className="space-y-1"
+      eyebrow="miMAR Plataforma · Admin"
+      // "Briefing", not "Panel" — the admin twin of the /gob rename (PO
+      // decision 2026-08-01). /admin ships its own "Panorama" entry one nav
+      // section below, so it had the same two-synonyms problem.
+      title="Briefing de administración"
+      subtitle={
+        <p className="text-md text-ln-op-ink-2">
+          Estas colas se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
+        </p>
+      }
+    />
+  );
+
   // BOUNDED (outage pass 2026-08-09) — the admin landing page's five
   // aggregates. Unbounded, a degraded pooler made the first screen an operator
   // sees hang with nothing in the logs.
@@ -49,7 +70,12 @@ export default async function AdminDashboardPage() {
     ]),
   );
   if (!load.ok) {
-    return <AnalyticsLoadFallback reason={load.reason} retryHref={analyticsRetryHref("/admin")} />;
+    return (
+      <div className="space-y-6">
+        {header}
+        <AnalyticsLoadFallback reason={load.reason} retryHref={analyticsRetryHref("/admin")} />
+      </div>
+    );
   }
   const [users, cockpit, decisions, novedades, failedCronNames] = load.value;
 
@@ -69,20 +95,9 @@ export default async function AdminDashboardPage() {
       {/* Page header — "Universal" scope lives in ONE place: the topbar's
           OpScopeChip (app/admin/layout.tsx), visible on every admin screen.
           The eyebrow/subtitle used to repeat it a 2nd and 3rd time (LOW,
-          adversarial-admin 2026-07-23) — rephrased so scope is stated once. */}
-      <ScreenHeader
-        className="space-y-1"
-        eyebrow="miMAR Plataforma · Admin"
-        // "Briefing", not "Panel" — the admin twin of the /gob rename (PO
-        // decision 2026-08-01). /admin ships its own "Panorama" entry one nav
-        // section below, so it had the same two-synonyms problem.
-        title="Briefing de administración"
-        subtitle={
-          <p className="text-md text-ln-op-ink-2">
-            Estas colas se comparten con Gobierno, que las trabaja acotadas a su jurisdicción.
-          </p>
-        }
-      />
+          adversarial-admin 2026-07-23) — rephrased so scope is stated once.
+          Hoisted above the load so the degraded branch keeps it. */}
+      {header}
 
       {/* Crons-down banner (operator-trust T3) — leads the page when any
           background job's latest run failed, so the operator sees the impact

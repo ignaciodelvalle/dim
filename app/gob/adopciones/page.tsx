@@ -136,73 +136,16 @@ export default async function GobAdopcionesPage({
     adminLocality,
   });
 
-  // fetchPrevAdoptionCount adds ONE new query (same scope, shifted one period
-  // back) purely to power the "Adopciones" deltaV2 chip — mirrors
-  // campaign-metrics.ts' fetchPrevTotals pattern.
-  //
-  // species narrows funnel/timeInState/returnRate/adoptionTrend/appFunnel/
-  // prevAdoptionCount identically (domain-axes work). fosterPool and
-  // shelterOccupancy deliberately do NOT take species: fosterPool's
-  // activeVolunteers/withCapacity are volunteer-level counts with no species
-  // dimension, and shelterOccupancy's capacity denominator is org-level
-  // config that can't be split by species — narrowing only the numerator
-  // would reproduce the exact mixed-scope-ratio dishonesty this page already
-  // fences off for local operators (see the "escala nacional" comment below).
-  // BOUNDED — eight population-scale aggregates, the biggest fan-out in the
-  // portal after panorama, awaited bare until the 2026-08-09 outage pass.
-  const load = await loadWithTimeout(
-    Promise.all([
-      fetchCustodyFunnel(ctx, { species }),
-      fetchTimeInState(ctx, { species }),
-      fetchReturnRate(ctx, { species }),
-      fetchFosterPoolUtilization(ctx),
-      fetchShelterOccupancyNational(ctx),
-      fetchAdoptionTrend(ctx, { species }),
-      fetchAdoptionApplicationFunnel(ctx, { species }),
-      fetchPrevAdoptionCount(ctx, { species }),
-    ]),
-  );
-  if (!load.ok) {
-    return (
-      <AnalyticsLoadFallback
-        reason={load.reason}
-        retryHref={analyticsRetryHref("/gob/adopciones", sp)}
-      />
-    );
-  }
-  const [
-    funnel,
-    timeInState,
-    returnRateValue,
-    fosterPool,
-    shelterOccupancy,
-    adoptionTrend,
-    appFunnel,
-    prevAdoptionCount,
-  ] = load.value;
-
-  const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
-
-  const fPct = funnelBarWidths(funnel);
-
-  const hasFunnel = funnel.intake > 0 || funnel.foster > 0 || funnel.adoption > 0;
-  const hasTrend = adoptionTrend.points.length > 0;
-
-  const returnRatePct = returnRateValue != null ? Math.round(returnRateValue * 1000) / 10 : null;
-
-  const conversionPct =
-    appFunnel.conversionRate != null ? Math.round(appFunnel.conversionRate * 1000) / 10 : null;
-  const hasAppFunnel = appFunnel.submitted > 0 || appFunnel.resolved > 0;
-
-  const panelAppFunnelId = "gob-panel-adopciones-postulaciones-titulo";
-  const panelFunnelId = "gob-panel-adopciones-embudo-titulo";
-  const panelTimeId = "gob-panel-adopciones-tiempo-titulo";
-  const panelOccupancyId = "gob-panel-adopciones-ocupacion-titulo";
-  const panelFosterPoolId = "gob-panel-adopciones-pool-titulo";
-  const panelTrendId = "gob-panel-adopciones-tendencia-titulo";
-
-  return (
-    <div className="space-y-6">
+  // Header + filter bar render in BOTH the data and the degraded branch (same
+  // shape as app/gob/censo/CensoScreen.tsx). Nothing here depends on the eight
+  // aggregates below: the bar is built from allowedProvinces/localities, which
+  // resolveJurisdictionScope already resolved, and exportHref from searchParams
+  // alone. Returning a bare fallback took away the province selector — the one
+  // control that would have narrowed the national query that timed out — while
+  // "Reintentar" re-issues that identical query, so every retry timed out too
+  // and the page was unrecoverable without hand-editing the URL.
+  const shell = (
+    <>
       {/* Page header */}
       <ScreenHeader
         className="space-y-2"
@@ -250,6 +193,82 @@ export default async function GobAdopcionesPage({
           </a>
         }
       />
+    </>
+  );
+
+  // fetchPrevAdoptionCount adds ONE new query (same scope, shifted one period
+  // back) purely to power the "Adopciones" deltaV2 chip — mirrors
+  // campaign-metrics.ts' fetchPrevTotals pattern.
+  //
+  // species narrows funnel/timeInState/returnRate/adoptionTrend/appFunnel/
+  // prevAdoptionCount identically (domain-axes work). fosterPool and
+  // shelterOccupancy deliberately do NOT take species: fosterPool's
+  // activeVolunteers/withCapacity are volunteer-level counts with no species
+  // dimension, and shelterOccupancy's capacity denominator is org-level
+  // config that can't be split by species — narrowing only the numerator
+  // would reproduce the exact mixed-scope-ratio dishonesty this page already
+  // fences off for local operators (see the "escala nacional" comment below).
+  // BOUNDED — eight population-scale aggregates, the biggest fan-out in the
+  // portal after panorama, awaited bare until the 2026-08-09 outage pass.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchCustodyFunnel(ctx, { species }),
+      fetchTimeInState(ctx, { species }),
+      fetchReturnRate(ctx, { species }),
+      fetchFosterPoolUtilization(ctx),
+      fetchShelterOccupancyNational(ctx),
+      fetchAdoptionTrend(ctx, { species }),
+      fetchAdoptionApplicationFunnel(ctx, { species }),
+      fetchPrevAdoptionCount(ctx, { species }),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        {shell}
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/adopciones", sp)}
+        />
+      </div>
+    );
+  }
+  const [
+    funnel,
+    timeInState,
+    returnRateValue,
+    fosterPool,
+    shelterOccupancy,
+    adoptionTrend,
+    appFunnel,
+    prevAdoptionCount,
+  ] = load.value;
+
+  const adoptionDelta = formatDelta(funnel.adoption, prevAdoptionCount, "vs período anterior");
+
+  const fPct = funnelBarWidths(funnel);
+
+  const hasFunnel = funnel.intake > 0 || funnel.foster > 0 || funnel.adoption > 0;
+  const hasTrend = adoptionTrend.points.length > 0;
+
+  const returnRatePct = returnRateValue != null ? Math.round(returnRateValue * 1000) / 10 : null;
+
+  const conversionPct =
+    appFunnel.conversionRate != null ? Math.round(appFunnel.conversionRate * 1000) / 10 : null;
+  const hasAppFunnel = appFunnel.submitted > 0 || appFunnel.resolved > 0;
+
+  const panelAppFunnelId = "gob-panel-adopciones-postulaciones-titulo";
+  const panelFunnelId = "gob-panel-adopciones-embudo-titulo";
+  const panelTimeId = "gob-panel-adopciones-tiempo-titulo";
+  const panelOccupancyId = "gob-panel-adopciones-ocupacion-titulo";
+  const panelFosterPoolId = "gob-panel-adopciones-pool-titulo";
+  const panelTrendId = "gob-panel-adopciones-tendencia-titulo";
+
+  return (
+    <div className="space-y-6">
+      {/* Header + filter bar — hoisted above the load so the degraded branch
+          keeps them (see the `shell` definition). */}
+      {shell}
 
       {/* KPI row */}
       <section
