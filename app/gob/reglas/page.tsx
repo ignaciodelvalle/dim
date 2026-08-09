@@ -61,20 +61,30 @@ async function GovtReglasReadOnlyView({
       ? [{ province: null as string | null, locality: null as string | null }]
       : jurisdictions;
 
-  // BOUNDED. This is the heaviest fan-out in the portal and it was awaited
-  // bare: `scopes × GOVT_BUSINESS_RULE_TYPES` (10) resolutions, and each
-  // resolveBusinessRule walks up to three candidates — locality → province →
-  // country — in a loop that is SEQUENTIAL on purpose (its executor may be a
-  // transaction). One assigned jurisdiction is therefore up to 30 sequential
-  // round-trips before a single pixel paints; five localities, up to 150.
+  // BOUNDED — it was awaited bare, and this page issues more queries per render
+  // than anything else in the portal: `scopes × GOVT_BUSINESS_RULE_TYPES` (10),
+  // each resolveBusinessRule walking up to three candidates (locality →
+  // province → country).
   //
-  // The N+1 itself is filed separately — the country-level lookup for a given
-  // rule type is identical across every scope and re-runs in full each time,
-  // and the fix is to read the jurisdictions' rules in ONE query and cascade in
-  // memory. The resolver cannot simply be wrapped in cache(): it accepts an
-  // optional transaction executor, and memoising a tx-bound call would be a
-  // worse bug than the one being fixed. This deadline is the part that stops
-  // the page hanging today.
+  // The count, corrected — an earlier version of this comment claimed "up to 30
+  // SEQUENTIAL round-trips per jurisdiction, 150 for five". That was wrong on
+  // both axes: both maps are Promise.all, so the ten rule types resolve
+  // CONCURRENTLY, and the sequential part is only the 3-deep cascade inside one
+  // resolution (which also short-circuits — a country-level scope does exactly
+  // one query per type). So L localities is ≤30L queries at pool concurrency,
+  // not 30L serialized. 10s of budget has an order of magnitude of headroom.
+  //
+  // WHAT THE DEADLINE DOES NOT DO IS CANCEL. The queries keep running after it
+  // fires, and the fallback below offers "Reintentar" — which on a degraded DB
+  // launches another full batch while the first still holds pool slots
+  // (prod max: 5). That is the abandoned-backend spiral scripts/check-db-budget
+  // names as the task #74 failure. The deadline stops the hang; it does not
+  // make this page cheap.
+  //
+  // The real fix is one query for the jurisdictions' rules plus an in-memory
+  // cascade, filed separately. It has to live at THIS call site, not in the
+  // resolver: resolveBusinessRule accepts an optional transaction executor, so
+  // it can be neither cached nor batched globally without a worse bug.
   const load = await loadWithTimeout(
     Promise.all(
       scopes.map(async (scope) => {

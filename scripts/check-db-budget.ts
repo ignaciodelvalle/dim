@@ -87,6 +87,20 @@ export const DASHBOARD_PAGES = [
   // fan-out (observaciones + denuncias + casos). The withDbBudget wrapping
   // lives in the loader module, not the page, so that is the scan target.
   "app/gob/acciones/_lib/worklist-io.ts",
+  // Staging outage 2026-08-09. A Postgres upgrade killed pooler connections
+  // (57P01) and four unbounded fan-outs turned a degraded DB into dead pages.
+  // Registered in the SAME pass that wrapped them, per this file's own rule —
+  // the previous pass wrote that sentence and this one nearly repeated the
+  // omission instead: the wraps were committed without the ratchet, so a
+  // future refactor could have dropped them with CI still green.
+  //
+  // CampanasScreen + AlcanceScreen are the two halves of /gob/operativos; with
+  // neither bounded that hub had no fallback at all, and because they hang
+  // inside Suspense rather than throwing, nothing reached the error logs.
+  "app/gob/denuncias/page.tsx",
+  "app/gob/reglas/page.tsx",
+  "app/gob/campanas/CampanasScreen.tsx",
+  "app/gob/outreach/AlcanceScreen.tsx",
 ] as const;
 
 // The route-handler globs scanned.

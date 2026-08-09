@@ -103,3 +103,6 @@ scripts/bulk-cursor-pets-staging.mjs
 /*.png
 /*-snapshot.md
 /panorama.md
+
+# vitest --reporter=json output consumed by scripts/check-suite-coverage.ts
+.vitest-report.json
