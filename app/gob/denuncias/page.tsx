@@ -26,6 +26,9 @@
 
 import { Suspense } from "react";
 
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
+
 import Link from "next/link";
 
 import { count } from "drizzle-orm";
@@ -97,24 +100,49 @@ export default async function GobDenunciasPage({
     includeEscalated: profile.role === "admin",
   });
 
-  const [moderationRows, triage, casosCount] = await Promise.all([
-    db.select({ n: count() }).from(welfareReports).where(moderationWhere),
-    fetchOpenWelfareReportsCount(ctx),
-    // KIND-FILTERED. This stage is titled "Denuncias escaladas a un caso
-    // regulatorio" (below), but the count carried no `kind`, so it returned
-    // EVERY open case in scope — bite incidents, lost-pet episodes, adoption
-    // paperwork and, dominantly, custody disputes. Live review 2026-07-28 read
-    // "ABIERTOS 28" on this stage while `kind=welfare_denuncia` returned zero
-    // rows at every status: the 28 were custody files, and an official
-    // following the hub's own three-step story was sent to look at them.
-    //
-    // Both query helpers already accept `kind` (ListCasesFor{Govt,Admin}Filters)
-    // — nothing here needed building, only passing.
-    profile.role === "admin"
-      ? countCasesForAdmin({ status: "open", kind: ESCALATED_DENUNCIA_KIND })
-      : countCasesForGovt(jurisdictions, { status: "open", kind: ESCALATED_DENUNCIA_KIND }),
-  ]);
+  // BOUNDED. This Promise.all used to be awaited bare, and it is the fan-out
+  // that took the hub down on staging: the 2026-08-08 Postgres upgrade killed
+  // pooler connections mid-query (57P01, "terminating connection due to
+  // administrator command") and /gob/denuncias.rsc answered with a 500 instead
+  // of a degraded page. Three counts for tab badges are never worth losing the
+  // hub over.
+  //
+  // loadWithTimeout is the house helper the four analytics screens already use
+  // (censo, poblacion, programa, analytics) — 10s, never rejects, and it
+  // attaches a rejection handler so an abandoned sibling cannot become an
+  // unhandled rejection.
+  const load = await loadWithTimeout(
+    Promise.all([
+      db.select({ n: count() }).from(welfareReports).where(moderationWhere),
+      fetchOpenWelfareReportsCount(ctx),
+      // KIND-FILTERED. This stage is titled "Denuncias escaladas a un caso
+      // regulatorio" (below), but the count carried no `kind`, so it returned
+      // EVERY open case in scope — bite incidents, lost-pet episodes, adoption
+      // paperwork and, dominantly, custody disputes. Live review 2026-07-28 read
+      // "ABIERTOS 28" on this stage while `kind=welfare_denuncia` returned zero
+      // rows at every status: the 28 were custody files, and an official
+      // following the hub's own three-step story was sent to look at them.
+      //
+      // Both query helpers already accept `kind` (ListCasesFor{Govt,Admin}Filters)
+      // — nothing here needed building, only passing.
+      profile.role === "admin"
+        ? countCasesForAdmin({ status: "open", kind: ESCALATED_DENUNCIA_KIND })
+        : countCasesForGovt(jurisdictions, { status: "open", kind: ESCALATED_DENUNCIA_KIND }),
+    ]),
+  );
 
+  if (!load.ok) {
+    return (
+      <div className="space-y-6">
+        <AnalyticsLoadFallback
+          reason={load.reason}
+          retryHref={analyticsRetryHref("/gob/denuncias", sp)}
+        />
+      </div>
+    );
+  }
+
+  const [moderationRows, triage, casosCount] = load.value;
   const moderationCount = moderationRows[0]?.n ?? 0;
 
   const tabs: UrlTabItem[] = [

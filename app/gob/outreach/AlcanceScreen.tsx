@@ -43,8 +43,10 @@ import { Icon } from "@/components/Icon";
 import { OutreachRabiesReminderList } from "@/components/gob/OutreachRabiesReminderList";
 import { LnEmptyState } from "@/components/ui/EmptyState";
 import { OpCard, OpCardBody, OpCardHead, OpKpi, OpSortHeader } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
 import {
   type OverdueRabiesPet,
@@ -401,12 +403,30 @@ export async function AlcanceScreen({ underHub = false, searchParams }: AlcanceS
   const ctx12m = buildProjectionContext({ role: profile.role }, jurisdictions, period12m);
   const ctx30d = buildProjectionContext({ role: profile.role }, jurisdictions, period30d);
 
-  // Fetch all three pipelines concurrently.
-  const [overdueResult, strayResult, sterilResult] = await Promise.all([
-    fetchOverdueRabiesVaccine(ctx12m),
-    fetchStrayDensityAreas(ctx30d),
-    fetchSterilizationVetRanking(ctx30d),
-  ]);
+  // Fetch all three pipelines concurrently, BOUNDED. Awaited bare, these three
+  // population-scale aggregates had no deadline: on a degraded DB the screen
+  // hung inside its Suspense boundary, which renders as an endless skeleton
+  // with nothing written to the logs. Together with CampanasScreen these are
+  // the two halves of /gob/operativos, so neither half could degrade.
+  const load = await loadWithTimeout(
+    Promise.all([
+      fetchOverdueRabiesVaccine(ctx12m),
+      fetchStrayDensityAreas(ctx30d),
+      fetchSterilizationVetRanking(ctx30d),
+    ]),
+  );
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/operativos", {
+          ...(searchParams ?? {}),
+          vista: "alcance",
+        })}
+      />
+    );
+  }
+  const [overdueResult, strayResult, sterilResult] = load.value;
 
   // Pipeline (a) geo-first aggregation — in-memory fold over the SAME query
   // above, no second DB round-trip (PO decision 3).

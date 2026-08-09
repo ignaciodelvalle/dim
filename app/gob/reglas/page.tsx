@@ -9,8 +9,10 @@
 // not parallel routes (AC3 pattern).
 
 import { OpCard, OpCardBody, OpCardHead, OpCodeBadge } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
 import { GOVT_BUSINESS_RULE_TYPES } from "@/db";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import {
   RULE_TYPE_REGISTRY,
   RULE_SOURCE_LABEL as SOURCE_LABEL,
@@ -59,21 +61,46 @@ async function GovtReglasReadOnlyView({
       ? [{ province: null as string | null, locality: null as string | null }]
       : jurisdictions;
 
-  const groups = await Promise.all(
-    scopes.map(async (scope) => {
-      const resolved = await Promise.all(
-        GOVT_BUSINESS_RULE_TYPES.map(async (ruleType) => {
-          const r = await resolveBusinessRule(ruleType, {
-            country: "AR",
-            province: scope.province ?? undefined,
-            locality: scope.locality ?? undefined,
-          });
-          return { ruleType, ...r };
-        }),
-      );
-      return { scope, resolved };
-    }),
+  // BOUNDED. This is the heaviest fan-out in the portal and it was awaited
+  // bare: `scopes × GOVT_BUSINESS_RULE_TYPES` (10) resolutions, and each
+  // resolveBusinessRule walks up to three candidates — locality → province →
+  // country — in a loop that is SEQUENTIAL on purpose (its executor may be a
+  // transaction). One assigned jurisdiction is therefore up to 30 sequential
+  // round-trips before a single pixel paints; five localities, up to 150.
+  //
+  // The N+1 itself is filed separately — the country-level lookup for a given
+  // rule type is identical across every scope and re-runs in full each time,
+  // and the fix is to read the jurisdictions' rules in ONE query and cascade in
+  // memory. The resolver cannot simply be wrapped in cache(): it accepts an
+  // optional transaction executor, and memoising a tx-bound call would be a
+  // worse bug than the one being fixed. This deadline is the part that stops
+  // the page hanging today.
+  const load = await loadWithTimeout(
+    Promise.all(
+      scopes.map(async (scope) => {
+        const resolved = await Promise.all(
+          GOVT_BUSINESS_RULE_TYPES.map(async (ruleType) => {
+            const r = await resolveBusinessRule(ruleType, {
+              country: "AR",
+              province: scope.province ?? undefined,
+              locality: scope.locality ?? undefined,
+            });
+            return { ruleType, ...r };
+          }),
+        );
+        return { scope, resolved };
+      }),
+    ),
   );
+
+  if (!load.ok) {
+    return (
+      <div className="space-y-6 max-w-3xl">
+        <AnalyticsLoadFallback reason={load.reason} retryHref={analyticsRetryHref("/gob/reglas")} />
+      </div>
+    );
+  }
+  const groups = load.value;
 
   return (
     <div className="space-y-6 max-w-3xl">

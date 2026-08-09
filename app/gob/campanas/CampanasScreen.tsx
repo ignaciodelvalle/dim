@@ -30,8 +30,10 @@ import {
   OpSortHeader,
   ViewScopeCaption,
 } from "@/components/ui/dashboard";
+import { AnalyticsLoadFallback } from "@/components/ui/dashboard/AnalyticsLoadFallback";
 import { DashboardFreshnessFooter } from "@/components/ui/dashboard/DashboardFreshnessFooter";
 import { ScreenHeader } from "@/components/ui/dashboard/ScreenHeader";
+import { analyticsRetryHref, loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { fetchCampaignDashboard, formatDelta } from "@/lib/analytics/campaign-metrics";
 import { resolveJurisdictionScope } from "@/lib/analytics/jurisdiction-scope";
 import { requireAdminOrGovtOrRedirect } from "@/lib/infra/auth-guards";
@@ -150,7 +152,22 @@ export async function CampanasScreen({ searchParams: sp, underHub = false }: Cam
   // serviceKind narrows resolveOfferingIds' offering list, which cascades to
   // every downstream sub-fetch (offerings, outcomes, geo reach, sparkline,
   // prevTotals) — the whole dashboard stays internally consistent.
-  const dashboard = await fetchCampaignDashboard(ctx, { serviceKind });
+  // BOUNDED. fetchCampaignDashboard fans out to offerings, outcomes, geo reach,
+  // sparkline and prevTotals; it was awaited bare while every analytics screen
+  // in this portal (censo, poblacion, programa, analytics) already races the
+  // same class of fan-out against a deadline. This screen and AlcanceScreen are
+  // the TWO halves of /gob/operativos, so with neither bounded that hub had no
+  // net at all: a degraded DB left it loading forever with nothing in the logs.
+  const load = await loadWithTimeout(fetchCampaignDashboard(ctx, { serviceKind }));
+  if (!load.ok) {
+    return (
+      <AnalyticsLoadFallback
+        reason={load.reason}
+        retryHref={analyticsRetryHref("/gob/operativos", { ...sp, vista: "campanas" })}
+      />
+    );
+  }
+  const dashboard = load.value;
 
   // Q4 (URL sort) — ?orden=&dir= re-sorts the Alcance geográfico rows
   // SERVER-SIDE before render. geoReach is the complete k-anon-suppressed
