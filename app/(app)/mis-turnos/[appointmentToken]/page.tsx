@@ -127,7 +127,9 @@ export default async function AppointmentDetailPage({
             <DetailRow label="Tipo de servicio">{kindDef?.label ?? offering.serviceKind}</DetailRow>
             <DetailRow label="Prestador">{providerLabel}</DetailRow>
             <DetailRow label="Fecha y hora">
-              <span className="capitalize">{slotDate}</span> a las {slotTime}
+              {/* inline-block porque ::first-letter no aplica a inline. */}
+              <span className="inline-block first-letter:uppercase">{slotDate}</span> a las{" "}
+              {slotTime}
             </DetailRow>
             <DetailRow label="Duración">{offering.durationMinutes} minutos</DetailRow>
             <DetailRow label="Precio">

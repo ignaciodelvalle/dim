@@ -145,7 +145,11 @@ export default async function OfferingDetailPage({
 
             return (
               <div key={dayLabel}>
-                <p className="mb-2.5 font-ln-mono text-sm uppercase tracking-[.08em] text-[var(--color-ln-mute)] capitalize">
+                {/* Llevaba `uppercase` Y `capitalize` en la misma clase: dos
+                    text-transform peleandose, y el resultado dependia del orden
+                    del CSS generado. La intencion es el encabezado en
+                    versalitas, asi que gana `uppercase` y capitalize se va. */}
+                <p className="mb-2.5 font-ln-mono text-sm uppercase tracking-[.08em] text-[var(--color-ln-mute)]">
                   {dayHeading}
                 </p>
                 <div className="flex flex-wrap gap-2">

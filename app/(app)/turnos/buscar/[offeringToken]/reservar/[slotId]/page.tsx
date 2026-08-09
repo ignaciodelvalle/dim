@@ -118,7 +118,10 @@ export default async function ReservarTurnoPage({
             </DetailRow>
             <DetailRow label="Prestador">{providerLabel}</DetailRow>
             <DetailRow label="Fecha y hora">
-              <span className="capitalize">{slotDate}</span> a las {slotTime}
+              {/* inline-block porque ::first-letter no aplica a elementos
+                  inline. capitalize daba "Sabado, 8 De Agosto". */}
+              <span className="inline-block first-letter:uppercase">{slotDate}</span> a las{" "}
+              {slotTime}
             </DetailRow>
             {offering.priceArs !== null && (
               <DetailRow label="Precio">

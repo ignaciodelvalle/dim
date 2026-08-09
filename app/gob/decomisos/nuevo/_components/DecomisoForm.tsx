@@ -681,7 +681,11 @@ export function DecomisoForm({
             <div className="flex items-center justify-between rounded-[var(--radius-md)] border border-ln-op-blue-bd bg-ln-op-blue-bg px-4 py-3">
               <div>
                 <p className="text-md font-medium text-ln-op-ink">{selectedOrg.displayName}</p>
-                <p className="text-sm text-ln-op-mute capitalize">
+                {/* Sin `capitalize`: el contenido ya viene bien escrito
+                    ("Red de rescate", y una localidad con su nombre propio).
+                    text-transform: capitalize sube la inicial de CADA palabra,
+                    asi que convertia eso en "Red De Rescate". */}
+                <p className="text-sm text-ln-op-mute">
                   {selectedOrg.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {selectedOrg.jurisdictionLocality
                     ? ` · ${selectedOrg.jurisdictionLocality}, ${selectedOrg.jurisdictionProvince ?? ""}`
@@ -725,7 +729,11 @@ export function DecomisoForm({
                         className="w-full text-left px-4 py-2.5 hover:bg-ln-op-stripe transition-colors"
                       >
                         <p className="text-md text-ln-op-ink">{org.displayName}</p>
-                        <p className="text-sm text-ln-op-mute capitalize">
+                        {/* Sin `capitalize`: el contenido ya viene bien escrito
+                    ("Red de rescate", y una localidad con su nombre propio).
+                    text-transform: capitalize sube la inicial de CADA palabra,
+                    asi que convertia eso en "Red De Rescate". */}
+                        <p className="text-sm text-ln-op-mute">
                           {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                           {org.jurisdictionLocality
                             ? ` · ${org.jurisdictionLocality}, ${org.jurisdictionProvince ?? ""}`

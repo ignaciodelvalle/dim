@@ -103,7 +103,9 @@ export default async function OrgAppointmentDetailPage({
             <Row label="Mascota">{pet.name}</Row>
             <Row label="Tipo de servicio">{kindDef?.label ?? offering.serviceKind}</Row>
             <Row label="Fecha y hora">
-              <span className="capitalize">{slotDate}</span> a las {slotTime}
+              {/* inline-block porque ::first-letter no aplica a inline. */}
+              <span className="inline-block first-letter:uppercase">{slotDate}</span> a las{" "}
+              {slotTime}
             </Row>
             <Row label="Propietario">
               {ownerProfile?.displayName?.split(" ")[0] ?? "—"}

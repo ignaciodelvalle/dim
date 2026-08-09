@@ -84,7 +84,9 @@ export function AppointmentCard({ row }: { row: AppointmentRow }) {
             <p className="text-xs text-ln-mute ">
               {pet.name} · {providerLabel}
             </p>
-            <p className="text-xs text-ln-mute  capitalize">
+            {/* first-letter, no capitalize: "Sabado, 8 De Agosto" era el
+                sintoma de subir la inicial de cada palabra. */}
+            <p className="text-xs text-ln-mute first-letter:uppercase">
               {dateLabel} · {timeLabel}
             </p>
             {kindDef && <p className="text-xs text-ln-mute ">{kindDef.label}</p>}

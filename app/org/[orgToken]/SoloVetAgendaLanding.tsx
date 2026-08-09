@@ -60,7 +60,11 @@ export function SoloVetAgendaLanding({
       <header className="space-y-1">
         <p className="text-xs font-bold uppercase tracking-wider text-ln-op-mute">{orgName}</p>
         <h1 className="text-xl font-semibold text-ln-op-ink">Agenda de hoy</h1>
-        <p className="text-sm capitalize text-ln-op-mute">{todayLabel}</p>
+        {/* `first-letter:uppercase`, no `capitalize` — la misma convencion que
+            el context-bar de panorama ya tiene testeada. capitalize sube la
+            inicial de cada palabra y convierte "sabado, 8 de agosto" en
+            "Sabado, 8 De Agosto". */}
+        <p className="text-sm first-letter:uppercase text-ln-op-mute">{todayLabel}</p>
       </header>
 
       {/* First-run checklist (task #17) — guides the solo vet through publishing

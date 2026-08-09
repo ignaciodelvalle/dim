@@ -144,7 +144,10 @@ export default async function BuscarHogarPage({
                 <p className="font-ln-serif text-md font-semibold text-[var(--color-ln-ink)]">
                   {org.displayName}
                 </p>
-                <p className="mt-0.5 font-ln-mono text-sm capitalize text-[var(--color-ln-mute)]">
+                {/* Sin `capitalize`: "Red de rescate" y el nombre de la
+                    localidad ya vienen bien escritos, y capitalize sube la
+                    inicial de CADA palabra. */}
+                <p className="mt-0.5 font-ln-mono text-sm text-[var(--color-ln-mute)]">
                   {org.orgType === "rescue_network" ? "Red de rescate" : "Refugio"}
                   {" · "}
                   {org.jurisdictionLocality ?? org.jurisdictionProvince}
