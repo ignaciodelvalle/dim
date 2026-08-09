@@ -287,6 +287,37 @@ El resto de los aciertos del barrido son `<span className="mx-1">·</span>` (mar
 
 ---
 
+## R11 — Correr la suite BORRABA los datos del piloto · ALTA
+
+**Dónde:** `__tests__/business-rules-resolver.test.ts:37` y `__tests__/physical-credential-channels.test.ts:69`
+
+Cargué por UI la primera regla real de `AR / Buenos Aires / La Matanza` —la jurisdicción del piloto—, corrí el gate, y **la regla había desaparecido**. Sin error, sin aviso, sin nada en los logs.
+
+No fue un wipe de la base: el servicio publicado y los 688 turnos sobrevivieron intactos. Se borró **exactamente esa fila**, y las reglas de CABA quedaron. Ese contraste fue lo que delató el predicado:
+
+```sql
+-- afterEach de business-rules-resolver.test.ts, ANTES
+delete from govt_business_rules
+where jurisdiction_country = 'AR'
+  and (jurisdiction_province = 'Buenos Aires' or jurisdiction_province is null)
+```
+
+Un cleanup por **jurisdicción**, no por **autoría**. El proyecto `db` de vitest corre contra el Postgres local REAL y compartido, así que ese `afterEach` se llevaba puesta toda regla de Buenos Aires que existiera en la base — la hubiera creado el test o una persona. `physical-credential-channels.test.ts` tenía la misma forma, borrando todas las reglas de canales de AR.
+
+**Por qué es ALTA:** la estrategia entera del día es *cargar datos por los pasos reales del producto*. Un test que se come esos datos, en silencio, la invalida. Y apuntaba justo a Buenos Aires, que es donde vive el piloto.
+
+**Arreglado por autoría.** Cada fixture de esos archivos se inserta con `createdByUserId: ACTOR_ID`, así que ese filtro es a la vez **exacto** (no toca nada ajeno) y **completo** (no deja nada atrás):
+
+```sql
+delete from govt_business_rules where created_by_user_id = ${ACTOR_ID}::uuid
+```
+
+**Verificado por comportamiento, no por aserción:** con las reglas de La Matanza en la base, corrí los dos archivos de test (25 pasan, 3 skip) y volví a consultar. Siguen ahí.
+
+**El tercero se deja como está.** `business-rules-flow.test.ts:100` también filtra por provincia, pero lleva `and notes = 'test rule'` — un marcador deliberado y documentado, y es un self-heal que corre ANTES del test para limpiar restos de una corrida muerta, donde no hay ids que rastrear.
+
+---
+
 ## R2 — El build en disco estaba viejo respecto de HEAD · informativo
 
 `qa-up.ps1` lo detectó y lo dijo bien: *"Build is OLDER than HEAD (c678f0a4)"*, y siguió sirviendo el build viejo en vez de mentir. Ese chequeo funciona como debe — se anota como contraste con R1, no como defecto.
