@@ -102,13 +102,27 @@ describe("the layout wires the signal exactly once", () => {
   });
 
   it("resolves it alongside the existing reads, not as an extra await hop", () => {
-    const promiseAll = layoutSrc.slice(
-      layoutSrc.indexOf("await Promise.all(["),
-      layoutSrc.indexOf("]);", layoutSrc.indexOf("await Promise.all([")),
-    );
+    // Matches on the GUARANTEE — the three reads share one Promise.all — rather
+    // than on the literal `await Promise.all([`, which is a shape. The layout
+    // now wraps that Promise.all in loadWithTimeout (the whole owner portal
+    // hangs if these counters hang, and a layout has no error boundary above
+    // it), so the `await` moved one call outwards while the guarantee did not
+    // change. A test that pins the shape blocks a correct fix and reads like a
+    // real regression when it fires.
+    const start = layoutSrc.indexOf("Promise.all([");
+    expect(start, "the layout no longer batches its shell reads").toBeGreaterThan(-1);
+    const promiseAll = layoutSrc.slice(start, layoutSrc.indexOf("]),", start));
     expect(promiseAll).toContain("getOwnedPetsCountCached(user.id)");
     expect(promiseAll).toContain("getUnreadCountCached(user.id)");
     expect(promiseAll).toContain("getOrgMembershipsCached(user.id)");
+  });
+
+  it("batches them in exactly ONE Promise.all", () => {
+    // The half of the guarantee the slice above cannot express: splitting the
+    // three reads across two Promise.alls would still put each inside "a"
+    // Promise.all while costing the extra round-trip hop this suite exists to
+    // prevent.
+    expect((layoutSrc.match(/Promise\.all\(\[/g) ?? []).length).toBe(1);
   });
 
   it("threads the number into the tab bar", () => {

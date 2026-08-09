@@ -18,6 +18,7 @@
 //   - No border, no padding — caller controls vertical spacing.
 
 import { FreshnessStaleBand } from "@/components/ui/dashboard/FreshnessStaleBand";
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import type { ProjectionContext } from "@/lib/metrics/context";
 import { lastIngestAt } from "@/lib/metrics/freshness";
 import { formatDateTimeNumericAr } from "@/lib/utils/format";
@@ -36,10 +37,31 @@ type Props = {
  * @param ctx - The active ProjectionContext (passed from the page boundary).
  */
 export async function DashboardFreshnessFooter({ ctx }: Props) {
-  const [maxAt] = await Promise.all([lastIngestAt(ctx)]);
+  // BOUNDED, and this one mattered more than any single page.
+  //
+  // lastIngestAt is a max(pet_events.occurred_at) with an INNER JOIN on pets —
+  // a full aggregate over the event spine — awaited here with no deadline and
+  // no Suspense. This component is the LAST CHILD of ~21 dashboards, six of
+  // them pages whose own fan-outs were bounded in the 2026-08-09 outage pass.
+  //
+  // That made those fixes hollow: the fan-out could return inside its 10s
+  // budget and the page would still never finish its RSC stream, because the
+  // footer was still hanging. Same blank-forever symptom, same absence from the
+  // logs, and `lint:db-budget` green the whole time — the fence only reads the
+  // page file, and the unbounded await lives here.
+  //
+  // 3s: a freshness stamp is the least important thing on any of these screens.
+  // Degrading it to "sin dato" costs a reader nothing; hanging on it costs them
+  // the page. Found by adversarial review, not by the fence.
+  const load = await loadWithTimeout(lastIngestAt(ctx), 3_000);
+  const maxAt = load.ok ? load.value : null;
 
   const nowLabel = formatDateTimeNumericAr(new Date());
-  const eventLabel = maxAt != null ? formatDateTimeNumericAr(maxAt) : "sin eventos";
+  const eventLabel = !load.ok
+    ? "sin dato"
+    : maxAt != null
+      ? formatDateTimeNumericAr(maxAt)
+      : "sin eventos";
 
   return (
     <>

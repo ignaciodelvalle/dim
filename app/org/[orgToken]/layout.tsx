@@ -7,6 +7,7 @@
 // The orgToken (organizations.publicToken) is the URL-stable identifier used
 // throughout this portal instead of inferring an "active org" from session.
 
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { BRANDING } from "@/lib/ui/branding";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -117,13 +118,23 @@ export default async function OrgLayout({
   const badgeQueues = orgQueues.filter((q) => q.navPath !== undefined);
   const queueCounts =
     orgQueues.length > 0
-      ? await getOrgQueueCountsCached(
-          organization.id,
-          orgQueueCacheKey(orgQueues.map((q) => q.key)),
-        ).catch((err) => {
-          console.error("[OrgLayout] getOrgQueueCountsCached failed", err);
-          return null;
-        })
+      ? // BOUNDED (2026-08-09). fetchOrgQueueCounts fans out up to eight
+        // counters, and this runs in the LAYOUT of every /org/* route. The
+        // .catch below guards a REJECTION; a degraded pooler does not reject,
+        // it hangs — the identical bug fixed in app/admin/layout.tsx one commit
+        // earlier, whose reasoning this file's own comment block already
+        // states. Carrying the sentence over without the deadline is exactly
+        // how it recurred.
+        await loadWithTimeout(
+          getOrgQueueCountsCached(
+            organization.id,
+            orgQueueCacheKey(orgQueues.map((q) => q.key)),
+          ).catch((err) => {
+            console.error("[OrgLayout] getOrgQueueCountsCached failed", err);
+            return null;
+          }),
+          3_000,
+        ).then((r) => (r.ok ? r.value : null))
       : null;
 
   const badgeByHref = new Map<string, number>();

@@ -134,6 +134,37 @@ type ViewerScope =
 // Extracted so the page component's own cognitive complexity stays under the
 // lint ceiling — all filter-parsing, querying, and pagination-link logic
 // lives here; the component below only renders (#26 D2).
+/**
+ * What the queue says when it has no rows.
+ *
+ * A degraded read must never produce a COUNT-SHAPED claim. With rawItems=[] and
+ * totalCount=0 the queue printed "0 casos" and "No hay casos abiertos en tu
+ * jurisdicción" directly under the amber notice — two contradictory statements
+ * on one screen, and the concrete one wins. Same "0 vs —" honesty already fixed
+ * on /gob/denuncias; it recurred here because the degraded values were chosen to
+ * satisfy the types, not the reader.
+ *
+ * Its own function because loadCasosForViewer sits at the cognitive-complexity
+ * limit and this branch tipped it — the same budget lesson MaltratoQueueScreen
+ * paid twice.
+ */
+function buildEmptyMessage(args: {
+  degraded: boolean;
+  isAdmin: boolean;
+  hasFilters: boolean;
+  activeStatus: "open" | "closed" | null;
+}): string {
+  if (args.degraded) return "No pudimos leer la cola de casos.";
+  if (args.isAdmin) {
+    return args.hasFilters
+      ? "Ningún caso coincide con los filtros aplicados."
+      : "No hay casos abiertos.";
+  }
+  if (args.activeStatus === "open") return "No hay casos abiertos en tu jurisdicción.";
+  if (args.activeStatus === "closed") return "No hay casos cerrados en tu jurisdicción.";
+  return "Sin casos en tu jurisdicción por ahora.";
+}
+
 async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope) {
   // SC-6 (audit 2026-07-26, red #3). "Urgencia" was a CLIENT sort over the 50
   // rows this function had already picked BY DATE — the "most urgent" list was
@@ -285,16 +316,12 @@ async function loadCasosForViewer(sp: GovtCasosSearchParams, scope: ViewerScope)
   const hasFilters =
     casoEstado !== "open" || kindFilter !== null || Boolean(sp.province) || Boolean(sp.locality);
 
-  const emptyMessage =
-    scope.role === "admin"
-      ? hasFilters
-        ? "Ningún caso coincide con los filtros aplicados."
-        : "No hay casos abiertos."
-      : activeStatus === "open"
-        ? "No hay casos abiertos en tu jurisdicción."
-        : activeStatus === "closed"
-          ? "No hay casos cerrados en tu jurisdicción."
-          : "Sin casos en tu jurisdicción por ahora.";
+  const emptyMessage = buildEmptyMessage({
+    degraded: degradedReason !== null,
+    isAdmin: scope.role === "admin",
+    hasFilters,
+    activeStatus,
+  });
 
   return {
     degradedReason,
@@ -468,12 +495,18 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
             resetParamsOnChange={[...CASE_QUEUE_POSITION_PARAMS]}
             savedViewsKey="op-saved-views:casos:v1"
             actions={
-              <CsvExportLink
-                filename={`casos-${todayIsoInAr()}`}
-                columns={CASE_QUEUE_CSV_COLUMNS}
-                rows={caseQueueCsvRows(queueRows)}
-                contextLines={csvContextLines}
-              />
+              // No export while degraded. caseQueueCsvRows([]) would produce a
+              // file headed "miMAR · Casos" with zero rows and no marker saying
+              // the read failed — a document someone can forward. A screen
+              // glitch is recoverable; a distributable falsehood is not.
+              degradedReason ? null : (
+                <CsvExportLink
+                  filename={`casos-${todayIsoInAr()}`}
+                  columns={CASE_QUEUE_CSV_COLUMNS}
+                  rows={caseQueueCsvRows(queueRows)}
+                  contextLines={csvContextLines}
+                />
+              )
             }
             // The canonical jurisdiction control (ISO code + locality slug),
             // replacing this screen's bespoke province-NAME axis. It also
@@ -514,7 +547,7 @@ export async function CasosScreen({ searchParams: sp, underHub = false }: CasosS
               // these are the next 50 in whichever order is active, not the
               // top 50 of it. Both pagination modes have to be checked now —
               // a keyset cursor OR a page number past the first.
-              totalCount={rawCursor || page > 1 ? undefined : totalCount}
+              totalCount={degradedReason || rawCursor || page > 1 ? undefined : totalCount}
               emptyMessage={emptyMessage}
               emptyAction={
                 hasFilters ? (

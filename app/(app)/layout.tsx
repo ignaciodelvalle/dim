@@ -12,6 +12,7 @@
 // Strangler note: this drops LnOwnerNav + LnOwnerSubBar usage. Those files are
 // NOT deleted here — Phase D removes them.
 
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { BRANDING } from "@/lib/ui/branding";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
@@ -77,11 +78,22 @@ export default async function AuthenticatedLayout({
   // capture action is a no-op, so the slot becomes "Registrar mascota" instead.
   // One indexed count per request — the documented cost (see
   // getOwnedPetsCountCached); nothing else in this layout touches ownerships.
-  const [unreadCount, orgMemberships, ownedPetsCount] = await Promise.all([
-    getUnreadCountCached(user.id),
-    getOrgMembershipsCached(user.id),
-    getOwnedPetsCountCached(user.id),
-  ]);
+  // BOUNDED (2026-08-09). Three cached counters in the LAYOUT of the whole
+  // owner portal: a degraded pooler hangs every /mis-mascotas, /notificaciones
+  // and /cuenta route at once, and a layout has no error boundary of its own to
+  // fall into. 3s, and the nav degrades to its zero-state rather than the
+  // portal degrading to nothing.
+  const shellLoad = await loadWithTimeout(
+    Promise.all([
+      getUnreadCountCached(user.id),
+      getOrgMembershipsCached(user.id),
+      getOwnedPetsCountCached(user.id),
+    ]),
+    3_000,
+  );
+  const [unreadCount, orgMemberships, ownedPetsCount] = shellLoad.ok
+    ? shellLoad.value
+    : ([0, [], 0] as typeof shellLoad extends { ok: true; value: infer V } ? V : never);
 
   // displayName is NOT NULL in the DB, but an empty string would render a
   // blank nav avatar — fall back to the email prefix like the pre-cache code.

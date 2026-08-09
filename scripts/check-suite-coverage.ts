@@ -42,27 +42,28 @@ type VitestJson = {
 };
 
 /**
- * A "failure" that is really a dead worker.
+ * A failure that TIMED OUT rather than asserting.
  *
- * When a worker fork dies, vitest marks every test it was holding as FAILED and
- * fills the message with the `STACK_TRACE_ERROR` placeholder plus a stack that
- * lands only inside vitest's own runner — no assertion, no user frame. On
- * 2026-08-09 that turned six file-walking fitness tests red in a full run; all
- * 44 of their assertions passed when the same five files ran together in
- * isolation seconds later.
+ * READ THE HISTORY BEFORE CHANGING THIS. The first version of this function was
+ * called `looksLikeDeadWorker` and told the reader such failures were "usually a
+ * worker fork dying, not a defect". That was wrong, and dangerously so:
+ * `STACK_TRACE_ERROR` is not a worker-death marker. In vitest 4.1.6 it is the
+ * registration-time stack sentinel every `test()` and every hook is given, and
+ * `makeTimeoutError` leaves it in `error.stack` verbatim. So the signature it
+ * matched was TIMEOUT — including a test hanging on a degraded connection pool,
+ * which is the exact failure the db-budget work exists to catch.
  *
- * This is the THIRD face of one problem. The same worker death has also shown
- * up as a silently missing file (a false GREEN) and as a non-zero exit with
- * everything passing (a false RED). Naming the signature is what stops an
- * overnight run from either chasing ghosts or trusting a hollow pass.
+ * A gate that files that under "probably not a defect" is worse than no gate.
+ * The polarity is now inverted: a timeout is reported as MORE suspicious than an
+ * assertion failure, not less.
+ *
+ * (What was really seen on 2026-08-09 — six file-walking fitness tests red in a
+ * full run, all 44 assertions green in isolation seconds later — was almost
+ * certainly I/O contention hitting the same timeout path. Correctly reported,
+ * wrongly excused.)
  */
-function looksLikeDeadWorker(messages: string[]): boolean {
-  return (
-    messages.length > 0 &&
-    messages.every(
-      (m) => m.includes("STACK_TRACE_ERROR") && !m.includes("AssertionError") && !m.includes("→"),
-    )
-  );
+function timedOut(messages: string[]): boolean {
+  return messages.some((m) => m.includes("timed out in") || m.includes("STACK_TRACE_ERROR"));
 }
 
 const jsonPath = process.argv[2];
@@ -96,25 +97,25 @@ if (missing.length > 0) {
 }
 
 if (failed > 0) {
-  const suspect: string[] = [];
-  const real: string[] = [];
+  const timeouts: string[] = [];
+  const assertions: string[] = [];
   for (const file of report.testResults ?? []) {
     for (const a of file.assertionResults ?? []) {
       if (a.status !== "failed") continue;
       const where = `${toRepoRelative(file.name)} › ${a.fullName}`;
-      (looksLikeDeadWorker(a.failureMessages ?? []) ? suspect : real).push(where);
+      (timedOut(a.failureMessages ?? []) ? timeouts : assertions).push(where);
     }
   }
 
-  if (real.length > 0) {
-    console.error(`\n${real.length} genuinely failing test(s):\n`);
-    for (const t of real) console.error(`   ${t}`);
+  if (assertions.length > 0) {
+    console.error(`\n${assertions.length} failing assertion(s):\n`);
+    for (const t of assertions) console.error(`   ${t}`);
   }
-  if (suspect.length > 0) {
+  if (timeouts.length > 0) {
     console.error(
-      `\n${suspect.length} test(s) carry the DEAD-WORKER signature (STACK_TRACE_ERROR, no assertion).\nThat is usually a worker fork dying, not a defect. Re-run these files together in\nisolation before believing them — and if they pass, say so rather than calling the gate green:\n`,
+      `\n${timeouts.length} test(s) TIMED OUT rather than asserting.\nTreat these as MORE serious than an assertion failure, not less: a test hanging on\na degraded connection pool is the exact failure the db-budget work defends against.\nRe-run them in isolation to separate machine contention from a real hang — and if they\npass, say WHY you believe that rather than calling the gate green:\n`,
     );
-    for (const t of suspect) console.error(`   ${t}`);
+    for (const t of timeouts) console.error(`   ${t}`);
   }
   process.exit(1);
 }

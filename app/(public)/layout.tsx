@@ -1,3 +1,4 @@
+import { loadWithTimeout } from "@/lib/analytics/analytics-load";
 import { headers } from "next/headers";
 
 import { AppCitizenMasthead } from "@/components/layout/AppCitizenMasthead";
@@ -67,11 +68,20 @@ export default async function PublicLayout({ children }: { children: React.React
   // block is inside the `user` guard, and the tabs don't render for them.
   let ownedPetsCount = 0;
   if (user) {
-    [unreadCount, orgMemberships, ownedPetsCount] = await Promise.all([
-      getUnreadCountCached(user.id),
-      getOrgMembershipsCached(user.id),
-      getOwnedPetsCountCached(user.id),
-    ]);
+    // BOUNDED (2026-08-09) — same three counters as the owner shell, same
+    // reasoning: a layout hang takes every public route with it for a signed-in
+    // visitor, and there is no boundary above a layout to catch it.
+    const shellLoad = await loadWithTimeout(
+      Promise.all([
+        getUnreadCountCached(user.id),
+        getOrgMembershipsCached(user.id),
+        getOwnedPetsCountCached(user.id),
+      ]),
+      3_000,
+    );
+    if (shellLoad.ok) {
+      [unreadCount, orgMemberships, ownedPetsCount] = shellLoad.value;
+    }
   }
 
   const displayName = profile?.displayName?.trim() || user?.email?.split("@")[0] || "";
