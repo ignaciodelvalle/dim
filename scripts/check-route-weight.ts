@@ -92,7 +92,7 @@ export function weighRoute(
   buildDir = ".next",
 ): RouteWeight | { error: string } {
   const files = pages[route];
-  if (!files) return { error: `la ruta no está en el manifiesto` };
+  if (!files) return { error: "la ruta no está en el manifiesto" };
 
   let totalBytes = 0;
   let exclusiveBytes = 0;
@@ -149,10 +149,7 @@ function runCheck(): void {
 
   // Piso 1 — sin build no se midió nada, y hay que decirlo con todas las letras.
   if (!manifest?.pages) {
-    const msg =
-      `check-route-weight: no encontré ${MANIFEST}.\n` +
-      `  NO SE MIDIÓ NADA. El peso de las rutas no fue verificado en esta corrida.\n` +
-      `  Corré \`pnpm build\` primero (en \`pnpm verify\` el build ya va antes que este fence).`;
+    const msg = `check-route-weight: no encontré ${MANIFEST}.\n  NO SE MIDIÓ NADA. El peso de las rutas no fue verificado en esta corrida.\n  Corré \`pnpm build\` primero (en \`pnpm verify\` el build ya va antes que este fence).`;
     if (requireBuild) {
       console.error(`✗ ${msg}`);
       process.exit(1);
@@ -167,8 +164,7 @@ function runCheck(): void {
   // Piso 2 — un manifiesto raquítico es un build truncado.
   if (routeCount < MIN_ROUTES) {
     console.error(
-      `✗ check-route-weight: el manifiesto declara ${routeCount} ruta(s), menos de ${MIN_ROUTES}. ` +
-        `Eso es un .next a medio escribir, no una app más chica. No se juzga sobre un build parcial.`,
+      `✗ check-route-weight: el manifiesto declara ${routeCount} ruta(s), menos de ${MIN_ROUTES}. Eso es un .next a medio escribir, no una app más chica. No se juzga sobre un build parcial.`,
     );
     process.exit(1);
   }
@@ -186,8 +182,7 @@ function runCheck(): void {
   // Piso 3 — sin rutas baselineadas no hay nada que comparar.
   if (routes.length === 0) {
     console.error(
-      `✗ check-route-weight: ${BASELINE_FILE} no tiene ninguna ruta. ` +
-        `Este check no puede pasar habiendo comparado nada — generalo con --write-baseline.`,
+      `✗ check-route-weight: ${BASELINE_FILE} no tiene ninguna ruta. Este check no puede pasar habiendo comparado nada — generalo con --write-baseline.`,
     );
     process.exit(1);
   }
@@ -200,8 +195,7 @@ function runCheck(): void {
     // Piso 4 — una ruta baselineada que ya no está en el build.
     if ("error" in w) {
       console.error(
-        `✗ ${route}: ${w.error}. Si la ruta se renombró, actualizá ${BASELINE_FILE}; ` +
-          `una entrada muerta deja de vigilar sin avisar.`,
+        `✗ ${route}: ${w.error}. Si la ruta se renombró, actualizá ${BASELINE_FILE}; una entrada muerta deja de vigilar sin avisar.`,
       );
       hits += 1;
       continue;
@@ -219,9 +213,7 @@ function runCheck(): void {
       hits += 1;
     } else if (delta < -band) {
       console.error(
-        `✗ ${route}: bytes exclusivos ${fmt(w.exclusiveBytes)} B, ` +
-          `${fmt(-delta)} B por DEBAJO del baseline (${fmt(entry.exclusiveBytes)} B). ` +
-          `La mejora hay que fijarla: corré --write-baseline. Un baseline holgado deja lugar libre para la próxima regresión.`,
+        `✗ ${route}: bytes exclusivos ${fmt(w.exclusiveBytes)} B, ${fmt(-delta)} B por DEBAJO del baseline (${fmt(entry.exclusiveBytes)} B). La mejora hay que fijarla: corré --write-baseline. Un baseline holgado deja lugar libre para la próxima regresión.`,
       );
       hits += 1;
     } else {
