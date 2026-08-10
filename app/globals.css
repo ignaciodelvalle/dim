@@ -158,6 +158,17 @@
    * both OpSubmitButton and OpBulkBar action buttons already use. Defined here
    * so the value ratchets down via a single token if the design updates. */
   --radius-op-btn: 6px;
+  /* Operator-tier CHIP radius — 3px, tighter than the button because a status
+   * chip sits inside dense table rows where a 6px corner reads as a second
+   * button. OpStatusPill has declared "ONE geometry: rounded-[3px]" in its own
+   * header since it was written; this token exists so the value ratchets from
+   * one place instead of four hand-typed `rounded-[3px]`, for the same reason
+   * --radius-op-btn exists (E-2, 2026-08-10).
+   *
+   * NOT ON THE 2/4/6/8 SCALE, and deliberately: the scale is for surfaces, and
+   * an operator chip is smaller than the smallest surface. Rounding it to 4px
+   * to "fit" would be changing a decided geometry to satisfy a table. */
+  --radius-op-chip: 3px;
 
   /* Z-index scale (Poncho PR-F). Explicit values prevent silent z-index
    * wars between overlays. Layered: stripe (chrome) < header < drawer <

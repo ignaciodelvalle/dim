@@ -46,7 +46,7 @@ const RAW_TONE_CLASSES: Partial<Record<Tone, string>> = {
  * Status pill for case / event states.
  * Mimics .gob-pill from the handoff.
  *
- * Geometry is now unified with OpStatusPill (rounded-[3px], font-ln-mono).
+ * Geometry is now unified with OpStatusPill (--radius-op-chip, font-ln-mono).
  * All st-* tones delegate to OpStatusPill; triaged uses raw ln-op-blue-*.
  */
 export function OpPill({ tone, children }: Props) {
@@ -61,7 +61,7 @@ export function OpPill({ tone, children }: Props) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-[3px] rounded-[3px] border px-[7px] py-0.5",
+        "inline-flex items-center gap-[3px] rounded-[var(--radius-op-chip)] border px-[7px] py-0.5",
         "font-ln-mono text-xs font-bold uppercase tracking-[0.06em]",
         rawClass,
       ].join(" ")}

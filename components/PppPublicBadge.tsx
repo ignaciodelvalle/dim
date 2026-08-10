@@ -15,11 +15,16 @@ interface Props {
   breed: string | null;
 }
 
+// Es una TARJETA, no un chip: un <section> con encabezado, cuerpo y padding
+// propio. El nombre del archivo dice "Badge", y por eso el barrido de E-2 lo
+// contó como una sexta geometría de la familia de chips. La geometría correcta
+// para una superficie con contenido es --radius-card, que es exactamente lo que
+// el `rounded-2xl` anterior ya rendía: cambia el TOKEN, no el píxel.
 export function PppPublicBadge({ petName, breed }: Props) {
   return (
     <section
       aria-label="Animal Potencialmente Peligroso"
-      className="rounded-2xl border border-ln-warn bg-[var(--color-ln-warn-050)] p-4 space-y-2  "
+      className="rounded-[var(--radius-card)] border border-ln-warn bg-[var(--color-ln-warn-050)] p-4 space-y-2"
     >
       <header className="flex items-baseline justify-between gap-3">
         <h2 className="flex items-center gap-1.5 text-sm font-semibold text-ln-warn ">

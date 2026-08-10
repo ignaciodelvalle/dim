@@ -1,6 +1,6 @@
 // OpStatusPill — canonical status primitive for operator surfaces.
 //
-// ONE geometry: rounded-[3px], font-ln-mono, unified size/tracking.
+// ONE geometry: --radius-op-chip, font-ln-mono, unified size/tracking.
 // Tone resolves directly to st-* design tokens; no per-component overrides.
 //
 // Usage: thin domain wrappers (CaseStatusBadge, OpStateBadge, OpPill) map
@@ -33,7 +33,7 @@ interface Props {
 /**
  * Canonical status primitive for all operator status surfaces.
  *
- * Geometry: rounded-[3px] · font-ln-mono · text-xs (10px) bold uppercase
+ * Geometry: --radius-op-chip · font-ln-mono · text-xs (10px) bold uppercase
  * 0.06em tracking. Said "9px" until 2026-08-10 while rendering text-xs, which
  * --text-xs pins at 10px (globals.css:251). Naming the TOKEN instead of a
  * pixel value is what keeps the two from drifting apart again.
@@ -46,7 +46,7 @@ export function OpStatusPill({ tone, children, icon }: Props) {
   return (
     <span
       className={[
-        "inline-flex items-center gap-[3px] rounded-[3px] border px-[7px] py-0.5",
+        "inline-flex items-center gap-[3px] rounded-[var(--radius-op-chip)] border px-[7px] py-0.5",
         "font-ln-mono text-xs font-bold uppercase tracking-[0.06em]",
         TONE_CLASSES[tone],
       ].join(" ")}

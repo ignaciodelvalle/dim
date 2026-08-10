@@ -181,7 +181,7 @@ export default async function InvestigacionDetailPage({
                       <span className="flex items-center gap-2 text-md font-medium text-ln-op-ink">
                         {isExternal && (
                           <span
-                            className="inline-flex items-center rounded-[3px] border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-xs uppercase tracking-wider text-ln-op-ink-2"
+                            className="inline-flex items-center rounded-[var(--radius-op-chip)] border border-ln-op-line bg-ln-op-stripe px-1.5 py-0.5 text-xs uppercase tracking-wider text-ln-op-ink-2"
                             aria-hidden="true"
                           >
                             Externa
