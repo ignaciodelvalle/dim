@@ -135,8 +135,30 @@ El reporte de import miente "Importada" en una re-corrida · La ruta de vet inde
 
 ---
 
-## 4. Estado del gate
+## 4. Estado del gate y del entorno
 
-`pnpm verify && pnpm test:verified` — **1226 archivos, 14777 tests, cero fallas** en la corrida de las 00:26. Salió con exit 1 por un worker que murió **en teardown**, con el veredicto de cobertura en verde: es el falso rojo que el propio runner documenta. Lo estoy volviendo a medir con la máquina libre.
+**Gate verde de punta a punta**, corrida final:
 
-**Cuatro reviews más quedaron sin triage completo** — sus hallazgos están arriba, pero no verifiqué uno por uno los de severidad media y baja. Todo lo que está en la sección 2 lo verifiqué o lo refuté yo antes de tocarlo.
+```
+Test Files  1226 passed | 1 skipped (1227)
+     Tests  14791 passed | 15 skipped | 5 todo (14811)
+reported 1227 file(s); 1227 discovered; 0 failing test(s)
+every test file ran, nothing failed.
+GATE_EXIT=0
+```
+
+El conteo de archivos importa tanto como el de tests: el runner arreglado el 09/08 es lo que hace verificable que **corrieron los 1227** y no una fracción.
+
+**Árbol limpio**, sin archivos sueltos. **19 commits sin pushear** — el push quedó bloqueado por el clasificador de permisos, hay que correrlo a mano.
+
+**Staging** (deploy anterior, sin los 19 commits): raíz, credencial de Pampa, `/perdidas` y `/adoptar` en 200; los chunks de la home resuelven 200 (no es un build podrido); **1752 turnos reservables futuros**. El elenco de siete cuentas verificado: existen, confirmadas, sin bloqueos, `Test1234!` entra en todas.
+
+**Lo que falta para que staging refleje esta noche**: `git push` y el deploy. Ojo con `deploy:staging` — ahora corre `pnpm verify` entero (antes corría 1 de 49 fences), así que tarda más y es a propósito.
+
+---
+
+## 5. Lo que NO se ejecutó, y por qué
+
+- **#41 y Lote E** quedaron **diseñados y refutados**, con sus números medidos, en `docs/plans/PENDIENTES.md`. Los dos volvieron de la refutación con el trabajo *cambiado*, no confirmado: #41 resultó ser una sola acción (la nota) en vez de tres, porque el kind al que iban escalar y cerrar tiene cero filas; y Lote E cambió de instrumento, porque INP no es reproducible entre corridas y una reja que oscila entrena a todos a ignorarla. Ejecutar cualquiera de los dos a las 6 de la mañana, desde un diseño que su propio escéptico marcó como bloqueante, habría sido exactamente el error que este loop existe para no cometer.
+- **El HEIC (D4)** sigue diferido por decisión previa. Es el único ítem abierto con consecuencia de privacidad viva.
+- **Cuatro reviews quedaron sin triage completo** de sus hallazgos MEDIA y BAJA: están enumerados en la sección 3 y en la cola, pero no los verifiqué uno por uno. Todo lo de la sección 2 sí lo verifiqué o lo refuté antes de tocarlo.
