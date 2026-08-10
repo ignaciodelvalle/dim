@@ -17,7 +17,7 @@
 //     "matches: true" would pass layers 1 and 2 silently.
 
 import { createClient } from "@supabase/supabase-js";
-import { and, eq, like } from "drizzle-orm";
+import { and, countDistinct, eq, like, ne } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -171,6 +171,50 @@ describe("pet-cache fitness sweep", () => {
     // A failure here means a writer dual-write is broken OR a derivation rule
     // is wrong for seed-created pets. The message names the exact pets + columns.
     expect(drifted, JSON.stringify(drifted, null, 2)).toEqual([]);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Whole-corpus invariant (added 2026-08-10)
+  // ---------------------------------------------------------------------------
+  //
+  // The sweep above deliberately narrows to `DIM-%` tokens, and the reason it
+  // gives is sound — raw-SQL pets from other test files carry synthetic tokens
+  // and half-written state. But the effect was that it watched 43 pets out of
+  // 32.430, and the excluded class is exactly the one that drifted: the
+  // `PANO-*` seed corpus had 2.733 pets (8,4% of the padrón) holding a
+  // `death_recorded` event in the append-only spine with `status='active'` in
+  // the cache.
+  //
+  // That mismatch is not cosmetic. repository-choropleth.ts counts mortality as
+  // `status='deceased'` while repository-history.ts counts `death_recorded`
+  // events, so one government screen showed 352 on the map and 3.946 in the
+  // timeline below it — a factor of ten under a single label.
+  //
+  // So: keep the expensive full re-derivation on the narrow, trustworthy set,
+  // and add ONE cheap invariant over the WHOLE table for the terminal fact that
+  // matters most. Death is terminal per lib/projections/pet-status.ts, and the
+  // catalog declares no reversal or correction event for it, so there is no
+  // legitimate way to hold the event and not the status.
+  it("no pet in the WHOLE padrón holds death_recorded while its cache says otherwise", async () => {
+    const rows = await db
+      .select({ id: pets.id, publicToken: pets.publicToken, status: pets.status })
+      .from(pets)
+      .innerJoin(petEvents, eq(petEvents.petId, pets.id))
+      .where(and(eq(petEvents.eventType, "death_recorded"), ne(pets.status, "deceased")))
+      .limit(50);
+
+    // Non-vacuous: the corpus must actually contain deaths, or this passes by
+    // scanning nothing — the failure mode three fences hit this same week.
+    const [deaths] = await db
+      .select({ n: countDistinct(petEvents.petId) })
+      .from(petEvents)
+      .where(eq(petEvents.eventType, "death_recorded"));
+    expect(Number(deaths?.n ?? 0)).toBeGreaterThan(0);
+
+    expect(
+      rows.map((r) => `${r.publicToken} (status=${r.status})`),
+      "Pets with death_recorded in the spine and a cache that disagrees. The spine is the fact; the column is the cache. Fix the writer that skipped the dual-write — see the reconciliation pass at the end of scripts/seed-panorama.ts for the shape.",
+    ).toEqual([]);
   });
 });
 

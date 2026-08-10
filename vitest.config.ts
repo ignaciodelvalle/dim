@@ -58,6 +58,8 @@ export default defineConfig({
         test: {
           name: "unit",
           include: unitInclude,
+          // groupOrder 0 — runs FIRST, alone. See the db project below for why.
+          sequence: { groupOrder: 0 },
           // PARALLEL: no shared DB state to pollute, so files run concurrently
           // across workers. This is the whole point of the split.
           // Env-only setup — loads .env but does NOT force DATABASE_URL /
@@ -72,6 +74,31 @@ export default defineConfig({
         test: {
           name: "db",
           include: dbInclude,
+          // groupOrder 1 — runs AFTER unit, never alongside it (PO decision,
+          // 2026-08-10).
+          //
+          // Without this, vitest runs every project CONCURRENTLY: the unit
+          // project saturates the machine with parallel workers while this
+          // project holds the serial lane. `fileParallelism: false` below then
+          // buys nothing — the isolation it asks for is contended away from the
+          // outside.
+          //
+          // It was not theoretical. components/panorama/PanoramaConsole.test.tsx
+          // — the heaviest file in the suite, 103 tests, ~24s — starved and went
+          // red in the FULL run while passing alone. The bisect that settled it:
+          //
+          //   vitest run --project db  → 686 files, 6985 tests, PASS (1 of 1)
+          //   pnpm test (full suite)   → that assertion FAILS (2 of 2)
+          //
+          // Two earlier commits (dc255915, 5a3f9963) treated it as a slow flush
+          // and raised its waitFor timeouts; a third raise would have been the
+          // wrong lever again. Nothing about the component is slow — it was not
+          // getting scheduled.
+          //
+          // Cost: total wall-clock is the sum of the two projects instead of the
+          // max. That is the price of the isolation this project already
+          // declared it needed.
+          sequence: { groupOrder: 1 },
           // Tests touch the local Postgres via Drizzle; run serially to avoid
           // cross-test pollution over the shared local stack.
           fileParallelism: false,

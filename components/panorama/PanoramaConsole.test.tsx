@@ -2089,11 +2089,14 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
     // (103 tests, ~24s) and it is the one that starves. Nothing about the
     // component is slow; it is not getting scheduled.
     //
-    // 30s is a MITIGATION, not the fix. The fix is structural — stop running a
-    // parallel project against a lane that declared itself serial — and it is a
-    // tradeoff on total suite runtime, so it is Ignacio's call, not a silent
-    // config edit at 00:30. If this goes red again, do not raise it a fourth
-    // time: make the projects sequential.
+    // THE STRUCTURAL FIX LANDED (PO decision, 2026-08-10): vitest.config.ts now
+    // gives the two projects `sequence.groupOrder` 0 and 1, so `unit` finishes
+    // before `db` starts and nothing contends with the serial lane.
+    //
+    // The 30s stays as belt-and-braces on the heaviest file in the suite, but it
+    // is no longer load-bearing. If this ever goes red again, do NOT raise it a
+    // fourth time — the timeout was never the lever. Check the group order
+    // first.
     await waitFor(
       () => {
         expect(

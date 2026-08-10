@@ -4971,6 +4971,42 @@ async function main(): Promise<void> {
     log("INFO", `  ${k.padEnd(35)}: ${v}`);
   }
 
+  // Death-cache reconciliation — run BEFORE the hygiene gate, at the end of the
+  // seed flow.
+  //
+  // WHY THIS EXISTS (2026-08-10). The main population path dual-writes
+  // `pets.status = 'deceased'` alongside its `death_recorded` events (see the
+  // `deceasedPetIds` loop above). The two SETPIECE paths do not — they push a
+  // `death_recorded` into `extraEvents` and never touch the cache. Result,
+  // measured on the local DB: 2.733 pets (8,4% of the padrón) with the event in
+  // the append-only spine and `status='active'` in the cache.
+  //
+  // That is not a cosmetic mismatch. `repository-choropleth.ts` counts mortality
+  // as `status='deceased'` while `repository-history.ts` counts
+  // `death_recorded` events, so the SAME government screen showed 352 on the map
+  // and 3.946 in the timeline below it — a factor of ten under one label.
+  //
+  // Reconciling here rather than patching each setpiece is deliberate: a THIRD
+  // setpiece added later would reintroduce the drift, and this pass covers it by
+  // construction. `death_recorded` is terminal per lib/projections/pet-status.ts,
+  // so deriving from the spine is the correct direction — the log is the fact,
+  // the column is the cache.
+  log("STEP", "Reconciling deceased cache against the spine…");
+  const reconciled = await db.execute(sql`
+    update pets p
+       set status = 'deceased',
+           deceased_at = coalesce(p.deceased_at, e.occurred_at)
+      from (
+        select pet_id, min(occurred_at) as occurred_at
+          from pet_events
+         where event_type = 'death_recorded'
+         group by pet_id
+      ) e
+     where e.pet_id = p.id
+       and p.status <> 'deceased'
+  `);
+  log("OK", `Deceased cache reconciled — ${reconciled.length ?? 0} row(s) aligned to the spine.`);
+
   // Seed-hygiene gate (C5) — run at the END of the seed flow, in-process
   // (same DB connection semantics as the CLI/test), so a re-seed that
   // regresses a generator is caught right here, not just later in CI.
