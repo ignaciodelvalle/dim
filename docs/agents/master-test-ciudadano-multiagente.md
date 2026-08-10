@@ -114,19 +114,51 @@ Personas que **ya existen** en la base. Todas con `Test1234!`. Si alguna no exis
 | Persona | Cuenta | Rol en la historia |
 |---|---|---|
 | **Administración miMAR** | `admin@dim.test` | Configura el sistema. Fase 1 completa |
-| **Lucas Etcheverry** | `govt-local@dim.test` | Funcionario. Vigila y tría |
+| **Lucas Etcheverry** | `lucas@dim.test` | Funcionario. Vigila y tría |
 | **Ignacio del Valle** | `owner@dim.test` | Dueño. Línea del perdido y del viaje |
 | **Noelí Assandri** | `noeli@dim.test` | Dueña y tránsito. Línea zoonótica |
 | **Graciela Saavedra** | `graciela@dim.test` | Dueña. Línea de la adopción y la denuncia |
 | **Alejo Caride** | `alejo@dim.test` | Refugio + clínica. Contraparte de todos |
 | **Dra. Lilian Marrone** | `lilian@dim.test` | Veterinaria matriculada. Firma |
 
-**Organizaciones verificadas en staging** (14 en total; estas son las que usa el test):
+Las siete cuentas fueron verificadas en staging el 2026-08-09: existen, están
+confirmadas, sin bloqueos, y `Test1234!` entra en todas.
 
-| | Token |
-|---|---|
-| Clínica Veterinaria Recoleta | `DIM-9XKC-ZDQK` |
-| Refugio Patitas del Norte | `DIM-389S-JFKJ` |
+> **Ojo con `govt-local@dim.test`.** Existe, y NO es Lucas. Cubre Buenos
+> Aires/La Plata y CABA/Palermo, así que desde esa cuenta **no se ve Recoleta**
+> — donde está la clínica. Si la usás, la línea de vigilancia va a parecer rota
+> sin estarlo.
+
+## 2.1 Dónde pasa todo — leelo antes de cargar la primera dirección
+
+**Todo el test ocurre en CABA.** No es un detalle de ambientación: la
+jurisdicción es lo que decide qué ve el funcionario.
+
+Lucas tiene asignación activa en cinco localidades de CABA: **Recoleta,
+Palermo, Puerto Madero, Retiro y San Nicolás**. Un hecho cargado fuera de esas
+cinco **no le va a llegar**, y eso no sería un bug: sería una dirección puesta
+en otra jurisdicción.
+
+> Cuando un formulario te pida ubicación, poné una de esas cinco. Si querés
+> probar a propósito qué pasa con una fuera de alcance, hacelo en el hito **X9**
+> de la Fase 4 y decilo ahí — pero no lo mezcles con las líneas normales.
+
+| Organización | Token | Localidad |
+|---|---|---|
+| Clínica Veterinaria Recoleta | `DIM-9XKC-ZDQK` | Recoleta |
+| Refugio Patitas del Norte | `DIM-389S-JFKJ` | Palermo |
+
+**Alejo es admin de las dos** — por eso puede ser la contraparte de todos. Lilian
+firma como `vet_individual` **en la clínica**.
+
+### Dos cosas que NO son hallazgos
+
+- **Graciela y Noelí ya figuran como `foster` del Refugio Patitas del Norte.**
+  Es deliberado y es lo que hace posible que el refugio les proponga un tránsito
+  (hitos N3/N4). No lo reportes como "ya tenía permisos que no pedí".
+- **Ignacio (`owner@dim.test`) no pertenece a ninguna organización.** Es el
+  ciudadano puro del elenco, a propósito: su línea mide la experiencia de
+  alguien que sólo tiene su mascota.
 
 ---
 
@@ -270,6 +302,7 @@ Hacelos cuando las líneas estén avanzadas. **Buscar el límite es el objetivo,
 | **X6** | Estado terminal | Intentar actuar sobre algo ya cerrado, ya adoptado, ya revocado. ¿Lo impide o lo deja? |
 | **X7** | Sesión cruzada | Con la cuenta de una persona, intentar abrir un recurso de otra por URL directa. Debería dar **404, no 403** — un 403 confirma que existe |
 | **X8** | Volver atrás | En cualquier wizard largo, ir y volver con el botón del navegador. ¿Sobrevive lo cargado? |
+| **X9** | Fuera de jurisdicción | Cargar un hecho con una dirección **fuera** de las cinco localidades de Lucas (por ejemplo en La Plata) y verificar que él NO lo ve. Lo que se mide acá no es que el filtro funcione: es si **el que carga se entera** de que su reporte no le va a llegar a nadie |
 
 ---
 
