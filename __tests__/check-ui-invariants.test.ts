@@ -9,12 +9,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ACCENT_NOUNS,
   ACCENT_WORDS,
   ENGLISH_UI_WORDS,
   SCREAMING_ENUM,
   SNAKE_CASE_PAYLOAD_FRAGMENT,
   TOUCH_TARGET_TOKENS,
+  hasAccentedNeighbor,
   isPayloadFragmentRenderedAsCopy,
+  isSymbolPosition,
 } from "@/scripts/check-ui-invariants";
 
 // ---------------------------------------------------------------------------
@@ -234,6 +237,98 @@ describe("ACCENT_WORDS", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Rule 3b — The position filter that lets NOUNS into the accent list
+// ---------------------------------------------------------------------------
+// Every one of these snippets is the real shape found in the tree by the survey
+// of 2026-08-09. See the ACCENT_NOUNS docstring in the fence.
+
+/** Index of `token` in `line`, so the tests read like the source they model. */
+function at(line: string, token: string): number {
+  const i = line.indexOf(token);
+  if (i < 0) throw new Error(`token "${token}" not in line`);
+  return i;
+}
+
+describe("isSymbolPosition", () => {
+  const symbols: Array<[string, string, string]> = [
+    ["kebab slug in an href", "href={`/org/x?sheet=devolver-al-dueno`}", "dueno"],
+    ["kebab slug in a union member", `  | "en-transito"`, "transito"],
+    ["object key", `    transito: { label: "Tránsito" },`, "transito"],
+    ["object key preceded by a brace", "{ dueno: 1 }", "dueno"],
+    ["member access", "  const phone = payload.telefono ?? null;", "telefono"],
+    ["lone string as a prop value", `<Icon name="ubicacion" size="sm" decorative />`, "ubicacion"],
+    ["lone string as a mapped value", `  province: "provincia",`, "provincia"],
+    ["lone string as a route fragment", `  route: "?sheet=sintoma",`, "sintoma"],
+  ];
+
+  for (const [name, line, token] of symbols) {
+    it(`treats ${name} as a symbol, not copy`, () => {
+      expect(isSymbolPosition(line, at(line, token), token)).toBe(true);
+    });
+  }
+
+  const copy: Array<[string, string, string]> = [
+    ["a sentence in JSX text", "        Solicitud creada. Va a la cola para revision.", "revision"],
+    ["a sentence in a string literal", `  return { error: "El tamano no es válido." };`, "tamano"],
+    ["a capitalized single-word label", "  <span>Descripcion</span>", "Descripcion"],
+    ["a phrase inside a template literal", `  body: \`Avisale al dueno de ${"x"}.\`,`, "dueno"],
+  ];
+
+  for (const [name, line, token] of copy) {
+    it(`treats ${name} as copy`, () => {
+      expect(isSymbolPosition(line, at(line, token), token)).toBe(false);
+    });
+  }
+
+  // Regression: enclosingStringValue used `index > start`, so a token sitting
+  // FLUSH against the opening quote fell outside its own string and the whole
+  // lone-string rule missed it. Six `key: "dueno"` lines in landing-content.ts
+  // were reported as copy because of this one character.
+  it("sees a token flush against the opening quote", () => {
+    const line = `    key: "dueno",`;
+    expect(isSymbolPosition(line, at(line, "dueno"), "dueno")).toBe(true);
+  });
+});
+
+describe("hasAccentedNeighbor", () => {
+  // JS \w excludes accented letters, so \b fires between "gestion" and "á".
+  it("suppresses a match that is a prefix of an already-correct word", () => {
+    const line = "  solo ves y gestionás las tuyas.";
+    expect(hasAccentedNeighbor(line, at(line, "gestion"), "gestion")).toBe(true);
+  });
+
+  it("does not suppress a genuine unaccented word", () => {
+    const line = "  La gestion quedó pendiente.";
+    expect(hasAccentedNeighbor(line, at(line, "gestion"), "gestion")).toBe(false);
+  });
+});
+
+const STRIPPED: Record<string, string> = {
+  á: "a",
+  é: "e",
+  í: "i",
+  ó: "o",
+  ú: "u",
+  ü: "u",
+  ñ: "n",
+};
+
+describe("ACCENT_NOUNS", () => {
+  it("suggests a genuinely different, accented spelling for every entry", () => {
+    for (const { bad, good } of ACCENT_NOUNS) {
+      expect(good).not.toBe(bad);
+      const unaccented = good.replace(/[áéíóúüñ]/g, (c) => STRIPPED[c] ?? c);
+      expect(unaccented).toBe(bad);
+    }
+  });
+
+  it("has no duplicate entries", () => {
+    const bads = ACCENT_NOUNS.map((w) => w.bad);
+    expect(new Set(bads).size).toBe(bads.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Rule 4 — Raw English UI words in JSX text
 // ---------------------------------------------------------------------------
 
@@ -293,7 +388,15 @@ describe("ENGLISH_UI_WORDS", () => {
 // Rule 5 — Raw <button> growth guard (countRawButtons + RAW_BUTTON_BASELINE)
 // ---------------------------------------------------------------------------
 
-import { RAW_BUTTON_BASELINE } from "@/scripts/check-ui-invariants";
+// NOTE: two different functions share the name `countRawButtons`. The one in
+// check-raw-buttons.mjs takes SOURCE TEXT (unit-tested below); the one in the
+// fence takes a FILE LIST and reads from disk. Aliased so the difference is
+// visible at the call site rather than silently returning 0.
+import {
+  RAW_BUTTON_BASELINE,
+  RAW_BUTTON_FILES,
+  countRawButtons as countRawButtonsInFiles,
+} from "@/scripts/check-ui-invariants";
 
 // These used to re-implement `line.includes("<button")` inline and assert on
 // their own reimplementation — countRawButtons was never imported, so the
@@ -352,13 +455,21 @@ describe("RAW_BUTTON_BASELINE", () => {
     expect(Number.isInteger(RAW_BUTTON_BASELINE)).toBe(true);
   });
 
-  it("baseline is 47 (91 migrated to OpButton, remaining honest exceptions, set 2026-06-24)", () => {
-    // If this test fails, either:
-    //  (a) buttons were migrated → lower RAW_BUTTON_BASELINE to match, OR
-    //  (b) new raw buttons were added → migrate them to OpButton instead.
-    // F3-full migrated 91 admin/gob buttons to OpButton, ratcheting the
-    // baseline down from 138 to 47 (the remaining genuine exceptions).
-    expect(RAW_BUTTON_BASELINE).toBe(47);
+  // REWRITTEN 2026-08-09. This used to assert `toBe(47)` — a number typed into
+  // the test. Buttons kept getting migrated, the constant was never lowered,
+  // and the real count reached 25. So the fence had room for 22 new raw
+  // buttons, the CI line read "✓ 25/47 remaining (22 migrated)" as if that were
+  // progress, and THIS TEST was what protected the slack: it asserted the stale
+  // number, so lowering the constant would have turned it red.
+  //
+  // A ratchet's baseline has exactly one correct value: the current count.
+  // Asserting that relationship instead of a literal makes drift impossible.
+  it("equals the real count in the tree — no slack for new raw buttons", () => {
+    expect(RAW_BUTTON_BASELINE).toBe(countRawButtonsInFiles(RAW_BUTTON_FILES));
+  });
+
+  it("scans a non-empty corpus (a glob that matches nothing would pass vacuously)", () => {
+    expect(RAW_BUTTON_FILES.length).toBeGreaterThan(0);
   });
 });
 

@@ -105,15 +105,30 @@ function mapShapes(token: string, labels: readonly string[]): RegExp[] {
     new RegExp(`["']?${token}["']?\\s*:\\s*["']${label}[^"']*["']`, flags),
     // s === "dog" ? "Perros" : …
     new RegExp(`===\\s*["']${token}["']\\s*\\?\\s*["']${label}[^"']*["']`, flags),
-    // { value: "dog", label: "Perros" } — and the same pair written label-first.
+    // A hardcoded label paired with the enum token ANYWHERE in the same object
+    // literal, in either order.
+    //
+    // WIDENED 2026-08-09. These two used to require the keys to be named exactly
+    // `value` and `label` AND to be adjacent. A live offender sat outside both
+    // conditions — app/org/[orgToken]/censo/page.tsx wrote
+    // `{ label: "Perros", slot: breakdown.dogs, species: "dog" }`: the key was
+    // `species`, and `slot` came between. So the fence read CLEAN on a screen
+    // that spelled "Otros" while the dictionary says "Otras". The keys a caller
+    // picks are its own business; the SPELLING is not. Now any key name works
+    // and up to ~120 chars of other properties may sit in between, without
+    // crossing an object boundary (`[^{}]`).
     new RegExp(
-      `value\\s*:\\s*["']${token}["']\\s*,\\s*label\\s*:\\s*["']${label}[^"']*["']`,
+      `["']?\\w+["']?\\s*:\\s*["']${token}["']\\s*,[^{}]{0,120}?\\blabel\\s*:\\s*["']${label}[^"']*["']`,
       flags,
     ),
     new RegExp(
-      `label\\s*:\\s*["']${label}[^"']*["']\\s*,\\s*value\\s*:\\s*["']${token}["']`,
+      `\\blabel\\s*:\\s*["']${label}[^"']*["']\\s*,[^{}]{0,120}?["']?\\w+["']?\\s*:\\s*["']${token}["']`,
       flags,
     ),
+    // <OpKpi label="Perros" … href="…?species=dog"> — the same pair spelled as
+    // JSX attributes instead of object properties.
+    new RegExp(`\\blabel\\s*=\\s*["']${label}["'][^>]{0,200}?species=${token}\\b`, flags),
+    new RegExp(`species=${token}\\b[^>]{0,200}?\\blabel\\s*=\\s*["']${label}["']`, flags),
     // case "dog": return "Perro";  — the canonical implementation's own shape.
     new RegExp(
       `case\\s*["']${token}["']\\s*:[\\s\\S]{0,80}?return\\s*["']${label}[^"']*["']`,
@@ -187,6 +202,36 @@ describe("species labels — a single dictionary", () => {
     // The shape speciesLabel itself uses — the most likely way a copy is born.
     const switchCase = `switch (s) {\n  case "dog":\n    return "Perro";\n}`;
     expect(mapShapes("dog", ["Perro", "Perros"]).some((re) => re.test(switchCase))).toBe(true);
+  });
+
+  // Added 2026-08-09 after an adversarial audit found a LIVE offender the fence
+  // read as clean: app/org/[orgToken]/censo/page.tsx wrote
+  // `{ label: "Perros", slot: breakdown.dogs, species: "dog" }`. The old shapes
+  // demanded the keys be named `value`/`label` AND be adjacent — this one used
+  // `species` with `slot` in between. The screen shipped "Otros" while the
+  // dictionary says "Otras".
+  it("sees the pair under ANY key name, with other properties in between", () => {
+    const shapes = mapShapes("dog", ["Perro", "Perros"]);
+    const censo = `{ label: "Perros", slot: breakdown.dogs, species: "dog" },`;
+    const inverso = `{ species: "dog", slot: x, label: "Perros" },`;
+
+    expect(shapes.some((re) => re.test(censo))).toBe(true);
+    expect(shapes.some((re) => re.test(inverso))).toBe(true);
+  });
+
+  it("sees the pair spelled as JSX attributes", () => {
+    const jsx = `<OpKpi label="Perros" value={v} href={\`/org/\${t}/mascotas?species=dog\`} />`;
+
+    expect(mapShapes("dog", ["Perro", "Perros"]).some((re) => re.test(jsx))).toBe(true);
+  });
+
+  it("does NOT reach across an object boundary, or into prose", () => {
+    const shapes = mapShapes("dog", ["Perro", "Perros"]);
+    const dosObjetos = `{ species: "dog" }, { other: 1, label: "Perros" }`;
+    const prosa = `const msg = "Los perros y los gatos se registran igual";`;
+
+    expect(shapes.some((re) => re.test(dosObjetos))).toBe(false);
+    expect(shapes.some((re) => re.test(prosa))).toBe(false);
   });
 
   it("does not fire on ordinary Spanish copy that merely says Perro", () => {

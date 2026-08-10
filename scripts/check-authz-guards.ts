@@ -159,10 +159,15 @@ function callsAnyGuard(body: string, guards: readonly string[]): boolean {
 export function findDeletionUnawareMutations(relPath: string, src: string): string[] {
   const offenders: string[] = [];
   for (const fn of extractExportedAsyncFunctions(src)) {
+    // stripComments (2026-08-09): the body was tested RAW, so naming a
+    // deletion-aware guard in a comment satisfied the rule. Same shape as the
+    // check-db-budget substring hole. The module-level check already stripped;
+    // the per-function checks did not.
+    const body = stripComments(fn.body);
     if (isInnerWriter(fn.name)) continue;
-    if (!BARE_GET_USER_RE.test(fn.body)) continue;
-    if (callsAnyGuard(fn.body, DELETION_AWARE_GUARDS)) continue;
-    if (!(PET_TABLE_RE.test(fn.body) && DB_MUTATION_RE.test(fn.body))) continue;
+    if (!BARE_GET_USER_RE.test(body)) continue;
+    if (callsAnyGuard(body, DELETION_AWARE_GUARDS)) continue;
+    if (!(PET_TABLE_RE.test(body) && DB_MUTATION_RE.test(body))) continue;
     if (DELETION_AWARE_ALLOWLIST[`${relPath}#${fn.name}`] !== undefined) continue;
     offenders.push(
       `${relPath}:${fn.startLine} export async function ${fn.name} — authorizes a pet write on a bare auth.getUser() with no deletion-aware guard (one of ${DELETION_AWARE_GUARDS.join("/")}). An erased account (profiles.deleted_at) keeps a valid JWT and could still mutate pets/events. Route the write through requirePetAccess/requireAlivePetAccess, or add the deleted_at check (see lib/infra/pet-access.ts).`,
@@ -320,7 +325,9 @@ export function findOffenders(relPath: string, src: string): string[] {
   for (const fn of extractExportedAsyncFunctions(src)) {
     if (isInnerWriter(fn.name)) continue;
     if (fn.hasNoAuthComment) continue;
-    if (callsAuthGuard(fn.body)) continue;
+    // Raw body → a guard named only inside a comment counted as a guard CALL.
+    // See findDeletionUnawareMutations for the same 2026-08-09 correction.
+    if (callsAuthGuard(stripComments(fn.body))) continue;
     offenders.push(
       `${relPath}:${fn.startLine} export async function ${fn.name} — no auth guard call (name doesn't end in ${INNER_WRITER_SUFFIXES.join("/")} either). Add a guard call, rename to an inner-writer suffix, or add a \`// ${NO_AUTH_COMMENT}: <reason>\` comment immediately above the export.`,
     );
@@ -412,7 +419,11 @@ function actorParamIn(paramList: string): string | null {
 // (`export { x }`, `export { y as xWriter }`). `export type { ... }` is erased
 // at runtime and allowed. Empty array = file is clean.
 export function findImpersonationExports(relPath: string, src: string): string[] {
-  if (!src.startsWith('"use server"') && !src.startsWith("'use server'")) return [];
+  // Was `src.startsWith('"use server"')` on the RAW source, while listActionFiles()
+  // used the comment-stripped form. A header comment — the dominant convention in
+  // this repo — therefore switched OFF the impersonation rule while leaving the
+  // other two rules on, for the same file. One authority for the directive now.
+  if (!isServerActionModule(src)) return [];
   const offenders: string[] = [];
   const isSafe = (name: string) => IMPERSONATION_SAFE_EXPORTS[`${relPath}#${name}`] !== undefined;
   const offendSuffix = (name: string, line: number) => {

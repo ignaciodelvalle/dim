@@ -274,6 +274,68 @@ function readStringLiteral(src: string, i: number): { i: number; text: string } 
   return { i: j + 1, text: text + quote };
 }
 
+/**
+ * True when a `/` at `i` opens a REGEX literal rather than being division.
+ *
+ * Decided by the previous significant character: a regex may only start where
+ * an expression may start. After an identifier, a number, or a closing
+ * bracket, `/` is division.
+ */
+function startsRegexLiteral(src: string, i: number): boolean {
+  // Allow-list, not deny-list. A deny-list has to enumerate every JSX shape —
+  // `</Foo>`, `<div />`, `<Foo {...p} />`, and the common Prettier output
+  // `<div\n  className="x"\n/>` where the slash follows a QUOTE. Missing any one
+  // of them makes the stripper swallow the rest of the file. Listing where an
+  // expression may legally begin is a closed set and cannot drift that way.
+  let j = i - 1;
+  while (j >= 0 && /\s/.test(src[j])) j--;
+  if (j < 0) return true;
+  const prev = src[j];
+  if (/[(,=:[!&|?;{+\-*%^~]/.test(prev)) return true;
+  // `return /re/`, `typeof /re/` — a keyword ends in a word character but is
+  // still an expression position.
+  const word = /([A-Za-z$_][\w$]*)$/.exec(src.slice(0, j + 1))?.[1];
+  return word !== undefined && REGEX_PRECEDING_KEYWORDS.has(word);
+}
+
+const REGEX_PRECEDING_KEYWORDS = new Set([
+  "return",
+  "typeof",
+  "instanceof",
+  "in",
+  "of",
+  "new",
+  "delete",
+  "void",
+  "case",
+  "do",
+  "else",
+  "yield",
+  "await",
+]);
+
+/** Consumes a regex literal including its flags. */
+function readRegexLiteral(src: string, i: number): number {
+  let j = i + 1;
+  let inClass = false;
+  while (j < src.length) {
+    const c = src[j];
+    if (c === "\\") {
+      j += 2;
+      continue;
+    }
+    if (c === "[") inClass = true;
+    else if (c === "]") inClass = false;
+    else if (c === "/" && !inClass) {
+      j++;
+      break;
+    } else if (c === "\n") break;
+    j++;
+  }
+  while (j < src.length && /[dgimsuvy]/.test(src[j])) j++;
+  return j;
+}
+
 export function stripNonCode(src: string): string {
   let out = "";
   let i = 0;
@@ -284,6 +346,18 @@ export function stripNonCode(src: string): string {
       i = skipLineComment(src, i);
     } else if (c === "/" && next === "*") {
       i = skipBlockComment(src, i);
+    } else if (c === "/" && startsRegexLiteral(src, i)) {
+      // FIXED 2026-08-09. Regex literals were not tokenized, so the quote in
+      // `.replace(/"/g, "&quot;")` was read as the START of a string and the
+      // scanner swallowed real code up to the next quote. Ten files in the tree
+      // hit this, four of them inside the discovery globs. In the wrapper check
+      // the failure is loud (a compliant file turns red); in the DISCOVERY scan
+      // it is SILENT — a swallowed `Promise.all([` makes an unbounded fan-out
+      // invisible, which is the exact opposite of what the scan exists for.
+      // The old docstring asserted no such file existed. It did.
+      const end = readRegexLiteral(src, i);
+      out += " ".repeat(end - i);
+      i = end;
     } else if (c === '"' || c === "'" || c === "`") {
       const literal = readStringLiteral(src, i);
       out += literal.text;
@@ -372,7 +446,13 @@ function countArrayElements(code: string, start: number): number {
 export function widestFanOut(src: string): number {
   const code = stripNonCode(src);
   let widest = 0;
-  const re = /Promise\.all\s*\(\s*\[/g;
+  // `allSettled` is not an afterthought here — it is what this repo's own
+  // convention PRESCRIBES for dashboard fan-outs ("NEVER-CRASH FAN-OUT: use
+  // Promise.allSettled — NOT Promise.all", get-panorama-kpis.ts). Matching only
+  // `Promise.all(` meant a new dashboard that followed the house rule was
+  // invisible to the one lane that exists to catch heavy pages nobody
+  // registered. Added 2026-08-09; no live instance inside the discovery globs.
+  const re = /Promise\.(?:all|allSettled)\s*\(\s*\[/g;
   let m = re.exec(code);
   while (m !== null) {
     widest = Math.max(widest, countArrayElements(code, m.index + m[0].length));

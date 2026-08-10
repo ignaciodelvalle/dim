@@ -68,7 +68,7 @@
     "db:migrate:status": "tsx scripts/migrate.ts --status",
     "db:migrate:check": "tsx scripts/migrate.ts --check",
     "db:migrate:baseline": "tsx scripts/migrate.ts --baseline",
-    "deploy:staging": "pnpm typecheck && pnpm lint && pnpm lint:tokens && tsx scripts/migrate.ts && npx vercel --prod --archive=tgz",
+    "deploy:staging": "pnpm verify && tsx scripts/migrate.ts && npx vercel --prod --archive=tgz",
     "db:bootstrap": "tsx scripts/db-bootstrap.ts",
     "db:doctor": "tsx scripts/check-ledger-honesty.ts",
     "env:doctor": "tsx scripts/check-env-local.ts",

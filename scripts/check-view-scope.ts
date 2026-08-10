@@ -135,6 +135,17 @@ function runScan(): void {
     );
   }
 
+  // A scan of ZERO files passes vacuously and prints "✓ clean", which is what a
+  // renamed layout looks like from CI. The per-file `catch { continue }` above
+  // is the right call for ONE missing file; it is the wrong call for all of
+  // them. Rule 1 has to have looked at something to be able to say it is clean.
+  if (filesScanned === 0) {
+    console.error(
+      `✗ view-scope: none of the ${VIEW_SCOPE_FILES.length} registered chrome file(s) could be read — the portal layout was renamed or moved. Update VIEW_SCOPE_FILES in scripts/check-view-scope.ts. This check cannot pass having scanned nothing.`,
+    );
+    process.exit(1);
+  }
+
   if (offenders.length > 0) {
     console.error(offenders.join("\n"));
     console.error(

@@ -116,11 +116,40 @@ export function deriveWriterUseCases(strippedSource: string): string[] {
  * gone and the walk-in modules contain no braces inside string literals at the
  * top level of a function signature.
  */
+/**
+ * Index of the `{` that opens the function body, given the index of the `(`
+ * that opens its parameter list. Returns -1 when either is unbalanced.
+ */
+function bodyStartAfterParams(src: string, openParen: number): number {
+  let depth = 0;
+  for (let i = openParen; i < src.length; i++) {
+    if (src[i] === "(") depth += 1;
+    else if (src[i] === ")") {
+      depth -= 1;
+      if (depth === 0) return src.indexOf("{", i);
+    }
+  }
+  return -1;
+}
+
 export function extractExportedFunctions(strippedSource: string): ExportedFunction[] {
   const out: ExportedFunction[] = [];
-  const headerRe = /export\s+async\s+function\s+([A-Za-z0-9_$]+)\s*\(/g;
+  // WIDENED 2026-08-09. This matched only the `export async function NAME(`
+  // declaration form, while the docstring promises the fence catches a walk-in
+  // writer "whatever it is named" and that a NEW writer "enters this fence's
+  // scope the moment it is written". An arrow assignment —
+  // `export const atenderFooAction = async (…) => {…}` — was outside the ONLY
+  // barrier standing behind the mitigation the PO accepted for non-custody
+  // walk-ins. No live instance; the seven current writers all use the
+  // declaration form. Closed before someone writes the eighth.
+  const headerRe =
+    /export\s+(?:async\s+function\s+([A-Za-z0-9_$]+)\s*\(|const\s+([A-Za-z0-9_$]+)\s*(?::[^=]+)?=\s*async\s*(?:function\s*)?\()/g;
   for (const match of strippedSource.matchAll(headerRe)) {
-    const start = strippedSource.indexOf("{", match.index + match[0].length - 1);
+    // The match ends ON the opening paren of the parameter list. Balance that
+    // paren first, then take the next `{` — searching for `{` directly would
+    // find a DESTRUCTURED PARAMETER (`async ({ orgToken }) => …`) and treat the
+    // destructuring object as the function body.
+    const start = bodyStartAfterParams(strippedSource, match.index + match[0].length - 1);
     if (start === -1) continue;
     let depth = 0;
     let end = -1;
@@ -136,7 +165,7 @@ export function extractExportedFunctions(strippedSource: string): ExportedFuncti
       }
     }
     if (end === -1) continue;
-    out.push({ name: match[1], body: strippedSource.slice(start, end + 1) });
+    out.push({ name: match[1] ?? match[2], body: strippedSource.slice(start, end + 1) });
   }
   return out;
 }

@@ -17,6 +17,7 @@
 // Follows the same shape as scripts/check-design-tokens.ts.
 
 import { globSync, readFileSync } from "node:fs";
+import { stripComments } from "./lib/strip-comments.mjs";
 
 // ---------------------------------------------------------------------------
 // Rule 1 — Touch target ≥ 44px
@@ -256,25 +257,40 @@ export const ACCENT_WORDS_WIDE: Array<{ bad: string; good: string; re: RegExp }>
   { bad: "esta en", good: "está en", re: /\besta en\b/g },
 ];
 
-// Lines that should be excluded from accent rule matching:
-// - Pure TypeScript/import lines
-// - URL/path strings (contain / or :// )
-// - className attributes
-// - href attributes
-// - Comments
+/**
+ * Attributes whose VALUE is a symbol, never copy. Deliberately excludes the
+ * attributes that ARE copy and must stay scanned: alt, title, placeholder,
+ * aria-label, aria-description, label, subtitle, eyebrow.
+ */
+const NON_COPY_ATTRS =
+  /\b(?:className|class|href|src|srcSet|action|formAction|id|htmlFor|key|name|type|method|rel|target|role|slug|as|to|form|pattern|autoComplete|data-[\w-]+)\s*=\s*(["'])(?:\\.|(?!\1).)*\1/g;
+
+/**
+ * Blanks non-copy attribute VALUES, preserving length so match offsets stay
+ * exact.
+ *
+ * FIXED 2026-08-09. This used to be part of isCodeOnlyLine(), which returned
+ * true — dropping the ENTIRE line — as soon as it saw className=, href= or
+ * action=. In a Tailwind codebase the className lives on the same element as
+ * the text it styles, so that guard blinded the rule to 58.673 of 181.257
+ * non-empty .tsx lines (32,4%), biased precisely toward the lines that carry
+ * copy. It shipped `<p className="…">Sin partes registradas todavia.</p>` on a
+ * government screen (app/gob/disputas/[disputeToken]/page.tsx:157) while the
+ * fence printed "✓ accents OK across 1264+1420 files".
+ *
+ * The narrower operation — blank the attribute value, keep the line — was
+ * measured across 2740 files: exactly one new hit, the real one, and no false
+ * positives.
+ */
+export function blankAttributeValues(line: string): string {
+  return line.replace(NON_COPY_ATTRS, (m) => " ".repeat(m.length));
+}
+
+// Lines that carry no copy at all: TypeScript statements whose text, if any,
+// lives in a string literal that the symbol/path filters already handle.
 function isCodeOnlyLine(line: string): boolean {
   const t = line.trim();
-  // TypeScript statement lines
-  if (/^(?:const|let|var|type|interface|enum|import|export|\/\/|\/\*|\*)\s/.test(t)) return true;
-  // className attribute line (the word is in a class value, not text)
-  if (/className\s*=/.test(t)) return true;
-  // href attribute — URL paths containing the unaccented word (e.g. /admin/auditoria)
-  if (/href\s*=/.test(t)) return true;
-  // action= form attribute
-  if (/\baction\s*=/.test(t)) return true;
-  // Arrow function or object key mapping: `pais: "..."` or `{ pais }`
-  // (but we want to keep JSX text like "nivel pais")
-  return false;
+  return /^(?:import|export\s+(?:type|interface|enum)|type|interface|enum)\s/.test(t);
 }
 
 // For accent rule: also skip matches that appear inside URL path segments
@@ -291,6 +307,145 @@ function isInsidePath(line: string, matchIndex: number, token: string): boolean 
   const surroundingQuote = line.slice(Math.max(0, matchIndex - 50), matchIndex + token.length + 50);
   if (/["'`][^"'`]*\/[^"'`]*["'`]/.test(surroundingQuote)) return true;
   return false;
+}
+
+/**
+ * Accent words that are NOUNS, admitted 2026-08-09 by the position filter below.
+ *
+ * The old docstring said "if you want to add a noun, make the rule scan string
+ * literals first". That prescription was based on a wrong model of the false
+ * positives. A survey of 68 candidate words across app+components+lib+src found
+ * that the code hits are NOT `{descripcion}` JSX expressions. Every single one
+ * of them is a SYMBOL in one of four shapes:
+ *
+ *   kebab slug     devolver-al-dueno, iniciar-sesion, en-transito
+ *   object key     province: "provincia" · group: "medico" · layer: "situacion"
+ *   member access  payload.telefono
+ *   lone string    name="ubicacion" · route: "?sheet=sintoma" · id: "identificacion"
+ *
+ * And every copy hit is a SENTENCE — "Esta denuncia fue escalada…", "Solo quien
+ * propuso la devolución…". That is the real discriminator, and it is decidable:
+ * see isSymbolPosition(). A lowercase token that is the ENTIRE value of a string
+ * literal is a symbol; the same token inside a phrase is copy.
+ *
+ * So the bar is no longer "adverbs only". It is: the word must survive
+ * isSymbolPosition() on the current tree with zero hits, verified before adding.
+ * These were all verified at 0 across 2740 files.
+ *
+ * The one class still excluded on purpose: words whose ACCENTED form is a
+ * legitimate different word ("esta"/"está", "publico"/"público" as 1st-person
+ * verb, "practica"/"práctica"). Those need the phrase, not the token.
+ */
+export const ACCENT_NOUNS: Array<{ bad: string; good: string; re: RegExp }> = [
+  { bad: "tamano", good: "tamaño", re: /\btamano\b/g },
+  { bad: "dueno", good: "dueño", re: /\bdueno\b/g },
+  { bad: "duena", good: "dueña", re: /\bduena\b/g },
+  { bad: "duenas", good: "dueñas", re: /\bduenas\b/g },
+  { bad: "vacio", good: "vacío", re: /\bvacio\b/g },
+  { bad: "vacia", good: "vacía", re: /\bvacia\b/g },
+  { bad: "condicion", good: "condición", re: /\bcondicion\b/g },
+  { bad: "direccion", good: "dirección", re: /\bdireccion\b/g },
+  { bad: "confirmacion", good: "confirmación", re: /\bconfirmacion\b/g },
+  { bad: "atencion", good: "atención", re: /\batencion\b/g },
+  { bad: "vacunacion", good: "vacunación", re: /\bvacunacion\b/g },
+  { bad: "castracion", good: "castración", re: /\bcastracion\b/g },
+  { bad: "diagnostico", good: "diagnóstico", re: /\bdiagnostico\b/g },
+  { bad: "electronico", good: "electrónico", re: /\belectronico\b/g },
+  { bad: "electronica", good: "electrónica", re: /\belectronica\b/g },
+  { bad: "categoria", good: "categoría", re: /\bcategoria\b/g },
+  { bad: "proposito", good: "propósito", re: /\bproposito\b/g },
+  { bad: "credito", good: "crédito", re: /\bcredito\b/g },
+  { bad: "limite", good: "límite", re: /\blimite\b/g },
+  { bad: "maximo", good: "máximo", re: /\bmaximo\b/g },
+  { bad: "minimo", good: "mínimo", re: /\bminimo\b/g },
+  { bad: "revision", good: "revisión", re: /\brevision\b/g },
+  // Adjectives and adverbs — same verification, no reason to keep them in a
+  // separate list now that the position filter carries the weight.
+  { bad: "rapido", good: "rápido", re: /\brapido\b/g },
+  { bad: "facil", good: "fácil", re: /\bfacil\b/g },
+  { bad: "dificil", good: "difícil", re: /\bdificil\b/g },
+  { bad: "unico", good: "único", re: /\bunico\b/g },
+  { bad: "unica", good: "única", re: /\bunica\b/g },
+  { bad: "util", good: "útil", re: /\butil\b/g },
+  { bad: "ningun", good: "ningún", re: /\bningun\b/g },
+  { bad: "algun", good: "algún", re: /\balgun\b/g },
+  { bad: "estan", good: "están", re: /\bestan\b/g },
+  { bad: "aun", good: "aún", re: /\baun\b/g },
+  { bad: "aca", good: "acá", re: /\baca\b/g },
+  { bad: "alli", good: "allí", re: /\balli\b/g },
+  { bad: "asi", good: "así", re: /\basi\b/g },
+  { bad: "dias", good: "días", re: /\bdias\b/g },
+  { bad: "cuantos", good: "cuántos", re: /\bcuantos\b/g },
+];
+
+// JS \w is [A-Za-z0-9_] — it does NOT include accented letters, so \b fires
+// between "gestion" and "á". That made `\bgestion\b` match inside "gestionás",
+// and would do the same to any word list entry whose word is a prefix of an
+// already-correct accented form. Latent in the fence since it was written; found
+// 2026-08-09 by the noun survey.
+const SPANISH_ACCENTED = /[áéíóúüñÁÉÍÓÚÜÑ]/;
+
+export function hasAccentedNeighbor(line: string, index: number, token: string): boolean {
+  const before = line[index - 1] ?? "";
+  const after = line[index + token.length] ?? "";
+  return SPANISH_ACCENTED.test(before) || SPANISH_ACCENTED.test(after);
+}
+
+/**
+ * True when the match sits in a position that names a SYMBOL rather than
+ * rendering as copy. See the ACCENT_NOUNS docstring for the survey this encodes.
+ */
+export function isSymbolPosition(line: string, index: number, token: string): boolean {
+  const before = line.slice(0, index);
+  const after = line.slice(index + token.length);
+
+  // 1. kebab-case slug: devolver-al-dueno, iniciar-sesion, en-transito.
+  if (before.endsWith("-") || after.startsWith("-")) return true;
+
+  // 2. member access: payload.telefono
+  if (/\.\s*$/.test(before)) return true;
+
+  // 3. object key / TS union member at the start of its line: `transito: {`
+  //    or preceded by `{` / `,`. A copy string ending in ":" is always
+  //    capitalized ("Ubicación:"), so lowercase-only keeps that out.
+  if (token === token.toLowerCase() && /^\s*:/.test(after) && /(?:^\s*|[{,]\s*)$/.test(before)) {
+    return true;
+  }
+
+  // 4. lone string literal: the token is the ENTIRE quoted value, or the value
+  //    of a query/route fragment. Copy is a phrase — it has spaces. A single
+  //    capitalized word IS plausible copy ("Descripcion" as a label), so the
+  //    rule only fires on lowercase.
+  const quoted = enclosingStringValue(line, index);
+  if (quoted !== null && token === token.toLowerCase() && !/\s/.test(quoted)) return true;
+
+  return false;
+}
+
+/** Value of the string literal enclosing `index`, or null when outside one. */
+function enclosingStringValue(line: string, index: number): string | null {
+  let quote: string | null = null;
+  let start = -1;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (quote === null) {
+      if (ch === '"' || ch === "'" || ch === "`") {
+        quote = ch;
+        start = i + 1;
+      }
+      continue;
+    }
+    if (ch === "\\") {
+      i += 1;
+      continue;
+    }
+    if (ch === quote) {
+      if (index >= start && index < i) return line.slice(start, i);
+      quote = null;
+      start = -1;
+    }
+  }
+  return null;
 }
 
 // Allowlist for rule 3 — "relativePath:bad_word" pairs
@@ -506,10 +661,18 @@ export const SNAKE_CASE_ALLOWLIST = new Set<string>([
 //
 // To ratchet down after migrating a module: grep for "<button" in the migrated
 // directory, verify the new count, and lower the constant accordingly.
-export const RAW_BUTTON_BASELINE = 47;
+// TIGHTENED 2026-08-09 from 47 to the real count. The constant had not been
+// lowered as the migration progressed, so 22 fresh raw <button> could land in
+// app/admin + app/gob without turning the fence red — while it printed
+// "✓ 25/47 remaining (22 migrated)" as if that slack were progress. A ratchet
+// with slack is not a ratchet. The check now fails in BOTH directions: growth
+// is a regression, and a drop means the constant is stale and must come down.
+export const RAW_BUTTON_BASELINE = 25;
 
 // Files to scan for raw button growth (operator tier only).
-const RAW_BUTTON_FILES = globSync("{app/admin,app/gob}/**/*.tsx");
+// Exported so the test can assert the baseline against the REAL count instead
+// of against a number typed into the test — which is how 47 outlived 25.
+export const RAW_BUTTON_FILES = globSync("{app/admin,app/gob}/**/*.tsx");
 
 // Counts the number of <button JSX opening tag occurrences across a file set.
 // We match any line containing the literal substring "<button" (case-sensitive,
@@ -685,24 +848,37 @@ function runScan(): void {
   // while ACCENT_WORDS_WIDE — adverbs and verb forms only — sweeps lib/ and
   // src/ too. See the comment on ACCENT_WORDS_WIDE for why they cannot be one
   // list.
+  // stripComments (2026-08-09): the pass used to read the file RAW, so a code
+  // comment explaining a past fix — "antes decía tamano" — was itself reported
+  // as a regression. Documenting why a word was corrected cannot be what
+  // reinstates the failure. Same consolidation the species and copy-contract
+  // fences already had. Offsets and line count are preserved by the stripper,
+  // so reported positions stay exact.
   for (const [files, words] of [
     [STANDARD_FILES, ACCENT_WORDS],
     [ACCENT_FILES, ACCENT_WORDS_WIDE],
+    [ACCENT_FILES, ACCENT_NOUNS],
   ] as const) {
     for (const file of files) {
       const relPath = normalizeRelPath(file);
-      const lines = readFileSync(file, "utf8").split(/\r?\n/);
-      lines.forEach((line, i) => {
-        if (isCodeOnlyLine(line)) return;
+      const lines = stripComments(readFileSync(file, "utf8")).split(/\r?\n/);
+      lines.forEach((rawLine, i) => {
+        if (isCodeOnlyLine(rawLine)) return;
+        const line = blankAttributeValues(rawLine);
         for (const { bad, good, re } of words) {
           re.lastIndex = 0;
           for (const match of line.matchAll(re)) {
             const key = `${relPath}:${bad}`;
             if (ACCENT_ALLOWLIST.has(key)) continue;
+            const at = match.index ?? 0;
+            // Already-correct accented form: \b fires between "gestion" and "á".
+            if (hasAccentedNeighbor(line, at, bad)) continue;
+            // Symbol, not copy: slug, object key, member access, lone string.
+            if (isSymbolPosition(line, at, bad)) continue;
             // Skip matches inside URL path segments
-            if (isInsidePath(line, match.index ?? 0, bad)) continue;
+            if (isInsidePath(line, at, bad)) continue;
             console.error(
-              `${file}:${i + 1}:${(match.index ?? 0) + 1}: missing accent "${bad}" → "${good}" in Spanish copy`,
+              `${file}:${i + 1}:${at + 1}: missing accent "${bad}" → "${good}" in Spanish copy`,
             );
             hits += 1;
           }
@@ -759,12 +935,14 @@ function runScan(): void {
       `app/admin + app/gob: raw <button count grew from baseline ${RAW_BUTTON_BASELINE} to ${rawButtonCount}. Use OpButton instead of raw <button in operator-tier surfaces. If this is a legitimate new button, update RAW_BUTTON_BASELINE in scripts/check-ui-invariants.ts and add a migration task for the module.`,
     );
     hits += 1;
-  } else {
-    const remaining = rawButtonCount;
-    // Log progress toward zero so the ratchet is visible in CI output.
-    console.log(
-      `✓ Raw button baseline: ${remaining}/${RAW_BUTTON_BASELINE} remaining (${RAW_BUTTON_BASELINE - remaining} migrated).`,
+  } else if (rawButtonCount < RAW_BUTTON_BASELINE) {
+    console.error(
+      `app/admin + app/gob: raw <button count DROPPED from baseline ${RAW_BUTTON_BASELINE} to ${rawButtonCount}. Lower RAW_BUTTON_BASELINE to ${rawButtonCount} in scripts/check-ui-invariants.ts — a baseline left above the real count is free room for ${RAW_BUTTON_BASELINE - rawButtonCount} new raw buttons.`,
     );
+    hits += 1;
+  } else {
+    // Log progress toward zero so the ratchet is visible in CI output.
+    console.log(`✓ Raw button ratchet: ${rawButtonCount} remaining, none new.`);
   }
 
   if (hits > 0) {

@@ -64,6 +64,55 @@ import { resolveAtenderPet } from "./atender-access";
     expect(fns[1].body).not.toContain("completeAtenderSignature(");
   });
 
+  // The docstring promises this fence catches a walk-in writer "whatever it is
+  // named", and that a NEW writer enters scope "the moment it is written". Until
+  // 2026-08-09 the header regex only matched `export async function NAME(`, so
+  // the arrow-assignment form walked straight past the ONLY barrier behind the
+  // walk-in mitigation. No live instance — closed before the eighth writer.
+  it("extracts the arrow-assignment export form", () => {
+    const src = `export const atenderArrowAction = async (orgToken, formData) => {
+  await createNote({ pet });
+};`;
+    const fns = extractExportedFunctions(src);
+
+    expect(fns.map((f) => f.name)).toEqual(["atenderArrowAction"]);
+    expect(fns[0].body).toContain("createNote(");
+  });
+
+  it("extracts the arrow form with a type annotation", () => {
+    const src = `export const atenderTypedAction: ActionFn = async (a, b) => {
+  await createNote({ pet });
+};`;
+
+    expect(extractExportedFunctions(src).map((f) => f.name)).toEqual(["atenderTypedAction"]);
+  });
+
+  // The body scan used to take the first `{` after the header, which for a
+  // destructured parameter list is the DESTRUCTURING OBJECT — yielding a
+  // two-token "body" that contains no call at all, so the writer read as clean.
+  it("takes the body, not the destructured parameter object", () => {
+    const src = `export const atenderDestructuredAction = async ({ orgToken, publicToken }) => {
+  await createNote({ pet });
+};`;
+    const [fn] = extractExportedFunctions(src);
+
+    expect(fn.name).toBe("atenderDestructuredAction");
+    expect(fn.body).toContain("createNote(");
+    expect(fn.body).not.toContain("publicToken");
+  });
+
+  it("FAILS an arrow-form writer that never tells the owner", () => {
+    const src = `${IMPORTS}
+export const atenderArrowAction = async ({ orgToken }) => {
+  await createNote({ pet });
+};`;
+    const { violations, writerCount } = checkAtenderOwnerAlerts({ [ACTIONS]: src }, CLEAN_SURFACE);
+
+    expect(writerCount).toBe(1);
+    expect(violations).toHaveLength(1);
+    expect(violations[0].where).toBe(`${ACTIONS} › atenderArrowAction()`);
+  });
+
   it("matches a use-case only as a CALL, not as a bare mention", () => {
     expect(callsAny("await createNote({ pet })", ["createNote"])).toBe(true);
     expect(callsAny("const x: typeof createNote = f;", ["createNote"])).toBe(false);
