@@ -19,6 +19,8 @@
 
 import { expect, test } from "@playwright/test";
 
+import { SIGN_IN_PATH } from "./_sign-in-route";
+
 // 320 = SE-class, 375 = the most common iPhone, 390 = the most common width in
 // Argentina, 560/561 = the exact boundary the media query used to switch on.
 const PHONE_WIDTHS = [320, 375, 390, 480, 560, 561];
@@ -30,7 +32,7 @@ for (const width of PHONE_WIDTHS) {
     await page.setViewportSize({ width, height: 800 });
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
-    const signIn = page.locator('header a[href="/login"]').first();
+    const signIn = page.locator(`header a[href="${SIGN_IN_PATH}"]`).first();
     await expect(signIn, `no sign-in link in the header at ${width}px`).toBeVisible();
 
     const box = await signIn.boundingBox();
@@ -56,7 +58,7 @@ test("the sign-in link is reachable without scrolling the page", async ({ page }
   await page.setViewportSize({ width: 375, height: 800 });
   await page.goto("/", { waitUntil: "domcontentloaded" });
 
-  const box = await page.locator('header a[href="/login"]').first().boundingBox();
+  const box = await page.locator(`header a[href="${SIGN_IN_PATH}"]`).first().boundingBox();
   expect(box).not.toBeNull();
   expect(
     box?.y ?? Number.POSITIVE_INFINITY,

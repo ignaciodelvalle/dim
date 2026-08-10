@@ -49,6 +49,7 @@ import { type Page, type Response, expect, test } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 
 import { BRANDED_NOT_FOUND_TESTID, NOT_FOUND_HEADING } from "./_page-identity";
+import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
 import { assertRealPage } from "./demo/_helpers";
 
 // ---------------------------------------------------------------------------
@@ -193,28 +194,28 @@ async function getOwnerBPet(
 
 /** Navigate to a page and log in as Owner A. Returns the authenticated page. */
 async function loginAsOwnerA(page: Page): Promise<void> {
-  await page.goto("/login");
+  await page.goto(SIGN_IN_PATH);
   await page.getByLabel(/correo electrónico/i).fill(OWNER_A_EMAIL);
   await page.getByRole("textbox", { name: "Contraseña" }).fill(OWNER_A_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  // Wait for LEAVING /login, never for /inicio: that pathname is a
+  // Wait for LEAVING the sign-in page, never for /inicio: that pathname is a
   // redirect-only router the address bar NEVER shows (owners land directly on
   // /mis-mascotas/<pet>). The same stale wait killed e2e/owner-shell.spec.ts
   // in every CI run before a11y-operator-auth documented it.
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+  await page.waitForURL(leftSignIn, { timeout: 15_000 });
 }
 
 /**
  * Log in as any seeded account and wait until the post-login redirect leaves
- * /login (owners land on /inicio, govt on /gob, org admins on /cuenta or their
- * org portal — this helper is role-agnostic).
+ * the sign-in page (owners land on /inicio, govt on /gob, org admins on /cuenta
+ * or their org portal — this helper is role-agnostic).
  */
 async function loginAs(page: Page, email: string, password: string): Promise<void> {
-  await page.goto("/login");
+  await page.goto(SIGN_IN_PATH);
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByRole("textbox", { name: "Contraseña" }).fill(password);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 15_000 });
+  await page.waitForURL(leftSignIn, { timeout: 15_000 });
 }
 
 /** Verify an account can sign in (via supabase-js). Returns true when seeded. */

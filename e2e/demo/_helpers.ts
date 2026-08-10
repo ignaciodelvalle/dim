@@ -14,6 +14,7 @@ import {
   NOT_FOUND_HEADING,
   type OwnerPii,
 } from "../_page-identity";
+import { SIGN_IN_PATH, leftSignIn } from "../_sign-in-route";
 import { ensureDenunciaJurisdiction, resetAuthLoginRateLimits } from "./_db-cleanup";
 
 export const SHARED_PASSWORD = "Test1234!";
@@ -135,9 +136,9 @@ async function restoreSession(page: Page, cached: CachedSession): Promise<boolea
   await context.addCookies(cached.cookies);
   await page.goto(cached.landing, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle", { timeout: 6_000 }).catch(() => {});
-  // A session that no longer authenticates bounces to /login. Report that
-  // rather than letting the caller assert against a sign-in page.
-  return !new URL(page.url()).pathname.startsWith("/login");
+  // A session that no longer authenticates bounces to the sign-in page. Report
+  // that rather than letting the caller assert against it.
+  return leftSignIn(new URL(page.url()));
 }
 
 /**
@@ -172,7 +173,7 @@ export async function loginAs(
   // "Demasiados intentos" for every spec after it (local DB only — no-op
   // elsewhere; see resetAuthLoginRateLimits).
   await resetAuthLoginRateLimits();
-  await page.goto("/login");
+  await page.goto(SIGN_IN_PATH);
   // Let hydration finish before interacting — clicks dispatched before React
   // attaches handlers are silently dropped (clickthrough audit 2026-07-03,
   // task #39), which stranded a whole recording pass on the login screen.
@@ -181,9 +182,8 @@ export async function loginAs(
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByRole("textbox", { name: "Contraseña" }).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  const leftLogin = (url: URL) => !url.pathname.startsWith("/login");
   try {
-    await page.waitForURL(leftLogin, { timeout: 10_000 });
+    await page.waitForURL(leftSignIn, { timeout: 10_000 });
   } catch {
     // Either the click was swallowed before hydration (the #39 workaround), or
     // the server refused. Check for a refusal first so it is reported as one.
@@ -191,7 +191,7 @@ export async function loginAs(
     if (refusal) throw new Error(`login refused for ${email}: "${refusal}"`);
     await page.getByRole("textbox", { name: "Contraseña" }).press("Enter");
     try {
-      await page.waitForURL(leftLogin, { timeout: 20_000 });
+      await page.waitForURL(leftSignIn, { timeout: 20_000 });
     } catch (err) {
       const late = await loginErrorText(page);
       throw late ? new Error(`login refused for ${email}: "${late}"`) : err;

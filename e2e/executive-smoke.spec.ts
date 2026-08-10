@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type Page, expect, test } from "@playwright/test";
 
+import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
+
 /**
  * Executive smoke — gate item #18.
  *
@@ -83,13 +85,13 @@ function inAppHrefs(hrefs: readonly string[]): string[] {
 
 /** Log in as an operator and wait for the shell to be ready. */
 async function loginAsOperator(page: Page, email: string): Promise<void> {
-  await page.goto("/login");
+  await page.goto(SIGN_IN_PATH);
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByRole("textbox", { name: "Contraseña" }).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
   // Operators land on their portal root (/gob or /admin) after login.
-  // Wait for any URL change away from /login to confirm auth succeeded.
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
+  // Wait for any URL change away from the sign-in page to confirm auth worked.
+  await page.waitForURL(leftSignIn, { timeout: 20_000 });
 }
 
 // ---------------------------------------------------------------------------

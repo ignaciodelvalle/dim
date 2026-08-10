@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { resolveStagingUrl } from "./_base-url";
 import { type OwnerPii, describePiiLeaks, findPiiLeaks } from "./_page-identity";
+import { leftSignIn } from "./_sign-in-route";
 import {
   ACCOUNTS,
   DEMO_PHOTOS,
@@ -109,8 +110,15 @@ test.describe(`synthetic monitor @ ${STAGING ?? "suite baseURL"}`, () => {
     // fresh: this flow's SUBJECT is the sign-in, so it must not be handed a
     // replayed session by the shared helper's cache.
     await loginAs(page, ACCOUNTS.owner, { fresh: true });
-    // Landed inside the app (not stranded on /login).
-    expect(page.url(), "owner left /login after sign-in").not.toContain("/login");
+    // Landed inside the app (not stranded on the sign-in page).
+    //
+    // `not.toContain("/login")` era VACUO desde que la ruta se mudó a
+    // `/iniciar-sesion`: la cadena vieja no aparece ni cuando el ingreso falla,
+    // así que esta línea pasaba estuviera el usuario adentro o afuera.
+    expect(
+      leftSignIn(new URL(page.url())),
+      `owner should have left the sign-in page, but is on ${page.url()}`,
+    ).toBe(true);
 
     await page.goto("/mis-mascotas", { waitUntil: "domcontentloaded" });
     // At least one pet credential card must render for the owner. Anchor on

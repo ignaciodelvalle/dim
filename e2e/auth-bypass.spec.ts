@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { SIGN_IN_PATH } from "./_sign-in-route";
+
 /**
  * Auth-bypass tests — the highest-value e2e guard.
  *
@@ -20,7 +22,7 @@ test.describe("auth bypass — owner cannot access privileged dashboards", () =>
   test.beforeEach(async ({ page }) => {
     // Log in as owner once; subsequent navigations in the same test reuse the
     // session cookie set by the server.
-    await page.goto("/login");
+    await page.goto(SIGN_IN_PATH);
     await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
     await page.getByRole("textbox", { name: "Contraseña" }).fill(OWNER_PASSWORD);
     await page.getByRole("button", { name: /iniciar sesión/i }).click();

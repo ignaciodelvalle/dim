@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { LEGACY_SIGN_IN_PATH, SIGN_IN_PATH } from "./_sign-in-route";
+
 /**
  * Authentication e2e tests.
  *
@@ -18,7 +20,7 @@ const OWNER_PASSWORD = "Test1234!";
 
 test.describe("login flow", () => {
   test("owner can log in and lands on /inicio", async ({ page }) => {
-    await page.goto("/login");
+    await page.goto(SIGN_IN_PATH);
 
     // Fill credentials.
     await page.getByLabel(/correo electrónico/i).fill(OWNER_EMAIL);
@@ -32,5 +34,29 @@ test.describe("login flow", () => {
     // No error visible.
     await expect(page.getByText(/application error/i)).not.toBeVisible();
     await expect(page.getByText(/correo o contraseña incorrectos/i)).not.toBeVisible();
+  });
+});
+
+/**
+ * La ruta vieja en inglés. `app/(auth)/login/page.tsx` promete en su propio
+ * encabezado que el stub se queda PARA SIEMPRE porque la URL está impresa en
+ * documentos, guardada en favoritos y pegada en mails ya enviados — y nada lo
+ * verificaba. El resto de la suite ya no la visita (lo impide
+ * `__tests__/e2e-sign-in-route.test.ts`), así que si no se prueba acá, no se
+ * prueba en ningún lado.
+ */
+test.describe("la ruta vieja /login sigue funcionando", () => {
+  test("redirige a /iniciar-sesion conservando el query string", async ({ page }) => {
+    // `returnTo` es el que importa: es lo que devuelve al visitante adonde
+    // estaba yendo cuando lo mandaron a autenticarse. Perderlo lo vara.
+    await page.goto(`${LEGACY_SIGN_IN_PATH}?intent=adoptar&returnTo=%2Fadoptar`);
+
+    const url = new URL(page.url());
+    expect(url.pathname, "la ruta vieja aterriza en la canónica").toBe(SIGN_IN_PATH);
+    expect(url.searchParams.get("intent")).toBe("adoptar");
+    expect(url.searchParams.get("returnTo")).toBe("/adoptar");
+
+    // Y aterriza en el formulario de verdad, no en un 404 con la URL correcta.
+    await expect(page.getByRole("textbox", { name: "Contraseña" })).toBeVisible();
   });
 });

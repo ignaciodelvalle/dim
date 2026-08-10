@@ -1,5 +1,7 @@
 import { type Page, expect, test } from "@playwright/test";
 
+import { SIGN_IN_PATH, leftSignIn } from "./_sign-in-route";
+
 /**
  * WP3 / D1 — admin topbar polish.
  *
@@ -18,11 +20,11 @@ const SHARED_PASSWORD = "Test1234!";
 const WIDTHS = [1280, 1366] as const;
 
 async function loginAsAdmin(page: Page): Promise<void> {
-  await page.goto("/login");
+  await page.goto(SIGN_IN_PATH);
   await page.getByLabel(/correo electrónico/i).fill("admin@dim.test");
   await page.getByRole("textbox", { name: "Contraseña" }).fill(SHARED_PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
-  await page.waitForURL((url) => !url.pathname.startsWith("/login"), { timeout: 20_000 });
+  await page.waitForURL(leftSignIn, { timeout: 20_000 });
 }
 
 async function computedFont(

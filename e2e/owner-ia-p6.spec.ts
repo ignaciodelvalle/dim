@@ -1,6 +1,7 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
 import { ZERO_PET_OWNER_EMAIL } from "../scripts/seed-reserved-accounts";
+import { SIGN_IN_PATH } from "./_sign-in-route";
 import { resetAuthLoginRateLimits } from "./demo/_db-cleanup";
 import { ACCOUNTS, discoverPetToken, resolveOrgToken } from "./demo/_helpers";
 
@@ -106,7 +107,7 @@ async function login(page: Page, email: string) {
   // resetAuthLoginRateLimits: local-DB fixture cleanup, no-op elsewhere, and
   // the limiter stays fully active in the app.
   await resetAuthLoginRateLimits();
-  await page.goto("/login");
+  await page.goto(SIGN_IN_PATH);
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByRole("textbox", { name: "Contraseña" }).fill(PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();

@@ -1,5 +1,6 @@
 import { type Browser, type BrowserContext, type Page, expect, test } from "@playwright/test";
 
+import { SIGN_IN_PATH } from "./_sign-in-route";
 import { uniqueIp } from "./demo/_helpers";
 
 /**
@@ -55,7 +56,7 @@ type StorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 const stateCache = new Map<string, StorageState>();
 
 async function login(page: Page, email: string) {
-  await page.goto("/login");
+  await page.goto(SIGN_IN_PATH);
   await page.getByLabel(/correo electrónico/i).fill(email);
   await page.getByRole("textbox", { name: "Contraseña" }).fill(PASSWORD);
   await page.getByRole("button", { name: /iniciar sesión/i }).click();
