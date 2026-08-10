@@ -2075,18 +2075,32 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
       fireEvent.click(screen.getByRole("checkbox", { name: /Zoonosis/ }));
     });
 
-    // Explicit waitFor timeouts (10s, not the 1s default): under full-suite
-    // worker contention the post-uncheck state flush can exceed 1s, so the
-    // 1s waitFor gave up and failed the assertion while the test still had
-    // budget left (4 flakes on 2026-08-06; passes isolated in <1s). The 15s
-    // test budget covers scheduler starvation; these cover slow flushes.
+    // MEASURED 2026-08-10 — read this before bumping the number again.
+    //
+    // This wait has been raised twice (dc255915, 5a3f9963) on the theory of "a
+    // slow state flush". That theory is wrong, and the bisect says so:
+    //
+    //   `vitest run --project db`  → 686 files, 6985 tests, PASS (1 of 1)
+    //   `pnpm test` (full suite)   → this assertion FAILS (2 of 2)
+    //
+    // The db project is serial by design. The unit project is not, and the two
+    // run CONCURRENTLY — so while this file holds the serial lane, N unit
+    // workers saturate the machine. This is the heaviest file in the suite
+    // (103 tests, ~24s) and it is the one that starves. Nothing about the
+    // component is slow; it is not getting scheduled.
+    //
+    // 30s is a MITIGATION, not the fix. The fix is structural — stop running a
+    // parallel project against a lane that declared itself serial — and it is a
+    // tradeoff on total suite runtime, so it is Ignacio's call, not a silent
+    // config edit at 00:30. If this goes red again, do not raise it a fourth
+    // time: make the projects sequential.
     await waitFor(
       () => {
         expect(
           screen.getByText(/La reproducción temporal necesita una capa de eventos activa/),
         ).toBeInTheDocument();
       },
-      { timeout: 10_000 },
+      { timeout: 30_000 },
     );
     // The map must stop dimming cobertura — asOf was cleared, not left stuck.
     await waitFor(
@@ -2096,7 +2110,7 @@ describe("PanoramaConsole — scrubber temporal-gating cluster (QA fix)", () => 
         );
         expect(cobertura?.dimmed).toBe(false);
       },
-      { timeout: 10_000 },
+      { timeout: 30_000 },
     );
   }, 15_000);
 
