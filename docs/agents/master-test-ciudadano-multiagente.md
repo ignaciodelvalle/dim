@@ -73,6 +73,8 @@ Y en concreto:
   ¿Coinciden?       sí | no — <en qué difieren>
 ```
 
+Una fila puede ser **`no aplica por diseño`**, y eso no es un hallazgo. El caso claro: una vacuna individual **no tiene vista de gobierno** — el funcionario ve agregados sobre el cubo nocturno, no eventos sueltos. Escribí `no aplica por diseño` y seguí. Lo que sí sería hallazgo es que una vista prometa mostrarlo y no lo muestre.
+
 Diferencias **legítimas**: cada rol ve distinto nivel de detalle, y hay datos ocultos por privacidad a propósito. Eso no es hallazgo.
 
 Diferencia que **SÍ es hallazgo**: los tres dicen algo distinto **sobre el mismo hecho**. Que para el dueño esté "aprobado", para la organización "pendiente" y el gobierno no lo vea — eso es lo que venimos a buscar.
@@ -103,7 +105,7 @@ Lucas (gob) → Ignacio → Noelí → Graciela → Alejo (instituciones) → Li
 
 **Por qué la vuelta completa y no "seguir al que pueda avanzar":** si perseguís al desbloqueado, terminás haciendo los dos lados de cada circuito seguidos y esto se vuelve el clickthrough que ya tenemos. **La vuelta completa es lo que fuerza la espera real** — que es lo único que un usuario vive todo el tiempo y ningún test nuestro prueba.
 
-> **Rate limit real: 5 logins/min por email, 10/min por IP.** Una vuelta son 6 logins. Si te bloquea, esperá dos minutos. No insistas.
+> **Rate limit real: 5 logins/min por email, 10/min por IP.** Una vuelta son 6 logins, **pero los `[CORTE]` no están contados ahí**: cada corte re-loguea hasta 3 cuentas, y suele caer justo después del hito, o sea volviendo a una cuenta que acabás de dejar. La corrida completa ronda los **55 logins** con ráfagas peores que una vuelta. Espaciá los cortes del hito que los motiva; si te bloquea, esperá dos minutos y no insistas.
 
 ---
 
@@ -234,7 +236,8 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
 - **L2.** Sobre la mordedura de Noelí: **verificar que la observación antirrábica arrancó sola**. No busques un botón de "iniciar": no existe, y su ausencia **no es un hallazgo**. El sistema abre la observación en el mismo momento en que el dueño reporta la mordedura (N2). Lo que sí se mide acá: ¿te enteraste vos, o la encontraste porque fuiste a buscarla? Entrá por `/gob/acciones` ("Acciones que vencen"), que es el camino navegable real, y anotá cuántos saltos te costó llegar.
 - **L3.** Generar el **PDF de exportación MPF** de un caso de maltrato.
 - **L4.** Armar un **operativo de alcance** (lista + recordatorio) sin enviar masivos.
-- **L5.** Cerrar un caso y verificar que sale de la cola. Incluí el **cierre de la observación antirrábica** de N2 si sigue abierta — ese sí tiene botón.
+- **L5.** Cerrar un caso y verificar que sale de la cola.
+- **L5b.** Intentar **cerrar la observación antirrábica** de N2. Entrá por `/gob/acciones`, que es donde el producto te la ofrece. **Sabemos que vas a chocar contra una pared** y queremos tu relato exacto de qué pasó: el botón "Cerrar" te manda a `/admin/observaciones/...`, y el layout de `/admin` sólo admite rol admin — aunque la página de destino sí admite gobierno. **Esto es un hallazgo del producto, no un error tuyo.** Lo que medimos: ¿te explica algo, o te escupe a la home sin decir nada? Anotalo y seguí.
 - **L6.** El extremo: **ejecutar un decomiso** en `/gob/decomisos/nuevo`, con sus adjuntos obligatorios, y traspasarlo a una organización. **ESPERA:** que Alejo lo reciba. *(Este hito estaba en la línea de Alejo. Se movió acá porque `requireDecomisoPrincipal` exige rol `govt` o `admin` y ninguna capability de organización lo habilita — Alejo no podía ejecutarlo.)*
 
 ### Línea I — Ignacio, el perdido y el viaje
@@ -274,6 +277,7 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
 
 **En cada vuelta, lo primero es mirar sus colas.**
 
+- **A-0.** **Primero de todo, en la primera vuelta:** aprobar el pedido de `appointment.manage` de Lilian en `/org/[orgToken]/admin/permisos`. Sin esto, la línea de turnos entera (I6, I7, V1) queda bloqueada — vos sos el único con esa capacidad y A-4 te prohíbe usarla. Anotá si te queda claro **qué habilita** el permiso que estás aprobando.
 - **A-1.** En el refugio: **ingreso** de un animal `CIU-`, publicarlo en adopción.
 - **A-2.** Resolver la postulación de Graciela y **finalizar la adopción**.
 - **A-3.** Proponerle el **tránsito** a Noelí.
@@ -285,7 +289,8 @@ En **cada vuelta**: entrar a `/gob/vigilancia`, `/gob/vigilancia/brotes`, `/gob/
 
 ### Línea V — Lilian, la que firma
 
-- **V1.** **Atender y firmar** la antirrábica de Ignacio (turno agendado). Es una sola acción, no dos: acá se decide si el evento queda con firma profesional. Verificá después, en la libreta, que dice quién firmó.
+- **V0.** **Pedir el permiso que te falta.** `appointment.manage` **no** viene con el rol de veterinaria: se gana por el flujo de aprobación (decisión de spec D8). Sin él ni siquiera vas a ver "Agenda" en el menú. Pedilo desde el portal de la clínica. **ESPERA:** que Alejo lo apruebe (A-0). Lo que se mide acá, y vale por sí solo: cuando te falta un permiso, **¿el producto te dice cuál te falta y cómo pedirlo, o simplemente desaparece la pantalla?**
+- **V1.** **Atender y firmar** la antirrábica de Ignacio (turno agendado). Es una sola acción, no dos: acá se decide si el evento queda con firma profesional. Verificá después, en la libreta, **el chip de autor**: copiá su texto literal. Debería nombrar tu matrícula, no a la clínica.
 - **V2.** Firmar un **microchip** en otro animal.
 - **V3.** El extremo: intentar firmar algo **fuera de su jurisdicción o sin permiso**, y anotar qué le dice el sistema.
 
@@ -347,11 +352,26 @@ Además de la línea del hito, un bloque:
 [HALLAZGO] <id del hito>
 Lente:        L1 claridad | L2 unificación | L3 seguimiento | L4 consistencia | L5 confianza
 Dónde:        <la pantalla, como la nombrarías vos>
+URL:          <la dirección exacta>
+Hora ART:     <HH:MM>
+Cuenta:       <con cuál estabas>
+OBSERVACIÓN:  <sólo lo que viste en pantalla. Sin causas.>
+HIPÓTESIS:    <por qué creés que pasa — o "ninguna". Va SIEMPRE separado.>
+SUGERENCIA:   <qué harías — o "ninguna">
 Qué esperaba: 
-Qué pasó:     
 Cuánto frenó: me trabó | dudé | sólo me molestó
 Reproducir:   <pasos exactos>
 ```
+
+**Los tres campos del medio no son burocracia.** La corrida anterior de un
+agente sobre este producto emitió cuatro hallazgos con excelente observación y
+diagnóstico equivocado — uno de ellos reportó como 404 lo que era un 200 con el
+boundary renderizado, y su arreglo habría roto dos rutas. La observación casi
+siempre es correcta; la causa casi nunca. Separalas y las dos sirven.
+
+**Y no tenés SQL ni API**, así que todo lo que digas sobre causas es hipótesis
+por construcción. Marcala como tal y nadie va a actuar sobre ella como si fuera
+un hecho.
 
 Si no sabés qué lente es, ponelo igual y escribí `Lente: no sé`. **Nunca dejes de reportar algo porque no encaja.**
 
@@ -371,6 +391,7 @@ Eso es lo que hace visible el comportamiento que el test busca medir: **cuánto 
 4. **Tabla de todo lo creado `CIU-`**: tipo, nombre, token, cuenta creadora, hito que lo creó.
 5. **El antes y el después de admin y de Lucas**: qué mostraban al empezar y al terminar, y si la diferencia se corresponde con lo que ocurrió.
 6. **Lo que no pudiste probar y por qué.** Vale tanto como un hallazgo.
+7. **"Verificado y limpio"** — qué miraste que **sí** funcionó, y cómo lo comprobaste. **Esta sección es obligatoria y es la que hace que un informe sin hallazgos signifique algo.** Sin ella, "no encontré nada" y "no miré" se escriben igual.
 
 ### Las tres preguntas del cierre
 
