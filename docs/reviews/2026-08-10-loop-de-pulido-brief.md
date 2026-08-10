@@ -269,11 +269,24 @@ defecto que existía para atrapar. Ahora prohíbe la RUTA, no sus grafías:
 enumerar la ruta es exhaustivo, enumerar las maneras de escribirla no lo es
 nunca.
 
-| Corrida de CI | Fallas |
-|---|---|
-| Antes | 45 |
-| Tras la primera vuelta | 15 |
-| Tras la segunda | pendiente de confirmar en CI |
+| Corrida de CI | Fallas | Duración |
+|---|---|---|
+| Antes | 45 | 29,6 min |
+| Tras la primera vuelta (la sesión) | 15 | 16,2 min |
+| Tras la segunda (el literal de regex) | 2 | 8,2 min |
+| Tras la etiqueta de especie | **0 · 183 pasan** | **7,6 min** |
+
+La duración cuenta una parte de la historia por su cuenta: la suite tardaba
+cuatro veces más porque decenas de tests quemaban su timeout de 20s esperando
+una sesión que nunca existió.
+
+**Las dos últimas no eran el login.** El 2026-08-09 se unificó la etiqueta de
+especie a "Perro" y "Cobayo" a secas —decisión tuya: el desdoblamiento en un
+selector de ESPECIE es un error de categoría— y dos specs se quedaron con el
+literal `/perro\/a/i` escrito a mano. No fallaban ruidosamente: colgaban 15s
+esperando un botón que ya no se llama así, y con eso se caía el alta de mascota
+entera. **Que es el hito 1 del guion de Cowork**, o sea lo primero que un tester
+iba a tocar. Ahora leen `speciesLabel("dog")` de la única fuente.
 
 Dos hallazgos más del mismo barrido: `landing-signin-reachable` apuntaba a
 `header a[href="/login"]`, un selector que desde la mudanza no matchea nada; y
@@ -310,3 +323,32 @@ pnpm deploy:staging
 Corre `pnpm verify` entero, después `migrate.ts`, después el deploy. No hay
 migraciones nuevas pendientes desde `0171`, así que el paso de migración es un
 no-op. Si el deploy muere con un error de Google Fonts, es L-21: reintentá.
+
+Verificado sobre el staging actual antes de escribir esto: las siete rutas
+públicas del guion en 200, y el elenco de demo intacto —`DIM-PAMP-0001`,
+`DIM-DEMO-0001/2/3` responden 200. El 308 de `/login` funciona también en
+producción.
+
+---
+
+## 7. El gate, al cierre
+
+CI sobre `92fd4074`:
+
+| Job | Resultado |
+|---|---|
+| Lint, typecheck, build | ✅ |
+| Tests (vitest) | ✅ **1231 pasan · 1 salteado (1232)** — `reported 1232 file(s); 1232 discovered; 0 failing test(s)` |
+| E2E (Playwright) | ✅ **183 pasan, 0 fallan, 7,6 min** |
+| Schema vs migrations drift | ✅ |
+| Dependency audit | ✅ |
+
+Dos notas de honestidad sobre el gate, porque valen más que el tilde verde:
+
+- **El job de build había fallado antes por Google Fonts, no por el código.** La
+  corrida siguiente pasó sin tocar nada. Eso ES L-21, y por eso entró a la cola.
+- **En local, `vitest run` pierde reproduciblemente un archivo** (1230 de 1232)
+  por un worker que muere, con cero tests fallando. En CI (Ubuntu, bootstrap
+  limpio) corren los 1232. El veredicto de conteo de archivos lo da CI, no mi
+  máquina — dos corridas locales, la segunda sin nada compitiendo, dieron lo
+  mismo. No es contención.
