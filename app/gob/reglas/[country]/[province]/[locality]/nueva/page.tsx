@@ -73,7 +73,7 @@ export default async function NewRulePage({
     );
   }
 
-  const jurisdictionLabel = `${country} · ${province ?? "(nivel pais)"} · ${locality ?? "(toda la provincia)"}`;
+  const jurisdictionLabel = `${country} · ${province ?? "(nivel país)"} · ${locality ?? "(toda la provincia)"}`;
   const extraProps = buildCreateFormExtraProps(ruleType, RULE_TYPE_REGISTRY[ruleType].default);
 
   return (

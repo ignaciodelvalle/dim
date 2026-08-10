@@ -159,6 +159,25 @@ export default async function OrgMascotasPage({
             ]}
           />
           <h1 className="text-title font-semibold text-ln-op-ink">Mascotas en custodia</h1>
+          {/* The filter bar and "Registrar ingreso" are built from `sp` and
+              `canIntake`, both resolved BEFORE this load — nothing here depends
+              on the rows that failed. Dropping them left the operator unable to
+              narrow the very query that timed out, or to do the one thing that
+              still works. */}
+          {canIntake && (
+            <Link
+              href={`/org/${orgToken}/intake`}
+              className="inline-block px-4 py-2 rounded-[var(--radius-md)] bg-ln-op-azul text-white text-md font-medium hover:bg-ln-op-azul-700"
+            >
+              Registrar ingreso
+            </Link>
+          )}
+          <OrgMascotasFilterBar
+            basePath={`/org/${orgToken}/mascotas`}
+            query={nameQuery}
+            species={sp.species ?? ""}
+            adoptionEligible={adoptionEligibleFilter}
+          />
           <AnalyticsLoadFallback reason={listLoad.reason} retryHref={`/org/${orgToken}/mascotas`} />
         </div>
       </main>

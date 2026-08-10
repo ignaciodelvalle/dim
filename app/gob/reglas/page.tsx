@@ -103,9 +103,26 @@ async function GovtReglasReadOnlyView({
     ),
   );
 
+  // Hoisted above the load so the degraded branch keeps it: a page that loses
+  // its title tells the operator nothing about WHERE the failure happened.
+  // Same shape as app/gob/censo/CensoScreen.tsx.
+  const header = (
+    <ScreenHeader
+      eyebrow="miMAR Gobierno · Reglas"
+      title="Reglas que aplican a tu jurisdicción"
+      subtitle={
+        <p className="text-md text-ln-op-ink-2">
+          Vista de solo lectura, pre-filtrada a tus localidades asignadas. La administración de
+          reglas la hace el admin nacional.
+        </p>
+      }
+    />
+  );
+
   if (!load.ok) {
     return (
       <div className="space-y-6 max-w-3xl">
+        {header}
         <AnalyticsLoadFallback reason={load.reason} retryHref={analyticsRetryHref("/gob/reglas")} />
       </div>
     );
@@ -114,16 +131,7 @@ async function GovtReglasReadOnlyView({
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <ScreenHeader
-        eyebrow="miMAR Gobierno · Reglas"
-        title="Reglas que aplican a tu jurisdicción"
-        subtitle={
-          <p className="text-md text-ln-op-ink-2">
-            Vista de solo lectura, pre-filtrada a tus localidades asignadas. La administración de
-            reglas la hace el admin nacional.
-          </p>
-        }
-      />
+      {header}
 
       {groups.map((g, idx) => (
         <OpCard key={`${g.scope.province ?? "country"}-${g.scope.locality ?? "all"}-${idx}`}>

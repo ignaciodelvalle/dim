@@ -153,11 +153,26 @@ export default async function MisMascotasPage({
     ]),
   );
   if (!load.ok) {
+    // The CTA and the search box do NOT depend on `load` — the link is static
+    // and `query` comes from searchParams, resolved above. Dropping them left
+    // an owner whose list failed to load with a dead end, unable to do the one
+    // thing that still works: register a pet. Same shell/degraded shape as
+    // app/gob/censo/CensoScreen.tsx.
     return (
       <div className="mx-auto max-w-4xl px-8 py-7 pb-12">
-        <h1 className="m-0 mb-6 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
-          Mis mascotas
-        </h1>
+        <div className="mb-6 flex items-start justify-between gap-4">
+          <h1 className="m-0 font-ln-serif text-4xl font-semibold leading-tight tracking-[-0.02em] text-[var(--color-ln-ink)]">
+            Mis mascotas
+          </h1>
+          <LnButton href="/mis-mascotas/nueva" variant="primary" size="md">
+            + Registrar mascota
+          </LnButton>
+        </div>
+        <div className="mb-4">
+          <Suspense fallback={null}>
+            <PetSearchInput initialQuery={query} />
+          </Suspense>
+        </div>
         <AnalyticsLoadFallback reason={load.reason} retryHref="/mis-mascotas" />
       </div>
     );

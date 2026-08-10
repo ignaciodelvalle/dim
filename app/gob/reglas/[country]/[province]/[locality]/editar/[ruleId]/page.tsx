@@ -56,7 +56,7 @@ export default async function EditRulePage({
 
   const backHref = `${base}/reglas/${encodeURIComponent(country)}/${encodeURIComponent(province ?? "_")}/${encodeURIComponent(locality ?? "_")}`;
 
-  const jurisdictionLabel = `${country} · ${province ?? "(nivel pais)"} · ${locality ?? "(toda la provincia)"}`;
+  const jurisdictionLabel = `${country} · ${province ?? "(nivel país)"} · ${locality ?? "(toda la provincia)"}`;
   const extraProps = buildEditFormExtraProps(ruleType, payload);
 
   return (

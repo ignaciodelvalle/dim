@@ -10,6 +10,7 @@ import Link from "next/link";
 import { OpCard, OpCardBody, OpCardHead, OpCrumbs, OpKpi } from "@/components/ui/dashboard";
 import { computeOccupancyBreakdown, fetchOrgCensus } from "@/lib/analytics/org-census";
 import { requireOrgAccessByToken } from "@/lib/infra/auth-guards";
+import { speciesLabelPlural } from "@/lib/utils/species";
 import { getGrantedCapabilities } from "@/src/modules/organizations/infrastructure/authz-resolver";
 
 // Shelters and rescue networks are the only org types where occupancy is meaningful.
@@ -90,7 +91,7 @@ export default async function OrgCensoPage({
       {/* Census KPI grid */}
       <section aria-label="Ocupación por especie" className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <OpKpi
-          label="Perros"
+          label={speciesLabelPlural("dog")}
           value={kpiValue(breakdown.dogs)}
           tone={kpiTone(breakdown.dogs)}
           href={`/org/${orgToken}/mascotas?species=dog`}
@@ -103,7 +104,7 @@ export default async function OrgCensoPage({
           }}
         />
         <OpKpi
-          label="Gatos"
+          label={speciesLabelPlural("cat")}
           value={kpiValue(breakdown.cats)}
           tone={kpiTone(breakdown.cats)}
           href={`/org/${orgToken}/mascotas?species=cat`}
@@ -116,7 +117,7 @@ export default async function OrgCensoPage({
           }}
         />
         <OpKpi
-          label="Otros"
+          label={speciesLabelPlural("other")}
           value={kpiValue(breakdown.other)}
           tone={kpiTone(breakdown.other)}
           href={`/org/${orgToken}/mascotas?species=other`}
@@ -190,13 +191,15 @@ export default async function OrgCensoPage({
             <tbody className="divide-y divide-ln-op-line">
               {(
                 [
-                  { label: "Perros", slot: breakdown.dogs, species: "dog" },
-                  { label: "Gatos", slot: breakdown.cats, species: "cat" },
-                  { label: "Otros", slot: breakdown.other, species: "other" },
+                  { slot: breakdown.dogs, species: "dog" },
+                  { slot: breakdown.cats, species: "cat" },
+                  { slot: breakdown.other, species: "other" },
                 ] as const
-              ).map(({ label, slot, species }) => (
+              ).map(({ slot, species }) => (
                 <tr key={species}>
-                  <td className="px-4 py-3 font-medium text-ln-op-ink">{label}</td>
+                  <td className="px-4 py-3 font-medium text-ln-op-ink">
+                    {speciesLabelPlural(species)}
+                  </td>
                   <td className="px-4 py-3 text-right tabular-nums">{slot.count}</td>
                   <td className="px-4 py-3 text-right tabular-nums text-ln-op-mute">
                     {slot.capacity ?? "—"}

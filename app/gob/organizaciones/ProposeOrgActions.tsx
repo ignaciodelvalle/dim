@@ -28,7 +28,7 @@ export function ProposeOrgActions({ org }: { org: Org }) {
   if (submitted) {
     return (
       <p className="text-sm text-ln-op-ok">
-        Solicitud creada. Va a aparecer en la cola para revision.
+        Solicitud creada. Va a aparecer en la cola para revisión.
       </p>
     );
   }

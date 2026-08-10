@@ -154,7 +154,7 @@ export default async function DisputeDetailPage({
       <section className="space-y-3">
         <h2 className="text-base font-semibold text-ln-op-ink">Partes</h2>
         {parties.length === 0 ? (
-          <p className="text-md text-ln-op-mute">Sin partes registradas todavia.</p>
+          <p className="text-md text-ln-op-mute">Sin partes registradas todavía.</p>
         ) : (
           <ul className="space-y-2">
             {parties.map(({ party, userProfile, org }) => (
