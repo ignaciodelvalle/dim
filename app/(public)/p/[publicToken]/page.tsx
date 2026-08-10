@@ -62,6 +62,7 @@ import { derivePetSituation } from "@/lib/ui/pet-situation";
 import {
   AR_TIME_ZONE,
   foundPossessivePhrase,
+  lostThirdPersonPhrase,
   normalizePhoneForTel,
   pluralizeEs,
   sexLabel,
@@ -131,7 +132,9 @@ export async function generateMetadata({
   // Budgeted + fail-soft: a DB failure here must not 500 the QR page — the
   // page body has its own degraded render, so metadata degrades to the
   // generic title instead of taking the whole response down with it.
-  let row: { name: string; species: Pet["species"]; status: Pet["status"] } | undefined;
+  let row:
+    | { name: string; species: Pet["species"]; status: Pet["status"]; sex: Pet["sex"] }
+    | undefined;
   try {
     [row] = await withDbBudgetOrThrow(
       (async () =>
@@ -140,6 +143,10 @@ export async function generateMetadata({
             name: pets.name,
             species: pets.species,
             status: pets.status,
+            // The description below states a gendered fact about this animal.
+            // Not selecting sex is what made every lost pet "perdida" in the
+            // OpenGraph card that WhatsApp and Google publish.
+            sex: pets.sex,
           })
           .from(pets)
           .where(publicPetByToken(publicToken))
@@ -156,7 +163,12 @@ export async function generateMetadata({
   const isLost = row.status === "lost";
   const title = isLost ? `SE BUSCA: ${row.name} | miMAR` : `${row.name} | Credencial miMAR`;
   const description = isLost
-    ? `${row.name} (${speciesLabel(row.species)}) está perdida. Si la viste, tocá para avisarle a su familia.`
+    ? // Rewritten around the pronoun instead of split as "lo/la" — the
+      // convention lostThirdPersonPhrase() and its siblings already follow
+      // (lib/utils/format.ts). This card is what WhatsApp and Google publish
+      // for a lost pet, and it said "perdida" for every animal because the
+      // query above did not even select `sex`.
+      `${row.name} (${speciesLabel(row.species)}) ${lostThirdPersonPhrase(row.sex)}. ¿Lo viste? Tocá para avisarle a su familia.`
     : `Credencial pública de ${row.name} (${speciesLabel(row.species)}), verificable por QR.`;
 
   return {

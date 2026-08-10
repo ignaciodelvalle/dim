@@ -15,10 +15,11 @@
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { appointments, db, pets, profiles } from "@/db";
+import { appointments, db, pets } from "@/db";
 import { cancelAppointmentByOrg as _cancelAppointmentByOrg } from "@/src/modules/events/application/attendance/cancel-appointment-by-org";
 import { markAppointmentAttendedWriter as _markAppointmentAttendedWriter } from "@/src/modules/events/application/attendance/mark-appointment-attended";
 import { markAppointmentNoShow as _markAppointmentNoShow } from "@/src/modules/events/application/attendance/mark-appointment-no-show";
+import { resolveSignerProvenance } from "@/src/modules/events/application/attendance/resolve-signer-provenance";
 import {
   type RequireCapabilitySuccess,
   requireCapability,
@@ -81,36 +82,15 @@ export async function markAppointmentAttendedAction(
   if (capResult.error) return { error: capResult.error };
   const cap = capResult as RequireCapabilitySuccess;
 
-  // #43/#45 provenance — bind the tier to the SIGNER's validated matrícula, not
-  // to the membership role and not to the ORGANIZATION's verified flag.
-  //
-  // FIXED 2026-08-10. This read `role === "vet_individual" ? "vet" : "shelter"`
-  // with `authorVerified: cap.organization.verified`, and produced two false
-  // tiers. A volunteer with role `member` in a verified refugio wrote
-  // shelter + verified=true, which computeConfidence resolves to
-  // `institutional_verified` — the HIGHEST tier, above professional_verified —
-  // with no matrícula anywhere in the chain. And an admin can invite anyone as
-  // `vet_individual` with no matrícula check at all, producing
-  // professional_verified labelled on screen as "Verificado por veterinario
-  // matriculado". Both clear the official "al día" gate in
-  // lib/projections/pet-compliance.ts, whose own copy promises the opposite:
-  // "un veterinario matriculado tiene que firmarla".
-  //
-  // The walk-in twin got this right (atender-access.ts:163-176) when #45 closed
-  // the "verificación profesional" theater. The scheduled-appointment path was
-  // the gemelo that escaped.
-  const [signerProfile] = await db
-    .select({ matriculaVerified: profiles.matriculaVerified })
-    .from(profiles)
-    .where(eq(profiles.id, cap.user.id))
-    .limit(1);
-  const matriculaVerified = signerProfile?.matriculaVerified === true;
+  // #43/#45 provenance. See resolve-signer-provenance.ts for what this used to
+  // get wrong and why it is not derived from the membership role.
+  const provenance = await resolveSignerProvenance(cap.user.id, appt.organizationId);
 
   const author = {
     actorUserId: cap.user.id,
-    authorRole: matriculaVerified ? ("vet" as const) : ("shelter" as const),
-    authorOrganizationId: appt.organizationId,
-    authorVerified: matriculaVerified,
+    authorRole: provenance.authorRole,
+    authorOrganizationId: provenance.authorOrganizationId,
+    authorVerified: provenance.authorVerified,
   };
 
   const result = await _markAppointmentAttendedWriter(appt.id, payload, author);

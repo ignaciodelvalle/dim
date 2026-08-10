@@ -12,9 +12,11 @@ const initialState: CapabilityActionState = { error: null };
 export function RequestCapabilityForm({
   capability,
   label,
+  orgToken,
 }: {
   capability: string;
   label: string;
+  orgToken: string;
 }) {
   const [state, formAction, isPending] = useActionState(requestCapabilityAction, initialState);
   const [expanded, setExpanded] = useState(false);
@@ -29,6 +31,9 @@ export function RequestCapabilityForm({
 
   return (
     <form action={formAction} className="flex flex-col gap-2 w-full">
+      {/* The action used to resolve the org from the session default membership;
+          for anyone in two organizations that is a coin flip. Pinned to the URL. */}
+      <input type="hidden" name="orgToken" value={orgToken} />
       <input type="hidden" name="capability" value={capability} />
       <OpTextarea
         name="reason"

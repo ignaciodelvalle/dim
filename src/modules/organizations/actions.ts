@@ -619,9 +619,27 @@ export async function requestCapabilityAction(
   const { isValidCapability } = await import("./domain/capabilities");
   if (!isValidCapability(capabilityRaw)) return { error: "Permiso no reconocido." };
 
-  const memberships = await getActiveMemberships(user.id);
-  const active = memberships[memberships.length - 1];
-  if (!active) return { error: "No pertenecés a ninguna organización activa." };
+  // CONFUSED DEPUTY, fixed 2026-08-10. This used to resolve the organization as
+  // `getActiveMemberships(user.id)` then `memberships[memberships.length - 1]`
+  // — the session-default membership, ignoring the URL entirely. A member of
+  // two organizations standing on /org/{A} filed the capability request against
+  // {B}, with no visible signal, because the UI does not navigate anywhere on
+  // success. It is the same tenant-integrity class that a9450c85 closed for
+  // three sibling actions in this very domain; this one was invisible to
+  // check-confused-deputy precisely BECAUSE it abandoned the org context
+  // completely instead of threading it wrong — the fence looks for an org token
+  // in the signature, and there was none to look at.
+  //
+  // It matters right now, not hypothetically: the demo cast's org admin belongs
+  // to four organizations.
+  const orgToken = String(formData.get("orgToken") ?? "").trim();
+  if (!orgToken) return { error: "No pudimos determinar la organización." };
+
+  const { organization, membership } = await requireOrgAccessByToken(orgToken);
+  const active = {
+    organization,
+    membership,
+  };
 
   const result = await requestCapability(
     {

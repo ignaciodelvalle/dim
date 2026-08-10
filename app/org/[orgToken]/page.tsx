@@ -952,6 +952,7 @@ export default async function OrgDashboardPage({
                           <RequestCapabilityForm
                             capability={entry.capability}
                             label={entry.label}
+                            orgToken={orgToken}
                           />
                         </div>
                       )}
