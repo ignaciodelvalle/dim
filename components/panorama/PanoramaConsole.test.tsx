@@ -1189,13 +1189,17 @@ describe("PanoramaConsole — v2C floating dock (collapsed default, tabs, panes)
     expect(registros).toHaveAttribute("tabindex", "-1");
   });
 
-  it("Registros pane hosts the accessible map table (empty-state copy when no aggregate rows)", () => {
+  it("Registros pane hosts the accessible map table (empty-state copy when no aggregate rows)", async () => {
     renderConsole();
 
     fireEvent.click(screen.getByRole("tab", { name: /Registros/ }));
-    // EMPTY_FC seed → the MapDataTable's honest empty state (not a blank pane).
+    // `findByText`, no `getByText`: desde el Lote E paso 2 la tabla entra por
+    // `next/dynamic` (MapDataTableDynamic), así que el primer frame del pane es
+    // el placeholder y la copia llega cuando resuelve el chunk. Que esta espera
+    // sea necesaria ES la prueba de que la tabla ya no viaja en el bundle de la
+    // ruta — si `getByText` volviera a alcanzar, la frontera se habría perdido.
     expect(
-      screen.getByText("Sin datos por unidad para las capas activas en este alcance."),
+      await screen.findByText("Sin datos por unidad para las capas activas en este alcance."),
     ).toBeVisible();
   });
 

@@ -14,7 +14,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildMapTableCsv } from "@/components/panorama/MapDataTable";
+import { buildMapTableCsv } from "@/components/panorama/map-table-csv";
 import { buildExportFooter } from "@/components/panorama/panorama-export";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import {

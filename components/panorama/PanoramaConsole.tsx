@@ -35,7 +35,6 @@ import { KpiChips } from "@/components/panorama/KpiChips";
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
 import { LegendCaptionBlock } from "@/components/panorama/LegendCaptionBlock";
 import { LegendPill } from "@/components/panorama/LegendPill";
-import { type MapTableRow, useMapTableCsvHref } from "@/components/panorama/MapDataTable";
 import { MapErrorBoundary } from "@/components/panorama/MapErrorBoundary";
 import { MapLegendsDynamic } from "@/components/panorama/MapLegendsDynamic";
 import { ModeSwitcher } from "@/components/panorama/ModeSwitcher";
@@ -73,6 +72,7 @@ import { coalescedGet } from "@/components/panorama/coalesced-get";
 import { buildContextSegments } from "@/components/panorama/context-bar-model";
 import type { GraduatedBin, GraduatedScale } from "@/components/panorama/graduated-scale";
 import { frameHasSuppressedMark } from "@/components/panorama/hatch-pattern";
+import { type MapTableRow, useMapTableCsvHref } from "@/components/panorama/map-table-csv";
 import { pinCitationAsOf } from "@/components/panorama/panorama-export";
 import { buildInformeModel } from "@/components/panorama/panorama-informe";
 import {

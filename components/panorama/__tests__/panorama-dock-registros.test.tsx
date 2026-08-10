@@ -11,7 +11,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import type { MapTableRow } from "@/components/panorama/MapDataTable";
+import type { MapTableRow } from "@/components/panorama/map-table-csv";
 import { buildViewMeta, initialState } from "@/components/panorama/panorama-console-helpers";
 import type { DockRecordSummary } from "@/components/panorama/panorama-map-table";
 import {

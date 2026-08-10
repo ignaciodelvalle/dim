@@ -7,9 +7,9 @@
 // fetching, no component state.
 
 import type { LayerPanelState } from "@/components/panorama/LayerPanel";
-import type { MapTableRow } from "@/components/panorama/MapDataTable";
 import type { ActiveLayer } from "@/components/panorama/SituationalMap";
 import { buildLayerReadout } from "@/components/panorama/map-popup";
+import type { MapTableRow } from "@/components/panorama/map-table-csv";
 import {
   AGGREGATED_POINT_IDS,
   getLayer,

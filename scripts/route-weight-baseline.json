@@ -1,10 +1,10 @@
 {
   "/admin/panorama/page": {
-    "exclusiveBytes": 232580,
-    "reason": "La consola de Panorama es la superficie mas pesada del producto: PanoramaConsole.tsx son ~4.993 lineas en UNA unidad cliente con ~49 useState y sin un solo next/dynamic. Esta ruta se vigila para que el Lote E pueda demostrar que partirla mejoro algo, y para que nadie devuelva peso al bundle sin que se vea. Paso 1 del Lote E (2026-08-10): MapLegends pasó a next/dynamic — 242.526 → 232.580 B, -9.946 B, casi el doble de los -5.500 previstos. Confirmado estructuralmente: el chunk 94868 existe en .next/static/chunks y NO está en el manifiesto de la ruta."
+    "exclusiveBytes": 229571,
+    "reason": "La consola de Panorama es la superficie mas pesada del producto: PanoramaConsole.tsx son ~4.993 lineas en UNA unidad cliente con ~49 useState y sin un solo next/dynamic. Esta ruta se vigila para que el Lote E pueda demostrar que partirla mejoro algo, y para que nadie devuelva peso al bundle sin que se vea. Paso 1 (2026-08-10): MapLegends paso a next/dynamic — 242.526 → 232.580 B, -9.946 B, casi el doble de los -5.500 previstos; chunk 94868 en .next/static/chunks y NO en el manifiesto de la ruta. Paso 2 (2026-08-10): MapDataTable paso a next/dynamic — 232.580 → 229.571 B, -3.009 B, clavado al estimado. Requirio sacar antes el hook del CSV (useMapTableCsvHref) a map-table-csv.ts: la consola lo usa siempre para el boton 'Exportar CSV' de la barra del dock, y mientras vivia en MapDataTable.tsx el modulo seguia enganchado por esa otra punta y el dynamic no habria bajado un byte. Confirmado estructuralmente: el chunk 31078 contiene la copia del estado vacio de la tabla, existe en .next/static/chunks y NO esta en el manifiesto de la ruta. Acumulado del Lote E: -12.955 B."
   },
   "/gob/panorama/page": {
-    "exclusiveBytes": 233196,
-    "reason": "El gemelo de gobierno, y pesa MAS que el de admin. Se vigila explicitamente porque cubrir solo /admin habria sido -otra vez- 'el gemelo se escapa', la categoria de defecto mas repetida de este repo. Ademas es el que de verdad usa un funcionario. Paso 1 del Lote E (2026-08-10): 243.142 → 233.196 B, el mismo -9.946 B que su gemelo."
+    "exclusiveBytes": 230187,
+    "reason": "El gemelo de gobierno, y pesa MAS que el de admin. Se vigila explicitamente porque cubrir solo /admin habria sido -otra vez- 'el gemelo se escapa', la categoria de defecto mas repetida de este repo. Ademas es el que de verdad usa un funcionario. Paso 1 (2026-08-10): 243.142 → 233.196 B. Paso 2 (2026-08-10): 233.196 → 230.187 B, el mismo -3.009 B que su gemelo. Acumulado del Lote E: -12.955 B."
   }
 }

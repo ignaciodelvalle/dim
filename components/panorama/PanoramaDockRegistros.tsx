@@ -18,11 +18,8 @@
 
 import { memo } from "react";
 
-import {
-  MapDataTable,
-  type MapTableRow,
-  type ValueMetric,
-} from "@/components/panorama/MapDataTable";
+import { MapDataTableDynamic } from "@/components/panorama/MapDataTableDynamic";
+import type { MapTableRow, ValueMetric } from "@/components/panorama/map-table-csv";
 import type { DockRecordSummary } from "@/components/panorama/panorama-map-table";
 import type { ViewScopeDescriptor } from "@/lib/ui/view-scope-descriptor";
 
@@ -104,7 +101,7 @@ function PanoramaDockRegistrosImpl({
         </p>
       )}
       {rows.length > 0 && <p className="text-xs font-medium text-ln-op-ink-2">Valor por unidad</p>}
-      <MapDataTable
+      <MapDataTableDynamic
         rows={rows}
         caption={caption}
         filename="panorama-mapa"

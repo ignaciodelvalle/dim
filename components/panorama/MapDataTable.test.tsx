@@ -12,7 +12,8 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { MapDataTable, type MapTableRow, buildMapTableCsv } from "./MapDataTable";
+import { MapDataTable } from "./MapDataTable";
+import { type MapTableRow, buildMapTableCsv } from "./map-table-csv";
 
 afterEach(cleanup);
 

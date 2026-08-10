@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { type MapTableRow, buildMapTableCsv, mapTableValueHeader } from "../MapDataTable";
+import { type MapTableRow, buildMapTableCsv, mapTableValueHeader } from "../map-table-csv";
 
 // Backlog item 10 (2026-07-25 consolidated review): "buildMapTableCsv no
 // exporta gap — para un instrumento cuyo tercer verbo declarado es EXPORTAR".
